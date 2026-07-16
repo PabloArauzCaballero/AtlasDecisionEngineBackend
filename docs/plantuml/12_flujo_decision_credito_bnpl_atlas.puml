@@ -1,0 +1,127 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam titleFontName Arial
+skinparam titleFontSize 20
+skinparam titleFontColor #17365D
+skinparam ArrowColor #355C7D
+skinparam ArrowThickness 1
+skinparam NoteBackgroundColor #FFF7E6
+skinparam NoteBorderColor #D97706
+skinparam NoteFontColor #4A2B0B
+skinparam package {
+  BackgroundColor #F7FAFC
+  BorderColor #6B8EAD
+  FontColor #17365D
+  FontStyle bold
+}
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  HeaderBackgroundColor #EAF2F8
+}
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam database {
+  BackgroundColor #F4F9FD
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam actor {
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam activity {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  DiamondBackgroundColor #FFF7E6
+  DiamondBorderColor #D97706
+}
+title ATLAS — Flujo de decisión de crédito BNPL explicable
+start
+:Recibir solicitud de evaluación;
+:Validar esquema, tenant, request_id e idempotencia;
+:Resolver versión activa de la estrategia;
+:Resolver variables KYC, crédito, comportamiento y contexto;
+
+if (¿Variables obligatorias válidas?) then (sí)
+else (no)
+  :Resultado NO_DECISION;
+  :Reason code VARIABLE_MISSING_OR_INVALID;
+  :Registrar trazabilidad;
+  stop
+endif
+
+if (¿KYC y consentimiento vigentes?) then (sí)
+else (no)
+  :Rechazar o solicitar completar onboarding;
+  :Reason code KYC_OR_CONSENT_INCOMPLETE;
+  :Registrar decisión;
+  stop
+endif
+
+if (¿Regla dura de fraude activada?) then (sí)
+  if (¿Bloqueo concluyente?) then (sí)
+    :Resultado DECLINED_FRAUD;
+    :Generar reason codes internos y públicos;
+    :Registrar evidencia mínima necesaria;
+    stop
+  else (revisión)
+    :Resultado MANUAL_REVIEW;
+    :Crear caso operativo con SLA;
+    stop
+  endif
+else (no)
+endif
+
+:Evaluar reglas de elegibilidad;
+if (¿Cumple política mínima?) then (sí)
+else (no)
+  :Resultado DECLINED_POLICY;
+  :Generar adverse action reason codes;
+  stop
+endif
+
+:Calcular score o banda de riesgo;
+:Aplicar política de cutoffs por segmento;
+
+if (¿Riesgo aceptable?) then (sí)
+  :Calcular línea inicial y monto disponible;
+  :Aplicar límites por exposición, comercio y producto;
+  if (¿Caso frontera o inconsistencia?) then (sí)
+    :Resultado MANUAL_REVIEW;
+  else (no)
+    :Resultado APPROVED;
+    :Asignar línea y condiciones del producto;
+  endif
+else (no)
+  :Resultado DECLINED_RISK;
+endif
+
+:Generar explicación estructurada;
+:Guardar versión, variables, ruta, score, límite y reason codes;
+:Responder al backend externo;
+stop
+
+note right
+  La decisión de crédito es distinta del flujo de pago.
+  Una vez aprobada la compra, el modelo estándar de ATLAS
+  contempla pago inicial del 60% y el 40% restante en 3 cuotas,
+  con 14 días entre cuotas, según la política de producto vigente.
+end note
+@enduml

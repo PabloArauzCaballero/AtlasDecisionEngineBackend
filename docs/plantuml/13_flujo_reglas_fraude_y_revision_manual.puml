@@ -1,0 +1,98 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam titleFontName Arial
+skinparam titleFontSize 20
+skinparam titleFontColor #17365D
+skinparam ArrowColor #355C7D
+skinparam ArrowThickness 1
+skinparam NoteBackgroundColor #FFF7E6
+skinparam NoteBorderColor #D97706
+skinparam NoteFontColor #4A2B0B
+skinparam package {
+  BackgroundColor #F7FAFC
+  BorderColor #6B8EAD
+  FontColor #17365D
+  FontStyle bold
+}
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  HeaderBackgroundColor #EAF2F8
+}
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam database {
+  BackgroundColor #F4F9FD
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam actor {
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam activity {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  DiamondBackgroundColor #FFF7E6
+  DiamondBorderColor #D97706
+}
+title ATLAS — Flujo de reglas de fraude con revisión manual controlada
+start
+:Recibir evento o solicitud;
+:Normalizar señales autorizadas;
+:Verificar calidad, frescura y procedencia;
+
+fork
+  :Evaluar identidad y consistencia KYC;
+fork again
+  :Evaluar dispositivo y sesión;
+fork again
+  :Evaluar velocidad de intentos y transacciones;
+fork again
+  :Evaluar comercio, monto y patrón contextual;
+fork again
+  :Evaluar listas internas permitidas;
+end fork
+
+:Consolidar reglas disparadas y severidades;
+
+if (¿Señal crítica confirmada?) then (sí)
+  :BLOCK;
+  :Congelar operación afectada según política;
+  :Emitir reason code interno;
+  :Crear alerta prioritaria;
+elseif (¿Riesgo ambiguo o evidencia incompleta?) then (sí)
+  :MANUAL_REVIEW;
+  :Crear caso con evidencia mínima y SLA;
+  :Ocultar datos no necesarios al revisor;
+else (no)
+  :ALLOW;
+  :Continuar con estrategia de crédito;
+endif
+
+:Persistir reglas activadas, versión y explicación;
+:Publicar métricas por regla, canal y comercio;
+stop
+
+note bottom
+  Ninguna regla debe depender de datos no declarados
+  en el catálogo de variables ni de información recolectada
+  sin base de uso y política de retención definida.
+end note
+@enduml

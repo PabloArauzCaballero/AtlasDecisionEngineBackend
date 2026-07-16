@@ -1,0 +1,113 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam titleFontName Arial
+skinparam titleFontSize 20
+skinparam titleFontColor #17365D
+skinparam ArrowColor #355C7D
+skinparam ArrowThickness 1
+skinparam NoteBackgroundColor #FFF7E6
+skinparam NoteBorderColor #D97706
+skinparam NoteFontColor #4A2B0B
+skinparam package {
+  BackgroundColor #F7FAFC
+  BorderColor #6B8EAD
+  FontColor #17365D
+  FontStyle bold
+}
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  HeaderBackgroundColor #EAF2F8
+}
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam database {
+  BackgroundColor #F4F9FD
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam actor {
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam activity {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  DiamondBackgroundColor #FFF7E6
+  DiamondBorderColor #D97706
+}
+title ATLAS — Secuencia de aprobación, promoción y rollback seguro
+autonumber
+
+actor "Risk Analyst" as RA
+actor "QA Analyst" as QA
+actor "Compliance" as CO
+actor "Platform Admin" as PA
+participant "Decision API" as API
+participant "Approval Service" as APS
+participant "Test Runner" as TR
+participant "Deployment Service" as DS
+participant "Runtime Binding" as RB
+participant "Audit Service" as AUD
+participant "Monitoring" as MON
+
+RA -> API : submitForReview(versionId)
+API -> TR : verifyBlockingTests(versionId)
+TR --> API : pass + coverage evidence
+API -> APS : createApprovalRequest(versionId, evidence)
+APS -> APS : enforce author != approver
+APS --> RA : request created
+
+QA -> APS : approve QA evidence
+APS -> AUD : record approval decision
+CO -> APS : approve compliance step
+APS -> AUD : record approval decision
+APS -> APS : evaluate workflow completion
+APS --> API : APPROVED + immutable checksum
+
+PA -> API : deploy(versionId, TEST)
+API -> DS : deploy compiled artifact to TEST
+DS -> DS : health checks + smoke + replay
+DS -> AUD : record deployment TEST
+DS --> API : TEST_ACTIVE
+
+PA -> API : promote(versionId, PROD, window)
+API -> APS : verify approvals still valid
+APS --> API : valid
+API -> DS : prepareProductionDeployment()
+DS -> RB : compare-and-swap active binding
+
+alt activación atómica exitosa
+  RB --> DS : new binding active, previous retained
+  DS -> AUD : record PROD deployment and previous id
+  DS --> API : PROD_ACTIVE
+  API --> PA : promoción completada
+else conflicto o health check fallido
+  RB --> DS : activation rejected
+  DS -> AUD : record failed deployment
+  DS --> API : deployment failed, previous remains active
+  API --> PA : error sin impacto productivo
+end
+
+MON -> DS : incident / threshold breach
+DS -> RB : rollbackTo(previousDeploymentId)
+RB --> DS : previous binding restored
+DS -> AUD : record rollback, reason and actor
+DS --> MON : rollback completed
+@enduml

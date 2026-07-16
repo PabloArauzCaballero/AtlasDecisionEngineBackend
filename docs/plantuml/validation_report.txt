@@ -1,0 +1,27 @@
+ATLAS PUML static structural validation
+Files: 22
+Overall: OK
+Scope: block balance, diagram delimiters and common activity constructs.
+
+01_modelo_relacional_motor_decision_atlas.puml: OK | single_startuml=True, single_enduml=True, proper_line_end=True, no_concatenated_blocks=True, structural_braces=True, if_blocks=True, repeat_blocks=True, fork_blocks=True, nonempty=True
+02_modelo_clases_dominio_y_servicios.puml: OK | single_startuml=True, single_enduml=True, proper_line_end=True, no_concatenated_blocks=True, structural_braces=True, if_blocks=True, repeat_blocks=True, fork_blocks=True, nonempty=True
+03_casos_uso_detallados_y_segregacion.puml: OK | single_startuml=True, single_enduml=True, proper_line_end=True, no_concatenated_blocks=True, structural_braces=True, if_blocks=True, repeat_blocks=True, fork_blocks=True, nonempty=True
+04_actividad_ciclo_vida_end_to_end.puml: OK | single_startuml=True, single_enduml=True, proper_line_end=True, no_concatenated_blocks=True, structural_braces=True, if_blocks=True, repeat_blocks=True, fork_blocks=True, nonempty=True
+05_estados_version_artefacto.puml: OK | single_startuml=True, single_enduml=True, proper_line_end=True, no_concatenated_blocks=True, structural_braces=True, if_blocks=True, repeat_blocks=True, fork_blocks=True, nonempty=True
+06_secuencia_edicion_validacion_pruebas.puml: OK | single_startuml=True, single_enduml=True, proper_line_end=True, no_concatenated_blocks=True, structural_braces=True, if_blocks=True, repeat_blocks=True, fork_blocks=True, nonempty=True
+07_secuencia_ejecucion_online_y_explicacion.puml: OK | single_startuml=True, single_enduml=True, proper_line_end=True, no_concatenated_blocks=True, structural_braces=True, if_blocks=True, repeat_blocks=True, fork_blocks=True, nonempty=True
+08_secuencia_aprobacion_despliegue_rollback.puml: OK | single_startuml=True, single_enduml=True, proper_line_end=True, no_concatenated_blocks=True, structural_braces=True, if_blocks=True, repeat_blocks=True, fork_blocks=True, nonempty=True
+09_componentes_control_plane_data_plane.puml: OK | single_startuml=True, single_enduml=True, proper_line_end=True, no_concatenated_blocks=True, structural_braces=True, if_blocks=True, repeat_blocks=True, fork_blocks=True, nonempty=True
+10_despliegue_infraestructura_segura.puml: OK | single_startuml=True, single_enduml=True, proper_line_end=True, no_concatenated_blocks=True, structural_braces=True, if_blocks=True, repeat_blocks=True, fork_blocks=True, nonempty=True
+11_contexto_sistema_e_integraciones.puml: OK | single_startuml=True, single_enduml=True, proper_line_end=True, no_concatenated_blocks=True, structural_braces=True, if_blocks=True, repeat_blocks=True, fork_blocks=True, nonempty=True
+12_flujo_decision_credito_bnpl_atlas.puml: OK | single_startuml=True, single_enduml=True, proper_line_end=True, no_concatenated_blocks=True, structural_braces=True, if_blocks=True, repeat_blocks=True, fork_blocks=True, nonempty=True
+13_flujo_reglas_fraude_y_revision_manual.puml: OK | single_startuml=True, single_enduml=True, proper_line_end=True, no_concatenated_blocks=True, structural_braces=True, if_blocks=True, repeat_blocks=True, fork_blocks=True, nonempty=True
+14_gobierno_aprobacion_con_swimlanes.puml: OK | single_startuml=True, single_enduml=True, proper_line_end=True, no_concatenated_blocks=True, structural_braces=True, if_blocks=True, repeat_blocks=True, fork_blocks=True, nonempty=True
+15_test_bench_determinista_cobertura_regresion.puml: OK | single_startuml=True, single_enduml=True, proper_line_end=True, no_concatenated_blocks=True, structural_braces=True, if_blocks=True, repeat_blocks=True, fork_blocks=True, nonempty=True
+16_catalogo_variables_linaje_y_snapshot.puml: OK | single_startuml=True, single_enduml=True, proper_line_end=True, no_concatenated_blocks=True, structural_braces=True, if_blocks=True, repeat_blocks=True, fork_blocks=True, nonempty=True
+17_auditoria_explicabilidad_observabilidad.puml: OK | single_startuml=True, single_enduml=True, proper_line_end=True, no_concatenated_blocks=True, structural_braces=True, if_blocks=True, repeat_blocks=True, fork_blocks=True, nonempty=True
+18_seguridad_rbac_multitenancy.puml: OK | single_startuml=True, single_enduml=True, proper_line_end=True, no_concatenated_blocks=True, structural_braces=True, if_blocks=True, repeat_blocks=True, fork_blocks=True, nonempty=True
+19_privacidad_retencion_y_minimizacion.puml: OK | single_startuml=True, single_enduml=True, proper_line_end=True, no_concatenated_blocks=True, structural_braces=True, if_blocks=True, repeat_blocks=True, fork_blocks=True, nonempty=True
+20_evolucion_reglas_scorecards_ml.puml: OK | single_startuml=True, single_enduml=True, proper_line_end=True, no_concatenated_blocks=True, structural_braces=True, if_blocks=True, repeat_blocks=True, fork_blocks=True, nonempty=True
+21_mapa_trazabilidad_requisitos_a_evidencia.puml: OK | single_startuml=True, single_enduml=True, proper_line_end=True, no_concatenated_blocks=True, structural_braces=True, if_blocks=True, repeat_blocks=True, fork_blocks=True, nonempty=True
+22_paquetes_backend_y_limites_modulares.puml: OK | single_startuml=True, single_enduml=True, proper_line_end=True, no_concatenated_blocks=True, structural_braces=True, if_blocks=True, repeat_blocks=True, fork_blocks=True, nonempty=True

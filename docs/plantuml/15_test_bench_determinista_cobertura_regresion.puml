@@ -1,0 +1,107 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam titleFontName Arial
+skinparam titleFontSize 20
+skinparam titleFontColor #17365D
+skinparam ArrowColor #355C7D
+skinparam ArrowThickness 1
+skinparam NoteBackgroundColor #FFF7E6
+skinparam NoteBorderColor #D97706
+skinparam NoteFontColor #4A2B0B
+skinparam package {
+  BackgroundColor #F7FAFC
+  BorderColor #6B8EAD
+  FontColor #17365D
+  FontStyle bold
+}
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  HeaderBackgroundColor #EAF2F8
+}
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam database {
+  BackgroundColor #F4F9FD
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam actor {
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam activity {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  DiamondBackgroundColor #FFF7E6
+  DiamondBorderColor #D97706
+}
+title ATLAS — Test Bench determinista, cobertura y regresión
+start
+:Seleccionar versión compilada;
+:Seleccionar suite y baseline de comparación;
+:Congelar dataset sintético/versionado;
+
+repeat
+  :Cargar caso de prueba;
+  :Validar input contra contrato de variables;
+  :Ejecutar artefacto sin dependencias externas no simuladas;
+  :Capturar output, ruta, reglas y tiempos;
+
+  fork
+    :Validar resultado final;
+  fork again
+    :Validar score, banda y límite;
+  fork again
+    :Validar reason codes;
+  fork again
+    :Validar ruta y reglas disparadas;
+  fork again
+    :Validar ausencia de reglas prohibidas;
+  end fork
+
+  if (¿Todas las aserciones pasan?) then (sí)
+    :Marcar caso PASS;
+  else (no)
+    :Marcar caso FAIL con diff estructurado;
+  endif
+repeat while (¿Quedan casos?) is (sí) not (no)
+
+:Calcular cobertura de nodos;
+:Calcular cobertura de aristas;
+:Calcular cobertura de rutas terminales;
+:Identificar reglas nunca ejecutadas;
+:Comparar con versión baseline;
+:Medir cambios de aprobación/rechazo/revisión;
+
+if (¿Fallas bloqueantes o cobertura insuficiente?) then (sí)
+  :Bloquear promoción;
+  :Emitir reporte reproducible;
+else (no)
+  :Firmar evidencia QA;
+  :Habilitar solicitud de aprobación;
+endif
+stop
+
+note right
+  Los resultados de ejecución no se guardan
+  dentro de la definición del caso. Cada corrida
+  conserva su propio historial y evidencia.
+end note
+@enduml

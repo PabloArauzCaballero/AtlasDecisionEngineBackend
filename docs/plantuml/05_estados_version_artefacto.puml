@@ -1,0 +1,123 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam titleFontName Arial
+skinparam titleFontSize 20
+skinparam titleFontColor #17365D
+skinparam ArrowColor #355C7D
+skinparam ArrowThickness 1
+skinparam NoteBackgroundColor #FFF7E6
+skinparam NoteBorderColor #D97706
+skinparam NoteFontColor #4A2B0B
+skinparam package {
+  BackgroundColor #F7FAFC
+  BorderColor #6B8EAD
+  FontColor #17365D
+  FontStyle bold
+}
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  HeaderBackgroundColor #EAF2F8
+}
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam database {
+  BackgroundColor #F4F9FD
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam actor {
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam activity {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  DiamondBackgroundColor #FFF7E6
+  DiamondBorderColor #D97706
+}
+title ATLAS — Máquina de estados de la versión del artefacto
+hide empty description
+
+[*] --> Draft : create / clone
+
+state Draft
+state ValidationFailed
+state Validated
+state Compiled
+state InReview
+state ChangesRequested
+state Approved
+state DeployedToSandbox
+state DeployedToTest
+state DeployedToProd
+state Suspended
+state Rejected
+state Retired
+
+Draft --> ValidationFailed : validate [errors]
+ValidationFailed --> Draft : edit
+Draft --> Validated : validate [ok]
+Validated --> Draft : edit invalidates checksum
+Validated --> Compiled : compile [deterministic]
+Compiled --> Validated : compiler_error
+Compiled --> InReview : submit_for_review
+[tests passed]
+
+InReview --> ChangesRequested : request_changes
+InReview --> Rejected : reject
+InReview --> Approved : approve
+[SoD + required approvals]
+ChangesRequested --> Draft : clone_or_reopen
+Rejected --> Draft : clone_as_new_version
+
+Approved --> DeployedToSandbox : deploy_sandbox
+Approved --> DeployedToTest : deploy_test
+DeployedToSandbox --> DeployedToTest : promote_test
+DeployedToTest --> Approved : rollback_test
+DeployedToTest --> DeployedToProd : promote_prod
+[smoke passed]
+
+DeployedToProd --> Suspended : suspend
+[incident/drift]
+Suspended --> DeployedToProd : resume
+[re-authorized]
+Suspended --> Approved : rollback_activation
+DeployedToProd --> Approved : rollback_to_previous
+
+Approved --> Retired : retire_without_prod
+DeployedToProd --> Retired : retire_after_replacement
+Rejected --> Retired : archive
+Retired --> [*]
+
+note right of Draft
+  Único estado editable.
+end note
+
+note right of Approved
+  Inmutable. Cualquier cambio
+  genera una nueva versión.
+end note
+
+note bottom of DeployedToProd
+  El despliegue tiene vigencia temporal,
+  binding activo y referencia exacta al
+  artefacto compilado.
+end note
+@enduml

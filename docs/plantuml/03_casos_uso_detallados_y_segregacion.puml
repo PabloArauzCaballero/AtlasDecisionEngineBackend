@@ -1,0 +1,201 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam titleFontName Arial
+skinparam titleFontSize 20
+skinparam titleFontColor #17365D
+skinparam ArrowColor #355C7D
+skinparam ArrowThickness 1
+skinparam NoteBackgroundColor #FFF7E6
+skinparam NoteBorderColor #D97706
+skinparam NoteFontColor #4A2B0B
+skinparam package {
+  BackgroundColor #F7FAFC
+  BorderColor #6B8EAD
+  FontColor #17365D
+  FontStyle bold
+}
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  HeaderBackgroundColor #EAF2F8
+}
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam database {
+  BackgroundColor #F4F9FD
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam actor {
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam activity {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  DiamondBackgroundColor #FFF7E6
+  DiamondBorderColor #D97706
+}
+title ATLAS — Casos de uso del motor de decisión con segregación de funciones
+left to right direction
+
+actor "Risk Analyst" as RA
+actor "Fraud Analyst" as FA
+actor "QA Analyst" as QA
+actor "Compliance Officer" as CO
+actor "Business Approver" as BA
+actor "Platform Admin" as PA
+actor "Independent Auditor" as AU
+actor "Operations Support" as OS
+actor "Backend Externo" as BE
+actor "BI / Monitoring" as BI
+
+rectangle "ATLAS Decision Platform" {
+  package "Diseño" {
+    usecase "Crear artefacto" as UC01
+    usecase "Clonar versión" as UC02
+    usecase "Editar flujo visual" as UC03
+    usecase "Definir condiciones" as UC04
+    usecase "Definir acciones y reason codes" as UC05
+    usecase "Gestionar dependencias de variables" as UC06
+    usecase "Comparar versiones" as UC07
+  }
+
+  package "Validación y pruebas" {
+    usecase "Validar topología y semántica" as UC08
+    usecase "Compilar versión" as UC09
+    usecase "Crear suite de pruebas" as UC10
+    usecase "Ejecutar pruebas deterministas" as UC11
+    usecase "Ejecutar regresión masiva" as UC12
+    usecase "Medir cobertura de nodos/rutas" as UC13
+    usecase "Bloquear promoción si falla QA" as UC14
+  }
+
+  package "Gobierno" {
+    usecase "Solicitar revisión" as UC15
+    usecase "Aprobar desde Riesgo" as UC16
+    usecase "Aprobar desde Compliance" as UC17
+    usecase "Adjuntar evidencia" as UC18
+    usecase "Rechazar y pedir cambios" as UC19
+    usecase "Verificar segregación de funciones" as UC20
+  }
+
+  package "Despliegue" {
+    usecase "Desplegar a Sandbox" as UC21
+    usecase "Desplegar a Test" as UC22
+    usecase "Promover a Producción" as UC23
+    usecase "Configurar champion/challenger" as UC24
+    usecase "Rollback de despliegue" as UC25
+    usecase "Retirar versión" as UC26
+  }
+
+  package "Runtime y operación" {
+    usecase "Sincronizar contrato de variables" as UC27
+    usecase "Ejecutar decisión online" as UC28
+    usecase "Resolver variables externas" as UC29
+    usecase "Generar explicación y reason codes" as UC30
+    usecase "Reprocesar ejecución histórica" as UC31
+    usecase "Atender revisión manual" as UC32
+  }
+
+  package "Auditoría y monitoreo" {
+    usecase "Consultar trazabilidad completa" as UC33
+    usecase "Exportar evidencia de auditoría" as UC34
+    usecase "Monitorear aprobación, mora y fraude" as UC35
+    usecase "Detectar drift operativo" as UC36
+    usecase "Reconciliar métricas por versión" as UC37
+  }
+}
+
+RA --> UC01
+RA --> UC02
+RA --> UC03
+RA --> UC04
+RA --> UC05
+RA --> UC06
+RA --> UC07
+RA --> UC15
+RA --> UC16
+RA --> UC31
+
+FA --> UC03
+FA --> UC04
+FA --> UC05
+FA --> UC16
+FA --> UC35
+
+QA --> UC10
+QA --> UC11
+QA --> UC12
+QA --> UC13
+QA --> UC14
+QA --> UC22
+
+CO --> UC17
+CO --> UC18
+CO --> UC19
+CO --> UC33
+CO --> UC34
+
+BA --> UC16
+BA --> UC18
+BA --> UC19
+
+PA --> UC21
+PA --> UC22
+PA --> UC23
+PA --> UC24
+PA --> UC25
+PA --> UC26
+
+AU --> UC33
+AU --> UC34
+OS --> UC32
+OS --> UC33
+BE --> UC27
+BE --> UC28
+BI --> UC35
+BI --> UC36
+BI --> UC37
+
+UC03 ..> UC04 : <<include>>
+UC03 ..> UC05 : <<include>>
+UC08 ..> UC06 : <<include>>
+UC09 ..> UC08 : <<include>>
+UC11 ..> UC09 : <<include>>
+UC12 ..> UC11 : <<include>>
+UC13 ..> UC11 : <<include>>
+UC15 ..> UC08 : <<include>>
+UC15 ..> UC11 : <<include>>
+UC16 ..> UC20 : <<include>>
+UC17 ..> UC20 : <<include>>
+UC23 ..> UC16 : <<include>>
+UC23 ..> UC17 : <<include>>
+UC23 ..> UC14 : <<include>>
+UC25 ..> UC33 : <<include>>
+UC28 ..> UC29 : <<include>>
+UC28 ..> UC30 : <<include>>
+UC31 ..> UC33 : <<include>>
+UC36 ..> UC35 : <<extend>>
+
+note right of UC20
+  El autor de una versión no puede
+  aprobarla ni desplegarla por sí solo.
+end note
+@enduml

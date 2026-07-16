@@ -1,0 +1,132 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam titleFontName Arial
+skinparam titleFontSize 20
+skinparam titleFontColor #17365D
+skinparam ArrowColor #355C7D
+skinparam ArrowThickness 1
+skinparam NoteBackgroundColor #FFF7E6
+skinparam NoteBorderColor #D97706
+skinparam NoteFontColor #4A2B0B
+skinparam package {
+  BackgroundColor #F7FAFC
+  BorderColor #6B8EAD
+  FontColor #17365D
+  FontStyle bold
+}
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  HeaderBackgroundColor #EAF2F8
+}
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam database {
+  BackgroundColor #F4F9FD
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam actor {
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam activity {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  DiamondBackgroundColor #FFF7E6
+  DiamondBorderColor #D97706
+}
+title ATLAS — Seguridad, RBAC, multitenancy y segregación
+left to right direction
+hide methods
+
+class Principal <<identity>> {
+  +principal_id: varchar
+  +principal_type: USER/SERVICE
+  +status: varchar
+}
+
+class TenantScope <<scope>> {
+  +tenant_id: bigint
+  +environment_scope: varchar
+}
+
+class Role <<rbac>> {
+  +role_code: varchar
+  +name: varchar
+}
+
+class Permission <<rbac>> {
+  +resource: varchar
+  +action: varchar
+  +condition_json: jsonb
+}
+
+class RoleAssignment <<rbac>> {
+  +effective_from: timestamptz
+  +effective_to: timestamptz
+}
+
+class ApprovalPolicy <<governance>> {
+  +artifact_type: varchar
+  +environment: varchar
+  +required_roles: jsonb
+  +min_approvals: int
+  +forbid_self_approval: boolean
+}
+
+class ServiceCredential <<machine auth>> {
+  +credential_id: varchar
+  +credential_type: API_KEY/OAUTH
+  +secret_reference: varchar
+  +expires_at: timestamptz
+  +allowed_artifacts: jsonb
+}
+
+class AccessAudit <<audit>> {
+  +request_id: varchar
+  +principal_id: varchar
+  +tenant_id: bigint
+  +resource: varchar
+  +action: varchar
+  +decision: ALLOW/DENY
+  +reason: varchar
+  +occurred_at: timestamptz
+}
+
+Principal "1" -- "0..*" RoleAssignment
+TenantScope "1" -- "0..*" RoleAssignment
+Role "1" -- "0..*" RoleAssignment
+Role "1" -- "1..*" Permission
+ApprovalPolicy ..> Role : requires
+Principal "1" -- "0..*" ServiceCredential
+Principal "1" -- "0..*" AccessAudit
+TenantScope "1" -- "0..*" AccessAudit
+
+note right of TenantScope
+  Toda consulta y escritura se filtra por tenant.
+  El tenant no se infiere desde el payload del cliente
+  sin validación del principal autenticado.
+end note
+
+note right of ApprovalPolicy
+  Producción exige roles independientes y
+  prohíbe que el autor apruebe o despliegue solo.
+end note
+@enduml

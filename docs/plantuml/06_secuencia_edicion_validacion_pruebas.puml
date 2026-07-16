@@ -1,0 +1,118 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam titleFontName Arial
+skinparam titleFontSize 20
+skinparam titleFontColor #17365D
+skinparam ArrowColor #355C7D
+skinparam ArrowThickness 1
+skinparam NoteBackgroundColor #FFF7E6
+skinparam NoteBorderColor #D97706
+skinparam NoteFontColor #4A2B0B
+skinparam package {
+  BackgroundColor #F7FAFC
+  BorderColor #6B8EAD
+  FontColor #17365D
+  FontStyle bold
+}
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  HeaderBackgroundColor #EAF2F8
+}
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam database {
+  BackgroundColor #F4F9FD
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam actor {
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam activity {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  DiamondBackgroundColor #FFF7E6
+  DiamondBorderColor #D97706
+}
+title ATLAS — Secuencia de edición, validación, compilación y pruebas
+autonumber
+
+actor "Risk Analyst" as RA
+participant "Rule Builder UI" as UI
+participant "Decision API" as API
+participant "AuthZ / RBAC" as AZ
+participant "Version Service" as VS
+participant "Variable Catalog" as VC
+participant "Validation Service" as VAL
+participant "Compiler" as COMP
+participant "Test Runner" as TR
+participant "Audit Service" as AUD
+
+RA -> UI : Crear o editar flujo
+UI -> API : PUT /artifact-versions/{id}
+If-Match: lock_version
+API -> AZ : authorize(edit, artifact, tenant)
+AZ --> API : allowed
+API -> VS : saveDraft(command)
+
+alt versión no editable o conflicto optimista
+  VS --> API : 409 VERSION_IMMUTABLE / LOCK_CONFLICT
+  API --> UI : mostrar conflicto y opción de clonar
+else guardado correcto
+  VS -> AUD : recordChange(diff, actor, checksum)
+  VS --> API : draft + lock_version
+  API --> UI : guardado confirmado
+end
+
+RA -> UI : Validar versión
+UI -> API : POST /validate
+API -> AZ : authorize(validate)
+AZ --> API : allowed
+API -> VS : loadVersionSnapshot(id)
+VS --> API : graph + dependencies
+API -> VC : resolveContracts(variableDependencies)
+VC --> API : versionedContracts
+API -> VAL : validate(snapshot, contracts)
+
+alt errores estructurales o semánticos
+  VAL --> API : ValidationReport(errors, warnings)
+  API -> AUD : recordValidation(failed)
+  API --> UI : errores por nodo, arista y variable
+else validación exitosa
+  VAL --> API : canonicalAst + checksum
+  API -> COMP : compile(canonicalAst, contracts)
+  COMP --> API : CompiledArtifact
+  API -> AUD : recordCompilation(success, checksum)
+  API --> UI : versión validada y compilada
+end
+
+RA -> UI : Ejecutar suite de pruebas
+UI -> API : POST /test-runs
+API -> AZ : authorize(test)
+AZ --> API : allowed
+API -> TR : run(compiledArtifact, suite)
+loop por cada caso
+  TR -> TR : resolve variables + execute + assert
+end
+TR --> API : TestRunResult + coverage + diffs
+API -> AUD : recordTestRun(resultSummary)
+API --> UI : resultados, cobertura y rutas no probadas
+@enduml

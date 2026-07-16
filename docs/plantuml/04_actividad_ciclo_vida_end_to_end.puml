@@ -1,0 +1,174 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam titleFontName Arial
+skinparam titleFontSize 20
+skinparam titleFontColor #17365D
+skinparam ArrowColor #355C7D
+skinparam ArrowThickness 1
+skinparam NoteBackgroundColor #FFF7E6
+skinparam NoteBorderColor #D97706
+skinparam NoteFontColor #4A2B0B
+skinparam package {
+  BackgroundColor #F7FAFC
+  BorderColor #6B8EAD
+  FontColor #17365D
+  FontStyle bold
+}
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  HeaderBackgroundColor #EAF2F8
+}
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam database {
+  BackgroundColor #F4F9FD
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam actor {
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam activity {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  DiamondBackgroundColor #FFF7E6
+  DiamondBorderColor #D97706
+}
+title ATLAS — Actividad end-to-end del ciclo de vida de una decisión
+start
+
+partition "Backend Externo" {
+  :Publicar o actualizar contrato de variables;
+}
+
+partition "Catálogo de Variables" {
+  :Versionar definiciones, tipos, fuentes y validaciones;
+  if (¿Contrato compatible?) then (sí)
+    :Marcar contrato disponible;
+  else (no)
+    :Registrar incompatibilidad;
+    :Bloquear creación o promoción dependiente;
+    stop
+  endif
+}
+
+repeat
+  partition "Analista de Riesgo/Fraude" {
+    :Crear, clonar o corregir artefacto;
+    :Editar flujo visual;
+    :Configurar condiciones, acciones y reason codes;
+    :Declarar dependencias de variables;
+    :Guardar versión DRAFT;
+  }
+
+  partition "Validation Service" {
+    :Validar esquema, tipos y referencias;
+    :Validar topología, alcanzabilidad y rutas terminales;
+    :Detectar ciclos prohibidos y defaults ambiguos;
+    if (¿Validación exitosa?) then (sí)
+      :Generar AST canónico y checksum;
+      :Marcar validación como aprobada;
+    else (no)
+      :Emitir errores precisos por nodo, arista y variable;
+      :Marcar versión para corrección;
+    endif
+  }
+repeat while (¿Validación fallida?) is (sí) not (no)
+
+partition "Compiler" {
+  :Compilar artefacto inmutable;
+  :Firmar checksum de runtime;
+}
+
+repeat
+  partition "Test Bench" {
+    :Ejecutar pruebas unitarias de reglas;
+    :Ejecutar escenarios frontera, nulos y tipos inválidos;
+    :Ejecutar regresión contra versión activa;
+    :Medir cobertura de nodos, aristas y rutas;
+    if (¿Pruebas y cobertura cumplen umbral?) then (sí)
+      :Emitir evidencia QA;
+      :Marcar pruebas como aprobadas;
+    else (no)
+      :Publicar diferencias y rutas no cubiertas;
+      :Marcar versión para corrección;
+    endif
+  }
+
+  if (¿Pruebas fallidas?) then (sí)
+    partition "Analista de Riesgo/Fraude" {
+      :Clonar como nueva versión DRAFT;
+      :Corregir reglas o casos de prueba;
+    }
+    partition "Validation Service" {
+      :Revalidar y recompilar nueva versión;
+    }
+  else (no)
+  endif
+repeat while (¿Requiere nueva corrida?) is (sí) not (no)
+
+partition "Gobierno" {
+  :Solicitar aprobación;
+  :Verificar segregación de funciones;
+  :Obtener aprobación de Riesgo/Negocio;
+  :Obtener aprobación de Compliance cuando corresponda;
+  if (¿Aprobación completa?) then (sí)
+    :Congelar versión APPROVED;
+  else (no)
+    :Rechazar solicitud con observaciones;
+    :Crear nueva versión para cambios;
+    stop
+  endif
+}
+
+partition "Deployment Service" {
+  :Desplegar a TEST;
+  :Ejecutar smoke y replay controlado;
+  if (¿Pruebas de despliegue OK?) then (sí)
+    :Promover a PROD con ventana efectiva;
+    :Actualizar binding activo atómicamente;
+  else (no)
+    :Abortar despliegue;
+    :Mantener versión productiva anterior;
+    stop
+  endif
+}
+
+partition "Execution Engine" {
+  :Recibir solicitud con idempotency key;
+  :Resolver despliegue y variables;
+  :Ejecutar artefacto compilado;
+  :Generar decisión, score, límite y reason codes;
+  :Persistir snapshot, ruta y tiempos;
+}
+
+partition "Monitoreo y Riesgo" {
+  :Monitorear aprobación, errores, latencia y cobertura real;
+  :Comparar resultados por versión, cohorte y comercio;
+  if (¿Degradación o incidente?) then (sí)
+    :Suspender o ejecutar rollback;
+    :Abrir incidente y conservar evidencia;
+  else (no)
+    :Continuar operación y revisión periódica;
+  endif
+}
+stop
+@enduml

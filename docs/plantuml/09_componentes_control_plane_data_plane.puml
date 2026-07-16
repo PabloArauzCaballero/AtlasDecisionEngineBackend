@@ -1,0 +1,163 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam titleFontName Arial
+skinparam titleFontSize 20
+skinparam titleFontColor #17365D
+skinparam ArrowColor #355C7D
+skinparam ArrowThickness 1
+skinparam NoteBackgroundColor #FFF7E6
+skinparam NoteBorderColor #D97706
+skinparam NoteFontColor #4A2B0B
+skinparam package {
+  BackgroundColor #F7FAFC
+  BorderColor #6B8EAD
+  FontColor #17365D
+  FontStyle bold
+}
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  HeaderBackgroundColor #EAF2F8
+}
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam database {
+  BackgroundColor #F4F9FD
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam actor {
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam activity {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  DiamondBackgroundColor #FFF7E6
+  DiamondBorderColor #D97706
+}
+title ATLAS — Arquitectura lógica separada en Control Plane y Data Plane
+left to right direction
+
+package "Canales internos" {
+  [Rule Builder UI] as RUI
+  [Test Bench UI] as TUI
+  [Governance Console] as GUI
+  [Operations Console] as OUI
+}
+
+package "Control Plane — diseño y gobierno" {
+  [Decision Management API] as DMA
+  [Version Service] as VS
+  [Variable Catalog Service] as VCS
+  [Validation Service] as VAL
+  [Compiler Service] as COMP
+  [Test Runner Service] as TR
+  [Approval Service] as APS
+  [Deployment Service] as DS
+  [Diff / Compare Service] as DIFF
+  [Audit Query Service] as AQS
+}
+
+package "Data Plane — ejecución de baja latencia" {
+  [Runtime API] as RTA
+  [Deployment Resolver] as DR
+  [Variable Resolver] as VR
+  [Decision Execution Engine] as EE
+  [Idempotency Service] as IDEM
+  [Async Audit Writer] as AAW
+}
+
+package "Persistencia" {
+  database "Decision DB
+(versiones, reglas, pruebas, despliegues)" as DDB
+  database "Runtime Cache
+(bindings y artefactos compilados)" as RC
+  database "Execution Store
+(operacional)" as ES
+  database "Immutable Audit Store" as IAS
+  database "Metrics / Trace Store" as MTS
+  [Object Storage
+(evidencias y exports)] as OBJ
+}
+
+package "Integraciones" {
+  [Backend Externo de Variables] as BEV
+  [Identity Provider / SSO] as IDP
+  [Notification / Incident Bus] as NIB
+  [BI / Data Platform] as BI
+}
+
+RUI --> DMA
+TUI --> DMA
+GUI --> DMA
+OUI --> DMA
+DMA --> IDP
+DMA --> VS
+DMA --> VCS
+DMA --> VAL
+DMA --> COMP
+DMA --> TR
+DMA --> APS
+DMA --> DS
+DMA --> DIFF
+DMA --> AQS
+
+VS --> DDB
+VCS --> DDB
+VCS --> BEV
+VAL --> DDB
+COMP --> DDB
+COMP --> OBJ
+TR --> DDB
+TR --> OBJ
+APS --> DDB
+DS --> DDB
+DS --> RC
+DIFF --> DDB
+AQS --> ES
+AQS --> IAS
+
+RTA --> IDP
+RTA --> IDEM
+RTA --> DR
+DR --> RC
+RTA --> VR
+VR --> BEV
+RTA --> EE
+EE --> RC
+EE --> AAW
+AAW --> ES
+AAW --> IAS
+AAW --> MTS
+MTS --> NIB
+ES --> BI
+IAS --> BI
+
+note bottom of EE
+  Runtime aislado del editor:
+  consume solo artefactos compilados,
+  versionados e inmutables.
+end note
+
+note right of DMA
+  Control Plane puede escalar y desplegarse
+  de forma independiente del Data Plane.
+end note
+@enduml

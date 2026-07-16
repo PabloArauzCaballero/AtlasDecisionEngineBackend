@@ -1,0 +1,95 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam titleFontName Arial
+skinparam titleFontSize 20
+skinparam titleFontColor #17365D
+skinparam ArrowColor #355C7D
+skinparam ArrowThickness 1
+skinparam NoteBackgroundColor #FFF7E6
+skinparam NoteBorderColor #D97706
+skinparam NoteFontColor #4A2B0B
+skinparam package {
+  BackgroundColor #F7FAFC
+  BorderColor #6B8EAD
+  FontColor #17365D
+  FontStyle bold
+}
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  HeaderBackgroundColor #EAF2F8
+}
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam database {
+  BackgroundColor #F4F9FD
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam actor {
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam activity {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  DiamondBackgroundColor #FFF7E6
+  DiamondBorderColor #D97706
+}
+title ATLAS — Contexto del sistema y responsabilidades
+left to right direction
+
+actor "Analista de Riesgo/Fraude" as ANALYST
+actor "QA / Compliance / Auditoría" as GOV
+actor "Operaciones" as OPS
+
+rectangle "ATLAS Decision Platform
+Reglas, versiones, pruebas, despliegues y evidencia" as ADP
+rectangle "Backend Externo ATLAS
+Usuarios, contexto y atributos maestros" as BACK
+rectangle "Aplicaciones consumidor/comercio" as APPS
+rectangle "Servicios KYC / Buró / Señales" as EXT
+rectangle "Plataforma BI / Data" as BI
+rectangle "Gestión de Identidad" as IAM
+rectangle "Incidentes y Notificaciones" as INC
+
+ANALYST --> ADP : diseña reglas y estrategias
+GOV --> ADP : valida, aprueba y audita
+OPS --> ADP : opera revisión manual e incidentes
+
+APPS --> BACK : solicitudes y operaciones de negocio
+BACK --> ADP : payload de decisión y request_id
+ADP --> BACK : decisión, score, límite, razones y versión
+BACK --> EXT : obtiene datos externos autorizados
+BACK --> ADP : variables normalizadas/versionadas
+ADP --> BI : eventos y resultados gobernados
+ADP --> IAM : autenticación y roles
+ADP --> INC : alertas técnicas y de riesgo
+
+note bottom of ADP
+  La plataforma local no se convierte en
+  maestro de usuarios. Administra la lógica,
+  sus versiones, pruebas, despliegues y evidencia.
+end note
+
+note bottom of BACK
+  Responsable de identidad del usuario,
+  atributos maestros y orquestación de negocio.
+end note
+@enduml

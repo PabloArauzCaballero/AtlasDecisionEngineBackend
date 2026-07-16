@@ -1,0 +1,101 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam titleFontName Arial
+skinparam titleFontSize 20
+skinparam titleFontColor #17365D
+skinparam ArrowColor #355C7D
+skinparam ArrowThickness 1
+skinparam NoteBackgroundColor #FFF7E6
+skinparam NoteBorderColor #D97706
+skinparam NoteFontColor #4A2B0B
+skinparam package {
+  BackgroundColor #F7FAFC
+  BorderColor #6B8EAD
+  FontColor #17365D
+  FontStyle bold
+}
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  HeaderBackgroundColor #EAF2F8
+}
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam database {
+  BackgroundColor #F4F9FD
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam actor {
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam activity {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  DiamondBackgroundColor #FFF7E6
+  DiamondBorderColor #D97706
+}
+title ATLAS — Evolución controlada: reglas deterministas, scorecards y ML
+left to right direction
+
+state "Fase A
+Reglas expertas deterministas" as A
+state "Fase B
+Scorecard estadístico validado" as B
+state "Fase C
+Champion / Challenger" as C
+state "Fase D
+ML gobernado como componente" as D
+
+[*] --> A
+A --> A : calibrar políticas
+con datos reales
+A --> B : historial suficiente + target definido
++ calidad de datos + validación
+B --> B : monitorear score, cutoffs y cartera
+B --> C : challenger validado offline
++ pruebas de impacto
+C --> B : challenger no supera baseline
+C --> D : mejora material + explicabilidad
++ aprobación + monitoreo
+D --> C : drift / degradación / incidente
+D --> A : fallback de emergencia
+
+note top of A
+  Fuente de verdad inicial:
+  reglas claras, versionadas, probadas y explicables.
+end note
+
+note top of B
+  El score no sustituye las políticas duras,
+  KYC, fraude ni reglas de elegibilidad.
+end note
+
+note bottom of C
+  El tráfico se divide de forma controlada,
+  con métricas comparables y rollback inmediato.
+end note
+
+note bottom of D
+  El modelo ML se empaqueta como artefacto versionado,
+  con contrato de variables, pruebas, aprobaciones,
+  métricas de drift y explicación compatible.
+end note
+@enduml

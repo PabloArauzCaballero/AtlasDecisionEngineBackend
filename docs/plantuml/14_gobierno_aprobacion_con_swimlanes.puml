@@ -1,0 +1,120 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam titleFontName Arial
+skinparam titleFontSize 20
+skinparam titleFontColor #17365D
+skinparam ArrowColor #355C7D
+skinparam ArrowThickness 1
+skinparam NoteBackgroundColor #FFF7E6
+skinparam NoteBorderColor #D97706
+skinparam NoteFontColor #4A2B0B
+skinparam package {
+  BackgroundColor #F7FAFC
+  BorderColor #6B8EAD
+  FontColor #17365D
+  FontStyle bold
+}
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  HeaderBackgroundColor #EAF2F8
+}
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam database {
+  BackgroundColor #F4F9FD
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam actor {
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam activity {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  DiamondBackgroundColor #FFF7E6
+  DiamondBorderColor #D97706
+}
+title ATLAS — Gobierno y aprobación con segregación de funciones
+start
+
+partition "Autor de la versión" {
+  :Finalizar cambios;
+  :Adjuntar justificación y comparación;
+  :Solicitar revisión;
+}
+
+partition "Sistema" {
+  :Verificar versión compilada e inmutable;
+  :Verificar pruebas bloqueantes y cobertura;
+  :Verificar que autor no sea aprobador;
+  if (¿Evidencia completa?) then (sí)
+  else (no)
+    :Rechazar solicitud por evidencia insuficiente;
+    stop
+  endif
+}
+
+partition "QA" {
+  :Revisar resultados y regresión;
+  if (¿QA aprueba?) then (sí)
+    :Registrar aprobación QA;
+  else (no)
+    :Solicitar correcciones;
+    stop
+  endif
+}
+
+partition "Riesgo / Negocio" {
+  :Revisar objetivo, cutoffs, impacto y reason codes;
+  if (¿Riesgo aprueba?) then (sí)
+    :Registrar aprobación de negocio;
+  else (no)
+    :Solicitar cambios de política;
+    stop
+  endif
+}
+
+partition "Compliance" {
+  if (¿Requiere revisión de Compliance?) then (sí)
+    :Revisar variables, explicabilidad y tratamiento;
+    if (¿Compliance aprueba?) then (sí)
+      :Registrar aprobación;
+    else (no)
+      :Rechazar con observaciones;
+      stop
+    endif
+  else (no)
+    :Registrar excepción de workflow justificada;
+  endif
+}
+
+partition "Platform Admin" {
+  :Programar despliegue autorizado;
+  :No modificar contenido de la versión;
+}
+
+partition "Sistema" {
+  :Congelar estado APPROVED;
+  :Firmar checksum y evidencia;
+  :Permitir promoción según ambiente;
+}
+stop
+@enduml

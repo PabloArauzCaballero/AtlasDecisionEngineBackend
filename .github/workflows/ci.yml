@@ -1,0 +1,83 @@
+name: ATLAS Decision Backend CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: atlas_decision
+          POSTGRES_USER: atlas
+          POSTGRES_PASSWORD: atlas
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atlas -d atlas_decision"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+
+    env:
+      NODE_ENV: test
+      PORT: 3000
+      DATABASE_URL: postgresql://atlas:atlas@localhost:5432/atlas_decision?schema=public
+      REDIS_URL: redis://localhost:6379
+      AUTH_MODE: API_KEY
+      MANAGEMENT_API_KEY: ci-management-key-with-enough-entropy
+      RUNTIME_API_KEY: ci-runtime-key-with-different-entropy
+      AUDIT_HASH_SECRET: ci-audit-secret-with-at-least-32-characters-total
+      METRICS_TOKEN: ci-metrics-token-with-enough-entropy
+      REQUIRE_REDIS_IN_PRODUCTION: "true"
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run prisma:generate
+      - run: npm run prisma:validate
+      - run: npm run migration:validate
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm run test:cov
+      - run: npm audit --omit=dev --audit-level=critical
+      - run: npm run prisma:migrate
+      - run: npm run prisma:seed
+      - run: npm run test:e2e
+      - name: Runtime smoke test
+        shell: bash
+        run: |
+          node dist/main.js > /tmp/atlas-api.log 2>&1 &
+          API_PID=$!
+          trap 'kill $API_PID 2>/dev/null || true; cat /tmp/atlas-api.log' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:3000/health/ready >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl -fsS http://localhost:3000/health/ready
+          npm run smoke:sh
+      - name: Build runtime and migrator images
+        run: |
+          docker build --target runtime -t atlas-decision-engine:${{ github.sha }} .
+          docker build --target migrator -t atlas-decision-migrator:${{ github.sha }} .

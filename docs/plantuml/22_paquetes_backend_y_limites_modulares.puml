@@ -1,0 +1,154 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam titleFontName Arial
+skinparam titleFontSize 20
+skinparam titleFontColor #17365D
+skinparam ArrowColor #355C7D
+skinparam ArrowThickness 1
+skinparam NoteBackgroundColor #FFF7E6
+skinparam NoteBorderColor #D97706
+skinparam NoteFontColor #4A2B0B
+skinparam package {
+  BackgroundColor #F7FAFC
+  BorderColor #6B8EAD
+  FontColor #17365D
+  FontStyle bold
+}
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  HeaderBackgroundColor #EAF2F8
+}
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam database {
+  BackgroundColor #F4F9FD
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam actor {
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam activity {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  DiamondBackgroundColor #FFF7E6
+  DiamondBorderColor #D97706
+}
+title ATLAS — Paquetes backend y límites modulares sin clases Dios
+left to right direction
+
+package "decision-artifacts" {
+  [artifact.application]
+  [artifact.domain]
+  [artifact.persistence]
+}
+
+package "variable-catalog" {
+  [variables.application]
+  [variables.domain]
+  [variables.integration]
+}
+
+package "rule-graph" {
+  [graph.domain]
+  [graph.validation]
+  [graph.compiler]
+}
+
+package "decision-testing" {
+  [testing.application]
+  [testing.runner]
+  [testing.coverage]
+}
+
+package "decision-governance" {
+  [approval.application]
+  [approval.domain]
+  [approval.evidence]
+}
+
+package "decision-deployment" {
+  [deployment.application]
+  [deployment.domain]
+  [deployment.runtime-cache]
+}
+
+package "decision-runtime" {
+  [runtime.api]
+  [runtime.resolution]
+  [runtime.engine]
+  [runtime.idempotency]
+}
+
+package "decision-audit" {
+  [audit.writer]
+  [audit.query]
+  [audit.export]
+}
+
+package "platform-security" {
+  [authn]
+  [authz]
+  [tenant-context]
+}
+
+[artifact.application] --> [artifact.domain]
+[artifact.persistence] --> [artifact.domain]
+[variables.application] --> [variables.domain]
+[variables.integration] --> [variables.domain]
+[graph.validation] --> [graph.domain]
+[graph.compiler] --> [graph.domain]
+[testing.application] --> [testing.runner]
+[testing.runner] --> [testing.coverage]
+[approval.application] --> [approval.domain]
+[approval.evidence] --> [approval.domain]
+[deployment.application] --> [deployment.domain]
+[deployment.runtime-cache] --> [deployment.domain]
+[runtime.api] --> [runtime.resolution]
+[runtime.api] --> [runtime.engine]
+[runtime.api] --> [runtime.idempotency]
+[audit.writer] --> [audit.query] : shared contracts only
+
+[artifact.application] ..> [graph.validation]
+[artifact.application] ..> [graph.compiler]
+[graph.validation] ..> [variables.application]
+[testing.runner] ..> [runtime.engine] : in-process adapter
+[approval.application] ..> [testing.application]
+[deployment.application] ..> [approval.application]
+[deployment.application] ..> [graph.compiler]
+[runtime.resolution] ..> [variables.application]
+[runtime.engine] ..> [deployment.runtime-cache]
+[runtime.engine] ..> [audit.writer]
+
+[artifact.application] ..> [authz]
+[variables.application] ..> [authz]
+[testing.application] ..> [authz]
+[approval.application] ..> [authz]
+[deployment.application] ..> [authz]
+[runtime.api] ..> [authn]
+[runtime.api] ..> [tenant-context]
+
+note bottom
+  Cada módulo expone puertos y DTOs mínimos.
+  El dominio no depende de controladores, ORM,
+  frameworks HTTP ni integraciones externas.
+end note
+@enduml

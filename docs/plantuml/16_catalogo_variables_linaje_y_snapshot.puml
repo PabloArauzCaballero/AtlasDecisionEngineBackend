@@ -1,0 +1,130 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam titleFontName Arial
+skinparam titleFontSize 20
+skinparam titleFontColor #17365D
+skinparam ArrowColor #355C7D
+skinparam ArrowThickness 1
+skinparam NoteBackgroundColor #FFF7E6
+skinparam NoteBorderColor #D97706
+skinparam NoteFontColor #4A2B0B
+skinparam package {
+  BackgroundColor #F7FAFC
+  BorderColor #6B8EAD
+  FontColor #17365D
+  FontStyle bold
+}
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  HeaderBackgroundColor #EAF2F8
+}
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam database {
+  BackgroundColor #F4F9FD
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam actor {
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam activity {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  DiamondBackgroundColor #FFF7E6
+  DiamondBorderColor #D97706
+}
+title ATLAS — Catálogo, linaje y snapshot de variables
+left to right direction
+hide methods
+hide circle
+
+class VariableDefinition <<aggregate>> {
+  +code: varchar
+  +name: varchar
+  +business_description: text
+  +classification: varchar
+  +owner_team: varchar
+}
+
+class VariableVersion <<immutable contract>> {
+  +version: int
+  +data_type: varchar
+  +unit: varchar
+  +nullable: boolean
+  +validation_schema: jsonb
+  +effective_period: range
+}
+
+class VariableSource <<source mapping>> {
+  +source_system: varchar
+  +source_path: varchar
+  +source_field: varchar
+  +precedence: int
+  +freshness_sla: interval
+}
+
+class VariableDerivation <<derivation>> {
+  +expression_ast: jsonb
+  +dependency_codes: jsonb
+  +derivation_version: varchar
+}
+
+class ArtifactDependency <<usage>> {
+  +artifact_version_id: bigint
+  +usage_type: varchar
+  +required: boolean
+  +fallback_policy: varchar
+}
+
+class RuntimeVariableSnapshot <<evidence>> {
+  +execution_id: bigint
+  +variable_version_id: bigint
+  +value_hash: varchar
+  +source: varchar
+  +resolved_at: timestamptz
+  +status: varchar
+}
+
+class ExternalVariableBackend <<external>> {
+  +contract_api
+  +value_api
+}
+
+VariableDefinition "1" *-- "1..*" VariableVersion
+VariableVersion "1" *-- "1..*" VariableSource
+VariableVersion "1" o-- "0..1" VariableDerivation
+VariableVersion "1" -- "0..*" ArtifactDependency
+VariableVersion "1" -- "0..*" RuntimeVariableSnapshot
+ExternalVariableBackend ..> VariableSource : publishes mapping
+ExternalVariableBackend ..> RuntimeVariableSnapshot : provides value
+VariableDerivation ..> VariableVersion : depends on
+
+note bottom of VariableVersion
+  Un cambio de tipo, unidad, validación,
+  derivación o significado crea nueva versión.
+end note
+
+note bottom of RuntimeVariableSnapshot
+  Conserva procedencia y hash del valor usado,
+  sin duplicar datos personales innecesarios.
+end note
+@enduml

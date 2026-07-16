@@ -1,0 +1,581 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam titleFontName Arial
+skinparam titleFontSize 20
+skinparam titleFontColor #17365D
+skinparam ArrowColor #355C7D
+skinparam ArrowThickness 1
+skinparam NoteBackgroundColor #FFF7E6
+skinparam NoteBorderColor #D97706
+skinparam NoteFontColor #4A2B0B
+skinparam package {
+  BackgroundColor #F7FAFC
+  BorderColor #6B8EAD
+  FontColor #17365D
+  FontStyle bold
+}
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  HeaderBackgroundColor #EAF2F8
+}
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam database {
+  BackgroundColor #F4F9FD
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam actor {
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam activity {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  DiamondBackgroundColor #FFF7E6
+  DiamondBorderColor #D97706
+}
+title ATLAS — Modelo relacional integral del motor de decisión
+hide methods
+hide circle
+top to bottom direction
+
+package "01 Núcleo de plataforma" {
+  class tenant_reference <<external_ref>> {
+    +tenant_id: bigint <<PK externo>>
+    +tenant_code: varchar
+  }
+
+  class decision_environment <<table>> {
+    +id: bigint <<PK>>
+    +code: varchar <<UK>>
+    +name: varchar
+    +environment_type: varchar
+    +status: varchar
+    +is_production: boolean
+    +created_at: timestamptz
+  }
+
+  class decision_artifact <<table>> {
+    +id: bigint <<PK>>
+    +tenant_id: bigint <<FK externo>>
+    +artifact_code: varchar
+    +artifact_type: varchar
+    +name: varchar
+    +description: text
+    +owner_team: varchar
+    +business_purpose: text
+    +risk_domain: varchar
+    +is_active: boolean
+    +created_at: timestamptz
+    +updated_at: timestamptz
+  }
+
+  class decision_artifact_version <<table>> {
+    +id: bigint <<PK>>
+    +artifact_id: bigint <<FK>>
+    +version_number: int
+    +status: varchar
+    +source_version_id: bigint <<FK self>>
+    +semantic_version: varchar
+    +change_summary: text
+    +canonical_checksum: varchar
+    +lock_version: int
+    +created_by: varchar
+    +created_at: timestamptz
+    +submitted_at: timestamptz
+    +approved_at: timestamptz
+    +retired_at: timestamptz
+  }
+
+  class decision_compiled_artifact <<table>> {
+    +id: bigint <<PK>>
+    +artifact_version_id: bigint <<FK>>
+    +compiler_version: varchar
+    +runtime_schema_version: varchar
+    +compiled_payload_json: jsonb
+    +compiled_checksum: varchar
+    +compile_status: varchar
+    +compiled_at: timestamptz
+  }
+
+  class decision_version_status_history <<table>> {
+    +id: bigint <<PK>>
+    +artifact_version_id: bigint <<FK>>
+    +from_status: varchar
+    +to_status: varchar
+    +changed_by: varchar
+    +changed_at: timestamptz
+    +reason: text
+  }
+}
+
+package "02 Catálogo y contrato de variables" {
+  class decision_variable_definition <<table>> {
+    +id: bigint <<PK>>
+    +tenant_id: bigint <<FK externo>>
+    +variable_code: varchar
+    +canonical_name: varchar
+    +business_description: text
+    +data_classification: varchar
+    +owner_team: varchar
+    +is_sensitive: boolean
+    +is_active: boolean
+  }
+
+  class decision_variable_version <<table>> {
+    +id: bigint <<PK>>
+    +variable_definition_id: bigint <<FK>>
+    +version_number: int
+    +data_type: varchar
+    +unit_code: varchar
+    +nullable: boolean
+    +default_value_json: jsonb
+    +validation_schema_json: jsonb
+    +derivation_expression_json: jsonb
+    +effective_from: timestamptz
+    +effective_to: timestamptz
+  }
+
+  class decision_variable_source <<table>> {
+    +id: bigint <<PK>>
+    +variable_version_id: bigint <<FK>>
+    +source_system_code: varchar
+    +source_path: varchar
+    +source_field: varchar
+    +freshness_sla_seconds: int
+    +precedence: int
+    +is_authoritative: boolean
+  }
+
+  class decision_variable_validation_rule <<table>> {
+    +id: bigint <<PK>>
+    +variable_version_id: bigint <<FK>>
+    +rule_type: varchar
+    +rule_config_json: jsonb
+    +severity: varchar
+    +error_code: varchar
+  }
+
+  class decision_artifact_variable_dependency <<table>> {
+    +id: bigint <<PK>>
+    +artifact_version_id: bigint <<FK>>
+    +variable_version_id: bigint <<FK>>
+    +usage_type: varchar
+    +is_required: boolean
+    +fallback_policy: varchar
+    +dependency_path: varchar
+  }
+}
+
+package "03 Diseño visual y semántica" {
+  class decision_rule_node <<table>> {
+    +id: bigint <<PK>>
+    +artifact_version_id: bigint <<FK>>
+    +node_key: varchar
+    +node_type: varchar
+    +label: varchar
+    +config_json: jsonb
+    +x_pos: int
+    +y_pos: int
+    +order_index: int
+    +is_terminal: boolean
+  }
+
+  class decision_rule_edge <<table>> {
+    +id: bigint <<PK>>
+    +artifact_version_id: bigint <<FK>>
+    +from_node_id: bigint <<FK>>
+    +to_node_id: bigint <<FK>>
+    +edge_key: varchar
+    +edge_type: varchar
+    +priority: int
+    +is_default: boolean
+  }
+
+  class decision_rule_condition <<table>> {
+    +id: bigint <<PK>>
+    +artifact_version_id: bigint <<FK>>
+    +condition_code: varchar
+    +name: varchar
+    +expression_type: varchar
+    +expression_json: jsonb
+    +severity: varchar
+    +is_reusable: boolean
+  }
+
+  class decision_rule_action <<table>> {
+    +id: bigint <<PK>>
+    +artifact_version_id: bigint <<FK>>
+    +action_code: varchar
+    +action_type: varchar
+    +payload_schema_json: jsonb
+    +payload_template_json: jsonb
+    +is_terminal: boolean
+  }
+
+  class decision_node_condition <<table>> {
+    +id: bigint <<PK>>
+    +node_id: bigint <<FK>>
+    +condition_id: bigint <<FK>>
+    +evaluation_order: int
+    +expected_boolean: boolean
+  }
+
+  class decision_edge_condition <<table>> {
+    +id: bigint <<PK>>
+    +edge_id: bigint <<FK>>
+    +condition_id: bigint <<FK>>
+    +evaluation_order: int
+  }
+
+  class decision_node_action <<table>> {
+    +id: bigint <<PK>>
+    +node_id: bigint <<FK>>
+    +action_id: bigint <<FK>>
+    +execution_order: int
+  }
+
+  class decision_reason_code <<table>> {
+    +id: bigint <<PK>>
+    +tenant_id: bigint <<FK externo>>
+    +reason_code: varchar
+    +category: varchar
+    +public_message: text
+    +internal_message: text
+    +severity: varchar
+    +is_adverse_action: boolean
+    +is_active: boolean
+  }
+
+  class decision_action_reason_mapping <<table>> {
+    +id: bigint <<PK>>
+    +action_id: bigint <<FK>>
+    +reason_code_id: bigint <<FK>>
+    +priority: int
+    +message_template_json: jsonb
+  }
+}
+
+package "04 Gobierno, aprobación y evidencia" {
+  class decision_approval_request <<table>> {
+    +id: bigint <<PK>>
+    +artifact_version_id: bigint <<FK>>
+    +workflow_code: varchar
+    +requested_by: varchar
+    +requested_at: timestamptz
+    +status: varchar
+    +due_at: timestamptz
+  }
+
+  class decision_approval_step <<table>> {
+    +id: bigint <<PK>>
+    +approval_request_id: bigint <<FK>>
+    +step_order: int
+    +required_role: varchar
+    +min_approvals: int
+    +status: varchar
+    +separation_of_duties: boolean
+  }
+
+  class decision_approval_decision <<table>> {
+    +id: bigint <<PK>>
+    +approval_step_id: bigint <<FK>>
+    +decided_by: varchar
+    +decision: varchar
+    +comments: text
+    +decided_at: timestamptz
+  }
+
+  class decision_approval_evidence <<table>> {
+    +id: bigint <<PK>>
+    +approval_decision_id: bigint <<FK>>
+    +evidence_type: varchar
+    +uri: text
+    +checksum: varchar
+    +metadata_json: jsonb
+  }
+}
+
+package "05 Pruebas deterministas y cobertura" {
+  class decision_test_suite <<table>> {
+    +id: bigint <<PK>>
+    +artifact_version_id: bigint <<FK>>
+    +suite_code: varchar
+    +name: varchar
+    +suite_type: varchar
+    +is_blocking: boolean
+  }
+
+  class decision_test_case <<table>> {
+    +id: bigint <<PK>>
+    +test_suite_id: bigint <<FK>>
+    +case_code: varchar
+    +test_name: varchar
+    +input_json: jsonb
+    +expected_result_json: jsonb
+    +tags_json: jsonb
+    +is_active: boolean
+  }
+
+  class decision_test_run <<table>> {
+    +id: bigint <<PK>>
+    +test_suite_id: bigint <<FK>>
+    +compiled_artifact_id: bigint <<FK>>
+    +trigger_type: varchar
+    +triggered_by: varchar
+    +status: varchar
+    +started_at: timestamptz
+    +finished_at: timestamptz
+  }
+
+  class decision_test_case_run <<table>> {
+    +id: bigint <<PK>>
+    +test_run_id: bigint <<FK>>
+    +test_case_id: bigint <<FK>>
+    +actual_result_json: jsonb
+    +result_status: varchar
+    +duration_ms: int
+    +error_json: jsonb
+  }
+
+  class decision_test_assertion <<table>> {
+    +id: bigint <<PK>>
+    +test_case_run_id: bigint <<FK>>
+    +assertion_path: varchar
+    +operator: varchar
+    +expected_json: jsonb
+    +actual_json: jsonb
+    +passed: boolean
+  }
+
+  class decision_test_coverage <<table>> {
+    +id: bigint <<PK>>
+    +test_run_id: bigint <<FK>>
+    +coverage_type: varchar
+    +covered_count: int
+    +total_count: int
+    +coverage_percentage: numeric
+    +details_json: jsonb
+  }
+}
+
+package "06 Despliegue, tráfico y rollback" {
+  class decision_deployment <<table>> {
+    +id: bigint <<PK>>
+    +artifact_version_id: bigint <<FK>>
+    +compiled_artifact_id: bigint <<FK>>
+    +environment_id: bigint <<FK>>
+    +deployment_mode: varchar
+    +deployment_status: varchar
+    +effective_from: timestamptz
+    +effective_to: timestamptz
+    +is_active: boolean
+    +previous_deployment_id: bigint <<FK self>>
+    +rollback_of_deployment_id: bigint <<FK self>>
+    +deployed_by: varchar
+    +deployed_at: timestamptz
+  }
+
+  class decision_deployment_traffic <<table>> {
+    +id: bigint <<PK>>
+    +deployment_id: bigint <<FK>>
+    +segment_key: varchar
+    +traffic_percentage: numeric
+    +routing_expression_json: jsonb
+    +priority: int
+  }
+
+  class decision_runtime_binding <<table>> {
+    +id: bigint <<PK>>
+    +tenant_id: bigint <<FK externo>>
+    +artifact_code: varchar
+    +environment_id: bigint <<FK>>
+    +active_deployment_id: bigint <<FK>>
+    +binding_key: varchar
+    +updated_at: timestamptz
+  }
+}
+
+package "07 Ejecución, explicación y auditoría" {
+  class decision_execution <<table>> {
+    +id: bigint <<PK>>
+    +tenant_id: bigint <<FK externo>>
+    +deployment_id: bigint <<FK>>
+    +artifact_version_id: bigint <<FK>>
+    +environment_id: bigint <<FK>>
+    +request_id: varchar
+    +correlation_id: varchar
+    +idempotency_key: varchar
+    +subject_reference_hash: varchar
+    +input_snapshot_json: jsonb
+    +output_json: jsonb
+    +decision_status: varchar
+    +business_outcome: varchar
+    +duration_ms: int
+    +executed_at: timestamptz
+  }
+
+  class decision_execution_variable <<table>> {
+    +id: bigint <<PK>>
+    +execution_id: bigint <<FK>>
+    +variable_version_id: bigint <<FK>>
+    +value_json: jsonb
+    +value_hash: varchar
+    +source_code: varchar
+    +resolution_status: varchar
+    +was_defaulted: boolean
+  }
+
+  class decision_execution_step <<table>> {
+    +id: bigint <<PK>>
+    +execution_id: bigint <<FK>>
+    +node_id: bigint <<FK>>
+    +step_order: int
+    +evaluation_result_json: jsonb
+    +branch_taken: varchar
+    +duration_us: bigint
+  }
+
+  class decision_execution_reason <<table>> {
+    +id: bigint <<PK>>
+    +execution_id: bigint <<FK>>
+    +reason_code_id: bigint <<FK>>
+    +source_action_id: bigint <<FK>>
+    +priority: int
+    +rendered_message: text
+  }
+
+  class decision_execution_error <<table>> {
+    +id: bigint <<PK>>
+    +execution_id: bigint <<FK>>
+    +error_code: varchar
+    +error_type: varchar
+    +error_message: text
+    +retryable: boolean
+    +details_json: jsonb
+  }
+
+  class decision_change_log <<table>> {
+    +id: bigint <<PK>>
+    +artifact_version_id: bigint <<FK>>
+    +entity_type: varchar
+    +entity_id: varchar
+    +operation: varchar
+    +field_name: varchar
+    +old_value_json: jsonb
+    +new_value_json: jsonb
+    +changed_by: varchar
+    +changed_at: timestamptz
+  }
+}
+
+' Relaciones núcleo
+tenant_reference ||--o{ decision_artifact
+decision_artifact ||--o{ decision_artifact_version
+decision_artifact_version }o--o| decision_artifact_version : source_version
+decision_artifact_version ||--o{ decision_compiled_artifact
+decision_artifact_version ||--o{ decision_version_status_history
+
+' Variables
+tenant_reference ||--o{ decision_variable_definition
+decision_variable_definition ||--o{ decision_variable_version
+decision_variable_version ||--o{ decision_variable_source
+decision_variable_version ||--o{ decision_variable_validation_rule
+decision_artifact_version ||--o{ decision_artifact_variable_dependency
+decision_variable_version ||--o{ decision_artifact_variable_dependency
+
+' Grafo y semántica
+decision_artifact_version ||--o{ decision_rule_node
+decision_artifact_version ||--o{ decision_rule_edge
+decision_artifact_version ||--o{ decision_rule_condition
+decision_artifact_version ||--o{ decision_rule_action
+decision_rule_node ||--o{ decision_node_condition
+decision_rule_condition ||--o{ decision_node_condition
+decision_rule_edge ||--o{ decision_edge_condition
+decision_rule_condition ||--o{ decision_edge_condition
+decision_rule_node ||--o{ decision_node_action
+decision_rule_action ||--o{ decision_node_action
+decision_rule_node "1" <-- "0..*" decision_rule_edge : from_node_id
+decision_rule_node "1" <-- "0..*" decision_rule_edge : to_node_id
+tenant_reference ||--o{ decision_reason_code
+decision_rule_action ||--o{ decision_action_reason_mapping
+decision_reason_code ||--o{ decision_action_reason_mapping
+
+' Gobierno
+decision_artifact_version ||--o{ decision_approval_request
+decision_approval_request ||--o{ decision_approval_step
+decision_approval_step ||--o{ decision_approval_decision
+decision_approval_decision ||--o{ decision_approval_evidence
+
+' Testing
+decision_artifact_version ||--o{ decision_test_suite
+decision_test_suite ||--o{ decision_test_case
+decision_test_suite ||--o{ decision_test_run
+decision_compiled_artifact ||--o{ decision_test_run
+decision_test_run ||--o{ decision_test_case_run
+decision_test_case ||--o{ decision_test_case_run
+decision_test_case_run ||--o{ decision_test_assertion
+decision_test_run ||--o{ decision_test_coverage
+
+' Despliegue
+decision_artifact_version ||--o{ decision_deployment
+decision_compiled_artifact ||--o{ decision_deployment
+decision_environment ||--o{ decision_deployment
+decision_deployment ||--o{ decision_deployment_traffic
+decision_deployment }o--o| decision_deployment : previous
+decision_deployment }o--o| decision_deployment : rollback_of
+decision_environment ||--o{ decision_runtime_binding
+decision_deployment ||--o{ decision_runtime_binding
+
+' Ejecución y auditoría
+tenant_reference ||--o{ decision_execution
+decision_deployment ||--o{ decision_execution
+decision_artifact_version ||--o{ decision_execution
+decision_environment ||--o{ decision_execution
+decision_execution ||--o{ decision_execution_variable
+decision_variable_version ||--o{ decision_execution_variable
+decision_execution ||--o{ decision_execution_step
+decision_rule_node ||--o{ decision_execution_step
+decision_execution ||--o{ decision_execution_reason
+decision_reason_code ||--o{ decision_execution_reason
+decision_rule_action ||--o{ decision_execution_reason
+decision_execution ||--o{ decision_execution_error
+decision_artifact_version ||--o{ decision_change_log
+
+note right of decision_artifact_version
+  Restricción crítica:
+  una versión APPROVED, COMPILED,
+  DEPLOYED o RETIRED es inmutable.
+  Todo cambio crea una nueva versión.
+end note
+
+note right of decision_runtime_binding
+  Debe existir una sola asignación activa
+  por tenant + artifact_code + ambiente,
+  excepto experimentos controlados.
+end note
+
+note bottom of decision_execution
+  El runtime persiste el despliegue exacto,
+  snapshot de entrada, ruta, razones y salida.
+  Esto permite reproducibilidad y auditoría.
+end note
+@enduml

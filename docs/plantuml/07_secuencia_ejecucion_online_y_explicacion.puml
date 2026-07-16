@@ -1,0 +1,122 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam titleFontName Arial
+skinparam titleFontSize 20
+skinparam titleFontColor #17365D
+skinparam ArrowColor #355C7D
+skinparam ArrowThickness 1
+skinparam NoteBackgroundColor #FFF7E6
+skinparam NoteBorderColor #D97706
+skinparam NoteFontColor #4A2B0B
+skinparam package {
+  BackgroundColor #F7FAFC
+  BorderColor #6B8EAD
+  FontColor #17365D
+  FontStyle bold
+}
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  HeaderBackgroundColor #EAF2F8
+}
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam database {
+  BackgroundColor #F4F9FD
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam actor {
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam activity {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  DiamondBackgroundColor #FFF7E6
+  DiamondBorderColor #D97706
+}
+title ATLAS — Secuencia de ejecución online reproducible y explicable
+autonumber
+
+actor "Backend Externo" as BE
+participant "API Gateway / WAF" as GW
+participant "Runtime API" as API
+participant "Idempotency Store" as IDS
+participant "Deployment Resolver" as DR
+participant "Variable Resolver" as VR
+participant "External Variable Backend" as EVB
+participant "Execution Engine" as EE
+participant "Audit Writer" as AW
+participant "Metrics / Tracing" as MT
+
+database "Decision DB" as DDB
+database "Immutable Audit Store" as IAS
+
+BE -> GW : POST /v1/decisions/{artifactCode}
+request_id + idempotency_key + payload
+GW -> API : authenticated request
+API -> IDS : reserve(idempotency_key)
+
+alt solicitud duplicada finalizada
+  IDS --> API : existing response reference
+  API --> GW : cached business response
+  GW --> BE : misma decisión, sin reejecutar
+else solicitud nueva
+  IDS --> API : reserved
+  API -> DR : resolve(tenant, artifact, environment, context)
+  DR -> DDB : load active binding + routing policy
+  DDB --> DR : deployment + compiled checksum
+  DR --> API : selected deployment
+
+  API -> VR : resolve required variables
+  VR -> EVB : fetch missing authoritative values
+  EVB --> VR : values + timestamps + source metadata
+  VR -> VR : validate type, freshness, range, nullability
+
+  alt variable obligatoria inválida o ausente
+    VR --> API : VARIABLE_RESOLUTION_FAILED
+    API -> AW : persist failed execution + diagnostics
+    AW -> IAS : append immutable record
+    API -> IDS : complete(error response)
+    API --> GW : 422 + structured reason
+    GW --> BE : no decision / retry policy
+  else variables resueltas
+    VR --> API : immutable variable snapshot
+    API -> EE : execute(compiledArtifact, snapshot)
+    EE -> EE : evaluate nodes and branches deterministically
+    EE --> API : outcome + score + limit + reasonCodes + trace
+    par persistencia auditable
+      API -> AW : persist execution, variables, steps and reasons
+      AW -> DDB : write operational records
+      AW -> IAS : append immutable evidence
+    else telemetría
+      API -> MT : latency, outcome, rule hits, errors
+    end
+    API -> IDS : complete(response hash)
+    API --> GW : decision response + explanation
+    GW --> BE : outcome + version + request_id
+  end
+end
+
+note over EE
+  El motor ejecuta el payload compilado.
+  No reconstruye el grafo editable durante runtime.
+end note
+@enduml

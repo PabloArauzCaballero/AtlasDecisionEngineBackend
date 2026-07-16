@@ -1,0 +1,98 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam titleFontName Arial
+skinparam titleFontSize 20
+skinparam titleFontColor #17365D
+skinparam ArrowColor #355C7D
+skinparam ArrowThickness 1
+skinparam NoteBackgroundColor #FFF7E6
+skinparam NoteBorderColor #D97706
+skinparam NoteFontColor #4A2B0B
+skinparam package {
+  BackgroundColor #F7FAFC
+  BorderColor #6B8EAD
+  FontColor #17365D
+  FontStyle bold
+}
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  HeaderBackgroundColor #EAF2F8
+}
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam database {
+  BackgroundColor #F4F9FD
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam actor {
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam activity {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  DiamondBackgroundColor #FFF7E6
+  DiamondBorderColor #D97706
+}
+title ATLAS — Trazabilidad desde objetivo de negocio hasta evidencia
+left to right direction
+
+class BusinessObjective <<requirement>> {
+  +objective_code
+  +metric
+  +target
+}
+class PolicyRequirement <<requirement>> {
+  +policy_code
+  +rationale
+  +owner
+}
+class DecisionArtifact <<design>>
+class ArtifactVersion <<version>>
+class VariableContract <<data contract>>
+class RuleNode <<logic>>
+class TestCase <<verification>>
+class ApprovalEvidence <<governance>>
+class Deployment <<operation>>
+class DecisionExecution <<evidence>>
+class MonitoringMetric <<outcome>>
+class ReviewAction <<continuous improvement>>
+
+BusinessObjective "1" --> "1..*" PolicyRequirement : decomposes into
+PolicyRequirement "1" --> "1..*" DecisionArtifact : implemented by
+DecisionArtifact "1" --> "1..*" ArtifactVersion : versioned as
+ArtifactVersion "1" --> "1..*" VariableContract : depends on
+ArtifactVersion "1" --> "1..*" RuleNode : composed of
+PolicyRequirement "1" --> "1..*" TestCase : verified by
+ArtifactVersion "1" --> "1..*" TestCase : tested by
+ArtifactVersion "1" --> "1..*" ApprovalEvidence : authorized by
+ArtifactVersion "1" --> "0..*" Deployment : released through
+Deployment "1" --> "0..*" DecisionExecution : produces
+DecisionExecution "0..*" --> "1..*" MonitoringMetric : aggregates into
+MonitoringMetric "1..*" --> "0..*" ReviewAction : triggers
+ReviewAction ..> PolicyRequirement : refines
+ReviewAction ..> ArtifactVersion : creates next version
+
+note bottom
+  Este mapa evita reglas sin propósito, pruebas sin requisito,
+  despliegues sin aprobación y métricas sin acción responsable.
+end note
+@enduml

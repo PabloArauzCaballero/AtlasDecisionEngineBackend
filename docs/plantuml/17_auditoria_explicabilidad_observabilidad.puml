@@ -1,0 +1,132 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam titleFontName Arial
+skinparam titleFontSize 20
+skinparam titleFontColor #17365D
+skinparam ArrowColor #355C7D
+skinparam ArrowThickness 1
+skinparam NoteBackgroundColor #FFF7E6
+skinparam NoteBorderColor #D97706
+skinparam NoteFontColor #4A2B0B
+skinparam package {
+  BackgroundColor #F7FAFC
+  BorderColor #6B8EAD
+  FontColor #17365D
+  FontStyle bold
+}
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  HeaderBackgroundColor #EAF2F8
+}
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam database {
+  BackgroundColor #F4F9FD
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam actor {
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam activity {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  DiamondBackgroundColor #FFF7E6
+  DiamondBorderColor #D97706
+}
+title ATLAS — Auditoría, explicabilidad y observabilidad
+left to right direction
+
+package "Ejecución" {
+  [Execution Engine] as EE
+  [Reason Code Builder] as RCB
+  [Trace Collector] as TC
+}
+
+package "Persistencia operativa" {
+  database "Execution Header" as EH
+  database "Variable Snapshot" as VS
+  database "Execution Steps" as ES
+  database "Execution Reasons" as ER
+  database "Execution Errors" as EER
+}
+
+package "Evidencia inmutable" {
+  [Canonical Event Builder] as CEB
+  database "Append-only Audit Store" as AOS
+  [Checksum / Signature Service] as CSS
+  [Evidence Exporter] as EXP
+}
+
+package "Observabilidad" {
+  [Metrics Aggregator] as MA
+  [Distributed Tracing] as DT
+  [Alerting] as AL
+  [Risk Monitoring] as RM
+}
+
+package "Consumidores" {
+  [Auditor Console] as AC
+  [Operations Console] as OC
+  [BI / Data Platform] as BI
+}
+
+EE --> RCB : outcome + triggered actions
+EE --> TC : node timings + branch path
+EE --> EH : request, deployment, outcome
+EE --> VS : resolved values + provenance
+TC --> ES
+RCB --> ER
+EE --> EER : technical/business errors
+
+EH --> CEB
+VS --> CEB
+ES --> CEB
+ER --> CEB
+EER --> CEB
+CEB --> CSS : canonical payload
+CSS --> AOS : append checksum + record
+AOS --> EXP
+
+EE --> MA : counters and histograms
+TC --> DT
+MA --> AL : thresholds
+MA --> RM : approval, rejection, review, latency
+RM --> AL : drift / anomalous rule hit rate
+
+AC --> EXP
+OC --> EH
+OC --> ES
+OC --> ER
+BI --> EH
+BI --> MA
+BI --> AOS : governed access
+
+note bottom of RCB
+  Las razones son códigos estructurados,
+  no textos libres generados al azar.
+end note
+
+note bottom of AOS
+  Permite demostrar qué versión, variables,
+  ruta y reglas produjeron una decisión.
+end note
+@enduml

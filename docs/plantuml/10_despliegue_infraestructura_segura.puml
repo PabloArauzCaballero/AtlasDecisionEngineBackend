@@ -1,0 +1,168 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam titleFontName Arial
+skinparam titleFontSize 20
+skinparam titleFontColor #17365D
+skinparam ArrowColor #355C7D
+skinparam ArrowThickness 1
+skinparam NoteBackgroundColor #FFF7E6
+skinparam NoteBorderColor #D97706
+skinparam NoteFontColor #4A2B0B
+skinparam package {
+  BackgroundColor #F7FAFC
+  BorderColor #6B8EAD
+  FontColor #17365D
+  FontStyle bold
+}
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  HeaderBackgroundColor #EAF2F8
+}
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam database {
+  BackgroundColor #F4F9FD
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam actor {
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam activity {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  DiamondBackgroundColor #FFF7E6
+  DiamondBorderColor #D97706
+}
+title ATLAS — Despliegue de referencia seguro y escalable
+left to right direction
+
+cloud "Internet / Redes corporativas" as NET
+node "Edge" {
+  [WAF + Rate Limiting] as WAF
+  [Load Balancer / API Gateway] as LB
+}
+
+node "Zona privada — Control Plane" {
+  node "Cluster de aplicaciones" {
+    [Decision Management API] as DMA
+    [Validation / Compiler Workers] as VCW
+    [Test Runner Workers] as TRW
+    [Approval / Deployment Services] as ADS
+  }
+}
+
+node "Zona privada — Data Plane" {
+  node "Runtime Cluster Multi-AZ" {
+    [Runtime API xN] as RTA
+    [Execution Engine xN] as EE
+    [Async Audit Workers] as AAW
+  }
+}
+
+node "Capa de datos" {
+  database "PostgreSQL HA
+Decision DB" as PG
+  database "Redis HA
+cache + idempotency" as REDIS
+  database "Execution Store
+partitioned" as EXEC
+  database "Immutable / WORM Audit Store" as AUDIT
+  [Object Storage
+compiled artifacts + evidence] as OBJ
+}
+
+node "Observabilidad y seguridad" {
+  [Centralized Logs] as LOG
+  [Metrics + Alerts] as MET
+  [Distributed Tracing] as TRACE
+  [Secrets Manager / KMS] as KMS
+  [SIEM / Incident Management] as SIEM
+}
+
+node "Sistemas externos" {
+  [Backend Externo de Variables] as BEV
+  [Identity Provider] as IDP
+  [BI / Data Platform] as BI
+}
+
+NET --> WAF
+WAF --> LB
+LB --> DMA : rutas internas de gestión
+LB --> RTA : rutas runtime
+
+DMA --> PG
+DMA --> REDIS
+VCW --> PG
+VCW --> OBJ
+TRW --> PG
+TRW --> OBJ
+ADS --> PG
+ADS --> REDIS
+ADS --> OBJ
+
+RTA --> REDIS
+RTA --> EE
+EE --> REDIS
+EE --> OBJ
+EE --> BEV
+AAW --> EXEC
+AAW --> AUDIT
+
+DMA --> IDP
+RTA --> IDP
+PG --> BI : réplicas/exports gobernados
+EXEC --> BI
+AUDIT --> BI
+
+DMA --> LOG
+VCW --> LOG
+TRW --> LOG
+ADS --> LOG
+RTA --> LOG
+EE --> LOG
+AAW --> LOG
+
+DMA --> MET
+RTA --> MET
+EE --> MET
+AAW --> MET
+RTA --> TRACE
+EE --> TRACE
+
+DMA --> KMS
+RTA --> KMS
+EE --> KMS
+LOG --> SIEM
+MET --> SIEM
+AUDIT --> SIEM
+
+note bottom of REDIS
+  El cache acelera bindings y artefactos,
+  pero PostgreSQL/Object Storage siguen
+  siendo fuentes persistentes de verdad.
+end note
+
+note bottom of AUDIT
+  Evidencia inmutable con retención definida,
+  cifrado, checksum y acceso mínimo necesario.
+end note
+@enduml

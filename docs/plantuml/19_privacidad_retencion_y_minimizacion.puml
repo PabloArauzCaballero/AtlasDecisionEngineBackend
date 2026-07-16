@@ -1,0 +1,92 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam titleFontName Arial
+skinparam titleFontSize 20
+skinparam titleFontColor #17365D
+skinparam ArrowColor #355C7D
+skinparam ArrowThickness 1
+skinparam NoteBackgroundColor #FFF7E6
+skinparam NoteBorderColor #D97706
+skinparam NoteFontColor #4A2B0B
+skinparam package {
+  BackgroundColor #F7FAFC
+  BorderColor #6B8EAD
+  FontColor #17365D
+  FontStyle bold
+}
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  HeaderBackgroundColor #EAF2F8
+}
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam database {
+  BackgroundColor #F4F9FD
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam actor {
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam activity {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  DiamondBackgroundColor #FFF7E6
+  DiamondBorderColor #D97706
+}
+title ATLAS — Privacidad, minimización y retención de evidencia
+start
+:Recibir payload de decisión;
+:Clasificar cada variable por sensibilidad y propósito;
+
+if (¿Variable necesaria para la decisión?) then (sí)
+  :Validar base de uso y contrato;
+else (no)
+  :Descartar antes del motor;
+endif
+
+if (¿Dato de alto riesgo o tercero no permitido?) then (sí)
+  :Transformar en señal/puntaje en origen;
+  :No almacenar el dato bruto;
+else (no)
+  :Aplicar minimización y pseudonimización;
+endif
+
+:Ejecutar decisión;
+:Separar evidencia operacional de analítica;
+:Guardar solo snapshot necesario, hash, procedencia y versión;
+:Cifrar en tránsito y reposo;
+:Asignar política de retención por categoría;
+
+if (¿Fin de retención o solicitud válida de eliminación?) then (sí)
+  :Eliminar o anonimizar según obligación aplicable;
+  :Conservar prueba de eliminación sin dato personal;
+else (no)
+  :Mantener acceso mínimo, trazado y revisiones periódicas;
+endif
+stop
+
+note right
+  Para contactos de terceros, la política de ATLAS
+  es procesar en el dispositivo y conservar solo
+  una señal o puntaje, no la agenda completa.
+end note
+@enduml

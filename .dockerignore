@@ -1,0 +1,11 @@
+node_modules
+dist
+coverage
+.git
+.github
+*.zip
+*.log
+.env
+.env.*
+!/.env.example
+MANIFEST.sha256

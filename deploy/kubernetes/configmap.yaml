@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: atlas-decision-config
+data:
+  NODE_ENV: production
+  PORT: "3000"
+  AUTH_MODE: JWT
+  JWT_MANAGEMENT_AUDIENCE: atlas-decision-management
+  JWT_RUNTIME_AUDIENCE: atlas-decision-runtime
+  JWT_TENANT_CLAIM: tenant_id
+  JWT_ROLES_CLAIM: roles
+  REQUIRE_REDIS_IN_PRODUCTION: "true"
+  RATE_LIMIT_ENABLED: "true"
+  SWAGGER_ENABLED: "false"
+  METRICS_ENABLED: "true"
+  ACCESS_AUDIT_ENABLED: "true"
+  DEFAULT_ENVIRONMENT: PROD

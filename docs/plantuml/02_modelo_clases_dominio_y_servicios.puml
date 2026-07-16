@@ -1,0 +1,308 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam titleFontName Arial
+skinparam titleFontSize 20
+skinparam titleFontColor #17365D
+skinparam ArrowColor #355C7D
+skinparam ArrowThickness 1
+skinparam NoteBackgroundColor #FFF7E6
+skinparam NoteBorderColor #D97706
+skinparam NoteFontColor #4A2B0B
+skinparam package {
+  BackgroundColor #F7FAFC
+  BorderColor #6B8EAD
+  FontColor #17365D
+  FontStyle bold
+}
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  HeaderBackgroundColor #EAF2F8
+}
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam database {
+  BackgroundColor #F4F9FD
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam actor {
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+skinparam activity {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  DiamondBackgroundColor #FFF7E6
+  DiamondBorderColor #D97706
+}
+title ATLAS — Modelo de clases del dominio y límites de servicio
+hide empty members
+left to right direction
+
+package "Dominio de diseño" {
+  class DecisionArtifact <<aggregate root>> {
+    -id: ArtifactId
+    -tenantId: TenantId
+    -code: ArtifactCode
+    -type: ArtifactType
+    -owner: TeamCode
+    +createDraft(): ArtifactVersion
+    +retire(): void
+  }
+
+  class ArtifactVersion <<aggregate root>> {
+    -id: VersionId
+    -number: int
+    -status: VersionStatus
+    -checksum: Checksum
+    -graph: RuleGraph
+    +submitForReview(): void
+    +approve(): void
+    +freeze(): void
+    +cloneAsDraft(): ArtifactVersion
+  }
+
+  class RuleGraph <<entity>> {
+    -nodes: List<RuleNode>
+    -edges: List<RuleEdge>
+    +validateTopology(): ValidationResult
+    +reachableNodes(): Set<NodeId>
+    +terminalPaths(): List<Path>
+  }
+
+  abstract class RuleNode <<entity>> {
+    -id: NodeId
+    -key: NodeKey
+    -label: String
+    -position: CanvasPosition
+    +evaluate(ctx): NodeResult
+  }
+
+  class StartNode
+  class ConditionNode
+  class ScoreNode
+  class ActionNode
+  class ManualReviewNode
+  class EndNode
+
+  class RuleEdge <<entity>> {
+    -from: NodeId
+    -to: NodeId
+    -priority: int
+    -condition: ConditionExpression
+    -isDefault: boolean
+  }
+
+  class ConditionExpression <<value object>> {
+    -ast: ExpressionAst
+    +evaluate(ctx): boolean
+    +referencedVariables(): Set<VariableCode>
+  }
+
+  class DecisionAction <<value object>> {
+    -type: ActionType
+    -payloadTemplate: Json
+    -reasonCodes: List<ReasonCode>
+  }
+}
+
+package "Dominio de variables" {
+  class VariableContract <<aggregate root>> {
+    -code: VariableCode
+    -version: int
+    -dataType: DataType
+    -required: boolean
+    -validationRules: List<VariableRule>
+    +validate(value): VariableValidationResult
+    +resolve(sources): ResolvedVariable
+  }
+
+  class VariableSource <<entity>> {
+    -system: SourceSystem
+    -path: String
+    -field: String
+    -precedence: int
+    -freshnessSla: Duration
+  }
+
+  class ResolvedVariable <<value object>> {
+    -value: Json
+    -source: SourceSystem
+    -resolvedAt: Instant
+    -defaulted: boolean
+  }
+}
+
+package "Dominio de gobierno" {
+  class ApprovalWorkflow <<aggregate root>> {
+    -requestId: ApprovalRequestId
+    -steps: List<ApprovalStep>
+    +recordDecision(decision): void
+    +isApproved(): boolean
+    +enforceSeparationOfDuties(): void
+  }
+
+  class ApprovalStep <<entity>> {
+    -order: int
+    -requiredRole: Role
+    -minimumApprovals: int
+    -decisions: List<ApprovalDecision>
+  }
+
+  class ApprovalDecision <<entity>> {
+    -actor: ActorId
+    -decision: ApprovalOutcome
+    -comment: String
+    -evidence: List<EvidenceRef>
+  }
+}
+
+package "Dominio de pruebas" {
+  class TestSuite <<aggregate root>> {
+    -cases: List<TestCase>
+    -blocking: boolean
+    +execute(compiled): TestRun
+  }
+
+  class TestCase <<entity>> {
+    -input: Json
+    -assertions: List<Assertion>
+  }
+
+  class Assertion <<value object>> {
+    -path: JsonPath
+    -operator: AssertionOperator
+    -expected: Json
+    +evaluate(actual): AssertionResult
+  }
+
+  class TestRun <<entity>> {
+    -status: TestRunStatus
+    -caseResults: List<TestCaseResult>
+    -coverage: CoverageReport
+  }
+}
+
+package "Dominio de operación" {
+  class CompiledArtifact <<immutable>> {
+    -versionId: VersionId
+    -compilerVersion: String
+    -payload: Json
+    -checksum: Checksum
+  }
+
+  class Deployment <<aggregate root>> {
+    -environment: EnvironmentCode
+    -compiledArtifact: CompiledArtifact
+    -effectivePeriod: TimeRange
+    -routingPolicy: RoutingPolicy
+    +activate(): void
+    +deactivate(): void
+    +rollbackTo(previous): Deployment
+  }
+
+  class DecisionExecution <<aggregate root>> {
+    -requestId: RequestId
+    -deploymentId: DeploymentId
+    -inputSnapshot: Json
+    -trace: ExecutionTrace
+    -outcome: DecisionOutcome
+    +replay(): DecisionOutcome
+  }
+
+  class ExecutionTrace <<entity>> {
+    -steps: List<ExecutionStep>
+    -reasonCodes: List<ReasonCode>
+    -errors: List<ExecutionError>
+  }
+}
+
+package "Servicios de aplicación" {
+  class VersionService <<application service>>
+  class VariableCatalogService <<application service>>
+  class ValidationService <<application service>>
+  class CompilationService <<application service>>
+  class TestRunnerService <<application service>>
+  class ApprovalService <<application service>>
+  class DeploymentService <<application service>>
+  class ExecutionService <<application service>>
+  class AuditService <<application service>>
+}
+
+package "Puertos" {
+  interface ArtifactRepository
+  interface VariableRepository
+  interface DeploymentRepository
+  interface ExecutionRepository
+  interface ExternalVariableProvider
+  interface ImmutableAuditStore
+  interface MetricsPublisher
+}
+
+DecisionArtifact "1" *-- "1..*" ArtifactVersion
+ArtifactVersion "1" *-- "1" RuleGraph
+RuleGraph "1" *-- "1..*" RuleNode
+RuleGraph "1" *-- "1..*" RuleEdge
+RuleNode <|-- StartNode
+RuleNode <|-- ConditionNode
+RuleNode <|-- ScoreNode
+RuleNode <|-- ActionNode
+RuleNode <|-- ManualReviewNode
+RuleNode <|-- EndNode
+RuleEdge *-- ConditionExpression
+ActionNode *-- DecisionAction
+ConditionNode *-- ConditionExpression
+ScoreNode ..> VariableContract
+ConditionExpression ..> VariableContract : references
+VariableContract "1" *-- "1..*" VariableSource
+VariableContract ..> ResolvedVariable
+ApprovalWorkflow "1" *-- "1..*" ApprovalStep
+ApprovalStep "1" *-- "0..*" ApprovalDecision
+TestSuite "1" *-- "1..*" TestCase
+TestCase "1" *-- "1..*" Assertion
+TestSuite ..> TestRun
+Deployment *-- CompiledArtifact
+DecisionExecution *-- ExecutionTrace
+
+VersionService ..> DecisionArtifact
+VersionService ..> ArtifactRepository
+VariableCatalogService ..> VariableRepository
+VariableCatalogService ..> ExternalVariableProvider
+ValidationService ..> RuleGraph
+ValidationService ..> VariableContract
+CompilationService ..> ArtifactVersion
+CompilationService ..> CompiledArtifact
+TestRunnerService ..> TestSuite
+TestRunnerService ..> CompiledArtifact
+ApprovalService ..> ApprovalWorkflow
+DeploymentService ..> Deployment
+DeploymentService ..> DeploymentRepository
+ExecutionService ..> DecisionExecution
+ExecutionService ..> ExecutionRepository
+ExecutionService ..> ExternalVariableProvider
+ExecutionService ..> MetricsPublisher
+AuditService ..> ImmutableAuditStore
+
+note bottom of ArtifactVersion
+  Las invariantes del agregado bloquean
+  edición después de aprobación y exigen
+  nueva versión para cualquier cambio.
+end note
+@enduml
