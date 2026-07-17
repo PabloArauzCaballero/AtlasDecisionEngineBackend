@@ -76,6 +76,9 @@ export const envSchema = z
     METRICS_ENABLED: booleanFromString.default(true),
     METRICS_TOKEN: optionalSecret,
     LOG_LEVEL: z.enum(['error', 'warn', 'log', 'debug', 'verbose']).default('log'),
+    // Containers run with a read-only root filesystem, so writing a log file must be an
+    // explicit opt-in backed by a mounted volume.
+    LOG_OUTPUT: z.enum(['stdout', 'stdout_and_file']).default('stdout'),
     LOG_FILE_PATH: z.string().min(1).default('logs/atlas-decision-engine.log'),
     ACCESS_AUDIT_ENABLED: booleanFromString.default(true),
 
@@ -215,8 +218,6 @@ export const envSchema = z
           message: 'Identity provider URL must use HTTPS in production',
         });
       }
-<<<<<<< Updated upstream
-=======
       if (value.VARIABLE_BACKEND_URL && !value.VARIABLE_BACKEND_URL.startsWith('https://')) {
         ctx.addIssue({
           code: 'custom',
@@ -238,7 +239,6 @@ export const envSchema = z
           message: 'LOG_LEVEL must not be debug or verbose in production',
         });
       }
->>>>>>> Stashed changes
       const forbiddenExamples: Array<[keyof AppEnv, string]> = [
         ['MANAGEMENT_API_KEY', 'change-me-management'],
         ['RUNTIME_API_KEY', 'change-me-runtime'],
@@ -259,6 +259,7 @@ export const envSchema = z
 
 export type AppEnv = z.infer<typeof envSchema>;
 
+/** Parses, normalizes and validates the complete application environment. */
 export function validateEnvironment(input: Record<string, unknown>): AppEnv {
   return envSchema.parse(input);
 }

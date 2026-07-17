@@ -18,6 +18,11 @@ export interface AppendAuditEventInput {
  * deployments, runtime, manual review, traceability) records its audit trail through
  * this single `append` call, which makes it the one place that needs a log statement
  * to cover "every action in every layer" instead of instrumenting each service.
+ *
+ * Callers that own a business transaction must pass it: an audit event that commits
+ * independently of the action it records can outlive a rolled-back change (evidence of
+ * something that never happened) or be lost while the change commits (a change with no
+ * evidence). Joining the caller's transaction makes the action and its evidence atomic.
  */
 @Injectable()
 export class AuditService {
@@ -28,40 +33,17 @@ export class AuditService {
     private readonly hashes: HashService,
   ) {}
 
-  async append(input: AppendAuditEventInput): Promise<DecisionAuditEvent> {
-    const event = await this.prisma.$transaction(async (tx) => {
-      // Serialize the per-tenant hash chain so concurrent writers cannot create forks.
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${input.tenantId})`;
-      const previous = await tx.decisionAuditEvent.findFirst({
-        where: { tenantId: input.tenantId },
-        orderBy: { id: 'desc' },
-        select: { eventHash: true },
-      });
-      const payload = {
-        tenantId: input.tenantId.toString(),
-        eventType: input.eventType,
-        aggregateType: input.aggregateType,
-        aggregateId: input.aggregateId,
-        actorId: input.actorId,
-        requestId: input.requestId ?? null,
-        payload: input.payload,
-        previousHash: previous?.eventHash ?? null,
-      };
-      const eventHash = this.hashes.hmac(payload);
-      return tx.decisionAuditEvent.create({
-        data: {
-          tenantId: input.tenantId,
-          eventType: input.eventType,
-          aggregateType: input.aggregateType,
-          aggregateId: input.aggregateId,
-          actorId: input.actorId,
-          requestId: input.requestId,
-          payloadJson: input.payload,
-          previousHash: previous?.eventHash,
-          eventHash,
-        },
-      });
-    });
+  /**
+   * @param tx The caller's business transaction. Omit only when the event genuinely has
+   *           no accompanying write, in which case a dedicated transaction is opened.
+   */
+  async append(
+    input: AppendAuditEventInput,
+    tx?: Prisma.TransactionClient,
+  ): Promise<DecisionAuditEvent> {
+    const event = tx
+      ? await this.appendWithin(tx, input)
+      : await this.prisma.$transaction((client) => this.appendWithin(client, input));
     this.logger.log({
       eventType: event.eventType,
       aggregateType: event.aggregateType,
@@ -72,8 +54,6 @@ export class AuditService {
     }, 'AuditService');
     return event;
   }
-<<<<<<< Updated upstream
-=======
 
   private async appendWithin(
     tx: Prisma.TransactionClient,
@@ -115,5 +95,4 @@ export class AuditService {
       },
     });
   }
->>>>>>> Stashed changes
 }

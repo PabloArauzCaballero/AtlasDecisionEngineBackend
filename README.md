@@ -1,67 +1,58 @@
 # ATLAS Decision Engine Backend 2.0
 
-Backend modular para diseñar, probar, aprobar, desplegar, ejecutar y auditar decisiones de crédito, riesgo y fraude de ATLAS.
+Backend modular para diseñar, probar, aprobar, desplegar, ejecutar y auditar decisiones de crédito, riesgo y fraude.
 
 ## Estado
 
-**Release candidate endurecido para producción.** La base técnica está implementada y verificada localmente. El Go-Live todavía exige integrar IAM/JWKS real, proveedores externos, infraestructura administrada, pruebas de carga, restore, pentest y aprobación de políticas.
+Este repositorio es el entregable técnico de la fase de backend y endurecimiento. Incluye el motor, persistencia, seguridad, auditoría, observabilidad y referencias de despliegue verificables en desarrollo y CI.
+
+El cierre de esta fase no equivale a un Go-Live: IAM/JWKS real, infraestructura administrada, pruebas de carga, restore, pentest, rotación de secretos y aprobaciones de Riesgo/Compliance pertenecen al proceso de puesta en producción.
 
 ## Capacidades
 
 - Artefactos y versiones inmutables de decisión.
-- Grafo de reglas, validación estructural y compilación determinista.
-- Catálogo versionado de variables y reason codes.
-- Suites de prueba, assertions, regresión y cobertura de nodos/aristas/terminales.
-- Gobierno, aprobaciones y segregación de funciones.
-- Ambientes, deployments, suspensión y rollback.
+- Grafo validado, compilación canónica y ejecución determinista.
+- Catálogo versionado de variables y códigos de razón.
+- Suites de prueba, regresión y cobertura del grafo.
+- Gobierno, aprobaciones, segregación de funciones y despliegues.
 - Runtime idempotente con snapshots, trazas y revisión manual.
 - Auditoría encadenada por HMAC y verificación de integridad.
-- Trazabilidad entre objetivos, políticas, artefactos y pruebas.
-- Multi-tenancy, RBAC, JWT RS256/JWKS y API keys de transición.
-- Rate limiting distribuido, métricas Prometheus, health/readiness y logs JSON estructurados con Pino (stdout + archivo persistente).
+- Multi-tenancy, RBAC, JWT RS256/JWKS, proveedor de identidad y clientes de integración.
+- Rate limiting, métricas Prometheus, health/readiness y logs JSON estructurados.
 
 ## Stack
 
 - Node.js 22
-- NestJS 11 + TypeScript
-- PostgreSQL 16
-- Prisma 6 con adapter `pg`
+- NestJS 11 y TypeScript
+- PostgreSQL 16 y Prisma 6
 - Redis 7
 - Jest
-- Docker / Kubernetes reference manifests
+- Docker y manifiestos Kubernetes de referencia
 
-## Documentación clave
+## Documentación vigente
 
-- [`docs/VISTAS_POR_FASES.md`](docs/VISTAS_POR_FASES.md): catálogo de pantallas por fase y clasificación tabla/formulario.
-- [`docs/PRODUCTION_READINESS.md`](docs/PRODUCTION_READINESS.md): gates antes de Go-Live.
-- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md): despliegue local y productivo.
-- [`docs/runbooks/OPERATIONS.md`](docs/runbooks/OPERATIONS.md): respuesta operativa.
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): arquitectura interna.
-- [`docs/IMPLEMENTATION_MATRIX.md`](docs/IMPLEMENTATION_MATRIX.md): trazabilidad con PlantUML.
-- [`docs/API_EXAMPLES.md`](docs/API_EXAMPLES.md): ejemplos de uso.
+- [`DELIVERY_REPORT.md`](DELIVERY_REPORT.md): cierre, evidencia y límites de esta fase.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): arquitectura y contratos internos.
+- [`docs/API_EXAMPLES.md`](docs/API_EXAMPLES.md): autenticación y ejemplos HTTP.
+- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md): ejecución local y despliegue.
+- [`docs/runbooks/OPERATIONS.md`](docs/runbooks/OPERATIONS.md): operación e incidentes.
+- [`docs/CONFIGURABLE_OUTPUTS.md`](docs/CONFIGURABLE_OUTPUTS.md): nodos RESULT y scripts aislados.
+- [`docs/IMPLEMENTATION_MATRIX.md`](docs/IMPLEMENTATION_MATRIX.md): trazabilidad entre diseño e implementación.
+- [`docs/plantuml/README.md`](docs/plantuml/README.md): diagramas de diseño.
+- [`SECURITY.md`](SECURITY.md): reporte responsable y reglas mínimas.
+- [`docs/VISTAS_POR_FASES.md`](docs/VISTAS_POR_FASES.md): backlog de interfaz; no es un contrato de API.
 
-## Inicio rápido local
+## Inicio local
+
+1. Copie `.env.example` a `.env`.
+2. Para autenticación local sin proveedor de identidad, cambie `AUTH_MODE=API_KEY`.
+3. Inicie PostgreSQL y Redis:
 
 ```bash
-cp .env.example .env
-docker compose up --build
+docker compose up -d postgres redis
 ```
 
-La migración se ejecuta como un contenedor one-shot separado. El seed **no** se aplica automáticamente:
-
-```bash
-docker compose --profile seed run --rm seed
-```
-
-Servicios locales:
-
-- API: `http://localhost:3000`
-- Swagger: `http://localhost:3000/docs`
-- Liveness: `GET /health/live`
-- Readiness: `GET /health/ready`
-- Métricas: `GET /metrics` con `Authorization: Bearer <METRICS_TOKEN>`
-
-## Inicio sin contenerizar la API
+4. Prepare y ejecute la aplicación:
 
 ```bash
 npm ci
@@ -71,80 +62,67 @@ npm run prisma:seed
 npm run start:dev
 ```
 
-## Seguridad
+El seed registra los clientes bootstrap usando `MANAGEMENT_API_KEY`, `RUNTIME_API_KEY`, `BOOTSTRAP_TENANT_ID` y los alcances `BOOTSTRAP_*_ROLES`. Puede ejecutarse varias veces de forma idempotente.
 
-### Producción
+Servicios:
 
-`NODE_ENV=production` obliga a usar `AUTH_MODE=JWT` o `HYBRID`. Configure:
+- API: `http://localhost:3000`
+- Swagger, solo fuera de producción: `http://localhost:3000/docs`
+- Liveness: `GET /health/live`
+- Readiness: `GET /health/ready`
+- Métricas: `GET /metrics` con `Authorization: Bearer <METRICS_TOKEN>`
 
-- `JWT_JWKS_URL` HTTPS
-- `JWT_ISSUER`
-- audiences de management/runtime
-- claim de tenant y roles
-- Redis
-- token de métricas
-- secreto HMAC de auditoría
+## Autenticación
 
-La aplicación valida firma RS256, issuer, audience, expiración, `nbf`, tenant y roles. En modo híbrido se conservan API keys distintas para integraciones técnicas durante una migración controlada.
+### Clientes de integración
 
-### Contexto por API key en desarrollo
+Una API key solo identifica una credencial registrada. El servidor obtiene de PostgreSQL:
 
-Headers de management:
+- la identidad estable del cliente;
+- la audiencia `management` o `runtime`;
+- los roles autorizados;
+- los tenants permitidos;
+- el estado y vigencia de la credencial.
+
+El llamante no puede declarar `x-principal-id` ni `x-roles`. `x-tenant-id` es opcional para clientes de un solo tenant y obligatorio para clientes autorizados en varios tenants.
 
 ```http
 x-api-key: <MANAGEMENT_API_KEY>
 x-tenant-id: 1
-x-actor-id: developer
-x-roles: RISK_ANALYST,QA_ANALYST
 ```
 
-Runtime:
+El cliente runtime usa una credencial distinta:
 
 ```http
 x-api-key: <RUNTIME_API_KEY>
 x-tenant-id: 1
-x-actor-id: consumer-api
-x-roles: DECISION_RUNTIME
 idempotency-key: unique-business-key
 ```
 
-Los headers de roles y tenant no son confiables cuando la autenticación es JWT; se extraen exclusivamente de claims firmados.
+### Identidades firmadas
 
-## Respuestas paginadas
+Los modos `JWT`, `HYBRID`, `IDENTITY_PROVIDER` e `IDENTITY_HYBRID` resuelven tenant y roles desde claims o perfiles verificados. El comodín `PLATFORM_ADMIN` solo se acepta mediante JWT o proveedor de identidad; una API key siempre necesita el rol específico de la ruta.
 
-Los inventarios aceptan `page` y `pageSize`; el tamaño está limitado por `MAX_PAGE_SIZE`.
+Producción rechaza `AUTH_MODE=API_KEY`, Swagger habilitado, logging debug/verbose y proveedores HTTP sin TLS.
 
-```json
-{
-  "items": [],
-  "page": 1,
-  "pageSize": 25,
-  "total": 0,
-  "totalPages": 0,
-  "hasNextPage": false
-}
+## Logs y métricas
+
+Todos los logs Nest se emiten como JSON estructurado con contexto de request. `LOG_OUTPUT=stdout` es el valor seguro por defecto para contenedores con filesystem de solo lectura.
+
+Para duplicar a archivo:
+
+```env
+LOG_OUTPUT=stdout_and_file
+LOG_FILE_PATH=/var/log/atlas/atlas-decision-engine.log
 ```
 
-## Logs
+La ruta debe pertenecer a un volumen escribible. Si el sink falla, la aplicación continúa por stdout.
 
-Todos los `Logger` de Nest (guards, interceptors, servicios) enrutan a través de un único
-`StructuredLoggerService` respaldado por [Pino](https://getpino.io/), registrado con
-`app.useLogger()`. Cada línea es JSON estructurado con `requestId`, `tenantId`, `principalId` y
-`context`, y se escribe simultáneamente a stdout y a un archivo persistente:
+Las fallas del proveedor de variables se exponen mediante `atlas_provider_failures_total{provider,reason}` y un evento estructurado.
 
-- `LOG_FILE_PATH` (default `logs/atlas-decision-engine.log`): ruta del archivo; el directorio se
-  crea automáticamente si no existe. El archivo crece de forma append-only entre reinicios — en
-  producción, rotarlo con `logrotate` o un side-car de recolección (no hay rotación interna).
-- `LOG_LEVEL` sigue controlando el umbral mínimo (`error`/`warn`/`log`/`debug`/`verbose`).
+## Rutas principales
 
-Las acciones de negocio (crear artefacto, reemplazar grafo, correr suite, aprobar, desplegar,
-ejecutar decisión, revisión manual, trazabilidad) se loguean desde el único punto por el que todas
-pasan (`AuditService.append`), y cada rechazo HTTP (401/403/409/429/5xx) se loguea desde
-`DomainExceptionFilter`, además del log de acceso por request de `AccessLogInterceptor`.
-
-## Principales rutas
-
-| Dominio | Rutas principales |
+| Dominio | Rutas |
 |---|---|
 | Salud | `/health/live`, `/health/ready` |
 | Métricas | `/metrics` |
@@ -161,54 +139,27 @@ pasan (`AuditService.append`), y cada rechazo HTTP (401/403/409/429/5xx) se logu
 ## Verificación
 
 ```bash
+npm run prisma:validate
+npm run migration:validate
 npm run typecheck
 npm run build
 npm test
 npm run test:cov
-npm run migration:validate
+npm run test:e2e
+npm run smoke
 npm run security:audit
 ```
 
-Validación de configuración después de compilar:
+Para validar configuración productiva, compile y ejecute:
 
 ```bash
-NODE_ENV=production \
-DATABASE_URL='...' \
-REDIS_URL='rediss://...' \
-AUTH_MODE=JWT \
-JWT_JWKS_URL='https://...' \
-JWT_ISSUER='https://...' \
-AUDIT_HASH_SECRET='...' \
-METRICS_TOKEN='...' \
 npm run production:config:check
 ```
 
-## Docker
+## Límites del entregable
 
-La imagen tiene targets separados:
-
-```bash
-docker build --target runtime -t atlas-decision-engine:2.0.0 .
-docker build --target migrator -t atlas-decision-migrator:2.0.0 .
-```
-
-La API runtime no contiene Prisma CLI ni ejecuta migraciones o seeds al arrancar. Ejecutar cambios de schema como Job previo al rollout evita carreras entre réplicas.
-
-## Kubernetes
-
-`deploy/kubernetes` contiene plantillas para Deployment, Service, migration Job, HPA, PDB y NetworkPolicy. Deben adaptarse a registry, secret manager, TLS, ingress, topología y políticas reales.
-
-## Reglas de datos
-
-- Contactos del dispositivo no se almacenan; solo señales derivadas autorizadas.
-- Cada decisión conserva versión, deployment, checksum, variables, pasos, razones y errores.
-- El límite disponible y otros saldos auditables deben representarse como movimientos, no como números sobrescritos.
-- No se acelera automáticamente toda la deuda ante una cuota vencida; la política financiera se modela por calendario y cuota.
-- Los registros históricos no se editan silenciosamente; se generan nuevas versiones o eventos.
-
-## Límites actuales
-
-- Las integraciones con buró, KYC, bancos, QR, mensajería, KMS y WORM son puertos preparados, no conexiones productivas terminadas.
-- El editor visual requiere endpoint transaccional de escritura del grafo y control `ETag/If-Match`.
-- Los umbrales de score, mora, aprobación y override deben ser aprobados por Riesgo; el seed es demostrativo.
-- La retención y legal hold deben definirse con Compliance antes de automatizar purgas.
+- Las integraciones con buró, KYC, bancos, QR, mensajería, KMS y WORM requieren proveedores reales.
+- El seed BNPL es demostrativo y no sustituye aprobación formal de políticas.
+- La retención y legal hold requieren definición de Compliance.
+- Los manifiestos Kubernetes deben adaptarse al ingress, TLS, secret manager, topología y observabilidad de la plataforma objetivo.
+- `backend.zip` fue retirado del árbol actual, pero cualquier secreto que haya existido en su historial debe rotarse y purgarse mediante un procedimiento controlado.

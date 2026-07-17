@@ -1,4 +1,4 @@
-# ATLAS — Motor de Decisión: paquete PlantUML 10/10
+# ATLAS — Paquete de arquitectura PlantUML
 
 Este paquete contiene una arquitectura integral para un motor de decisión de crédito, riesgo y fraude, con edición visual, contratos de variables, versionado inmutable, pruebas deterministas, aprobaciones, despliegues, rollback, ejecución reproducible, explicabilidad y auditoría.
 

@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 // Runtime smoke test: exercises a real running instance end to end and records every
-// real response (no mocks) to smoke/last-run.json. Re-running it is safe — each
-// scenario uses a fixed, deterministic idempotency key per scenario name, so it
-// exercises the runtime's own idempotency guarantee instead of creating duplicates.
+// real response (no mocks) to smoke/last-run.json. Each invocation uses a fresh
+// idempotency key and replays it within that same run, so persistent development
+// databases can execute the smoke repeatedly without colliding with historical payloads.
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const baseUrl = process.env.BASE_URL ?? 'http://localhost:3000';
-const runtimeApiKey = process.env.RUNTIME_API_KEY ?? 'change-me-runtime';
-const managementApiKey = process.env.MANAGEMENT_API_KEY ?? 'change-me-management';
+const runtimeApiKey = process.env.RUNTIME_API_KEY ?? 'local-runtime-key-change-before-sharing';
+const managementApiKey = process.env.MANAGEMENT_API_KEY ?? 'local-management-key-change-before-sharing';
 const tenantId = process.env.TENANT_ID ?? '1';
-const runTag = process.env.SMOKE_RUN_TAG ?? 'default';
+const runTag = process.env.SMOKE_RUN_TAG ?? `${Date.now()}-${process.pid}`;
 
 const results = [];
 let failures = 0;
@@ -64,13 +64,10 @@ function assertEqual(actual, expected, label) {
 const managementHeaders = {
   'x-api-key': managementApiKey,
   'x-tenant-id': tenantId,
-  'x-principal-id': 'smoke.management',
-  'x-roles': 'RISK_ANALYST,AUDITOR',
 };
 const runtimeHeaders = {
   'x-api-key': runtimeApiKey,
   'x-tenant-id': tenantId,
-  'x-principal-id': 'smoke.runtime',
 };
 const decisionVariables = {
   kyc_status: 'VERIFIED',

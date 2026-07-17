@@ -190,22 +190,6 @@ export class TestExecutionService {
           leaseExpiresAt: null,
         },
       });
-<<<<<<< Updated upstream
-    });
-
-    await this.audit.append({
-      tenantId,
-      eventType: failed ? 'TEST_RUN_FAILED' : 'TEST_RUN_PASSED',
-      aggregateType: 'TestRun',
-      aggregateId: run.id.toString(),
-      actorId: principal.id,
-      requestId: principal.requestId,
-      payload: {
-        suiteCode: suite.suiteCode,
-        compiledChecksum: compiled.compiledChecksum,
-        coverage: coverage.map((item) => ({ type: item.type, percentage: item.percentage })),
-      },
-=======
       await this.audit.append(
         {
           tenantId,
@@ -225,7 +209,6 @@ export class TestExecutionService {
         },
         tx,
       );
->>>>>>> Stashed changes
     });
   }
 

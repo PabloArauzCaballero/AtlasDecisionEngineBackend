@@ -92,23 +92,6 @@ describe('Artifact lifecycle (e2e)', () => {
 
   it('replaces the draft graph with a minimal age-eligibility decision', async () => {
     const body = {
-<<<<<<< Updated upstream
-      dependencies: [{
-        variableVersionId: ageVariableVersionId,
-        usageType: 'INPUT',
-        isRequired: true,
-        fallbackPolicy: 'FAIL_CLOSED',
-        dependencyPath: '$.variables.age',
-      }],
-      conditions: [{
-        code: 'AGE_OK',
-        name: 'Age is at least 21',
-        expressionType: 'JSON_AST',
-        expression: { op: 'gte', left: { var: 'age' }, right: { value: 21 } },
-        severity: 'BLOCKING',
-        reusable: true,
-      }],
-=======
       dependencies: [
         {
           variableVersionId: ageVariableVersionId,
@@ -128,7 +111,6 @@ describe('Artifact lifecycle (e2e)', () => {
           reusable: true,
         },
       ],
->>>>>>> Stashed changes
       actions: [
         {
           code: 'SET_APPROVED',

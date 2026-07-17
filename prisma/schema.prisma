@@ -147,9 +147,9 @@ model DecisionArtifactVersion {
   approvedAt        DateTime?     @map("approved_at") @db.Timestamptz(6)
   retiredAt         DateTime?     @map("retired_at") @db.Timestamptz(6)
 
-  artifact             DecisionArtifact                  @relation(fields: [artifactId], references: [id], onDelete: Cascade)
-  sourceVersion        DecisionArtifactVersion?          @relation("VersionSource", fields: [sourceVersionId], references: [id], onDelete: SetNull)
-  derivedVersions      DecisionArtifactVersion[]         @relation("VersionSource")
+  artifact             DecisionArtifact                     @relation(fields: [artifactId], references: [id], onDelete: Cascade)
+  sourceVersion        DecisionArtifactVersion?             @relation("VersionSource", fields: [sourceVersionId], references: [id], onDelete: SetNull)
+  derivedVersions      DecisionArtifactVersion[]            @relation("VersionSource")
   compiledArtifacts    DecisionCompiledArtifact[]
   statusHistory        DecisionVersionStatusHistory[]
   variableDependencies DecisionArtifactVariableDependency[]
@@ -189,13 +189,13 @@ model DecisionCompiledArtifact {
 }
 
 model DecisionVersionStatusHistory {
-  id                BigInt        @id @default(autoincrement())
-  artifactVersionId BigInt        @map("artifact_version_id")
+  id                BigInt         @id @default(autoincrement())
+  artifactVersionId BigInt         @map("artifact_version_id")
   fromStatus        VersionStatus? @map("from_status")
-  toStatus          VersionStatus @map("to_status")
-  changedBy         String        @map("changed_by") @db.VarChar(160)
-  changedAt         DateTime      @default(now()) @map("changed_at") @db.Timestamptz(6)
-  reason            String?       @db.Text
+  toStatus          VersionStatus  @map("to_status")
+  changedBy         String         @map("changed_by") @db.VarChar(160)
+  changedAt         DateTime       @default(now()) @map("changed_at") @db.Timestamptz(6)
+  reason            String?        @db.Text
 
   artifactVersion DecisionArtifactVersion @relation(fields: [artifactVersionId], references: [id], onDelete: Cascade)
 
@@ -222,22 +222,22 @@ model DecisionVariableDefinition {
 }
 
 model DecisionVariableVersion {
-  id                       BigInt   @id @default(autoincrement())
-  variableDefinitionId     BigInt   @map("variable_definition_id")
-  versionNumber            Int      @map("version_number")
-  dataType                 String   @map("data_type") @db.VarChar(40)
-  unitCode                 String?  @map("unit_code") @db.VarChar(40)
-  nullable                 Boolean  @default(false)
-  defaultValueJson         Json?    @map("default_value_json")
-  validationSchemaJson     Json?    @map("validation_schema_json")
-  derivationExpressionJson Json?    @map("derivation_expression_json")
-  effectiveFrom            DateTime @default(now()) @map("effective_from") @db.Timestamptz(6)
+  id                       BigInt    @id @default(autoincrement())
+  variableDefinitionId     BigInt    @map("variable_definition_id")
+  versionNumber            Int       @map("version_number")
+  dataType                 String    @map("data_type") @db.VarChar(40)
+  unitCode                 String?   @map("unit_code") @db.VarChar(40)
+  nullable                 Boolean   @default(false)
+  defaultValueJson         Json?     @map("default_value_json")
+  validationSchemaJson     Json?     @map("validation_schema_json")
+  derivationExpressionJson Json?     @map("derivation_expression_json")
+  effectiveFrom            DateTime  @default(now()) @map("effective_from") @db.Timestamptz(6)
   effectiveTo              DateTime? @map("effective_to") @db.Timestamptz(6)
 
-  definition        DecisionVariableDefinition             @relation(fields: [variableDefinitionId], references: [id], onDelete: Cascade)
-  sources           DecisionVariableSource[]
-  validationRules   DecisionVariableValidationRule[]
-  artifactUses      DecisionArtifactVariableDependency[]
+  definition         DecisionVariableDefinition           @relation(fields: [variableDefinitionId], references: [id], onDelete: Cascade)
+  sources            DecisionVariableSource[]
+  validationRules    DecisionVariableValidationRule[]
+  artifactUses       DecisionArtifactVariableDependency[]
   executionVariables DecisionExecutionVariable[]
 
   @@unique([variableDefinitionId, versionNumber])
@@ -303,8 +303,8 @@ model DecisionRuleNode {
   isTerminal        Boolean @default(false) @map("is_terminal")
 
   artifactVersion DecisionArtifactVersion @relation(fields: [artifactVersionId], references: [id], onDelete: Cascade)
-  outgoingEdges   DecisionRuleEdge[]       @relation("FromNode")
-  incomingEdges   DecisionRuleEdge[]       @relation("ToNode")
+  outgoingEdges   DecisionRuleEdge[]      @relation("FromNode")
+  incomingEdges   DecisionRuleEdge[]      @relation("ToNode")
   nodeConditions  DecisionNodeCondition[]
   nodeActions     DecisionNodeAction[]
   executionSteps  DecisionExecutionStep[]
@@ -325,8 +325,8 @@ model DecisionRuleEdge {
   isDefault         Boolean @default(false) @map("is_default")
 
   artifactVersion DecisionArtifactVersion @relation(fields: [artifactVersionId], references: [id], onDelete: Cascade)
-  fromNode        DecisionRuleNode         @relation("FromNode", fields: [fromNodeId], references: [id], onDelete: Cascade)
-  toNode          DecisionRuleNode         @relation("ToNode", fields: [toNodeId], references: [id], onDelete: Cascade)
+  fromNode        DecisionRuleNode        @relation("FromNode", fields: [fromNodeId], references: [id], onDelete: Cascade)
+  toNode          DecisionRuleNode        @relation("ToNode", fields: [toNodeId], references: [id], onDelete: Cascade)
   edgeConditions  DecisionEdgeCondition[]
 
   @@unique([artifactVersionId, edgeKey])
@@ -361,9 +361,9 @@ model DecisionRuleAction {
   payloadTemplateJson Json    @map("payload_template_json")
   isTerminal          Boolean @default(false) @map("is_terminal")
 
-  artifactVersion DecisionArtifactVersion        @relation(fields: [artifactVersionId], references: [id], onDelete: Cascade)
-  nodeActions     DecisionNodeAction[]
-  reasonMappings DecisionActionReasonMapping[]
+  artifactVersion  DecisionArtifactVersion       @relation(fields: [artifactVersionId], references: [id], onDelete: Cascade)
+  nodeActions      DecisionNodeAction[]
+  reasonMappings   DecisionActionReasonMapping[]
   executionReasons DecisionExecutionReason[]
 
   @@unique([artifactVersionId, actionCode])
@@ -421,7 +421,7 @@ model DecisionReasonCode {
   isAdverseAction Boolean @default(false) @map("is_adverse_action")
   isActive        Boolean @default(true) @map("is_active")
 
-  actionMappings  DecisionActionReasonMapping[]
+  actionMappings   DecisionActionReasonMapping[]
   executionReasons DecisionExecutionReason[]
 
   @@unique([tenantId, reasonCode])
@@ -460,15 +460,15 @@ model DecisionApprovalRequest {
 }
 
 model DecisionApprovalStep {
-  id                   BigInt             @id @default(autoincrement())
-  approvalRequestId    BigInt             @map("approval_request_id")
-  stepOrder            Int                @map("step_order")
-  requiredRole         String             @map("required_role") @db.VarChar(80)
-  minApprovals         Int                @default(1) @map("min_approvals")
-  status               ApprovalStepStatus @default(PENDING)
-  separationOfDuties   Boolean            @default(true) @map("separation_of_duties")
+  id                 BigInt             @id @default(autoincrement())
+  approvalRequestId  BigInt             @map("approval_request_id")
+  stepOrder          Int                @map("step_order")
+  requiredRole       String             @map("required_role") @db.VarChar(80)
+  minApprovals       Int                @default(1) @map("min_approvals")
+  status             ApprovalStepStatus @default(PENDING)
+  separationOfDuties Boolean            @default(true) @map("separation_of_duties")
 
-  approvalRequest DecisionApprovalRequest  @relation(fields: [approvalRequestId], references: [id], onDelete: Cascade)
+  approvalRequest DecisionApprovalRequest    @relation(fields: [approvalRequestId], references: [id], onDelete: Cascade)
   decisions       DecisionApprovalDecision[]
 
   @@unique([approvalRequestId, stepOrder])
@@ -483,7 +483,7 @@ model DecisionApprovalDecision {
   comments       String?         @db.Text
   decidedAt      DateTime        @default(now()) @map("decided_at") @db.Timestamptz(6)
 
-  approvalStep DecisionApprovalStep      @relation(fields: [approvalStepId], references: [id], onDelete: Cascade)
+  approvalStep DecisionApprovalStep       @relation(fields: [approvalStepId], references: [id], onDelete: Cascade)
   evidence     DecisionApprovalEvidence[]
 
   @@unique([approvalStepId, decidedBy])
@@ -530,7 +530,7 @@ model DecisionTestCase {
   tagsJson           Json?   @map("tags_json")
   isActive           Boolean @default(true) @map("is_active")
 
-  testSuite DecisionTestSuite    @relation(fields: [testSuiteId], references: [id], onDelete: Cascade)
+  testSuite DecisionTestSuite     @relation(fields: [testSuiteId], references: [id], onDelete: Cascade)
   caseRuns  DecisionTestCaseRun[]
 
   @@unique([testSuiteId, caseCode])
@@ -550,10 +550,10 @@ model DecisionTestRun {
   leaseExpiresAt     DateTime?     @map("lease_expires_at") @db.Timestamptz(6)
   attemptCount       Int           @default(0) @map("attempt_count")
 
-  testSuite       DecisionTestSuite       @relation(fields: [testSuiteId], references: [id], onDelete: Cascade)
+  testSuite        DecisionTestSuite        @relation(fields: [testSuiteId], references: [id], onDelete: Cascade)
   compiledArtifact DecisionCompiledArtifact @relation(fields: [compiledArtifactId], references: [id], onDelete: Restrict)
-  caseRuns        DecisionTestCaseRun[]
-  coverage        DecisionTestCoverage[]
+  caseRuns         DecisionTestCaseRun[]
+  coverage         DecisionTestCoverage[]
 
   @@index([testSuiteId, startedAt])
   @@index([status, queuedAt])
@@ -569,8 +569,8 @@ model DecisionTestCaseRun {
   durationMs       Int               @map("duration_ms")
   errorJson        Json?             @map("error_json")
 
-  testRun   DecisionTestRun      @relation(fields: [testRunId], references: [id], onDelete: Cascade)
-  testCase  DecisionTestCase     @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  testRun    DecisionTestRun         @relation(fields: [testRunId], references: [id], onDelete: Cascade)
+  testCase   DecisionTestCase        @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
   assertions DecisionTestAssertion[]
 
   @@unique([testRunId, testCaseId])
@@ -578,13 +578,13 @@ model DecisionTestCaseRun {
 }
 
 model DecisionTestAssertion {
-  id             BigInt  @id @default(autoincrement())
-  testCaseRunId  BigInt  @map("test_case_run_id")
-  assertionPath  String  @map("assertion_path") @db.VarChar(500)
-  operator       String  @db.VarChar(30)
-  expectedJson   Json?   @map("expected_json")
-  actualJson     Json?   @map("actual_json")
-  passed         Boolean
+  id            BigInt  @id @default(autoincrement())
+  testCaseRunId BigInt  @map("test_case_run_id")
+  assertionPath String  @map("assertion_path") @db.VarChar(500)
+  operator      String  @db.VarChar(30)
+  expectedJson  Json?   @map("expected_json")
+  actualJson    Json?   @map("actual_json")
+  passed        Boolean
 
   testCaseRun DecisionTestCaseRun @relation(fields: [testCaseRunId], references: [id], onDelete: Cascade)
 
@@ -613,24 +613,24 @@ model DecisionDeployment {
   environmentId          BigInt           @map("environment_id")
   deploymentMode         String           @map("deployment_mode") @db.VarChar(50)
   deploymentStatus       DeploymentStatus @map("deployment_status")
-  effectiveFrom          DateTime          @map("effective_from") @db.Timestamptz(6)
-  effectiveTo            DateTime?         @map("effective_to") @db.Timestamptz(6)
-  isActive               Boolean           @default(false) @map("is_active")
-  previousDeploymentId   BigInt?           @map("previous_deployment_id")
-  rollbackOfDeploymentId BigInt?           @map("rollback_of_deployment_id")
-  deployedBy             String            @map("deployed_by") @db.VarChar(160)
-  deployedAt             DateTime          @default(now()) @map("deployed_at") @db.Timestamptz(6)
+  effectiveFrom          DateTime         @map("effective_from") @db.Timestamptz(6)
+  effectiveTo            DateTime?        @map("effective_to") @db.Timestamptz(6)
+  isActive               Boolean          @default(false) @map("is_active")
+  previousDeploymentId   BigInt?          @map("previous_deployment_id")
+  rollbackOfDeploymentId BigInt?          @map("rollback_of_deployment_id")
+  deployedBy             String           @map("deployed_by") @db.VarChar(160)
+  deployedAt             DateTime         @default(now()) @map("deployed_at") @db.Timestamptz(6)
 
-  artifactVersion DecisionArtifactVersion @relation(fields: [artifactVersionId], references: [id], onDelete: Restrict)
-  compiledArtifact DecisionCompiledArtifact @relation(fields: [compiledArtifactId], references: [id], onDelete: Restrict)
-  environment     DecisionEnvironment      @relation(fields: [environmentId], references: [id], onDelete: Restrict)
-  previousDeployment DecisionDeployment?   @relation("PreviousDeployment", fields: [previousDeploymentId], references: [id], onDelete: SetNull)
-  nextDeployments  DecisionDeployment[]    @relation("PreviousDeployment")
-  rollbackOf       DecisionDeployment?     @relation("RollbackDeployment", fields: [rollbackOfDeploymentId], references: [id], onDelete: SetNull)
-  rollbackDeployments DecisionDeployment[] @relation("RollbackDeployment")
-  traffic          DecisionDeploymentTraffic[]
-  bindings         DecisionRuntimeBinding[]
-  executions       DecisionExecution[]
+  artifactVersion     DecisionArtifactVersion     @relation(fields: [artifactVersionId], references: [id], onDelete: Restrict)
+  compiledArtifact    DecisionCompiledArtifact    @relation(fields: [compiledArtifactId], references: [id], onDelete: Restrict)
+  environment         DecisionEnvironment         @relation(fields: [environmentId], references: [id], onDelete: Restrict)
+  previousDeployment  DecisionDeployment?         @relation("PreviousDeployment", fields: [previousDeploymentId], references: [id], onDelete: SetNull)
+  nextDeployments     DecisionDeployment[]        @relation("PreviousDeployment")
+  rollbackOf          DecisionDeployment?         @relation("RollbackDeployment", fields: [rollbackOfDeploymentId], references: [id], onDelete: SetNull)
+  rollbackDeployments DecisionDeployment[]        @relation("RollbackDeployment")
+  traffic             DecisionDeploymentTraffic[]
+  bindings            DecisionRuntimeBinding[]
+  executions          DecisionExecution[]
 
   @@index([artifactVersionId, environmentId, isActive])
   @@index([environmentId, deploymentStatus])
@@ -685,9 +685,9 @@ model DecisionExecution {
   durationMs           Int             @map("duration_ms")
   executedAt           DateTime        @default(now()) @map("executed_at") @db.Timestamptz(6)
 
-  deployment      DecisionDeployment       @relation(fields: [deploymentId], references: [id], onDelete: Restrict)
-  artifactVersion DecisionArtifactVersion  @relation(fields: [artifactVersionId], references: [id], onDelete: Restrict)
-  environment     DecisionEnvironment      @relation(fields: [environmentId], references: [id], onDelete: Restrict)
+  deployment      DecisionDeployment          @relation(fields: [deploymentId], references: [id], onDelete: Restrict)
+  artifactVersion DecisionArtifactVersion     @relation(fields: [artifactVersionId], references: [id], onDelete: Restrict)
+  environment     DecisionEnvironment         @relation(fields: [environmentId], references: [id], onDelete: Restrict)
   variables       DecisionExecutionVariable[]
   steps           DecisionExecutionStep[]
   reasons         DecisionExecutionReason[]
@@ -718,27 +718,27 @@ model DecisionExecutionVariable {
 }
 
 model DecisionExecutionStep {
-  id                   BigInt @id @default(autoincrement())
-  executionId          BigInt @map("execution_id")
-  nodeId               BigInt @map("node_id")
-  stepOrder            Int    @map("step_order")
-  evaluationResultJson Json   @map("evaluation_result_json")
+  id                   BigInt  @id @default(autoincrement())
+  executionId          BigInt  @map("execution_id")
+  nodeId               BigInt  @map("node_id")
+  stepOrder            Int     @map("step_order")
+  evaluationResultJson Json    @map("evaluation_result_json")
   branchTaken          String? @map("branch_taken") @db.VarChar(120)
-  durationUs           BigInt @map("duration_us")
+  durationUs           BigInt  @map("duration_us")
 
   execution DecisionExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
-  node      DecisionRuleNode   @relation(fields: [nodeId], references: [id], onDelete: Restrict)
+  node      DecisionRuleNode  @relation(fields: [nodeId], references: [id], onDelete: Restrict)
 
   @@unique([executionId, stepOrder])
   @@map("decision_execution_step")
 }
 
 model DecisionExecutionReason {
-  id             BigInt @id @default(autoincrement())
-  executionId    BigInt @map("execution_id")
-  reasonCodeId   BigInt @map("reason_code_id")
-  sourceActionId BigInt @map("source_action_id")
-  priority       Int    @default(100)
+  id              BigInt @id @default(autoincrement())
+  executionId     BigInt @map("execution_id")
+  reasonCodeId    BigInt @map("reason_code_id")
+  sourceActionId  BigInt @map("source_action_id")
+  priority        Int    @default(100)
   renderedMessage String @map("rendered_message") @db.Text
 
   execution    DecisionExecution  @relation(fields: [executionId], references: [id], onDelete: Cascade)
@@ -799,19 +799,6 @@ model RuntimeIdempotency {
 }
 
 model DecisionAuditEvent {
-<<<<<<< Updated upstream
-  id           BigInt   @id @default(autoincrement())
-  tenantId     BigInt   @map("tenant_id")
-  eventType    String   @map("event_type") @db.VarChar(100)
-  aggregateType String  @map("aggregate_type") @db.VarChar(100)
-  aggregateId  String   @map("aggregate_id") @db.VarChar(160)
-  actorId      String   @map("actor_id") @db.VarChar(160)
-  requestId    String?  @map("request_id") @db.VarChar(120)
-  payloadJson  Json     @map("payload_json")
-  previousHash String?  @map("previous_hash") @db.VarChar(128)
-  eventHash    String   @map("event_hash") @db.VarChar(128)
-  occurredAt   DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
-=======
   id            BigInt   @id @default(autoincrement())
   tenantId      BigInt   @map("tenant_id")
   eventType     String   @map("event_type") @db.VarChar(100)
@@ -826,7 +813,6 @@ model DecisionAuditEvent {
   // rotated without invalidating the historical chain.
   hashKeyId     String   @default("v1") @map("hash_key_id") @db.VarChar(40)
   occurredAt    DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
->>>>>>> Stashed changes
 
   @@index([tenantId, occurredAt])
   @@index([aggregateType, aggregateId])
@@ -836,28 +822,21 @@ model DecisionAuditEvent {
 model DecisionAccessAudit {
   id          BigInt   @id @default(autoincrement())
   requestId   String   @map("request_id") @db.VarChar(120)
-<<<<<<< Updated upstream
-  principalId String   @map("principal_id") @db.VarChar(160)
-  tenantId    BigInt   @map("tenant_id")
-=======
   // Nullable because rejected requests are audited too, and a 401 has no
   // authenticated principal or tenant to attribute the attempt to.
   principalId String?  @map("principal_id") @db.VarChar(160)
   tenantId    BigInt?  @map("tenant_id")
->>>>>>> Stashed changes
   resource    String   @db.VarChar(160)
   action      String   @db.VarChar(80)
   decision    String   @db.VarChar(20)
   reason      String?  @db.VarChar(200)
-<<<<<<< Updated upstream
-=======
   // Recorded for denials so unauthenticated attempts remain attributable to a source.
   ipAddress   String?  @map("ip_address") @db.VarChar(64)
   status      Int?
->>>>>>> Stashed changes
   occurredAt  DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
 
   @@index([tenantId, occurredAt])
+  @@index([decision, occurredAt])
   @@map("decision_access_audit")
 }
 
@@ -904,11 +883,11 @@ model PolicyRequirement {
   businessObjectiveId BigInt   @map("business_objective_id")
   policyCode          String   @map("policy_code") @db.VarChar(100)
   rationale           String   @db.Text
-  owner                String   @db.VarChar(160)
-  severity             String   @db.VarChar(30)
-  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  owner               String   @db.VarChar(160)
+  severity            String   @db.VarChar(30)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  businessObjective BusinessObjective @relation(fields: [businessObjectiveId], references: [id], onDelete: Cascade)
+  businessObjective BusinessObjective    @relation(fields: [businessObjectiveId], references: [id], onDelete: Cascade)
   artifactLinks     PolicyArtifactLink[]
   testLinks         PolicyTestLink[]
 
@@ -921,7 +900,7 @@ model PolicyArtifactLink {
   policyRequirementId BigInt @map("policy_requirement_id")
   artifactVersionId   BigInt @map("artifact_version_id")
 
-  policyRequirement PolicyRequirement      @relation(fields: [policyRequirementId], references: [id], onDelete: Cascade)
+  policyRequirement PolicyRequirement       @relation(fields: [policyRequirementId], references: [id], onDelete: Cascade)
   artifactVersion   DecisionArtifactVersion @relation(fields: [artifactVersionId], references: [id], onDelete: Cascade)
 
   @@unique([policyRequirementId, artifactVersionId])
@@ -931,11 +910,95 @@ model PolicyArtifactLink {
 model PolicyTestLink {
   id                  BigInt @id @default(autoincrement())
   policyRequirementId BigInt @map("policy_requirement_id")
-  testSuiteId          BigInt @map("test_suite_id")
+  testSuiteId         BigInt @map("test_suite_id")
 
   policyRequirement PolicyRequirement @relation(fields: [policyRequirementId], references: [id], onDelete: Cascade)
   testSuite         DecisionTestSuite @relation(fields: [testSuiteId], references: [id], onDelete: Cascade)
 
   @@unique([policyRequirementId, testSuiteId])
   @@map("decision_policy_test_link")
+}
+
+// ---------------------------------------------------------------------------
+// Integration client registry.
+//
+// API key callers used to declare their own tenant, principal and roles through
+// x-tenant-id / x-principal-id / x-roles headers, so any holder of the shared key
+// could act as any role in any tenant. Identity now resolves from these tables:
+// the presented secret is the only caller-supplied input, and it is looked up by
+// hash. Roles come from IntegrationScope and the tenant must be listed in
+// IntegrationTenantAccess.
+// ---------------------------------------------------------------------------
+
+enum IntegrationClientStatus {
+  ACTIVE
+  SUSPENDED
+  REVOKED
+}
+
+enum IntegrationCredentialStatus {
+  ACTIVE
+  REVOKED
+}
+
+model IntegrationClient {
+  id          BigInt                  @id @default(autoincrement())
+  clientKey   String                  @unique @map("client_key") @db.VarChar(120)
+  displayName String                  @map("display_name") @db.VarChar(200)
+  audience    String                  @db.VarChar(20)
+  status      IntegrationClientStatus @default(ACTIVE)
+  createdAt   DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  credentials  IntegrationCredential[]
+  scopes       IntegrationScope[]
+  tenantAccess IntegrationTenantAccess[]
+
+  @@index([status])
+  @@map("integration_client")
+}
+
+model IntegrationCredential {
+  id         BigInt                      @id @default(autoincrement())
+  clientId   BigInt                      @map("client_id")
+  // SHA-256 of the presented secret. Indexed because it is the lookup key; the
+  // secret itself is high-entropy and randomly generated, not a user password,
+  // so a fast hash is appropriate here and a slow KDF would only add latency.
+  secretHash String                      @unique @map("secret_hash") @db.VarChar(128)
+  label      String                      @db.VarChar(120)
+  status     IntegrationCredentialStatus @default(ACTIVE)
+  expiresAt  DateTime?                   @map("expires_at") @db.Timestamptz(6)
+  lastUsedAt DateTime?                   @map("last_used_at") @db.Timestamptz(6)
+  revokedAt  DateTime?                   @map("revoked_at") @db.Timestamptz(6)
+  createdAt  DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  client IntegrationClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId, status])
+  @@index([expiresAt])
+  @@map("integration_credential")
+}
+
+model IntegrationScope {
+  id       BigInt @id @default(autoincrement())
+  clientId BigInt @map("client_id")
+  scope    String @db.VarChar(80)
+
+  client IntegrationClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, scope])
+  @@map("integration_scope")
+}
+
+model IntegrationTenantAccess {
+  id       BigInt @id @default(autoincrement())
+  clientId BigInt @map("client_id")
+  tenantId BigInt @map("tenant_id")
+
+  client IntegrationClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, tenantId])
+  @@index([tenantId])
+  @@map("integration_tenant_access")
 }

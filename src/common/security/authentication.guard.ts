@@ -5,19 +5,25 @@ import { randomUUID } from 'node:crypto';
 import type { Request } from 'express';
 import { CacheService } from '../cache/cache.service';
 import { RequestContextService } from '../context/request-context.service';
-import { HashService } from '../crypto/hash.service';
 import { DomainException } from '../errors/domain-exception';
 import { PUBLIC_ROUTE, REQUIRED_AUDIENCE } from './security.decorators';
 import type { ApiAudience, AuthenticatedPrincipal } from './security.types';
 import { JwtVerifierService } from './jwt-verifier.service';
 import { IdentityProviderVerifierService } from './identity-provider-verifier.service';
+import { IntegrationClientService } from './integration-client.service';
 
+/**
+ * Establishes the trusted principal for every protected request.
+ *
+ * JWT and identity-provider modes derive authority from verified claims. API key modes
+ * derive identity, roles and tenant access exclusively from the integration client registry.
+ */
 @Injectable()
 export class AuthenticationGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly config: ConfigService,
-    private readonly hashes: HashService,
+    private readonly integrationClients: IntegrationClientService,
     private readonly jwt: JwtVerifierService,
     private readonly identityProvider: IdentityProviderVerifierService,
     private readonly requestContext: RequestContextService,
@@ -125,9 +131,6 @@ export class AuthenticationGuard implements CanActivate {
     return request.ip ?? request.socket?.remoteAddress ?? 'unknown';
   }
 
-<<<<<<< Updated upstream
-  private authenticateApiKey(request: Request, audience: ApiAudience): AuthenticatedPrincipal {
-=======
   /**
    * Identity comes from the integration client registry, never from headers. The
    * caller may still send x-tenant-id, but only to select among the tenants its
@@ -138,38 +141,48 @@ export class AuthenticationGuard implements CanActivate {
     request: Request,
     audience: ApiAudience,
   ): Promise<AuthenticatedPrincipal> {
->>>>>>> Stashed changes
     const apiKey = this.header(request, 'x-api-key');
-    const expected = this.config.get<string>(
-      audience === 'runtime' ? 'RUNTIME_API_KEY' : 'MANAGEMENT_API_KEY',
-    );
-    const valid = Boolean(apiKey && expected) && this.hashes.equals(
-      this.hashes.sha256(apiKey as string),
-      this.hashes.sha256(expected as string),
-    );
-    if (!valid) throw new DomainException('UNAUTHORIZED', 'Invalid API key', HttpStatus.UNAUTHORIZED);
-
-    const principalId = this.header(request, 'x-principal-id');
-    const tenantHeader = this.header(request, 'x-tenant-id');
-    if (!principalId || !tenantHeader || !/^[1-9]\d*$/.test(tenantHeader)) {
-      throw new DomainException(
-        'INVALID_SECURITY_CONTEXT',
-        'x-principal-id and a positive numeric x-tenant-id are required for API key authentication',
-        HttpStatus.UNAUTHORIZED,
-      );
+    if (!apiKey) {
+      throw new DomainException('UNAUTHORIZED', 'Invalid API key', HttpStatus.UNAUTHORIZED);
     }
-    const roles = (this.header(request, 'x-roles') ?? '')
-      .split(',')
-      .map((role) => role.trim().toUpperCase())
-      .filter(Boolean);
+    const client = await this.integrationClients.resolve(apiKey, audience);
     return {
-      id: principalId.slice(0, 160),
-      tenantId: BigInt(tenantHeader),
-      roles: [...new Set(roles)],
+      id: client.clientKey,
+      tenantId: this.resolveTenant(request, client.tenantIds),
+      roles: client.roles,
       audience,
       requestId: this.requestId(request),
       authMethod: 'api_key',
     };
+  }
+
+  private resolveTenant(request: Request, allowed: bigint[]): bigint {
+    const requested = this.header(request, 'x-tenant-id');
+    if (!requested) {
+      // Selecting a tenant implicitly is only unambiguous for single-tenant clients.
+      if (allowed.length === 1) return allowed[0] as bigint;
+      throw new DomainException(
+        'INVALID_SECURITY_CONTEXT',
+        'x-tenant-id is required for clients authorised on multiple tenants',
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
+    if (!/^[1-9]\d*$/.test(requested)) {
+      throw new DomainException(
+        'INVALID_SECURITY_CONTEXT',
+        'x-tenant-id must be a positive integer',
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
+    const tenantId = BigInt(requested);
+    if (!allowed.some((candidate) => candidate === tenantId)) {
+      throw new DomainException(
+        'FORBIDDEN_TENANT',
+        'Client is not authorised for the requested tenant',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+    return tenantId;
   }
 
   private bearerToken(request: Request): string | undefined {

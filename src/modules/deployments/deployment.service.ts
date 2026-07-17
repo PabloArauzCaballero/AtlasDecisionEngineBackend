@@ -134,24 +134,29 @@ export class DeploymentService {
         `Deployed to ${environment.code}`,
         tx,
       );
+      await this.audit.append(
+        {
+          tenantId,
+          eventType: 'DEPLOYMENT_ACTIVATED',
+          aggregateType: 'Deployment',
+          aggregateId: created.id.toString(),
+          actorId: principal.id,
+          requestId: principal.requestId,
+          payload: {
+            artifactCode: version.artifact.artifactCode,
+            versionId: version.id.toString(),
+            environment: environment.code,
+            checksum: compiled.compiledChecksum,
+            previousDeploymentId: created.previousDeploymentId?.toString() ?? null,
+          },
+        },
+        tx,
+      );
       return created;
     });
+    // Cache invalidation stays outside the transaction: it is not rollback-able, so it must
+    // only run once the deployment is durably committed.
     await this.resolver.invalidate(tenantId, version.artifact.artifactCode, environment.code);
-    await this.audit.append({
-      tenantId,
-      eventType: 'DEPLOYMENT_ACTIVATED',
-      aggregateType: 'Deployment',
-      aggregateId: deployment.id.toString(),
-      actorId: principal.id,
-      requestId: principal.requestId,
-      payload: {
-        artifactCode: version.artifact.artifactCode,
-        versionId: version.id.toString(),
-        environment: environment.code,
-        checksum: compiled.compiledChecksum,
-        previousDeploymentId: deployment.previousDeploymentId?.toString() ?? null,
-      },
-    });
     return deployment;
   }
 
@@ -202,17 +207,20 @@ export class DeploymentService {
       if (currentVersion.status !== VersionStatus.APPROVED) {
         await this.states.transition(current.artifactVersionId, VersionStatus.APPROVED, principal.id, `Rolled back: ${dto.reason}`, tx);
       }
+      await this.audit.append(
+        {
+          tenantId,
+          eventType: 'DEPLOYMENT_ROLLED_BACK',
+          aggregateType: 'Deployment',
+          aggregateId: current.id.toString(),
+          actorId: principal.id,
+          requestId: principal.requestId,
+          payload: { restoredDeploymentId: previous.id.toString(), reason: dto.reason },
+        },
+        tx,
+      );
     });
     await this.resolver.invalidate(tenantId, current.artifactVersion.artifact.artifactCode, current.environment.code);
-    await this.audit.append({
-      tenantId,
-      eventType: 'DEPLOYMENT_ROLLED_BACK',
-      aggregateType: 'Deployment',
-      aggregateId: current.id.toString(),
-      actorId: principal.id,
-      requestId: principal.requestId,
-      payload: { restoredDeploymentId: previous.id.toString(), reason: dto.reason },
-    });
     return { rolledBackDeploymentId: current.id, activeDeploymentId: previous.id };
   }
 
@@ -235,17 +243,20 @@ export class DeploymentService {
       if (deployment.artifactVersion.status === VersionStatus.DEPLOYED_TO_PROD) {
         await this.states.transition(deployment.artifactVersionId, VersionStatus.SUSPENDED, principal.id, dto.reason, tx);
       }
+      await this.audit.append(
+        {
+          tenantId,
+          eventType: 'DEPLOYMENT_SUSPENDED',
+          aggregateType: 'Deployment',
+          aggregateId: deployment.id.toString(),
+          actorId: principal.id,
+          requestId: principal.requestId,
+          payload: { reason: dto.reason },
+        },
+        tx,
+      );
     });
     await this.resolver.invalidate(tenantId, deployment.artifactVersion.artifact.artifactCode, deployment.environment.code);
-    await this.audit.append({
-      tenantId,
-      eventType: 'DEPLOYMENT_SUSPENDED',
-      aggregateType: 'Deployment',
-      aggregateId: deployment.id.toString(),
-      actorId: principal.id,
-      requestId: principal.requestId,
-      payload: { reason: dto.reason },
-    });
     return { deploymentId, status: 'SUSPENDED' };
   }
 

@@ -22,11 +22,34 @@ describe('Security guards (e2e)', () => {
       .expect(401);
   });
 
-  it('rejects a request missing tenant/principal context with 401', async () => {
+  it('rejects an API key that is not registered, even with a well-formed context', async () => {
     await request(server())
       .get('/v1/artifacts')
-      .set({ 'x-api-key': 'change-me-management-with-at-least-24-characters' })
+      .set({ 'x-api-key': 'unregistered-key-0123456789abcdef', 'x-tenant-id': '1' })
       .expect(401);
+  });
+
+  it('refuses a tenant the credential is not authorised for', async () => {
+    await request(server())
+      .get('/v1/artifacts')
+      .set({ ...managementHeaders('e2e.security', []), 'x-tenant-id': '424242' })
+      .expect(403);
+  });
+
+  it('ignores roles a caller declares through x-roles', async () => {
+    // The auditor credential must stay an auditor no matter what the request claims.
+    await request(server())
+      .post('/v1/artifacts')
+      .set({ ...managementHeaders('e2e.security', ['AUDITOR']), 'x-roles': 'PLATFORM_ADMIN' })
+      .send({
+        artifactCode: 'SHOULD_NOT_BE_CREATED_VIA_HEADER',
+        artifactType: 'CREDIT_POLICY',
+        name: 'x',
+        ownerTeam: 'RISK_DECISIONING',
+        businessPurpose: 'x',
+        riskDomain: 'CREDIT_ORIGINATION',
+      })
+      .expect(403);
   });
 
   it('rejects a role without permission for the route with 403', async () => {
@@ -50,7 +73,7 @@ describe('Security guards (e2e)', () => {
       usageType: 'INPUT',
       isRequired: true,
       fallbackPolicy: 'FAIL_CLOSED',
-      dependencyPath: `$.variables.v${index}`,
+      dependencyPath: `input.v${index}`,
     }));
     await request(server())
       .put('/v1/artifact-versions/999999999999/graph')

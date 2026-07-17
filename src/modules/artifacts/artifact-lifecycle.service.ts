@@ -49,15 +49,15 @@ export class ArtifactLifecycleService {
       } else if (version.status !== VersionStatus.VALIDATION_FAILED) {
         await this.states.transition(versionId, VersionStatus.VALIDATION_FAILED, principal.id, 'Graph validation failed', tx);
       }
-    });
-    await this.audit.append({
-      tenantId,
-      eventType: report.valid ? 'VALIDATION_PASSED' : 'VALIDATION_FAILED',
-      aggregateType: 'ArtifactVersion',
-      aggregateId: versionId.toString(),
-      actorId: principal.id,
-      requestId: principal.requestId,
-      payload: report as unknown as Prisma.InputJsonValue,
+      await this.audit.append({
+        tenantId,
+        eventType: report.valid ? 'VALIDATION_PASSED' : 'VALIDATION_FAILED',
+        aggregateType: 'ArtifactVersion',
+        aggregateId: versionId.toString(),
+        actorId: principal.id,
+        requestId: principal.requestId,
+        payload: report as unknown as Prisma.InputJsonValue,
+      }, tx);
     });
     return report;
   }
@@ -94,16 +94,16 @@ export class ArtifactLifecycleService {
         },
       });
       await this.states.transition(versionId, VersionStatus.COMPILED, principal.id, 'Deterministic compilation succeeded', tx);
+      await this.audit.append({
+        tenantId,
+        eventType: 'ARTIFACT_COMPILED',
+        aggregateType: 'ArtifactVersion',
+        aggregateId: versionId.toString(),
+        actorId: principal.id,
+        requestId: principal.requestId,
+        payload: { compiledArtifactId: record.id.toString(), checksum: record.compiledChecksum },
+      }, tx);
       return record;
-    });
-    await this.audit.append({
-      tenantId,
-      eventType: 'ARTIFACT_COMPILED',
-      aggregateType: 'ArtifactVersion',
-      aggregateId: versionId.toString(),
-      actorId: principal.id,
-      requestId: principal.requestId,
-      payload: { compiledArtifactId: compiled.id.toString(), checksum: compiled.compiledChecksum },
     });
     return compiled;
   }

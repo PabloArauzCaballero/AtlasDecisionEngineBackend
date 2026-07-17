@@ -3,8 +3,15 @@ import { DomainException } from '../../common/errors/domain-exception';
 
 export type EvaluationContext = Record<string, unknown>;
 
+/**
+ * Deterministic interpreter for the decision expression AST.
+ *
+ * It avoids locale-dependent comparison and rejects invalid arithmetic or date operands
+ * instead of silently changing a decision outcome.
+ */
 @Injectable()
 export class ExpressionEvaluator {
+  /** Evaluates one expression node against the supplied variable context. */
   evaluate(expression: unknown, context: EvaluationContext): unknown {
     if (expression === null || expression === undefined) return expression;
     if (typeof expression !== 'object') return expression;
@@ -78,10 +85,14 @@ export class ExpressionEvaluator {
         if (right === 0) throw new DomainException('EXPRESSION_DIVISION_BY_ZERO', 'Division by zero');
         return left / right;
       }
-      case 'min':
+      case 'min': {
+        if (!args.length) throw new DomainException('EXPRESSION_INVALID_ARGUMENTS', 'min requires at least one argument');
         return Math.min(...args.map((arg) => this.asNumber(this.evaluate(arg, context))));
-      case 'max':
+      }
+      case 'max': {
+        if (!args.length) throw new DomainException('EXPRESSION_INVALID_ARGUMENTS', 'max requires at least one argument');
         return Math.max(...args.map((arg) => this.asNumber(this.evaluate(arg, context))));
+      }
       case 'round': {
         const value = this.asNumber(this.evaluate(node.arg ?? args[0], context));
         const precision = Number(node.precision ?? 0);
@@ -93,6 +104,7 @@ export class ExpressionEvaluator {
     }
   }
 
+  /** Returns the top-level variable names referenced anywhere in an expression tree. */
   referencedVariables(expression: unknown): Set<string> {
     const found = new Set<string>();
     const walk = (value: unknown): void => {
@@ -161,9 +173,22 @@ export class ExpressionEvaluator {
   private compare(left: unknown, right: unknown): number {
     if (typeof left === 'number' && typeof right === 'number') return left - right;
     if (left instanceof Date || right instanceof Date) {
-      return new Date(String(left)).getTime() - new Date(String(right)).getTime();
+      const leftTime = new Date(String(left)).getTime();
+      const rightTime = new Date(String(right)).getTime();
+      // An unparseable date yields NaN, which would make every comparison silently false.
+      // A decision must never turn on a value the engine could not actually interpret.
+      if (Number.isNaN(leftTime) || Number.isNaN(rightTime)) {
+        throw new DomainException('EXPRESSION_INVALID_DATE', 'Cannot compare an invalid date value');
+      }
+      return leftTime - rightTime;
     }
-    return String(left).localeCompare(String(right));
+    // Compare by Unicode code point, not localeCompare: locale/ICU differences between
+    // environments must never change a decision outcome (regulatory reproducibility).
+    const a = String(left);
+    const b = String(right);
+    if (a < b) return -1;
+    if (a > b) return 1;
+    return 0;
   }
 
   private asNumber(value: unknown): number {

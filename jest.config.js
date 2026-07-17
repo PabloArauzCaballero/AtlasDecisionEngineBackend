@@ -5,6 +5,5 @@ module.exports = {
   transform: { '^.+\\.(t|j)s$': ['ts-jest', { tsconfig: 'tsconfig.json' }] },
   collectCoverageFrom: ['src/**/*.(t|j)s'],
   coverageDirectory: './coverage',
-  testEnvironment: 'node',
-  moduleNameMapper: { '^@/(.*)$': '<rootDir>/src/$1' }
+  testEnvironment: 'node'
 };

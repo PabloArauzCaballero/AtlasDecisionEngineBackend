@@ -10,6 +10,7 @@ import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { RequestContextService } from './common/context/request-context.service';
 import { DomainExceptionFilter } from './common/errors/domain-exception.filter';
+import { AccessDenialAuditorService } from './common/security/access-denial-auditor.service';
 import { StructuredLoggerService } from './common/observability/structured-logger.service';
 
 (BigInt.prototype as unknown as { toJSON: () => string }).toJSON = function toJSON() {
@@ -64,14 +65,14 @@ async function bootstrap(): Promise<void> {
           callback(null, !origin || allowedOrigins.includes(origin))
       : false,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+    // x-principal-id and x-roles are deliberately absent: identity and roles resolve
+    // from the integration client registry, never from caller-supplied headers.
     allowedHeaders: [
       'authorization',
       'content-type',
       'if-match',
       'x-api-key',
       'x-tenant-id',
-      'x-principal-id',
-      'x-roles',
       'x-request-id',
     ],
     exposedHeaders: [
@@ -94,7 +95,7 @@ async function bootstrap(): Promise<void> {
     transformOptions: { enableImplicitConversion: false },
     validationError: { target: false, value: false },
   }));
-  app.useGlobalFilters(new DomainExceptionFilter(config));
+  app.useGlobalFilters(new DomainExceptionFilter(config, app.get(AccessDenialAuditorService)));
   app.enableShutdownHooks(['SIGINT', 'SIGTERM']);
 
   if (config.get<boolean>('SWAGGER_ENABLED') ?? false) {
@@ -105,11 +106,9 @@ async function bootstrap(): Promise<void> {
       .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'bearer')
       .addApiKey({ type: 'apiKey', in: 'header', name: 'x-api-key' }, 'api-key')
       .addApiKey({ type: 'apiKey', in: 'header', name: 'x-tenant-id' }, 'tenant')
-      .addApiKey({ type: 'apiKey', in: 'header', name: 'x-principal-id' }, 'principal')
-      .addApiKey({ type: 'apiKey', in: 'header', name: 'x-roles' }, 'roles')
       .build();
     const document = SwaggerModule.createDocument(app, swaggerConfig);
-    document.security = [{ bearer: [] }, { 'api-key': [], tenant: [], principal: [], roles: [] }];
+    document.security = [{ bearer: [] }, { 'api-key': [], tenant: [] }];
     for (const publicPath of ['/health', '/health/live', '/health/ready', '/ready']) {
       const pathItem = document.paths[publicPath];
       if (!pathItem) continue;

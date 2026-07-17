@@ -1,5 +1,5 @@
 -- ATLAS Decision Platform baseline migration
--- Generated from prisma/schema.prisma by scripts/generate-baseline-sql.py
+-- Generated from prisma/schema.prisma by the retired custom baseline generator.
 -- Review before applying to an existing database.
 
 CREATE TYPE "VersionStatus" AS ENUM ('DRAFT', 'VALIDATION_FAILED', 'VALIDATED', 'COMPILED', 'IN_REVIEW', 'CHANGES_REQUESTED', 'APPROVED', 'DEPLOYED_TO_SANDBOX', 'DEPLOYED_TO_TEST', 'DEPLOYED_TO_PROD', 'SUSPENDED', 'REJECTED', 'RETIRED');

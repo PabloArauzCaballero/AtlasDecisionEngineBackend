@@ -19,7 +19,7 @@
 | 15 | Test bench/cobertura | suites, casos, assertions, runs, node/edge/terminal coverage | Implementado |
 | 16 | Variables/linaje/snapshot | definitions, versions, sources, rules, dependency snapshot y hashes | Implementado |
 | 17 | Auditoría/explicabilidad | trace, reason codes, access audit, audit chain, metrics y queries | Implementado |
-| 18 | RBAC/multitenancy | API key audience, tenant context, roles y filtros por tenant | Implementado; IdP externo pendiente |
+| 18 | RBAC/multitenancy | JWT/IdP, registro de clientes técnicos, scopes y acceso por tenant | Implementado; configuración del IdP productivo pendiente |
 | 19 | Privacidad/retención | minimización, pseudonimización y no persistencia de sensibles crudos | Parcial: worker legal de retención pendiente |
 | 20 | Reglas→scorecards→ML | artefactos genéricos, contratos, checksums, traffic metadata y rollback | Base preparada; entrenamiento/serving ML pendiente |
 | 21 | Trazabilidad requisito-evidencia | business objectives, policy requirements, links a versiones y test suites | Implementado |

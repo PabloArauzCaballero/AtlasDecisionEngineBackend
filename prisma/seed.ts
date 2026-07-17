@@ -2,6 +2,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 import { seedDemoArtifact } from './seed/demo-artifact';
 import { ensureEnvironment, ensureReason, ensureVariable, TENANT_ID } from './seed/helpers';
+import { seedIntegrationClients } from './seed/integration-clients';
 import { reasonCodeCatalog } from './seed/reason-code-catalog.data';
 import { variableCatalog } from './seed/variable-catalog.data';
 
@@ -26,9 +27,12 @@ async function main(): Promise<void> {
   const seededReasons = await Promise.all(reasonCodeCatalog.map((seed) => ensureReason(prisma, seed)));
   const reasonByCode = Object.fromEntries(seededReasons.map((item) => [item.reasonCode, item]));
 
+  const integrationClients = await seedIntegrationClients(prisma);
+
   console.log(JSON.stringify({
     catalog: { variables: seededVariables.length, reasonCodes: seededReasons.length },
     environments: { sandboxId: sandbox.id.toString(), testId: test.id.toString(), prodId: prod.id.toString() },
+    integrationClients,
   }, null, 2));
 
   const demoVariables = DEMO_VARIABLE_CODES.map((code) => variableByCode[code]);

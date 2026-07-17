@@ -5,3 +5,7 @@ coverage
 *.log
 .prisma
 /smoke/last-run.json
+
+# Build artifacts and archives (never commit — backend.zip previously leaked .env)
+*.zip
+dist/

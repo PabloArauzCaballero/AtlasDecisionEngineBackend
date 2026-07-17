@@ -5,6 +5,8 @@ import { AuthenticationGuard } from './authentication.guard';
 import { JwtVerifierService } from './jwt-verifier.service';
 import { IdentityProviderVerifierService } from './identity-provider-verifier.service';
 import { IdentityProviderClient } from './identity-provider.client';
+import { AccessDenialAuditorService } from './access-denial-auditor.service';
+import { IntegrationClientService } from './integration-client.service';
 import { RateLimitGuard } from './rate-limit.guard';
 import { RolesGuard } from './roles.guard';
 
@@ -14,11 +16,19 @@ import { RolesGuard } from './roles.guard';
     JwtVerifierService,
     IdentityProviderVerifierService,
     IdentityProviderClient,
+    IntegrationClientService,
+    AccessDenialAuditorService,
     { provide: APP_GUARD, useClass: AuthenticationGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_GUARD, useClass: RateLimitGuard },
     { provide: APP_INTERCEPTOR, useClass: AccessAuditInterceptor },
   ],
-  exports: [JwtVerifierService, IdentityProviderVerifierService, IdentityProviderClient],
+  exports: [
+    JwtVerifierService,
+    IdentityProviderVerifierService,
+    IdentityProviderClient,
+    IntegrationClientService,
+    AccessDenialAuditorService,
+  ],
 })
 export class SecurityModule {}

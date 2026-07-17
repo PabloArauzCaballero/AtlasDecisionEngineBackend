@@ -17,45 +17,47 @@ export class ArtifactService {
   ) {}
 
   async create(tenantId: bigint, dto: CreateArtifactDto, principal: AuthenticatedPrincipal) {
-    const artifact = await this.prisma.decisionArtifact.create({
-      data: {
-        tenantId,
-        artifactCode: dto.artifactCode,
-        artifactType: dto.artifactType,
-        name: dto.name,
-        description: dto.description,
-        ownerTeam: dto.ownerTeam,
-        businessPurpose: dto.businessPurpose,
-        riskDomain: dto.riskDomain,
-        versions: {
-          create: {
-            versionNumber: 1,
-            semanticVersion: dto.semanticVersion ?? '0.1.0',
-            changeSummary: 'Initial draft',
-            createdBy: principal.id,
-            statusHistory: {
-              create: {
-                fromStatus: null,
-                toStatus: VersionStatus.DRAFT,
-                changedBy: principal.id,
-                reason: 'Artifact created',
+    return this.prisma.$transaction(async (tx) => {
+      const artifact = await tx.decisionArtifact.create({
+        data: {
+          tenantId,
+          artifactCode: dto.artifactCode,
+          artifactType: dto.artifactType,
+          name: dto.name,
+          description: dto.description,
+          ownerTeam: dto.ownerTeam,
+          businessPurpose: dto.businessPurpose,
+          riskDomain: dto.riskDomain,
+          versions: {
+            create: {
+              versionNumber: 1,
+              semanticVersion: dto.semanticVersion ?? '0.1.0',
+              changeSummary: 'Initial draft',
+              createdBy: principal.id,
+              statusHistory: {
+                create: {
+                  fromStatus: null,
+                  toStatus: VersionStatus.DRAFT,
+                  changedBy: principal.id,
+                  reason: 'Artifact created',
+                },
               },
             },
           },
         },
-      },
-      include: { versions: true },
+        include: { versions: true },
+      });
+      await this.audit.append({
+        tenantId,
+        eventType: 'ARTIFACT_CREATED',
+        aggregateType: 'DecisionArtifact',
+        aggregateId: artifact.id.toString(),
+        actorId: principal.id,
+        requestId: principal.requestId,
+        payload: { artifactCode: artifact.artifactCode, artifactType: artifact.artifactType },
+      }, tx);
+      return artifact;
     });
-    await this.audit.append({
-      tenantId,
-      eventType: 'ARTIFACT_CREATED',
-      aggregateType: 'DecisionArtifact',
-      aggregateId: artifact.id.toString(),
-      actorId: principal.id,
-      requestId: principal.requestId,
-      payload: { artifactCode: artifact.artifactCode, artifactType: artifact.artifactType },
-    });
-    return artifact;
   }
 
   async list(tenantId: bigint, query: ArtifactListQueryDto) {
@@ -275,18 +277,18 @@ export class ArtifactService {
           })),
         });
       }
+      await this.audit.append({
+        tenantId,
+        eventType: 'ARTIFACT_VERSION_CLONED',
+        aggregateType: 'ArtifactVersion',
+        aggregateId: version.id.toString(),
+        actorId: principal.id,
+        requestId: principal.requestId,
+        payload: { sourceVersionId: source.id.toString(), versionNumber: version.versionNumber },
+      }, tx);
       return version;
     });
 
-    await this.audit.append({
-      tenantId,
-      eventType: 'ARTIFACT_VERSION_CLONED',
-      aggregateType: 'ArtifactVersion',
-      aggregateId: cloned.id.toString(),
-      actorId: principal.id,
-      requestId: principal.requestId,
-      payload: { sourceVersionId: source.id.toString(), versionNumber: cloned.versionNumber },
-    });
     return cloned;
   }
 

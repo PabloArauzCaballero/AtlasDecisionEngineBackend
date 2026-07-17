@@ -65,7 +65,7 @@ export async function seedDemoArtifact(
       usageType: 'INPUT',
       isRequired: true,
       fallbackPolicy: 'FAIL_CLOSED',
-      dependencyPath: `$.variables.${definition.variableCode}`,
+      dependencyPath: `input.${definition.variableCode}`,
     })),
   });
 

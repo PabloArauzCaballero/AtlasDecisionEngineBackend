@@ -38,7 +38,8 @@ const SENSITIVE_KEYS = new Set([
  * Nest routes every `new Logger(context)` call site through whatever instance is
  * registered via `app.useLogger()` (main.ts), so backing this service with Pino is
  * enough to make all existing loggers across the codebase emit structured Pino JSON
- * — both to stdout and to a persistent .log file — without touching each call site.
+ * without touching each call site. Stdout is mandatory; file output is an explicit,
+ * failure-tolerant opt-in for deployments with a writable mounted volume.
  */
 @Injectable()
 export class StructuredLoggerService implements LoggerService, OnModuleDestroy {
@@ -50,7 +51,6 @@ export class StructuredLoggerService implements LoggerService, OnModuleDestroy {
     private readonly context: RequestContextService,
   ) {
     this.configuredLevel = this.config.get<string>('LOG_LEVEL') ?? 'log';
-    const filePath = this.config.get<string>('LOG_FILE_PATH') ?? 'logs/atlas-decision-engine.log';
     this.pino = pino(
       {
         level: 'trace',
@@ -60,11 +60,42 @@ export class StructuredLoggerService implements LoggerService, OnModuleDestroy {
         },
         timestamp: pino.stdTimeFunctions.isoTime,
       },
-      pino.multistream([
-        { stream: process.stdout },
-        { stream: pino.destination({ dest: filePath, mkdir: true, sync: false }) },
-      ]),
+      pino.multistream(this.streams()),
     );
+  }
+
+  /**
+   * stdout is always written and is the only destination by default. Opening a file
+   * stream unconditionally used to abort startup wherever the root filesystem is
+   * read-only — which is every container this ships in — so the file sink is now an
+   * explicit opt-in that expects a mounted, writable volume.
+   */
+  private streams(): pino.StreamEntry[] {
+    const streams: pino.StreamEntry[] = [{ stream: process.stdout }];
+    if ((this.config.get<string>('LOG_OUTPUT') ?? 'stdout') !== 'stdout_and_file') return streams;
+
+    const filePath = this.config.get<string>('LOG_FILE_PATH') ?? 'logs/atlas-decision-engine.log';
+    try {
+      const destination = pino.destination({ dest: filePath, mkdir: true, sync: false });
+      // An async destination reports an unwritable path by emitting 'error' rather than
+      // throwing, and an unhandled 'error' event terminates the process. Losing the file
+      // sink must never do that: stdout already carries every line.
+      destination.on('error', (error: Error) => this.reportSinkFailure(filePath, error));
+      streams.push({ stream: destination });
+    } catch (error) {
+      this.reportSinkFailure(filePath, error);
+    }
+    return streams;
+  }
+
+  private reportSinkFailure(filePath: string, error: unknown): void {
+    process.stderr.write(`${JSON.stringify({
+      timestamp: new Date().toISOString(),
+      level: 'error',
+      context: 'StructuredLogger',
+      message: `Falling back to stdout only: log file ${filePath} is not writable`,
+      error: error instanceof Error ? error.message : String(error),
+    })}\n`);
   }
 
   log(message: unknown, ...optionalParams: unknown[]): void {

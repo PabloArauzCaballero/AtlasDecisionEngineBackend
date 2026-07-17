@@ -26,38 +26,40 @@ export class TraceabilityService {
     dto: CreateBusinessObjectiveDto,
     principal: AuthenticatedPrincipal,
   ) {
-    const objective = await this.prisma.businessObjective.create({
-      data: {
-        tenantId,
-        objectiveCode: dto.objectiveCode,
-        name: dto.name,
-        metric: dto.metric,
-        targetJson: dto.target as Prisma.InputJsonValue,
-        ownerTeam: dto.ownerTeam,
-        policyRequirements: {
-          create: dto.policies.map((policy) => ({
-            policyCode: policy.policyCode,
-            rationale: policy.rationale,
-            owner: policy.owner,
-            severity: policy.severity,
-          })),
+    return this.prisma.$transaction(async (tx) => {
+      const objective = await tx.businessObjective.create({
+        data: {
+          tenantId,
+          objectiveCode: dto.objectiveCode,
+          name: dto.name,
+          metric: dto.metric,
+          targetJson: dto.target as Prisma.InputJsonValue,
+          ownerTeam: dto.ownerTeam,
+          policyRequirements: {
+            create: dto.policies.map((policy) => ({
+              policyCode: policy.policyCode,
+              rationale: policy.rationale,
+              owner: policy.owner,
+              severity: policy.severity,
+            })),
+          },
         },
-      },
-      include: { policyRequirements: true },
+        include: { policyRequirements: true },
+      });
+      await this.audit.append({
+        tenantId,
+        eventType: "BUSINESS_OBJECTIVE_CREATED",
+        aggregateType: "BusinessObjective",
+        aggregateId: objective.id.toString(),
+        actorId: principal.id,
+        requestId: principal.requestId,
+        payload: {
+          objectiveCode: objective.objectiveCode,
+          policyCount: objective.policyRequirements.length,
+        },
+      }, tx);
+      return objective;
     });
-    await this.audit.append({
-      tenantId,
-      eventType: "BUSINESS_OBJECTIVE_CREATED",
-      aggregateType: "BusinessObjective",
-      aggregateId: objective.id.toString(),
-      actorId: principal.id,
-      requestId: principal.requestId,
-      payload: {
-        objectiveCode: objective.objectiveCode,
-        policyCount: objective.policyRequirements.length,
-      },
-    });
-    return objective;
   }
 
   async list(tenantId: bigint, query: ObjectiveListQueryDto) {
@@ -204,19 +206,21 @@ export class TraceabilityService {
         "Artifact version not found",
         HttpStatus.NOT_FOUND,
       );
-    const link = await this.prisma.policyArtifactLink.create({
-      data: { policyRequirementId: policyId, artifactVersionId: versionId },
+    return this.prisma.$transaction(async (tx) => {
+      const link = await tx.policyArtifactLink.create({
+        data: { policyRequirementId: policyId, artifactVersionId: versionId },
+      });
+      await this.audit.append({
+        tenantId,
+        eventType: "POLICY_ARTIFACT_LINKED",
+        aggregateType: "PolicyRequirement",
+        aggregateId: policyId.toString(),
+        actorId: principal.id,
+        requestId: principal.requestId,
+        payload: { artifactVersionId: versionId.toString() },
+      }, tx);
+      return link;
     });
-    await this.audit.append({
-      tenantId,
-      eventType: "POLICY_ARTIFACT_LINKED",
-      aggregateType: "PolicyRequirement",
-      aggregateId: policyId.toString(),
-      actorId: principal.id,
-      requestId: principal.requestId,
-      payload: { artifactVersionId: versionId.toString() },
-    });
-    return link;
   }
 
   async linkTestSuite(
@@ -236,19 +240,21 @@ export class TraceabilityService {
         "Test suite not found",
         HttpStatus.NOT_FOUND,
       );
-    const link = await this.prisma.policyTestLink.create({
-      data: { policyRequirementId: policyId, testSuiteId: suiteId },
+    return this.prisma.$transaction(async (tx) => {
+      const link = await tx.policyTestLink.create({
+        data: { policyRequirementId: policyId, testSuiteId: suiteId },
+      });
+      await this.audit.append({
+        tenantId,
+        eventType: "POLICY_TEST_LINKED",
+        aggregateType: "PolicyRequirement",
+        aggregateId: policyId.toString(),
+        actorId: principal.id,
+        requestId: principal.requestId,
+        payload: { testSuiteId: suiteId.toString() },
+      }, tx);
+      return link;
     });
-    await this.audit.append({
-      tenantId,
-      eventType: "POLICY_TEST_LINKED",
-      aggregateType: "PolicyRequirement",
-      aggregateId: policyId.toString(),
-      actorId: principal.id,
-      requestId: principal.requestId,
-      payload: { testSuiteId: suiteId.toString() },
-    });
-    return link;
   }
 
   private async assertPolicyTenant(

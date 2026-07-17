@@ -115,8 +115,16 @@ export class JwtVerifierService {
     });
     if (!response.ok) throw new Error(`JWKS request failed with ${response.status}`);
     const document = (await response.json()) as JwksDocument;
-    const keys = (document.keys ?? []).filter((key) => key.kid && key.kty === 'RSA');
-    if (!keys.length) throw new Error('No usable RSA keys in JWKS');
+    // Only accept RSA signing keys: a key published for encryption (use='enc') or advertising
+    // a different algorithm must never be selected to verify an RS256 signature.
+    const keys = (document.keys ?? []).filter(
+      (key) =>
+        key.kid &&
+        key.kty === 'RSA' &&
+        (key.use === undefined || key.use === 'sig') &&
+        (key.alg === undefined || key.alg === 'RS256'),
+    );
+    if (!keys.length) throw new Error('No usable RSA signing keys in JWKS');
     this.cachedKeys = new Map(keys.map((key) => [key.kid as string, key]));
     const cacheSeconds = this.config.get<number>('JWT_JWKS_CACHE_SECONDS') ?? 900;
     this.cacheExpiresAt = Date.now() + cacheSeconds * 1_000;

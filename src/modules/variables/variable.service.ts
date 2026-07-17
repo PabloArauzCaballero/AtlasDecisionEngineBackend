@@ -27,33 +27,35 @@ export class VariableService {
     dto: CreateVariableDefinitionDto,
     principal: AuthenticatedPrincipal,
   ) {
-    const definition = await this.prisma.decisionVariableDefinition.create({
-      data: {
-        tenantId,
-        variableCode: dto.variableCode,
-        canonicalName: dto.canonicalName,
-        businessDescription: dto.businessDescription,
-        dataClassification: dto.dataClassification,
-        ownerTeam: dto.ownerTeam,
-        isSensitive: dto.isSensitive,
-        versions: {
-          create: this.versionCreateData(1, dto.initialVersion),
+    return this.prisma.$transaction(async (tx) => {
+      const definition = await tx.decisionVariableDefinition.create({
+        data: {
+          tenantId,
+          variableCode: dto.variableCode,
+          canonicalName: dto.canonicalName,
+          businessDescription: dto.businessDescription,
+          dataClassification: dto.dataClassification,
+          ownerTeam: dto.ownerTeam,
+          isSensitive: dto.isSensitive,
+          versions: {
+            create: this.versionCreateData(1, dto.initialVersion),
+          },
         },
-      },
-      include: {
-        versions: { include: { sources: true, validationRules: true } },
-      },
+        include: {
+          versions: { include: { sources: true, validationRules: true } },
+        },
+      });
+      await this.audit.append({
+        tenantId,
+        eventType: 'VARIABLE_DEFINITION_CREATED',
+        aggregateType: 'VariableDefinition',
+        aggregateId: definition.id.toString(),
+        actorId: principal.id,
+        requestId: principal.requestId,
+        payload: { variableCode: definition.variableCode, sensitive: definition.isSensitive },
+      }, tx);
+      return definition;
     });
-    await this.audit.append({
-      tenantId,
-      eventType: 'VARIABLE_DEFINITION_CREATED',
-      aggregateType: 'VariableDefinition',
-      aggregateId: definition.id.toString(),
-      actorId: principal.id,
-      requestId: principal.requestId,
-      payload: { variableCode: definition.variableCode, sensitive: definition.isSensitive },
-    });
-    return definition;
   }
 
   async createVersion(
@@ -71,31 +73,31 @@ export class VariableService {
     }
     const latest = definition.versions[0];
     const versionNumber = (latest?.versionNumber ?? 0) + 1;
-    const version = await this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx) => {
       if (latest && !latest.effectiveTo) {
         await tx.decisionVariableVersion.update({
           where: { id: latest.id },
           data: { effectiveTo: new Date() },
         });
       }
-      return tx.decisionVariableVersion.create({
+      const version = await tx.decisionVariableVersion.create({
         data: {
           variableDefinitionId: definitionId,
           ...this.versionCreateData(versionNumber, dto),
         },
         include: { sources: true, validationRules: true },
       });
+      await this.audit.append({
+        tenantId,
+        eventType: 'VARIABLE_VERSION_CREATED',
+        aggregateType: 'VariableDefinition',
+        aggregateId: definitionId.toString(),
+        actorId: principal.id,
+        requestId: principal.requestId,
+        payload: { variableCode: definition.variableCode, versionNumber },
+      }, tx);
+      return version;
     });
-    await this.audit.append({
-      tenantId,
-      eventType: 'VARIABLE_VERSION_CREATED',
-      aggregateType: 'VariableDefinition',
-      aggregateId: definitionId.toString(),
-      actorId: principal.id,
-      requestId: principal.requestId,
-      payload: { variableCode: definition.variableCode, versionNumber },
-    });
-    return version;
   }
 
   async list(tenantId: bigint, query: VariableListQueryDto) {
@@ -161,27 +163,29 @@ export class VariableService {
     dto: CreateReasonCodeDto,
     principal: AuthenticatedPrincipal,
   ) {
-    const reason = await this.prisma.decisionReasonCode.create({
-      data: {
+    return this.prisma.$transaction(async (tx) => {
+      const reason = await tx.decisionReasonCode.create({
+        data: {
+          tenantId,
+          reasonCode: dto.reasonCode,
+          category: dto.category,
+          publicMessage: dto.publicMessage,
+          internalMessage: dto.internalMessage,
+          severity: dto.severity,
+          isAdverseAction: dto.isAdverseAction,
+        },
+      });
+      await this.audit.append({
         tenantId,
-        reasonCode: dto.reasonCode,
-        category: dto.category,
-        publicMessage: dto.publicMessage,
-        internalMessage: dto.internalMessage,
-        severity: dto.severity,
-        isAdverseAction: dto.isAdverseAction,
-      },
+        eventType: 'REASON_CODE_CREATED',
+        aggregateType: 'ReasonCode',
+        aggregateId: reason.id.toString(),
+        actorId: principal.id,
+        requestId: principal.requestId,
+        payload: { reasonCode: reason.reasonCode, category: reason.category },
+      }, tx);
+      return reason;
     });
-    await this.audit.append({
-      tenantId,
-      eventType: 'REASON_CODE_CREATED',
-      aggregateType: 'ReasonCode',
-      aggregateId: reason.id.toString(),
-      actorId: principal.id,
-      requestId: principal.requestId,
-      payload: { reasonCode: reason.reasonCode, category: reason.category },
-    });
-    return reason;
   }
 
   async listReasonCodes(tenantId: bigint, query: ReasonCodeListQueryDto) {
