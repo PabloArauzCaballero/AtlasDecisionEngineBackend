@@ -11,10 +11,12 @@ describe('ScriptNodeRunnerService (IN_PROCESS)', () => {
     await expect(runner.execute('JAVASCRIPT', 'return { scoring: 700 };', {})).rejects.toThrow('disabled');
   });
 
+  // Spawning the child node.exe alone costs 300-500ms on Windows dev machines, so these
+  // tests budget well above it; what they assert is behaviour, not latency.
   it('runs JavaScript out of process and returns a JSON object', async () => {
     const runner = new ScriptNodeRunnerService(new ConfigService({
       SCRIPT_NODES_ENABLED: true,
-      SCRIPT_NODE_TIMEOUT_MS: 500,
+      SCRIPT_NODE_TIMEOUT_MS: 3000,
     }));
     await expect(runner.execute('JAVASCRIPT', 'return { scoring: variables.base + 20 };', {
       variables: { base: 680 }, decision: {}, output: {},
@@ -22,7 +24,10 @@ describe('ScriptNodeRunnerService (IN_PROCESS)', () => {
   });
 
   it('rejects non-deterministic JavaScript', async () => {
-    const runner = new ScriptNodeRunnerService(new ConfigService({ SCRIPT_NODES_ENABLED: true }));
+    const runner = new ScriptNodeRunnerService(new ConfigService({
+      SCRIPT_NODES_ENABLED: true,
+      SCRIPT_NODE_TIMEOUT_MS: 3000,
+    }));
     await expect(runner.execute('JAVASCRIPT', 'return { scoring: Math.random() };', {
       variables: {}, decision: {}, output: {},
     })).rejects.toThrow('exited with status');
