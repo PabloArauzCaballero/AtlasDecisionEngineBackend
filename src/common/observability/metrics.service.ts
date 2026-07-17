@@ -6,11 +6,17 @@ interface RequestMetric {
   durationMsMax: number;
 }
 
+/**
+ * In-process metrics registry rendered in Prometheus exposition format.
+ *
+ * Labels are intentionally bounded to known route, outcome and provider dimensions.
+ */
 @Injectable()
 export class MetricsService {
   private readonly startedAt = Date.now();
   private readonly requests = new Map<string, RequestMetric>();
   private readonly decisions = new Map<string, number>();
+  private readonly providerFailures = new Map<string, number>();
 
   recordRequest(method: string, route: string, status: number, durationMs: number): void {
     const key = JSON.stringify([method, route, String(status)]);
@@ -26,6 +32,13 @@ export class MetricsService {
     this.decisions.set(key, (this.decisions.get(key) ?? 0) + 1);
   }
 
+  /** Increments an external-provider failure counter by provider and normalized reason. */
+  recordProviderFailure(provider: string, reason: string): void {
+    const key = JSON.stringify([provider || 'UNKNOWN', reason || 'UNKNOWN']);
+    this.providerFailures.set(key, (this.providerFailures.get(key) ?? 0) + 1);
+  }
+
+  /** Renders the current registry using the Prometheus text exposition format. */
   renderPrometheus(): string {
     const lines = [
       '# HELP atlas_process_uptime_seconds Process uptime in seconds.',
@@ -49,6 +62,13 @@ export class MetricsService {
     for (const [key, count] of this.decisions) {
       const [outcome, status] = JSON.parse(key) as string[];
       lines.push(`atlas_decisions_total{outcome="${this.escape(outcome)}",status="${this.escape(status)}"} ${count}`);
+    }
+
+    lines.push('# HELP atlas_provider_failures_total External provider resolution failures.');
+    lines.push('# TYPE atlas_provider_failures_total counter');
+    for (const [key, count] of this.providerFailures) {
+      const [provider, reason] = JSON.parse(key) as string[];
+      lines.push(`atlas_provider_failures_total{provider="${this.escape(provider)}",reason="${this.escape(reason)}"} ${count}`);
     }
     return `${lines.join('\n')}\n`;
   }

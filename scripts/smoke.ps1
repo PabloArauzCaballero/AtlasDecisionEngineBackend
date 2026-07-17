@@ -1,7 +1,7 @@
 param(
   [string]$BaseUrl = $(if ($env:BASE_URL) { $env:BASE_URL } else { "http://localhost:3000" }),
-  [string]$RuntimeApiKey = $(if ($env:RUNTIME_API_KEY) { $env:RUNTIME_API_KEY } else { "change-me-runtime" }),
-  [string]$ManagementApiKey = $(if ($env:MANAGEMENT_API_KEY) { $env:MANAGEMENT_API_KEY } else { "change-me-management" }),
+  [string]$RuntimeApiKey = $(if ($env:RUNTIME_API_KEY) { $env:RUNTIME_API_KEY } else { "local-runtime-key-change-before-sharing" }),
+  [string]$ManagementApiKey = $(if ($env:MANAGEMENT_API_KEY) { $env:MANAGEMENT_API_KEY } else { "local-management-key-change-before-sharing" }),
   [string]$TenantId = $(if ($env:TENANT_ID) { $env:TENANT_ID } else { "1" })
 )
 

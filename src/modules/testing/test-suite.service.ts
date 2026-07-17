@@ -32,41 +32,43 @@ export class TestSuiteService {
         "Artifact version not found",
         HttpStatus.NOT_FOUND,
       );
-    const suite = await this.prisma.decisionTestSuite.create({
-      data: {
-        artifactVersionId: versionId,
-        suiteCode: dto.suiteCode,
-        name: dto.name,
-        suiteType: dto.suiteType,
-        isBlocking: dto.isBlocking,
-        cases: {
-          create: dto.cases.map((testCase) => ({
-            caseCode: testCase.caseCode,
-            testName: testCase.testName,
-            inputJson: testCase.input as Prisma.InputJsonValue,
-            expectedResultJson:
-              testCase.expectedResult as Prisma.InputJsonValue,
-            tagsJson: testCase.tags as Prisma.InputJsonValue | undefined,
-            isActive: testCase.isActive ?? true,
-          })),
+    return this.prisma.$transaction(async (tx) => {
+      const suite = await tx.decisionTestSuite.create({
+        data: {
+          artifactVersionId: versionId,
+          suiteCode: dto.suiteCode,
+          name: dto.name,
+          suiteType: dto.suiteType,
+          isBlocking: dto.isBlocking,
+          cases: {
+            create: dto.cases.map((testCase) => ({
+              caseCode: testCase.caseCode,
+              testName: testCase.testName,
+              inputJson: testCase.input as Prisma.InputJsonValue,
+              expectedResultJson:
+                testCase.expectedResult as Prisma.InputJsonValue,
+              tagsJson: testCase.tags as Prisma.InputJsonValue | undefined,
+              isActive: testCase.isActive ?? true,
+            })),
+          },
         },
-      },
-      include: { cases: true },
+        include: { cases: true },
+      });
+      await this.audit.append({
+        tenantId,
+        eventType: "TEST_SUITE_CREATED",
+        aggregateType: "TestSuite",
+        aggregateId: suite.id.toString(),
+        actorId: principal.id,
+        requestId: principal.requestId,
+        payload: {
+          suiteCode: suite.suiteCode,
+          cases: suite.cases.length,
+          blocking: suite.isBlocking,
+        },
+      }, tx);
+      return suite;
     });
-    await this.audit.append({
-      tenantId,
-      eventType: "TEST_SUITE_CREATED",
-      aggregateType: "TestSuite",
-      aggregateId: suite.id.toString(),
-      actorId: principal.id,
-      requestId: principal.requestId,
-      payload: {
-        suiteCode: suite.suiteCode,
-        cases: suite.cases.length,
-        blocking: suite.isBlocking,
-      },
-    });
-    return suite;
   }
 
   async listSuites(

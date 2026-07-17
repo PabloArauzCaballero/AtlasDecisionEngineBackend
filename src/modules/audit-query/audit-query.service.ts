@@ -88,7 +88,9 @@ export class AuditQueryService {
       ...(filters.actorId ? { actorId: filters.actorId } : {}),
       ...(filters.from || filters.to
         ? {
-            createdAt: {
+            // DecisionAuditEvent timestamps its rows with occurredAt; there is no
+            // createdAt column, so filtering by from/to used to throw at query time.
+            occurredAt: {
               ...(filters.from ? { gte: new Date(filters.from) } : {}),
               ...(filters.to ? { lte: new Date(filters.to) } : {}),
             },

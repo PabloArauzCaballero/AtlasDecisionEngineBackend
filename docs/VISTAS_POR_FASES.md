@@ -46,7 +46,7 @@ Todas las vistas deben contemplar: `loading`, `empty`, `error`, `forbidden`, `st
 |---|---|---|---|---|---|---|
 | F0-01 | Inicio de sesión corporativo | **Formulario** | Formulario | Todos | IAM externo | P0 |
 | F0-02 | Selección de tenant y contexto | **Formulario** | Selector/Formulario | Multi-tenant | Claim JWT | P0 |
-| F0-03 | Estado de plataforma | **Dashboard** | Dashboard | OPERATIONS, AUDITOR | `GET /health`, `GET /ready` | P0 |
+| F0-03 | Estado de plataforma | **Dashboard** | Dashboard | OPERATIONS, AUDITOR | `GET /health/live`, `GET /health/ready` | P0 |
 | F0-04 | Perfil y permisos efectivos | **Detalle** | Detalle | Todos | Claims JWT | P1 |
 
 ### F0-01 — Inicio de sesión corporativo
@@ -131,9 +131,9 @@ Todas las vistas deben contemplar: `loading`, `empty`, `error`, `forbidden`, `st
 - **Panel inferior:** errores, advertencias, nodos no alcanzables, rutas sin terminal y cobertura de pruebas.
 - **Bloqueo optimista:** advertir si otra persona modificó la versión; no sobrescribir silenciosamente.
 
-### Gap relevante de backend
+### Contrato disponible para el editor
 
-La lectura, clonación, validación y compilación están implementadas. Para un editor visual completo faltan endpoints explícitos de escritura granular o un endpoint transaccional `PUT /artifact-versions/:id/graph` con control de versión (`etag`/checksum). Debe implementarse antes de liberar F2-08 a usuarios finales.
+La lectura, clonación, validación y compilación están implementadas. El editor puede guardar el grafo completo mediante `PUT /v1/artifact-versions/:versionId/graph` y debe enviar `If-Match` con la versión de bloqueo actual para evitar sobrescrituras concurrentes.
 
 ---
 
@@ -374,12 +374,9 @@ Una vista se considera terminada únicamente cuando:
 
 | Brecha | Impacto | Prioridad recomendada |
 |---|---|---|
-| Escritura transaccional del grafo con control de concurrencia | Bloquea editor gráfico completo. | P0 |
 | Endpoints de actualización/desactivación de variables y reason codes | Limita mantenimiento operativo. | P1 |
 | Listado global de solicitudes de aprobación | Obliga a consultas indirectas para la bandeja. | P0 |
 | Detalle directo de deployment y ambiente | Reduce trazabilidad visual. | P1 |
 | CRUD de casos de prueba individuales e importación | Hace pesada la gestión de suites grandes. | P1 |
 | Exportación auditable de evidencia | Necesaria para auditorías formales. | P2 |
 | Endpoint de simulación sin persistencia y aislado de producción | Mejora QA y evita contaminar métricas. | P1 |
-| ETag/If-Match en recursos editables | Necesario para edición concurrente segura. | P0 |
-

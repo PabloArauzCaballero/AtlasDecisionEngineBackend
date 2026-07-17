@@ -3,6 +3,11 @@ import { Reflector } from '@nestjs/core';
 import { DomainException } from '../errors/domain-exception';
 import { REQUIRED_ROLES } from './security.decorators';
 
+/**
+ * Enforces route roles against the trusted principal established by AuthenticationGuard.
+ *
+ * PLATFORM_ADMIN acts as a global wildcard only for signed identity mechanisms.
+ */
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
@@ -18,7 +23,13 @@ export class RolesGuard implements CanActivate {
     const principal = request.principal;
     if (!principal) return false;
     const normalized = required.map((role) => role.toUpperCase());
-    if (principal.roles.includes('PLATFORM_ADMIN') || normalized.some((role) => principal.roles.includes(role))) {
+    // PLATFORM_ADMIN is a global wildcard, so it is only honoured when it arrives on a
+    // signed token from the IdP — never when it was granted to an API key. An API key
+    // must still hold the specific role a route requires.
+    const adminWildcard =
+      principal.roles.includes('PLATFORM_ADMIN') &&
+      (principal.authMethod === 'jwt' || principal.authMethod === 'identity_provider');
+    if (adminWildcard || normalized.some((role) => principal.roles.includes(role))) {
       return true;
     }
     throw new DomainException(

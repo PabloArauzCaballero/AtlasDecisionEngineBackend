@@ -78,20 +78,22 @@ export class ManualReviewService {
     if (!openStatuses.includes(review.status)) {
       throw new DomainException('MANUAL_REVIEW_CLOSED', 'Manual review case is already closed', HttpStatus.CONFLICT);
     }
-    const updated = await this.prisma.decisionManualReviewCase.update({
-      where: { id: caseId },
-      data: { assignedTo: dto.assignedTo, status: ManualReviewStatus.ASSIGNED },
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.decisionManualReviewCase.update({
+        where: { id: caseId },
+        data: { assignedTo: dto.assignedTo, status: ManualReviewStatus.ASSIGNED },
+      });
+      await this.audit.append({
+        tenantId,
+        eventType: 'MANUAL_REVIEW_ASSIGNED',
+        aggregateType: 'ManualReviewCase',
+        aggregateId: caseId.toString(),
+        actorId: principal.id,
+        requestId: principal.requestId,
+        payload: { assignedTo: dto.assignedTo },
+      }, tx);
+      return updated;
     });
-    await this.audit.append({
-      tenantId,
-      eventType: 'MANUAL_REVIEW_ASSIGNED',
-      aggregateType: 'ManualReviewCase',
-      aggregateId: caseId.toString(),
-      actorId: principal.id,
-      requestId: principal.requestId,
-      payload: { assignedTo: dto.assignedTo },
-    });
-    return updated;
   }
 
   async resolve(
@@ -114,29 +116,31 @@ export class ManualReviewService {
         : dto.decision === 'DECLINE'
           ? ManualReviewStatus.RESOLVED_DECLINED
           : ManualReviewStatus.CANCELLED;
-    const updated = await this.prisma.decisionManualReviewCase.update({
-      where: { id: caseId },
-      data: {
-        status,
-        assignedTo: review.assignedTo ?? principal.id,
-        resolutionJson: {
-          decision: dto.decision,
-          reason: dto.reason,
-          metadata: dto.metadata ?? {},
-          resolvedBy: principal.id,
-        } as Prisma.InputJsonValue,
-        resolvedAt: new Date(),
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.decisionManualReviewCase.update({
+        where: { id: caseId },
+        data: {
+          status,
+          assignedTo: review.assignedTo ?? principal.id,
+          resolutionJson: {
+            decision: dto.decision,
+            reason: dto.reason,
+            metadata: dto.metadata ?? {},
+            resolvedBy: principal.id,
+          } as Prisma.InputJsonValue,
+          resolvedAt: new Date(),
+        },
+      });
+      await this.audit.append({
+        tenantId,
+        eventType: 'MANUAL_REVIEW_RESOLVED',
+        aggregateType: 'ManualReviewCase',
+        aggregateId: caseId.toString(),
+        actorId: principal.id,
+        requestId: principal.requestId,
+        payload: { decision: dto.decision, reason: dto.reason },
+      }, tx);
+      return updated;
     });
-    await this.audit.append({
-      tenantId,
-      eventType: 'MANUAL_REVIEW_RESOLVED',
-      aggregateType: 'ManualReviewCase',
-      aggregateId: caseId.toString(),
-      actorId: principal.id,
-      requestId: principal.requestId,
-      payload: { decision: dto.decision, reason: dto.reason },
-    });
-    return updated;
   }
 }

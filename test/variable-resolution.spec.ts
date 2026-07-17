@@ -1,5 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { HashService } from '../src/common/crypto/hash.service';
+import { MetricsService } from '../src/common/observability/metrics.service';
 import type { VariableContractSnapshot } from '../src/modules/graph/graph.types';
 import { VariableResolutionService } from '../src/modules/variables/variable-resolution.service';
 
@@ -22,7 +23,7 @@ function contract(overrides: Partial<VariableContractSnapshot> = {}): VariableCo
 
 describe('VariableResolutionService', () => {
   const config = new ConfigService({ AUDIT_HASH_SECRET: 'test-secret-with-at-least-24-characters' });
-  const service = new VariableResolutionService(config, new HashService(config));
+  const service = new VariableResolutionService(config, new HashService(config), new MetricsService());
 
   it('rejects an exclusive lower bound', async () => {
     const result = await service.resolve([contract()], { monthly_income: 0 }, {

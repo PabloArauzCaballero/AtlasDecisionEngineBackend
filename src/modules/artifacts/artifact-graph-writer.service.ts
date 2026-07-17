@@ -217,24 +217,24 @@ export class ArtifactGraphWriterService {
           changedBy: principal.id,
         },
       });
-      return tx.decisionArtifactVersion.findUniqueOrThrow({
+      const updated = await tx.decisionArtifactVersion.findUniqueOrThrow({
         where: { id: versionId },
         select: { id: true, status: true, lockVersion: true, canonicalChecksum: true },
       });
-    });
-
-    await this.audit.append({
-      tenantId,
-      eventType: 'RULE_GRAPH_REPLACED',
-      aggregateType: 'ArtifactVersion',
-      aggregateId: versionId.toString(),
-      actorId: principal.id,
-      requestId: principal.requestId,
-      payload: {
-        lockVersion: result.lockVersion,
-        nodes: dto.nodes.length,
-        edges: dto.edges.length,
-      },
+      await this.audit.append({
+        tenantId,
+        eventType: 'RULE_GRAPH_REPLACED',
+        aggregateType: 'ArtifactVersion',
+        aggregateId: versionId.toString(),
+        actorId: principal.id,
+        requestId: principal.requestId,
+        payload: {
+          lockVersion: updated.lockVersion,
+          nodes: dto.nodes.length,
+          edges: dto.edges.length,
+        },
+      }, tx);
+      return updated;
     });
     return result;
   }

@@ -16,6 +16,16 @@
 - Si una migración falló, bloquear la API y aplicar el runbook de base de datos.
 - Si Redis falla en producción, el servicio debe permanecer no listo para evitar idempotencia/rate-limit inconsistentes.
 
+## Incidente: aumento de 401, 403 o 429
+
+- Consultar `decision_access_audit` por status, recurso, IP y ventana temporal.
+- Correlacionar por `requestId` con logs estructurados.
+- Verificar revocaciones, expiraciones, audience y tenants autorizados del cliente.
+- No habilitar `x-roles` ni `x-principal-id` como mitigación: esos headers no son una fuente de identidad.
+- Rotar o suspender la credencial afectada si hay indicios de abuso.
+
+Si PostgreSQL no está disponible, la respuesta de seguridad continúa y la falla de persistencia queda en stdout; recuperar el evento requiere la plataforma externa de logs.
+
 ## Incidente: incremento de NO_DECISION
 
 - Segmentar por artefacto, versión, ambiente y reason/error code.
@@ -34,3 +44,7 @@
 ## Rollback de aplicación
 
 El rollback de imagen no revierte automáticamente el schema. Las migraciones deben ser backward-compatible. Para cambios destructivos usar patrón expand/contract y una ventana posterior de limpieza.
+
+## Falla del sink de archivo
+
+La aplicación siempre escribe a stdout. Si `LOG_OUTPUT=stdout_and_file` no puede abrir `LOG_FILE_PATH`, emite el error por stderr y continúa. Corrija permisos o el volumen; no reinicie repetidamente el proceso.

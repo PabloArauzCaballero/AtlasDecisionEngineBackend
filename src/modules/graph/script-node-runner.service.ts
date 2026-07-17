@@ -9,23 +9,51 @@ type ScriptRunnerMode = 'IN_PROCESS' | 'SIDECAR';
 
 const JS_WRAPPER = String.raw`
 const vm = require('node:vm');
+
+// Any object or function reference that crosses from this (outer) realm into the
+// sandbox carries a path back out via '.constructor.constructor' — the classic vm
+// escape (V8's codeGeneration.strings restriction only covers code generation APIs
+// native to the sandboxed context, not outer-realm functions reached by reference).
+// Decision data has no functions, so recursively stripping its prototype closes that
+// path for 'variables'/'decision'/'output'; nothing else outer-realm is exposed.
+function toNullProto(value) {
+  if (Array.isArray(value)) {
+    const copy = value.map(toNullProto);
+    Object.setPrototypeOf(copy, null);
+    return Object.freeze(copy);
+  }
+  if (value && typeof value === 'object') {
+    const copy = Object.create(null);
+    for (const key of Object.keys(value)) copy[key] = toNullProto(value[key]);
+    return Object.freeze(copy);
+  }
+  return value;
+}
+
 let raw = '';
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', chunk => raw += chunk);
 process.stdin.on('end', () => {
   const payload = JSON.parse(raw);
   const sandbox = Object.create(null);
-  sandbox.variables = Object.freeze(payload.context.variables || {});
-  sandbox.decision = Object.freeze(payload.context.decision || {});
-  sandbox.output = Object.freeze(payload.context.output || {});
+  sandbox.variables = toNullProto(payload.context.variables || {});
+  sandbox.decision = toNullProto(payload.context.decision || {});
+  sandbox.output = toNullProto(payload.context.output || {});
+  // A bare vm context has no Node-specific globals (setTimeout/setInterval are Node
+  // additions, not V8/ECMAScript ones) — assigning undefined primitives here, before
+  // context creation, shadows Date and defines otherwise-absent setTimeout/setInterval
+  // as no-ops without exposing any outer-realm reference.
   sandbox.Date = undefined;
   sandbox.setTimeout = undefined;
   sandbox.setInterval = undefined;
-  sandbox.Math = Object.create(Math);
-  Object.defineProperty(sandbox.Math, 'random', { value: () => { throw new Error('Math.random is not allowed'); } });
-  Object.freeze(sandbox.Math);
   const context = vm.createContext(sandbox, { codeGeneration: { strings: false, wasm: false } });
-  const wrapped = '(function (variables, decision, output) { "use strict";\n' + payload.source + '\n})(variables, decision, output)';
+  // Runs inside the sandboxed context, so this mutates the context's own native Math —
+  // never an outer-realm object — leaving no reference for the script to escape through.
+  // Math's other static members stay intact (Math.random is the only non-deterministic one);
+  // its property descriptor is {writable:true, configurable:true} per spec, so this succeeds.
+  const preamble =
+    'Object.defineProperty(Math, "random", { value: () => { throw new Error("Math.random is not allowed"); } });\n';
+  const wrapped = '(function (variables, decision, output) { "use strict";\n' + preamble + payload.source + '\n})(variables, decision, output)';
   const result = new vm.Script(wrapped, { filename: 'atlas-result-node.js' })
     .runInContext(context, { timeout: payload.timeoutMs });
   process.stdout.write(JSON.stringify(result));

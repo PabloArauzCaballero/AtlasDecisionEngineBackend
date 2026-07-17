@@ -1,8 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { HashService } from '../../common/crypto/hash.service';
+import { MetricsService } from '../../common/observability/metrics.service';
+import { safeRegexTest } from '../../common/validation/safe-regex';
 import type { VariableContractSnapshot } from '../graph/graph.types';
 
+/** Persistable evidence describing how one variable was resolved. */
 export interface ResolvedVariableSnapshot {
   variableVersionId: string;
   code: string;
@@ -15,6 +18,7 @@ export interface ResolvedVariableSnapshot {
   sensitive: boolean;
 }
 
+/** Resolved engine input plus validation and audit evidence. */
 export interface VariableResolutionResult {
   valid: boolean;
   values: Record<string, unknown>;
@@ -22,13 +26,23 @@ export interface VariableResolutionResult {
   errors: Array<{ code: string; variable: string; message: string }>;
 }
 
+/**
+ * Resolves declared variable contracts from request input, defaults and an optional provider.
+ *
+ * Undeclared request fields never enter the engine, and sensitive values are represented by
+ * hashes in persisted snapshots.
+ */
 @Injectable()
 export class VariableResolutionService {
+  private readonly logger = new Logger(VariableResolutionService.name);
+
   constructor(
     private readonly config: ConfigService,
     private readonly hashes: HashService,
+    private readonly metrics: MetricsService,
   ) {}
 
+  /** Resolves and validates every declared contract in deterministic contract order. */
   async resolve(
     contracts: VariableContractSnapshot[],
     input: Record<string, unknown>,
@@ -124,7 +138,7 @@ export class VariableResolutionService {
     if (typeof value === 'string') {
       if (typeof schema.minLength === 'number' && value.length < schema.minLength) errors.push(`${contract.code} is shorter than ${schema.minLength}`);
       if (typeof schema.maxLength === 'number' && value.length > schema.maxLength) errors.push(`${contract.code} is longer than ${schema.maxLength}`);
-      if (typeof schema.pattern === 'string' && !new RegExp(schema.pattern).test(value)) errors.push(`${contract.code} does not match required pattern`);
+      if (typeof schema.pattern === 'string' && !safeRegexTest(schema.pattern, value).matched) errors.push(`${contract.code} does not match required pattern`);
     }
     if (Array.isArray(schema.enum) && !schema.enum.includes(value)) errors.push(`${contract.code} is outside the allowed enum`);
 
@@ -138,7 +152,7 @@ export class VariableResolutionService {
           if (typeof value === 'number' && value > Number(config.value)) errors.push(`${rule.errorCode}: above maximum`);
           break;
         case 'REGEX':
-          if (typeof value === 'string' && !new RegExp(String(config.pattern)).test(value)) errors.push(`${rule.errorCode}: pattern mismatch`);
+          if (typeof value === 'string' && !safeRegexTest(String(config.pattern), value).matched) errors.push(`${rule.errorCode}: pattern mismatch`);
           break;
         case 'ENUM':
           if (Array.isArray(config.values) && !config.values.includes(value)) errors.push(`${rule.errorCode}: value not allowed`);
@@ -169,13 +183,36 @@ export class VariableResolutionService {
         }),
         signal: controller.signal,
       });
-      if (!response.ok) return {};
+      if (!response.ok) {
+        // A backend that is up but rejecting the request is not the same as "no data":
+        // record it so an outage does not hide behind silently missing variables. The
+        // caller still degrades to defaults/validation, but the failure is now observable.
+        this.reportFailure(`http_${response.status}`, codes, options);
+        return {};
+      }
       const body = (await response.json()) as { values?: Record<string, unknown> };
       return body.values ?? {};
-    } catch {
+    } catch (error) {
+      const reason = error instanceof Error && error.name === 'AbortError' ? 'timeout' : 'unreachable';
+      this.reportFailure(reason, codes, options);
       return {};
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  private reportFailure(
+    reason: string,
+    codes: string[],
+    options: { tenantId: bigint; artifactCode: string; requestId: string },
+  ): void {
+    this.metrics.recordProviderFailure('variable_backend', reason);
+    this.logger.warn({
+      event: 'VARIABLE_BACKEND_RESOLUTION_FAILED',
+      reason,
+      artifactCode: options.artifactCode,
+      requestId: options.requestId,
+      variableCount: codes.length,
+    });
   }
 }

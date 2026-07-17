@@ -48,4 +48,24 @@ describe('ExpressionEvaluator', () => {
   it('fails closed for division by zero', () => {
     expect(() => evaluator.evaluate({ op: 'div', left: { value: 1 }, right: { value: 0 } }, {})).toThrow(DomainException);
   });
+
+  it('orders strings by code point independent of locale', () => {
+    // 'Z' (0x5A) precedes 'a' (0x61) by code point; a locale-aware collation would reverse it.
+    expect(evaluator.evaluate({ op: 'lt', left: { value: 'Z' }, right: { value: 'a' } }, {})).toBe(true);
+    expect(evaluator.evaluate({ op: 'gt', left: { value: 'a' }, right: { value: 'Z' } }, {})).toBe(true);
+  });
+
+  it('rejects a comparison against an invalid date instead of silently returning false', () => {
+    expect(() =>
+      evaluator.evaluate(
+        { op: 'gt', left: { value: new Date('2026-01-01') }, right: { value: 'not-a-date' } },
+        {},
+      ),
+    ).toThrow(DomainException);
+  });
+
+  it('rejects min/max with no arguments instead of returning infinity', () => {
+    expect(() => evaluator.evaluate({ op: 'min', args: [] }, {})).toThrow(DomainException);
+    expect(() => evaluator.evaluate({ op: 'max', args: [] }, {})).toThrow(DomainException);
+  });
 });

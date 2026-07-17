@@ -50,21 +50,26 @@ El flujo de revisión crea pasos por rol y conserva decisiones/evidencias. Se ap
 
 ## 6. Seguridad
 
-La capa incluida es apropiada para integración service-to-service y desarrollo:
+La autenticación establece un `AuthenticatedPrincipal` antes de ejecutar controladores:
 
-- API keys distintas por audiencia;
-- tenant obligatorio en todas las consultas de negocio;
-- roles declarativos mediante decorators/guard;
-- auditoría de accesos y mutaciones;
-- validación estricta de DTOs;
-- Helmet, CORS cerrado y respuestas de dominio normalizadas;
-- rechazo de secretos de ejemplo en `NODE_ENV=production`.
+- JWT RS256 validado con JWKS, issuer, audience, vigencia, tenant y roles;
+- proveedor de identidad externo con perfil verificado;
+- clientes de integración persistidos con credenciales, audiencia, scopes y tenants;
+- API keys distintas para management y runtime;
+- roles declarativos mediante decorators y guard global;
+- `PLATFORM_ADMIN` como comodín solo para identidades firmadas;
+- rate limiting separado para intentos fallidos de autenticación;
+- Helmet, CORS cerrado, DTOs estrictos y respuestas normalizadas.
 
-En una instalación empresarial, el API Gateway debe validar tokens del IdP y convertir claims firmados al contexto interno. No debe confiarse en headers aportados directamente por un navegador público.
+Una API key no puede definir `x-principal-id` ni `x-roles`. `x-tenant-id` únicamente selecciona un tenant que ya figure en `integration_tenant_access`.
+
+Producción exige un modo con identidad firmada y no permite `AUTH_MODE=API_KEY`.
 
 ## 7. Auditoría
 
-Los eventos se encadenan por tenant con HMAC. Un advisory lock transaccional serializa escritores del mismo tenant para evitar bifurcaciones concurrentes. `/v1/audit/chain/verify` recalcula la cadena y reporta cualquier alteración.
+Los eventos se encadenan por tenant con HMAC. Un advisory lock transaccional serializa escritores del mismo tenant para evitar bifurcaciones concurrentes. `AuditService.append` acepta la transacción del dominio para que la mutación y su evidencia confirmen o reviertan juntas. `/v1/audit/chain/verify` recalcula la cadena y reporta cualquier alteración.
+
+Las denegaciones 401, 403 y 429 se registran desde el filtro global porque los guards se ejecutan antes que los interceptors. Este registro es best-effort: una caída de auditoría no modifica la respuesta de seguridad.
 
 Para cumplimiento fuerte, los eventos deben replicarse adicionalmente a almacenamiento WORM externo.
 
@@ -76,6 +81,8 @@ La clave se limita por tenant + artefacto y se vincula a un hash criptográfico 
 - `COMPLETED`: devuelve la respuesta persistida;
 - `FAILED`: devuelve el resultado fallido persistido;
 - misma clave con payload diferente: conflicto 409.
+
+El hash incluye el ambiente de ejecución. Las fallas transitorias liberan la reserva para permitir un reintento idéntico; los fallos de negocio deterministas permanecen persistidos.
 
 ## 9. Privacidad
 

@@ -54,6 +54,11 @@ services:
         condition: service_completed_successfully
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-atlas}:${POSTGRES_PASSWORD:-atlas-local-only}@postgres:5432/${POSTGRES_DB:-atlas_decision}?schema=public
+      MANAGEMENT_API_KEY: ${MANAGEMENT_API_KEY:-local-management-key-change-before-sharing}
+      RUNTIME_API_KEY: ${RUNTIME_API_KEY:-local-runtime-key-change-before-sharing}
+      BOOTSTRAP_TENANT_ID: ${BOOTSTRAP_TENANT_ID:-1}
+      BOOTSTRAP_MANAGEMENT_ROLES: ${BOOTSTRAP_MANAGEMENT_ROLES:-AUDITOR,COMPLIANCE,FRAUD_ANALYST,OPERATIONS,PLATFORM_ADMIN,QA_ANALYST,RISK_ANALYST,RISK_APPROVER}
+      BOOTSTRAP_RUNTIME_ROLES: ${BOOTSTRAP_RUNTIME_ROLES:-DECISION_RUNTIME}
     command: ["db", "seed"]
     restart: "no"
 

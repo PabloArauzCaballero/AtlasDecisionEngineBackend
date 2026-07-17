@@ -177,20 +177,19 @@ export class TestExecutionService {
           finishedAt: new Date(),
         },
       });
-    });
-
-    await this.audit.append({
-      tenantId,
-      eventType: failed ? 'TEST_RUN_FAILED' : 'TEST_RUN_PASSED',
-      aggregateType: 'TestRun',
-      aggregateId: run.id.toString(),
-      actorId: principal.id,
-      requestId: principal.requestId,
-      payload: {
-        suiteCode: suite.suiteCode,
-        compiledChecksum: compiled.compiledChecksum,
-        coverage: coverage.map((item) => ({ type: item.type, percentage: item.percentage })),
-      },
+      await this.audit.append({
+        tenantId,
+        eventType: failed ? 'TEST_RUN_FAILED' : 'TEST_RUN_PASSED',
+        aggregateType: 'TestRun',
+        aggregateId: run.id.toString(),
+        actorId: principal.id,
+        requestId: principal.requestId,
+        payload: {
+          suiteCode: suite.suiteCode,
+          compiledChecksum: compiled.compiledChecksum,
+          coverage: coverage.map((item) => ({ type: item.type, percentage: item.percentage })),
+        },
+      }, tx);
     });
     return this.getRun(tenantId, run.id);
   }

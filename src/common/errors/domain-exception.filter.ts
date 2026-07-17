@@ -9,13 +9,18 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 import type { Request, Response } from 'express';
+import type { AccessDenialAuditorService } from '../security/access-denial-auditor.service';
 import { DomainException } from './domain-exception';
 
 @Catch()
 export class DomainExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(DomainExceptionFilter.name);
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    /** Optional so the filter stays usable in contexts without a database. */
+    private readonly denialAuditor?: AccessDenialAuditorService,
+  ) {}
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const response = host.switchToHttp().getResponse<Response>();
@@ -26,6 +31,7 @@ export class DomainExceptionFilter implements ExceptionFilter {
 
     if (exception instanceof DomainException) {
       this.logRejection(request, requestId, exception.status, exception.code, exception.message);
+      this.auditDenial(request, requestId, exception.status, exception.code);
       response.status(exception.status).json({
         type: `https://atlas.local/errors/${exception.code.toLowerCase()}`,
         title: exception.code,
@@ -46,6 +52,7 @@ export class DomainExceptionFilter implements ExceptionFilter {
       const bodyObject = typeof body === 'object' ? body as Record<string, unknown> : undefined;
       const message = typeof body === 'string' ? body : bodyObject?.message ?? exception.message;
       this.logRejection(request, requestId, status, `HTTP_${status}`, String(message));
+      this.auditDenial(request, requestId, status, `HTTP_${status}`);
       response.status(status).json({
         type: `https://atlas.local/errors/http-${status}`,
         title: `HTTP_${status}`,
@@ -76,6 +83,14 @@ export class DomainExceptionFilter implements ExceptionFilter {
         message: production ? 'An unexpected server error occurred' : internalMessage,
       },
     });
+  }
+
+  /**
+   * Fire-and-forget: the response must not wait on the audit write, and an audit failure
+   * must never change the status the caller receives.
+   */
+  private auditDenial(request: Request, requestId: string, status: number, code: string): void {
+    void this.denialAuditor?.record(request, requestId, status, code);
   }
 
   /** 4xx are expected traffic (auth/validation/business-rule denials) and logged at warn; 5xx at error. */

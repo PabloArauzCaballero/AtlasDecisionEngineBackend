@@ -168,20 +168,23 @@ export class GovernanceService {
         "Submitted for governed review",
         tx,
       );
+      await this.audit.append(
+        {
+          tenantId,
+          eventType: "APPROVAL_REQUEST_CREATED",
+          aggregateType: "ApprovalRequest",
+          aggregateId: created.id.toString(),
+          actorId: principal.id,
+          requestId: principal.requestId,
+          payload: {
+            versionId: versionId.toString(),
+            workflowCode: created.workflowCode,
+            blockingTestEvidence: blocking.evidence,
+          } as unknown as Prisma.InputJsonValue,
+        },
+        tx,
+      );
       return created;
-    });
-    await this.audit.append({
-      tenantId,
-      eventType: "APPROVAL_REQUEST_CREATED",
-      aggregateType: "ApprovalRequest",
-      aggregateId: request.id.toString(),
-      actorId: principal.id,
-      requestId: principal.requestId,
-      payload: {
-        versionId: versionId.toString(),
-        workflowCode: request.workflowCode,
-        blockingTestEvidence: blocking.evidence,
-      } as unknown as Prisma.InputJsonValue,
     });
     return request;
   }
@@ -353,23 +356,30 @@ export class GovernanceService {
           );
         }
       }
+
+      // Inside the transaction: an approval that commits without its audit event would be
+      // an unevidenced decision, and an audit event that survives a rolled-back approval
+      // would attest to something that never happened.
+      await this.audit.append(
+        {
+          tenantId,
+          eventType: `APPROVAL_${dto.decision}`,
+          aggregateType: "ApprovalRequest",
+          aggregateId: step.approvalRequestId.toString(),
+          actorId: principal.id,
+          requestId: principal.requestId,
+          payload: {
+            stepId: stepId.toString(),
+            requiredRole: step.requiredRole,
+            decision: dto.decision,
+            evidenceCount: dto.evidence.length,
+          },
+        },
+        tx,
+      );
       return decision;
     });
 
-    await this.audit.append({
-      tenantId,
-      eventType: `APPROVAL_${dto.decision}`,
-      aggregateType: "ApprovalRequest",
-      aggregateId: step.approvalRequestId.toString(),
-      actorId: principal.id,
-      requestId: principal.requestId,
-      payload: {
-        stepId: stepId.toString(),
-        requiredRole: step.requiredRole,
-        decision: dto.decision,
-        evidenceCount: dto.evidence.length,
-      },
-    });
     return result;
   }
 

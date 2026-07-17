@@ -107,4 +107,24 @@ describe('environment validation', () => {
     expect(result.SCRIPT_NODES_ENABLED).toBe(false);
     expect(result.SCRIPT_RUNNER_MODE).toBe('IN_PROCESS');
   });
+
+  it('rejects Swagger enabled in production', () => {
+    expect(() => validateEnvironment({ ...jwtProduction, SWAGGER_ENABLED: 'true' })).toThrow();
+  });
+
+  it('rejects a debug log level in production', () => {
+    expect(() => validateEnvironment({ ...jwtProduction, LOG_LEVEL: 'debug' })).toThrow();
+    expect(() => validateEnvironment({ ...jwtProduction, LOG_LEVEL: 'verbose' })).toThrow();
+  });
+
+  it('requires an HTTPS variable backend URL in production', () => {
+    expect(() => validateEnvironment({
+      ...jwtProduction,
+      VARIABLE_BACKEND_URL: 'http://variables.internal/api',
+    })).toThrow();
+    expect(validateEnvironment({
+      ...jwtProduction,
+      VARIABLE_BACKEND_URL: 'https://variables.internal/api',
+    }).VARIABLE_BACKEND_URL).toBe('https://variables.internal/api');
+  });
 });

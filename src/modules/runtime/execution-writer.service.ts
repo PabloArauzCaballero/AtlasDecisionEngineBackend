@@ -7,6 +7,7 @@ import type { ResolvedDeployment } from '../deployments/deployment-resolver.serv
 import type { EngineExecutionResult } from '../graph/graph.types';
 import type { ResolvedVariableSnapshot } from '../variables/variable-resolution.service';
 
+/** Complete persistence payload for one decision execution and its evidence. */
 export interface WriteExecutionInput {
   tenantId: bigint;
   deployment: ResolvedDeployment;
@@ -27,6 +28,9 @@ export interface WriteExecutionInput {
   }>;
 }
 
+/**
+ * Persists a decision execution, variable snapshots, trace, reasons and review evidence.
+ */
 @Injectable()
 export class ExecutionWriterService {
   constructor(
@@ -34,100 +38,16 @@ export class ExecutionWriterService {
     private readonly hashes: HashService,
   ) {}
 
-  async write(input: WriteExecutionInput) {
-    const result = input.result;
+  /**
+   * @param transaction The caller's transaction. Passing it lets the execution, the
+   *   idempotency outcome and the audit event commit as one unit instead of
+   *   as three independent writes that can partially succeed.
+   */
+  async write(input: WriteExecutionInput, transaction?: Prisma.TransactionClient) {
     try {
-      return await this.prisma.$transaction(async (tx) => {
-      const execution = await tx.decisionExecution.create({
-        data: {
-          tenantId: input.tenantId,
-          deploymentId: input.deployment.deploymentId,
-          artifactVersionId: input.deployment.artifactVersionId,
-          environmentId: input.deployment.environmentId,
-          requestId: input.requestId,
-          correlationId: input.correlationId,
-          idempotencyKey: input.idempotencyKey,
-          subjectReferenceHash: input.subjectReference
-            ? this.hashes.hmac(input.subjectReference)
-            : undefined,
-          inputSnapshotJson: input.inputSnapshot as Prisma.InputJsonValue,
-          outputJson: result?.output as Prisma.InputJsonValue | undefined,
-          decisionStatus: this.executionStatus(result, input.errors),
-          businessOutcome: result?.outcome,
-          durationMs: input.durationMs,
-        },
-      });
-
-      if (input.variableSnapshots.length) {
-        await tx.decisionExecutionVariable.createMany({
-          data: input.variableSnapshots.map((variable) => ({
-            executionId: execution.id,
-            variableVersionId: BigInt(variable.variableVersionId),
-            valueJson: variable.storedValue as Prisma.InputJsonValue | undefined,
-            valueHash: variable.valueHash,
-            sourceCode: variable.sourceCode,
-            resolutionStatus: variable.resolutionStatus,
-            wasDefaulted: variable.wasDefaulted,
-          })),
-        });
-      }
-
-      if (result) {
-        for (let index = 0; index < result.trace.length; index += 1) {
-          const step = result.trace[index];
-          if (!step.nodeId) continue;
-          await tx.decisionExecutionStep.create({
-            data: {
-              executionId: execution.id,
-              nodeId: BigInt(step.nodeId),
-              stepOrder: index + 1,
-              evaluationResultJson: step.evaluation as Prisma.InputJsonValue,
-              branchTaken: step.branchTaken,
-              durationUs: BigInt(step.durationUs),
-            },
-          });
-        }
-        for (const reason of result.reasons) {
-          if (!reason.reasonCodeId || !reason.sourceActionId) continue;
-          await tx.decisionExecutionReason.create({
-            data: {
-              executionId: execution.id,
-              reasonCodeId: BigInt(reason.reasonCodeId),
-              sourceActionId: BigInt(reason.sourceActionId),
-              priority: reason.priority,
-              renderedMessage: reason.message,
-            },
-          });
-        }
-        if (result.manualReview) {
-          await tx.decisionManualReviewCase.create({
-            data: {
-              executionId: execution.id,
-              tenantId: input.tenantId,
-              caseCode: `MR-${execution.id.toString().padStart(10, '0')}`,
-              queueCode: result.manualReview.queueCode,
-              priority: result.manualReview.priority,
-              dueAt: new Date(Date.now() + result.manualReview.slaMinutes * 60_000),
-              evidenceJson: result.manualReview.evidence as Prisma.InputJsonValue,
-            },
-          });
-        }
-      }
-
-      for (const error of input.errors ?? []) {
-        await tx.decisionExecutionError.create({
-          data: {
-            executionId: execution.id,
-            errorCode: error.code,
-            errorType: error.type,
-            errorMessage: error.message,
-            retryable: error.retryable,
-            detailsJson: error.details as Prisma.InputJsonValue | undefined,
-          },
-        });
-      }
-        return execution;
-      });
+      return transaction
+        ? await this.writeWithin(transaction, input)
+        : await this.prisma.$transaction((tx) => this.writeWithin(tx, input));
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new DomainException(
@@ -139,6 +59,99 @@ export class ExecutionWriterService {
       }
       throw error;
     }
+  }
+
+  private async writeWithin(tx: Prisma.TransactionClient, input: WriteExecutionInput) {
+    const result = input.result;
+    const execution = await tx.decisionExecution.create({
+      data: {
+        tenantId: input.tenantId,
+        deploymentId: input.deployment.deploymentId,
+        artifactVersionId: input.deployment.artifactVersionId,
+        environmentId: input.deployment.environmentId,
+        requestId: input.requestId,
+        correlationId: input.correlationId,
+        idempotencyKey: input.idempotencyKey,
+        subjectReferenceHash: input.subjectReference
+          ? this.hashes.hmac(input.subjectReference)
+          : undefined,
+        inputSnapshotJson: input.inputSnapshot as Prisma.InputJsonValue,
+        outputJson: result?.output as Prisma.InputJsonValue | undefined,
+        decisionStatus: this.executionStatus(result, input.errors),
+        businessOutcome: result?.outcome,
+        durationMs: input.durationMs,
+      },
+    });
+
+    if (input.variableSnapshots.length) {
+      await tx.decisionExecutionVariable.createMany({
+        data: input.variableSnapshots.map((variable) => ({
+          executionId: execution.id,
+          variableVersionId: BigInt(variable.variableVersionId),
+          valueJson: variable.storedValue as Prisma.InputJsonValue | undefined,
+          valueHash: variable.valueHash,
+          sourceCode: variable.sourceCode,
+          resolutionStatus: variable.resolutionStatus,
+          wasDefaulted: variable.wasDefaulted,
+        })),
+      });
+    }
+
+    if (result) {
+      for (let index = 0; index < result.trace.length; index += 1) {
+        const step = result.trace[index];
+        if (!step.nodeId) continue;
+        await tx.decisionExecutionStep.create({
+          data: {
+            executionId: execution.id,
+            nodeId: BigInt(step.nodeId),
+            stepOrder: index + 1,
+            evaluationResultJson: step.evaluation as Prisma.InputJsonValue,
+            branchTaken: step.branchTaken,
+            durationUs: BigInt(step.durationUs),
+          },
+        });
+      }
+      for (const reason of result.reasons) {
+        if (!reason.reasonCodeId || !reason.sourceActionId) continue;
+        await tx.decisionExecutionReason.create({
+          data: {
+            executionId: execution.id,
+            reasonCodeId: BigInt(reason.reasonCodeId),
+            sourceActionId: BigInt(reason.sourceActionId),
+            priority: reason.priority,
+            renderedMessage: reason.message,
+          },
+        });
+      }
+      if (result.manualReview) {
+        await tx.decisionManualReviewCase.create({
+          data: {
+            executionId: execution.id,
+            tenantId: input.tenantId,
+            caseCode: `MR-${execution.id.toString().padStart(10, '0')}`,
+            queueCode: result.manualReview.queueCode,
+            priority: result.manualReview.priority,
+            dueAt: new Date(Date.now() + result.manualReview.slaMinutes * 60_000),
+            evidenceJson: result.manualReview.evidence as Prisma.InputJsonValue,
+          },
+        });
+      }
+    }
+
+    for (const error of input.errors ?? []) {
+      await tx.decisionExecutionError.create({
+        data: {
+          executionId: execution.id,
+          errorCode: error.code,
+          errorType: error.type,
+          errorMessage: error.message,
+          retryable: error.retryable,
+          detailsJson: error.details as Prisma.InputJsonValue | undefined,
+        },
+      });
+    }
+    return execution;
   }
 
   private executionStatus(

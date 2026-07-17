@@ -82,7 +82,7 @@ describe('Artifact lifecycle (e2e)', () => {
         usageType: 'INPUT',
         isRequired: true,
         fallbackPolicy: 'FAIL_CLOSED',
-        dependencyPath: '$.variables.age',
+        dependencyPath: 'input.age',
       }],
       conditions: [{
         code: 'AGE_OK',

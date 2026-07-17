@@ -5,10 +5,17 @@ import { DomainException } from '../../common/errors/domain-exception';
 import { HashService } from '../../common/crypto/hash.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 
+/** Result of claiming or replaying an idempotency key. */
 export type IdempotencyReservation =
   | { kind: 'reserved'; id: bigint }
   | { kind: 'completed'; response: unknown; status: IdempotencyStatus };
 
+/**
+ * Coordinates request idempotency for decision execution.
+ *
+ * The key is scoped by tenant and artifact, while the request hash protects against
+ * replaying the key with different inputs.
+ */
 @Injectable()
 export class IdempotencyService {
   private readonly ttlMs: number;
@@ -21,6 +28,12 @@ export class IdempotencyService {
     this.ttlMs = (config.get<number>('IDEMPOTENCY_TTL_HOURS') ?? 24) * 60 * 60 * 1_000;
   }
 
+  /**
+   * Claims a key for processing or returns the persisted terminal response.
+   *
+   * @throws DomainException when the key is still processing or was reused with a
+   * different request hash.
+   */
   async reserve(
     tenantId: bigint,
     artifactCode: string,
@@ -88,8 +101,13 @@ export class IdempotencyService {
     }
   }
 
-  async complete(id: bigint, response: unknown): Promise<void> {
-    await this.prisma.runtimeIdempotency.update({
+  /**
+   * Stores a successful terminal response for deterministic replay.
+   *
+   * @param tx Optional execution transaction so evidence and idempotency commit together.
+   */
+  async complete(id: bigint, response: unknown, tx?: Prisma.TransactionClient): Promise<void> {
+    await (tx ?? this.prisma).runtimeIdempotency.update({
       where: { id },
       data: {
         status: IdempotencyStatus.COMPLETED,
@@ -99,8 +117,13 @@ export class IdempotencyService {
     });
   }
 
-  async fail(id: bigint, response: unknown): Promise<void> {
-    await this.prisma.runtimeIdempotency.update({
+  /**
+   * Stores a deterministic failed response for replay.
+   *
+   * @param tx Optional execution transaction so evidence and idempotency commit together.
+   */
+  async fail(id: bigint, response: unknown, tx?: Prisma.TransactionClient): Promise<void> {
+    await (tx ?? this.prisma).runtimeIdempotency.update({
       where: { id },
       data: {
         status: IdempotencyStatus.FAILED,
@@ -110,4 +133,12 @@ export class IdempotencyService {
     });
   }
 
+  /**
+   * Releases a reservation after a transient failure so an identical retry can re-claim
+   * the key. Deleting is safe because the caller owns this row for the current request;
+   * a concurrent request would have been rejected with IDEMPOTENCY_IN_PROGRESS.
+   */
+  async release(id: bigint): Promise<void> {
+    await this.prisma.runtimeIdempotency.deleteMany({ where: { id } });
+  }
 }
