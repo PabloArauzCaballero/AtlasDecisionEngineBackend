@@ -17,16 +17,20 @@ describeDb('AuditService transactionality (integration)', () => {
   const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: DATABASE_URL }) });
   const hashes = new HashService(new ConfigService({ AUDIT_HASH_SECRET: 'audit-secret-with-at-least-32-characters!!' }));
   const audit = new AuditService(prisma as unknown as PrismaService, hashes);
-  const tenantId = 770077n;
+  // The audit table is append-only at the database level, so these rows can never be
+  // cleaned up. Each test therefore isolates itself with a tenant id of its own rather
+  // than by deleting what the previous one wrote.
+  let tenantId: bigint;
+  let nextTenant = BigInt(770_000_000) + BigInt(process.pid % 100_000) * 1000n;
 
   const eventsFor = () => prisma.decisionAuditEvent.findMany({ where: { tenantId } });
 
-  beforeEach(async () => {
-    await prisma.decisionAuditEvent.deleteMany({ where: { tenantId } });
+  beforeEach(() => {
+    nextTenant += 1n;
+    tenantId = nextTenant;
   });
 
   afterAll(async () => {
-    await prisma.decisionAuditEvent.deleteMany({ where: { tenantId } });
     await prisma.$disconnect();
   });
 

@@ -21,10 +21,11 @@ describeDb('AuditQueryService date filtering (integration)', () => {
     hashes,
     new ConfigService({ MAX_PAGE_SIZE: 100 }),
   );
-  const tenantId = 990099n;
+  // The audit table is append-only at the database level, so this run cannot clean up
+  // after itself and must not see rows written by a previous one: it uses its own tenant.
+  const tenantId = BigInt(990_000_000) + BigInt(process.pid % 1_000_000);
 
   beforeAll(async () => {
-    await prisma.decisionAuditEvent.deleteMany({ where: { tenantId } });
     await prisma.decisionAuditEvent.create({
       data: {
         tenantId,
@@ -40,7 +41,6 @@ describeDb('AuditQueryService date filtering (integration)', () => {
   });
 
   afterAll(async () => {
-    await prisma.decisionAuditEvent.deleteMany({ where: { tenantId } });
     await prisma.$disconnect();
   });
 
