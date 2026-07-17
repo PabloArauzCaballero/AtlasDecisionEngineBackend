@@ -6,11 +6,13 @@ import { ExecutionWriterService } from './execution-writer.service';
 import { IdempotencyService } from './idempotency.service';
 import { RuntimeController } from './runtime.controller';
 import { RuntimeService } from './runtime.service';
+import { SimulationController } from './simulation.controller';
+import { SimulationService } from './simulation.service';
 
 @Module({
   imports: [DeploymentModule, GraphModule, VariableModule],
-  controllers: [RuntimeController],
-  providers: [RuntimeService, IdempotencyService, ExecutionWriterService],
-  exports: [RuntimeService, IdempotencyService, ExecutionWriterService],
+  controllers: [RuntimeController, SimulationController],
+  providers: [RuntimeService, SimulationService, IdempotencyService, ExecutionWriterService],
+  exports: [RuntimeService, SimulationService, IdempotencyService, ExecutionWriterService],
 })
 export class RuntimeModule {}

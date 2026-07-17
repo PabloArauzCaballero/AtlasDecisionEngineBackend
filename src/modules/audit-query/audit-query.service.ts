@@ -113,7 +113,7 @@ export class AuditQueryService {
       if ((event.previousHash ?? null) !== previousHash) {
         invalid.push({ id: event.id.toString(), reason: 'PREVIOUS_HASH_MISMATCH' });
       }
-      const expected = this.hashes.hmac({
+      const material = {
         tenantId: event.tenantId.toString(),
         eventType: event.eventType,
         aggregateType: event.aggregateType,
@@ -122,9 +122,17 @@ export class AuditQueryService {
         requestId: event.requestId ?? null,
         payload: event.payloadJson,
         previousHash: event.previousHash ?? null,
-      });
-      if (expected !== event.eventHash) {
-        invalid.push({ id: event.id.toString(), reason: 'EVENT_HASH_MISMATCH' });
+      };
+      try {
+        // Re-sign with the key that produced this event, not the active one: rotating
+        // AUDIT_HASH_SECRET must not invalidate the historical chain.
+        if (this.hashes.hmacWithKey(material, event.hashKeyId) !== event.eventHash) {
+          invalid.push({ id: event.id.toString(), reason: 'EVENT_HASH_MISMATCH' });
+        }
+      } catch {
+        // A retired secret that is no longer configured means the event cannot be
+        // verified at all — never report that as valid.
+        invalid.push({ id: event.id.toString(), reason: 'HASH_KEY_UNAVAILABLE' });
       }
       previousHash = event.eventHash;
     }

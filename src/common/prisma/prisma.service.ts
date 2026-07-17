@@ -10,25 +10,26 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   private readonly pool: Pool;
 
   constructor(config: ConfigService) {
+    const statementTimeout = Math.trunc(
+      config.get<number>('DATABASE_STATEMENT_TIMEOUT_MS') ?? 30_000,
+    );
     const pool = new Pool({
       connectionString: config.getOrThrow<string>('DATABASE_URL'),
       max: config.get<number>('DATABASE_POOL_MAX') ?? 15,
       connectionTimeoutMillis: config.get<number>('DATABASE_CONNECTION_TIMEOUT_MS') ?? 5_000,
       idleTimeoutMillis: config.get<number>('DATABASE_IDLE_TIMEOUT_MS') ?? 30_000,
       application_name: 'atlas-decision-engine',
-    });
-    const statementTimeout = config.get<number>('DATABASE_STATEMENT_TIMEOUT_MS') ?? 30_000;
-    pool.on('connect', (client) => {
-      void client.query(`SET statement_timeout TO ${Math.trunc(statementTimeout)}`);
-      void client.query(`SET idle_in_transaction_session_timeout TO ${Math.trunc(statementTimeout)}`);
+      options: `-c statement_timeout=${statementTimeout} -c idle_in_transaction_session_timeout=${statementTimeout}`,
     });
     pool.on('error', (error) => {
-      process.stderr.write(`${JSON.stringify({
-        timestamp: new Date().toISOString(),
-        level: 'error',
-        context: 'PostgresPool',
-        message: error.message,
-      })}\n`);
+      process.stderr.write(
+        `${JSON.stringify({
+          timestamp: new Date().toISOString(),
+          level: 'error',
+          context: 'PostgresPool',
+          message: error.message,
+        })}\n`,
+      );
     });
     super({ adapter: new PrismaPg(pool, { disposeExternalPool: false }) });
     this.pool = pool;

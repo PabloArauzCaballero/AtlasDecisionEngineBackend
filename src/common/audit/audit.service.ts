@@ -72,4 +72,48 @@ export class AuditService {
     }, 'AuditService');
     return event;
   }
+<<<<<<< Updated upstream
+=======
+
+  private async appendWithin(
+    tx: Prisma.TransactionClient,
+    input: AppendAuditEventInput,
+  ): Promise<DecisionAuditEvent> {
+    // Serialize the per-tenant hash chain so concurrent writers cannot create forks.
+    // The lock is held until the surrounding transaction ends, which is now the caller's.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${input.tenantId})`;
+    const previous = await tx.decisionAuditEvent.findFirst({
+      where: { tenantId: input.tenantId },
+      orderBy: { id: 'desc' },
+      select: { eventHash: true },
+    });
+    const payload = {
+      tenantId: input.tenantId.toString(),
+      eventType: input.eventType,
+      aggregateType: input.aggregateType,
+      aggregateId: input.aggregateId,
+      actorId: input.actorId,
+      requestId: input.requestId ?? null,
+      payload: input.payload,
+      previousHash: previous?.eventHash ?? null,
+    };
+    const hashKeyId = this.hashes.activeHashKeyId();
+    const eventHash = this.hashes.hmacWithKey(payload, hashKeyId);
+    return tx.decisionAuditEvent.create({
+      data: {
+        tenantId: input.tenantId,
+        eventType: input.eventType,
+        aggregateType: input.aggregateType,
+        aggregateId: input.aggregateId,
+        actorId: input.actorId,
+        requestId: input.requestId,
+        payloadJson: input.payload,
+        previousHash: previous?.eventHash,
+        eventHash,
+        // Recorded so a later rotation of AUDIT_HASH_SECRET can still verify this event.
+        hashKeyId,
+      },
+    });
+  }
+>>>>>>> Stashed changes
 }

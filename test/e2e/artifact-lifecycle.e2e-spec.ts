@@ -36,7 +36,9 @@ describe('Artifact lifecycle (e2e)', () => {
       .query({ search: 'age', pageSize: 5 })
       .set(author)
       .expect(200);
-    const match = response.body.items.find((item: { variableCode: string }) => item.variableCode === 'age');
+    const match = response.body.items.find(
+      (item: { variableCode: string }) => item.variableCode === 'age',
+    );
     expect(match).toBeDefined();
     ageVariableVersionId = match.versions[0].id;
     expect(ageVariableVersionId).toBeTruthy();
@@ -69,7 +71,20 @@ describe('Artifact lifecycle (e2e)', () => {
         dependencies: [],
         conditions: [],
         actions: [],
-        nodes: [{ key: 'START', type: 'START', label: 'Start', config: {}, x: 0, y: 0, order: 1, terminal: false, conditions: [], actions: [] }],
+        nodes: [
+          {
+            key: 'START',
+            type: 'START',
+            label: 'Start',
+            config: {},
+            x: 0,
+            y: 0,
+            order: 1,
+            terminal: false,
+            conditions: [],
+            actions: [],
+          },
+        ],
         edges: [],
       })
       .expect(428);
@@ -77,6 +92,7 @@ describe('Artifact lifecycle (e2e)', () => {
 
   it('replaces the draft graph with a minimal age-eligibility decision', async () => {
     const body = {
+<<<<<<< Updated upstream
       dependencies: [{
         variableVersionId: ageVariableVersionId,
         usageType: 'INPUT',
@@ -92,20 +108,121 @@ describe('Artifact lifecycle (e2e)', () => {
         severity: 'BLOCKING',
         reusable: true,
       }],
+=======
+      dependencies: [
+        {
+          variableVersionId: ageVariableVersionId,
+          usageType: 'INPUT',
+          isRequired: true,
+          fallbackPolicy: 'FAIL_CLOSED',
+          dependencyPath: 'input.age',
+        },
+      ],
+      conditions: [
+        {
+          code: 'AGE_OK',
+          name: 'Age is at least 21',
+          expressionType: 'JSON_AST',
+          expression: { op: 'gte', left: { var: 'age' }, right: { value: 21 } },
+          severity: 'BLOCKING',
+          reusable: true,
+        },
+      ],
+>>>>>>> Stashed changes
       actions: [
-        { code: 'SET_APPROVED', type: 'SET_OUTCOME', payload: { outcome: 'APPROVED' }, terminal: true, reasonCodes: [] },
-        { code: 'SET_DECLINED', type: 'SET_OUTCOME', payload: { outcome: 'DECLINED' }, terminal: true, reasonCodes: [] },
+        {
+          code: 'SET_APPROVED',
+          type: 'SET_OUTCOME',
+          payload: { outcome: 'APPROVED' },
+          terminal: true,
+          reasonCodes: [],
+        },
+        {
+          code: 'SET_DECLINED',
+          type: 'SET_OUTCOME',
+          payload: { outcome: 'DECLINED' },
+          terminal: true,
+          reasonCodes: [],
+        },
       ],
       nodes: [
-        { key: 'START', type: 'START', label: 'Start', config: {}, x: 0, y: 0, order: 1, terminal: false, conditions: [], actions: [] },
-        { key: 'CHECK', type: 'CONDITION', label: 'Check age', config: {}, x: 100, y: 0, order: 2, terminal: false, conditions: [], actions: [] },
-        { key: 'APPROVE', type: 'ACTION', label: 'Approve', config: {}, x: 200, y: -50, order: 3, terminal: true, conditions: [], actions: [{ actionCode: 'SET_APPROVED', order: 1 }] },
-        { key: 'DECLINE', type: 'ACTION', label: 'Decline', config: {}, x: 200, y: 50, order: 4, terminal: true, conditions: [], actions: [{ actionCode: 'SET_DECLINED', order: 1 }] },
+        {
+          key: 'START',
+          type: 'START',
+          label: 'Start',
+          config: {},
+          x: 0,
+          y: 0,
+          order: 1,
+          terminal: false,
+          conditions: [],
+          actions: [],
+        },
+        {
+          key: 'CHECK',
+          type: 'CONDITION',
+          label: 'Check age',
+          config: {},
+          x: 100,
+          y: 0,
+          order: 2,
+          terminal: false,
+          conditions: [],
+          actions: [],
+        },
+        {
+          key: 'APPROVE',
+          type: 'ACTION',
+          label: 'Approve',
+          config: {},
+          x: 200,
+          y: -50,
+          order: 3,
+          terminal: true,
+          conditions: [],
+          actions: [{ actionCode: 'SET_APPROVED', order: 1 }],
+        },
+        {
+          key: 'DECLINE',
+          type: 'ACTION',
+          label: 'Decline',
+          config: {},
+          x: 200,
+          y: 50,
+          order: 4,
+          terminal: true,
+          conditions: [],
+          actions: [{ actionCode: 'SET_DECLINED', order: 1 }],
+        },
       ],
       edges: [
-        { key: 'START_CHECK', from: 'START', to: 'CHECK', type: 'DEFAULT', priority: 1, default: true, conditions: [] },
-        { key: 'CHECK_APPROVE', from: 'CHECK', to: 'APPROVE', type: 'CONDITIONAL', priority: 1, default: false, conditions: [{ conditionCode: 'AGE_OK', order: 1 }] },
-        { key: 'CHECK_DECLINE', from: 'CHECK', to: 'DECLINE', type: 'DEFAULT', priority: 999, default: true, conditions: [] },
+        {
+          key: 'START_CHECK',
+          from: 'START',
+          to: 'CHECK',
+          type: 'DEFAULT',
+          priority: 1,
+          default: true,
+          conditions: [],
+        },
+        {
+          key: 'CHECK_APPROVE',
+          from: 'CHECK',
+          to: 'APPROVE',
+          type: 'CONDITIONAL',
+          priority: 1,
+          default: false,
+          conditions: [{ conditionCode: 'AGE_OK', order: 1 }],
+        },
+        {
+          key: 'CHECK_DECLINE',
+          from: 'CHECK',
+          to: 'DECLINE',
+          type: 'DEFAULT',
+          priority: 999,
+          default: true,
+          conditions: [],
+        },
       ],
     };
     const response = await request(server())
@@ -144,21 +261,43 @@ describe('Artifact lifecycle (e2e)', () => {
         suiteType: 'REGRESSION',
         isBlocking: true,
         cases: [
-          { caseCode: 'APPROVE_ADULT', testName: 'Approves an adult', input: { age: 30 }, expectedResult: { outcome: 'APPROVED' } },
-          { caseCode: 'DECLINE_YOUNG_ADULT', testName: 'Declines a young adult under 21', input: { age: 19 }, expectedResult: { outcome: 'DECLINED' } },
+          {
+            caseCode: 'APPROVE_ADULT',
+            testName: 'Approves an adult',
+            input: { age: 30 },
+            expectedResult: { outcome: 'APPROVED' },
+          },
+          {
+            caseCode: 'DECLINE_YOUNG_ADULT',
+            testName: 'Declines a young adult under 21',
+            input: { age: 19 },
+            expectedResult: { outcome: 'DECLINED' },
+          },
         ],
       })
       .expect(201);
 
-    const run = await request(server())
+    const queued = await request(server())
       .post(`/v1/test-suites/${suite.body.id}/runs`)
       .set(author)
       .send({})
-      .expect(201);
+      .expect(202);
+    expect(queued.body.status).toBe('QUEUED');
+    expect(queued.body.caseRuns).toEqual([]);
+
+    const deadline = Date.now() + 15_000;
+    let run = queued;
+    while (Date.now() < deadline) {
+      run = await request(server()).get(`/v1/test-runs/${queued.body.id}`).set(author).expect(200);
+      if (['PASSED', 'FAILED', 'ERROR'].includes(run.body.status)) break;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
     expect(run.body.status).toBe('PASSED');
-    const nodeCoverage = run.body.coverage.find((item: { coverageType: string }) => item.coverageType === 'NODE');
+    const nodeCoverage = run.body.coverage.find(
+      (item: { coverageType: string }) => item.coverageType === 'NODE',
+    );
     expect(Number(nodeCoverage.coveragePercentage)).toBe(100);
-  });
+  }, 20_000);
 
   it('submits for governed review and rejects self-approval', async () => {
     const submitted = await request(server())
@@ -168,7 +307,9 @@ describe('Artifact lifecycle (e2e)', () => {
       .expect(201);
     expect(submitted.body.status).toBe('IN_REVIEW');
 
-    const [qaStep, riskStep] = submitted.body.steps.sort((a: { stepOrder: number }, b: { stepOrder: number }) => a.stepOrder - b.stepOrder);
+    const [qaStep, riskStep] = submitted.body.steps.sort(
+      (a: { stepOrder: number }, b: { stepOrder: number }) => a.stepOrder - b.stepOrder,
+    );
     expect(qaStep.requiredRole).toBe('QA_ANALYST');
     expect(riskStep.requiredRole).toBe('RISK_APPROVER');
 
@@ -203,7 +344,11 @@ describe('Artifact lifecycle (e2e)', () => {
     const response = await request(server())
       .post(`/v1/artifact-versions/${versionId}/deployments`)
       .set(deployer)
-      .send({ environmentCode: 'SANDBOX', deploymentMode: 'DIRECT', traffic: [] })
+      .send({
+        environmentCode: 'SANDBOX',
+        deploymentMode: 'DIRECT',
+        traffic: [],
+      })
       .expect(201);
     expect(response.body.deploymentStatus).toBe('ACTIVE');
     expect(response.body.isActive).toBe(true);

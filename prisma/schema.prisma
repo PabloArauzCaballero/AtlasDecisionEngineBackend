@@ -52,6 +52,7 @@ enum ApprovalOutcome {
 }
 
 enum TestRunStatus {
+  QUEUED
   RUNNING
   PASSED
   FAILED
@@ -542,9 +543,12 @@ model DecisionTestRun {
   compiledArtifactId BigInt        @map("compiled_artifact_id")
   triggerType        String        @map("trigger_type") @db.VarChar(50)
   triggeredBy        String        @map("triggered_by") @db.VarChar(160)
-  status             TestRunStatus @default(RUNNING)
-  startedAt          DateTime      @default(now()) @map("started_at") @db.Timestamptz(6)
+  status             TestRunStatus @default(QUEUED)
+  queuedAt           DateTime      @default(now()) @map("queued_at") @db.Timestamptz(6)
+  startedAt          DateTime?     @map("started_at") @db.Timestamptz(6)
   finishedAt         DateTime?     @map("finished_at") @db.Timestamptz(6)
+  leaseExpiresAt     DateTime?     @map("lease_expires_at") @db.Timestamptz(6)
+  attemptCount       Int           @default(0) @map("attempt_count")
 
   testSuite       DecisionTestSuite       @relation(fields: [testSuiteId], references: [id], onDelete: Cascade)
   compiledArtifact DecisionCompiledArtifact @relation(fields: [compiledArtifactId], references: [id], onDelete: Restrict)
@@ -552,6 +556,7 @@ model DecisionTestRun {
   coverage        DecisionTestCoverage[]
 
   @@index([testSuiteId, startedAt])
+  @@index([status, queuedAt])
   @@map("decision_test_run")
 }
 
@@ -794,6 +799,7 @@ model RuntimeIdempotency {
 }
 
 model DecisionAuditEvent {
+<<<<<<< Updated upstream
   id           BigInt   @id @default(autoincrement())
   tenantId     BigInt   @map("tenant_id")
   eventType    String   @map("event_type") @db.VarChar(100)
@@ -805,6 +811,22 @@ model DecisionAuditEvent {
   previousHash String?  @map("previous_hash") @db.VarChar(128)
   eventHash    String   @map("event_hash") @db.VarChar(128)
   occurredAt   DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+=======
+  id            BigInt   @id @default(autoincrement())
+  tenantId      BigInt   @map("tenant_id")
+  eventType     String   @map("event_type") @db.VarChar(100)
+  aggregateType String   @map("aggregate_type") @db.VarChar(100)
+  aggregateId   String   @map("aggregate_id") @db.VarChar(160)
+  actorId       String   @map("actor_id") @db.VarChar(160)
+  requestId     String?  @map("request_id") @db.VarChar(120)
+  payloadJson   Json     @map("payload_json")
+  previousHash  String?  @map("previous_hash") @db.VarChar(128)
+  eventHash     String   @map("event_hash") @db.VarChar(128)
+  // Identifies which signing secret produced eventHash, so AUDIT_HASH_SECRET can be
+  // rotated without invalidating the historical chain.
+  hashKeyId     String   @default("v1") @map("hash_key_id") @db.VarChar(40)
+  occurredAt    DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+>>>>>>> Stashed changes
 
   @@index([tenantId, occurredAt])
   @@index([aggregateType, aggregateId])
@@ -814,12 +836,25 @@ model DecisionAuditEvent {
 model DecisionAccessAudit {
   id          BigInt   @id @default(autoincrement())
   requestId   String   @map("request_id") @db.VarChar(120)
+<<<<<<< Updated upstream
   principalId String   @map("principal_id") @db.VarChar(160)
   tenantId    BigInt   @map("tenant_id")
+=======
+  // Nullable because rejected requests are audited too, and a 401 has no
+  // authenticated principal or tenant to attribute the attempt to.
+  principalId String?  @map("principal_id") @db.VarChar(160)
+  tenantId    BigInt?  @map("tenant_id")
+>>>>>>> Stashed changes
   resource    String   @db.VarChar(160)
   action      String   @db.VarChar(80)
   decision    String   @db.VarChar(20)
   reason      String?  @db.VarChar(200)
+<<<<<<< Updated upstream
+=======
+  // Recorded for denials so unauthenticated attempts remain attributable to a source.
+  ipAddress   String?  @map("ip_address") @db.VarChar(64)
+  status      Int?
+>>>>>>> Stashed changes
   occurredAt  DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
 
   @@index([tenantId, occurredAt])

@@ -32,10 +32,11 @@ export class AuthenticationGuard implements CanActivate {
     if (isPublic) return true;
 
     const request = context.switchToHttp().getRequest<Request>();
-    const audience = this.reflector.getAllAndOverride<ApiAudience>(REQUIRED_AUDIENCE, [
-      context.getHandler(),
-      context.getClass(),
-    ]) ?? 'management';
+    const audience =
+      this.reflector.getAllAndOverride<ApiAudience>(REQUIRED_AUDIENCE, [
+        context.getHandler(),
+        context.getClass(),
+      ]) ?? 'management';
 
     try {
       request.principal = await this.authenticate(request, audience);
@@ -52,11 +53,21 @@ export class AuthenticationGuard implements CanActivate {
     return true;
   }
 
-  private async authenticate(request: Request, audience: ApiAudience): Promise<AuthenticatedPrincipal> {
+  private async authenticate(
+    request: Request,
+    audience: ApiAudience,
+  ): Promise<AuthenticatedPrincipal> {
     const mode = this.config.get<string>('AUTH_MODE') ?? 'API_KEY';
     const bearer = this.bearerToken(request);
 
     if (bearer && (mode === 'IDENTITY_PROVIDER' || mode === 'IDENTITY_HYBRID')) {
+      if (audience === 'runtime') {
+        throw new DomainException(
+          'RUNTIME_CREDENTIAL_REQUIRED',
+          'Runtime routes require a credential with a verifiable runtime audience',
+          HttpStatus.UNAUTHORIZED,
+        );
+      }
       const verified = await this.identityProvider.verify(bearer);
       return {
         id: verified.subject,
@@ -96,7 +107,10 @@ export class AuthenticationGuard implements CanActivate {
     if (!(this.config.get<boolean>('RATE_LIMIT_ENABLED') ?? true)) return;
     const windowSeconds = this.config.get<number>('RATE_LIMIT_WINDOW_SECONDS') ?? 60;
     const limit = this.config.get<number>('AUTH_FAILURE_RATE_LIMIT') ?? 20;
-    const result = await this.cache.consumeFixedWindow(`auth-fail:${this.clientIp(request)}`, windowSeconds);
+    const result = await this.cache.consumeFixedWindow(
+      `auth-fail:${this.clientIp(request)}`,
+      windowSeconds,
+    );
     if (result.count > limit) {
       throw new DomainException(
         'AUTH_RATE_LIMIT_EXCEEDED',
@@ -111,7 +125,20 @@ export class AuthenticationGuard implements CanActivate {
     return request.ip ?? request.socket?.remoteAddress ?? 'unknown';
   }
 
+<<<<<<< Updated upstream
   private authenticateApiKey(request: Request, audience: ApiAudience): AuthenticatedPrincipal {
+=======
+  /**
+   * Identity comes from the integration client registry, never from headers. The
+   * caller may still send x-tenant-id, but only to select among the tenants its
+   * credential is already authorised for — it can never introduce a new one, and
+   * roles are not caller-supplied at all.
+   */
+  private async authenticateApiKey(
+    request: Request,
+    audience: ApiAudience,
+  ): Promise<AuthenticatedPrincipal> {
+>>>>>>> Stashed changes
     const apiKey = this.header(request, 'x-api-key');
     const expected = this.config.get<string>(
       audience === 'runtime' ? 'RUNTIME_API_KEY' : 'MANAGEMENT_API_KEY',
@@ -150,7 +177,11 @@ export class AuthenticationGuard implements CanActivate {
     if (!authorization) return undefined;
     const [scheme, token, ...rest] = authorization.split(' ');
     if (scheme?.toLowerCase() !== 'bearer' || !token || rest.length) {
-      throw new DomainException('UNAUTHORIZED', 'Malformed Authorization header', HttpStatus.UNAUTHORIZED);
+      throw new DomainException(
+        'UNAUTHORIZED',
+        'Malformed Authorization header',
+        HttpStatus.UNAUTHORIZED,
+      );
     }
     return token;
   }

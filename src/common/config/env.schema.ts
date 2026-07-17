@@ -26,10 +26,15 @@ export const envSchema = z
     DATABASE_STATEMENT_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(300_000).default(30_000),
 
     REDIS_URL: optionalUrl,
-    REDIS_PREFIX: z.string().regex(/^[a-zA-Z0-9:_-]{1,80}$/).default('atlas:decision'),
+    REDIS_PREFIX: z
+      .string()
+      .regex(/^[a-zA-Z0-9:_-]{1,80}$/)
+      .default('atlas:decision'),
     REQUIRE_REDIS_IN_PRODUCTION: booleanFromString.default(true),
 
-    AUTH_MODE: z.enum(['API_KEY', 'JWT', 'HYBRID', 'IDENTITY_PROVIDER', 'IDENTITY_HYBRID']).default('API_KEY'),
+    AUTH_MODE: z
+      .enum(['API_KEY', 'JWT', 'HYBRID', 'IDENTITY_PROVIDER', 'IDENTITY_HYBRID'])
+      .default('API_KEY'),
     MANAGEMENT_API_KEY: optionalSecret,
     RUNTIME_API_KEY: optionalSecret,
     JWT_JWKS_URL: optionalUrl,
@@ -43,8 +48,16 @@ export const envSchema = z
     JWT_CLOCK_SKEW_SECONDS: z.coerce.number().int().min(0).max(300).default(30),
     IDENTITY_PROVIDER_URL: optionalUrl,
     IDENTITY_PROVIDER_TIMEOUT_MS: z.coerce.number().int().min(250).max(15_000).default(3_000),
-    IDENTITY_REFRESH_COOKIE_NAME: z.string().regex(/^[A-Za-z0-9_-]{3,80}$/).default('atlas_refresh'),
-    IDENTITY_REFRESH_COOKIE_MAX_AGE_SECONDS: z.coerce.number().int().min(300).max(7_776_000).default(2_592_000),
+    IDENTITY_REFRESH_COOKIE_NAME: z
+      .string()
+      .regex(/^[A-Za-z0-9_-]{3,80}$/)
+      .default('atlas_refresh'),
+    IDENTITY_REFRESH_COOKIE_MAX_AGE_SECONDS: z.coerce
+      .number()
+      .int()
+      .min(300)
+      .max(7_776_000)
+      .default(2_592_000),
     IDENTITY_SESSION_RATE_LIMIT: z.coerce.number().int().min(1).max(1_000).default(20),
 
     CORS_ALLOWED_ORIGINS: z.string().default(''),
@@ -69,8 +82,24 @@ export const envSchema = z
     VARIABLE_BACKEND_URL: optionalUrl,
     VARIABLE_BACKEND_TIMEOUT_MS: z.coerce.number().int().min(100).max(30_000).default(1_500),
     AUDIT_HASH_SECRET: z.string().min(32),
-    DEFAULT_ENVIRONMENT: z.string().regex(/^[A-Z0-9_-]{2,40}$/).default('PROD'),
+    // Identifies the active signing secret. Bump it together with AUDIT_HASH_SECRET when
+    // rotating, and move the old secret into AUDIT_HASH_PREVIOUS_SECRETS so historical
+    // events stay verifiable.
+    AUDIT_HASH_KEY_ID: z
+      .string()
+      .regex(/^[A-Za-z0-9_.-]{1,40}$/)
+      .default('v1'),
+    // JSON object of {keyId: secret} for retired keys, verification only.
+    AUDIT_HASH_PREVIOUS_SECRETS: z.string().optional().or(z.literal('')),
+    DEFAULT_ENVIRONMENT: z
+      .string()
+      .regex(/^[A-Z0-9_-]{2,40}$/)
+      .default('PROD'),
     MAX_EXECUTION_STEPS: z.coerce.number().int().min(16).max(10_000).default(256),
+    TEST_RUN_WORKER_POLL_MS: z.coerce.number().int().min(50).max(10_000).default(500),
+    TEST_RUN_WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(2),
+    TEST_RUN_LEASE_SECONDS: z.coerce.number().int().min(30).max(3_600).default(300),
+    TEST_CASE_CONCURRENCY: z.coerce.number().int().min(1).max(32).default(4),
     SCRIPT_NODES_ENABLED: booleanFromString.default(false),
     SCRIPT_RUNNER_MODE: z.enum(['IN_PROCESS', 'SIDECAR']).default('IN_PROCESS'),
     SCRIPT_RUNNER_SOCKET_PATH: z.string().min(1).default('/var/run/atlas-runner/runner.sock'),
@@ -81,33 +110,65 @@ export const envSchema = z
     MAX_PAGE_SIZE: z.coerce.number().int().min(10).max(500).default(100),
   })
   .superRefine((value, ctx) => {
-    const requiresApiKeys = value.AUTH_MODE === 'API_KEY' || value.AUTH_MODE === 'HYBRID' || value.AUTH_MODE === 'IDENTITY_HYBRID';
+    const requiresApiKeys =
+      value.AUTH_MODE === 'API_KEY' ||
+      value.AUTH_MODE === 'HYBRID' ||
+      value.AUTH_MODE === 'IDENTITY_HYBRID';
     const requiresJwt = value.AUTH_MODE === 'JWT' || value.AUTH_MODE === 'HYBRID';
-    const requiresIdentityProvider = value.AUTH_MODE === 'IDENTITY_PROVIDER' || value.AUTH_MODE === 'IDENTITY_HYBRID';
+    const requiresIdentityProvider =
+      value.AUTH_MODE === 'IDENTITY_PROVIDER' || value.AUTH_MODE === 'IDENTITY_HYBRID';
 
     if (requiresApiKeys) {
       if (!value.MANAGEMENT_API_KEY) {
-        ctx.addIssue({ code: 'custom', path: ['MANAGEMENT_API_KEY'], message: 'Required for API_KEY or HYBRID authentication' });
+        ctx.addIssue({
+          code: 'custom',
+          path: ['MANAGEMENT_API_KEY'],
+          message: 'Required for API_KEY or HYBRID authentication',
+        });
       }
       if (!value.RUNTIME_API_KEY) {
-        ctx.addIssue({ code: 'custom', path: ['RUNTIME_API_KEY'], message: 'Required for API_KEY or HYBRID authentication' });
+        ctx.addIssue({
+          code: 'custom',
+          path: ['RUNTIME_API_KEY'],
+          message: 'Required for API_KEY or HYBRID authentication',
+        });
       }
-      if (value.MANAGEMENT_API_KEY && value.RUNTIME_API_KEY && value.MANAGEMENT_API_KEY === value.RUNTIME_API_KEY) {
-        ctx.addIssue({ code: 'custom', path: ['RUNTIME_API_KEY'], message: 'Management and runtime API keys must be different' });
+      if (
+        value.MANAGEMENT_API_KEY &&
+        value.RUNTIME_API_KEY &&
+        value.MANAGEMENT_API_KEY === value.RUNTIME_API_KEY
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['RUNTIME_API_KEY'],
+          message: 'Management and runtime API keys must be different',
+        });
       }
     }
 
     if (requiresJwt) {
       if (!value.JWT_JWKS_URL) {
-        ctx.addIssue({ code: 'custom', path: ['JWT_JWKS_URL'], message: 'Required for JWT or HYBRID authentication' });
+        ctx.addIssue({
+          code: 'custom',
+          path: ['JWT_JWKS_URL'],
+          message: 'Required for JWT or HYBRID authentication',
+        });
       }
       if (!value.JWT_ISSUER) {
-        ctx.addIssue({ code: 'custom', path: ['JWT_ISSUER'], message: 'Required for JWT or HYBRID authentication' });
+        ctx.addIssue({
+          code: 'custom',
+          path: ['JWT_ISSUER'],
+          message: 'Required for JWT or HYBRID authentication',
+        });
       }
     }
 
     if (requiresIdentityProvider && !value.IDENTITY_PROVIDER_URL) {
-      ctx.addIssue({ code: 'custom', path: ['IDENTITY_PROVIDER_URL'], message: 'Required for identity provider authentication' });
+      ctx.addIssue({
+        code: 'custom',
+        path: ['IDENTITY_PROVIDER_URL'],
+        message: 'Required for identity provider authentication',
+      });
     }
 
     if (value.NODE_ENV === 'production') {
@@ -120,20 +181,64 @@ export const envSchema = z
         });
       }
       if (value.REQUIRE_REDIS_IN_PRODUCTION && !value.REDIS_URL) {
-        ctx.addIssue({ code: 'custom', path: ['REDIS_URL'], message: 'Redis is required in production' });
+        ctx.addIssue({
+          code: 'custom',
+          path: ['REDIS_URL'],
+          message: 'Redis is required in production',
+        });
       }
       if (value.METRICS_ENABLED && !value.METRICS_TOKEN) {
-        ctx.addIssue({ code: 'custom', path: ['METRICS_TOKEN'], message: 'A metrics token is required in production' });
+        ctx.addIssue({
+          code: 'custom',
+          path: ['METRICS_TOKEN'],
+          message: 'A metrics token is required in production',
+        });
       }
       if (value.AUTH_MODE === 'API_KEY') {
-        ctx.addIssue({ code: 'custom', path: ['AUTH_MODE'], message: 'Production must use JWT, HYBRID or identity provider authentication' });
+        ctx.addIssue({
+          code: 'custom',
+          path: ['AUTH_MODE'],
+          message: 'Production must use JWT, HYBRID or identity provider authentication',
+        });
       }
       if (value.JWT_JWKS_URL && !value.JWT_JWKS_URL.startsWith('https://')) {
-        ctx.addIssue({ code: 'custom', path: ['JWT_JWKS_URL'], message: 'JWKS URL must use HTTPS in production' });
+        ctx.addIssue({
+          code: 'custom',
+          path: ['JWT_JWKS_URL'],
+          message: 'JWKS URL must use HTTPS in production',
+        });
       }
       if (value.IDENTITY_PROVIDER_URL && !value.IDENTITY_PROVIDER_URL.startsWith('https://')) {
-        ctx.addIssue({ code: 'custom', path: ['IDENTITY_PROVIDER_URL'], message: 'Identity provider URL must use HTTPS in production' });
+        ctx.addIssue({
+          code: 'custom',
+          path: ['IDENTITY_PROVIDER_URL'],
+          message: 'Identity provider URL must use HTTPS in production',
+        });
       }
+<<<<<<< Updated upstream
+=======
+      if (value.VARIABLE_BACKEND_URL && !value.VARIABLE_BACKEND_URL.startsWith('https://')) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['VARIABLE_BACKEND_URL'],
+          message: 'Variable backend URL must use HTTPS in production',
+        });
+      }
+      if (value.SWAGGER_ENABLED) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['SWAGGER_ENABLED'],
+          message: 'Swagger must be disabled in production',
+        });
+      }
+      if (value.LOG_LEVEL === 'debug' || value.LOG_LEVEL === 'verbose') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['LOG_LEVEL'],
+          message: 'LOG_LEVEL must not be debug or verbose in production',
+        });
+      }
+>>>>>>> Stashed changes
       const forbiddenExamples: Array<[keyof AppEnv, string]> = [
         ['MANAGEMENT_API_KEY', 'change-me-management'],
         ['RUNTIME_API_KEY', 'change-me-runtime'],
@@ -142,7 +247,11 @@ export const envSchema = z
       ];
       for (const [key, example] of forbiddenExamples) {
         if (value[key] === example) {
-          ctx.addIssue({ code: 'custom', path: [key], message: `${key} cannot use the example value in production` });
+          ctx.addIssue({
+            code: 'custom',
+            path: [key],
+            message: `${key} cannot use the example value in production`,
+          });
         }
       }
     }

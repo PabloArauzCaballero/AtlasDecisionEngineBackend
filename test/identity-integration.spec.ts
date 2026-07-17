@@ -55,6 +55,67 @@ describe('external identity integration', () => {
     })).resolves.toEqual(session);
   });
 
+  it('recovers session tokens from the provider login cookies', async () => {
+    // The provider issues tokens exclusively as HttpOnly cookies and keeps the body
+    // token-free; a session must still be rebuilt from that reply.
+    const headers = new Headers({ 'content-type': 'application/json' });
+    headers.append('set-cookie', 'atlas_internal_access=access-token-with-at-least-20-characters; Path=/; HttpOnly; SameSite=Lax');
+    headers.append('set-cookie', 'atlas_internal_refresh=refresh-token-with-at-least-20-characters; Path=/; HttpOnly; SameSite=Lax');
+    jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      data: { user: identityUser, tokenType: 'Cookie', expiresIn: '15m' },
+    }), { status: 200, headers }));
+    const client = new IdentityProviderClient(new ConfigService({
+      IDENTITY_PROVIDER_URL: 'http://localhost:3005/api/v1',
+      IDENTITY_PROVIDER_TIMEOUT_MS: 3_000,
+    }));
+
+    await expect(client.login({
+      tenantId: '7',
+      email: 'analyst@example.com',
+      password: 'valid-password',
+    })).resolves.toEqual({
+      accessToken: 'access-token-with-at-least-20-characters',
+      refreshToken: 'refresh-token-with-at-least-20-characters',
+      tokenType: 'Bearer',
+      expiresIn: '15m',
+      user: identityUser,
+    });
+  });
+
+  it('reports a token-less provider reply as a contract failure, not a bad credential', async () => {
+    // Reporting this as 401 is what let the cookie migration masquerade as every user
+    // typing the wrong password.
+    jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      data: { user: identityUser, tokenType: 'Cookie', expiresIn: '15m' },
+    }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    const client = new IdentityProviderClient(new ConfigService({
+      IDENTITY_PROVIDER_URL: 'http://localhost:3005/api/v1',
+      IDENTITY_PROVIDER_TIMEOUT_MS: 3_000,
+    }));
+
+    await expect(client.login({
+      tenantId: '7',
+      email: 'analyst@example.com',
+      password: 'valid-password',
+    })).rejects.toMatchObject({ code: 'IDENTITY_PROVIDER_INVALID_RESPONSE' });
+  });
+
+  it('surfaces the super admin PIN challenge instead of denying the login', async () => {
+    jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      data: { pinChallengeRequired: true, challengeToken: 'challenge-token', expiresInMinutes: 5 },
+    }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    const client = new IdentityProviderClient(new ConfigService({
+      IDENTITY_PROVIDER_URL: 'http://localhost:3005/api/v1',
+      IDENTITY_PROVIDER_TIMEOUT_MS: 3_000,
+    }));
+
+    await expect(client.login({
+      tenantId: '7',
+      email: 'admin@example.com',
+      password: 'valid-password',
+    })).rejects.toMatchObject({ code: 'IDENTITY_PIN_CHALLENGE_REQUIRED' });
+  });
+
   it('maps provider roles to the least-privilege Decision Engine roles', () => {
     expect(mapIdentityRoles(['qa_engineer', 'READONLY_AUDITOR', 'unknown'])).toEqual([
       'QA_ANALYST',

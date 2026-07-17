@@ -3,12 +3,19 @@ import { GraphModule } from '../graph/graph.module';
 import { VariableModule } from '../variables/variable.module';
 import { TestingController } from './testing.controller';
 import { TestExecutionService } from './test-execution.service';
+import { TestCaseExecutorService } from './test-case-executor.service';
+import { TestRunWorkerService } from './test-run-worker.service';
 import { TestSuiteService } from './test-suite.service';
 
 @Module({
   imports: [GraphModule, VariableModule],
   controllers: [TestingController],
-  providers: [TestSuiteService, TestExecutionService],
+  providers: [
+    TestSuiteService,
+    TestCaseExecutorService,
+    TestExecutionService,
+    TestRunWorkerService,
+  ],
   exports: [TestSuiteService, TestExecutionService],
 })
 export class TestingModule {}

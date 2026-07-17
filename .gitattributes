@@ -1,0 +1,21 @@
+# Normalize line endings so a checkout is byte-identical across platforms.
+#
+# Without this, core.autocrlf=true rewrites files with CRLF on Windows checkouts while git
+# stores LF. Prisma validates a checksum of every applied migration, so the rewritten files
+# read as "modified after they were applied" and `migrate deploy` refuses to run — the
+# database is fine, only the bytes on disk differ.
+* text=auto eol=lf
+
+# Migrations are checksummed: they must be LF everywhere, no exceptions.
+*.sql text eol=lf
+
+# Windows-native scripts still expect CRLF.
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Binary assets must never be line-ending converted.
+*.png binary
+*.jpg binary
+*.pdf binary
+*.zip binary
