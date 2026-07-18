@@ -82,9 +82,10 @@ export class NodeActionBindingDto {
 
 export class NodeDto {
   @IsString() @Matches(/^[A-Za-z0-9_\-]{2,120}$/) key!: string;
-  @IsIn(['START', 'CONDITION', 'EXPRESSION', 'DECISION_TABLE', 'SCORE', 'ACTION', 'RESULT', 'MANUAL_REVIEW', 'END']) type!:
+  @IsIn(['START', 'CONDITION', 'SWITCH', 'EXPRESSION', 'DECISION_TABLE', 'SCORE', 'ACTION', 'RESULT', 'MANUAL_REVIEW', 'END']) type!:
     | 'START'
     | 'CONDITION'
+    | 'SWITCH'
     | 'EXPRESSION'
     | 'DECISION_TABLE'
     | 'SCORE'

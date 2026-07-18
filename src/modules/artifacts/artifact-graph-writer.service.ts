@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { Prisma, VersionStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -52,6 +53,7 @@ export class ArtifactGraphWriterService {
         throw new DomainException('LOCK_CONFLICT', 'The version changed while saving', HttpStatus.CONFLICT);
       }
 
+      await tx.decisionNodeScript.deleteMany({ where: { artifactVersionId: versionId } });
       await tx.decisionRuleEdge.deleteMany({ where: { artifactVersionId: versionId } });
       await tx.decisionRuleNode.deleteMany({ where: { artifactVersionId: versionId } });
       await tx.decisionRuleCondition.deleteMany({ where: { artifactVersionId: versionId } });
@@ -199,6 +201,37 @@ export class ArtifactGraphWriterService {
             data: { edgeId: created.id, conditionId, evaluationOrder: binding.order },
           });
         }
+      }
+
+      // Registry copy of node scripts: the engine keeps executing config_json,
+      // but every script becomes queryable/auditable with a checksum and the
+      // variable contract it was written against.
+      const scriptRows = dto.nodes
+        .map((node) => {
+          const script = (node.config as { script?: { language?: unknown; source?: unknown } })?.script;
+          const source = typeof script?.source === 'string' ? script.source : '';
+          if (String((node.config as { mode?: unknown })?.mode ?? '').toUpperCase() !== 'SCRIPT' || !source.trim()) {
+            return null;
+          }
+          return {
+            tenantId,
+            artifactVersionId: versionId,
+            nodeKey: node.key,
+            language: String(script?.language ?? 'JAVASCRIPT').toUpperCase(),
+            sourceCode: source,
+            sourceChecksum: createHash('sha256').update(source).digest('hex'),
+            inputVariablesJson: dto.dependencies
+              .filter((dependency) => !dependency.usageType.startsWith('OUTPUT'))
+              .map((dependency) => dependency.dependencyPath),
+            outputVariablesJson: dto.dependencies
+              .filter((dependency) => dependency.usageType.startsWith('OUTPUT'))
+              .map((dependency) => dependency.dependencyPath),
+            createdBy: principal.id,
+          };
+        })
+        .filter((row): row is NonNullable<typeof row> => row !== null);
+      if (scriptRows.length) {
+        await tx.decisionNodeScript.createMany({ data: scriptRows });
       }
 
       await tx.decisionChangeLog.create({

@@ -18,6 +18,7 @@ import { RuntimeModule } from './modules/runtime/runtime.module';
 import { TestingModule } from './modules/testing/testing.module';
 import { TraceabilityModule } from './modules/traceability/traceability.module';
 import { VariableModule } from './modules/variables/variable.module';
+import { ViewsModule } from './modules/views/views.module';
 import { IdentitySessionModule } from './modules/identity-session/identity-session.module';
 
 @Module({
@@ -45,6 +46,7 @@ import { IdentitySessionModule } from './modules/identity-session/identity-sessi
     ManualReviewModule,
     AuditQueryModule,
     TraceabilityModule,
+    ViewsModule,
   ],
 })
 export class AppModule {}

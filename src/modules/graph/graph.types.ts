@@ -1,6 +1,7 @@
 export type NodeType =
   | 'START'
   | 'CONDITION'
+  | 'SWITCH'
   | 'EXPRESSION'
   | 'DECISION_TABLE'
   | 'SCORE'

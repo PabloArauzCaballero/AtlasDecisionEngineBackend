@@ -136,11 +136,31 @@ export class IdentityProviderClient {
       throw new DomainException('IDENTITY_PROVIDER_NOT_CONFIGURED', 'Identity provider is not configured', HttpStatus.SERVICE_UNAVAILABLE);
     }
     const timeoutMs = this.config.get<number>('IDENTITY_PROVIDER_TIMEOUT_MS') ?? 3_000;
+    const maxAttempts = (this.config.get<number>('IDENTITY_PROVIDER_RETRY_ATTEMPTS') ?? 2) + 1;
+    const backoffMs = this.config.get<number>('IDENTITY_PROVIDER_RETRY_BACKOFF_MS') ?? 300;
+
+    // Bodies are always strings (JSON.stringify) or absent, so `init` is safe to reuse across
+    // attempts. Only transient failures retry — a rejected credential (401) surfaces immediately.
     let response: Response;
-    try {
-      response = await fetch(`${baseUrl}${path}`, { ...init, signal: AbortSignal.timeout(timeoutMs) });
-    } catch {
-      throw new DomainException('IDENTITY_PROVIDER_UNAVAILABLE', 'Identity provider is unavailable', HttpStatus.SERVICE_UNAVAILABLE);
+    for (let attempt = 1; ; attempt++) {
+      try {
+        response = await fetch(`${baseUrl}${path}`, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+      } catch {
+        // Connection refused / timeout: the provider never answered, so a retry cannot double any
+        // side effect. This is the exact failure a dev server produces while it is restarting.
+        if (attempt < maxAttempts) {
+          await this.backoff(backoffMs * attempt);
+          continue;
+        }
+        throw new DomainException('IDENTITY_PROVIDER_UNAVAILABLE', 'Identity provider is unavailable', HttpStatus.SERVICE_UNAVAILABLE);
+      }
+      // 502/503/504 are the provider (or a proxy) reporting itself momentarily unavailable — retry.
+      // Every other non-2xx is a definitive answer and must not be retried.
+      if ((response.status === 502 || response.status === 503 || response.status === 504) && attempt < maxAttempts) {
+        await this.backoff(backoffMs * attempt);
+        continue;
+      }
+      break;
     }
     if (!response.ok) {
       if (response.status === 400) throw new DomainException('IDENTITY_REQUEST_INVALID', 'Invalid identity request', HttpStatus.BAD_REQUEST);
@@ -165,5 +185,10 @@ export class IdentityProviderClient {
 
   private unauthorized(): DomainException {
     return new DomainException('UNAUTHORIZED', 'Invalid or expired session', HttpStatus.UNAUTHORIZED);
+  }
+
+  private backoff(ms: number): Promise<void> {
+    if (ms <= 0) return Promise.resolve();
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

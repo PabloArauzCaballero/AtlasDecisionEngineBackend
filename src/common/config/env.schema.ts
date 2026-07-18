@@ -48,6 +48,11 @@ export const envSchema = z
     JWT_CLOCK_SKEW_SECONDS: z.coerce.number().int().min(0).max(300).default(30),
     IDENTITY_PROVIDER_URL: optionalUrl,
     IDENTITY_PROVIDER_TIMEOUT_MS: z.coerce.number().int().min(250).max(15_000).default(3_000),
+    // Retries only for transient failures (network error / timeout / 502-503-504), never for a
+    // rejected credential. Shields login from the brief window where the provider dev server is
+    // restarting (build-and-watch). 0 disables retries.
+    IDENTITY_PROVIDER_RETRY_ATTEMPTS: z.coerce.number().int().min(0).max(5).default(2),
+    IDENTITY_PROVIDER_RETRY_BACKOFF_MS: z.coerce.number().int().min(0).max(5_000).default(300),
     IDENTITY_REFRESH_COOKIE_NAME: z
       .string()
       .regex(/^[A-Za-z0-9_-]{3,80}$/)

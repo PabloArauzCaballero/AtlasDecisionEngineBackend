@@ -163,6 +163,7 @@ model DecisionArtifactVersion {
   executions           DecisionExecution[]
   changeLogs           DecisionChangeLog[]
   policyLinks          PolicyArtifactLink[]
+  nodeScripts          DecisionNodeScript[]
 
   @@unique([artifactId, versionNumber])
   @@index([artifactId, status])
@@ -186,6 +187,27 @@ model DecisionCompiledArtifact {
   @@unique([artifactVersionId, compiledChecksum])
   @@index([artifactVersionId, compiledAt])
   @@map("decision_compiled_artifact")
+}
+
+model DecisionNodeScript {
+  id                  BigInt   @id @default(autoincrement())
+  tenantId            BigInt   @map("tenant_id")
+  artifactVersionId   BigInt   @map("artifact_version_id")
+  nodeKey             String   @map("node_key") @db.VarChar(120)
+  language            String   @db.VarChar(30)
+  sourceCode          String   @map("source_code") @db.Text
+  sourceChecksum      String   @map("source_checksum") @db.VarChar(128)
+  inputVariablesJson  Json     @map("input_variables_json")
+  outputVariablesJson Json     @map("output_variables_json")
+  createdBy           String   @map("created_by") @db.VarChar(160)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  artifactVersion DecisionArtifactVersion @relation(fields: [artifactVersionId], references: [id], onDelete: Cascade)
+
+  @@unique([artifactVersionId, nodeKey])
+  @@index([tenantId, language])
+  @@map("decision_node_script")
 }
 
 model DecisionVersionStatusHistory {

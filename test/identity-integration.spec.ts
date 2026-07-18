@@ -116,6 +116,69 @@ describe('external identity integration', () => {
     })).rejects.toMatchObject({ code: 'IDENTITY_PIN_CHALLENGE_REQUIRED' });
   });
 
+  it('retries a transient provider outage and then succeeds', async () => {
+    // The provider dev server drops the first connection while it is restarting, then answers.
+    const session = {
+      accessToken: 'access-token-with-at-least-20-characters',
+      refreshToken: 'refresh-token-with-at-least-20-characters',
+      tokenType: 'Bearer' as const,
+      expiresIn: '1h',
+      user: identityUser,
+    };
+    const fetchMock = jest.spyOn(globalThis, 'fetch')
+      .mockRejectedValueOnce(new TypeError('fetch failed'))
+      .mockResolvedValue(new Response(JSON.stringify({ data: session }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }));
+    const client = new IdentityProviderClient(new ConfigService({
+      IDENTITY_PROVIDER_URL: 'http://localhost:3005/api/v1',
+      IDENTITY_PROVIDER_TIMEOUT_MS: 3_000,
+      IDENTITY_PROVIDER_RETRY_BACKOFF_MS: 0,
+    }));
+
+    await expect(client.login({
+      tenantId: '7',
+      email: 'analyst@example.com',
+      password: 'valid-password',
+    })).resolves.toEqual(session);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not retry a rejected credential', async () => {
+    // A 401 is a definitive answer: retrying would only burn the account's lockout budget.
+    const fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 401 }));
+    const client = new IdentityProviderClient(new ConfigService({
+      IDENTITY_PROVIDER_URL: 'http://localhost:3005/api/v1',
+      IDENTITY_PROVIDER_TIMEOUT_MS: 3_000,
+      IDENTITY_PROVIDER_RETRY_BACKOFF_MS: 0,
+    }));
+
+    await expect(client.login({
+      tenantId: '7',
+      email: 'analyst@example.com',
+      password: 'wrong-password',
+    })).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('surfaces IDENTITY_PROVIDER_UNAVAILABLE after exhausting retries', async () => {
+    const fetchMock = jest.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('fetch failed'));
+    const client = new IdentityProviderClient(new ConfigService({
+      IDENTITY_PROVIDER_URL: 'http://localhost:3005/api/v1',
+      IDENTITY_PROVIDER_TIMEOUT_MS: 3_000,
+      IDENTITY_PROVIDER_RETRY_ATTEMPTS: 2,
+      IDENTITY_PROVIDER_RETRY_BACKOFF_MS: 0,
+    }));
+
+    await expect(client.login({
+      tenantId: '7',
+      email: 'analyst@example.com',
+      password: 'valid-password',
+    })).rejects.toMatchObject({ code: 'IDENTITY_PROVIDER_UNAVAILABLE' });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
   it('maps provider roles to the least-privilege Decision Engine roles', () => {
     expect(mapIdentityRoles(['qa_engineer', 'READONLY_AUDITOR', 'unknown'])).toEqual([
       'QA_ANALYST',
