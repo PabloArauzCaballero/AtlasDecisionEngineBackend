@@ -1,3 +1,5 @@
+import { Money } from '../money/money';
+
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
 
@@ -11,6 +13,9 @@ function normalize(value: unknown): JsonValue {
     }
     return value;
   }
+  // Money serializes as its exact decimal string so signed payloads never carry a binary
+  // float for an amount. Plain numbers are untouched, so existing hashes are unaffected.
+  if (value instanceof Money) return value.toDecimalString();
   if (typeof value === 'bigint') return value.toString();
   if (value instanceof Date) return value.toISOString();
   if (Array.isArray(value)) return value.map(normalize);
