@@ -102,9 +102,12 @@ export class ScriptNodeRunnerService {
   private readonly maxSourceBytes: number;
   private readonly maxOutputBytes: number;
 
+  private readonly isProduction: boolean;
+
   constructor(config: ConfigService) {
     this.enabled = config.get<boolean>('SCRIPT_NODES_ENABLED') ?? false;
     this.mode = (config.get<ScriptRunnerMode>('SCRIPT_RUNNER_MODE') ?? 'IN_PROCESS') as ScriptRunnerMode;
+    this.isProduction = config.get<string>('NODE_ENV') === 'production';
     this.socketPath =
       config.get<string>('SCRIPT_RUNNER_SOCKET_PATH') ?? '/var/run/atlas-runner/runner.sock';
     this.timeoutMs = config.get<number>('SCRIPT_NODE_TIMEOUT_MS') ?? 250;
@@ -121,6 +124,15 @@ export class ScriptNodeRunnerService {
       throw new DomainException(
         'SCRIPT_NODES_DISABLED',
         'Script RESULT nodes are disabled. Set SCRIPT_NODES_ENABLED=true only with an isolated runner.',
+      );
+    }
+    if (this.isProduction && this.mode !== 'SIDECAR') {
+      // Defense in depth beyond env validation: the in-process runner spawns a sibling of
+      // the API and is not an OS security boundary, so it must never execute untrusted
+      // RESULT-node scripts in production even if configuration validation was bypassed.
+      throw new DomainException(
+        'SCRIPT_RUNNER_INSECURE_IN_PRODUCTION',
+        'The in-process script runner cannot execute in production; use SCRIPT_RUNNER_MODE=SIDECAR.',
       );
     }
     if (Buffer.byteLength(source, 'utf8') > this.maxSourceBytes) {
