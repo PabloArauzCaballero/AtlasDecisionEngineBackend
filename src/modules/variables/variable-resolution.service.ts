@@ -100,7 +100,13 @@ export class VariableResolutionService {
         })));
       }
 
-      const valueHash = this.hashes.sha256({ code: contract.code, value });
+      // Sensitive values are often low-entropy PII (an age, an ID, a boolean), for which a
+      // bare SHA-256 is reversible by brute force or rainbow tables. HMAC keys the digest
+      // with a secret pepper so the stored hash cannot be reversed without it (plan §2.7 /
+      // D-7). Non-sensitive values keep the plain, key-independent hash.
+      const valueHash = contract.sensitive
+        ? this.hashes.hmac({ code: contract.code, value })
+        : this.hashes.sha256({ code: contract.code, value });
       snapshots.push({
         variableVersionId: contract.variableVersionId,
         code: contract.code,

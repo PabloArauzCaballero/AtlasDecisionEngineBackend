@@ -47,6 +47,33 @@ describe('VariableResolutionService', () => {
     expect(result.snapshots[0].storedValue).toBeNull();
     expect(result.snapshots[0].valueHash).toHaveLength(64);
   });
+
+  it('hashes a sensitive value with a keyed HMAC, not a reversible plain SHA-256 (D-7)', async () => {
+    const hashes = new HashService(config);
+    const material = { code: 'monthly_income', value: 4500 };
+    const result = await service.resolve([contract({ sensitive: true })], { monthly_income: 4500 }, {
+      tenantId: 1n,
+      artifactCode: 'TEST',
+      requestId: 'r-pii',
+      allowExternal: false,
+    });
+    const hash = result.snapshots[0].valueHash;
+    // Keyed: matches the HMAC, and is NOT the bare SHA-256 an attacker could precompute.
+    expect(hash).toBe(hashes.hmac(material));
+    expect(hash).not.toBe(hashes.sha256(material));
+  });
+
+  it('keeps a plain SHA-256 for a non-sensitive value', async () => {
+    const hashes = new HashService(config);
+    const material = { code: 'monthly_income', value: 4500 };
+    const result = await service.resolve([contract({ sensitive: false })], { monthly_income: 4500 }, {
+      tenantId: 1n,
+      artifactCode: 'TEST',
+      requestId: 'r-plain',
+      allowExternal: false,
+    });
+    expect(result.snapshots[0].valueHash).toBe(hashes.sha256(material));
+  });
   it('discards undeclared input variables before execution', async () => {
     const result = await service.resolve(
       [contract()],
