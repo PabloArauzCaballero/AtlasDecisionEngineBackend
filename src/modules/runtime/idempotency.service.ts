@@ -19,6 +19,7 @@ export type IdempotencyReservation =
 @Injectable()
 export class IdempotencyService {
   private readonly ttlMs: number;
+  private readonly leaseMs: number;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -26,6 +27,10 @@ export class IdempotencyService {
     config: ConfigService,
   ) {
     this.ttlMs = (config.get<number>('IDEMPOTENCY_TTL_HOURS') ?? 24) * 60 * 60 * 1_000;
+    // Short lease a PROCESSING reservation holds the key for. 60s comfortably exceeds a
+    // normal decision (bounded by REQUEST_TIMEOUT_MS, 15s by default) while freeing the key
+    // quickly after a crash. Falls back to the default until the key is added to the schema.
+    this.leaseMs = (config.get<number>('IDEMPOTENCY_LEASE_SECONDS') ?? 60) * 1_000;
   }
 
   /**
@@ -40,6 +45,7 @@ export class IdempotencyService {
     key: string,
     requestHash: string,
   ): Promise<IdempotencyReservation> {
+    const now = new Date();
     try {
       const record = await this.prisma.runtimeIdempotency.create({
         data: {
@@ -47,7 +53,8 @@ export class IdempotencyService {
           artifactCode,
           idempotencyKey: key,
           requestHash,
-          expiresAt: new Date(Date.now() + this.ttlMs),
+          leaseExpiresAt: new Date(now.getTime() + this.leaseMs),
+          expiresAt: new Date(now.getTime() + this.ttlMs),
         },
       });
       return { kind: 'reserved', id: record.id };
@@ -64,21 +71,39 @@ export class IdempotencyService {
           },
         },
       });
-      const now = new Date();
-      if (existing.expiresAt <= now) {
+
+      // A reservation is reclaimable when its terminal response TTL lapsed, OR when it is
+      // still PROCESSING but its short lease expired — the previous holder crashed and must
+      // not keep the key locked for the whole TTL.
+      const responseExpired = existing.expiresAt <= now;
+      const leaseExpired =
+        existing.status === IdempotencyStatus.PROCESSING && existing.leaseExpiresAt <= now;
+      if (responseExpired || leaseExpired) {
+        // The guard in the WHERE clause makes the reclaim atomic: exactly one concurrent
+        // request can flip an expired reservation back to a fresh PROCESSING lease.
         const renewed = await this.prisma.runtimeIdempotency.updateMany({
-          where: { id: existing.id, expiresAt: { lte: now } },
+          where: {
+            id: existing.id,
+            OR: [
+              { expiresAt: { lte: now } },
+              { status: IdempotencyStatus.PROCESSING, leaseExpiresAt: { lte: now } },
+            ],
+          },
           data: {
             requestHash,
             status: IdempotencyStatus.PROCESSING,
             responseJson: Prisma.DbNull,
             responseHash: null,
+            leaseExpiresAt: new Date(now.getTime() + this.leaseMs),
             expiresAt: new Date(now.getTime() + this.ttlMs),
           },
         });
         if (renewed.count === 1) return { kind: 'reserved', id: existing.id };
+        // Another request won the reclaim; re-read and follow the normal path.
         return this.reserve(tenantId, artifactCode, key, requestHash);
       }
+
+      // The reservation is live (terminal within TTL, or PROCESSING with a valid lease).
       if (existing.requestHash !== requestHash) {
         throw new DomainException(
           'IDEMPOTENCY_PAYLOAD_MISMATCH',

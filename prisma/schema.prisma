@@ -811,6 +811,11 @@ model RuntimeIdempotency {
   status         IdempotencyStatus @default(PROCESSING)
   responseJson   Json?             @map("response_json")
   responseHash   String?           @map("response_hash") @db.VarChar(128)
+  // Short lease held only while PROCESSING. A crashed request frees the key when this
+  // lapses (seconds/minutes), so a stuck reservation no longer holds it for the full
+  // response TTL below (plan §3.2). expiresAt stays the long replay window for a terminal
+  // response.
+  leaseExpiresAt DateTime          @default(now()) @map("lease_expires_at") @db.Timestamptz(6)
   expiresAt      DateTime          @map("expires_at") @db.Timestamptz(6)
   createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
