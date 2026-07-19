@@ -115,7 +115,10 @@ export class AuditQueryService {
       if ((event.previousHash ?? null) !== previousHash) {
         invalid.push({ id: event.id.toString(), reason: 'PREVIOUS_HASH_MISMATCH' });
       }
-      const material = {
+      // Prefer the exact canonical string frozen at write time; hashing it is immune to
+      // JSONB number normalization (D-9). Only events written before canonicalPayload
+      // existed fall back to rebuilding the material from columns.
+      const material: string | Record<string, unknown> = event.canonicalPayload ?? {
         tenantId: event.tenantId.toString(),
         eventType: event.eventType,
         aggregateType: event.aggregateType,

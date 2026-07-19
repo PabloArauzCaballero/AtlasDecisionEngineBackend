@@ -839,7 +839,12 @@ model DecisionAuditEvent {
   // Identifies which signing secret produced eventHash, so AUDIT_HASH_SECRET can be
   // rotated without invalidating the historical chain.
   hashKeyId     String   @default("v1") @map("hash_key_id") @db.VarChar(40)
-  occurredAt    DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  // The exact canonical string that eventHash was computed over. Verification hashes this
+  // instead of re-serializing payloadJson, because Postgres JSONB re-normalizes some
+  // numbers (e.g. high-precision decimals) on round-trip, which would otherwise flip a
+  // valid event to a false EVENT_HASH_MISMATCH. Nullable for events written before this.
+  canonicalPayload String? @map("canonical_payload") @db.Text
+  occurredAt       DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
 
   @@index([tenantId, occurredAt])
   @@index([aggregateType, aggregateId])

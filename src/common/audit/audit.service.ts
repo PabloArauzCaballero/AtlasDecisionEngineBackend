@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Prisma, DecisionAuditEvent } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { HashService } from '../crypto/hash.service';
+import { canonicalize } from '../crypto/canonical-json';
 
 export interface AppendAuditEventInput {
   tenantId: bigint;
@@ -78,7 +79,11 @@ export class AuditService {
       previousHash: previous?.eventHash ?? null,
     };
     const hashKeyId = this.hashes.activeHashKeyId();
-    const eventHash = this.hashes.hmacWithKey(payload, hashKeyId);
+    // Freeze the exact canonical string here and hash that, then persist it. Verification
+    // hashes this stored string rather than re-serializing payloadJson, so JSONB number
+    // normalization on round-trip can never turn a valid event into a false mismatch (D-9).
+    const canonicalPayload = canonicalize(payload);
+    const eventHash = this.hashes.hmacWithKey(canonicalPayload, hashKeyId);
     return tx.decisionAuditEvent.create({
       data: {
         tenantId: input.tenantId,
@@ -92,6 +97,7 @@ export class AuditService {
         eventHash,
         // Recorded so a later rotation of AUDIT_HASH_SECRET can still verify this event.
         hashKeyId,
+        canonicalPayload,
       },
     });
   }
