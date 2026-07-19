@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ExecutionStatus, Prisma } from '@prisma/client';
 import { HashService } from '../../common/crypto/hash.service';
 import { DomainException } from '../../common/errors/domain-exception';
@@ -33,6 +33,8 @@ export interface WriteExecutionInput {
  */
 @Injectable()
 export class ExecutionWriterService {
+  private readonly logger = new Logger(ExecutionWriterService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly hashes: HashService,
@@ -100,7 +102,16 @@ export class ExecutionWriterService {
     if (result) {
       for (let index = 0; index < result.trace.length; index += 1) {
         const step = result.trace[index];
-        if (!step.nodeId) continue;
+        if (!step.nodeId) {
+          // A traced step with no compiled node id would silently vanish from the decision's
+          // audit trail — an evidence gap in a regulated system. It must never be silent:
+          // a compiled artifact is expected to give every node an id, so this signals a
+          // compiler defect that needs investigating, not a routine skip.
+          this.logger.error(
+            `Execution ${execution.id} trace step ${index + 1} has no nodeId and cannot be persisted`,
+          );
+          continue;
+        }
         await tx.decisionExecutionStep.create({
           data: {
             executionId: execution.id,
@@ -113,7 +124,12 @@ export class ExecutionWriterService {
         });
       }
       for (const reason of result.reasons) {
-        if (!reason.reasonCodeId || !reason.sourceActionId) continue;
+        if (!reason.reasonCodeId || !reason.sourceActionId) {
+          this.logger.error(
+            `Execution ${execution.id} reason "${reason.code}" is missing reasonCodeId/sourceActionId and cannot be persisted`,
+          );
+          continue;
+        }
         await tx.decisionExecutionReason.create({
           data: {
             executionId: execution.id,
