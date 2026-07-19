@@ -26,8 +26,8 @@ export class DeploymentResolverService {
     artifactCode: string,
     environmentCode: string,
   ): Promise<ResolvedDeployment> {
-    const key = this.cacheKey(tenantId, artifactCode, environmentCode);
-    const cached = await this.cache.get(key);
+    const key = this.cacheKey(artifactCode, environmentCode);
+    const cached = await this.cache.getForTenant(tenantId, key);
     if (cached) {
       const parsed = JSON.parse(cached) as Omit<ResolvedDeployment, 'deploymentId' | 'artifactVersionId' | 'environmentId' | 'compiledArtifactId'> & {
         deploymentId: string;
@@ -78,7 +78,8 @@ export class DeploymentResolverService {
       compiledChecksum: binding.activeDeployment.compiledArtifact.compiledChecksum,
       compiled: binding.activeDeployment.compiledArtifact.compiledPayloadJson as unknown as CompiledDecisionArtifact,
     };
-    await this.cache.set(
+    await this.cache.setForTenant(
+      tenantId,
       key,
       JSON.stringify({
         ...resolved,
@@ -93,10 +94,11 @@ export class DeploymentResolverService {
   }
 
   invalidate(tenantId: bigint, artifactCode: string, environmentCode: string): Promise<void> {
-    return this.cache.del(this.cacheKey(tenantId, artifactCode, environmentCode));
+    return this.cache.delForTenant(tenantId, this.cacheKey(artifactCode, environmentCode));
   }
 
-  private cacheKey(tenantId: bigint, artifactCode: string, environmentCode: string): string {
-    return `decision-binding:${tenantId.toString()}:${artifactCode}:${environmentCode}`;
+  // Tenant is applied by the cache helpers, so it is no longer part of this logical key.
+  private cacheKey(artifactCode: string, environmentCode: string): string {
+    return `decision-binding:${artifactCode}:${environmentCode}`;
   }
 }

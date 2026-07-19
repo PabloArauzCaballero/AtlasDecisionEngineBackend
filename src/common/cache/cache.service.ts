@@ -130,6 +130,25 @@ export class CacheService implements OnModuleDestroy {
     };
   }
 
+  // Tenant-scoped access (plan §2.9 / D-8). Prefixing every key with the tenant makes a
+  // cross-tenant cache hit structurally impossible for callers that go through these
+  // helpers, instead of relying on each call site to remember to embed the tenant.
+  getForTenant(tenantId: bigint, key: string): Promise<string | null> {
+    return this.get(this.tenantKey(tenantId, key));
+  }
+
+  setForTenant(tenantId: bigint, key: string, value: string, ttlSeconds: number): Promise<void> {
+    return this.set(this.tenantKey(tenantId, key), value, ttlSeconds);
+  }
+
+  delForTenant(tenantId: bigint, key: string): Promise<void> {
+    return this.del(this.tenantKey(tenantId, key));
+  }
+
+  private tenantKey(tenantId: bigint, key: string): string {
+    return `t:${tenantId.toString()}:${key}`;
+  }
+
   async ping(): Promise<'redis' | 'memory'> {
     if (this.redis) {
       try {
