@@ -105,45 +105,63 @@ export class AuditQueryService {
   }
 
   async verifyAuditChain(tenantId: bigint) {
-    const events = await this.prisma.decisionAuditEvent.findMany({
-      where: { tenantId },
-      orderBy: { id: 'asc' },
-    });
+    // Walk the chain in id-ordered batches with a cursor instead of loading every event into
+    // memory at once. An audit chain grows unbounded, so `findMany` over the whole tenant
+    // would exhaust memory on a large chain (and hands a caller a cheap DoS). Only the
+    // running previousHash and the counters cross a batch boundary.
+    const batchSize = this.config.get<number>('AUDIT_VERIFY_BATCH_SIZE') ?? 500;
+    let cursorId = 0n;
     let previousHash: string | null = null;
+    let eventCount = 0;
     const invalid: Array<{ id: string; reason: string }> = [];
-    for (const event of events) {
-      if ((event.previousHash ?? null) !== previousHash) {
-        invalid.push({ id: event.id.toString(), reason: 'PREVIOUS_HASH_MISMATCH' });
-      }
-      // Prefer the exact canonical string frozen at write time; hashing it is immune to
-      // JSONB number normalization (D-9). Only events written before canonicalPayload
-      // existed fall back to rebuilding the material from columns.
-      const material: string | Record<string, unknown> = event.canonicalPayload ?? {
-        tenantId: event.tenantId.toString(),
-        eventType: event.eventType,
-        aggregateType: event.aggregateType,
-        aggregateId: event.aggregateId,
-        actorId: event.actorId,
-        requestId: event.requestId ?? null,
-        payload: event.payloadJson,
-        previousHash: event.previousHash ?? null,
-      };
-      try {
-        // Re-sign with the key that produced this event, not the active one: rotating
-        // AUDIT_HASH_SECRET must not invalidate the historical chain.
-        if (this.hashes.hmacWithKey(material, event.hashKeyId) !== event.eventHash) {
-          invalid.push({ id: event.id.toString(), reason: 'EVENT_HASH_MISMATCH' });
+
+    for (;;) {
+      const events = await this.prisma.decisionAuditEvent.findMany({
+        where: { tenantId, id: { gt: cursorId } },
+        orderBy: { id: 'asc' },
+        take: batchSize,
+      });
+      if (!events.length) break;
+
+      for (const event of events) {
+        if ((event.previousHash ?? null) !== previousHash) {
+          invalid.push({ id: event.id.toString(), reason: 'PREVIOUS_HASH_MISMATCH' });
         }
-      } catch {
-        // A retired secret that is no longer configured means the event cannot be
-        // verified at all — never report that as valid.
-        invalid.push({ id: event.id.toString(), reason: 'HASH_KEY_UNAVAILABLE' });
+        // Prefer the exact canonical string frozen at write time; hashing it is immune to
+        // JSONB number normalization (D-9). Only events written before canonicalPayload
+        // existed fall back to rebuilding the material from columns.
+        const material: string | Record<string, unknown> = event.canonicalPayload ?? {
+          tenantId: event.tenantId.toString(),
+          eventType: event.eventType,
+          aggregateType: event.aggregateType,
+          aggregateId: event.aggregateId,
+          actorId: event.actorId,
+          requestId: event.requestId ?? null,
+          payload: event.payloadJson,
+          previousHash: event.previousHash ?? null,
+        };
+        try {
+          // Re-sign with the key that produced this event, not the active one: rotating
+          // AUDIT_HASH_SECRET must not invalidate the historical chain.
+          if (this.hashes.hmacWithKey(material, event.hashKeyId) !== event.eventHash) {
+            invalid.push({ id: event.id.toString(), reason: 'EVENT_HASH_MISMATCH' });
+          }
+        } catch {
+          // A retired secret that is no longer configured means the event cannot be
+          // verified at all — never report that as valid.
+          invalid.push({ id: event.id.toString(), reason: 'HASH_KEY_UNAVAILABLE' });
+        }
+        previousHash = event.eventHash;
+        cursorId = event.id;
+        eventCount += 1;
       }
-      previousHash = event.eventHash;
+
+      if (events.length < batchSize) break;
     }
+
     return {
       valid: invalid.length === 0,
-      eventCount: events.length,
+      eventCount,
       headHash: previousHash,
       invalid,
     };
