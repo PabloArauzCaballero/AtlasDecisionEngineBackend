@@ -44,23 +44,29 @@ describeDb('decision_audit_event append-only (integration)', () => {
 
   // Driven through raw SQL on purpose: the guarantee being asserted belongs to the
   // database, so it must hold for any writer, not only for callers going through Prisma.
+  // Two independent layers refuse the write, and either satisfies the guarantee: the
+  // triggers ("append-only"), and — under the non-superuser runtime role atlas_app — the
+  // REVOKE of UPDATE/DELETE/TRUNCATE, which denies it at the grant level ("permission
+  // denied") before the trigger even runs.
+  const refused = /append-only|permission denied|must be owner/i;
+
   it('refuses an UPDATE of a recorded event', async () => {
     await expect(
       prisma.$executeRawUnsafe(`UPDATE "decision_audit_event" SET actor_id = 'tampered' WHERE id = ${eventId}`),
-    ).rejects.toThrow(/append-only/i);
+    ).rejects.toThrow(refused);
   });
 
   it('refuses a DELETE of a recorded event', async () => {
     await expect(
       prisma.$executeRawUnsafe(`DELETE FROM "decision_audit_event" WHERE id = ${eventId}`),
-    ).rejects.toThrow(/append-only/i);
+    ).rejects.toThrow(refused);
   });
 
   it('refuses a TRUNCATE of the audit table', async () => {
     // TRUNCATE skips row-level triggers, so it needs its own statement-level guard.
     await expect(
       prisma.$executeRawUnsafe('TRUNCATE TABLE "decision_audit_event"'),
-    ).rejects.toThrow(/append-only/i);
+    ).rejects.toThrow(refused);
   });
 
   it('leaves the event intact and unchanged after every attempt', async () => {
