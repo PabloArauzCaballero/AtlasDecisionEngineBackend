@@ -1,0 +1,91 @@
+import type { NodeType } from '../graph/graph.types';
+
+/**
+ * Code -> Flow generator (Fase 5). See docs/code-to-flow-specification.md for the
+ * full pipeline narrative and the intermediate representation (IR) this file types.
+ */
+
+export type ImportLanguage = 'JAVASCRIPT' | 'PYTHON';
+
+/** Data types accepted in a contract variable — the same vocabulary the rest of the
+ *  engine already uses for DecisionVariableVersion.dataType / RESULT output typing. */
+export type ContractDataType =
+  | 'STRING'
+  | 'INTEGER'
+  | 'NUMBER'
+  | 'BOOLEAN'
+  | 'DATE'
+  | 'DATETIME'
+  | 'OBJECT'
+  | 'ARRAY';
+
+export interface ContractVariable {
+  /** Stable identifier — becomes the variable code and the property name the script
+   *  reads (inputs) or writes (outputs) at runtime. */
+  id: string;
+  name: string;
+  type: ContractDataType;
+  required: boolean;
+  default?: unknown;
+}
+
+/** The versioned metadata contract extracted from an `@atlas-contract` block. */
+export interface MetadataContract {
+  contractVersion: string;
+  inputs: ContractVariable[];
+  outputs: ContractVariable[];
+  /** id of the output written to `outcome`/the legacy primary result; defaults to the
+   *  first declared output when omitted. */
+  primaryOutputId?: string;
+}
+
+export type IssueSeverity = 'ERROR' | 'WARNING';
+export type IssueSource = 'SYNTAX' | 'CONTRACT' | 'SECURITY' | 'GRAPH';
+
+export interface LineIssue {
+  source: IssueSource;
+  severity: IssueSeverity;
+  line: number;
+  column?: number;
+  message: string;
+  code: string;
+}
+
+/**
+ * Common intermediate representation the pipeline produces regardless of source
+ * language, and from which the graph generator deterministically builds a
+ * ReplaceGraphDto-shaped snapshot. Keeping this language-agnostic (rather than
+ * generating JS-specific or Python-specific graph shapes) is what lets both
+ * languages reuse the exact same downstream graph generation/validation/execution
+ * path — the only language-specific step is contract extraction + syntax/security
+ * analysis; everything after IR construction is identical.
+ */
+export interface CodeImportIR {
+  irVersion: '1';
+  language: ImportLanguage;
+  sourceChecksum: string;
+  contract: MetadataContract;
+  /** The script body with the `@atlas-contract` header stripped, as it will be
+   *  stored in the generated RESULT node's `config.script.source`. */
+  scriptBody: string;
+}
+
+export interface AnalyzeCodeImportResult {
+  ir: CodeImportIR;
+  issues: LineIssue[];
+  /** Preview of the graph that would be written — same shape accepted by
+   *  ArtifactGraphWriterService.replaceDraftGraph. */
+  generatedGraph: GeneratedGraphPreview;
+}
+
+export interface GeneratedGraphPreview {
+  dependencies: Array<{
+    variableCode: string;
+    usageType: 'INPUT' | 'OUTPUT' | 'OUTPUT_PRIMARY';
+    dependencyPath: string;
+    dataType: ContractDataType;
+    required: boolean;
+  }>;
+  nodes: Array<{ key: string; type: NodeType; label: string; config: Record<string, unknown> }>;
+  edges: Array<{ key: string; from: string; to: string; default: boolean }>;
+}
