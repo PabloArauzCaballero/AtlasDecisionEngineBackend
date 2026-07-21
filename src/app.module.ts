@@ -14,6 +14,7 @@ import { DeploymentModule } from './modules/deployments/deployment.module';
 import { GovernanceModule } from './modules/governance/governance.module';
 import { GraphModule } from './modules/graph/graph.module';
 import { HealthModule } from './modules/health/health.module';
+import { LiveExecutionModule } from './modules/live-execution/live-execution.module';
 import { ManualReviewModule } from './modules/manual-review/manual-review.module';
 import { NestedTreesModule } from './modules/nested-trees/nested-trees.module';
 import { RuntimeModule } from './modules/runtime/runtime.module';
@@ -48,6 +49,7 @@ import { IdentitySessionModule } from './modules/identity-session/identity-sessi
     GovernanceModule,
     DeploymentModule,
     RuntimeModule,
+    LiveExecutionModule,
     ManualReviewModule,
     AuditQueryModule,
     TraceabilityModule,

@@ -12,6 +12,7 @@ import type {
   GraphActionSnapshot,
   GraphEdgeSnapshot,
   GraphNodeSnapshot,
+  LiveStepEvent,
   NestedExecutionTraceEntry,
   NestedReferenceCursor,
 } from './graph.types';
@@ -49,6 +50,10 @@ export class ExecutionEngineService {
     // about to make, so trace entries get globally unique, correctly-parented sequence
     // numbers across the whole recursive tree — see graph.types.ts.
     nestedCursor?: NestedReferenceCursor,
+    // Fase 8 — live execution. Fired synchronously as each node starts/finishes;
+    // omitted by every existing caller (RuntimeService, SimulationService,
+    // TestCaseExecutorService), so this changes nothing for them.
+    onStep?: (event: LiveStepEvent) => void,
   ): Promise<EngineExecutionResult> {
     const state: MutableExecutionState = { outcome: 'NO_DECISION', output: {} , reasons: [] };
     const trace: EngineExecutionResult['trace'] = [];
@@ -65,71 +70,86 @@ export class ExecutionEngineService {
       if (!node) throw new DomainException('RUNTIME_NODE_NOT_FOUND', `Compiled node ${currentKey} not found`);
       visitedNodeKeys.push(node.key);
       const evaluation: Record<string, unknown> = {};
+      onStep?.({ status: 'RUNNING', nodeKey: node.key, nodeType: node.type });
 
-      if (node.type === 'SCORE') {
-        this.evaluateScoreNode(node, compiled, variables, state, evaluation);
-      }
-      if (node.type === 'ACTION') {
-        this.executeActions(node, compiled, variables, state, evaluation);
-      }
-      if (node.type === 'RESULT') {
-        await this.evaluateResultNode(
-          node,
-          compiled,
-          variables,
-          state,
-          evaluation,
-          referenceResolver,
-          cursor,
-          nestedExecutions,
-        );
-      }
-      if (node.type === 'MANUAL_REVIEW') {
-        state.outcome = 'MANUAL_REVIEW';
-        state.manualReview = {
-          queueCode: String(node.config.queueCode ?? 'CREDIT_REVIEW'),
-          priority: Number(node.config.priority ?? 100),
-          slaMinutes: Number(node.config.slaMinutes ?? 240),
-          evidence: renderTemplate(
-            (node.config.evidence ?? {}) as Record<string, unknown>,
-            this.context(variables, state),
-          ) as Record<string, unknown>,
-        };
-        terminalNodeKey = node.key;
-      }
-      if (node.type === 'END') {
-        state.outcome = String(node.config.outcome ?? state.outcome);
-        terminalNodeKey = node.key;
-      }
+      try {
+        if (node.type === 'SCORE') {
+          this.evaluateScoreNode(node, compiled, variables, state, evaluation);
+        }
+        if (node.type === 'ACTION') {
+          this.executeActions(node, compiled, variables, state, evaluation);
+        }
+        if (node.type === 'RESULT') {
+          await this.evaluateResultNode(
+            node,
+            compiled,
+            variables,
+            state,
+            evaluation,
+            referenceResolver,
+            cursor,
+            nestedExecutions,
+          );
+        }
+        if (node.type === 'MANUAL_REVIEW') {
+          state.outcome = 'MANUAL_REVIEW';
+          state.manualReview = {
+            queueCode: String(node.config.queueCode ?? 'CREDIT_REVIEW'),
+            priority: Number(node.config.priority ?? 100),
+            slaMinutes: Number(node.config.slaMinutes ?? 240),
+            evidence: renderTemplate(
+              (node.config.evidence ?? {}) as Record<string, unknown>,
+              this.context(variables, state),
+            ) as Record<string, unknown>,
+          };
+          terminalNodeKey = node.key;
+        }
+        if (node.type === 'END') {
+          state.outcome = String(node.config.outcome ?? state.outcome);
+          terminalNodeKey = node.key;
+        }
 
-      const terminalByAction = node.actions.some((reference) => compiled.actions[reference.code]?.terminal);
-      if (node.terminal || node.type === 'END' || node.type === 'RESULT' || node.type === 'MANUAL_REVIEW' || terminalByAction) {
-        terminalNodeKey = node.key;
-        trace.push({
-          nodeId: node.id,
+        const terminalByAction = node.actions.some((reference) => compiled.actions[reference.code]?.terminal);
+        if (node.terminal || node.type === 'END' || node.type === 'RESULT' || node.type === 'MANUAL_REVIEW' || terminalByAction) {
+          terminalNodeKey = node.key;
+          const durationUs = Number((process.hrtime.bigint() - started) / 1000n);
+          trace.push({ nodeId: node.id, nodeKey: node.key, nodeType: node.type, evaluation, durationUs });
+          onStep?.({ status: 'COMPLETED', nodeKey: node.key, nodeType: node.type, durationUs });
+          currentKey = undefined;
+          break;
+        }
+
+        const selected = this.selectEdge(compiled.edgesByNode[node.key] ?? [], compiled, variables, state, evaluation);
+        if (!selected) {
+          throw new DomainException('NO_MATCHING_EDGE', `No outgoing edge matched node ${node.key}`);
+        }
+        traversedEdgeKeys.push(selected.key);
+        const durationUs = Number((process.hrtime.bigint() - started) / 1000n);
+        trace.push({ nodeId: node.id, nodeKey: node.key, nodeType: node.type, branchTaken: selected.key, evaluation, durationUs });
+        onStep?.({
+          status: 'COMPLETED',
           nodeKey: node.key,
           nodeType: node.type,
-          evaluation,
-          durationUs: Number((process.hrtime.bigint() - started) / 1000n),
+          branchTaken: selected.key,
+          // Every other outgoing edge, whether or not its condition was actually
+          // evaluated (short-circuit evaluation in selectEdge() may skip some) —
+          // for a "ramas descartadas" visualization the viewer wants every branch
+          // not walked, not just the ones formally condition-checked.
+          discardedEdgeKeys: (compiled.edgesByNode[node.key] ?? [])
+            .map((edge) => edge.key)
+            .filter((key) => key !== selected.key),
+          durationUs,
         });
-        currentKey = undefined;
-        break;
+        currentKey = selected.to;
+      } catch (error) {
+        onStep?.({
+          status: 'ERROR',
+          nodeKey: node.key,
+          nodeType: node.type,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        });
+        throw error;
       }
-
-      const selected = this.selectEdge(compiled.edgesByNode[node.key] ?? [], compiled, variables, state, evaluation);
-      if (!selected) {
-        throw new DomainException('NO_MATCHING_EDGE', `No outgoing edge matched node ${node.key}`);
-      }
-      traversedEdgeKeys.push(selected.key);
-      trace.push({
-        nodeId: node.id,
-        nodeKey: node.key,
-        nodeType: node.type,
-        branchTaken: selected.key,
-        evaluation,
-        durationUs: Number((process.hrtime.bigint() - started) / 1000n),
-      });
-      currentKey = selected.to;
     }
 
     if (currentKey) {

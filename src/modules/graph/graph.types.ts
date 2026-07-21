@@ -259,3 +259,22 @@ export interface ArtifactReferenceResolver {
     cursor: NestedReferenceCursor,
   ): Promise<ArtifactReferenceResolution>;
 }
+
+/**
+ * One node-by-node progress update during execution (Fase 8 — live execution).
+ * Passed as a plain call argument to `execute()`, never a constructor dependency —
+ * same reasoning as ArtifactReferenceResolver: callers that don't care (most of
+ * them) simply omit it, with zero change to their behavior or dependency graph.
+ */
+export interface LiveStepEvent {
+  status: 'RUNNING' | 'COMPLETED' | 'ERROR';
+  nodeKey: string;
+  nodeType: string;
+  /** The edge actually taken, once selected (absent on RUNNING or a terminal node). */
+  branchTaken?: string;
+  /** Outgoing edges NOT taken at this node, with the reason the engine already
+   *  computed while selecting the real one (graph-editor "ramas descartadas"). */
+  discardedEdgeKeys?: string[];
+  durationUs?: number;
+  errorMessage?: string;
+}

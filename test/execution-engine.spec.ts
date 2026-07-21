@@ -98,6 +98,43 @@ describe('ExecutionEngineService', () => {
     await expect(engine.execute(compiled, { score: 700 })).rejects.toThrow('required output scoring');
   });
 
+  describe('onStep live progress (Fase 8)', () => {
+    it('reports RUNNING then COMPLETED for each visited node, with the discarded edge on a branch', async () => {
+      const events: unknown[] = [];
+      await engine.execute(compiledFixture(), { score: 700 }, undefined, undefined, (event) => events.push(event));
+
+      expect(events).toEqual([
+        { status: 'RUNNING', nodeKey: 'START', nodeType: 'START' },
+        expect.objectContaining({ status: 'COMPLETED', nodeKey: 'START', branchTaken: 'START_CHECK' }),
+        { status: 'RUNNING', nodeKey: 'CHECK', nodeType: 'CONDITION' },
+        expect.objectContaining({
+          status: 'COMPLETED',
+          nodeKey: 'CHECK',
+          branchTaken: 'CHECK_APPROVE',
+          discardedEdgeKeys: ['CHECK_DECLINE'],
+        }),
+        { status: 'RUNNING', nodeKey: 'APPROVED', nodeType: 'ACTION' },
+        expect.objectContaining({ status: 'COMPLETED', nodeKey: 'APPROVED' }),
+      ]);
+    });
+
+    it('emits an ERROR event for the failing node before rethrowing', async () => {
+      const compiled = compiledFixture();
+      compiled.edgesByNode.CHECK = [];
+      const events: unknown[] = [];
+
+      await expect(
+        engine.execute(compiled, { score: 700 }, undefined, undefined, (event) => events.push(event)),
+      ).rejects.toThrow(/No outgoing edge matched/);
+      expect(events).toEqual([
+        { status: 'RUNNING', nodeKey: 'START', nodeType: 'START' },
+        expect.objectContaining({ status: 'COMPLETED', nodeKey: 'START' }),
+        { status: 'RUNNING', nodeKey: 'CHECK', nodeType: 'CONDITION' },
+        expect.objectContaining({ status: 'ERROR', nodeKey: 'CHECK' }),
+      ]);
+    });
+  });
+
   describe('nested artifact references (Fase 7)', () => {
     function referenceCompiled() {
       const compiled = compiledFixture();
