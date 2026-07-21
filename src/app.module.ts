@@ -17,6 +17,7 @@ import { HealthModule } from './modules/health/health.module';
 import { ManualReviewModule } from './modules/manual-review/manual-review.module';
 import { NestedTreesModule } from './modules/nested-trees/nested-trees.module';
 import { RuntimeModule } from './modules/runtime/runtime.module';
+import { SecurityReviewModule } from './modules/security-review/security-review.module';
 import { TestingModule } from './modules/testing/testing.module';
 import { TraceabilityModule } from './modules/traceability/traceability.module';
 import { VariableModule } from './modules/variables/variable.module';
@@ -50,6 +51,7 @@ import { IdentitySessionModule } from './modules/identity-session/identity-sessi
     ManualReviewModule,
     AuditQueryModule,
     TraceabilityModule,
+    SecurityReviewModule,
     ViewsModule,
   ],
 })
