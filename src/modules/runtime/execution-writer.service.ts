@@ -140,6 +140,28 @@ export class ExecutionWriterService {
           },
         });
       }
+      if (result.nestedExecutions.length) {
+        // Nested calls run fully in-memory during engine execution (no child
+        // DecisionExecution row per level — see graph.types.ts), so every row shares
+        // this one root/parent execution id; `sequence`/`parentSequence` reconstruct
+        // the actual nested-call tree (Fase 7 distributed-execution traceability).
+        await tx.decisionExecutionTreeLink.createMany({
+          data: result.nestedExecutions.map((entry) => ({
+            tenantId: input.tenantId,
+            rootExecutionId: execution.id,
+            parentExecutionId: execution.id,
+            sequence: entry.sequence,
+            parentSequence: entry.parentSequence,
+            nodeKey: entry.nodeKey,
+            childArtifactVersionId: entry.childArtifactVersionId ? BigInt(entry.childArtifactVersionId) : undefined,
+            depth: entry.depth,
+            status: entry.status,
+            durationMs: entry.durationMs,
+            outputJson: entry.output as Prisma.InputJsonValue | undefined,
+            errorJson: entry.error as Prisma.InputJsonValue | undefined,
+          })),
+        });
+      }
       if (result.manualReview) {
         await tx.decisionManualReviewCase.create({
           data: {

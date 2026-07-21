@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { GraphModule } from '../graph/graph.module';
+import { NestedTreesModule } from '../nested-trees/nested-trees.module';
 import { VariableModule } from '../variables/variable.module';
 import { TestingController } from './testing.controller';
 import { TestExecutionService } from './test-execution.service';
@@ -8,7 +9,7 @@ import { TestRunWorkerService } from './test-run-worker.service';
 import { TestSuiteService } from './test-suite.service';
 
 @Module({
-  imports: [GraphModule, VariableModule],
+  imports: [GraphModule, VariableModule, NestedTreesModule],
   controllers: [TestingController],
   providers: [
     TestSuiteService,

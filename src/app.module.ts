@@ -14,6 +14,7 @@ import { GovernanceModule } from './modules/governance/governance.module';
 import { GraphModule } from './modules/graph/graph.module';
 import { HealthModule } from './modules/health/health.module';
 import { ManualReviewModule } from './modules/manual-review/manual-review.module';
+import { NestedTreesModule } from './modules/nested-trees/nested-trees.module';
 import { RuntimeModule } from './modules/runtime/runtime.module';
 import { TestingModule } from './modules/testing/testing.module';
 import { TraceabilityModule } from './modules/traceability/traceability.module';
@@ -37,6 +38,7 @@ import { IdentitySessionModule } from './modules/identity-session/identity-sessi
     HealthModule,
     IdentitySessionModule,
     GraphModule,
+    NestedTreesModule,
     VariableModule,
     ArtifactModule,
     TestingModule,

@@ -116,6 +116,22 @@ export const envSchema = z
     SCRIPT_NODE_MAX_OUTPUT_BYTES: z.coerce.number().int().min(1_024).max(1_048_576).default(65_536),
     IDEMPOTENCY_TTL_HOURS: z.coerce.number().int().min(1).max(720).default(24),
     MAX_PAGE_SIZE: z.coerce.number().int().min(10).max(500).default(100),
+
+    // ---------------------------------------------------------------------
+    // >>> BEGIN feature/rebanadas-2-a-5 (additive block — reconcile on merge)
+    // Nested decision trees (Fase 7), Code->Flow import (Fase 5), live
+    // execution stream (Fase 8).
+    // ---------------------------------------------------------------------
+    NESTED_TREE_MAX_DEPTH: z.coerce.number().int().min(1).max(20).default(5),
+    NESTED_TREE_DEFAULT_TIMEOUT_MS: z.coerce.number().int().min(50).max(60_000).default(2_000),
+    CODE_IMPORT_MAX_SOURCE_BYTES: z.coerce.number().int().min(1_024).max(1_048_576).default(131_072),
+    CODE_IMPORT_ANALYSIS_TIMEOUT_MS: z.coerce.number().int().min(100).max(10_000).default(2_000),
+    // Live execution stream (Fase 8) consumes the event bus the Rebanada 1 event-driven
+    // slice publishes to (src/common/events/**, not edited here). Disabled by default so
+    // this slice stays inert until that bus is merged and wired.
+    LIVE_EXECUTION_STREAM_ENABLED: booleanFromString.default(false),
+    LIVE_EXECUTION_STREAM_HEARTBEAT_MS: z.coerce.number().int().min(1_000).max(60_000).default(15_000),
+    // >>> END feature/rebanadas-2-a-5 additive block <<<
   })
   .superRefine((value, ctx) => {
     const requiresApiKeys =

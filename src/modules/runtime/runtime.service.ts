@@ -10,6 +10,7 @@ import { DeploymentResolverService } from '../deployments/deployment-resolver.se
 import type { ResolvedDeployment } from '../deployments/deployment-resolver.service';
 import { ExecutionEngineService } from '../graph/execution-engine.service';
 import type { EngineExecutionResult } from '../graph/graph.types';
+import { NestedTreeExecutionService } from '../nested-trees/nested-tree-execution.service';
 import { VariableResolutionService } from '../variables/variable-resolution.service';
 import { ExecuteDecisionDto } from './runtime.dto';
 import { IdempotencyService } from './idempotency.service';
@@ -40,6 +41,7 @@ export class RuntimeService {
     private readonly writer: ExecutionWriterService,
     private readonly audit: AuditService,
     private readonly metrics: MetricsService,
+    private readonly nestedTrees: NestedTreeExecutionService,
   ) {}
 
   /**
@@ -157,7 +159,11 @@ export class RuntimeService {
         return { httpStatus: 422, body };
       }
 
-      const result = await this.engine.execute(deployment.compiled, resolution.values);
+      const result = await this.engine.execute(
+        deployment.compiled,
+        resolution.values,
+        this.nestedTrees.bind(tenantId, principal),
+      );
       const durationMs = Math.max(0, Math.round(performance.now() - started));
 
       // The execution and its evidence, the idempotency outcome and the audit event commit

@@ -1034,3 +1034,113 @@ model IntegrationTenantAccess {
   @@index([tenantId])
   @@map("integration_tenant_access")
 }
+
+// ---------------------------------------------------------------------------
+// >>> BEGIN feature/rebanadas-2-a-5 (additive block — reconcile on merge) <<<
+//
+// Nested decision trees (Fase 7) + Code->Flow import registry (Fase 5).
+// These models intentionally declare no Prisma relations to existing models so
+// this block stays purely additive; real FK constraints and tenant RLS policies
+// live in the SQL migrations.
+// ---------------------------------------------------------------------------
+
+enum ArtifactReferenceErrorPolicy {
+  FAIL
+  FALLBACK
+  SKIP
+}
+
+model DecisionArtifactReference {
+  id                      BigInt                       @id @default(autoincrement())
+  tenantId                BigInt                       @map("tenant_id")
+  parentArtifactVersionId BigInt                       @map("parent_artifact_version_id")
+  nodeKey                 String                       @map("node_key") @db.VarChar(120)
+  childArtifactId         BigInt                       @map("child_artifact_id")
+  // Pinned child version: executions of the parent always run this exact version,
+  // never "latest", so a parent approval stays reproducible.
+  childArtifactVersionId  BigInt                       @map("child_artifact_version_id")
+  // { [childInputVariableCode]: { source: 'VARIABLE'|'LITERAL', path?, value? } }
+  inputMappingJson        Json                         @map("input_mapping_json")
+  // { [parentContextKey]: childOutputCode }
+  outputMappingJson       Json                         @map("output_mapping_json")
+  timeoutMs               Int                          @default(2000) @map("timeout_ms")
+  onErrorPolicy           ArtifactReferenceErrorPolicy @default(FAIL) @map("on_error_policy")
+  fallbackOutputJson      Json?                        @map("fallback_output_json")
+  // Execution scope: when set, only principals holding this role may create or
+  // edit the reference; enforced in the service layer on top of route RBAC.
+  requiredRole            String?                      @map("required_role") @db.VarChar(80)
+  createdBy               String                       @map("created_by") @db.VarChar(160)
+  createdAt               DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime                     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([parentArtifactVersionId, nodeKey])
+  @@index([tenantId, childArtifactId])
+  @@index([childArtifactVersionId])
+  @@map("decision_artifact_reference")
+}
+
+model DecisionExecutionTreeLink {
+  id                     BigInt   @id @default(autoincrement())
+  tenantId               BigInt   @map("tenant_id")
+  // The one persisted DecisionExecution this distributed trace hangs off. Nested
+  // invocations run fully in-memory during engine execution (see execution-engine
+  // recursion) and are only known once the ROOT execution is written, so every row
+  // for one request shares the same rootExecutionId/parentExecutionId; `sequence` /
+  // `parentSequence` reconstruct the actual call tree shape below the root.
+  rootExecutionId        BigInt   @map("root_execution_id")
+  parentExecutionId      BigInt   @map("parent_execution_id")
+  // Preorder position of this call within the root execution's nested-call trace.
+  sequence               Int
+  // sequence of the nested call that invoked this one; null for a direct child of the
+  // root artifact's own graph (depth 1).
+  parentSequence         Int?     @map("parent_sequence")
+  nodeKey                String   @map("node_key") @db.VarChar(120)
+  // Null only for a FALLBACK/SKIP entry recorded before a child version could even be
+  // resolved (e.g. the reference itself was missing) — every SUCCEEDED entry has one.
+  childArtifactVersionId BigInt?  @map("child_artifact_version_id")
+  // Null when the child ran in-memory (the common case: nested calls are not given
+  // their own DecisionExecution row) or failed before persistence.
+  childExecutionId       BigInt?  @map("child_execution_id")
+  depth                  Int
+  status                 String   @db.VarChar(30)
+  durationMs             Int      @map("duration_ms")
+  outputJson             Json?    @map("output_json")
+  errorJson              Json?    @map("error_json")
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([rootExecutionId, sequence])
+  @@index([tenantId, rootExecutionId])
+  @@index([parentExecutionId, nodeKey])
+  @@map("decision_execution_tree_link")
+}
+
+enum CodeImportStatus {
+  ANALYZED
+  DRAFT_SAVED
+  CONFIRMED
+  CANCELLED
+}
+
+model DecisionCodeImport {
+  id                BigInt           @id @default(autoincrement())
+  tenantId          BigInt           @map("tenant_id")
+  artifactId        BigInt?          @map("artifact_id")
+  artifactVersionId BigInt?          @map("artifact_version_id")
+  language          String           @db.VarChar(30)
+  sourceCode        String           @map("source_code") @db.Text
+  sourceChecksum    String           @map("source_checksum") @db.VarChar(128)
+  contractVersion   String           @map("contract_version") @db.VarChar(20)
+  contractJson      Json             @map("contract_json")
+  irJson            Json             @map("ir_json")
+  issuesJson        Json             @map("issues_json")
+  status            CodeImportStatus @default(ANALYZED)
+  createdBy         String           @map("created_by") @db.VarChar(160)
+  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([tenantId, status, createdAt])
+  @@index([artifactVersionId])
+  @@map("decision_code_import")
+}
+
+// >>> END feature/rebanadas-2-a-5 additive block <<<

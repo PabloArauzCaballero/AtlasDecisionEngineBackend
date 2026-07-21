@@ -97,4 +97,78 @@ describe('ExecutionEngineService', () => {
     });
     await expect(engine.execute(compiled, { score: 700 })).rejects.toThrow('required output scoring');
   });
+
+  describe('nested artifact references (Fase 7)', () => {
+    function referenceCompiled() {
+      const compiled = compiledFixture();
+      compiled.variables.push({
+        variableVersionId: '11', usageType: 'OUTPUT_PRIMARY', dependencyPath: 'output.riskLevel',
+        code: 'riskLevel', version: 1, dataType: 'STRING', nullable: false,
+        validationRules: [], sources: [], required: true, fallbackPolicy: 'FAIL_CLOSED', sensitive: false,
+      });
+      compiled.nodes = {
+        START: compiled.nodes.START,
+        NESTED_CHECK: {
+          id: '5',
+          key: 'NESTED_CHECK',
+          type: 'RESULT',
+          label: 'Nested reference',
+          config: {
+            mode: 'REFERENCE',
+            outputAssignments: [{ outputCode: 'riskLevel', childOutputCode: 'level' }],
+          },
+          x: 100,
+          y: 0,
+          order: 2,
+          terminal: true,
+          conditions: [],
+          actions: [],
+        },
+      };
+      compiled.edgesByNode = {
+        START: [{ key: 'START_RESULT', from: 'START', to: 'NESTED_CHECK', type: 'DEFAULT', priority: 1, default: true, conditions: [] }],
+        NESTED_CHECK: [],
+      };
+      return compiled as unknown as CompiledDecisionArtifact;
+    }
+
+    it('fails closed with NESTED_REFERENCE_NOT_CONFIGURED when no resolver is supplied', async () => {
+      await expect(engine.execute(referenceCompiled(), { score: 700 })).rejects.toMatchObject({
+        code: 'NESTED_REFERENCE_NOT_CONFIGURED',
+      });
+    });
+
+    it('invokes the resolver, maps its output, and records a nested trace entry', async () => {
+      const resolver = {
+        resolve: jest.fn().mockResolvedValue({
+          output: { level: 'HIGH' },
+          trace: [
+            {
+              sequence: 1,
+              parentSequence: null,
+              depth: 1,
+              nodeKey: 'NESTED_CHECK',
+              childArtifactVersionId: '99',
+              status: 'SUCCEEDED',
+              durationMs: 5,
+              output: { level: 'HIGH' },
+            },
+          ],
+        }),
+      };
+      const compiled = referenceCompiled();
+      const result = await engine.execute(compiled, { score: 700 }, resolver);
+
+      expect(resolver.resolve).toHaveBeenCalledWith(
+        compiled.version.id,
+        'NESTED_CHECK',
+        expect.any(Object),
+        { sequence: { value: 0 }, parentSequence: null, depth: 1 },
+      );
+      expect(result.output.riskLevel).toBe('HIGH');
+      expect(result.nestedExecutions).toEqual([
+        expect.objectContaining({ nodeKey: 'NESTED_CHECK', status: 'SUCCEEDED', childArtifactVersionId: '99' }),
+      ]);
+    });
+  });
 });

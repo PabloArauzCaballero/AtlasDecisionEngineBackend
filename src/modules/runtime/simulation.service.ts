@@ -2,7 +2,9 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import { DomainException } from '../../common/errors/domain-exception';
 import { DeploymentResolverService } from '../deployments/deployment-resolver.service';
 import { ExecutionEngineService } from '../graph/execution-engine.service';
+import { NestedTreeExecutionService } from '../nested-trees/nested-tree-execution.service';
 import { VariableResolutionService } from '../variables/variable-resolution.service';
+import type { AuthenticatedPrincipal } from '../../common/security/security.types';
 import { SimulateDecisionDto } from './simulation.dto';
 
 /** Executes a deterministic dry-run without decision, idempotency or audit persistence. */
@@ -12,12 +14,14 @@ export class SimulationService {
     private readonly deployments: DeploymentResolverService,
     private readonly variables: VariableResolutionService,
     private readonly engine: ExecutionEngineService,
+    private readonly nestedTrees: NestedTreeExecutionService,
   ) {}
 
   async simulate(
     tenantId: bigint,
     artifactCode: string,
     dto: SimulateDecisionDto,
+    principal: AuthenticatedPrincipal,
   ): Promise<Record<string, unknown>> {
     const environmentCode = dto.environmentCode.toUpperCase();
     if (environmentCode === 'PROD') {
@@ -73,7 +77,11 @@ export class SimulationService {
       };
     }
 
-    const result = await this.engine.execute(deployment.compiled, resolution.values);
+    const result = await this.engine.execute(
+      deployment.compiled,
+      resolution.values,
+      this.nestedTrees.bind(tenantId, principal),
+    );
     return {
       simulation: true,
       persisted: false,
@@ -97,6 +105,7 @@ export class SimulationService {
         nodes: result.visitedNodeKeys,
         edges: result.traversedEdgeKeys,
         terminal: result.terminalNodeKey,
+        nested: result.nestedExecutions,
       },
       durationMs: Math.max(0, Math.round(performance.now() - started)),
     };

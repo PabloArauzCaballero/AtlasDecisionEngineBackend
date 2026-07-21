@@ -5,12 +5,15 @@ import { ExpressionEvaluator } from './expression-evaluator';
 import { renderTemplate } from './template-reference';
 import { ScriptNodeRunnerService, type ScriptLanguage } from './script-node-runner.service';
 import type {
+  ArtifactReferenceResolver,
   CompiledDecisionArtifact,
   DecisionReasonResult,
   EngineExecutionResult,
   GraphActionSnapshot,
   GraphEdgeSnapshot,
   GraphNodeSnapshot,
+  NestedExecutionTraceEntry,
+  NestedReferenceCursor,
 } from './graph.types';
 
 interface MutableExecutionState {
@@ -39,11 +42,20 @@ export class ExecutionEngineService {
   async execute(
     compiled: CompiledDecisionArtifact,
     variables: Record<string, unknown>,
+    referenceResolver?: ArtifactReferenceResolver,
+    // The nesting position this execute() call itself runs at. Omitted by root callers
+    // (RuntimeService, SimulationService), who get the default depth-1/no-parent cursor
+    // below. NestedTreeExecutionService passes the cursor for the nested call it is
+    // about to make, so trace entries get globally unique, correctly-parented sequence
+    // numbers across the whole recursive tree — see graph.types.ts.
+    nestedCursor?: NestedReferenceCursor,
   ): Promise<EngineExecutionResult> {
     const state: MutableExecutionState = { outcome: 'NO_DECISION', output: {} , reasons: [] };
     const trace: EngineExecutionResult['trace'] = [];
     const visitedNodeKeys: string[] = [];
     const traversedEdgeKeys: string[] = [];
+    const nestedExecutions: NestedExecutionTraceEntry[] = [];
+    const cursor = nestedCursor ?? { sequence: { value: 0 }, parentSequence: null, depth: 1 };
     let currentKey: string | undefined = compiled.startNodeKey;
     let terminalNodeKey: string | undefined;
 
@@ -61,7 +73,16 @@ export class ExecutionEngineService {
         this.executeActions(node, compiled, variables, state, evaluation);
       }
       if (node.type === 'RESULT') {
-        await this.evaluateResultNode(node, compiled, variables, state, evaluation);
+        await this.evaluateResultNode(
+          node,
+          compiled,
+          variables,
+          state,
+          evaluation,
+          referenceResolver,
+          cursor,
+          nestedExecutions,
+        );
       }
       if (node.type === 'MANUAL_REVIEW') {
         state.outcome = 'MANUAL_REVIEW';
@@ -143,6 +164,7 @@ export class ExecutionEngineService {
       traversedEdgeKeys,
       terminalNodeKey,
       manualReview: state.manualReview,
+      nestedExecutions,
     };
   }
 
@@ -152,6 +174,9 @@ export class ExecutionEngineService {
     variables: Record<string, unknown>,
     state: MutableExecutionState,
     evaluation: Record<string, unknown>,
+    referenceResolver: ArtifactReferenceResolver | undefined,
+    cursor: NestedReferenceCursor,
+    nestedExecutions: NestedExecutionTraceEntry[],
   ): Promise<void> {
     const mode = String(node.config.mode ?? 'MAPPING').toUpperCase();
     const values: Record<string, unknown> = {};
@@ -165,6 +190,28 @@ export class ExecutionEngineService {
         values,
         await this.scripts.execute(language, String(script.source ?? ''), this.context(variables, state)),
       );
+    } else if (mode === 'REFERENCE') {
+      if (!referenceResolver) {
+        throw new DomainException(
+          'NESTED_REFERENCE_NOT_CONFIGURED',
+          `RESULT node ${node.key} invokes a nested artifact reference, but no reference resolver was supplied to this execution`,
+        );
+      }
+      const resolution = await referenceResolver.resolve(
+        compiled.version.id,
+        node.key,
+        this.context(variables, state),
+        cursor,
+      );
+      nestedExecutions.push(...resolution.trace);
+      const outputAssignments = Array.isArray(node.config.outputAssignments) ? node.config.outputAssignments : [];
+      for (const raw of outputAssignments) {
+        const assignment = raw as Record<string, unknown>;
+        const outputCode = String(assignment.outputCode ?? '');
+        const childOutputCode = String(assignment.childOutputCode ?? '');
+        values[outputCode] = resolution.output[childOutputCode];
+      }
+      evaluation.reference = { nodeKey: node.key, outputCount: outputAssignments.length };
     } else if (mode === 'MAPPING') {
       const assignments = Array.isArray(node.config.assignments) ? node.config.assignments : [];
       for (const raw of assignments) {

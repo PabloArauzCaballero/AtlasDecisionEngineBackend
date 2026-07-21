@@ -2,7 +2,27 @@ import { Injectable } from '@nestjs/common';
 import { TestCaseRunStatus } from '@prisma/client';
 import { ExecutionEngineService } from '../graph/execution-engine.service';
 import type { CompiledDecisionArtifact } from '../graph/graph.types';
+import { NestedTreeExecutionService } from '../nested-trees/nested-tree-execution.service';
+import type { AuthenticatedPrincipal } from '../../common/security/security.types';
 import { VariableResolutionService } from '../variables/variable-resolution.service';
+
+/**
+ * The async test-run worker has no per-request principal (it is not driven by an HTTP
+ * call), but NestedTreeExecutionService.bind() only reads tenantId at execution time —
+ * principal identity there is plumbing for future use, not an authorization check
+ * (authoring RBAC for a reference is enforced once, at NestedTreeService create/update
+ * time). This synthetic principal makes that explicit rather than fabricating a real user.
+ */
+function systemPrincipal(tenantId: bigint): AuthenticatedPrincipal {
+  return {
+    id: 'system:test-run-worker',
+    tenantId,
+    roles: [],
+    audience: 'management',
+    requestId: 'test-run-worker',
+    authMethod: 'jwt',
+  };
+}
 
 export interface TestAssertionResult {
   path: string;
@@ -35,6 +55,7 @@ export class TestCaseExecutorService {
   constructor(
     private readonly engine: ExecutionEngineService,
     private readonly variables: VariableResolutionService,
+    private readonly nestedTrees: NestedTreeExecutionService,
   ) {}
 
   async execute(input: {
@@ -57,7 +78,13 @@ export class TestCaseExecutorService {
     try {
       const rawInput = this.asRecord(testCase.inputJson);
       const inputVariables = this.asRecord(rawInput.variables ?? rawInput);
-      const resolution = await this.variables.resolve(payload.variables, inputVariables, {
+      // Configurable outputs (RESULT nodes) are produced by the engine, never supplied
+      // by the caller — resolving them as required input would always report them
+      // "missing". RuntimeService/SimulationService already filter these the same way.
+      const inputContracts = payload.variables.filter(
+        (variable) => !String(variable.usageType ?? 'INPUT').startsWith('OUTPUT'),
+      );
+      const resolution = await this.variables.resolve(inputContracts, inputVariables, {
         tenantId,
         artifactCode,
         requestId: `test-${runId.toString()}-${testCase.caseCode}`,
@@ -67,7 +94,11 @@ export class TestCaseExecutorService {
       if (!resolution.valid) {
         actual = { outcome: 'NO_DECISION', variableErrors: resolution.errors };
       } else {
-        const result = await this.engine.execute(payload, resolution.values);
+        const result = await this.engine.execute(
+          payload,
+          resolution.values,
+          this.nestedTrees.bind(tenantId, systemPrincipal(tenantId)),
+        );
         visitedNodeKeys = result.visitedNodeKeys;
         traversedEdgeKeys = result.traversedEdgeKeys;
         terminalNodeKey = result.terminalNodeKey;
