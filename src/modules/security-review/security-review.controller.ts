@@ -1,10 +1,16 @@
 import { Controller, Get, Header, Param } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { parseBigIntId } from '../../common/http/id';
+import { PlatformRole } from '../../common/security/platform-roles';
 import { Roles, TenantId } from '../../common/security/security.decorators';
 import { SecurityReviewService } from './security-review.service';
 
-const SECURITY_TEAM_ROLES = ['COMPLIANCE', 'FRAUD_ANALYST', 'RISK_APPROVER', 'AUDITOR'];
+const SECURITY_TEAM_ROLES: PlatformRole[] = [
+  PlatformRole.COMPLIANCE,
+  PlatformRole.FRAUD_ANALYST,
+  PlatformRole.RISK_APPROVER,
+  PlatformRole.AUDITOR,
+];
 
 @ApiTags('Security Review')
 @Controller('v1/security-review')
