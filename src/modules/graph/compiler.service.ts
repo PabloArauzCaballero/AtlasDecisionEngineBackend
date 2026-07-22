@@ -8,7 +8,10 @@ export class CompilerService {
 
   constructor(private readonly hashes: HashService) {}
 
-  compile(snapshot: ArtifactGraphSnapshot, terminalPaths: number): {
+  compile(
+    snapshot: ArtifactGraphSnapshot,
+    terminalPaths: number,
+  ): {
     compiled: CompiledDecisionArtifact;
     checksum: string;
   } {
@@ -33,7 +36,9 @@ export class CompilerService {
             .sort((a, b) => a.priority - b.priority || a.key.localeCompare(b.key)),
         ]),
       ),
-      conditions: Object.fromEntries(snapshot.conditions.map((condition) => [condition.code, condition])),
+      conditions: Object.fromEntries(
+        snapshot.conditions.map((condition) => [condition.code, condition]),
+      ),
       actions: Object.fromEntries(snapshot.actions.map((action) => [action.code, action])),
       totals: { nodes: snapshot.nodes.length, edges: snapshot.edges.length, terminalPaths },
     };

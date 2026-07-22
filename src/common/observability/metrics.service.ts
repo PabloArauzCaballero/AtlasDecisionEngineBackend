@@ -1,79 +1,145 @@
 import { Injectable } from '@nestjs/common';
-
-interface RequestMetric {
-  count: number;
-  durationMsTotal: number;
-  durationMsMax: number;
-}
+import { Counter, Gauge, Histogram, Registry } from 'prom-client';
 
 /**
- * In-process metrics registry rendered in Prometheus exposition format.
+ * Prometheus metrics backed by prom-client.
  *
- * Labels are intentionally bounded to known route, outcome and provider dimensions.
+ * The previous in-process Map tracked only sum/count/max per route, so there was no way
+ * to compute p95/p99 — the SLI that actually matters for an online decision engine — and
+ * the max gauge was monotonic for the life of the process (it never decayed, so a single
+ * slow request made the panel look permanently degraded). A Histogram with latency
+ * buckets lets Prometheus derive real quantiles, and per-replica scraping aggregates
+ * correctly across pods.
+ *
+ * Each instance owns its Registry rather than the global default one, so constructing a
+ * second service (in tests, or a second Nest context) never trips prom-client's
+ * "metric already registered" guard.
  */
 @Injectable()
 export class MetricsService {
+  private readonly registry = new Registry();
   private readonly startedAt = Date.now();
-  private readonly requests = new Map<string, RequestMetric>();
-  private readonly decisions = new Map<string, number>();
-  private readonly providerFailures = new Map<string, number>();
+
+  private readonly httpRequests = new Counter({
+    name: 'atlas_http_requests_total',
+    help: 'Total HTTP requests.',
+    labelNames: ['method', 'route', 'status'],
+    registers: [this.registry],
+  });
+
+  // Buckets in milliseconds, tuned for an online decision endpoint: dense below 250ms
+  // where the SLO lives, then coarser out to the timeout ceiling.
+  private readonly httpDuration = new Histogram({
+    name: 'atlas_http_request_duration_ms',
+    help: 'HTTP request duration in milliseconds.',
+    labelNames: ['method', 'route', 'status'],
+    buckets: [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000],
+    registers: [this.registry],
+  });
+
+  private readonly decisions = new Counter({
+    name: 'atlas_decisions_total',
+    help: 'Total decision executions by outcome and status.',
+    labelNames: ['outcome', 'status'],
+    registers: [this.registry],
+  });
+
+  private readonly providerFailures = new Counter({
+    name: 'atlas_provider_failures_total',
+    help: 'External provider resolution failures.',
+    labelNames: ['provider', 'reason'],
+    registers: [this.registry],
+  });
+
+  private readonly errors = new Counter({
+    name: 'atlas_errors_total',
+    help: 'Handled errors by domain code.',
+    labelNames: ['code'],
+    registers: [this.registry],
+  });
+
+  private readonly uptime = new Gauge({
+    name: 'atlas_process_uptime_seconds',
+    help: 'Process uptime in seconds.',
+    registers: [this.registry],
+  });
+
+  // Depth of the transactional outbox backlog. Sampled by the relay on every poll; a
+  // sustained climb means dispatch is failing or cannot keep up with producers.
+  private readonly outboxPending = new Gauge({
+    name: 'atlas_outbox_pending',
+    help: 'Outbox events currently PENDING dispatch.',
+    registers: [this.registry],
+  });
+
+  private readonly outboxDispatched = new Counter({
+    name: 'atlas_outbox_dispatched_total',
+    help: 'Outbox events successfully dispatched to the event bus.',
+    labelNames: ['event_type'],
+    registers: [this.registry],
+  });
+
+  private readonly outboxDead = new Counter({
+    name: 'atlas_outbox_dead_total',
+    help: 'Outbox events moved to the DEAD letter state after exhausting retries.',
+    labelNames: ['event_type'],
+    registers: [this.registry],
+  });
+
+  private readonly notificationsCreated = new Counter({
+    name: 'atlas_notification_created_total',
+    help: 'Notifications projected into the inbox, by originating event type.',
+    labelNames: ['event_type'],
+    registers: [this.registry],
+  });
 
   recordRequest(method: string, route: string, status: number, durationMs: number): void {
-    const key = JSON.stringify([method, route, String(status)]);
-    const current = this.requests.get(key) ?? { count: 0, durationMsTotal: 0, durationMsMax: 0 };
-    current.count += 1;
-    current.durationMsTotal += durationMs;
-    current.durationMsMax = Math.max(current.durationMsMax, durationMs);
-    this.requests.set(key, current);
+    const labels = { method, route, status: String(status) };
+    this.httpRequests.inc(labels);
+    this.httpDuration.observe(labels, durationMs);
   }
 
   recordDecision(outcome: string, status: string): void {
-    const key = JSON.stringify([outcome || 'UNKNOWN', status || 'UNKNOWN']);
-    this.decisions.set(key, (this.decisions.get(key) ?? 0) + 1);
+    this.decisions.inc({ outcome: outcome || 'UNKNOWN', status: status || 'UNKNOWN' });
   }
 
   /** Increments an external-provider failure counter by provider and normalized reason. */
   recordProviderFailure(provider: string, reason: string): void {
-    const key = JSON.stringify([provider || 'UNKNOWN', reason || 'UNKNOWN']);
-    this.providerFailures.set(key, (this.providerFailures.get(key) ?? 0) + 1);
+    this.providerFailures.inc({ provider: provider || 'UNKNOWN', reason: reason || 'UNKNOWN' });
   }
 
-  /** Renders the current registry using the Prometheus text exposition format. */
-  renderPrometheus(): string {
-    const lines = [
-      '# HELP atlas_process_uptime_seconds Process uptime in seconds.',
-      '# TYPE atlas_process_uptime_seconds gauge',
-      `atlas_process_uptime_seconds ${Math.floor((Date.now() - this.startedAt) / 1000)}`,
-      '# HELP atlas_http_requests_total Total HTTP requests.',
-      '# TYPE atlas_http_requests_total counter',
-    ];
-
-    for (const [key, metric] of this.requests) {
-      const [method, route, status] = JSON.parse(key) as string[];
-      const labels = `method="${this.escape(method)}",route="${this.escape(route)}",status="${this.escape(status)}"`;
-      lines.push(`atlas_http_requests_total{${labels}} ${metric.count}`);
-      lines.push(`atlas_http_request_duration_ms_sum{${labels}} ${metric.durationMsTotal.toFixed(3)}`);
-      lines.push(`atlas_http_request_duration_ms_count{${labels}} ${metric.count}`);
-      lines.push(`atlas_http_request_duration_ms_max{${labels}} ${metric.durationMsMax.toFixed(3)}`);
-    }
-
-    lines.push('# HELP atlas_decisions_total Total decision executions by outcome and status.');
-    lines.push('# TYPE atlas_decisions_total counter');
-    for (const [key, count] of this.decisions) {
-      const [outcome, status] = JSON.parse(key) as string[];
-      lines.push(`atlas_decisions_total{outcome="${this.escape(outcome)}",status="${this.escape(status)}"} ${count}`);
-    }
-
-    lines.push('# HELP atlas_provider_failures_total External provider resolution failures.');
-    lines.push('# TYPE atlas_provider_failures_total counter');
-    for (const [key, count] of this.providerFailures) {
-      const [provider, reason] = JSON.parse(key) as string[];
-      lines.push(`atlas_provider_failures_total{provider="${this.escape(provider)}",reason="${this.escape(reason)}"} ${count}`);
-    }
-    return `${lines.join('\n')}\n`;
+  /**
+   * Counts a handled error by its stable domain code (e.g. LOCK_CONFLICT, HTTP_404,
+   * INTERNAL_ERROR). The code is a bounded, curated dimension — codes are string
+   * constants in the codebase, not caller-controlled — so it is safe as a label.
+   */
+  recordError(code: string): void {
+    this.errors.inc({ code: code || 'UNKNOWN' });
   }
 
-  private escape(value: string): string {
-    return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
+  /** Records the current PENDING depth of the transactional outbox. */
+  setOutboxPending(count: number): void {
+    this.outboxPending.set(count);
+  }
+
+  /** Counts an outbox event delivered to the bus. Event types are catalogue constants, safe as labels. */
+  recordOutboxDispatched(eventType: string): void {
+    this.outboxDispatched.inc({ event_type: eventType || 'UNKNOWN' });
+  }
+
+  /** Counts an outbox event dead-lettered after exhausting its retry budget. */
+  recordOutboxDead(eventType: string): void {
+    this.outboxDead.inc({ event_type: eventType || 'UNKNOWN' });
+  }
+
+  /** Counts a notification projected into the inbox from a domain event. */
+  recordNotificationCreated(eventType: string): void {
+    this.notificationsCreated.inc({ event_type: eventType || 'UNKNOWN' });
+  }
+
+  /** Renders the registry in the Prometheus text exposition format. */
+  async renderPrometheus(): Promise<string> {
+    this.uptime.set(Math.floor((Date.now() - this.startedAt) / 1000));
+    return this.registry.metrics();
   }
 }

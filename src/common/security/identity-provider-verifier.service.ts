@@ -17,7 +17,11 @@ export class IdentityProviderVerifierService {
     const profile = await this.identityProvider.profile(accessToken);
     const roles = mapIdentityRoles([...profile.user.roles, ...profile.user.legacyRoles]);
     if (!roles.length) {
-      throw new DomainException('FORBIDDEN', 'The identity has no Decision Engine role', HttpStatus.FORBIDDEN);
+      throw new DomainException(
+        'FORBIDDEN',
+        'The identity has no Decision Engine role',
+        HttpStatus.FORBIDDEN,
+      );
     }
     return {
       subject: profile.user.id,

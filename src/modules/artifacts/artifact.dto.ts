@@ -65,7 +65,9 @@ export class ActionDto {
   @IsOptional() @IsObject() payloadSchema?: Record<string, unknown>;
   @IsObject() payload!: Record<string, unknown>;
   @IsBoolean() terminal!: boolean;
-  @IsArray() @ValidateNested({ each: true }) @Type(() => ActionReasonDto)
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ActionReasonDto)
   reasonCodes!: ActionReasonDto[];
 }
 
@@ -82,7 +84,19 @@ export class NodeActionBindingDto {
 
 export class NodeDto {
   @IsString() @Matches(/^[A-Za-z0-9_\-]{2,120}$/) key!: string;
-  @IsIn(['START', 'CONDITION', 'SWITCH', 'EXPRESSION', 'DECISION_TABLE', 'SCORE', 'ACTION', 'RESULT', 'MANUAL_REVIEW', 'END']) type!:
+  @IsIn([
+    'START',
+    'CONDITION',
+    'SWITCH',
+    'EXPRESSION',
+    'DECISION_TABLE',
+    'SCORE',
+    'ACTION',
+    'RESULT',
+    'MANUAL_REVIEW',
+    'END',
+  ])
+  type!:
     | 'START'
     | 'CONDITION'
     | 'SWITCH'
@@ -99,9 +113,13 @@ export class NodeDto {
   @IsNumber() y!: number;
   @IsInt() @Min(0) order!: number;
   @IsBoolean() terminal!: boolean;
-  @IsArray() @ValidateNested({ each: true }) @Type(() => NodeConditionBindingDto)
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => NodeConditionBindingDto)
   conditions!: NodeConditionBindingDto[];
-  @IsArray() @ValidateNested({ each: true }) @Type(() => NodeActionBindingDto)
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => NodeActionBindingDto)
   actions!: NodeActionBindingDto[];
 }
 
@@ -117,24 +135,42 @@ export class EdgeDto {
   @IsString() type!: string;
   @IsInt() @Min(0) priority!: number;
   @IsBoolean() default!: boolean;
-  @IsArray() @ValidateNested({ each: true }) @Type(() => EdgeConditionBindingDto)
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => EdgeConditionBindingDto)
   conditions!: EdgeConditionBindingDto[];
 }
 
 export class ReplaceGraphDto {
-  @IsArray() @ArrayMaxSize(200) @ValidateNested({ each: true }) @Type(() => DependencyDto)
+  @IsArray()
+  @ArrayMaxSize(200)
+  @ValidateNested({ each: true })
+  @Type(() => DependencyDto)
   dependencies!: DependencyDto[];
 
-  @IsArray() @ArrayMaxSize(500) @ValidateNested({ each: true }) @Type(() => ConditionDto)
+  @IsArray()
+  @ArrayMaxSize(500)
+  @ValidateNested({ each: true })
+  @Type(() => ConditionDto)
   conditions!: ConditionDto[];
 
-  @IsArray() @ArrayMaxSize(500) @ValidateNested({ each: true }) @Type(() => ActionDto)
+  @IsArray()
+  @ArrayMaxSize(500)
+  @ValidateNested({ each: true })
+  @Type(() => ActionDto)
   actions!: ActionDto[];
 
-  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(500) @ValidateNested({ each: true }) @Type(() => NodeDto)
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(500)
+  @ValidateNested({ each: true })
+  @Type(() => NodeDto)
   nodes!: NodeDto[];
 
-  @IsArray() @ArrayMaxSize(2000) @ValidateNested({ each: true }) @Type(() => EdgeDto)
+  @IsArray()
+  @ArrayMaxSize(2000)
+  @ValidateNested({ each: true })
+  @Type(() => EdgeDto)
   edges!: EdgeDto[];
 }
 

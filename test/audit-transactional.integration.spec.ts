@@ -4,6 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import { AuditService } from '../src/common/audit/audit.service';
 import { HashService } from '../src/common/crypto/hash.service';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
+import { uniqueTenantId } from './support/unique-tenant';
 
 /**
  * Audit must be atomic with the action it records. An event that commits on its own
@@ -15,13 +16,15 @@ const describeDb = DATABASE_URL ? describe : describe.skip;
 
 describeDb('AuditService transactionality (integration)', () => {
   const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: DATABASE_URL }) });
-  const hashes = new HashService(new ConfigService({ AUDIT_HASH_SECRET: 'audit-secret-with-at-least-32-characters!!' }));
+  const hashes = new HashService(
+    new ConfigService({ AUDIT_HASH_SECRET: 'audit-secret-with-at-least-32-characters!!' }),
+  );
   const audit = new AuditService(prisma as unknown as PrismaService, hashes);
   // The audit table is append-only at the database level, so these rows can never be
   // cleaned up. Each test therefore isolates itself with a tenant id of its own rather
   // than by deleting what the previous one wrote.
   let tenantId: bigint;
-  let nextTenant = BigInt(770_000_000) + BigInt(process.pid % 100_000) * 1000n;
+  let nextTenant = uniqueTenantId(4);
 
   const eventsFor = () => prisma.decisionAuditEvent.findMany({ where: { tenantId } });
 

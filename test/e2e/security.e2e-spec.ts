@@ -82,7 +82,20 @@ describe('Security guards (e2e)', () => {
         dependencies,
         conditions: [],
         actions: [],
-        nodes: [{ key: 'START', type: 'START', label: 'Start', config: {}, x: 0, y: 0, order: 1, terminal: false, conditions: [], actions: [] }],
+        nodes: [
+          {
+            key: 'START',
+            type: 'START',
+            label: 'Start',
+            config: {},
+            x: 0,
+            y: 0,
+            order: 1,
+            terminal: false,
+            conditions: [],
+            actions: [],
+          },
+        ],
         edges: [],
       })
       .expect(400);

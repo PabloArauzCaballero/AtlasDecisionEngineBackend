@@ -1,5 +1,5 @@
-import { Type } from "class-transformer";
-import { PaginationQueryDto } from "../../common/http/pagination";
+import { Type } from 'class-transformer';
+import { PaginationQueryDto } from '../../common/http/pagination';
 import {
   IsArray,
   IsBoolean,
@@ -10,7 +10,7 @@ import {
   IsString,
   Min,
   ValidateNested,
-} from "class-validator";
+} from 'class-validator';
 
 export class SubmitReviewDto {
   @IsOptional() @IsString() workflowCode?: string;
@@ -26,8 +26,8 @@ export class ApprovalEvidenceDto {
 }
 
 export class RecordApprovalDecisionDto {
-  @IsIn(["APPROVE", "REQUEST_CHANGES", "REJECT"])
-  decision!: "APPROVE" | "REQUEST_CHANGES" | "REJECT";
+  @IsIn(['APPROVE', 'REQUEST_CHANGES', 'REJECT'])
+  decision!: 'APPROVE' | 'REQUEST_CHANGES' | 'REJECT';
   @IsOptional() @IsString() comments?: string;
   @IsArray()
   @ValidateNested({ each: true })

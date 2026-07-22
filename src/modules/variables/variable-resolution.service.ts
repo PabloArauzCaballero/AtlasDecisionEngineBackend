@@ -75,7 +75,11 @@ export class VariableResolutionService {
       let defaulted = false;
       let sourceCode = value === undefined ? 'UNRESOLVED' : 'REQUEST_PAYLOAD';
 
-      if (value === undefined && contract.defaultValue !== undefined && contract.fallbackPolicy !== 'FAIL') {
+      if (
+        value === undefined &&
+        contract.defaultValue !== undefined &&
+        contract.fallbackPolicy !== 'FAIL'
+      ) {
         value = contract.defaultValue;
         values[contract.code] = value;
         defaulted = true;
@@ -93,11 +97,13 @@ export class VariableResolutionService {
         }
       } else {
         const validationErrors = this.validateValue(contract, value);
-        errors.push(...validationErrors.map((message) => ({
-          code: 'VARIABLE_MISSING_OR_INVALID',
-          variable: contract.code,
-          message,
-        })));
+        errors.push(
+          ...validationErrors.map((message) => ({
+            code: 'VARIABLE_MISSING_OR_INVALID',
+            variable: contract.code,
+            message,
+          })),
+        );
       }
 
       // Sensitive values are often low-entropy PII (an age, an ID, a boolean), for which a
@@ -114,7 +120,9 @@ export class VariableResolutionService {
         storedValue: contract.sensitive ? null : value,
         valueHash,
         sourceCode,
-        resolutionStatus: errors.some((error) => error.variable === contract.code) ? 'INVALID' : 'RESOLVED',
+        resolutionStatus: errors.some((error) => error.variable === contract.code)
+          ? 'INVALID'
+          : 'RESOLVED',
         wasDefaulted: defaulted,
         sensitive: contract.sensitive,
       });
@@ -126,9 +134,12 @@ export class VariableResolutionService {
     const errors: string[] = [];
     const type = contract.dataType.toUpperCase();
     const validType =
-      (['STRING', 'TEXT', 'UUID', 'DATE', 'DATETIME'].includes(type) && typeof value === 'string') ||
+      (['STRING', 'TEXT', 'UUID', 'DATE', 'DATETIME'].includes(type) &&
+        typeof value === 'string') ||
       (['INTEGER', 'INT'].includes(type) && typeof value === 'number' && Number.isInteger(value)) ||
-      (['NUMBER', 'DECIMAL', 'FLOAT'].includes(type) && typeof value === 'number' && Number.isFinite(value)) ||
+      (['NUMBER', 'DECIMAL', 'FLOAT'].includes(type) &&
+        typeof value === 'number' &&
+        Number.isFinite(value)) ||
       (['BOOLEAN', 'BOOL'].includes(type) && typeof value === 'boolean') ||
       (type === 'ARRAY' && Array.isArray(value)) ||
       (type === 'OBJECT' && value !== null && typeof value === 'object' && !Array.isArray(value));
@@ -136,32 +147,44 @@ export class VariableResolutionService {
 
     const schema = (contract.validationSchema ?? {}) as Record<string, unknown>;
     if (typeof value === 'number') {
-      if (typeof schema.minimum === 'number' && value < schema.minimum) errors.push(`${contract.code} is below minimum ${schema.minimum}`);
-      if (typeof schema.exclusiveMinimum === 'number' && value <= schema.exclusiveMinimum) errors.push(`${contract.code} must be greater than ${schema.exclusiveMinimum}`);
-      if (typeof schema.maximum === 'number' && value > schema.maximum) errors.push(`${contract.code} is above maximum ${schema.maximum}`);
-      if (typeof schema.exclusiveMaximum === 'number' && value >= schema.exclusiveMaximum) errors.push(`${contract.code} must be lower than ${schema.exclusiveMaximum}`);
+      if (typeof schema.minimum === 'number' && value < schema.minimum)
+        errors.push(`${contract.code} is below minimum ${schema.minimum}`);
+      if (typeof schema.exclusiveMinimum === 'number' && value <= schema.exclusiveMinimum)
+        errors.push(`${contract.code} must be greater than ${schema.exclusiveMinimum}`);
+      if (typeof schema.maximum === 'number' && value > schema.maximum)
+        errors.push(`${contract.code} is above maximum ${schema.maximum}`);
+      if (typeof schema.exclusiveMaximum === 'number' && value >= schema.exclusiveMaximum)
+        errors.push(`${contract.code} must be lower than ${schema.exclusiveMaximum}`);
     }
     if (typeof value === 'string') {
-      if (typeof schema.minLength === 'number' && value.length < schema.minLength) errors.push(`${contract.code} is shorter than ${schema.minLength}`);
-      if (typeof schema.maxLength === 'number' && value.length > schema.maxLength) errors.push(`${contract.code} is longer than ${schema.maxLength}`);
-      if (typeof schema.pattern === 'string' && !safeRegexTest(schema.pattern, value).matched) errors.push(`${contract.code} does not match required pattern`);
+      if (typeof schema.minLength === 'number' && value.length < schema.minLength)
+        errors.push(`${contract.code} is shorter than ${schema.minLength}`);
+      if (typeof schema.maxLength === 'number' && value.length > schema.maxLength)
+        errors.push(`${contract.code} is longer than ${schema.maxLength}`);
+      if (typeof schema.pattern === 'string' && !safeRegexTest(schema.pattern, value).matched)
+        errors.push(`${contract.code} does not match required pattern`);
     }
-    if (Array.isArray(schema.enum) && !schema.enum.includes(value)) errors.push(`${contract.code} is outside the allowed enum`);
+    if (Array.isArray(schema.enum) && !schema.enum.includes(value))
+      errors.push(`${contract.code} is outside the allowed enum`);
 
     for (const rule of contract.validationRules) {
       const config = rule.config as Record<string, unknown>;
       switch (rule.ruleType.toUpperCase()) {
         case 'MIN':
-          if (typeof value === 'number' && value < Number(config.value)) errors.push(`${rule.errorCode}: below minimum`);
+          if (typeof value === 'number' && value < Number(config.value))
+            errors.push(`${rule.errorCode}: below minimum`);
           break;
         case 'MAX':
-          if (typeof value === 'number' && value > Number(config.value)) errors.push(`${rule.errorCode}: above maximum`);
+          if (typeof value === 'number' && value > Number(config.value))
+            errors.push(`${rule.errorCode}: above maximum`);
           break;
         case 'REGEX':
-          if (typeof value === 'string' && !safeRegexTest(String(config.pattern), value).matched) errors.push(`${rule.errorCode}: pattern mismatch`);
+          if (typeof value === 'string' && !safeRegexTest(String(config.pattern), value).matched)
+            errors.push(`${rule.errorCode}: pattern mismatch`);
           break;
         case 'ENUM':
-          if (Array.isArray(config.values) && !config.values.includes(value)) errors.push(`${rule.errorCode}: value not allowed`);
+          if (Array.isArray(config.values) && !config.values.includes(value))
+            errors.push(`${rule.errorCode}: value not allowed`);
           break;
       }
     }
@@ -199,7 +222,8 @@ export class VariableResolutionService {
       const body = (await response.json()) as { values?: Record<string, unknown> };
       return body.values ?? {};
     } catch (error) {
-      const reason = error instanceof Error && error.name === 'AbortError' ? 'timeout' : 'unreachable';
+      const reason =
+        error instanceof Error && error.name === 'AbortError' ? 'timeout' : 'unreachable';
       this.reportFailure(reason, codes, options);
       return {};
     } finally {

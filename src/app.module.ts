@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { validateEnvironment } from './common/config/env.schema';
 import { AuditModule } from './common/audit/audit.module';
 import { CacheModule } from './common/cache/cache.module';
+import { EventsModule } from './common/events/events.module';
 import { CryptoModule } from './common/crypto/crypto.module';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { SecurityModule } from './common/security/security.module';
@@ -17,8 +18,11 @@ import { HealthModule } from './modules/health/health.module';
 import { LiveExecutionModule } from './modules/live-execution/live-execution.module';
 import { ManualReviewModule } from './modules/manual-review/manual-review.module';
 import { NestedTreesModule } from './modules/nested-trees/nested-trees.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { OutboxRelayModule } from './modules/outbox-relay/outbox-relay.module';
 import { RuntimeModule } from './modules/runtime/runtime.module';
 import { SecurityReviewModule } from './modules/security-review/security-review.module';
+import { SeedingModule } from './modules/seeding/seeding.module';
 import { TestingModule } from './modules/testing/testing.module';
 import { TraceabilityModule } from './modules/traceability/traceability.module';
 import { VariableModule } from './modules/variables/variable.module';
@@ -34,9 +38,11 @@ import { IdentitySessionModule } from './modules/identity-session/identity-sessi
     }),
     ObservabilityModule,
     PrismaModule,
+    SeedingModule,
     CryptoModule,
     CacheModule,
     AuditModule,
+    EventsModule,
     SecurityModule,
     HealthModule,
     IdentitySessionModule,
@@ -51,6 +57,8 @@ import { IdentitySessionModule } from './modules/identity-session/identity-sessi
     RuntimeModule,
     LiveExecutionModule,
     ManualReviewModule,
+    NotificationsModule,
+    OutboxRelayModule,
     AuditQueryModule,
     TraceabilityModule,
     SecurityReviewModule,

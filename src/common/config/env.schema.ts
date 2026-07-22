@@ -18,6 +18,12 @@ export const envSchema = z
     PORT: z.coerce.number().int().min(1).max(65_535).default(3000),
     BUILD_VERSION: z.string().max(80).default('2.0.0'),
     COMMIT_SHA: z.string().max(80).default('local'),
+    // The published API contract version, deliberately separate from BUILD_VERSION: the build
+    // changes on every release, the contract only on a breaking change. Consumers pin to this.
+    API_VERSION: z
+      .string()
+      .regex(/^v[0-9]+$/)
+      .default('v1'),
 
     DATABASE_URL: z.string().min(1),
     DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(100).default(15),
@@ -87,6 +93,13 @@ export const envSchema = z
     LOG_FILE_PATH: z.string().min(1).default('logs/atlas-decision-engine.log'),
     ACCESS_AUDIT_ENABLED: booleanFromString.default(true),
 
+    // Distributed tracing. Read directly from process.env by observability/tracing.ts (it runs
+    // before the Nest container exists); declared here so the values are still validated and
+    // documented rather than being undeclared magic strings.
+    OTEL_ENABLED: booleanFromString.default(false),
+    OTEL_SERVICE_NAME: z.string().max(120).default('atlas-decision-engine'),
+    OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: optionalUrl,
+
     VARIABLE_BACKEND_URL: optionalUrl,
     VARIABLE_BACKEND_TIMEOUT_MS: z.coerce.number().int().min(100).max(30_000).default(1_500),
     AUDIT_HASH_SECRET: z.string().min(32),
@@ -115,10 +128,29 @@ export const envSchema = z
     SCRIPT_NODE_MAX_SOURCE_BYTES: z.coerce.number().int().min(1).max(65_536).default(16_384),
     SCRIPT_NODE_MAX_OUTPUT_BYTES: z.coerce.number().int().min(1_024).max(1_048_576).default(65_536),
     IDEMPOTENCY_TTL_HOURS: z.coerce.number().int().min(1).max(720).default(24),
+    // Short lease held while a decision is PROCESSING, so a crashed holder frees the key in
+    // seconds instead of blocking it for the full response TTL. Must be declared here or the
+    // schema strips it and IdempotencyService silently falls back to its 60s default.
+    IDEMPOTENCY_LEASE_SECONDS: z.coerce.number().int().min(1).max(3_600).default(60),
+    // Retention sweep for expired runtime idempotency rows. The table is the highest
+    // volume in the system and every row already carries an expiry, so a background
+    // purge keeps it from growing without bound. Disable only for tests that assert on
+    // idempotency rows directly.
+    RUNTIME_RETENTION_SWEEP_ENABLED: booleanFromString.default(true),
+    RUNTIME_RETENTION_SWEEP_INTERVAL_MS: z.coerce
+      .number()
+      .int()
+      .min(60_000)
+      .max(86_400_000)
+      .default(3_600_000),
+    // Extra margin kept beyond expiry before a row is eligible for deletion, so an
+    // in-flight replay racing expiry is never purged out from under itself.
+    RUNTIME_IDEMPOTENCY_RETENTION_GRACE_HOURS: z.coerce.number().int().min(0).max(720).default(24),
+    // Upper bound on rows deleted per statement, so a purge never holds a long lock.
+    RUNTIME_RETENTION_SWEEP_BATCH: z.coerce.number().int().min(100).max(50_000).default(1_000),
     MAX_PAGE_SIZE: z.coerce.number().int().min(10).max(500).default(100),
 
     // ---------------------------------------------------------------------
-    // >>> BEGIN feature/rebanadas-2-a-5 (additive block — reconcile on merge)
     // Nested decision trees (Fase 7), Code->Flow import (Fase 5), live
     // execution stream (Fase 8).
     // ---------------------------------------------------------------------
@@ -126,12 +158,25 @@ export const envSchema = z
     NESTED_TREE_DEFAULT_TIMEOUT_MS: z.coerce.number().int().min(50).max(60_000).default(2_000),
     CODE_IMPORT_MAX_SOURCE_BYTES: z.coerce.number().int().min(1_024).max(1_048_576).default(131_072),
     CODE_IMPORT_ANALYSIS_TIMEOUT_MS: z.coerce.number().int().min(100).max(10_000).default(2_000),
-    // Live execution stream (Fase 8) consumes the event bus the Rebanada 1 event-driven
-    // slice publishes to (src/common/events/**, not edited here). Disabled by default so
-    // this slice stays inert until that bus is merged and wired.
+    // Live execution stream (Fase 8) can additionally publish to the event bus below.
     LIVE_EXECUTION_STREAM_ENABLED: booleanFromString.default(false),
     LIVE_EXECUTION_STREAM_HEARTBEAT_MS: z.coerce.number().int().min(1_000).max(60_000).default(15_000),
-    // >>> END feature/rebanadas-2-a-5 additive block <<<
+
+    // Transactional outbox relay (event-driven backbone). The relay claims PENDING events
+    // with a short lease and dispatches them to the in-process bus; disable only in tests
+    // that drive dispatch manually or in replicas that must not run background workers.
+    OUTBOX_RELAY_ENABLED: booleanFromString.default(true),
+    OUTBOX_RELAY_INTERVAL_MS: z.coerce.number().int().min(100).max(60_000).default(1_000),
+    OUTBOX_BATCH_SIZE: z.coerce.number().int().min(1).max(500).default(25),
+    // Failed dispatches back off exponentially via available_at; after this many attempts
+    // the event is dead-lettered (status DEAD) for operator attention.
+    OUTBOX_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(50).default(8),
+    // Claim lease: a relay replica that dies mid-batch frees its rows after this lapse.
+    OUTBOX_LEASE_MS: z.coerce.number().int().min(1_000).max(600_000).default(30_000),
+    // Idempotently injects bootstrap seeds (every environment) and mockup/demo seeds
+    // (development only) at application startup. Left unset it is on everywhere except
+    // `test`, where suites provision their own fixtures. Set explicitly to force either way.
+    STARTUP_SEED_ENABLED: booleanFromString.optional(),
   })
   .superRefine((value, ctx) => {
     const requiresApiKeys =

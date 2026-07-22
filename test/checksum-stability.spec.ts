@@ -8,7 +8,9 @@ import { HashService } from '../src/common/crypto/hash.service';
  * keys, so these lock that guarantee in.
  */
 describe('Checksum stability', () => {
-  const hashes = new HashService(new ConfigService({ AUDIT_HASH_SECRET: 'test-secret-with-at-least-32-characters!' }));
+  const hashes = new HashService(
+    new ConfigService({ AUDIT_HASH_SECRET: 'test-secret-with-at-least-32-characters!' }),
+  );
 
   it('produces the same sha256 for the same config written with keys in different order', () => {
     const a = { threshold: 600, band: 'A', weights: { income: 0.5, score: 0.5 } };
@@ -17,8 +19,20 @@ describe('Checksum stability', () => {
   });
 
   it('produces the same sha256 for nested arrays and objects regardless of key order', () => {
-    const a = { nodes: [{ id: 1, op: 'gte' }, { id: 2, op: 'lt' }], meta: { v: 1, tag: 'x' } };
-    const b = { meta: { tag: 'x', v: 1 }, nodes: [{ op: 'gte', id: 1 }, { op: 'lt', id: 2 }] };
+    const a = {
+      nodes: [
+        { id: 1, op: 'gte' },
+        { id: 2, op: 'lt' },
+      ],
+      meta: { v: 1, tag: 'x' },
+    };
+    const b = {
+      meta: { tag: 'x', v: 1 },
+      nodes: [
+        { op: 'gte', id: 1 },
+        { op: 'lt', id: 2 },
+      ],
+    };
     expect(hashes.sha256(a)).toBe(hashes.sha256(b));
   });
 

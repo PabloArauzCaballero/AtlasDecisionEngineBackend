@@ -1,5 +1,28 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
+import {
+  IsIn,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
+
+/** Catalog fields exposed by vw_form_option for the portal create-form selects. */
+export const FORM_OPTION_GROUPS = [
+  'variableDataType',
+  'dataClassification',
+  'ownerTeam',
+  'reasonSeverity',
+  'reasonCategory',
+  'artifactType',
+  'riskDomain',
+] as const;
+
+export type FormOptionGroup = (typeof FORM_OPTION_GROUPS)[number];
 
 export class ArtifactPickerQueryDto {
   @IsOptional() @IsString() @MaxLength(120) search?: string;
@@ -33,4 +56,8 @@ export class NodeScriptListQueryDto {
 export class GlobalSearchQueryDto {
   @IsString() @MinLength(2) @MaxLength(120) q!: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(50) limit?: number;
+}
+
+export class FormOptionQueryDto {
+  @IsString() @IsIn([...FORM_OPTION_GROUPS]) group!: FormOptionGroup;
 }

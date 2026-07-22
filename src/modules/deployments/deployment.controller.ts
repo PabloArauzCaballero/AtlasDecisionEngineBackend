@@ -1,13 +1,14 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { parseBigIntId } from '../../common/http/id';
-import {
-  CurrentPrincipal,
-  Roles,
-  TenantId,
-} from '../../common/security/security.decorators';
+import { CurrentPrincipal, Roles, TenantId } from '../../common/security/security.decorators';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
-import { DeployVersionDto, DeploymentListQueryDto, RollbackDeploymentDto, SuspendDeploymentDto } from './deployment.dto';
+import {
+  DeployVersionDto,
+  DeploymentListQueryDto,
+  RollbackDeploymentDto,
+  SuspendDeploymentDto,
+} from './deployment.dto';
 import { DeploymentService } from './deployment.service';
 
 @ApiTags('Decision Deployments')
@@ -29,12 +30,7 @@ export class DeploymentController {
     @Param('versionId') versionId: string,
     @Body() dto: DeployVersionDto,
   ) {
-    return this.deployments.deploy(
-      tenantId,
-      parseBigIntId(versionId, 'versionId'),
-      dto,
-      principal,
-    );
+    return this.deployments.deploy(tenantId, parseBigIntId(versionId, 'versionId'), dto, principal);
   }
 
   @Post('deployments/:deploymentId/rollback')

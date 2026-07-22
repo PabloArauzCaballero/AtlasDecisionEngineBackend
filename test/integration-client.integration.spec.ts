@@ -42,7 +42,11 @@ describeDb('IntegrationClientService (integration)', () => {
         credentials: {
           create: [
             { secretHash: hashes.sha256(secrets.active), label: 'active', status: 'ACTIVE' },
-            { secretHash: hashes.sha256(secrets.revokedCredential), label: 'revoked', status: 'REVOKED' },
+            {
+              secretHash: hashes.sha256(secrets.revokedCredential),
+              label: 'revoked',
+              status: 'REVOKED',
+            },
             {
               secretHash: hashes.sha256(secrets.expired),
               label: 'expired',
@@ -62,7 +66,9 @@ describeDb('IntegrationClientService (integration)', () => {
         status: 'SUSPENDED',
         scopes: { create: [{ scope: 'DECISION_CONSUMER' }] },
         tenantAccess: { create: [{ tenantId: 7n }] },
-        credentials: { create: [{ secretHash: hashes.sha256(secrets.suspendedClient), label: 'k' }] },
+        credentials: {
+          create: [{ secretHash: hashes.sha256(secrets.suspendedClient), label: 'k' }],
+        },
       },
     });
 

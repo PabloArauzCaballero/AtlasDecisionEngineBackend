@@ -31,11 +31,12 @@ export class RateLimitGuard implements CanActivate {
     const principal = request.principal;
     if (!principal) return true;
     const windowSeconds = this.config.get<number>('RATE_LIMIT_WINDOW_SECONDS') ?? 60;
-    const limit = this.config.get<number>(
-      principal.audience === 'runtime'
-        ? 'RATE_LIMIT_RUNTIME_REQUESTS'
-        : 'RATE_LIMIT_MANAGEMENT_REQUESTS',
-    ) ?? 300;
+    const limit =
+      this.config.get<number>(
+        principal.audience === 'runtime'
+          ? 'RATE_LIMIT_RUNTIME_REQUESTS'
+          : 'RATE_LIMIT_MANAGEMENT_REQUESTS',
+      ) ?? 300;
     const route = `${context.getClass().name}.${context.getHandler().name}`;
     const result = await this.cache.consumeFixedWindow(
       `rate:${principal.audience}:${principal.tenantId}:${principal.id}:${route}`,
@@ -43,7 +44,10 @@ export class RateLimitGuard implements CanActivate {
     );
     response.setHeader('x-ratelimit-limit', String(limit));
     response.setHeader('x-ratelimit-remaining', String(Math.max(0, limit - result.count)));
-    response.setHeader('x-ratelimit-reset', String(Math.ceil(Date.now() / 1_000) + result.ttlSeconds));
+    response.setHeader(
+      'x-ratelimit-reset',
+      String(Math.ceil(Date.now() / 1_000) + result.ttlSeconds),
+    );
     if (result.count > limit) {
       response.setHeader('retry-after', String(result.ttlSeconds));
       throw new DomainException(

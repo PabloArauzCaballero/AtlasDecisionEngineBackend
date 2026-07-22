@@ -36,7 +36,11 @@ export class VersionStateService {
       select: { status: true },
     });
     if (!version) {
-      throw new DomainException('VERSION_NOT_FOUND', 'Artifact version not found', HttpStatus.NOT_FOUND);
+      throw new DomainException(
+        'VERSION_NOT_FOUND',
+        'Artifact version not found',
+        HttpStatus.NOT_FOUND,
+      );
     }
     if (version.status === to) return;
     if (!allowedTransitions[version.status].includes(to)) {

@@ -27,13 +27,13 @@ export class TrafficRuleDto {
 export class DeployVersionDto {
   @IsString() environmentCode!: string;
   @IsIn(['DIRECT', 'CANARY', 'CHAMPION_CHALLENGER']) deploymentMode!:
-    | 'DIRECT'
-    | 'CANARY'
-    | 'CHAMPION_CHALLENGER';
+    'DIRECT' | 'CANARY' | 'CHAMPION_CHALLENGER';
   @IsOptional() @IsDateString() effectiveFrom?: string;
   @IsOptional() @IsDateString() effectiveTo?: string;
   @IsOptional() @IsString() compiledArtifactId?: string;
-  @IsArray() @ValidateNested({ each: true }) @Type(() => TrafficRuleDto)
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TrafficRuleDto)
   traffic!: TrafficRuleDto[];
 }
 

@@ -4,6 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import { HashService } from '../src/common/crypto/hash.service';
 import { AuditQueryService } from '../src/modules/audit-query/audit-query.service';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
+import { uniqueTenantId } from './support/unique-tenant';
 
 /**
  * Regression: listAuditEvents used to filter DecisionAuditEvent by a
@@ -23,7 +24,7 @@ describeDb('AuditQueryService date filtering (integration)', () => {
   );
   // The audit table is append-only at the database level, so this run cannot clean up
   // after itself and must not see rows written by a previous one: it uses its own tenant.
-  const tenantId = BigInt(990_000_000) + BigInt(process.pid % 1_000_000);
+  const tenantId = uniqueTenantId(5);
 
   beforeAll(async () => {
     await prisma.decisionAuditEvent.create({

@@ -36,7 +36,9 @@ export class AccessAuditInterceptor implements NestInterceptor {
           },
         })
         .catch((error: unknown) => {
-          this.logger.error(`Failed to persist access audit: ${error instanceof Error ? error.message : String(error)}`);
+          this.logger.error(
+            `Failed to persist access audit: ${error instanceof Error ? error.message : String(error)}`,
+          );
         });
 
     return next.handle().pipe(

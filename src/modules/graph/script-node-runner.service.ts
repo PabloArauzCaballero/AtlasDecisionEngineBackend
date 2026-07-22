@@ -106,7 +106,8 @@ export class ScriptNodeRunnerService {
 
   constructor(config: ConfigService) {
     this.enabled = config.get<boolean>('SCRIPT_NODES_ENABLED') ?? false;
-    this.mode = (config.get<ScriptRunnerMode>('SCRIPT_RUNNER_MODE') ?? 'IN_PROCESS') as ScriptRunnerMode;
+    this.mode = (config.get<ScriptRunnerMode>('SCRIPT_RUNNER_MODE') ??
+      'IN_PROCESS') as ScriptRunnerMode;
     this.isProduction = config.get<string>('NODE_ENV') === 'production';
     this.socketPath =
       config.get<string>('SCRIPT_RUNNER_SOCKET_PATH') ?? '/var/run/atlas-runner/runner.sock';
@@ -136,7 +137,10 @@ export class ScriptNodeRunnerService {
       );
     }
     if (Buffer.byteLength(source, 'utf8') > this.maxSourceBytes) {
-      throw new DomainException('SCRIPT_SOURCE_TOO_LARGE', `Script exceeds ${this.maxSourceBytes} bytes`);
+      throw new DomainException(
+        'SCRIPT_SOURCE_TOO_LARGE',
+        `Script exceeds ${this.maxSourceBytes} bytes`,
+      );
     }
     return this.mode === 'SIDECAR'
       ? this.executeViaSidecar(language, source, context)
@@ -165,16 +169,20 @@ export class ScriptNodeRunnerService {
     throw new DomainException(code, message);
   }
 
-  private postToSidecar(
-    body: string,
-  ): Promise<{ statusCode: number; payload?: { ok: boolean; code?: string; message?: string; result?: unknown } }> {
+  private postToSidecar(body: string): Promise<{
+    statusCode: number;
+    payload?: { ok: boolean; code?: string; message?: string; result?: unknown };
+  }> {
     return new Promise((resolve, reject) => {
       const request = http.request(
         {
           socketPath: this.socketPath,
           path: '/execute',
           method: 'POST',
-          headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) },
+          headers: {
+            'content-type': 'application/json',
+            'content-length': Buffer.byteLength(body),
+          },
           timeout: this.timeoutMs + 500,
         },
         (response) => {
@@ -183,7 +191,10 @@ export class ScriptNodeRunnerService {
           response.on('data', (chunk) => (raw += chunk));
           response.on('end', () => {
             try {
-              resolve({ statusCode: response.statusCode ?? 500, payload: raw ? JSON.parse(raw) : undefined });
+              resolve({
+                statusCode: response.statusCode ?? 500,
+                payload: raw ? JSON.parse(raw) : undefined,
+              });
             } catch {
               resolve({ statusCode: response.statusCode ?? 500 });
             }
@@ -209,7 +220,8 @@ export class ScriptNodeRunnerService {
     context: Record<string, unknown>,
   ): Record<string, unknown> {
     const input = JSON.stringify({ source, context, timeoutMs: this.timeoutMs });
-    const command = language === 'PYTHON' ? process.env.PYTHON_EXECUTABLE || 'python' : process.execPath;
+    const command =
+      language === 'PYTHON' ? process.env.PYTHON_EXECUTABLE || 'python' : process.execPath;
     const args =
       language === 'PYTHON'
         ? ['-I', '-S', '-B', '-c', PYTHON_WRAPPER]
@@ -225,14 +237,20 @@ export class ScriptNodeRunnerService {
     if (execution.error || execution.status !== 0) {
       // Do not reflect stderr: it can contain source lines or sensitive values.
       const errorCode = (execution.error as NodeJS.ErrnoException | undefined)?.code;
-      const reason = errorCode === 'ETIMEDOUT' ? 'timed out' : `exited with status ${execution.status ?? 'unknown'}`;
+      const reason =
+        errorCode === 'ETIMEDOUT'
+          ? 'timed out'
+          : `exited with status ${execution.status ?? 'unknown'}`;
       throw new DomainException('SCRIPT_EXECUTION_FAILED', `RESULT ${language} script ${reason}`);
     }
     let result: unknown;
     try {
       result = JSON.parse(execution.stdout || 'null');
     } catch {
-      throw new DomainException('SCRIPT_INVALID_OUTPUT', 'RESULT script must return a JSON-serializable object');
+      throw new DomainException(
+        'SCRIPT_INVALID_OUTPUT',
+        'RESULT script must return a JSON-serializable object',
+      );
     }
     if (!result || typeof result !== 'object' || Array.isArray(result)) {
       throw new DomainException(

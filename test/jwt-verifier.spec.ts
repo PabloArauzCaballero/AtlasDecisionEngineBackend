@@ -14,9 +14,15 @@ describe('JwtVerifierService', () => {
   const originalFetch = global.fetch;
 
   beforeEach(() => {
-    global.fetch = jest.fn(async () => new Response(JSON.stringify({
-      keys: [{ ...jwk, kid: 'atlas-key-1', alg: 'RS256', use: 'sig' }],
-    }), { status: 200, headers: { 'content-type': 'application/json' } })) as typeof fetch;
+    global.fetch = jest.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            keys: [{ ...jwk, kid: 'atlas-key-1', alg: 'RS256', use: 'sig' }],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+    ) as typeof fetch;
   });
 
   afterAll(() => {
@@ -24,17 +30,19 @@ describe('JwtVerifierService', () => {
   });
 
   function service(): JwtVerifierService {
-    return new JwtVerifierService(new ConfigService({
-      JWT_JWKS_URL: 'https://identity.atlas.example/.well-known/jwks.json',
-      JWT_ISSUER: issuer,
-      JWT_MANAGEMENT_AUDIENCE: audience,
-      JWT_RUNTIME_AUDIENCE: 'atlas-decision-runtime',
-      JWT_TENANT_CLAIM: 'tenant_id',
-      JWT_ROLES_CLAIM: 'roles',
-      JWT_JWKS_CACHE_SECONDS: 900,
-      JWT_JWKS_TIMEOUT_MS: 3000,
-      JWT_CLOCK_SKEW_SECONDS: 0,
-    }));
+    return new JwtVerifierService(
+      new ConfigService({
+        JWT_JWKS_URL: 'https://identity.atlas.example/.well-known/jwks.json',
+        JWT_ISSUER: issuer,
+        JWT_MANAGEMENT_AUDIENCE: audience,
+        JWT_RUNTIME_AUDIENCE: 'atlas-decision-runtime',
+        JWT_TENANT_CLAIM: 'tenant_id',
+        JWT_ROLES_CLAIM: 'roles',
+        JWT_JWKS_CACHE_SECONDS: 900,
+        JWT_JWKS_TIMEOUT_MS: 3000,
+        JWT_CLOCK_SKEW_SECONDS: 0,
+      }),
+    );
   }
 
   function token(overrides: Record<string, unknown> = {}): string {
@@ -50,7 +58,9 @@ describe('JwtVerifierService', () => {
       roles: ['risk_analyst', 'auditor'],
       ...overrides,
     });
-    const signature = sign('RSA-SHA256', Buffer.from(`${header}.${payload}`), privateKey).toString('base64url');
+    const signature = sign('RSA-SHA256', Buffer.from(`${header}.${payload}`), privateKey).toString(
+      'base64url',
+    );
     return `${header}.${payload}.${signature}`;
   }
 
@@ -65,13 +75,15 @@ describe('JwtVerifierService', () => {
   });
 
   it('rejects a token for the wrong audience', async () => {
-    await expect(service().verify(token({ aud: 'another-service' }), 'management'))
-      .rejects.toMatchObject({ code: 'UNAUTHORIZED', status: 401 });
+    await expect(
+      service().verify(token({ aud: 'another-service' }), 'management'),
+    ).rejects.toMatchObject({ code: 'UNAUTHORIZED', status: 401 });
   });
 
   it('rejects an expired token', async () => {
     const now = Math.floor(Date.now() / 1000);
-    await expect(service().verify(token({ exp: now - 1, iat: now - 300 }), 'management'))
-      .rejects.toMatchObject({ code: 'UNAUTHORIZED', status: 401 });
+    await expect(
+      service().verify(token({ exp: now - 1, iat: now - 300 }), 'management'),
+    ).rejects.toMatchObject({ code: 'UNAUTHORIZED', status: 401 });
   });
 });

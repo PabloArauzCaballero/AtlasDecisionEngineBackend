@@ -1,5 +1,9 @@
 import type { PrismaClient } from '@prisma/client';
 import { createHash } from 'node:crypto';
+// A plain constant array, not a Nest provider, so importing it keeps the seed's
+// no-framework boundary intact while pinning the roles to the same source of truth the
+// guard and mapper use.
+import { PLATFORM_ROLES } from '../../../common/security/platform-roles';
 
 export interface BootstrapClientSummary {
   clientKey: string;
@@ -30,7 +34,9 @@ function parseList(value: string | undefined, fallback: string[]): string[] {
  *
  * Idempotent by client key, so running the seed twice converges on the same state.
  */
-export async function seedIntegrationClients(prisma: PrismaClient): Promise<BootstrapClientSummary[]> {
+export async function seedIntegrationClients(
+  prisma: PrismaClient,
+): Promise<BootstrapClientSummary[]> {
   const tenantId = BigInt(process.env.BOOTSTRAP_TENANT_ID ?? '1');
   const definitions = [
     {
@@ -41,19 +47,7 @@ export async function seedIntegrationClients(prisma: PrismaClient): Promise<Boot
       // PLATFORM_ADMIN as a wildcard is only honoured on signed tokens, so the
       // bootstrap API key is granted every enforced management role explicitly instead —
       // otherwise a fresh install could not administer anything before the IdP is wired up.
-      roles: parseList(
-        process.env.BOOTSTRAP_MANAGEMENT_ROLES,
-        [
-          'AUDITOR',
-          'COMPLIANCE',
-          'FRAUD_ANALYST',
-          'OPERATIONS',
-          'PLATFORM_ADMIN',
-          'QA_ANALYST',
-          'RISK_ANALYST',
-          'RISK_APPROVER',
-        ],
-      ),
+      roles: parseList(process.env.BOOTSTRAP_MANAGEMENT_ROLES, [...PLATFORM_ROLES]),
     },
     {
       clientKey: 'bootstrap-runtime',
@@ -76,7 +70,11 @@ export async function seedIntegrationClients(prisma: PrismaClient): Promise<Boot
         audience: definition.audience,
         status: 'ACTIVE',
       },
-      update: { displayName: definition.displayName, audience: definition.audience, status: 'ACTIVE' },
+      update: {
+        displayName: definition.displayName,
+        audience: definition.audience,
+        status: 'ACTIVE',
+      },
     });
 
     // Scopes and tenant access are replaced wholesale so that removing a role from

@@ -6,6 +6,7 @@ import {
   ArtifactInputContractQueryDto,
   ArtifactPickerQueryDto,
   ArtifactVersionPickerQueryDto,
+  FormOptionQueryDto,
   GlobalSearchQueryDto,
   NodeScriptListQueryDto,
   TestRunPickerQueryDto,
@@ -44,6 +45,12 @@ export class ViewsController {
   @Roles(...READ_ROLES)
   variables(@TenantId() tenantId: bigint, @Query() query: VariablePickerQueryDto) {
     return this.views.variablePicker(tenantId, query);
+  }
+
+  @Get('options')
+  @Roles(...READ_ROLES)
+  options(@TenantId() tenantId: bigint, @Query() query: FormOptionQueryDto) {
+    return this.views.formOptions(tenantId, query.group);
   }
 
   @Get('pickers/test-suites')

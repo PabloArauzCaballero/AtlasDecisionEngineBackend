@@ -17,11 +17,11 @@ docker compose up -d postgres redis
 Prepare la base y la aplicación:
 
 ```bash
-npm ci
-npm run prisma:generate
-npm run prisma:migrate
-npm run prisma:seed
-npm run start:dev
+yarn install --frozen-lockfile
+yarn prisma:generate
+yarn prisma:migrate
+yarn prisma:seed
+yarn start:dev
 ```
 
 El seed registra las claves bootstrap en el catálogo de clientes de integración. Si cambia `MANAGEMENT_API_KEY`, `RUNTIME_API_KEY`, `BOOTSTRAP_TENANT_ID` o los scopes, vuelva a ejecutar el seed.

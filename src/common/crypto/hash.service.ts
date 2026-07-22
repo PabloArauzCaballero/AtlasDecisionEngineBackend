@@ -35,7 +35,8 @@ export class HashService {
   }
 
   private secretForKey(keyId: string): string {
-    if (keyId === this.activeHashKeyId()) return this.config.getOrThrow<string>('AUDIT_HASH_SECRET');
+    if (keyId === this.activeHashKeyId())
+      return this.config.getOrThrow<string>('AUDIT_HASH_SECRET');
     const retired = this.retiredSecrets()[keyId];
     if (!retired) throw new Error(`No audit hash secret configured for key id "${keyId}"`);
     return retired;

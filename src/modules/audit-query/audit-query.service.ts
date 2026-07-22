@@ -3,8 +3,12 @@ import { ConfigService } from '@nestjs/config';
 import { DomainException } from '../../common/errors/domain-exception';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { HashService } from '../../common/crypto/hash.service';
-import { pageResult, paginationArgs } from '../../common/http/pagination';
-import { AuditEventSearchQueryDto, ExecutionSearchQueryDto } from './audit-query.dto';
+import { keysetArgs, keysetPage, pageResult, paginationArgs } from '../../common/http/pagination';
+import {
+  AuditEventKeysetQueryDto,
+  AuditEventSearchQueryDto,
+  ExecutionSearchQueryDto,
+} from './audit-query.dto';
 
 @Injectable()
 export class AuditQueryService {
@@ -33,7 +37,11 @@ export class AuditQueryService {
       },
     });
     if (!execution) {
-      throw new DomainException('EXECUTION_NOT_FOUND', 'Decision execution not found', HttpStatus.NOT_FOUND);
+      throw new DomainException(
+        'EXECUTION_NOT_FOUND',
+        'Decision execution not found',
+        HttpStatus.NOT_FOUND,
+      );
     }
     return execution;
   }
@@ -76,12 +84,12 @@ export class AuditQueryService {
     return pageResult(items, total, page, pageSize);
   }
 
-  async listAuditEvents(tenantId: bigint, filters: AuditEventSearchQueryDto) {
-    const { skip, take, page, pageSize } = paginationArgs(
-      filters,
-      this.config.get<number>('MAX_PAGE_SIZE') ?? 100,
-    );
-    const where = {
+  /** Shared filter for both the offset and cursor views of the audit log. */
+  private auditEventWhere(
+    tenantId: bigint,
+    filters: AuditEventSearchQueryDto | AuditEventKeysetQueryDto,
+  ) {
+    return {
       tenantId,
       ...(filters.eventType ? { eventType: filters.eventType } : {}),
       ...(filters.aggregateType ? { aggregateType: filters.aggregateType } : {}),
@@ -97,11 +105,39 @@ export class AuditQueryService {
           }
         : {}),
     };
+  }
+
+  async listAuditEvents(tenantId: bigint, filters: AuditEventSearchQueryDto) {
+    const { skip, take, page, pageSize } = paginationArgs(
+      filters,
+      this.config.get<number>('MAX_PAGE_SIZE') ?? 100,
+    );
+    const where = this.auditEventWhere(tenantId, filters);
     const [items, total] = await this.prisma.$transaction([
       this.prisma.decisionAuditEvent.findMany({ where, orderBy: { id: 'desc' }, skip, take }),
       this.prisma.decisionAuditEvent.count({ where }),
     ]);
     return pageResult(items, total, page, pageSize);
+  }
+
+  /**
+   * Cursor-paginated view of the same audit log. Seeks by primary key instead of counting
+   * and discarding rows, so latency stays flat however deep the caller walks — and it skips
+   * the `count(*)` that offset paging pays on every page of an ever-growing table.
+   */
+  async listAuditEventsByCursor(tenantId: bigint, filters: AuditEventKeysetQueryDto) {
+    const {
+      take,
+      pageSize,
+      orderBy,
+      where: cursorWhere,
+    } = keysetArgs(filters, this.config.get<number>('MAX_PAGE_SIZE') ?? 100);
+    const rows = await this.prisma.decisionAuditEvent.findMany({
+      where: { ...this.auditEventWhere(tenantId, filters), ...cursorWhere },
+      orderBy,
+      take,
+    });
+    return keysetPage(rows, pageSize);
   }
 
   async verifyAuditChain(tenantId: bigint) {
@@ -170,9 +206,7 @@ export class AuditQueryService {
   async metrics(tenantId: bigint, artifactCode?: string) {
     const where = {
       tenantId,
-      ...(artifactCode
-        ? { artifactVersion: { artifact: { artifactCode } } }
-        : {}),
+      ...(artifactCode ? { artifactVersion: { artifact: { artifactCode } } } : {}),
     };
     const [outcomes, statuses, latency, total] = await Promise.all([
       this.prisma.decisionExecution.groupBy({
@@ -195,7 +229,10 @@ export class AuditQueryService {
     ]);
     return {
       total,
-      outcomes: outcomes.map((item) => ({ outcome: item.businessOutcome, count: item._count._all })),
+      outcomes: outcomes.map((item) => ({
+        outcome: item.businessOutcome,
+        count: item._count._all,
+      })),
       statuses: statuses.map((item) => ({ status: item.decisionStatus, count: item._count._all })),
       latencyMs: latency,
     };

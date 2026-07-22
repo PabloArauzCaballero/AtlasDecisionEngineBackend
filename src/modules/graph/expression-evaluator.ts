@@ -72,25 +72,40 @@ export class ExpressionEvaluator {
           context,
         );
       case 'add':
-        return args.reduce<number>((sum, arg) => sum + this.asNumber(this.evaluate(arg, context)), 0);
+        return args.reduce<number>(
+          (sum, arg) => sum + this.asNumber(this.evaluate(arg, context)),
+          0,
+        );
       case 'sub': {
         const values = args.map((arg) => this.asNumber(this.evaluate(arg, context)));
         return values.slice(1).reduce((result, item) => result - item, values[0] ?? 0);
       }
       case 'mul':
-        return args.reduce<number>((product, arg) => product * this.asNumber(this.evaluate(arg, context)), 1);
+        return args.reduce<number>(
+          (product, arg) => product * this.asNumber(this.evaluate(arg, context)),
+          1,
+        );
       case 'div': {
         const left = this.asNumber(this.evaluate(node.left ?? args[0], context));
         const right = this.asNumber(this.evaluate(node.right ?? args[1], context));
-        if (right === 0) throw new DomainException('EXPRESSION_DIVISION_BY_ZERO', 'Division by zero');
+        if (right === 0)
+          throw new DomainException('EXPRESSION_DIVISION_BY_ZERO', 'Division by zero');
         return left / right;
       }
       case 'min': {
-        if (!args.length) throw new DomainException('EXPRESSION_INVALID_ARGUMENTS', 'min requires at least one argument');
+        if (!args.length)
+          throw new DomainException(
+            'EXPRESSION_INVALID_ARGUMENTS',
+            'min requires at least one argument',
+          );
         return Math.min(...args.map((arg) => this.asNumber(this.evaluate(arg, context))));
       }
       case 'max': {
-        if (!args.length) throw new DomainException('EXPRESSION_INVALID_ARGUMENTS', 'max requires at least one argument');
+        if (!args.length)
+          throw new DomainException(
+            'EXPRESSION_INVALID_ARGUMENTS',
+            'max requires at least one argument',
+          );
         return Math.max(...args.map((arg) => this.asNumber(this.evaluate(arg, context))));
       }
       case 'round': {
@@ -114,12 +129,24 @@ export class ExpressionEvaluator {
         return;
       }
       const node = value as Record<string, unknown>;
-      if (typeof node.var === 'string') found.add(node.var.split('.')[0]);
-      if (typeof node.variable === 'string') found.add(node.variable.split('.')[0]);
+      if (typeof node.var === 'string') found.add(this.referenceRoot(node.var));
+      if (typeof node.variable === 'string') found.add(this.referenceRoot(node.variable));
       Object.values(node).forEach(walk);
     };
     walk(expression);
     return found;
+  }
+
+  /**
+   * Root name a `var`/`variable` path refers to. A leading `variables.` is the variables
+   * namespace (the runtime context exposes each variable both as `<code>` and under
+   * `variables.<code>`), so it is stripped and the reported root is the variable code itself —
+   * not the literal word "variables". Any other prefix (`decision.*`, `customer.*`, …) keeps its
+   * first segment, so the graph validator resolves references the same way the runtime does.
+   */
+  private referenceRoot(path: string): string {
+    const bare = path.startsWith('variables.') ? path.slice('variables.'.length) : path;
+    return bare.split('.')[0];
   }
 
   private applyOperator(
@@ -178,7 +205,10 @@ export class ExpressionEvaluator {
       // An unparseable date yields NaN, which would make every comparison silently false.
       // A decision must never turn on a value the engine could not actually interpret.
       if (Number.isNaN(leftTime) || Number.isNaN(rightTime)) {
-        throw new DomainException('EXPRESSION_INVALID_DATE', 'Cannot compare an invalid date value');
+        throw new DomainException(
+          'EXPRESSION_INVALID_DATE',
+          'Cannot compare an invalid date value',
+        );
       }
       return leftTime - rightTime;
     }
@@ -194,7 +224,10 @@ export class ExpressionEvaluator {
   private asNumber(value: unknown): number {
     const number = typeof value === 'number' ? value : Number(value);
     if (!Number.isFinite(number)) {
-      throw new DomainException('EXPRESSION_NOT_NUMERIC', `Expected numeric value, got ${String(value)}`);
+      throw new DomainException(
+        'EXPRESSION_NOT_NUMERIC',
+        `Expected numeric value, got ${String(value)}`,
+      );
     }
     return number;
   }

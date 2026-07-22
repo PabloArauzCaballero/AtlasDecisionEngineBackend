@@ -36,10 +36,7 @@ describe('Audit chain (e2e)', () => {
   });
 
   it('reports a valid, unbroken HMAC hash chain', async () => {
-    const response = await request(server())
-      .get('/v1/audit/chain/verify')
-      .set(auditor)
-      .expect(200);
+    const response = await request(server()).get('/v1/audit/chain/verify').set(auditor).expect(200);
     expect(response.body.valid).toBe(true);
     expect(response.body.invalid).toEqual([]);
     expect(response.body.eventCount).toBeGreaterThan(0);

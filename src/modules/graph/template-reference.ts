@@ -4,7 +4,8 @@ export function renderTemplate(value: unknown, context: Record<string, unknown>)
   if (typeof value === 'string') {
     return value.replace(TEMPLATE_REFERENCE_PATTERN, (_match, path: string) => {
       const resolved = path.split('.').reduce<unknown>((current, key) => {
-        if (current && typeof current === 'object') return (current as Record<string, unknown>)[key];
+        if (current && typeof current === 'object')
+          return (current as Record<string, unknown>)[key];
         return undefined;
       }, context);
       return resolved == null ? '' : String(resolved);
@@ -13,7 +14,10 @@ export function renderTemplate(value: unknown, context: Record<string, unknown>)
   if (Array.isArray(value)) return value.map((item) => renderTemplate(item, context));
   if (value && typeof value === 'object') {
     return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, renderTemplate(item, context)]),
+      Object.entries(value as Record<string, unknown>).map(([key, item]) => [
+        key,
+        renderTemplate(item, context),
+      ]),
     );
   }
   return value;

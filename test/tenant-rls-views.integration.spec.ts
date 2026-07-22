@@ -36,11 +36,13 @@ describeDb('Tenant RLS through views (integration)', () => {
               AND col.column_name = 'tenant_id')
     `);
     expect(rows.length).toBeGreaterThan(0);
-    const unprotected = rows.filter((r) => (r.security_invoker ?? 'off') !== 'on').map((r) => r.relname);
+    const unprotected = rows
+      .filter((r) => (r.security_invoker ?? 'off') !== 'on')
+      .map((r) => r.relname);
     expect(unprotected).toEqual([]);
   });
 
-  it('does not leak another tenant\'s rows through a view for the runtime role', async () => {
+  it("does not leak another tenant's rows through a view for the runtime role", async () => {
     await client.query('SET ROLE atlas_app');
     try {
       await client.query('BEGIN');

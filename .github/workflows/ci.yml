@@ -51,18 +51,22 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run prisma:generate
-      - run: npm run prisma:validate
-      - run: npm run migration:validate
-      - run: npm run typecheck
-      - run: npm run build
-      - run: npm run test:cov
-      - run: npm audit --omit=dev --audit-level=critical
-      - run: npm run prisma:migrate
-      - run: npm run prisma:seed
-      - run: npm run test:e2e
+          cache: yarn
+      - run: yarn install --frozen-lockfile
+      - run: yarn prisma:generate
+      - run: yarn prisma:validate
+      - run: yarn migration:validate
+      # Formatting is enforced now that the one-time global reformat has landed. Runs before
+      # typecheck so a style-only failure is reported without waiting for the slower stages.
+      - run: yarn format:check
+      - run: yarn typecheck
+      - run: yarn build
+      - run: yarn test:cov
+      # Single source of truth for the audit threshold (package.json: yarn audit --level high).
+      - run: yarn security:audit
+      - run: yarn prisma:migrate
+      - run: yarn prisma:seed
+      - run: yarn test:e2e
       - name: Runtime smoke test
         shell: bash
         run: |
@@ -76,7 +80,7 @@ jobs:
             sleep 1
           done
           curl -fsS http://localhost:3000/health/ready
-          npm run smoke:sh
+          yarn smoke:sh
       - name: Build runtime and migrator images
         run: |
           docker build --target runtime -t atlas-decision-engine:${{ github.sha }} .

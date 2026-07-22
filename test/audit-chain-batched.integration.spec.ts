@@ -5,6 +5,7 @@ import { AuditService } from '../src/common/audit/audit.service';
 import { AuditQueryService } from '../src/modules/audit-query/audit-query.service';
 import { HashService } from '../src/common/crypto/hash.service';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
+import { uniqueTenantId } from './support/unique-tenant';
 
 /**
  * P1 (plan §10 audit-chain-verifier): the chain must be verified in bounded batches, not by
@@ -26,7 +27,7 @@ describeDb('Audit chain batched verification (integration)', () => {
     hashes,
     new ConfigService({ MAX_PAGE_SIZE: 100, AUDIT_VERIFY_BATCH_SIZE: 2 }),
   );
-  const tenantId = BigInt(840000 + (process.pid % 10000));
+  const tenantId = uniqueTenantId(2);
   const EVENTS = 5;
 
   afterAll(async () => {

@@ -1,13 +1,6 @@
 import { Type } from 'class-transformer';
 import { PaginationQueryDto } from '../../common/http/pagination';
-import {
-  IsArray,
-  IsNotEmpty,
-  IsObject,
-  IsString,
-  Matches,
-  ValidateNested,
-} from 'class-validator';
+import { IsArray, IsNotEmpty, IsObject, IsString, Matches, ValidateNested } from 'class-validator';
 
 export class PolicyRequirementDto {
   @IsString() @Matches(/^[A-Z0-9_\-]{2,100}$/) policyCode!: string;
@@ -22,7 +15,9 @@ export class CreateBusinessObjectiveDto {
   @IsString() @IsNotEmpty() metric!: string;
   @IsObject() target!: Record<string, unknown>;
   @IsString() @IsNotEmpty() ownerTeam!: string;
-  @IsArray() @ValidateNested({ each: true }) @Type(() => PolicyRequirementDto)
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PolicyRequirementDto)
   policies!: PolicyRequirementDto[];
 }
 

@@ -45,15 +45,18 @@ export class VariableService {
           versions: { include: { sources: true, validationRules: true } },
         },
       });
-      await this.audit.append({
-        tenantId,
-        eventType: 'VARIABLE_DEFINITION_CREATED',
-        aggregateType: 'VariableDefinition',
-        aggregateId: definition.id.toString(),
-        actorId: principal.id,
-        requestId: principal.requestId,
-        payload: { variableCode: definition.variableCode, sensitive: definition.isSensitive },
-      }, tx);
+      await this.audit.append(
+        {
+          tenantId,
+          eventType: 'VARIABLE_DEFINITION_CREATED',
+          aggregateType: 'VariableDefinition',
+          aggregateId: definition.id.toString(),
+          actorId: principal.id,
+          requestId: principal.requestId,
+          payload: { variableCode: definition.variableCode, sensitive: definition.isSensitive },
+        },
+        tx,
+      );
       return definition;
     });
   }
@@ -69,7 +72,11 @@ export class VariableService {
       include: { versions: { orderBy: { versionNumber: 'desc' }, take: 1 } },
     });
     if (!definition) {
-      throw new DomainException('VARIABLE_NOT_FOUND', 'Variable definition not found', HttpStatus.NOT_FOUND);
+      throw new DomainException(
+        'VARIABLE_NOT_FOUND',
+        'Variable definition not found',
+        HttpStatus.NOT_FOUND,
+      );
     }
     const latest = definition.versions[0];
     const versionNumber = (latest?.versionNumber ?? 0) + 1;
@@ -87,15 +94,18 @@ export class VariableService {
         },
         include: { sources: true, validationRules: true },
       });
-      await this.audit.append({
-        tenantId,
-        eventType: 'VARIABLE_VERSION_CREATED',
-        aggregateType: 'VariableDefinition',
-        aggregateId: definitionId.toString(),
-        actorId: principal.id,
-        requestId: principal.requestId,
-        payload: { variableCode: definition.variableCode, versionNumber },
-      }, tx);
+      await this.audit.append(
+        {
+          tenantId,
+          eventType: 'VARIABLE_VERSION_CREATED',
+          aggregateType: 'VariableDefinition',
+          aggregateId: definitionId.toString(),
+          actorId: principal.id,
+          requestId: principal.requestId,
+          payload: { variableCode: definition.variableCode, versionNumber },
+        },
+        tx,
+      );
       return version;
     });
   }
@@ -153,7 +163,11 @@ export class VariableService {
       },
     });
     if (!definition) {
-      throw new DomainException('VARIABLE_NOT_FOUND', 'Variable definition not found', HttpStatus.NOT_FOUND);
+      throw new DomainException(
+        'VARIABLE_NOT_FOUND',
+        'Variable definition not found',
+        HttpStatus.NOT_FOUND,
+      );
     }
     return definition;
   }
@@ -175,15 +189,18 @@ export class VariableService {
           isAdverseAction: dto.isAdverseAction,
         },
       });
-      await this.audit.append({
-        tenantId,
-        eventType: 'REASON_CODE_CREATED',
-        aggregateType: 'ReasonCode',
-        aggregateId: reason.id.toString(),
-        actorId: principal.id,
-        requestId: principal.requestId,
-        payload: { reasonCode: reason.reasonCode, category: reason.category },
-      }, tx);
+      await this.audit.append(
+        {
+          tenantId,
+          eventType: 'REASON_CODE_CREATED',
+          aggregateType: 'ReasonCode',
+          aggregateId: reason.id.toString(),
+          actorId: principal.id,
+          requestId: principal.requestId,
+          payload: { reasonCode: reason.reasonCode, category: reason.category },
+        },
+        tx,
+      );
       return reason;
     });
   }

@@ -55,7 +55,7 @@ export class ExecutionEngineService {
     // TestCaseExecutorService), so this changes nothing for them.
     onStep?: (event: LiveStepEvent) => void,
   ): Promise<EngineExecutionResult> {
-    const state: MutableExecutionState = { outcome: 'NO_DECISION', output: {} , reasons: [] };
+    const state: MutableExecutionState = { outcome: 'NO_DECISION', output: {}, reasons: [] };
     const trace: EngineExecutionResult['trace'] = [];
     const visitedNodeKeys: string[] = [];
     const traversedEdgeKeys: string[] = [];
@@ -67,7 +67,11 @@ export class ExecutionEngineService {
     for (let stepIndex = 0; currentKey && stepIndex < this.maxSteps; stepIndex += 1) {
       const started = process.hrtime.bigint();
       const node = compiled.nodes[currentKey];
-      if (!node) throw new DomainException('RUNTIME_NODE_NOT_FOUND', `Compiled node ${currentKey} not found`);
+      if (!node)
+        throw new DomainException(
+          'RUNTIME_NODE_NOT_FOUND',
+          `Compiled node ${currentKey} not found`,
+        );
       visitedNodeKeys.push(node.key);
       const evaluation: Record<string, unknown> = {};
       onStep?.({ status: 'RUNNING', nodeKey: node.key, nodeType: node.type });
@@ -153,10 +157,16 @@ export class ExecutionEngineService {
     }
 
     if (currentKey) {
-      throw new DomainException('MAX_EXECUTION_STEPS_EXCEEDED', `Execution exceeded ${this.maxSteps} steps`);
+      throw new DomainException(
+        'MAX_EXECUTION_STEPS_EXCEEDED',
+        `Execution exceeded ${this.maxSteps} steps`,
+      );
     }
     if (!terminalNodeKey) {
-      throw new DomainException('EXECUTION_WITHOUT_TERMINAL', 'Execution ended without a terminal node');
+      throw new DomainException(
+        'EXECUTION_WITHOUT_TERMINAL',
+        'Execution ended without a terminal node',
+      );
     }
 
     this.finalizeOutputContract(compiled, state);
@@ -178,7 +188,9 @@ export class ExecutionEngineService {
         ...(state.limit !== undefined ? { limit: state.limit } : {}),
       },
       primaryResult: state.primaryResult,
-      reasons: [...state.reasons].sort((a, b) => a.priority - b.priority || a.code.localeCompare(b.code)),
+      reasons: [...state.reasons].sort(
+        (a, b) => a.priority - b.priority || a.code.localeCompare(b.code),
+      ),
       trace,
       visitedNodeKeys,
       traversedEdgeKeys,
@@ -204,11 +216,18 @@ export class ExecutionEngineService {
       const script = (node.config.script ?? {}) as Record<string, unknown>;
       const language = String(script.language ?? '').toUpperCase() as ScriptLanguage;
       if (language !== 'JAVASCRIPT' && language !== 'PYTHON') {
-        throw new DomainException('RESULT_SCRIPT_LANGUAGE_INVALID', `Unsupported RESULT script language ${language}`);
+        throw new DomainException(
+          'RESULT_SCRIPT_LANGUAGE_INVALID',
+          `Unsupported RESULT script language ${language}`,
+        );
       }
       Object.assign(
         values,
-        await this.scripts.execute(language, String(script.source ?? ''), this.context(variables, state)),
+        await this.scripts.execute(
+          language,
+          String(script.source ?? ''),
+          this.context(variables, state),
+        ),
       );
     } else if (mode === 'REFERENCE') {
       if (!referenceResolver) {
@@ -285,7 +304,10 @@ export class ExecutionEngineService {
     if (contract.usageType === 'OUTPUT_PRIMARY') {
       const legacyOutcome = value === null || value === undefined ? 'NO_DECISION' : String(value);
       if (legacyOutcome.length > 80) {
-        throw new DomainException('PRIMARY_OUTPUT_TOO_LONG', `Primary output ${code} exceeds 80 characters`);
+        throw new DomainException(
+          'PRIMARY_OUTPUT_TOO_LONG',
+          `Primary output ${code} exceeds 80 characters`,
+        );
       }
       state.primaryResult = { code, value };
       state.outcome = legacyOutcome;
@@ -315,7 +337,12 @@ export class ExecutionEngineService {
     );
   }
 
-  private assertOutputType(code: string, dataType: string, value: unknown, nullable: boolean): void {
+  private assertOutputType(
+    code: string,
+    dataType: string,
+    value: unknown,
+    nullable: boolean,
+  ): void {
     if (value === null || value === undefined) {
       if (nullable) return;
       throw new DomainException('OUTPUT_TYPE_INVALID', `Output ${code} cannot be null`);
@@ -323,9 +350,11 @@ export class ExecutionEngineService {
     const type = dataType.toUpperCase();
     const valid =
       (['INTEGER', 'INT', 'NUMBER', 'DECIMAL', 'FLOAT'].includes(type) &&
-        typeof value === 'number' && Number.isFinite(value) &&
+        typeof value === 'number' &&
+        Number.isFinite(value) &&
         (!['INTEGER', 'INT'].includes(type) || Number.isInteger(value))) ||
-      (['STRING', 'TEXT', 'ENUM', 'DATE', 'DATETIME'].includes(type) && typeof value === 'string') ||
+      (['STRING', 'TEXT', 'ENUM', 'DATE', 'DATETIME'].includes(type) &&
+        typeof value === 'string') ||
       (['BOOLEAN', 'BOOL'].includes(type) && typeof value === 'boolean') ||
       (['OBJECT', 'JSON'].includes(type) && typeof value === 'object' && !Array.isArray(value)) ||
       (['ARRAY', 'LIST'].includes(type) && Array.isArray(value));
@@ -355,14 +384,16 @@ export class ExecutionEngineService {
         const points = Number(
           component.pointsExpression
             ? this.expressions.evaluate(component.pointsExpression, this.context(variables, state))
-            : component.points ?? 0,
+            : (component.points ?? 0),
         );
         score += points;
         applied.push({ conditionCode, points });
       }
     }
     if (node.config.scoreExpression) {
-      score = Number(this.expressions.evaluate(node.config.scoreExpression, this.context(variables, state)));
+      score = Number(
+        this.expressions.evaluate(node.config.scoreExpression, this.context(variables, state)),
+      );
     }
     state.score = score;
     state.output.score = score;
@@ -380,7 +411,8 @@ export class ExecutionEngineService {
     const executed: string[] = [];
     for (const reference of [...node.actions].sort((a, b) => a.order - b.order)) {
       const action = compiled.actions[reference.code];
-      if (!action) throw new DomainException('RUNTIME_ACTION_NOT_FOUND', `Action ${reference.code} not found`);
+      if (!action)
+        throw new DomainException('RUNTIME_ACTION_NOT_FOUND', `Action ${reference.code} not found`);
       this.executeAction(action, variables, state);
       executed.push(action.code);
     }
@@ -430,7 +462,10 @@ export class ExecutionEngineService {
       case 'EMIT_REASON':
         break;
       default:
-        throw new DomainException('UNSUPPORTED_ACTION_TYPE', `Unsupported action type ${action.type}`);
+        throw new DomainException(
+          'UNSUPPORTED_ACTION_TYPE',
+          `Unsupported action type ${action.type}`,
+        );
     }
 
     for (const reason of action.reasonCodes) {
@@ -440,7 +475,9 @@ export class ExecutionEngineService {
         code: reason.code,
         category: reason.category,
         message: String(renderTemplate(reason.publicMessage, this.context(variables, state))),
-        internalMessage: String(renderTemplate(reason.internalMessage, this.context(variables, state))),
+        internalMessage: String(
+          renderTemplate(reason.internalMessage, this.context(variables, state)),
+        ),
         severity: reason.severity,
         adverseAction: reason.adverseAction,
         priority: reason.priority,
@@ -462,7 +499,9 @@ export class ExecutionEngineService {
         .every((reference) => {
           const condition = compiled.conditions[reference.code];
           if (!condition) return false;
-          return Boolean(this.expressions.evaluate(condition.expression, this.context(variables, state)));
+          return Boolean(
+            this.expressions.evaluate(condition.expression, this.context(variables, state)),
+          );
         });
       results[edge.key] = passed;
       if (passed) {
@@ -476,13 +515,20 @@ export class ExecutionEngineService {
     return fallback;
   }
 
-  private resolveActionValue(payload: Record<string, unknown>, context: Record<string, unknown>): unknown {
-    if ('valueExpression' in payload) return this.expressions.evaluate(payload.valueExpression, context);
+  private resolveActionValue(
+    payload: Record<string, unknown>,
+    context: Record<string, unknown>,
+  ): unknown {
+    if ('valueExpression' in payload)
+      return this.expressions.evaluate(payload.valueExpression, context);
     if ('value' in payload) return renderTemplate(payload.value, context);
     return undefined;
   }
 
-  private context(variables: Record<string, unknown>, state: MutableExecutionState): Record<string, unknown> {
+  private context(
+    variables: Record<string, unknown>,
+    state: MutableExecutionState,
+  ): Record<string, unknown> {
     return {
       ...variables,
       variables,

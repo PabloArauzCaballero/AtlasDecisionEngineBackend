@@ -16,14 +16,16 @@ export async function createTestApp(): Promise<INestApplication> {
   await provisionE2eClients();
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
   const app = moduleRef.createNestApplication();
-  app.useGlobalPipes(new ValidationPipe({
-    transform: true,
-    whitelist: true,
-    forbidNonWhitelisted: true,
-    stopAtFirstError: false,
-    transformOptions: { enableImplicitConversion: false },
-    validationError: { target: false, value: false },
-  }));
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true,
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      stopAtFirstError: false,
+      transformOptions: { enableImplicitConversion: false },
+      validationError: { target: false, value: false },
+    }),
+  );
   app.useGlobalFilters(
     new DomainExceptionFilter(app.get(ConfigService), app.get(AccessDenialAuditorService)),
   );

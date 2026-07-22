@@ -1,4 +1,7 @@
-import type { ArtifactGraphSnapshot, CompiledDecisionArtifact } from '../src/modules/graph/graph.types';
+import type {
+  ArtifactGraphSnapshot,
+  CompiledDecisionArtifact,
+} from '../src/modules/graph/graph.types';
 
 export function graphSnapshot(): ArtifactGraphSnapshot {
   return {
@@ -77,15 +80,90 @@ export function graphSnapshot(): ArtifactGraphSnapshot {
       },
     ],
     nodes: [
-      { id: '1', key: 'START', type: 'START', label: 'Start', config: {}, x: 0, y: 0, order: 1, terminal: false, conditions: [], actions: [] },
-      { id: '2', key: 'CHECK', type: 'CONDITION', label: 'Check score', config: {}, x: 100, y: 0, order: 2, terminal: false, conditions: [], actions: [] },
-      { id: '3', key: 'APPROVED', type: 'ACTION', label: 'Approved', config: {}, x: 200, y: -50, order: 3, terminal: true, conditions: [], actions: [{ code: 'APPROVE', order: 1 }] },
-      { id: '4', key: 'DECLINED', type: 'ACTION', label: 'Declined', config: {}, x: 200, y: 50, order: 4, terminal: true, conditions: [], actions: [{ code: 'DECLINE', order: 1 }] },
+      {
+        id: '1',
+        key: 'START',
+        type: 'START',
+        label: 'Start',
+        config: {},
+        x: 0,
+        y: 0,
+        order: 1,
+        terminal: false,
+        conditions: [],
+        actions: [],
+      },
+      {
+        id: '2',
+        key: 'CHECK',
+        type: 'CONDITION',
+        label: 'Check score',
+        config: {},
+        x: 100,
+        y: 0,
+        order: 2,
+        terminal: false,
+        conditions: [],
+        actions: [],
+      },
+      {
+        id: '3',
+        key: 'APPROVED',
+        type: 'ACTION',
+        label: 'Approved',
+        config: {},
+        x: 200,
+        y: -50,
+        order: 3,
+        terminal: true,
+        conditions: [],
+        actions: [{ code: 'APPROVE', order: 1 }],
+      },
+      {
+        id: '4',
+        key: 'DECLINED',
+        type: 'ACTION',
+        label: 'Declined',
+        config: {},
+        x: 200,
+        y: 50,
+        order: 4,
+        terminal: true,
+        conditions: [],
+        actions: [{ code: 'DECLINE', order: 1 }],
+      },
     ],
     edges: [
-      { id: '1', key: 'START_CHECK', from: 'START', to: 'CHECK', type: 'DEFAULT', priority: 1, default: true, conditions: [] },
-      { id: '2', key: 'CHECK_APPROVE', from: 'CHECK', to: 'APPROVED', type: 'CONDITIONAL', priority: 1, default: false, conditions: [{ code: 'SCORE_OK', order: 1 }] },
-      { id: '3', key: 'CHECK_DECLINE', from: 'CHECK', to: 'DECLINED', type: 'DEFAULT', priority: 999, default: true, conditions: [] },
+      {
+        id: '1',
+        key: 'START_CHECK',
+        from: 'START',
+        to: 'CHECK',
+        type: 'DEFAULT',
+        priority: 1,
+        default: true,
+        conditions: [],
+      },
+      {
+        id: '2',
+        key: 'CHECK_APPROVE',
+        from: 'CHECK',
+        to: 'APPROVED',
+        type: 'CONDITIONAL',
+        priority: 1,
+        default: false,
+        conditions: [{ code: 'SCORE_OK', order: 1 }],
+      },
+      {
+        id: '3',
+        key: 'CHECK_DECLINE',
+        from: 'CHECK',
+        to: 'DECLINED',
+        type: 'DEFAULT',
+        priority: 999,
+        default: true,
+        conditions: [],
+      },
     ],
   };
 }
@@ -101,9 +179,16 @@ export function compiledFixture(): CompiledDecisionArtifact {
     startNodeKey: 'START',
     nodes: Object.fromEntries(graph.nodes.map((node) => [node.key, node])),
     edgesByNode: Object.fromEntries(
-      graph.nodes.map((node) => [node.key, graph.edges.filter((edge) => edge.from === node.key).sort((a, b) => a.priority - b.priority)]),
+      graph.nodes.map((node) => [
+        node.key,
+        graph.edges
+          .filter((edge) => edge.from === node.key)
+          .sort((a, b) => a.priority - b.priority),
+      ]),
     ),
-    conditions: Object.fromEntries(graph.conditions.map((condition) => [condition.code, condition])),
+    conditions: Object.fromEntries(
+      graph.conditions.map((condition) => [condition.code, condition]),
+    ),
     actions: Object.fromEntries(graph.actions.map((action) => [action.code, action])),
     totals: { nodes: 4, edges: 3, terminalPaths: 2 },
   };

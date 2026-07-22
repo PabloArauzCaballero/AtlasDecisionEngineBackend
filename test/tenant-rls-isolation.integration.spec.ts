@@ -57,7 +57,7 @@ describeDb('Tenant RLS isolation (integration)', () => {
     return res.rows[0].n;
   }
 
-  it('shows a tenant only its own rows and never another tenant\'s', async () => {
+  it("shows a tenant only its own rows and never another tenant's", async () => {
     await withNonSuperRole(async () => {
       expect(await countFor(A)).toBe(1); // only RLS_A
       expect(await countFor(B)).toBe(1); // only RLS_B

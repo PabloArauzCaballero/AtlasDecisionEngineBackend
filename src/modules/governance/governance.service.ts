@@ -1,24 +1,27 @@
-import { HttpStatus, Injectable } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
+import { HttpStatus, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   ApprovalOutcome,
   ApprovalRequestStatus,
   ApprovalStepStatus,
   Prisma,
   VersionStatus,
-} from "@prisma/client";
-import { AuditService } from "../../common/audit/audit.service";
-import { DomainException } from "../../common/errors/domain-exception";
-import { pageResult, paginationArgs } from "../../common/http/pagination";
-import { PrismaService } from "../../common/prisma/prisma.service";
-import type { AuthenticatedPrincipal } from "../../common/security/security.types";
-import { VersionStateService } from "../artifacts/version-state.service";
-import { TestExecutionService } from "../testing/test-execution.service";
+} from '@prisma/client';
+import { AuditService } from '../../common/audit/audit.service';
+import { DecisionEventType } from '../../common/events/event-types';
+import { OutboxPublisherService } from '../../common/events/outbox-publisher.service';
+import { DomainException } from '../../common/errors/domain-exception';
+import { pageResult, paginationArgs } from '../../common/http/pagination';
+import { PrismaService } from '../../common/prisma/prisma.service';
+import { PlatformRole } from '../../common/security/platform-roles';
+import type { AuthenticatedPrincipal } from '../../common/security/security.types';
+import { VersionStateService } from '../artifacts/version-state.service';
+import { TestExecutionService } from '../testing/test-execution.service';
 import {
   ApprovalRequestListQueryDto,
   RecordApprovalDecisionDto,
   SubmitReviewDto,
-} from "./governance.dto";
+} from './governance.dto';
 
 @Injectable()
 export class GovernanceService {
@@ -27,13 +30,14 @@ export class GovernanceService {
     private readonly tests: TestExecutionService,
     private readonly states: VersionStateService,
     private readonly audit: AuditService,
+    private readonly outbox: OutboxPublisherService,
     private readonly config: ConfigService,
   ) {}
 
   async listRequests(tenantId: bigint, query: ApprovalRequestListQueryDto) {
     const { skip, take, page, pageSize } = paginationArgs(
       query,
-      this.config.get<number>("MAX_PAGE_SIZE") ?? 100,
+      this.config.get<number>('MAX_PAGE_SIZE') ?? 100,
     );
     const where = { artifactVersion: { artifact: { tenantId } } };
     const [requests, total] = await this.prisma.$transaction([
@@ -41,22 +45,18 @@ export class GovernanceService {
         where,
         include: {
           artifactVersion: { include: { artifact: true } },
-          steps: { orderBy: { stepOrder: "asc" } },
+          steps: { orderBy: { stepOrder: 'asc' } },
         },
-        orderBy: { requestedAt: "desc" },
+        orderBy: { requestedAt: 'desc' },
         skip,
         take,
       }),
       this.prisma.decisionApprovalRequest.count({ where }),
     ]);
     const items = requests.map((request) => {
-      const currentStep = request.steps.find(
-        (step) => step.status === "PENDING",
-      );
+      const currentStep = request.steps.find((step) => step.status === 'PENDING');
       const overdue = Boolean(
-        request.dueAt &&
-        request.dueAt.getTime() < Date.now() &&
-        request.status === "IN_REVIEW",
+        request.dueAt && request.dueAt.getTime() < Date.now() && request.status === 'IN_REVIEW',
       );
       return {
         ...request,
@@ -64,7 +64,7 @@ export class GovernanceService {
         versionNumber: request.artifactVersion.versionNumber,
         createdAt: request.requestedAt,
         currentStep: currentStep?.requiredRole ?? request.status,
-        slaStatus: overdue ? "OVERDUE" : "ON_TRACK",
+        slaStatus: overdue ? 'OVERDUE' : 'ON_TRACK',
       };
     });
     return pageResult(items, total, page, pageSize);
@@ -79,34 +79,32 @@ export class GovernanceService {
     const version = await this.prisma.decisionArtifactVersion.findFirst({
       where: { id: versionId, artifact: { tenantId } },
       include: {
+        artifact: true,
         compiledArtifacts: {
-          where: { compileStatus: "SUCCESS" },
-          orderBy: { compiledAt: "desc" },
+          where: { compileStatus: 'SUCCESS' },
+          orderBy: { compiledAt: 'desc' },
           take: 1,
         },
       },
     });
     if (!version)
       throw new DomainException(
-        "VERSION_NOT_FOUND",
-        "Artifact version not found",
+        'VERSION_NOT_FOUND',
+        'Artifact version not found',
         HttpStatus.NOT_FOUND,
       );
-    if (
-      version.status !== VersionStatus.COMPILED ||
-      !version.compiledArtifacts.length
-    ) {
+    if (version.status !== VersionStatus.COMPILED || !version.compiledArtifacts.length) {
       throw new DomainException(
-        "VERSION_NOT_REVIEWABLE",
-        "Version must be COMPILED before review",
+        'VERSION_NOT_REVIEWABLE',
+        'Version must be COMPILED before review',
         HttpStatus.CONFLICT,
       );
     }
     const blocking = await this.tests.verifyBlockingTests(tenantId, versionId);
     if (!blocking.passed) {
       throw new DomainException(
-        "BLOCKING_TESTS_NOT_PASSED",
-        "Blocking tests and minimum coverage must pass before review",
+        'BLOCKING_TESTS_NOT_PASSED',
+        'Blocking tests and minimum coverage must pass before review',
         HttpStatus.CONFLICT,
         blocking.evidence,
       );
@@ -119,21 +117,21 @@ export class GovernanceService {
     });
     if (active)
       throw new DomainException(
-        "APPROVAL_REQUEST_EXISTS",
-        "An active approval request already exists",
+        'APPROVAL_REQUEST_EXISTS',
+        'An active approval request already exists',
         HttpStatus.CONFLICT,
       );
 
     const steps = [
       {
         stepOrder: 1,
-        requiredRole: "QA_ANALYST",
+        requiredRole: PlatformRole.QA_ANALYST,
         minApprovals: 1,
         separationOfDuties: true,
       },
       {
         stepOrder: 2,
-        requiredRole: "RISK_APPROVER",
+        requiredRole: PlatformRole.RISK_APPROVER,
         minApprovals: 1,
         separationOfDuties: true,
       },
@@ -141,7 +139,7 @@ export class GovernanceService {
         ? [
             {
               stepOrder: 3,
-              requiredRole: "COMPLIANCE",
+              requiredRole: PlatformRole.COMPLIANCE,
               minApprovals: 1,
               separationOfDuties: true,
             },
@@ -153,8 +151,7 @@ export class GovernanceService {
         data: {
           artifactVersionId: versionId,
           workflowCode:
-            dto.workflowCode ??
-            (dto.requireCompliance ? "STANDARD_WITH_COMPLIANCE" : "STANDARD"),
+            dto.workflowCode ?? (dto.requireCompliance ? 'STANDARD_WITH_COMPLIANCE' : 'STANDARD'),
           requestedBy: principal.id,
           dueAt: dto.dueAt ? new Date(dto.dueAt) : undefined,
           steps: { create: steps },
@@ -165,14 +162,14 @@ export class GovernanceService {
         versionId,
         VersionStatus.IN_REVIEW,
         principal.id,
-        "Submitted for governed review",
+        'Submitted for governed review',
         tx,
       );
       await this.audit.append(
         {
           tenantId,
-          eventType: "APPROVAL_REQUEST_CREATED",
-          aggregateType: "ApprovalRequest",
+          eventType: 'APPROVAL_REQUEST_CREATED',
+          aggregateType: 'ApprovalRequest',
           aggregateId: created.id.toString(),
           actorId: principal.id,
           requestId: principal.requestId,
@@ -184,6 +181,25 @@ export class GovernanceService {
         },
         tx,
       );
+      // Same transaction as the state change: the review-requested event must not exist
+      // without the request, nor the request without its event (outbox pattern).
+      await this.outbox.publish(tx, {
+        eventType: DecisionEventType.VERSION_SUBMITTED_FOR_REVIEW,
+        tenantId,
+        aggregateType: 'DecisionArtifactVersion',
+        aggregateId: versionId.toString(),
+        actorId: principal.id,
+        correlationId: principal.requestId,
+        payload: {
+          versionId: versionId.toString(),
+          approvalRequestId: created.id.toString(),
+          artifactCode: version.artifact.artifactCode,
+          versionNumber: version.versionNumber,
+          workflowCode: created.workflowCode,
+          authorId: version.createdBy,
+          reviewerRoles: created.steps.map((step) => step.requiredRole),
+        },
+      });
       return created;
     });
     return request;
@@ -203,10 +219,10 @@ export class GovernanceService {
       include: {
         approvalRequest: {
           include: {
-            artifactVersion: true,
+            artifactVersion: { include: { artifact: true } },
             steps: {
               include: { decisions: true },
-              orderBy: { stepOrder: "asc" },
+              orderBy: { stepOrder: 'asc' },
             },
           },
         },
@@ -215,8 +231,8 @@ export class GovernanceService {
     });
     if (!step)
       throw new DomainException(
-        "APPROVAL_STEP_NOT_FOUND",
-        "Approval step not found",
+        'APPROVAL_STEP_NOT_FOUND',
+        'Approval step not found',
         HttpStatus.NOT_FOUND,
       );
     if (
@@ -224,29 +240,28 @@ export class GovernanceService {
       step.status !== ApprovalStepStatus.PENDING
     ) {
       throw new DomainException(
-        "APPROVAL_STEP_CLOSED",
-        "Approval step is no longer open",
+        'APPROVAL_STEP_CLOSED',
+        'Approval step is no longer open',
         HttpStatus.CONFLICT,
       );
     }
     const priorIncomplete = step.approvalRequest.steps.some(
       (candidate) =>
-        candidate.stepOrder < step.stepOrder &&
-        candidate.status !== ApprovalStepStatus.APPROVED,
+        candidate.stepOrder < step.stepOrder && candidate.status !== ApprovalStepStatus.APPROVED,
     );
     if (priorIncomplete) {
       throw new DomainException(
-        "APPROVAL_STEP_OUT_OF_ORDER",
-        "Previous approval steps must complete first",
+        'APPROVAL_STEP_OUT_OF_ORDER',
+        'Previous approval steps must complete first',
         HttpStatus.CONFLICT,
       );
     }
     if (
       !principal.roles.includes(step.requiredRole) &&
-      !principal.roles.includes("PLATFORM_ADMIN")
+      !principal.roles.includes(PlatformRole.PLATFORM_ADMIN)
     ) {
       throw new DomainException(
-        "APPROVAL_ROLE_REQUIRED",
+        'APPROVAL_ROLE_REQUIRED',
         `Role ${step.requiredRole} is required`,
         HttpStatus.FORBIDDEN,
       );
@@ -256,22 +271,38 @@ export class GovernanceService {
       step.approvalRequest.artifactVersion.createdBy === principal.id
     ) {
       throw new DomainException(
-        "SEPARATION_OF_DUTIES_VIOLATION",
-        "The version author cannot approve the same version",
+        'SEPARATION_OF_DUTIES_VIOLATION',
+        'The version author cannot approve the same version',
         HttpStatus.FORBIDDEN,
       );
     }
-    if (
-      step.decisions.some((decision) => decision.decidedBy === principal.id)
-    ) {
+    if (step.decisions.some((decision) => decision.decidedBy === principal.id)) {
       throw new DomainException(
-        "DUPLICATE_APPROVAL_DECISION",
-        "This principal already decided this step",
+        'DUPLICATE_APPROVAL_DECISION',
+        'This principal already decided this step',
         HttpStatus.CONFLICT,
       );
     }
 
     const outcome = dto.decision as ApprovalOutcome;
+    const reviewedVersion = step.approvalRequest.artifactVersion;
+    // Shared v1 payload for the review-outcome events; the author is who gets notified.
+    const outcomeEvent = {
+      tenantId,
+      aggregateType: 'ApprovalRequest',
+      aggregateId: step.approvalRequestId.toString(),
+      actorId: principal.id,
+      correlationId: principal.requestId,
+      payload: {
+        versionId: reviewedVersion.id.toString(),
+        approvalRequestId: step.approvalRequestId.toString(),
+        artifactCode: reviewedVersion.artifact.artifactCode,
+        versionNumber: reviewedVersion.versionNumber,
+        authorId: reviewedVersion.createdBy,
+        decidedBy: principal.id,
+        comments: dto.comments ?? null,
+      },
+    };
     const result = await this.prisma.$transaction(async (tx) => {
       const decision = await tx.decisionApprovalDecision.create({
         data: {
@@ -304,9 +335,13 @@ export class GovernanceService {
           step.approvalRequest.artifactVersionId,
           VersionStatus.CHANGES_REQUESTED,
           principal.id,
-          dto.comments ?? "Changes requested",
+          dto.comments ?? 'Changes requested',
           tx,
         );
+        await this.outbox.publish(tx, {
+          ...outcomeEvent,
+          eventType: DecisionEventType.VERSION_CHANGES_REQUESTED,
+        });
       } else if (outcome === ApprovalOutcome.REJECT) {
         await tx.decisionApprovalStep.update({
           where: { id: stepId },
@@ -320,14 +355,16 @@ export class GovernanceService {
           step.approvalRequest.artifactVersionId,
           VersionStatus.REJECTED,
           principal.id,
-          dto.comments ?? "Rejected",
+          dto.comments ?? 'Rejected',
           tx,
         );
+        await this.outbox.publish(tx, {
+          ...outcomeEvent,
+          eventType: DecisionEventType.VERSION_REJECTED,
+        });
       } else {
         const approvals =
-          step.decisions.filter(
-            (item) => item.decision === ApprovalOutcome.APPROVE,
-          ).length + 1;
+          step.decisions.filter((item) => item.decision === ApprovalOutcome.APPROVE).length + 1;
         if (approvals >= step.minApprovals) {
           await tx.decisionApprovalStep.update({
             where: { id: stepId },
@@ -351,9 +388,15 @@ export class GovernanceService {
             step.approvalRequest.artifactVersionId,
             VersionStatus.APPROVED,
             principal.id,
-            "All required approval steps completed",
+            'All required approval steps completed',
             tx,
           );
+          // Published only when the LAST step approves: the author is told the version is
+          // fully approved, not that one intermediate vote landed.
+          await this.outbox.publish(tx, {
+            ...outcomeEvent,
+            eventType: DecisionEventType.VERSION_APPROVED,
+          });
         }
       }
 
@@ -364,7 +407,7 @@ export class GovernanceService {
         {
           tenantId,
           eventType: `APPROVAL_${dto.decision}`,
-          aggregateType: "ApprovalRequest",
+          aggregateType: 'ApprovalRequest',
           aggregateId: step.approvalRequestId.toString(),
           actorId: principal.id,
           requestId: principal.requestId,
@@ -389,11 +432,11 @@ export class GovernanceService {
       include: {
         artifactVersion: { include: { artifact: true } },
         steps: {
-          orderBy: { stepOrder: "asc" },
+          orderBy: { stepOrder: 'asc' },
           include: {
             decisions: {
               include: { evidence: true },
-              orderBy: { decidedAt: "asc" },
+              orderBy: { decidedAt: 'asc' },
             },
           },
         },
@@ -401,8 +444,8 @@ export class GovernanceService {
     });
     if (!request)
       throw new DomainException(
-        "APPROVAL_REQUEST_NOT_FOUND",
-        "Approval request not found",
+        'APPROVAL_REQUEST_NOT_FOUND',
+        'Approval request not found',
         HttpStatus.NOT_FOUND,
       );
     return request;
@@ -421,8 +464,8 @@ export class GovernanceService {
     ];
     if (!version || !approvedStatuses.includes(version.status)) {
       throw new DomainException(
-        "VERSION_NOT_APPROVED",
-        "Version is not fully approved",
+        'VERSION_NOT_APPROVED',
+        'Version is not fully approved',
         HttpStatus.CONFLICT,
       );
     }

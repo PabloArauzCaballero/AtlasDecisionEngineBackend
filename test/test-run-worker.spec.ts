@@ -4,6 +4,33 @@ import type { TestExecutionService } from '../src/modules/testing/test-execution
 import { TestRunWorkerService } from '../src/modules/testing/test-run-worker.service';
 
 describe('TestRunWorkerService', () => {
+  function worker(prisma: unknown): TestRunWorkerService {
+    return new TestRunWorkerService(
+      prisma as unknown as PrismaService,
+      {} as TestExecutionService,
+      new ConfigService({}),
+    );
+  }
+
+  it('claims the row returned by the FOR UPDATE SKIP LOCKED select', async () => {
+    const $queryRaw = jest.fn().mockResolvedValue([{ id: 42n }]);
+    const runId = await (
+      worker({ $queryRaw }) as unknown as { claimNextRun: () => Promise<bigint | null> }
+    ).claimNextRun();
+
+    expect(runId).toBe(42n);
+    expect($queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns null when no queued run is available to claim', async () => {
+    const $queryRaw = jest.fn().mockResolvedValue([]);
+    const runId = await (
+      worker({ $queryRaw }) as unknown as { claimNextRun: () => Promise<bigint | null> }
+    ).claimNextRun();
+
+    expect(runId).toBeNull();
+  });
+
   it('recovers legacy RUNNING jobs without a lease and clears partial evidence', async () => {
     const tx = {
       decisionTestRun: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },

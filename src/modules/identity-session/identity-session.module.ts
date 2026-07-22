@@ -7,6 +7,11 @@ import { SessionRateLimitGuard } from './session-rate-limit.guard';
 
 @Module({
   controllers: [IdentitySessionController],
-  providers: [IdentitySessionService, SessionCookieService, SessionOriginService, SessionRateLimitGuard],
+  providers: [
+    IdentitySessionService,
+    SessionCookieService,
+    SessionOriginService,
+    SessionRateLimitGuard,
+  ],
 })
 export class IdentitySessionModule {}

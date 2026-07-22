@@ -1,7 +1,10 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { DomainException } from '../../common/errors/domain-exception';
 import { IdentityProviderClient } from '../../common/security/identity-provider.client';
-import type { IdentitySession, PublicIdentitySession } from '../../common/security/identity-provider.contract';
+import type {
+  IdentitySession,
+  PublicIdentitySession,
+} from '../../common/security/identity-provider.contract';
 import type { IdentityLoginDto } from './identity-session.dto';
 
 export type SessionResult = { session: PublicIdentitySession; refreshToken: string };

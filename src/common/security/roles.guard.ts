@@ -2,6 +2,7 @@ import { CanActivate, ExecutionContext, HttpStatus, Injectable } from '@nestjs/c
 import { Reflector } from '@nestjs/core';
 import { DomainException } from '../errors/domain-exception';
 import { REQUIRED_ROLES } from './security.decorators';
+import { PlatformRole } from './platform-roles';
 
 /**
  * Enforces route roles against the trusted principal established by AuthenticationGuard.
@@ -27,7 +28,7 @@ export class RolesGuard implements CanActivate {
     // signed token from the IdP — never when it was granted to an API key. An API key
     // must still hold the specific role a route requires.
     const adminWildcard =
-      principal.roles.includes('PLATFORM_ADMIN') &&
+      principal.roles.includes(PlatformRole.PLATFORM_ADMIN) &&
       (principal.authMethod === 'jwt' || principal.authMethod === 'identity_provider');
     if (adminWildcard || normalized.some((role) => principal.roles.includes(role))) {
       return true;

@@ -6,6 +6,16 @@ coverage
 .prisma
 /smoke/last-run.json
 
+graphify-out/
 # Build artifacts and archives (never commit — backend.zip previously leaked .env)
 *.zip
 dist/
+
+# Local RLS rollback backup (contains a secret)
+.env.pre-rls.bak
+
+# This project is on Yarn (yarn.lock is the tracked lockfile). A stray `npm install` writes
+# a competing package-lock.json and resolves a different tree, which is what produced the
+# "invalid or damaged lockfile" warning. Ignore it so an accidental npm run cannot be
+# committed and cannot become a second source of truth. Use yarn.
+package-lock.json

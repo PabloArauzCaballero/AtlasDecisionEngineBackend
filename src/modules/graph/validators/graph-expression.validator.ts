@@ -30,11 +30,25 @@ export function validateGraphExpressions(
           : variable.split('.')[0];
         if (normalized === 'decision') continue;
         if (!lookups.variableCodes.has(normalized)) {
-          errors.push(issue('UNDECLARED_VARIABLE_DEPENDENCY', `${label} references undeclared variable ${variable}`, entityType, entityKey));
+          errors.push(
+            issue(
+              'UNDECLARED_VARIABLE_DEPENDENCY',
+              `${label} references undeclared variable ${variable}`,
+              entityType,
+              entityKey,
+            ),
+          );
         }
       }
     } catch (error) {
-      errors.push(issue('INVALID_EXPRESSION', `${label} is invalid: ${error instanceof Error ? error.message : String(error)}`, entityType, entityKey));
+      errors.push(
+        issue(
+          'INVALID_EXPRESSION',
+          `${label} is invalid: ${error instanceof Error ? error.message : String(error)}`,
+          entityType,
+          entityKey,
+        ),
+      );
     }
   };
 
@@ -49,14 +63,26 @@ export function validateGraphExpressions(
         ? path.slice('variables.'.length).split('.')[0]
         : path.split('.')[0];
       if (!lookups.variableCodes.has(code)) {
-        errors.push(issue('UNDECLARED_TEMPLATE_VARIABLE', `Template references undeclared variable ${path}`, entityType, entityKey));
+        errors.push(
+          issue(
+            'UNDECLARED_TEMPLATE_VARIABLE',
+            `Template references undeclared variable ${path}`,
+            entityType,
+            entityKey,
+          ),
+        );
       }
     }
   };
 
   for (const action of snapshot.actions) {
     if (action.payload.valueExpression !== undefined) {
-      validateExpressionReferences(action.payload.valueExpression, 'ACTION', action.code, `Action ${action.code}`);
+      validateExpressionReferences(
+        action.payload.valueExpression,
+        'ACTION',
+        action.code,
+        `Action ${action.code}`,
+      );
     }
     validateTemplateReferences(action.payload, 'ACTION', action.code);
     for (const reason of action.reasonCodes) {
@@ -93,23 +119,48 @@ export function validateGraphExpressions(
 
   for (const node of snapshot.nodes) {
     if (node.config.scoreExpression !== undefined) {
-      validateExpressionReferences(node.config.scoreExpression, 'NODE', node.key, `Node ${node.key} scoreExpression`);
+      validateExpressionReferences(
+        node.config.scoreExpression,
+        'NODE',
+        node.key,
+        `Node ${node.key} scoreExpression`,
+      );
     }
     if (Array.isArray(node.config.components)) {
       for (const [index, rawComponent] of node.config.components.entries()) {
         const component = rawComponent as Record<string, unknown>;
         if (component.pointsExpression !== undefined) {
-          validateExpressionReferences(component.pointsExpression, 'NODE', node.key, `Node ${node.key} component ${index + 1}`);
+          validateExpressionReferences(
+            component.pointsExpression,
+            'NODE',
+            node.key,
+            `Node ${node.key} component ${index + 1}`,
+          );
         }
-        if (component.conditionCode && !lookups.conditionCodes.has(String(component.conditionCode))) {
-          errors.push(issue('SCORE_COMPONENT_CONDITION_MISSING', `Node ${node.key} references missing score condition ${String(component.conditionCode)}`, 'NODE', node.key));
+        if (
+          component.conditionCode &&
+          !lookups.conditionCodes.has(String(component.conditionCode))
+        ) {
+          errors.push(
+            issue(
+              'SCORE_COMPONENT_CONDITION_MISSING',
+              `Node ${node.key} references missing score condition ${String(component.conditionCode)}`,
+              'NODE',
+              node.key,
+            ),
+          );
         }
       }
     }
   }
 
   for (const condition of snapshot.conditions) {
-    validateExpressionReferences(condition.expression, 'CONDITION', condition.code, `Condition ${condition.code}`);
+    validateExpressionReferences(
+      condition.expression,
+      'CONDITION',
+      condition.code,
+      `Condition ${condition.code}`,
+    );
   }
 
   return { errors };

@@ -7,7 +7,12 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
 import { VersionStateService } from '../artifacts/version-state.service';
 import { GovernanceService } from '../governance/governance.service';
-import { DeployVersionDto, DeploymentListQueryDto, RollbackDeploymentDto, SuspendDeploymentDto } from './deployment.dto';
+import {
+  DeployVersionDto,
+  DeploymentListQueryDto,
+  RollbackDeploymentDto,
+  SuspendDeploymentDto,
+} from './deployment.dto';
 import { pageResult, paginationArgs } from '../../common/http/pagination';
 import { DeploymentResolverService } from './deployment-resolver.service';
 
@@ -40,13 +45,28 @@ export class DeploymentService {
         compiledArtifacts: { where: { compileStatus: 'SUCCESS' }, orderBy: { compiledAt: 'desc' } },
       },
     });
-    if (!version) throw new DomainException('VERSION_NOT_FOUND', 'Artifact version not found', HttpStatus.NOT_FOUND);
+    if (!version)
+      throw new DomainException(
+        'VERSION_NOT_FOUND',
+        'Artifact version not found',
+        HttpStatus.NOT_FOUND,
+      );
     if (version.createdBy === principal.id) {
-      throw new DomainException('SEPARATION_OF_DUTIES_VIOLATION', 'The version author cannot deploy the same version alone', HttpStatus.FORBIDDEN);
+      throw new DomainException(
+        'SEPARATION_OF_DUTIES_VIOLATION',
+        'The version author cannot deploy the same version alone',
+        HttpStatus.FORBIDDEN,
+      );
     }
-    const environment = await this.prisma.decisionEnvironment.findUnique({ where: { code: dto.environmentCode } });
+    const environment = await this.prisma.decisionEnvironment.findUnique({
+      where: { code: dto.environmentCode },
+    });
     if (!environment || environment.status !== 'ACTIVE') {
-      throw new DomainException('ENVIRONMENT_NOT_FOUND', 'Deployment environment not found or inactive', HttpStatus.NOT_FOUND);
+      throw new DomainException(
+        'ENVIRONMENT_NOT_FOUND',
+        'Deployment environment not found or inactive',
+        HttpStatus.NOT_FOUND,
+      );
     }
     const requestedCompiledArtifactId = dto.compiledArtifactId
       ? BigInt(dto.compiledArtifactId)
@@ -54,19 +74,24 @@ export class DeploymentService {
     const compiled = requestedCompiledArtifactId
       ? version.compiledArtifacts.find((item) => item.id === requestedCompiledArtifactId)
       : version.compiledArtifacts[0];
-    if (!compiled) throw new DomainException('COMPILED_ARTIFACT_NOT_FOUND', 'Compiled artifact not found', HttpStatus.CONFLICT);
+    if (!compiled)
+      throw new DomainException(
+        'COMPILED_ARTIFACT_NOT_FOUND',
+        'Compiled artifact not found',
+        HttpStatus.CONFLICT,
+      );
     if (dto.traffic.length) {
       const total = dto.traffic.reduce((sum, rule) => sum + rule.trafficPercentage, 0);
       if (Math.abs(total - 100) > 0.001) {
-        throw new DomainException('INVALID_TRAFFIC_PERCENTAGE', 'Traffic percentages must total 100');
+        throw new DomainException(
+          'INVALID_TRAFFIC_PERCENTAGE',
+          'Traffic percentages must total 100',
+        );
       }
     }
 
     const deployment = await this.prisma.$transaction(async (tx) => {
-      const deploymentLockKey = BigInt.asIntN(
-        64,
-        (version.artifactId << 32n) ^ environment.id,
-      );
+      const deploymentLockKey = BigInt.asIntN(64, (version.artifactId << 32n) ^ environment.id);
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(${deploymentLockKey})`;
       const previous = await tx.decisionDeployment.findFirst({
         where: {
@@ -168,11 +193,24 @@ export class DeploymentService {
   ) {
     const current = await this.prisma.decisionDeployment.findFirst({
       where: { id: deploymentId, artifactVersion: { artifact: { tenantId } } },
-      include: { artifactVersion: { include: { artifact: true } }, environment: true, previousDeployment: true },
+      include: {
+        artifactVersion: { include: { artifact: true } },
+        environment: true,
+        previousDeployment: true,
+      },
     });
-    if (!current) throw new DomainException('DEPLOYMENT_NOT_FOUND', 'Deployment not found', HttpStatus.NOT_FOUND);
+    if (!current)
+      throw new DomainException(
+        'DEPLOYMENT_NOT_FOUND',
+        'Deployment not found',
+        HttpStatus.NOT_FOUND,
+      );
     if (!current.previousDeploymentId || !current.previousDeployment) {
-      throw new DomainException('ROLLBACK_TARGET_NOT_FOUND', 'No previous deployment is available', HttpStatus.CONFLICT);
+      throw new DomainException(
+        'ROLLBACK_TARGET_NOT_FOUND',
+        'No previous deployment is available',
+        HttpStatus.CONFLICT,
+      );
     }
     const previous = current.previousDeployment;
     await this.prisma.$transaction(async (tx) => {
@@ -203,9 +241,17 @@ export class DeploymentService {
         },
         data: { activeDeploymentId: previous.id },
       });
-      const currentVersion = await tx.decisionArtifactVersion.findUniqueOrThrow({ where: { id: current.artifactVersionId } });
+      const currentVersion = await tx.decisionArtifactVersion.findUniqueOrThrow({
+        where: { id: current.artifactVersionId },
+      });
       if (currentVersion.status !== VersionStatus.APPROVED) {
-        await this.states.transition(current.artifactVersionId, VersionStatus.APPROVED, principal.id, `Rolled back: ${dto.reason}`, tx);
+        await this.states.transition(
+          current.artifactVersionId,
+          VersionStatus.APPROVED,
+          principal.id,
+          `Rolled back: ${dto.reason}`,
+          tx,
+        );
       }
       await this.audit.append(
         {
@@ -220,7 +266,11 @@ export class DeploymentService {
         tx,
       );
     });
-    await this.resolver.invalidate(tenantId, current.artifactVersion.artifact.artifactCode, current.environment.code);
+    await this.resolver.invalidate(
+      tenantId,
+      current.artifactVersion.artifact.artifactCode,
+      current.environment.code,
+    );
     return { rolledBackDeploymentId: current.id, activeDeploymentId: previous.id };
   }
 
@@ -234,14 +284,25 @@ export class DeploymentService {
       where: { id: deploymentId, artifactVersion: { artifact: { tenantId } } },
       include: { artifactVersion: { include: { artifact: true } }, environment: true },
     });
-    if (!deployment) throw new DomainException('DEPLOYMENT_NOT_FOUND', 'Deployment not found', HttpStatus.NOT_FOUND);
+    if (!deployment)
+      throw new DomainException(
+        'DEPLOYMENT_NOT_FOUND',
+        'Deployment not found',
+        HttpStatus.NOT_FOUND,
+      );
     await this.prisma.$transaction(async (tx) => {
       await tx.decisionDeployment.update({
         where: { id: deploymentId },
         data: { deploymentStatus: DeploymentStatus.SUSPENDED, isActive: false },
       });
       if (deployment.artifactVersion.status === VersionStatus.DEPLOYED_TO_PROD) {
-        await this.states.transition(deployment.artifactVersionId, VersionStatus.SUSPENDED, principal.id, dto.reason, tx);
+        await this.states.transition(
+          deployment.artifactVersionId,
+          VersionStatus.SUSPENDED,
+          principal.id,
+          dto.reason,
+          tx,
+        );
       }
       await this.audit.append(
         {
@@ -256,7 +317,11 @@ export class DeploymentService {
         tx,
       );
     });
-    await this.resolver.invalidate(tenantId, deployment.artifactVersion.artifact.artifactCode, deployment.environment.code);
+    await this.resolver.invalidate(
+      tenantId,
+      deployment.artifactVersion.artifact.artifactCode,
+      deployment.environment.code,
+    );
     return { deploymentId, status: 'SUSPENDED' };
   }
 

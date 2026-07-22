@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { TestRunStatus } from '@prisma/client';
+import { Prisma, TestRunStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { TestExecutionService } from './test-execution.service';
 
@@ -70,28 +70,33 @@ export class TestRunWorkerService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /**
+   * Claims the oldest queued run atomically. `FOR UPDATE SKIP LOCKED` lets the
+   * inner select lock exactly one queued row while stepping over rows another
+   * worker is already claiming, so the previous find-then-optimistic-update race
+   * (and its bounded retry loop) disappears and the claim scales cleanly across
+   * concurrent workers. Enum literals are untyped so Postgres resolves them against
+   * the column's enum type; the lease is parameterized as a timestamptz.
+   */
   private async claimNextRun(): Promise<bigint | null> {
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      const candidate = await this.prisma.decisionTestRun.findFirst({
-        where: { status: TestRunStatus.QUEUED },
-        orderBy: [{ queuedAt: 'asc' }, { id: 'asc' }],
-        select: { id: true },
-      });
-      if (!candidate) return null;
-
-      const claimed = await this.prisma.decisionTestRun.updateMany({
-        where: { id: candidate.id, status: TestRunStatus.QUEUED },
-        data: {
-          status: TestRunStatus.RUNNING,
-          startedAt: new Date(),
-          finishedAt: null,
-          leaseExpiresAt: this.nextLease(),
-          attemptCount: { increment: 1 },
-        },
-      });
-      if (claimed.count === 1) return candidate.id;
-    }
-    return null;
+    const rows = await this.prisma.$queryRaw<Array<{ id: bigint }>>(Prisma.sql`
+      UPDATE decision_test_run
+      SET status = 'RUNNING',
+          started_at = now(),
+          finished_at = NULL,
+          lease_expires_at = ${this.nextLease()},
+          attempt_count = attempt_count + 1
+      WHERE id = (
+        SELECT id
+        FROM decision_test_run
+        WHERE status = 'QUEUED'
+        ORDER BY queued_at ASC, id ASC
+        FOR UPDATE SKIP LOCKED
+        LIMIT 1
+      )
+      RETURNING id
+    `);
+    return rows[0]?.id ?? null;
   }
 
   private async execute(runId: bigint): Promise<void> {

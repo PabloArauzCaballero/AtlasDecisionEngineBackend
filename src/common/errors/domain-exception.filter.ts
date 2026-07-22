@@ -10,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 import type { Request, Response } from 'express';
 import type { AccessDenialAuditorService } from '../security/access-denial-auditor.service';
+import type { MetricsService } from '../observability/metrics.service';
 import { DomainException } from './domain-exception';
 
 @Catch()
@@ -20,6 +21,8 @@ export class DomainExceptionFilter implements ExceptionFilter {
     private readonly config: ConfigService,
     /** Optional so the filter stays usable in contexts without a database. */
     private readonly denialAuditor?: AccessDenialAuditorService,
+    /** Optional so the filter stays usable in contexts without the metrics registry. */
+    private readonly metrics?: MetricsService,
   ) {}
 
   catch(exception: unknown, host: ArgumentsHost): void {
@@ -30,6 +33,7 @@ export class DomainExceptionFilter implements ExceptionFilter {
     );
 
     if (exception instanceof DomainException) {
+      this.metrics?.recordError(exception.code);
       this.logRejection(request, requestId, exception.status, exception.code, exception.message);
       this.auditDenial(request, requestId, exception.status, exception.code);
       response.status(exception.status).json({
@@ -49,8 +53,9 @@ export class DomainExceptionFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
       const body = exception.getResponse();
-      const bodyObject = typeof body === 'object' ? body as Record<string, unknown> : undefined;
-      const message = typeof body === 'string' ? body : bodyObject?.message ?? exception.message;
+      const bodyObject = typeof body === 'object' ? (body as Record<string, unknown>) : undefined;
+      const message = typeof body === 'string' ? body : (bodyObject?.message ?? exception.message);
+      this.metrics?.recordError(`HTTP_${status}`);
       this.logRejection(request, requestId, status, `HTTP_${status}`, String(message));
       this.auditDenial(request, requestId, status, `HTTP_${status}`);
       response.status(status).json({
@@ -68,6 +73,7 @@ export class DomainExceptionFilter implements ExceptionFilter {
     }
 
     const internalMessage = exception instanceof Error ? exception.message : String(exception);
+    this.metrics?.recordError('INTERNAL_ERROR');
     this.logger.error(
       `Unhandled error for ${request.method} ${request.originalUrl}: ${internalMessage}`,
       exception instanceof Error ? exception.stack : undefined,
@@ -94,7 +100,13 @@ export class DomainExceptionFilter implements ExceptionFilter {
   }
 
   /** 4xx are expected traffic (auth/validation/business-rule denials) and logged at warn; 5xx at error. */
-  private logRejection(request: Request, requestId: string, status: number, code: string, message: string): void {
+  private logRejection(
+    request: Request,
+    requestId: string,
+    status: number,
+    code: string,
+    message: string,
+  ): void {
     const line = `${request.method} ${request.originalUrl} rejected with ${status} ${code}: ${message}`;
     if (status >= 500) this.logger.error(line, undefined, requestId);
     else this.logger.warn(line, requestId);

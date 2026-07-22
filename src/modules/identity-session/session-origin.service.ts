@@ -20,6 +20,10 @@ export class SessionOriginService {
   }
 
   private forbidden(): DomainException {
-    return new DomainException('UNTRUSTED_ORIGIN', 'Request origin is not allowed', HttpStatus.FORBIDDEN);
+    return new DomainException(
+      'UNTRUSTED_ORIGIN',
+      'Request origin is not allowed',
+      HttpStatus.FORBIDDEN,
+    );
   }
 }

@@ -47,15 +47,18 @@ export class ArtifactService {
         },
         include: { versions: true },
       });
-      await this.audit.append({
-        tenantId,
-        eventType: 'ARTIFACT_CREATED',
-        aggregateType: 'DecisionArtifact',
-        aggregateId: artifact.id.toString(),
-        actorId: principal.id,
-        requestId: principal.requestId,
-        payload: { artifactCode: artifact.artifactCode, artifactType: artifact.artifactType },
-      }, tx);
+      await this.audit.append(
+        {
+          tenantId,
+          eventType: 'ARTIFACT_CREATED',
+          aggregateType: 'DecisionArtifact',
+          aggregateId: artifact.id.toString(),
+          actorId: principal.id,
+          requestId: principal.requestId,
+          payload: { artifactCode: artifact.artifactCode, artifactType: artifact.artifactType },
+        },
+        tx,
+      );
       return artifact;
     });
   }
@@ -117,7 +120,8 @@ export class ArtifactService {
         },
       },
     });
-    if (!artifact) throw new DomainException('ARTIFACT_NOT_FOUND', 'Artifact not found', HttpStatus.NOT_FOUND);
+    if (!artifact)
+      throw new DomainException('ARTIFACT_NOT_FOUND', 'Artifact not found', HttpStatus.NOT_FOUND);
     return artifact;
   }
 
@@ -128,10 +132,17 @@ export class ArtifactService {
         artifact: true,
         compiledArtifacts: { orderBy: { compiledAt: 'desc' } },
         statusHistory: { orderBy: { changedAt: 'asc' } },
-        approvalRequests: { include: { steps: { include: { decisions: { include: { evidence: true } } } } } },
+        approvalRequests: {
+          include: { steps: { include: { decisions: { include: { evidence: true } } } } },
+        },
       },
     });
-    if (!version) throw new DomainException('VERSION_NOT_FOUND', 'Artifact version not found', HttpStatus.NOT_FOUND);
+    if (!version)
+      throw new DomainException(
+        'VERSION_NOT_FOUND',
+        'Artifact version not found',
+        HttpStatus.NOT_FOUND,
+      );
     return version;
   }
 
@@ -152,8 +163,14 @@ export class ArtifactService {
         edges: { include: { edgeConditions: true } },
       },
     });
-    if (!source) throw new DomainException('VERSION_NOT_FOUND', 'Source version not found', HttpStatus.NOT_FOUND);
-    const nextNumber = Math.max(...source.artifact.versions.map((version) => version.versionNumber)) + 1;
+    if (!source)
+      throw new DomainException(
+        'VERSION_NOT_FOUND',
+        'Source version not found',
+        HttpStatus.NOT_FOUND,
+      );
+    const nextNumber =
+      Math.max(...source.artifact.versions.map((version) => version.versionNumber)) + 1;
 
     const cloned = await this.prisma.$transaction(async (tx) => {
       const version = await tx.decisionArtifactVersion.create({
@@ -277,15 +294,18 @@ export class ArtifactService {
           })),
         });
       }
-      await this.audit.append({
-        tenantId,
-        eventType: 'ARTIFACT_VERSION_CLONED',
-        aggregateType: 'ArtifactVersion',
-        aggregateId: version.id.toString(),
-        actorId: principal.id,
-        requestId: principal.requestId,
-        payload: { sourceVersionId: source.id.toString(), versionNumber: version.versionNumber },
-      }, tx);
+      await this.audit.append(
+        {
+          tenantId,
+          eventType: 'ARTIFACT_VERSION_CLONED',
+          aggregateType: 'ArtifactVersion',
+          aggregateId: version.id.toString(),
+          actorId: principal.id,
+          requestId: principal.requestId,
+          payload: { sourceVersionId: source.id.toString(), versionNumber: version.versionNumber },
+        },
+        tx,
+      );
       return version;
     });
 

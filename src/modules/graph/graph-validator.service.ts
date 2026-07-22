@@ -53,18 +53,35 @@ export class GraphValidatorService {
       variables: [...snapshot.variables].sort((a, b) => a.code.localeCompare(b.code)),
       conditions: [...snapshot.conditions].sort((a, b) => a.code.localeCompare(b.code)),
       actions: [...snapshot.actions]
-        .map((action) => ({ ...action, reasonCodes: [...action.reasonCodes].sort((a, b) => a.priority - b.priority || a.code.localeCompare(b.code)) }))
+        .map((action) => ({
+          ...action,
+          reasonCodes: [...action.reasonCodes].sort(
+            (a, b) => a.priority - b.priority || a.code.localeCompare(b.code),
+          ),
+        }))
         .sort((a, b) => a.code.localeCompare(b.code)),
       nodes: [...snapshot.nodes]
         .map((node) => ({
           ...node,
-          conditions: [...node.conditions].sort((a, b) => a.order - b.order || a.code.localeCompare(b.code)),
-          actions: [...node.actions].sort((a, b) => a.order - b.order || a.code.localeCompare(b.code)),
+          conditions: [...node.conditions].sort(
+            (a, b) => a.order - b.order || a.code.localeCompare(b.code),
+          ),
+          actions: [...node.actions].sort(
+            (a, b) => a.order - b.order || a.code.localeCompare(b.code),
+          ),
         }))
         .sort((a, b) => a.order - b.order || a.key.localeCompare(b.key)),
       edges: [...snapshot.edges]
-        .map((edge) => ({ ...edge, conditions: [...edge.conditions].sort((a, b) => a.order - b.order || a.code.localeCompare(b.code)) }))
-        .sort((a, b) => a.from.localeCompare(b.from) || a.priority - b.priority || a.key.localeCompare(b.key)),
+        .map((edge) => ({
+          ...edge,
+          conditions: [...edge.conditions].sort(
+            (a, b) => a.order - b.order || a.code.localeCompare(b.code),
+          ),
+        }))
+        .sort(
+          (a, b) =>
+            a.from.localeCompare(b.from) || a.priority - b.priority || a.key.localeCompare(b.key),
+        ),
     };
   }
 }

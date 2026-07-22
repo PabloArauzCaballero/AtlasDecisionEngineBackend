@@ -26,7 +26,10 @@ export class SessionRateLimitGuard implements CanActivate {
 
     response.setHeader('x-ratelimit-limit', String(limit));
     response.setHeader('x-ratelimit-remaining', String(Math.max(0, limit - result.count)));
-    response.setHeader('x-ratelimit-reset', String(Math.ceil(Date.now() / 1_000) + result.ttlSeconds));
+    response.setHeader(
+      'x-ratelimit-reset',
+      String(Math.ceil(Date.now() / 1_000) + result.ttlSeconds),
+    );
     if (result.count <= limit) return true;
 
     response.setHeader('retry-after', String(result.ttlSeconds));

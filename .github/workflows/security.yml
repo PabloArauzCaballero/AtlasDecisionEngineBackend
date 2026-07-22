@@ -1,0 +1,63 @@
+name: Security
+
+# Static analysis and supply-chain checks, kept separate from the functional CI job so a
+# scanner outage never blocks a correctness-only change, and so CodeQL can run on its own
+# schedule (advisories land after code stops changing).
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Weekly re-scan: new advisories apply to code that has not changed.
+    - cron: '0 6 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  codeql:
+    name: CodeQL (SAST)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-and-quality
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:javascript-typescript
+
+  dependency-review:
+    name: Dependency review
+    runs-on: ubuntu-latest
+    # Only meaningful on a PR: it diffs the manifest against the base branch.
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+
+  image-scan:
+    name: Container image scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build runtime image
+        run: docker build --target runtime -t atlas-decision-engine:scan .
+      - name: Scan image for OS and library vulnerabilities
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: atlas-decision-engine:scan
+          format: table
+          # Matches the yarn audit threshold so the two gates agree.
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'

@@ -49,7 +49,12 @@ export class ArtifactGraphReaderService {
         },
       },
     });
-    if (!version) throw new DomainException('VERSION_NOT_FOUND', 'Artifact version not found', HttpStatus.NOT_FOUND);
+    if (!version)
+      throw new DomainException(
+        'VERSION_NOT_FOUND',
+        'Artifact version not found',
+        HttpStatus.NOT_FOUND,
+      );
 
     return {
       artifact: {

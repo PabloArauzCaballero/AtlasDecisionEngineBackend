@@ -76,7 +76,17 @@ describe('ExecutionEngineService', () => {
       },
     };
     compiled.edgesByNode = {
-      START: [{ key: 'START_RESULT', from: 'START', to: 'RESULT', type: 'DEFAULT', priority: 1, default: true, conditions: [] }],
+      START: [
+        {
+          key: 'START_RESULT',
+          from: 'START',
+          to: 'RESULT',
+          type: 'DEFAULT',
+          priority: 1,
+          default: true,
+          conditions: [],
+        },
+      ],
       RESULT: [],
     };
 
@@ -91,11 +101,22 @@ describe('ExecutionEngineService', () => {
   it('fails closed when a required configured output is missing', async () => {
     const compiled = compiledFixture();
     compiled.variables.push({
-      variableVersionId: '11', usageType: 'OUTPUT_PRIMARY', dependencyPath: 'output.scoring',
-      code: 'scoring', version: 1, dataType: 'INTEGER', nullable: false,
-      validationRules: [], sources: [], required: true, fallbackPolicy: 'FAIL_CLOSED', sensitive: false,
+      variableVersionId: '11',
+      usageType: 'OUTPUT_PRIMARY',
+      dependencyPath: 'output.scoring',
+      code: 'scoring',
+      version: 1,
+      dataType: 'INTEGER',
+      nullable: false,
+      validationRules: [],
+      sources: [],
+      required: true,
+      fallbackPolicy: 'FAIL_CLOSED',
+      sensitive: false,
     });
-    await expect(engine.execute(compiled, { score: 700 })).rejects.toThrow('required output scoring');
+    await expect(engine.execute(compiled, { score: 700 })).rejects.toThrow(
+      'required output scoring',
+    );
   });
 
   describe('onStep live progress (Fase 8)', () => {

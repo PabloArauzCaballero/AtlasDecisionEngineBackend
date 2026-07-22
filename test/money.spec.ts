@@ -54,9 +54,7 @@ describe('Money exact arithmetic', () => {
     expect(() =>
       Money.fromMinorUnits(100n, 2, 'USD').add(Money.fromMinorUnits(100n, 2, 'EUR')),
     ).toThrow(/USD|EUR/);
-    expect(() =>
-      Money.fromMinorUnits(100n, 2).add(Money.fromMinorUnits(100n, 3)),
-    ).toThrow(/scale/);
+    expect(() => Money.fromMinorUnits(100n, 2).add(Money.fromMinorUnits(100n, 3))).toThrow(/scale/);
   });
 
   it('builds from a JS number by rounding to scale but rejects lossy magnitudes', () => {
@@ -75,5 +73,57 @@ describe('Money exact arithmetic', () => {
     const yen = Money.fromDecimalString('1500', 0, 'JPY');
     expect(yen.toDecimalString()).toBe('1500');
     expect(yen.add(Money.fromDecimalString('500', 0, 'JPY')).toDecimalString()).toBe('2000');
+  });
+
+  it('reports sign and zero without arithmetic', () => {
+    expect(Money.fromMinorUnits(-1n).isNegative()).toBe(true);
+    expect(Money.fromMinorUnits(1n).isNegative()).toBe(false);
+    expect(Money.fromMinorUnits(0n).isZero()).toBe(true);
+    expect(Money.fromMinorUnits(1n).isZero()).toBe(false);
+  });
+
+  it('rejects a scale outside 0..8', () => {
+    expect(() => Money.fromMinorUnits(1n, 9)).toThrow(/scale must be/);
+    expect(() => Money.fromMinorUnits(1n, -1)).toThrow(/scale must be/);
+    expect(() => Money.fromDecimalString('1', 2.5)).toThrow(/scale must be/);
+    // The boundary values are valid.
+    expect(Money.fromMinorUnits(1n, 0).scale).toBe(0);
+    expect(Money.fromMinorUnits(1n, 8).scale).toBe(8);
+  });
+
+  it('throws when comparing incompatible money, and equals returns false instead', () => {
+    const usd = Money.fromMinorUnits(100n, 2, 'USD');
+    const eur = Money.fromMinorUnits(100n, 2, 'EUR');
+    const scale3 = Money.fromMinorUnits(100n, 3, 'USD');
+    expect(() => usd.compareTo(eur)).toThrow(/USD|EUR/);
+    expect(() => usd.compareTo(scale3)).toThrow(/scale/);
+    // equals is total: mismatched currency or scale is false, never a throw.
+    expect(usd.equals(eur)).toBe(false);
+    expect(usd.equals(scale3)).toBe(false);
+    expect(usd.equals(Money.fromMinorUnits(100n, 2, 'USD'))).toBe(true);
+  });
+
+  it('names an unlabelled operand in the incompatibility error, either side', () => {
+    expect(() => Money.fromMinorUnits(100n, 2, 'USD').add(Money.fromMinorUnits(100n, 2))).toThrow(
+      /unlabelled/,
+    );
+    expect(() => Money.fromMinorUnits(100n, 2).add(Money.fromMinorUnits(100n, 2, 'USD'))).toThrow(
+      /unlabelled/,
+    );
+  });
+
+  it('multiplies by negative and zero integer factors, preserving currency', () => {
+    const price = Money.fromDecimalString('19.99', 2, 'USD');
+    expect(price.multiplyByInteger(-1n).toString()).toBe('-19.99 USD');
+    expect(price.multiplyByInteger(0n).isZero()).toBe(true);
+  });
+
+  it('parses trimmed input and rejects an explicit plus sign', () => {
+    expect(Money.fromDecimalString('  2000.50  ').minorUnits).toBe(200050n);
+    expect(() => Money.fromDecimalString('+5')).toThrow(/decimal money/);
+  });
+
+  it('formats an unlabelled value without a trailing currency', () => {
+    expect(Money.fromMinorUnits(200050n).toString()).toBe('2000.50');
   });
 });
