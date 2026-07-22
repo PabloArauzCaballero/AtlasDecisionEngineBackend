@@ -25,8 +25,8 @@
     "semantic_hash": "a9265d57c06f6e473cb15153f5c358b4"
   },
   "package.json": {
-    "mtime": 1784523330.2579956,
-    "ast_hash": "3b5cc7e612fe8b403b1c1a4348537c14",
+    "mtime": 1784643851.1354375,
+    "ast_hash": "fcd99eaa7f8a9d42a6b9a2f22d0cc589",
     "semantic_hash": ""
   },
   "prisma.config.ts": {
@@ -120,8 +120,8 @@
     "semantic_hash": "96014ab8e7f2f07900cf2e73f8590593"
   },
   "src/app.module.ts": {
-    "mtime": 1784486676.8603072,
-    "ast_hash": "412c996b19cf63761107c668e73b0c73",
+    "mtime": 1784644085.0107667,
+    "ast_hash": "29edc623df4b079416b6536509f0dd7e",
     "semantic_hash": ""
   },
   "src/common/audit/audit.module.ts": {
@@ -145,8 +145,8 @@
     "semantic_hash": ""
   },
   "src/common/config/env.schema.ts": {
-    "mtime": 1784522313.5082657,
-    "ast_hash": "ac43ef686c8408e41f9d7a4ca73751e8",
+    "mtime": 1784644169.6336517,
+    "ast_hash": "e6d5a18c9dc0a08a53a09c8c652399f7",
     "semantic_hash": ""
   },
   "src/common/context/request-context.service.ts": {
@@ -205,8 +205,8 @@
     "semantic_hash": "51acb490d579140420deb3b48b3ecf4c"
   },
   "src/common/observability/metrics.service.ts": {
-    "mtime": 1784470431.1373818,
-    "ast_hash": "5dbda531508e26c04e06bc1392e2a50d",
+    "mtime": 1784643950.5773325,
+    "ast_hash": "23645782fe1ac4ea106e7062032825f2",
     "semantic_hash": ""
   },
   "src/common/observability/observability.module.ts": {
@@ -410,13 +410,13 @@
     "semantic_hash": ""
   },
   "src/modules/governance/governance.module.ts": {
-    "mtime": 1783892972.4610696,
-    "ast_hash": "3a1e9accc337bef37e64b0bd2ad925ad",
-    "semantic_hash": "3a1e9accc337bef37e64b0bd2ad925ad"
+    "mtime": 1784644098.300439,
+    "ast_hash": "57f8ea0a16065423c72a9b770c3f62ae",
+    "semantic_hash": ""
   },
   "src/modules/governance/governance.service.ts": {
-    "mtime": 1784522315.2562332,
-    "ast_hash": "056d56d00a5b3410b0d279dbd4e9a2a2",
+    "mtime": 1784644157.438914,
+    "ast_hash": "7a2ea890a6caa85f3931d57ec3944bb8",
     "semantic_hash": ""
   },
   "src/modules/graph/compiler.service.ts": {
@@ -775,8 +775,8 @@
     "semantic_hash": ""
   },
   "test/frontend-read-endpoints.spec.ts": {
-    "mtime": 1784522318.165827,
-    "ast_hash": "37543399f54ce4cddc5e185f649da21c",
+    "mtime": 1784644203.7441487,
+    "ast_hash": "8fc7a0133373c875264e1bed62f74bb9",
     "semantic_hash": ""
   },
   "test/graph-validator.spec.ts": {
@@ -880,8 +880,8 @@
     "semantic_hash": ""
   },
   ".github/workflows/ci.yml": {
-    "mtime": 1784522561.668858,
-    "ast_hash": "aa9006e4c04a0927790c0dcf71e2b89d",
+    "mtime": 1784644043.2244506,
+    "ast_hash": "b2b033eb0385c6fc4ca916b559c1af6f",
     "semantic_hash": ""
   },
   "CLAUDE.md": {
@@ -895,8 +895,8 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1784288850.1693294,
-    "ast_hash": "ad85d5ccaf33d9813157e14f96661174",
+    "mtime": 1784644237.4877226,
+    "ast_hash": "0d8d42238b5a4cb65f17543eb3920803",
     "semantic_hash": ""
   },
   "SECURITY.md": {
@@ -965,8 +965,8 @@
     "semantic_hash": ""
   },
   "docs/DEPLOYMENT.md": {
-    "mtime": 1784288850.2484727,
-    "ast_hash": "159936514609ac38fda6e51a1c34f4f2",
+    "mtime": 1784644252.010182,
+    "ast_hash": "cdf174ead65711179d271313ed7cba9e",
     "semantic_hash": ""
   },
   "docs/IMPLEMENTATION_MATRIX.md": {
@@ -980,8 +980,8 @@
     "semantic_hash": ""
   },
   "docs/SECURITY_AUDIT.md": {
-    "mtime": 1784286967.945742,
-    "ast_hash": "bce21fcae0ac7cc2149b09c26baa15e0",
+    "mtime": 1784644266.7764254,
+    "ast_hash": "634d0677463e7723e9254172c8336601",
     "semantic_hash": ""
   },
   "docs/VISTAS_POR_FASES.md": {
@@ -1245,8 +1245,8 @@
     "semantic_hash": ""
   },
   ".github/workflows/security.yml": {
-    "mtime": 1784504859.6371534,
-    "ast_hash": "1be6e8d383fc51023640c3f2bb5b3793",
+    "mtime": 1784644050.4133887,
+    "ast_hash": "eb9faa977bfa03d9165db59bc5b3212a",
     "semantic_hash": ""
   },
   "src/common/observability/tracing.ts": {
@@ -1255,8 +1255,8 @@
     "semantic_hash": ""
   },
   "test/governance-sod.integration.spec.ts": {
-    "mtime": 1784524023.2656715,
-    "ast_hash": "d2609bb27da0de8bb4d43cc8ef8c18f5",
+    "mtime": 1784644237.2082143,
+    "ast_hash": "e2c5c85299ca810f2e76b89ae74db5ea",
     "semantic_hash": ""
   },
   "test/setup-env.ts": {
@@ -1272,6 +1272,116 @@
   "test/support/unique-tenant.ts": {
     "mtime": 1784523853.1211772,
     "ast_hash": "f93157f85fcb5692244267a2296bdaaa",
+    "semantic_hash": ""
+  },
+  "prisma/migrations/20260721090000_event_outbox_and_notifications/migration.sql": {
+    "mtime": 1784643893.273247,
+    "ast_hash": "e27f045b10e96c7c5faa08ec546c9138",
+    "semantic_hash": ""
+  },
+  "src/common/events/event-bus.ts": {
+    "mtime": 1784691246.7375226,
+    "ast_hash": "35bc546fc26c76db0540e5e648dd792f",
+    "semantic_hash": ""
+  },
+  "src/common/events/event-envelope.ts": {
+    "mtime": 1784643904.3572745,
+    "ast_hash": "d7e1799d26d1e3b0f8e707b95cbcd102",
+    "semantic_hash": ""
+  },
+  "src/common/events/event-types.ts": {
+    "mtime": 1784643912.388429,
+    "ast_hash": "9b4a41a375091837211bc5f15e9f311c",
+    "semantic_hash": ""
+  },
+  "src/common/events/events.module.ts": {
+    "mtime": 1784643928.5566616,
+    "ast_hash": "caa99b28ec7eddd501d47c438ac52463",
+    "semantic_hash": ""
+  },
+  "src/common/events/outbox-publisher.service.ts": {
+    "mtime": 1784691246.8418636,
+    "ast_hash": "687201aa9d21b8560dc58614f52159c6",
+    "semantic_hash": ""
+  },
+  "src/modules/notifications/notification-projector.service.ts": {
+    "mtime": 1784691246.9395785,
+    "ast_hash": "b50d36106874ccbe850f74d0dbbcacac",
+    "semantic_hash": ""
+  },
+  "src/modules/notifications/notification.controller.ts": {
+    "mtime": 1784644062.6602042,
+    "ast_hash": "afa466051aac585f99314e9c2de0cca6",
+    "semantic_hash": ""
+  },
+  "src/modules/notifications/notification.dto.ts": {
+    "mtime": 1784644007.162685,
+    "ast_hash": "de5435bbd0e04d14e4b9aaea16f1b902",
+    "semantic_hash": ""
+  },
+  "src/modules/notifications/notification.service.ts": {
+    "mtime": 1784644025.8408513,
+    "ast_hash": "15499a35150bab36e8c9ce8d2985629f",
+    "semantic_hash": ""
+  },
+  "src/modules/notifications/notifications.module.ts": {
+    "mtime": 1784644064.4441617,
+    "ast_hash": "1a86015a454eb5d95aeb0e7fc62f4ba8",
+    "semantic_hash": ""
+  },
+  "src/modules/outbox-relay/outbox-relay.module.ts": {
+    "mtime": 1784643991.0469568,
+    "ast_hash": "f2d470cec07d8149c00190e018516cfa",
+    "semantic_hash": ""
+  },
+  "src/modules/outbox-relay/outbox-relay.service.ts": {
+    "mtime": 1784643989.2561226,
+    "ast_hash": "411ce7c7b7e38d57225bfa10cf721890",
+    "semantic_hash": ""
+  },
+  "test/event-bus.spec.ts": {
+    "mtime": 1784675745.899443,
+    "ast_hash": "65c7505fc4a639d795bc97c665bc7957",
+    "semantic_hash": ""
+  },
+  "test/notification-projector.spec.ts": {
+    "mtime": 1784691247.3386798,
+    "ast_hash": "8b61cac6aad84fa78c65f81730c44eb0",
+    "semantic_hash": ""
+  },
+  "test/notification-service.spec.ts": {
+    "mtime": 1784691247.382893,
+    "ast_hash": "02c9b85a1c93595f19153204f9ea9f82",
+    "semantic_hash": ""
+  },
+  "test/outbox-notifications.integration.spec.ts": {
+    "mtime": 1784691247.291995,
+    "ast_hash": "ece03d2630bb9fc19b2d94cc6e95675f",
+    "semantic_hash": ""
+  },
+  "test/outbox-publisher.spec.ts": {
+    "mtime": 1784675754.4096334,
+    "ast_hash": "a5a04e956790d54714bdfb43265ec36b",
+    "semantic_hash": ""
+  },
+  "test/outbox-relay.spec.ts": {
+    "mtime": 1784691247.2368758,
+    "ast_hash": "0b98abd0eaf4b3a6664767bc466b7083",
+    "semantic_hash": ""
+  },
+  "docs/COMANDOS.md": {
+    "mtime": 1784644296.3139026,
+    "ast_hash": "69ba0bc798c9663566ccf3e04a37fbf8",
+    "semantic_hash": ""
+  },
+  "docs/event-driven-architecture.md": {
+    "mtime": 1784682795.731564,
+    "ast_hash": "cbf69a50b2619156b6afcd0cc0dd6064",
+    "semantic_hash": ""
+  },
+  "docs/notifications.md": {
+    "mtime": 1784682839.92213,
+    "ast_hash": "a7cb6692792b907e6f6fb756a3304ab9",
     "semantic_hash": ""
   }
 }
