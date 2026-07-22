@@ -104,7 +104,26 @@ export class ArtifactService {
         },
       }),
     ]);
-    return pageResult(items, total, paging.page, paging.pageSize);
+    // Se aplana la versión más reciente a columnas de la tabla (Version, Status,
+    // Environment, Last Val). Antes el frontend recibía las versiones anidadas y
+    // esas columnas salían vacías. `name`/`artifactType`/`ownerTeam` ya venían
+    // planas del artefacto base.
+    const mapped = items.map((artifact) => {
+      const latest = artifact.versions[0];
+      return {
+        id: artifact.id,
+        artifactCode: artifact.artifactCode,
+        name: artifact.name,
+        artifactType: artifact.artifactType,
+        ownerTeam: artifact.ownerTeam,
+        latestVersion:
+          latest?.semanticVersion ?? (latest ? `v${latest.versionNumber}` : null),
+        latestStatus: latest?.status ?? null,
+        environmentCode: deriveEnvironmentFromStatus(latest?.status),
+        lastValidatedAt: latest?.approvedAt ?? null,
+      };
+    });
+    return pageResult(mapped, total, paging.page, paging.pageSize);
   }
 
   async get(tenantId: bigint, artifactId: bigint) {
@@ -317,4 +336,15 @@ export class ArtifactService {
     if (!match) return semanticVersion;
     return `${match[1]}.${match[2]}.${Number(match[3]) + 1}`;
   }
+}
+
+/**
+ * El ambiente vigente de un artefacto se infiere del estado de su versión más
+ * reciente (`DEPLOYED_TO_PROD` → PROD, etc.). Los estados no desplegados no
+ * tienen ambiente asociado y devuelven null (la tabla lo pinta como "—").
+ */
+function deriveEnvironmentFromStatus(status?: string | null): string | null {
+  if (!status) return null;
+  const deployed = /^DEPLOYED_TO_(.+)$/.exec(String(status));
+  return deployed ? deployed[1] : null;
 }

@@ -141,7 +141,35 @@ export class VariableService {
         },
       }),
     ]);
-    return pageResult(items, total, paging.page, paging.pageSize);
+    // La tabla del catálogo consume campos planos (name, dataType, source,
+    // latestVersion, …). Sin este proyectado, el frontend recibía la entidad
+    // cruda con `canonicalName` y la versión anidada, y todas las columnas menos
+    // el código salían vacías. El detalle (`get`) sigue devolviendo el grafo
+    // completo; solo el listado se aplana.
+    const mapped = items.map((definition) => {
+      const latest = definition.versions[0];
+      const authoritativeSource = latest
+        ? [...latest.sources].sort(
+            (a, b) =>
+              Number(b.isAuthoritative) - Number(a.isAuthoritative) ||
+              a.precedence - b.precedence,
+          )[0]
+        : undefined;
+      return {
+        id: definition.id,
+        variableCode: definition.variableCode,
+        name: definition.canonicalName,
+        category: definition.dataClassification,
+        dataType: latest?.dataType ?? null,
+        source: authoritativeSource?.sourceSystemCode ?? null,
+        latestVersion: latest?.versionNumber ?? null,
+        sensitivity: definition.isSensitive ? 'SENSIBLE' : 'ESTÁNDAR',
+        status: definition.isActive ? 'ACTIVE' : 'INACTIVE',
+        updatedAt: latest?.effectiveFrom ?? null,
+        businessDescription: definition.businessDescription,
+      };
+    });
+    return pageResult(mapped, total, paging.page, paging.pageSize);
   }
 
   async get(tenantId: bigint, definitionId: bigint) {
