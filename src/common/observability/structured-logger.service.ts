@@ -19,20 +19,51 @@ const PINO_METHOD: Record<string, 'error' | 'warn' | 'info' | 'debug' | 'trace'>
   verbose: 'trace',
 };
 
-const SENSITIVE_KEYS = new Set([
-  'authorization',
-  'cookie',
-  'set-cookie',
-  'x-api-key',
-  'apiKey',
-  'password',
-  'secret',
-  'token',
-  'accessToken',
-  'refreshToken',
-  'subjectReference',
-  'valueJson',
-]);
+const SENSITIVE_KEYS = new Set(
+  [
+    // Credentials and transport secrets.
+    'authorization',
+    'cookie',
+    'set-cookie',
+    'x-api-key',
+    'apiKey',
+    'password',
+    'secret',
+    'token',
+    'accessToken',
+    'refreshToken',
+    'subjectReference',
+    'valueJson',
+    // Decision inputs carry financial PII. They travel under generic container keys
+    // (`variables`, `input`, `context`, `payload`…) that an allowlist keyed only on
+    // credential names would miss, so a service logging `{ variables: {...} }` would
+    // otherwise write applicant PII in clear. Over-redaction is the safe failure mode
+    // here; anything decision-shaped is redacted wholesale rather than risk a leak.
+    'variables',
+    'input',
+    'inputs',
+    'inputPayload',
+    'inputJson',
+    'context',
+    'payload',
+    'payloadJson',
+    'decisionInput',
+    'subjectData',
+    'attributes',
+    'facts',
+    'pii',
+    // Common raw PII field names, in case one is logged directly rather than nested.
+    'ssn',
+    'nationalId',
+    'taxId',
+    'dateOfBirth',
+    'dob',
+    'pan',
+    'cardNumber',
+    'email',
+    'phone',
+  ].map((key) => key.toLowerCase()),
+);
 
 /**
  * Nest routes every `new Logger(context)` call site through whatever instance is
@@ -89,13 +120,15 @@ export class StructuredLoggerService implements LoggerService, OnModuleDestroy {
   }
 
   private reportSinkFailure(filePath: string, error: unknown): void {
-    process.stderr.write(`${JSON.stringify({
-      timestamp: new Date().toISOString(),
-      level: 'error',
-      context: 'StructuredLogger',
-      message: `Falling back to stdout only: log file ${filePath} is not writable`,
-      error: error instanceof Error ? error.message : String(error),
-    })}\n`);
+    process.stderr.write(
+      `${JSON.stringify({
+        timestamp: new Date().toISOString(),
+        level: 'error',
+        context: 'StructuredLogger',
+        message: `Falling back to stdout only: log file ${filePath} is not writable`,
+        error: error instanceof Error ? error.message : String(error),
+      })}\n`,
+    );
   }
 
   log(message: unknown, ...optionalParams: unknown[]): void {
@@ -144,9 +177,7 @@ export class StructuredLoggerService implements LoggerService, OnModuleDestroy {
       authMethod: store?.authMethod,
       context: typeof contextName === 'string' ? contextName : undefined,
       metadata: this.redact(message && typeof message === 'object' ? message : undefined),
-      error: error
-        ? { name: error.name, message: error.message, stack: error.stack }
-        : undefined,
+      error: error ? { name: error.name, message: error.message, stack: error.stack } : undefined,
     };
     const pinoMethod = severity === 'fatal' ? 'fatal' : PINO_METHOD[level];
     this.pino[pinoMethod](record, this.toMessage(message));
@@ -168,9 +199,10 @@ export class StructuredLoggerService implements LoggerService, OnModuleDestroy {
     if (!value || typeof value !== 'object') return value;
     const result: Record<string, unknown> = {};
     for (const [key, child] of Object.entries(value as Record<string, unknown>).slice(0, 100)) {
-      result[key] = SENSITIVE_KEYS.has(key) || SENSITIVE_KEYS.has(key.toLowerCase())
-        ? '[REDACTED]'
-        : this.redact(child, depth + 1);
+      result[key] =
+        SENSITIVE_KEYS.has(key) || SENSITIVE_KEYS.has(key.toLowerCase())
+          ? '[REDACTED]'
+          : this.redact(child, depth + 1);
     }
     return result;
   }

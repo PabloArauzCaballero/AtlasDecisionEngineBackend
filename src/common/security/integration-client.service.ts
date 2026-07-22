@@ -4,6 +4,14 @@ import { HashService } from '../crypto/hash.service';
 import { DomainException } from '../errors/domain-exception';
 import type { ApiAudience } from './security.types';
 
+/**
+ * Skip the `lastUsedAt` write unless the recorded timestamp is older than this. The
+ * column drives operational "last seen" reporting, not authorization, so second-level
+ * precision buys nothing while a write on every authenticated request amplifies load on
+ * the runtime hot path. Throttling collapses a per-request write to one per window.
+ */
+const LAST_USED_THROTTLE_MS = 5 * 60 * 1_000;
+
 /** Identity and authorization data loaded from the integration client registry. */
 export interface ResolvedIntegrationClient {
   /** Stable machine identity written to audit records. */
@@ -45,7 +53,8 @@ export class IntegrationClientService {
     // probing keys which of its guesses named a real client.
     if (!credential) throw this.unauthorized();
     if (credential.status !== 'ACTIVE') throw this.unauthorized();
-    if (credential.expiresAt && credential.expiresAt.getTime() <= Date.now()) throw this.unauthorized();
+    if (credential.expiresAt && credential.expiresAt.getTime() <= Date.now())
+      throw this.unauthorized();
 
     const client = credential.client;
     if (client.status !== 'ACTIVE') throw this.unauthorized();
@@ -56,9 +65,25 @@ export class IntegrationClientService {
 
     // Best-effort usage tracking: a failure to record last use must not deny an
     // otherwise valid caller, and it is outside the request's business transaction.
-    void this.prisma.integrationCredential
-      .update({ where: { id: credential.id }, data: { lastUsedAt: new Date() } })
-      .catch(() => undefined);
+    // Throttled so a busy credential does not issue a write on every request; the
+    // guard on lastUsedAt keeps concurrent requests in the same window from stacking
+    // redundant updates (a slightly stale timestamp is acceptable, a lost write is not).
+    const now = Date.now();
+    const lastUsedMs = credential.lastUsedAt?.getTime() ?? 0;
+    if (now - lastUsedMs >= LAST_USED_THROTTLE_MS) {
+      void this.prisma.integrationCredential
+        .updateMany({
+          where: {
+            id: credential.id,
+            OR: [
+              { lastUsedAt: null },
+              { lastUsedAt: { lt: new Date(now - LAST_USED_THROTTLE_MS) } },
+            ],
+          },
+          data: { lastUsedAt: new Date(now) },
+        })
+        .catch(() => undefined);
+    }
 
     return {
       clientKey: client.clientKey,

@@ -39,7 +39,10 @@ export function isPotentiallyCatastrophic(pattern: string): boolean {
 export function safeRegexTest(pattern: string, value: string): SafeRegexResult {
   const compiled = compile(pattern);
   if (compiled === null) {
-    return { matched: false, error: isPotentiallyCatastrophic(pattern) ? 'UNSAFE_PATTERN' : 'INVALID_PATTERN' };
+    return {
+      matched: false,
+      error: isPotentiallyCatastrophic(pattern) ? 'UNSAFE_PATTERN' : 'INVALID_PATTERN',
+    };
   }
   if (value.length > MAX_TESTED_VALUE_LENGTH) {
     // Fail closed: refuse to run an unbounded regex over an oversized value.

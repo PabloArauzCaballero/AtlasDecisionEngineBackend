@@ -23,7 +23,9 @@ export function reportDuplicates(
     seen.add(value);
   }
   for (const value of duplicates) {
-    errors.push(issue(code, `Duplicate ${entityType?.toLowerCase()} identifier ${value}`, entityType, value));
+    errors.push(
+      issue(code, `Duplicate ${entityType?.toLowerCase()} identifier ${value}`, entityType, value),
+    );
   }
 }
 

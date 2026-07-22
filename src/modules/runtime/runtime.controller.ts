@@ -1,11 +1,7 @@
 import { Body, Controller, Param, Post, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
-import {
-  Audience,
-  CurrentPrincipal,
-  TenantId,
-} from '../../common/security/security.decorators';
+import { Audience, CurrentPrincipal, TenantId } from '../../common/security/security.decorators';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
 import { ExecuteDecisionDto } from './runtime.dto';
 import { RuntimeService } from './runtime.service';

@@ -29,7 +29,10 @@ export class DeploymentResolverService {
     const key = this.cacheKey(artifactCode, environmentCode);
     const cached = await this.cache.getForTenant(tenantId, key);
     if (cached) {
-      const parsed = JSON.parse(cached) as Omit<ResolvedDeployment, 'deploymentId' | 'artifactVersionId' | 'environmentId' | 'compiledArtifactId'> & {
+      const parsed = JSON.parse(cached) as Omit<
+        ResolvedDeployment,
+        'deploymentId' | 'artifactVersionId' | 'environmentId' | 'compiledArtifactId'
+      > & {
         deploymentId: string;
         artifactVersionId: string;
         environmentId: string;
@@ -76,7 +79,8 @@ export class DeploymentResolverService {
       environmentCode: binding.environment.code,
       compiledArtifactId: binding.activeDeployment.compiledArtifactId,
       compiledChecksum: binding.activeDeployment.compiledArtifact.compiledChecksum,
-      compiled: binding.activeDeployment.compiledArtifact.compiledPayloadJson as unknown as CompiledDecisionArtifact,
+      compiled: binding.activeDeployment.compiledArtifact
+        .compiledPayloadJson as unknown as CompiledDecisionArtifact,
     };
     await this.cache.setForTenant(
       tenantId,

@@ -45,14 +45,17 @@ export class AuditService {
     const event = tx
       ? await this.appendWithin(tx, input)
       : await this.prisma.$transaction((client) => this.appendWithin(client, input));
-    this.logger.log({
-      eventType: event.eventType,
-      aggregateType: event.aggregateType,
-      aggregateId: event.aggregateId,
-      tenantId: input.tenantId.toString(),
-      actorId: event.actorId,
-      requestId: event.requestId,
-    }, 'AuditService');
+    this.logger.log(
+      {
+        eventType: event.eventType,
+        aggregateType: event.aggregateType,
+        aggregateId: event.aggregateId,
+        tenantId: input.tenantId.toString(),
+        actorId: event.actorId,
+        requestId: event.requestId,
+      },
+      'AuditService',
+    );
     return event;
   }
 

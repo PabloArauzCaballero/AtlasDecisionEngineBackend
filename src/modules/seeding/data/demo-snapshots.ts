@@ -1,9 +1,31 @@
 import { CompileStatus, type Prisma, type PrismaClient } from '@prisma/client';
 import { sha256 } from './helpers';
-import type { ActionDefinition, ConditionDefinition, DemoGraphResult, NodeDefinition } from './demo-graph';
+import type {
+  ActionDefinition,
+  ConditionDefinition,
+  DemoGraphResult,
+  NodeDefinition,
+} from './demo-graph';
 
-export type DemoVariable = { definition: { variableCode: string; isSensitive: boolean }; version: Record<string, unknown> & { id: bigint; versionNumber: number; dataType: string; unitCode: string | null; nullable: boolean; validationSchemaJson: unknown } };
-export type DemoReason = { id: bigint; category: string; publicMessage: string; internalMessage: string; severity: string; isAdverseAction: boolean };
+export type DemoVariable = {
+  definition: { variableCode: string; isSensitive: boolean };
+  version: Record<string, unknown> & {
+    id: bigint;
+    versionNumber: number;
+    dataType: string;
+    unitCode: string | null;
+    nullable: boolean;
+    validationSchemaJson: unknown;
+  };
+};
+export type DemoReason = {
+  id: bigint;
+  category: string;
+  publicMessage: string;
+  internalMessage: string;
+  severity: string;
+  isAdverseAction: boolean;
+};
 
 export interface DemoSnapshotResult {
   compiledChecksum: string;
@@ -14,13 +36,29 @@ export interface DemoSnapshotResult {
 /** Builds the deterministic graph/compiled snapshots for the demo artifact and persists the compiled record. */
 export async function buildDemoSnapshots(
   prisma: PrismaClient,
-  artifact: { id: bigint; tenantId: bigint; artifactCode: string; artifactType: string; name: string; riskDomain: string },
+  artifact: {
+    id: bigint;
+    tenantId: bigint;
+    artifactCode: string;
+    artifactType: string;
+    name: string;
+    riskDomain: string;
+  },
   version: { id: bigint },
   variables: DemoVariable[],
   reasonByCode: Record<string, DemoReason>,
   graph: DemoGraphResult,
 ): Promise<DemoSnapshotResult> {
-  const { conditionDefinitions, actionDefinitions, nodeDefinitions, nodeActionBindings, conditionByCode, actionByCode, nodeByKey, edgeRows } = graph;
+  const {
+    conditionDefinitions,
+    actionDefinitions,
+    nodeDefinitions,
+    nodeActionBindings,
+    conditionByCode,
+    actionByCode,
+    nodeByKey,
+    edgeRows,
+  } = graph;
 
   const variableSnapshots = variables.map(({ definition, version: variable }) => ({
     variableVersionId: variable.id.toString(),
@@ -31,7 +69,16 @@ export async function buildDemoSnapshots(
     nullable: variable.nullable,
     validationSchema: variable.validationSchemaJson,
     validationRules: [],
-    sources: [{ system: 'REQUEST_PAYLOAD', path: '$.variables', field: definition.variableCode, precedence: 1, freshnessSlaSeconds: 60, authoritative: true }],
+    sources: [
+      {
+        system: 'REQUEST_PAYLOAD',
+        path: '$.variables',
+        field: definition.variableCode,
+        precedence: 1,
+        freshnessSlaSeconds: 60,
+        authoritative: true,
+      },
+    ],
     required: true,
     fallbackPolicy: 'FAIL_CLOSED',
     sensitive: definition.isSensitive,
@@ -53,16 +100,18 @@ export async function buildDemoSnapshots(
     payload: item.payload,
     terminal: item.terminal,
     reasonCodes: item.reason
-      ? [{
-          id: reasonByCode[item.reason].id.toString(),
-          code: item.reason,
-          category: reasonByCode[item.reason].category,
-          publicMessage: reasonByCode[item.reason].publicMessage,
-          internalMessage: reasonByCode[item.reason].internalMessage,
-          severity: reasonByCode[item.reason].severity,
-          adverseAction: reasonByCode[item.reason].isAdverseAction,
-          priority: 10,
-        }]
+      ? [
+          {
+            id: reasonByCode[item.reason].id.toString(),
+            code: item.reason,
+            category: reasonByCode[item.reason].category,
+            publicMessage: reasonByCode[item.reason].publicMessage,
+            internalMessage: reasonByCode[item.reason].internalMessage,
+            severity: reasonByCode[item.reason].severity,
+            adverseAction: reasonByCode[item.reason].isAdverseAction,
+            priority: 10,
+          },
+        ]
       : [],
   }));
   const nodeSnapshots = nodeDefinitions.map((item: NodeDefinition) => ({
@@ -76,7 +125,10 @@ export async function buildDemoSnapshots(
     order: item.order,
     terminal: item.terminal,
     conditions: [],
-    actions: (nodeActionBindings[item.key] ?? []).map((code, index) => ({ code, order: index + 1 })),
+    actions: (nodeActionBindings[item.key] ?? []).map((code, index) => ({
+      code,
+      order: index + 1,
+    })),
   }));
   const edgeSnapshots = edgeRows.map(({ row, definition }) => ({
     id: row.id.toString(),
@@ -91,8 +143,12 @@ export async function buildDemoSnapshots(
 
   const graphSnapshot = {
     artifact: {
-      id: artifact.id.toString(), tenantId: artifact.tenantId.toString(), code: artifact.artifactCode,
-      type: artifact.artifactType, name: artifact.name, riskDomain: artifact.riskDomain,
+      id: artifact.id.toString(),
+      tenantId: artifact.tenantId.toString(),
+      code: artifact.artifactCode,
+      type: artifact.artifactType,
+      name: artifact.name,
+      riskDomain: artifact.riskDomain,
     },
     version: { id: version.id.toString(), number: 1, semanticVersion: '1.0.0', status: 'APPROVED' },
     variables: variableSnapshots,
@@ -111,9 +167,16 @@ export async function buildDemoSnapshots(
     startNodeKey: 'START',
     nodes: Object.fromEntries(nodeSnapshots.map((node) => [node.key, node])),
     edgesByNode: Object.fromEntries(
-      nodeSnapshots.map((node) => [node.key, edgeSnapshots.filter((edge) => edge.from === node.key).sort((a, b) => a.priority - b.priority)]),
+      nodeSnapshots.map((node) => [
+        node.key,
+        edgeSnapshots
+          .filter((edge) => edge.from === node.key)
+          .sort((a, b) => a.priority - b.priority),
+      ]),
     ),
-    conditions: Object.fromEntries(conditionSnapshots.map((condition) => [condition.code, condition])),
+    conditions: Object.fromEntries(
+      conditionSnapshots.map((condition) => [condition.code, condition]),
+    ),
     actions: Object.fromEntries(actionSnapshots.map((action) => [action.code, action])),
     totals: { nodes: nodeSnapshots.length, edges: edgeSnapshots.length, terminalPaths: 5 },
   };

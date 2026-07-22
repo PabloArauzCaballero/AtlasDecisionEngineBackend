@@ -1,11 +1,4 @@
-import {
-  IsNotEmpty,
-  IsObject,
-  IsOptional,
-  IsString,
-  Matches,
-  MaxLength,
-} from 'class-validator';
+import { IsNotEmpty, IsObject, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 
 export class ExecuteDecisionDto {
   @IsString() @IsNotEmpty() @MaxLength(120) requestId!: string;

@@ -5,6 +5,7 @@ import { AuditService } from '../src/common/audit/audit.service';
 import { AuditQueryService } from '../src/modules/audit-query/audit-query.service';
 import { HashService } from '../src/common/crypto/hash.service';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
+import { uniqueTenantId } from './support/unique-tenant';
 
 /**
  * Plan §2.5 / D-9: verifying an audit event must not depend on JSONB re-serialization.
@@ -27,7 +28,7 @@ describeDb('Audit canonical payload verification (integration)', () => {
     new ConfigService({ MAX_PAGE_SIZE: 100 }),
   );
   // Unique per run: append-only rows cannot be cleaned up.
-  const tenantId = BigInt(850000 + (process.pid % 10000));
+  const tenantId = uniqueTenantId(1);
 
   afterAll(async () => {
     await prisma.$disconnect();
@@ -71,7 +72,9 @@ describeDb('Audit canonical payload verification (integration)', () => {
     const stored = await prisma.decisionAuditEvent.findUniqueOrThrow({ where: { id: event.id } });
     expect(stored.canonicalPayload).toBeTruthy();
     // The stored string is exactly what the HMAC was computed over.
-    expect(hashes.hmacWithKey(stored.canonicalPayload as string, stored.hashKeyId)).toBe(stored.eventHash);
+    expect(hashes.hmacWithKey(stored.canonicalPayload as string, stored.hashKeyId)).toBe(
+      stored.eventHash,
+    );
   });
 
   it('still detects a genuinely tampered event', async () => {

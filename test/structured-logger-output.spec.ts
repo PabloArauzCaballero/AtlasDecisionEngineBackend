@@ -49,7 +49,9 @@ describe('StructuredLoggerService log output', () => {
       expect(() => instance.log('hello')).not.toThrow();
       await new Promise((resolve) => setTimeout(resolve, 250));
 
-      const reported = stderr.mock.calls.some((call) => String(call[0]).includes('Falling back to stdout only'));
+      const reported = stderr.mock.calls.some((call) =>
+        String(call[0]).includes('Falling back to stdout only'),
+      );
       expect(reported).toBe(true);
     } finally {
       stderr.mockRestore();

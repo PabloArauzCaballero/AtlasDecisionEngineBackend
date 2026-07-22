@@ -54,7 +54,8 @@ export class RuntimeService {
     dto: ExecuteDecisionDto,
     principal: AuthenticatedPrincipal,
   ): Promise<RuntimeHttpResult> {
-    const environmentCode = dto.environmentCode ?? this.config.get<string>('DEFAULT_ENVIRONMENT') ?? 'PROD';
+    const environmentCode =
+      dto.environmentCode ?? this.config.get<string>('DEFAULT_ENVIRONMENT') ?? 'PROD';
     const requestHash = this.hashes.sha256({
       tenantId: tenantId.toString(),
       artifactCode,
@@ -106,24 +107,27 @@ export class RuntimeService {
         // Same unit of work as the decision path: a NO_DECISION is still a recorded outcome,
         // so its evidence, idempotency result and audit event must commit together.
         const body = await this.prisma.$transaction(async (tx) => {
-          const execution = await this.writer.write({
-            tenantId,
-            deployment,
-            requestId: dto.requestId,
-            correlationId: dto.correlationId,
-            idempotencyKey: dto.idempotencyKey,
-            subjectReference: dto.subjectReference,
-            inputSnapshot,
-            durationMs,
-            variableSnapshots: resolution.snapshots,
-            errors: resolution.errors.map((error) => ({
-              code: error.code,
-              type: 'VARIABLE_RESOLUTION',
-              message: error.message,
-              retryable: false,
-              details: { variable: error.variable },
-            })),
-          }, tx);
+          const execution = await this.writer.write(
+            {
+              tenantId,
+              deployment,
+              requestId: dto.requestId,
+              correlationId: dto.correlationId,
+              idempotencyKey: dto.idempotencyKey,
+              subjectReference: dto.subjectReference,
+              inputSnapshot,
+              durationMs,
+              variableSnapshots: resolution.snapshots,
+              errors: resolution.errors.map((error) => ({
+                code: error.code,
+                type: 'VARIABLE_RESOLUTION',
+                message: error.message,
+                retryable: false,
+                details: { variable: error.variable },
+              })),
+            },
+            tx,
+          );
           const responseBody = {
             requestId: dto.requestId,
             executionId: execution.id.toString(),
@@ -165,20 +169,27 @@ export class RuntimeService {
       // engine execution stayed outside deliberately — they perform network I/O, which must
       // never hold a database transaction open.
       const body = await this.prisma.$transaction(async (tx) => {
-        const execution = await this.writer.write({
-          tenantId,
-          deployment,
-          requestId: dto.requestId,
-          correlationId: dto.correlationId,
-          idempotencyKey: dto.idempotencyKey,
-          subjectReference: dto.subjectReference,
-          inputSnapshot,
-          durationMs,
-          variableSnapshots: resolution.snapshots,
-          result,
-        }, tx);
+        const execution = await this.writer.write(
+          {
+            tenantId,
+            deployment,
+            requestId: dto.requestId,
+            correlationId: dto.correlationId,
+            idempotencyKey: dto.idempotencyKey,
+            subjectReference: dto.subjectReference,
+            inputSnapshot,
+            durationMs,
+            variableSnapshots: resolution.snapshots,
+            result,
+          },
+          tx,
+        );
         const responseBody = this.buildBody(dto, artifactCode, deployment, execution, result);
-        await this.idempotency.complete(reservation.id, { httpStatus: 200, body: responseBody }, tx);
+        await this.idempotency.complete(
+          reservation.id,
+          { httpStatus: 200, body: responseBody },
+          tx,
+        );
         await this.audit.append(
           {
             tenantId,

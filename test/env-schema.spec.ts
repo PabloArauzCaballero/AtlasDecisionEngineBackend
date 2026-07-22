@@ -36,13 +36,15 @@ describe('environment validation', () => {
   });
 
   it('requires an HTTPS identity provider URL in production', () => {
-    expect(() => validateEnvironment({
-      ...base,
-      NODE_ENV: 'production',
-      AUTH_MODE: 'IDENTITY_PROVIDER',
-      IDENTITY_PROVIDER_URL: 'http://identity.example.com/api/v1',
-      METRICS_TOKEN: 'metrics-token-with-enough-entropy-789',
-    })).toThrow();
+    expect(() =>
+      validateEnvironment({
+        ...base,
+        NODE_ENV: 'production',
+        AUTH_MODE: 'IDENTITY_PROVIDER',
+        IDENTITY_PROVIDER_URL: 'http://identity.example.com/api/v1',
+        METRICS_TOKEN: 'metrics-token-with-enough-entropy-789',
+      }),
+    ).toThrow();
   });
 
   it('rejects API key-only authentication in production', () => {
@@ -55,11 +57,13 @@ describe('environment validation', () => {
   });
 
   it('rejects using the same management and runtime API key', () => {
-    expect(() => validateEnvironment({
-      ...jwtProduction,
-      MANAGEMENT_API_KEY: 'shared-key-with-enough-entropy-12345',
-      RUNTIME_API_KEY: 'shared-key-with-enough-entropy-12345',
-    })).toThrow();
+    expect(() =>
+      validateEnvironment({
+        ...jwtProduction,
+        MANAGEMENT_API_KEY: 'shared-key-with-enough-entropy-12345',
+        RUNTIME_API_KEY: 'shared-key-with-enough-entropy-12345',
+      }),
+    ).toThrow();
   });
 
   it('allows API key mode for local development', () => {
@@ -73,23 +77,29 @@ describe('environment validation', () => {
   });
 
   it('rejects invalid boolean strings instead of silently coercing them', () => {
-    expect(() => validateEnvironment({
-      NODE_ENV: 'development',
-      ...base,
-      REQUIRE_REDIS_IN_PRODUCTION: 'sometimes',
-    })).toThrow();
+    expect(() =>
+      validateEnvironment({
+        NODE_ENV: 'development',
+        ...base,
+        REQUIRE_REDIS_IN_PRODUCTION: 'sometimes',
+      }),
+    ).toThrow();
   });
 
   it('rejects the in-process script runner in production', () => {
-    expect(() => validateEnvironment({
-      ...jwtProduction,
-      SCRIPT_NODES_ENABLED: true,
-    })).toThrow(/OS security boundary/);
-    expect(() => validateEnvironment({
-      ...jwtProduction,
-      SCRIPT_NODES_ENABLED: true,
-      SCRIPT_RUNNER_MODE: 'IN_PROCESS',
-    })).toThrow(/OS security boundary/);
+    expect(() =>
+      validateEnvironment({
+        ...jwtProduction,
+        SCRIPT_NODES_ENABLED: true,
+      }),
+    ).toThrow(/OS security boundary/);
+    expect(() =>
+      validateEnvironment({
+        ...jwtProduction,
+        SCRIPT_NODES_ENABLED: true,
+        SCRIPT_RUNNER_MODE: 'IN_PROCESS',
+      }),
+    ).toThrow(/OS security boundary/);
   });
 
   it('allows the isolated sidecar script runner in production', () => {
@@ -118,13 +128,17 @@ describe('environment validation', () => {
   });
 
   it('requires an HTTPS variable backend URL in production', () => {
-    expect(() => validateEnvironment({
-      ...jwtProduction,
-      VARIABLE_BACKEND_URL: 'http://variables.internal/api',
-    })).toThrow();
-    expect(validateEnvironment({
-      ...jwtProduction,
-      VARIABLE_BACKEND_URL: 'https://variables.internal/api',
-    }).VARIABLE_BACKEND_URL).toBe('https://variables.internal/api');
+    expect(() =>
+      validateEnvironment({
+        ...jwtProduction,
+        VARIABLE_BACKEND_URL: 'http://variables.internal/api',
+      }),
+    ).toThrow();
+    expect(
+      validateEnvironment({
+        ...jwtProduction,
+        VARIABLE_BACKEND_URL: 'https://variables.internal/api',
+      }).VARIABLE_BACKEND_URL,
+    ).toBe('https://variables.internal/api');
   });
 });

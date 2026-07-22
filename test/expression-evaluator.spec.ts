@@ -36,23 +36,41 @@ describe('ExpressionEvaluator', () => {
     expect([...references].sort()).toEqual(['bureau_score', 'customer']);
   });
 
+  it('unwraps the variables.* namespace to the bare variable code', () => {
+    // `variables.score` resolves at runtime to the same value as `score`, so the referenced
+    // root is the code itself — never the literal namespace word. `decision.*` keeps its root.
+    const references = evaluator.referencedVariables({
+      op: 'and',
+      args: [
+        { var: 'variables.score' },
+        { var: 'variables.bureau_score.band' },
+        { var: 'decision.outcome' },
+        { var: 'monthly_income' },
+      ],
+    });
+    expect([...references].sort()).toEqual(['bureau_score', 'decision', 'monthly_income', 'score']);
+  });
+
   it('evaluates the compact expression produced by the no-code condition editor', () => {
     expect(
-      evaluator.evaluate(
-        { variable: 'score', operator: 'gte', value: 600 },
-        { score: 700 },
-      ),
+      evaluator.evaluate({ variable: 'score', operator: 'gte', value: 600 }, { score: 700 }),
     ).toBe(true);
   });
 
   it('fails closed for division by zero', () => {
-    expect(() => evaluator.evaluate({ op: 'div', left: { value: 1 }, right: { value: 0 } }, {})).toThrow(DomainException);
+    expect(() =>
+      evaluator.evaluate({ op: 'div', left: { value: 1 }, right: { value: 0 } }, {}),
+    ).toThrow(DomainException);
   });
 
   it('orders strings by code point independent of locale', () => {
     // 'Z' (0x5A) precedes 'a' (0x61) by code point; a locale-aware collation would reverse it.
-    expect(evaluator.evaluate({ op: 'lt', left: { value: 'Z' }, right: { value: 'a' } }, {})).toBe(true);
-    expect(evaluator.evaluate({ op: 'gt', left: { value: 'a' }, right: { value: 'Z' } }, {})).toBe(true);
+    expect(evaluator.evaluate({ op: 'lt', left: { value: 'Z' }, right: { value: 'a' } }, {})).toBe(
+      true,
+    );
+    expect(evaluator.evaluate({ op: 'gt', left: { value: 'a' }, right: { value: 'Z' } }, {})).toBe(
+      true,
+    );
   });
 
   it('rejects a comparison against an invalid date instead of silently returning false', () => {

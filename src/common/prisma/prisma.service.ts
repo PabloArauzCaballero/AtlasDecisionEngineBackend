@@ -112,10 +112,15 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       // Interactive form: set the GUC as the first statement inside the transaction so every
       // query the callback runs on `tx` is tenant-scoped.
       const callback = arg as (tx: unknown) => unknown;
-      return rawTransaction(async (tx: { $executeRaw: (q: TemplateStringsArray, ...v: unknown[]) => Promise<unknown> }) => {
-        await tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true)`;
-        return callback(tx);
-      }, options);
+      return rawTransaction(
+        async (tx: {
+          $executeRaw: (q: TemplateStringsArray, ...v: unknown[]) => Promise<unknown>;
+        }) => {
+          await tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true)`;
+          return callback(tx);
+        },
+        options,
+      );
     };
 
     return new Proxy(this, {

@@ -1,13 +1,13 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { parseBigIntId } from '../../common/http/id';
-import {
-  CurrentPrincipal,
-  Roles,
-  TenantId,
-} from '../../common/security/security.decorators';
+import { CurrentPrincipal, Roles, TenantId } from '../../common/security/security.decorators';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
-import { AssignManualReviewDto, ManualReviewListQueryDto, ResolveManualReviewDto } from './manual-review.dto';
+import {
+  AssignManualReviewDto,
+  ManualReviewListQueryDto,
+  ResolveManualReviewDto,
+} from './manual-review.dto';
 import { ManualReviewService } from './manual-review.service';
 
 @ApiTags('Manual Review')

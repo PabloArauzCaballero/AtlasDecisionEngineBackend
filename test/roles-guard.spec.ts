@@ -9,7 +9,10 @@ import type { AuthenticatedPrincipal, AuthMethod } from '../src/common/security/
  * arrives on a signed token — never when it was granted to an API key.
  */
 describe('RolesGuard PLATFORM_ADMIN wildcard', () => {
-  function context(principal: AuthenticatedPrincipal | undefined, required: string[]): ExecutionContext {
+  function context(
+    principal: AuthenticatedPrincipal | undefined,
+    required: string[],
+  ): ExecutionContext {
     const reflector = new Reflector();
     jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(required);
     const request: Record<string, unknown> = { principal };

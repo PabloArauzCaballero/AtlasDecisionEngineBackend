@@ -2,15 +2,15 @@
 FROM node:22-bookworm-slim AS dependencies
 WORKDIR /app
 ENV CI=true
-COPY package.json package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm npm ci
+COPY package.json yarn.lock ./
+RUN --mount=type=cache,target=/usr/local/share/.cache/yarn yarn install --frozen-lockfile
 
 FROM dependencies AS build
 COPY tsconfig.json tsconfig.build.json nest-cli.json prisma.config.ts ./
 COPY prisma ./prisma
-RUN npx prisma generate
+RUN yarn prisma generate
 COPY src ./src
-RUN npm run build
+RUN yarn build
 
 # One-shot image used by migration/seed Jobs. It intentionally contains the
 # Prisma CLI and TypeScript seed dependencies; the API runtime does not.
@@ -49,9 +49,9 @@ ENV NODE_ENV=production \
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates dumb-init \
   && rm -rf /var/lib/apt/lists/*
-COPY package.json package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev \
-  && npm cache clean --force
+COPY package.json yarn.lock ./
+RUN --mount=type=cache,target=/usr/local/share/.cache/yarn yarn install --frozen-lockfile --production \
+  && yarn cache clean
 COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=build /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=build /app/dist ./dist

@@ -5,7 +5,11 @@ import { AuditService } from '../../common/audit/audit.service';
 import { DomainException } from '../../common/errors/domain-exception';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
-import { AssignManualReviewDto, ManualReviewListQueryDto, ResolveManualReviewDto } from './manual-review.dto';
+import {
+  AssignManualReviewDto,
+  ManualReviewListQueryDto,
+  ResolveManualReviewDto,
+} from './manual-review.dto';
 import { pageResult, paginationArgs } from '../../common/http/pagination';
 
 @Injectable()
@@ -60,7 +64,12 @@ export class ManualReviewService {
         },
       },
     });
-    if (!review) throw new DomainException('MANUAL_REVIEW_NOT_FOUND', 'Manual review case not found', HttpStatus.NOT_FOUND);
+    if (!review)
+      throw new DomainException(
+        'MANUAL_REVIEW_NOT_FOUND',
+        'Manual review case not found',
+        HttpStatus.NOT_FOUND,
+      );
     return review;
   }
 
@@ -73,25 +82,40 @@ export class ManualReviewService {
     const review = await this.prisma.decisionManualReviewCase.findFirst({
       where: { id: caseId, tenantId },
     });
-    if (!review) throw new DomainException('MANUAL_REVIEW_NOT_FOUND', 'Manual review case not found', HttpStatus.NOT_FOUND);
-    const openStatuses: ManualReviewStatus[] = [ManualReviewStatus.OPEN, ManualReviewStatus.ASSIGNED];
+    if (!review)
+      throw new DomainException(
+        'MANUAL_REVIEW_NOT_FOUND',
+        'Manual review case not found',
+        HttpStatus.NOT_FOUND,
+      );
+    const openStatuses: ManualReviewStatus[] = [
+      ManualReviewStatus.OPEN,
+      ManualReviewStatus.ASSIGNED,
+    ];
     if (!openStatuses.includes(review.status)) {
-      throw new DomainException('MANUAL_REVIEW_CLOSED', 'Manual review case is already closed', HttpStatus.CONFLICT);
+      throw new DomainException(
+        'MANUAL_REVIEW_CLOSED',
+        'Manual review case is already closed',
+        HttpStatus.CONFLICT,
+      );
     }
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.decisionManualReviewCase.update({
         where: { id: caseId },
         data: { assignedTo: dto.assignedTo, status: ManualReviewStatus.ASSIGNED },
       });
-      await this.audit.append({
-        tenantId,
-        eventType: 'MANUAL_REVIEW_ASSIGNED',
-        aggregateType: 'ManualReviewCase',
-        aggregateId: caseId.toString(),
-        actorId: principal.id,
-        requestId: principal.requestId,
-        payload: { assignedTo: dto.assignedTo },
-      }, tx);
+      await this.audit.append(
+        {
+          tenantId,
+          eventType: 'MANUAL_REVIEW_ASSIGNED',
+          aggregateType: 'ManualReviewCase',
+          aggregateId: caseId.toString(),
+          actorId: principal.id,
+          requestId: principal.requestId,
+          payload: { assignedTo: dto.assignedTo },
+        },
+        tx,
+      );
       return updated;
     });
   }
@@ -105,10 +129,22 @@ export class ManualReviewService {
     const review = await this.prisma.decisionManualReviewCase.findFirst({
       where: { id: caseId, tenantId },
     });
-    if (!review) throw new DomainException('MANUAL_REVIEW_NOT_FOUND', 'Manual review case not found', HttpStatus.NOT_FOUND);
-    const openStatuses: ManualReviewStatus[] = [ManualReviewStatus.OPEN, ManualReviewStatus.ASSIGNED];
+    if (!review)
+      throw new DomainException(
+        'MANUAL_REVIEW_NOT_FOUND',
+        'Manual review case not found',
+        HttpStatus.NOT_FOUND,
+      );
+    const openStatuses: ManualReviewStatus[] = [
+      ManualReviewStatus.OPEN,
+      ManualReviewStatus.ASSIGNED,
+    ];
     if (!openStatuses.includes(review.status)) {
-      throw new DomainException('MANUAL_REVIEW_CLOSED', 'Manual review case is already closed', HttpStatus.CONFLICT);
+      throw new DomainException(
+        'MANUAL_REVIEW_CLOSED',
+        'Manual review case is already closed',
+        HttpStatus.CONFLICT,
+      );
     }
     const status =
       dto.decision === 'APPROVE'
@@ -131,15 +167,18 @@ export class ManualReviewService {
           resolvedAt: new Date(),
         },
       });
-      await this.audit.append({
-        tenantId,
-        eventType: 'MANUAL_REVIEW_RESOLVED',
-        aggregateType: 'ManualReviewCase',
-        aggregateId: caseId.toString(),
-        actorId: principal.id,
-        requestId: principal.requestId,
-        payload: { decision: dto.decision, reason: dto.reason },
-      }, tx);
+      await this.audit.append(
+        {
+          tenantId,
+          eventType: 'MANUAL_REVIEW_RESOLVED',
+          aggregateType: 'ManualReviewCase',
+          aggregateId: caseId.toString(),
+          actorId: principal.id,
+          requestId: principal.requestId,
+          payload: { decision: dto.decision, reason: dto.reason },
+        },
+        tx,
+      );
       return updated;
     });
   }

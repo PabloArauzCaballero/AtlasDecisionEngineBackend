@@ -80,7 +80,15 @@ describe('Runtime decisions (e2e)', () => {
         requestId: key,
         idempotencyKey: key,
         environmentCode: 'PROD',
-        variables: { kyc_status: 'VERIFIED', consent_active: true, age: 30, fraud_signal: false, bureau_score: 760, monthly_income: 8000, requested_amount: 2500 },
+        variables: {
+          kyc_status: 'VERIFIED',
+          consent_active: true,
+          age: 30,
+          fraud_signal: false,
+          bureau_score: 760,
+          monthly_income: 8000,
+          requested_amount: 2500,
+        },
       })
       .expect(200);
     await request(server())
@@ -90,7 +98,15 @@ describe('Runtime decisions (e2e)', () => {
         requestId: key,
         idempotencyKey: key,
         environmentCode: 'PROD',
-        variables: { kyc_status: 'VERIFIED', consent_active: true, age: 30, fraud_signal: false, bureau_score: 760, monthly_income: 8000, requested_amount: 5000 },
+        variables: {
+          kyc_status: 'VERIFIED',
+          consent_active: true,
+          age: 30,
+          fraud_signal: false,
+          bureau_score: 760,
+          monthly_income: 8000,
+          requested_amount: 5000,
+        },
       })
       .expect(409);
   });
@@ -115,7 +131,11 @@ describe('Runtime decisions (e2e)', () => {
       })
       .expect(200);
     expect(response.body.outcome).toBe('DECLINED');
-    expect(response.body.reasonCodes.some((reason: { code: string }) => reason.code === 'KYC_OR_CONSENT_INVALID')).toBe(true);
+    expect(
+      response.body.reasonCodes.some(
+        (reason: { code: string }) => reason.code === 'KYC_OR_CONSENT_INVALID',
+      ),
+    ).toBe(true);
   });
 
   it('routes a fraud signal to manual review', async () => {

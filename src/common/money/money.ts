@@ -53,7 +53,8 @@ export class Money {
    */
   static fromNumber(value: number, scale = 2, currency?: string): Money {
     Money.assertScale(scale);
-    if (!Number.isFinite(value)) throw new RangeError('Cannot build Money from a non-finite number');
+    if (!Number.isFinite(value))
+      throw new RangeError('Cannot build Money from a non-finite number');
     const scaled = value * 10 ** scale;
     if (!Number.isSafeInteger(Math.round(scaled)) || Math.abs(scaled) > Number.MAX_SAFE_INTEGER) {
       throw new RangeError(`Number ${value} is outside the exact money range at scale ${scale}`);
@@ -85,7 +86,11 @@ export class Money {
   }
 
   equals(other: Money): boolean {
-    return this.scale === other.scale && this.currency === other.currency && this.minorUnits === other.minorUnits;
+    return (
+      this.scale === other.scale &&
+      this.currency === other.currency &&
+      this.minorUnits === other.minorUnits
+    );
   }
 
   isNegative(): boolean {
@@ -99,7 +104,9 @@ export class Money {
   /** Exact decimal string, e.g. "2000.50". This is the canonical representation for hashing. */
   toDecimalString(): string {
     const negative = this.minorUnits < 0n;
-    const digits = (negative ? -this.minorUnits : this.minorUnits).toString().padStart(this.scale + 1, '0');
+    const digits = (negative ? -this.minorUnits : this.minorUnits)
+      .toString()
+      .padStart(this.scale + 1, '0');
     const whole = digits.slice(0, digits.length - this.scale);
     const fraction = this.scale > 0 ? `.${digits.slice(digits.length - this.scale)}` : '';
     return `${negative ? '-' : ''}${whole}${fraction}`;
@@ -114,7 +121,9 @@ export class Money {
       throw new RangeError(`Cannot combine money of scale ${this.scale} with scale ${other.scale}`);
     }
     if (this.currency !== other.currency) {
-      throw new RangeError(`Cannot combine ${this.currency ?? 'unlabelled'} with ${other.currency ?? 'unlabelled'} money`);
+      throw new RangeError(
+        `Cannot combine ${this.currency ?? 'unlabelled'} with ${other.currency ?? 'unlabelled'} money`,
+      );
     }
   }
 

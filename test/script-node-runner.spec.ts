@@ -8,29 +8,43 @@ import { ScriptNodeRunnerService } from '../src/modules/graph/script-node-runner
 describe('ScriptNodeRunnerService (IN_PROCESS)', () => {
   it('is fail-closed by default', async () => {
     const runner = new ScriptNodeRunnerService(new ConfigService({ SCRIPT_NODES_ENABLED: false }));
-    await expect(runner.execute('JAVASCRIPT', 'return { scoring: 700 };', {})).rejects.toThrow('disabled');
+    await expect(runner.execute('JAVASCRIPT', 'return { scoring: 700 };', {})).rejects.toThrow(
+      'disabled',
+    );
   });
 
   // Spawning the child node.exe alone costs 300-500ms on Windows dev machines, so these
   // tests budget well above it; what they assert is behaviour, not latency.
   it('runs JavaScript out of process and returns a JSON object', async () => {
-    const runner = new ScriptNodeRunnerService(new ConfigService({
-      SCRIPT_NODES_ENABLED: true,
-      SCRIPT_NODE_TIMEOUT_MS: 3000,
-    }));
-    await expect(runner.execute('JAVASCRIPT', 'return { scoring: variables.base + 20 };', {
-      variables: { base: 680 }, decision: {}, output: {},
-    })).resolves.toEqual({ scoring: 700 });
+    const runner = new ScriptNodeRunnerService(
+      new ConfigService({
+        SCRIPT_NODES_ENABLED: true,
+        SCRIPT_NODE_TIMEOUT_MS: 3000,
+      }),
+    );
+    await expect(
+      runner.execute('JAVASCRIPT', 'return { scoring: variables.base + 20 };', {
+        variables: { base: 680 },
+        decision: {},
+        output: {},
+      }),
+    ).resolves.toEqual({ scoring: 700 });
   });
 
   it('rejects non-deterministic JavaScript', async () => {
-    const runner = new ScriptNodeRunnerService(new ConfigService({
-      SCRIPT_NODES_ENABLED: true,
-      SCRIPT_NODE_TIMEOUT_MS: 3000,
-    }));
-    await expect(runner.execute('JAVASCRIPT', 'return { scoring: Math.random() };', {
-      variables: {}, decision: {}, output: {},
-    })).rejects.toThrow('exited with status');
+    const runner = new ScriptNodeRunnerService(
+      new ConfigService({
+        SCRIPT_NODES_ENABLED: true,
+        SCRIPT_NODE_TIMEOUT_MS: 3000,
+      }),
+    );
+    await expect(
+      runner.execute('JAVASCRIPT', 'return { scoring: Math.random() };', {
+        variables: {},
+        decision: {},
+        output: {},
+      }),
+    ).rejects.toThrow('exited with status');
   });
 });
 
@@ -39,7 +53,10 @@ describe('ScriptNodeRunnerService (SIDECAR)', () => {
   let server: http.Server;
 
   beforeEach(() => {
-    socketPath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-runner-test-')), 'runner.sock');
+    socketPath = path.join(
+      fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-runner-test-')),
+      'runner.sock',
+    );
   });
 
   afterEach(async () => {
@@ -72,34 +89,46 @@ describe('ScriptNodeRunnerService (SIDECAR)', () => {
       expect(body).toMatchObject({ language: 'JAVASCRIPT', source: 'return { scoring: 700 };' });
       return { status: 200, body: { ok: true, result: { scoring: 700 } } };
     });
-    const runner = new ScriptNodeRunnerService(new ConfigService({
-      SCRIPT_NODES_ENABLED: true,
-      SCRIPT_RUNNER_MODE: 'SIDECAR',
-      SCRIPT_RUNNER_SOCKET_PATH: socketPath,
-    }));
-    await expect(runner.execute('JAVASCRIPT', 'return { scoring: 700 };', {})).resolves.toEqual({ scoring: 700 });
+    const runner = new ScriptNodeRunnerService(
+      new ConfigService({
+        SCRIPT_NODES_ENABLED: true,
+        SCRIPT_RUNNER_MODE: 'SIDECAR',
+        SCRIPT_RUNNER_SOCKET_PATH: socketPath,
+      }),
+    );
+    await expect(runner.execute('JAVASCRIPT', 'return { scoring: 700 };', {})).resolves.toEqual({
+      scoring: 700,
+    });
   });
 
   itUnix('surfaces the sidecar error code and message on failure', async () => {
     await startFakeSidecar(() => ({
       status: 422,
-      body: { ok: false, code: 'SCRIPT_EXECUTION_FAILED', message: 'RESULT JAVASCRIPT script timed out' },
+      body: {
+        ok: false,
+        code: 'SCRIPT_EXECUTION_FAILED',
+        message: 'RESULT JAVASCRIPT script timed out',
+      },
     }));
-    const runner = new ScriptNodeRunnerService(new ConfigService({
-      SCRIPT_NODES_ENABLED: true,
-      SCRIPT_RUNNER_MODE: 'SIDECAR',
-      SCRIPT_RUNNER_SOCKET_PATH: socketPath,
-    }));
+    const runner = new ScriptNodeRunnerService(
+      new ConfigService({
+        SCRIPT_NODES_ENABLED: true,
+        SCRIPT_RUNNER_MODE: 'SIDECAR',
+        SCRIPT_RUNNER_SOCKET_PATH: socketPath,
+      }),
+    );
     await expect(runner.execute('JAVASCRIPT', 'while(true){}', {})).rejects.toThrow('timed out');
   });
 
   it('fails with SCRIPT_RUNNER_UNAVAILABLE when the sidecar is unreachable', async () => {
     server = http.createServer(); // never listens, keeps afterEach's close() valid
-    const runner = new ScriptNodeRunnerService(new ConfigService({
-      SCRIPT_NODES_ENABLED: true,
-      SCRIPT_RUNNER_MODE: 'SIDECAR',
-      SCRIPT_RUNNER_SOCKET_PATH: socketPath,
-    }));
+    const runner = new ScriptNodeRunnerService(
+      new ConfigService({
+        SCRIPT_NODES_ENABLED: true,
+        SCRIPT_RUNNER_MODE: 'SIDECAR',
+        SCRIPT_RUNNER_SOCKET_PATH: socketPath,
+      }),
+    );
     await expect(runner.execute('JAVASCRIPT', 'return {};', {})).rejects.toThrow(
       'Could not reach the isolated script runner',
     );

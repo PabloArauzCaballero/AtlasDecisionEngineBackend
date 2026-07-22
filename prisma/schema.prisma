@@ -848,6 +848,11 @@ model DecisionAuditEvent {
 
   @@index([tenantId, occurredAt])
   @@index([aggregateType, aggregateId])
+  // Supports the cursor-paginated audit feed (GET v1/audit/events/cursor), which seeks
+  // `tenant_id = ? AND id < ? ORDER BY id DESC`. Without it Postgres scans the primary key
+  // backwards and discards every other tenant's rows, so the deeper a tenant walks the more
+  // rows it reads to fill one page — exactly the cost keyset pagination exists to avoid.
+  @@index([tenantId, id])
   @@map("decision_audit_event")
 }
 
@@ -1033,4 +1038,84 @@ model IntegrationTenantAccess {
   @@unique([clientId, tenantId])
   @@index([tenantId])
   @@map("integration_tenant_access")
+}
+
+// ---------------------------------------------------------------------------
+// Event-driven infrastructure: transactional outbox + notification inbox.
+//
+// Business mutations write their domain event into decision_outbox_event inside
+// the SAME Prisma transaction as the change (the AuditService.append pattern), so
+// "the database changed but the event was never published" cannot happen. A relay
+// worker claims PENDING rows with a short lease (the RuntimeIdempotency /
+// DecisionTestRun pattern), dispatches them to the in-process event bus and marks
+// them DISPATCHED; failures back off via available_at and land in DEAD after
+// OUTBOX_MAX_ATTEMPTS. Consumers achieve exactly-once effects through the
+// (consumer_name, outbox_event_id) uniqueness of decision_processed_event.
+// ---------------------------------------------------------------------------
+
+enum OutboxStatus {
+  PENDING
+  DISPATCHED
+  FAILED
+  DEAD
+}
+
+model DecisionOutboxEvent {
+  id             BigInt       @id @default(autoincrement())
+  tenantId       BigInt       @map("tenant_id")
+  eventType      String       @map("event_type") @db.VarChar(120)
+  schemaVersion  String       @default("1") @map("schema_version") @db.VarChar(20)
+  aggregateType  String       @map("aggregate_type") @db.VarChar(100)
+  aggregateId    String       @map("aggregate_id") @db.VarChar(160)
+  actorId        String       @map("actor_id") @db.VarChar(160)
+  correlationId  String?      @map("correlation_id") @db.VarChar(120)
+  causationId    String?      @map("causation_id") @db.VarChar(120)
+  payloadJson    Json         @map("payload_json")
+  status         OutboxStatus @default(PENDING)
+  attemptCount   Int          @default(0) @map("attempt_count")
+  availableAt    DateTime     @default(now()) @map("available_at") @db.Timestamptz(6)
+  leaseExpiresAt DateTime?    @map("lease_expires_at") @db.Timestamptz(6)
+  lockedBy       String?      @map("locked_by") @db.VarChar(120)
+  lastError      String?      @map("last_error") @db.Text
+  occurredAt     DateTime     @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  dispatchedAt   DateTime?    @map("dispatched_at") @db.Timestamptz(6)
+
+  @@index([status, availableAt])
+  @@index([tenantId, occurredAt])
+  @@index([aggregateType, aggregateId])
+  @@map("decision_outbox_event")
+}
+
+model ProcessedEvent {
+  id            BigInt   @id @default(autoincrement())
+  consumerName  String   @map("consumer_name") @db.VarChar(120)
+  outboxEventId BigInt   @map("outbox_event_id")
+  processedAt   DateTime @default(now()) @map("processed_at") @db.Timestamptz(6)
+
+  @@unique([consumerName, outboxEventId])
+  @@map("decision_processed_event")
+}
+
+model Notification {
+  id            BigInt    @id @default(autoincrement())
+  tenantId      BigInt    @map("tenant_id")
+  // Role-addressed by design: users live in the external identity provider, not in this
+  // database, so the inbox targets a role (plus tenant) and/or an optional principal id.
+  recipientRole String?   @map("recipient_role") @db.VarChar(80)
+  recipientId   String?   @map("recipient_id") @db.VarChar(160)
+  category      String    @db.VarChar(50)
+  priority      String    @default("NORMAL") @db.VarChar(20)
+  title         String    @db.VarChar(200)
+  body          String    @db.Text
+  entityType    String?   @map("entity_type") @db.VarChar(80)
+  entityId      String?   @map("entity_id") @db.VarChar(160)
+  actionUrl     String?   @map("action_url") @db.VarChar(500)
+  eventType     String    @map("event_type") @db.VarChar(120)
+  correlationId String?   @map("correlation_id") @db.VarChar(120)
+  readAt        DateTime? @map("read_at") @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([tenantId, recipientRole, readAt, id])
+  @@index([tenantId, recipientId, readAt, id])
+  @@map("decision_notification")
 }

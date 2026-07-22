@@ -2,7 +2,11 @@ import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { parseBigIntId } from '../../common/http/id';
 import { Roles, TenantId } from '../../common/security/security.decorators';
-import { AuditEventSearchQueryDto, ExecutionSearchQueryDto } from './audit-query.dto';
+import {
+  AuditEventKeysetQueryDto,
+  AuditEventSearchQueryDto,
+  ExecutionSearchQueryDto,
+} from './audit-query.dto';
 import { AuditQueryService } from './audit-query.service';
 
 @ApiTags('Audit and Observability')
@@ -24,6 +28,14 @@ export class AuditQueryController {
   @Get('events')
   events(@TenantId() tenantId: bigint, @Query() query: AuditEventSearchQueryDto) {
     return this.audit.listAuditEvents(tenantId, query);
+  }
+
+  // Additive sibling of GET events: same filters and roles, cursor-paginated. Kept as its own
+  // route rather than a mode flag on `events` so one endpoint never returns two response
+  // shapes, and so the existing offset contract is untouched for current consumers.
+  @Get('events/cursor')
+  eventsByCursor(@TenantId() tenantId: bigint, @Query() query: AuditEventKeysetQueryDto) {
+    return this.audit.listAuditEventsByCursor(tenantId, query);
   }
 
   @Get('chain/verify')

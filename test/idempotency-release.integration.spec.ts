@@ -20,7 +20,9 @@ describeDb('IdempotencyService release (integration)', () => {
     hashes,
     new ConfigService({ IDEMPOTENCY_TTL_HOURS: 24 }),
   );
-  const tenantId = 880088n;
+  // Unique per process, for the same reason as the lease suite: cleanup is by tenant, so a
+  // fixed id makes two concurrent runs against one database clobber each other.
+  const tenantId = 880_000_000_000n + BigInt(process.pid);
   const artifactCode = 'IDEMP_TEST';
   const key = 'key-release-1';
 

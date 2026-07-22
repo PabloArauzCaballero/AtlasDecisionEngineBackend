@@ -8,7 +8,10 @@ export interface GraphDeterminismResult {
 }
 
 /** Reachability, cycles and terminal-path coverage — requires exactly one START node to run. */
-export function validateGraphDeterminism(snapshot: ArtifactGraphSnapshot, lookups: GraphLookups): GraphDeterminismResult {
+export function validateGraphDeterminism(
+  snapshot: ArtifactGraphSnapshot,
+  lookups: GraphLookups,
+): GraphDeterminismResult {
   const errors: ValidationIssue[] = [];
   const starts = snapshot.nodes.filter((node) => node.type === 'START');
   if (starts.length !== 1) {
@@ -19,7 +22,9 @@ export function validateGraphDeterminism(snapshot: ArtifactGraphSnapshot, lookup
   const reachable = reachableFrom(start, snapshot);
   for (const node of snapshot.nodes) {
     if (!reachable.has(node.key)) {
-      errors.push(issue('UNREACHABLE_NODE', `Node ${node.key} is unreachable from START`, 'NODE', node.key));
+      errors.push(
+        issue('UNREACHABLE_NODE', `Node ${node.key} is unreachable from START`, 'NODE', node.key),
+      );
     }
   }
 
@@ -28,7 +33,9 @@ export function validateGraphDeterminism(snapshot: ArtifactGraphSnapshot, lookup
     errors.push(issue('PROHIBITED_CYCLE', `Cycle detected: ${cycle.join(' -> ')}`));
   }
 
-  const terminalPathCount = cycle ? 0 : countTerminalPaths(start, snapshot, lookups.terminalActionCodes);
+  const terminalPathCount = cycle
+    ? 0
+    : countTerminalPaths(start, snapshot, lookups.terminalActionCodes);
   if (terminalPathCount === 0) {
     errors.push(issue('NO_TERMINAL_PATH', 'START does not lead to any terminal path'));
   }
@@ -90,7 +97,8 @@ function countTerminalPaths(
       node.type === 'END' ||
       node.type === 'MANUAL_REVIEW' ||
       node.actions.some((reference) => terminalActionCodes.has(reference.code))
-    ) return 1;
+    )
+      return 1;
     const total = snapshot.edges
       .filter((edge) => edge.from === key)
       .reduce((sum, edge) => sum + count(edge.to), 0);

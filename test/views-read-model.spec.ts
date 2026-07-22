@@ -19,7 +19,14 @@ describe('read model views', () => {
 
   it('wraps global search matches with the query echo and total', async () => {
     const items = [
-      { entityType: 'ARTIFACT', entityId: 1n, code: 'CREDIT-RISK', title: 'Credit', subtitle: null, occurredAt: null },
+      {
+        entityType: 'ARTIFACT',
+        entityId: 1n,
+        code: 'CREDIT-RISK',
+        title: 'Credit',
+        subtitle: null,
+        occurredAt: null,
+      },
     ];
     const service = new ViewsService({ $queryRaw: jest.fn().mockResolvedValue(items) } as never);
 
@@ -40,10 +47,30 @@ describe('read model views', () => {
           .fn()
           .mockResolvedValue({ id: 5n, status: 'DRAFT', lockVersion: 2, canonicalChecksum: null }),
       },
-      decisionRuleEdge: { deleteMany: jest.fn(), create: jest.fn() },
-      decisionRuleNode: { deleteMany: jest.fn(), create: jest.fn().mockResolvedValue({ id: 1n }) },
-      decisionRuleCondition: { deleteMany: jest.fn(), create: jest.fn() },
-      decisionRuleAction: { deleteMany: jest.fn(), create: jest.fn() },
+      // The writer batches inserts with createManyAndReturn and maps generated ids back by
+      // business key, so each double must resolve to the {id, <businessKey>} projection it
+      // selects — not a single row. Join tables are inserted as a second createMany batch.
+      decisionRuleEdge: {
+        deleteMany: jest.fn(),
+        createManyAndReturn: jest.fn().mockResolvedValue([]),
+      },
+      decisionRuleNode: {
+        deleteMany: jest.fn(),
+        createManyAndReturn: jest.fn().mockResolvedValue([{ id: 1n, nodeKey: 'RESULT_1' }]),
+      },
+      decisionRuleCondition: {
+        deleteMany: jest.fn(),
+        createManyAndReturn: jest.fn().mockResolvedValue([]),
+      },
+      decisionRuleAction: {
+        deleteMany: jest.fn(),
+        createManyAndReturn: jest.fn().mockResolvedValue([]),
+      },
+      decisionReasonCode: { count: jest.fn().mockResolvedValue(0) },
+      decisionActionReasonMapping: { createMany: jest.fn() },
+      decisionNodeCondition: { createMany: jest.fn() },
+      decisionNodeAction: { createMany: jest.fn() },
+      decisionEdgeCondition: { createMany: jest.fn() },
       decisionArtifactVariableDependency: { deleteMany: jest.fn(), createMany: jest.fn() },
       decisionCompiledArtifact: { deleteMany: jest.fn() },
       decisionNodeScript: { deleteMany: scriptDeleteMany, createMany: scriptCreateMany },

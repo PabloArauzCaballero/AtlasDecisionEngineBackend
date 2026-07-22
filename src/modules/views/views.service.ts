@@ -69,6 +69,20 @@ export class ViewsService {
       LIMIT ${PICKER_LIMIT}`);
   }
 
+  /**
+   * Distinct catalog values for a create-form select, from the idempotent
+   * `vw_form_option` view. `group` is constrained by FormOptionQueryDto, so it is
+   * safe to bind directly; the view is already tenant-scoped.
+   */
+  formOptions(tenantId: bigint, group: string) {
+    return this.prisma.$queryRaw(Prisma.sql`
+      SELECT DISTINCT value, label
+      FROM "vw_form_option"
+      WHERE tenant_id = ${tenantId} AND option_group = ${group}
+      ORDER BY label ASC
+      LIMIT ${PICKER_LIMIT}`);
+  }
+
   async artifactInputContract(tenantId: bigint, query: ArtifactInputContractQueryDto) {
     const rows = await this.prisma.$queryRaw<
       Array<{ versionId: bigint; versionNumber: number; [key: string]: unknown }>

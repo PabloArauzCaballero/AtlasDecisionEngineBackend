@@ -18,14 +18,26 @@ export class MetricsController {
 
   @Get('metrics')
   @Public()
-  getMetrics(@Headers('x-metrics-token') token: string | undefined, @Res() response: Response): void {
+  async getMetrics(
+    @Headers('x-metrics-token') token: string | undefined,
+    @Res() response: Response,
+  ): Promise<void> {
     if (!(this.config.get<boolean>('METRICS_ENABLED') ?? true)) {
-      throw new DomainException('METRICS_DISABLED', 'Metrics endpoint is disabled', HttpStatus.NOT_FOUND);
+      throw new DomainException(
+        'METRICS_DISABLED',
+        'Metrics endpoint is disabled',
+        HttpStatus.NOT_FOUND,
+      );
     }
     const expected = this.config.get<string>('METRICS_TOKEN') ?? '';
-    if (expected && (!token || !this.hashes.equals(this.hashes.sha256(token), this.hashes.sha256(expected)))) {
+    if (
+      expected &&
+      (!token || !this.hashes.equals(this.hashes.sha256(token), this.hashes.sha256(expected)))
+    ) {
       throw new DomainException('UNAUTHORIZED', 'Invalid metrics token', HttpStatus.UNAUTHORIZED);
     }
-    response.type('text/plain; version=0.0.4; charset=utf-8').send(this.metrics.renderPrometheus());
+    response
+      .type('text/plain; version=0.0.4; charset=utf-8')
+      .send(await this.metrics.renderPrometheus());
   }
 }

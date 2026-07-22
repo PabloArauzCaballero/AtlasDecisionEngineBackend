@@ -16,14 +16,43 @@ const describeDb = DATABASE_URL ? describe : describe.skip;
 describeDb('IdempotencyService PROCESSING lease (integration)', () => {
   const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: DATABASE_URL }) });
   const hashes = new HashService(new ConfigService({ AUDIT_HASH_SECRET: 'test-secret' }));
-  // 1s lease so the crash-recovery window is testable; the 24h TTL default stays huge.
-  const service = new IdempotencyService(
-    prisma as unknown as PrismaService,
-    hashes,
-    new ConfigService({ IDEMPOTENCY_TTL_HOURS: 24, IDEMPOTENCY_LEASE_SECONDS: 1 }),
-  );
-  const tenantId = 660066n;
+  // Only the TTL assertion needs a genuinely short lease (it checks the lease is seconds while
+  // the TTL is hours). Every other case forces the lapse with expireLease() instead of sleeping
+  // past a short lease: `reserve()` reclaims on `leaseExpiresAt <= now`, so moving that column
+  // into the past reproduces a crashed holder exactly, with no dependency on wall-clock timing.
+  // Sleeping was load-sensitive and failed intermittently — a slow round trip could outlast the
+  // lease and turn an intended "still held" into a legitimate reclaim, or let a straggler in the
+  // concurrent burst reclaim a second time.
+  const LEASE_SECONDS = 3;
+  const idempotency = (leaseSeconds: number) =>
+    new IdempotencyService(
+      prisma as unknown as PrismaService,
+      hashes,
+      new ConfigService({ IDEMPOTENCY_TTL_HOURS: 24, IDEMPOTENCY_LEASE_SECONDS: leaseSeconds }),
+    );
+  const service = idempotency(LEASE_SECONDS);
+  // The "a valid lease blocks a concurrent request" case does not depend on the lease being
+  // short — only on it still being held. A lease that cannot lapse removes the race entirely:
+  // with the short lease that assertion still failed on a cold connection, where the first
+  // reserve() pays Postgres connection setup and can itself outlast the lease.
+  const heldLeaseService = idempotency(600);
+  // Unique per process: afterEach cleans up by tenant, so a fixed id let two concurrent runs
+  // against the same database (a second suite, CI, or a developer's local run) delete each
+  // other's rows mid-test. The wide base keeps it clear of the other integration suites.
+  const tenantId = 660_000_000_000n + BigInt(process.pid);
   const artifactCode = 'LEASE_TEST';
+
+  /** Simulates a crashed holder: drives the lease into the past without waiting for it. */
+  const expireLease = (idempotencyKey: string) =>
+    prisma.runtimeIdempotency.updateMany({
+      where: { tenantId, artifactCode, idempotencyKey },
+      data: { leaseExpiresAt: new Date(Date.now() - 1_000) },
+    });
+
+  beforeAll(async () => {
+    // Pay connection setup here, so it is not charged to the first timing-sensitive reserve().
+    await prisma.$queryRaw`SELECT 1`;
+  });
 
   afterEach(async () => {
     await prisma.runtimeIdempotency.deleteMany({ where: { tenantId } });
@@ -34,24 +63,24 @@ describeDb('IdempotencyService PROCESSING lease (integration)', () => {
   });
 
   it('blocks a concurrent identical request while the lease is still valid', async () => {
-    const first = await service.reserve(tenantId, artifactCode, 'k-live', 'hash-a');
+    const first = await heldLeaseService.reserve(tenantId, artifactCode, 'k-live', 'hash-a');
     expect(first.kind).toBe('reserved');
 
     // Lease has not lapsed: a second request must be told it is in progress, not reclaim it.
-    await expect(service.reserve(tenantId, artifactCode, 'k-live', 'hash-a')).rejects.toMatchObject({
+    await expect(
+      heldLeaseService.reserve(tenantId, artifactCode, 'k-live', 'hash-a'),
+    ).rejects.toMatchObject({
       code: 'IDEMPOTENCY_IN_PROGRESS',
     });
   });
 
   it('lets another request reclaim the key after the lease lapses (crash recovery)', async () => {
-    const first = await service.reserve(tenantId, artifactCode, 'k-crash', 'hash-a');
+    const first = await heldLeaseService.reserve(tenantId, artifactCode, 'k-crash', 'hash-a');
     expect(first.kind).toBe('reserved');
-    // Simulate the holder crashing: the reservation is left PROCESSING and never completed.
+    // Simulate the holder crashing: the reservation is left PROCESSING and its lease lapses.
+    await expireLease('k-crash');
 
-    // Wait past the 1s lease.
-    await new Promise((resolve) => setTimeout(resolve, 1_200));
-
-    const retry = await service.reserve(tenantId, artifactCode, 'k-crash', 'hash-a');
+    const retry = await heldLeaseService.reserve(tenantId, artifactCode, 'k-crash', 'hash-a');
     expect(retry.kind).toBe('reserved');
     if (retry.kind === 'reserved' && first.kind === 'reserved') {
       // Same row reclaimed, not a duplicate.
@@ -72,13 +101,16 @@ describeDb('IdempotencyService PROCESSING lease (integration)', () => {
   });
 
   it('only one of many concurrent reclaimers wins after a lease lapse', async () => {
-    const first = await service.reserve(tenantId, artifactCode, 'k-race', 'hash-a');
+    const first = await heldLeaseService.reserve(tenantId, artifactCode, 'k-race', 'hash-a');
     expect(first.kind).toBe('reserved');
-    await new Promise((resolve) => setTimeout(resolve, 1_200));
+    await expireLease('k-race');
 
     // A burst of identical retries: exactly one reclaims (reserved), the rest see it in progress.
+    // The winner's fresh lease cannot lapse mid-burst, so a straggler can never reclaim twice.
     const results = await Promise.allSettled(
-      Array.from({ length: 8 }, () => service.reserve(tenantId, artifactCode, 'k-race', 'hash-a')),
+      Array.from({ length: 8 }, () =>
+        heldLeaseService.reserve(tenantId, artifactCode, 'k-race', 'hash-a'),
+      ),
     );
     const reserved = results.filter((r) => r.status === 'fulfilled' && r.value.kind === 'reserved');
     expect(reserved).toHaveLength(1);

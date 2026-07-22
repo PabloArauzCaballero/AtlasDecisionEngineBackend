@@ -4,6 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import { AuditService } from '../src/common/audit/audit.service';
 import { HashService } from '../src/common/crypto/hash.service';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
+import { uniqueTenantId } from './support/unique-tenant';
 
 /**
  * The audit chain is hash-linked, so tampering is detectable — but detection is not
@@ -23,7 +24,7 @@ describeDb('decision_audit_event append-only (integration)', () => {
   );
   const audit = new AuditService(prisma as unknown as PrismaService, hashes);
   // Unique per run: these rows are permanent by design.
-  const tenantId = BigInt(900000 + (process.pid % 10000));
+  const tenantId = uniqueTenantId(3);
   let eventId: bigint;
 
   beforeAll(async () => {
@@ -52,7 +53,9 @@ describeDb('decision_audit_event append-only (integration)', () => {
 
   it('refuses an UPDATE of a recorded event', async () => {
     await expect(
-      prisma.$executeRawUnsafe(`UPDATE "decision_audit_event" SET actor_id = 'tampered' WHERE id = ${eventId}`),
+      prisma.$executeRawUnsafe(
+        `UPDATE "decision_audit_event" SET actor_id = 'tampered' WHERE id = ${eventId}`,
+      ),
     ).rejects.toThrow(refused);
   });
 
@@ -64,9 +67,9 @@ describeDb('decision_audit_event append-only (integration)', () => {
 
   it('refuses a TRUNCATE of the audit table', async () => {
     // TRUNCATE skips row-level triggers, so it needs its own statement-level guard.
-    await expect(
-      prisma.$executeRawUnsafe('TRUNCATE TABLE "decision_audit_event"'),
-    ).rejects.toThrow(refused);
+    await expect(prisma.$executeRawUnsafe('TRUNCATE TABLE "decision_audit_event"')).rejects.toThrow(
+      refused,
+    );
   });
 
   it('leaves the event intact and unchanged after every attempt', async () => {

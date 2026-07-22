@@ -33,7 +33,7 @@ tiene el bug. Como Prisma deja de auto-cargar `.env` en cuanto detecta un `prism
 añadió una carga explícita con `process.loadEnvFile('.env')` (API nativa de Node, sin dependencia
 nueva) para no perder la ergonomía de desarrollo local.
 
-**Verificación:** `npm run prisma:migrate`, `npm run prisma:validate` y `npm run prisma:seed`
+**Verificación:** `yarn prisma:migrate`, `yarn prisma:validate` y `yarn prisma:seed`
 corridos contra Postgres 16 real (docker compose) — los tres en verde.
 
 ## P1 — Sin rate limiting en intentos de autenticación fallidos

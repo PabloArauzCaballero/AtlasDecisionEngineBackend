@@ -130,10 +130,17 @@ export class IdentityProviderClient {
     return (await this.send(path, init)).payload;
   }
 
-  private async send(path: string, init: RequestInit): Promise<{ payload: unknown; response: Response }> {
+  private async send(
+    path: string,
+    init: RequestInit,
+  ): Promise<{ payload: unknown; response: Response }> {
     const baseUrl = this.config.get<string>('IDENTITY_PROVIDER_URL')?.replace(/\/+$/, '');
     if (!baseUrl) {
-      throw new DomainException('IDENTITY_PROVIDER_NOT_CONFIGURED', 'Identity provider is not configured', HttpStatus.SERVICE_UNAVAILABLE);
+      throw new DomainException(
+        'IDENTITY_PROVIDER_NOT_CONFIGURED',
+        'Identity provider is not configured',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
     }
     const timeoutMs = this.config.get<number>('IDENTITY_PROVIDER_TIMEOUT_MS') ?? 3_000;
     const maxAttempts = (this.config.get<number>('IDENTITY_PROVIDER_RETRY_ATTEMPTS') ?? 2) + 1;
@@ -144,7 +151,10 @@ export class IdentityProviderClient {
     let response: Response;
     for (let attempt = 1; ; attempt++) {
       try {
-        response = await fetch(`${baseUrl}${path}`, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+        response = await fetch(`${baseUrl}${path}`, {
+          ...init,
+          signal: AbortSignal.timeout(timeoutMs),
+        });
       } catch {
         // Connection refused / timeout: the provider never answered, so a retry cannot double any
         // side effect. This is the exact failure a dev server produces while it is restarting.
@@ -152,39 +162,64 @@ export class IdentityProviderClient {
           await this.backoff(backoffMs * attempt);
           continue;
         }
-        throw new DomainException('IDENTITY_PROVIDER_UNAVAILABLE', 'Identity provider is unavailable', HttpStatus.SERVICE_UNAVAILABLE);
+        throw new DomainException(
+          'IDENTITY_PROVIDER_UNAVAILABLE',
+          'Identity provider is unavailable',
+          HttpStatus.SERVICE_UNAVAILABLE,
+        );
       }
       // 502/503/504 are the provider (or a proxy) reporting itself momentarily unavailable — retry.
       // Every other non-2xx is a definitive answer and must not be retried.
-      if ((response.status === 502 || response.status === 503 || response.status === 504) && attempt < maxAttempts) {
+      if (
+        (response.status === 502 || response.status === 503 || response.status === 504) &&
+        attempt < maxAttempts
+      ) {
         await this.backoff(backoffMs * attempt);
         continue;
       }
       break;
     }
     if (!response.ok) {
-      if (response.status === 400) throw new DomainException('IDENTITY_REQUEST_INVALID', 'Invalid identity request', HttpStatus.BAD_REQUEST);
+      if (response.status === 400)
+        throw new DomainException(
+          'IDENTITY_REQUEST_INVALID',
+          'Invalid identity request',
+          HttpStatus.BAD_REQUEST,
+        );
       if (response.status === 401 || response.status === 403) throw this.unauthorized();
-      if (response.status === 429) throw new DomainException('IDENTITY_RATE_LIMITED', 'Too many authentication attempts', HttpStatus.TOO_MANY_REQUESTS);
-      throw new DomainException('IDENTITY_PROVIDER_ERROR', 'Identity provider rejected the request', HttpStatus.BAD_GATEWAY);
+      if (response.status === 429)
+        throw new DomainException(
+          'IDENTITY_RATE_LIMITED',
+          'Too many authentication attempts',
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      throw new DomainException(
+        'IDENTITY_PROVIDER_ERROR',
+        'Identity provider rejected the request',
+        HttpStatus.BAD_GATEWAY,
+      );
     }
     try {
       const payload: unknown = await response.json();
-      if (
-        payload !== null
-        && typeof payload === 'object'
-        && 'data' in payload
-      ) {
+      if (payload !== null && typeof payload === 'object' && 'data' in payload) {
         return { payload: (payload as { data: unknown }).data, response };
       }
       return { payload, response };
     } catch {
-      throw new DomainException('IDENTITY_PROVIDER_INVALID_RESPONSE', 'Identity provider returned an invalid response', HttpStatus.BAD_GATEWAY);
+      throw new DomainException(
+        'IDENTITY_PROVIDER_INVALID_RESPONSE',
+        'Identity provider returned an invalid response',
+        HttpStatus.BAD_GATEWAY,
+      );
     }
   }
 
   private unauthorized(): DomainException {
-    return new DomainException('UNAUTHORIZED', 'Invalid or expired session', HttpStatus.UNAUTHORIZED);
+    return new DomainException(
+      'UNAUTHORIZED',
+      'Invalid or expired session',
+      HttpStatus.UNAUTHORIZED,
+    );
   }
 
   private backoff(ms: number): Promise<void> {

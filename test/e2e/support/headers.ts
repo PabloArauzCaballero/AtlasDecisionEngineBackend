@@ -10,7 +10,10 @@ export const RUNTIME_API_KEY = E2E_CLIENTS.runtime.secret;
  * that genuinely holds only that role; anything else falls back to the admin client, which
  * is what the majority of specs need in order to reach the behaviour under test.
  */
-export function managementHeaders(principalId: string, roles: string[] = []): Record<string, string> {
+export function managementHeaders(
+  principalId: string,
+  roles: string[] = [],
+): Record<string, string> {
   if (principalId === 'e2e.author') return headersFor('author');
   if (principalId === 'e2e.qa-approver') return headersFor('qaAnalyst');
   if (principalId === 'e2e.risk-approver') return headersFor('riskApprover');

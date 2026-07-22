@@ -26,14 +26,54 @@ const ALL_MANAGEMENT_ROLES = [
 ];
 
 export const E2E_CLIENTS = {
-  admin: { clientKey: 'e2e-admin', secret: 'e2e-admin-secret-0123456789abcdef', audience: 'management', roles: ALL_MANAGEMENT_ROLES },
-  author: { clientKey: 'e2e-author', secret: 'e2e-author-secret-0123456789abcdef', audience: 'management', roles: ['RISK_ANALYST', 'QA_ANALYST'] },
-  auditor: { clientKey: 'e2e-auditor', secret: 'e2e-auditor-secret-0123456789abcdef', audience: 'management', roles: ['AUDITOR'] },
-  platformAdmin: { clientKey: 'e2e-platform-admin', secret: 'e2e-platform-admin-secret-0123456789abcdef', audience: 'management', roles: ['PLATFORM_ADMIN'] },
-  qaAnalyst: { clientKey: 'e2e-qa', secret: 'e2e-qa-secret-0123456789abcdef', audience: 'management', roles: ['QA_ANALYST'] },
-  riskAnalyst: { clientKey: 'e2e-risk', secret: 'e2e-risk-secret-0123456789abcdef', audience: 'management', roles: ['RISK_ANALYST'] },
-  riskApprover: { clientKey: 'e2e-risk-approver', secret: 'e2e-risk-approver-secret-0123456789abcdef', audience: 'management', roles: ['RISK_APPROVER'] },
-  runtime: { clientKey: 'e2e-runtime', secret: 'e2e-runtime-secret-0123456789abcdef', audience: 'runtime', roles: ['DECISION_RUNTIME'] },
+  admin: {
+    clientKey: 'e2e-admin',
+    secret: 'e2e-admin-secret-0123456789abcdef',
+    audience: 'management',
+    roles: ALL_MANAGEMENT_ROLES,
+  },
+  author: {
+    clientKey: 'e2e-author',
+    secret: 'e2e-author-secret-0123456789abcdef',
+    audience: 'management',
+    roles: ['RISK_ANALYST', 'QA_ANALYST'],
+  },
+  auditor: {
+    clientKey: 'e2e-auditor',
+    secret: 'e2e-auditor-secret-0123456789abcdef',
+    audience: 'management',
+    roles: ['AUDITOR'],
+  },
+  platformAdmin: {
+    clientKey: 'e2e-platform-admin',
+    secret: 'e2e-platform-admin-secret-0123456789abcdef',
+    audience: 'management',
+    roles: ['PLATFORM_ADMIN'],
+  },
+  qaAnalyst: {
+    clientKey: 'e2e-qa',
+    secret: 'e2e-qa-secret-0123456789abcdef',
+    audience: 'management',
+    roles: ['QA_ANALYST'],
+  },
+  riskAnalyst: {
+    clientKey: 'e2e-risk',
+    secret: 'e2e-risk-secret-0123456789abcdef',
+    audience: 'management',
+    roles: ['RISK_ANALYST'],
+  },
+  riskApprover: {
+    clientKey: 'e2e-risk-approver',
+    secret: 'e2e-risk-approver-secret-0123456789abcdef',
+    audience: 'management',
+    roles: ['RISK_APPROVER'],
+  },
+  runtime: {
+    clientKey: 'e2e-runtime',
+    secret: 'e2e-runtime-secret-0123456789abcdef',
+    audience: 'runtime',
+    roles: ['DECISION_RUNTIME'],
+  },
 } as const;
 
 export type E2eClientName = keyof typeof E2E_CLIENTS;
@@ -44,7 +84,8 @@ function sha256(value: string): string {
 
 export async function provisionE2eClients(): Promise<void> {
   const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) throw new Error('DATABASE_URL is required to provision e2e integration clients');
+  if (!connectionString)
+    throw new Error('DATABASE_URL is required to provision e2e integration clients');
   const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 
   try {

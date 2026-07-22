@@ -1,26 +1,18 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Headers,
-  Param,
-  Post,
-  Put,
-  Query,
-} from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Post, Put, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { parseBigIntId, parseIfMatch } from '../../common/http/id';
-import {
-  CurrentPrincipal,
-  Roles,
-  TenantId,
-} from '../../common/security/security.decorators';
+import { CurrentPrincipal, Roles, TenantId } from '../../common/security/security.decorators';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
 import { ArtifactGraphReaderService } from './artifact-graph-reader.service';
 import { ArtifactGraphWriterService } from './artifact-graph-writer.service';
 import { ArtifactLifecycleService } from './artifact-lifecycle.service';
 import { ArtifactService } from './artifact.service';
-import { ArtifactListQueryDto, CloneVersionDto, CreateArtifactDto, ReplaceGraphDto } from './artifact.dto';
+import {
+  ArtifactListQueryDto,
+  CloneVersionDto,
+  CreateArtifactDto,
+  ReplaceGraphDto,
+} from './artifact.dto';
 
 @ApiTags('Decision Artifacts')
 @Controller('v1')

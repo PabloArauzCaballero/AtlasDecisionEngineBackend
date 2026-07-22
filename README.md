@@ -55,11 +55,11 @@ docker compose up -d postgres redis
 4. Prepare y ejecute la aplicación:
 
 ```bash
-npm ci
-npm run prisma:generate
-npm run prisma:migrate
-npm run prisma:seed
-npm run start:dev
+yarn install --frozen-lockfile
+yarn prisma:generate
+yarn prisma:migrate
+yarn prisma:seed
+yarn start:dev
 ```
 
 El seed registra los clientes bootstrap usando `MANAGEMENT_API_KEY`, `RUNTIME_API_KEY`, `BOOTSTRAP_TENANT_ID` y los alcances `BOOTSTRAP_*_ROLES`. Puede ejecutarse varias veces de forma idempotente.
@@ -139,21 +139,22 @@ Las fallas del proveedor de variables se exponen mediante `atlas_provider_failur
 ## Verificación
 
 ```bash
-npm run prisma:validate
-npm run migration:validate
-npm run typecheck
-npm run build
-npm test
-npm run test:cov
-npm run test:e2e
-npm run smoke
-npm run security:audit
+yarn prisma:validate
+yarn migration:validate
+yarn typecheck
+yarn test:unit         # suites sin base de datos (rápido, para el bucle local)
+yarn build
+yarn test              # todas las suites (unit + integración; requiere Postgres/Redis)
+yarn test:cov
+yarn test:e2e
+yarn smoke
+yarn security:audit
 ```
 
 Para validar configuración productiva, compile y ejecute:
 
 ```bash
-npm run production:config:check
+yarn production:config:check
 ```
 
 ## Límites del entregable

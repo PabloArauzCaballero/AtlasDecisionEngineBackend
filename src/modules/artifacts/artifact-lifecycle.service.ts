@@ -25,14 +25,23 @@ export class ArtifactLifecycleService {
       where: { id: versionId, artifact: { tenantId } },
       select: { status: true },
     });
-    if (!version) throw new DomainException('VERSION_NOT_FOUND', 'Artifact version not found', HttpStatus.NOT_FOUND);
+    if (!version)
+      throw new DomainException(
+        'VERSION_NOT_FOUND',
+        'Artifact version not found',
+        HttpStatus.NOT_FOUND,
+      );
     const validatableStatuses: VersionStatus[] = [
       VersionStatus.DRAFT,
       VersionStatus.VALIDATION_FAILED,
       VersionStatus.VALIDATED,
     ];
     if (!validatableStatuses.includes(version.status)) {
-      throw new DomainException('VERSION_NOT_VALIDATABLE', `Version in state ${version.status} cannot be validated`, HttpStatus.CONFLICT);
+      throw new DomainException(
+        'VERSION_NOT_VALIDATABLE',
+        `Version in state ${version.status} cannot be validated`,
+        HttpStatus.CONFLICT,
+      );
     }
 
     const snapshot = await this.graph.loadSnapshot(tenantId, versionId);
@@ -44,20 +53,35 @@ export class ArtifactLifecycleService {
           data: { canonicalChecksum: report.checksum },
         });
         if (version.status !== VersionStatus.VALIDATED) {
-          await this.states.transition(versionId, VersionStatus.VALIDATED, principal.id, 'Graph validation passed', tx);
+          await this.states.transition(
+            versionId,
+            VersionStatus.VALIDATED,
+            principal.id,
+            'Graph validation passed',
+            tx,
+          );
         }
       } else if (version.status !== VersionStatus.VALIDATION_FAILED) {
-        await this.states.transition(versionId, VersionStatus.VALIDATION_FAILED, principal.id, 'Graph validation failed', tx);
+        await this.states.transition(
+          versionId,
+          VersionStatus.VALIDATION_FAILED,
+          principal.id,
+          'Graph validation failed',
+          tx,
+        );
       }
-      await this.audit.append({
-        tenantId,
-        eventType: report.valid ? 'VALIDATION_PASSED' : 'VALIDATION_FAILED',
-        aggregateType: 'ArtifactVersion',
-        aggregateId: versionId.toString(),
-        actorId: principal.id,
-        requestId: principal.requestId,
-        payload: report as unknown as Prisma.InputJsonValue,
-      }, tx);
+      await this.audit.append(
+        {
+          tenantId,
+          eventType: report.valid ? 'VALIDATION_PASSED' : 'VALIDATION_FAILED',
+          aggregateType: 'ArtifactVersion',
+          aggregateId: versionId.toString(),
+          actorId: principal.id,
+          requestId: principal.requestId,
+          payload: report as unknown as Prisma.InputJsonValue,
+        },
+        tx,
+      );
     });
     return report;
   }
@@ -67,18 +91,36 @@ export class ArtifactLifecycleService {
       where: { id: versionId, artifact: { tenantId } },
       select: { status: true, canonicalChecksum: true },
     });
-    if (!version) throw new DomainException('VERSION_NOT_FOUND', 'Artifact version not found', HttpStatus.NOT_FOUND);
+    if (!version)
+      throw new DomainException(
+        'VERSION_NOT_FOUND',
+        'Artifact version not found',
+        HttpStatus.NOT_FOUND,
+      );
     if (version.status !== VersionStatus.VALIDATED) {
-      throw new DomainException('VERSION_NOT_COMPILED', 'Version must be VALIDATED before compilation', HttpStatus.CONFLICT);
+      throw new DomainException(
+        'VERSION_NOT_COMPILED',
+        'Version must be VALIDATED before compilation',
+        HttpStatus.CONFLICT,
+      );
     }
 
     const snapshot = await this.graph.loadSnapshot(tenantId, versionId);
     const report = this.validator.validate(snapshot);
     if (!report.valid || !report.canonicalAst || !report.checksum) {
-      throw new DomainException('VALIDATION_REQUIRED', 'Graph is no longer valid and cannot be compiled', HttpStatus.CONFLICT, report.errors);
+      throw new DomainException(
+        'VALIDATION_REQUIRED',
+        'Graph is no longer valid and cannot be compiled',
+        HttpStatus.CONFLICT,
+        report.errors,
+      );
     }
     if (version.canonicalChecksum && version.canonicalChecksum !== report.checksum) {
-      throw new DomainException('CHECKSUM_MISMATCH', 'Graph changed after validation; validate again', HttpStatus.CONFLICT);
+      throw new DomainException(
+        'CHECKSUM_MISMATCH',
+        'Graph changed after validation; validate again',
+        HttpStatus.CONFLICT,
+      );
     }
 
     const result = this.compiler.compile(report.canonicalAst, report.metrics.terminalPathCount);
@@ -93,16 +135,25 @@ export class ArtifactLifecycleService {
           compileStatus: CompileStatus.SUCCESS,
         },
       });
-      await this.states.transition(versionId, VersionStatus.COMPILED, principal.id, 'Deterministic compilation succeeded', tx);
-      await this.audit.append({
-        tenantId,
-        eventType: 'ARTIFACT_COMPILED',
-        aggregateType: 'ArtifactVersion',
-        aggregateId: versionId.toString(),
-        actorId: principal.id,
-        requestId: principal.requestId,
-        payload: { compiledArtifactId: record.id.toString(), checksum: record.compiledChecksum },
-      }, tx);
+      await this.states.transition(
+        versionId,
+        VersionStatus.COMPILED,
+        principal.id,
+        'Deterministic compilation succeeded',
+        tx,
+      );
+      await this.audit.append(
+        {
+          tenantId,
+          eventType: 'ARTIFACT_COMPILED',
+          aggregateType: 'ArtifactVersion',
+          aggregateId: versionId.toString(),
+          actorId: principal.id,
+          requestId: principal.requestId,
+          payload: { compiledArtifactId: record.id.toString(), checksum: record.compiledChecksum },
+        },
+        tx,
+      );
       return record;
     });
     return compiled;
@@ -143,7 +194,8 @@ export class ArtifactLifecycleService {
       const after = b.get(itemKey);
       if (!before && after) added.push(after);
       else if (before && !after) removed.push(before);
-      else if (before && after && JSON.stringify(before) !== JSON.stringify(after)) changed.push({ before, after });
+      else if (before && after && JSON.stringify(before) !== JSON.stringify(after))
+        changed.push({ before, after });
     }
     return { added, removed, changed };
   }

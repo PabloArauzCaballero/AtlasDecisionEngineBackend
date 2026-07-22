@@ -3,7 +3,11 @@ import { DomainException } from '../errors/domain-exception';
 
 export function parseBigIntId(value: string, name = 'id'): bigint {
   if (!/^\d+$/.test(value)) {
-    throw new DomainException('INVALID_ID', `${name} must be a positive integer`, HttpStatus.BAD_REQUEST);
+    throw new DomainException(
+      'INVALID_ID',
+      `${name} must be a positive integer`,
+      HttpStatus.BAD_REQUEST,
+    );
   }
   return BigInt(value);
 }

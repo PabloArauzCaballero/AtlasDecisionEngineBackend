@@ -1,25 +1,18 @@
-const DIRECT_ROLES = new Set([
-  'PLATFORM_ADMIN',
-  'RISK_ANALYST',
-  'FRAUD_ANALYST',
-  'QA_ANALYST',
-  'RISK_APPROVER',
-  'COMPLIANCE',
-  'AUDITOR',
-  'OPERATIONS',
-]);
+import { PlatformRole, PLATFORM_ROLES } from './platform-roles';
 
-const ROLE_ALIASES: Readonly<Record<string, readonly string[]>> = {
-  SUPER_ADMIN: ['PLATFORM_ADMIN'],
-  SYSTEMS_ADMIN: ['PLATFORM_ADMIN'],
-  INTERNAL_IDENTITY_ADMIN: ['PLATFORM_ADMIN'],
-  COMPLIANCE_ANALYST: ['COMPLIANCE'],
-  QA_ENGINEER: ['QA_ANALYST'],
-  READONLY_AUDITOR: ['AUDITOR'],
-  OPS_MANAGER: ['OPERATIONS'],
-  OPERATIONS_AGENT: ['OPERATIONS'],
-  SUPPORT_AGENT: ['OPERATIONS'],
-  INTERNAL_OPERATOR: ['OPERATIONS'],
+const DIRECT_ROLES = new Set<string>(PLATFORM_ROLES);
+
+const ROLE_ALIASES: Readonly<Record<string, readonly PlatformRole[]>> = {
+  SUPER_ADMIN: [PlatformRole.PLATFORM_ADMIN],
+  SYSTEMS_ADMIN: [PlatformRole.PLATFORM_ADMIN],
+  INTERNAL_IDENTITY_ADMIN: [PlatformRole.PLATFORM_ADMIN],
+  COMPLIANCE_ANALYST: [PlatformRole.COMPLIANCE],
+  QA_ENGINEER: [PlatformRole.QA_ANALYST],
+  READONLY_AUDITOR: [PlatformRole.AUDITOR],
+  OPS_MANAGER: [PlatformRole.OPERATIONS],
+  OPERATIONS_AGENT: [PlatformRole.OPERATIONS],
+  SUPPORT_AGENT: [PlatformRole.OPERATIONS],
+  INTERNAL_OPERATOR: [PlatformRole.OPERATIONS],
 };
 
 export function mapIdentityRoles(roleCodes: readonly string[]): string[] {

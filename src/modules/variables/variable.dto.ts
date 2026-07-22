@@ -38,9 +38,13 @@ export class VariableVersionDto {
   @IsOptional() @IsObject() validationSchema?: Record<string, unknown>;
   @IsOptional() @IsObject() derivationExpression?: Record<string, unknown>;
   @IsOptional() @IsString() effectiveFrom?: string;
-  @IsArray() @ValidateNested({ each: true }) @Type(() => VariableSourceDto)
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => VariableSourceDto)
   sources!: VariableSourceDto[];
-  @IsArray() @ValidateNested({ each: true }) @Type(() => VariableValidationRuleDto)
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => VariableValidationRuleDto)
   validationRules!: VariableValidationRuleDto[];
 }
 

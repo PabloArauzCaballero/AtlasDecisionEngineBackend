@@ -5,7 +5,9 @@ import { GraphValidatorService } from '../src/modules/graph/graph-validator.serv
 import { graphSnapshot } from './graph.fixture';
 
 describe('GraphValidatorService', () => {
-  const hash = new HashService(new ConfigService({ AUDIT_HASH_SECRET: 'test-secret-that-is-long-enough' }));
+  const hash = new HashService(
+    new ConfigService({ AUDIT_HASH_SECRET: 'test-secret-that-is-long-enough' }),
+  );
   const validator = new GraphValidatorService(new ExpressionEvaluator(), hash);
 
   it('accepts a connected deterministic graph with terminal outcomes', () => {
@@ -36,9 +38,15 @@ describe('GraphValidatorService', () => {
 
   it('rejects undeclared variables', () => {
     const graph = graphSnapshot();
-    graph.conditions[0].expression = { op: 'eq', left: { var: 'unknown_variable' }, right: { value: true } };
+    graph.conditions[0].expression = {
+      op: 'eq',
+      left: { var: 'unknown_variable' },
+      right: { value: true },
+    };
     const report = validator.validate(graph);
-    expect(report.errors.some((error) => error.code === 'UNDECLARED_VARIABLE_DEPENDENCY')).toBe(true);
+    expect(report.errors.some((error) => error.code === 'UNDECLARED_VARIABLE_DEPENDENCY')).toBe(
+      true,
+    );
   });
   it('rejects duplicate identifiers before compilation', () => {
     const graph = graphSnapshot();
@@ -54,7 +62,8 @@ describe('GraphValidatorService', () => {
       valueExpression: { op: 'mul', args: [{ var: 'hidden_income' }, { value: 0.3 }] },
     };
     const report = validator.validate(graph);
-    expect(report.errors.some((error) => error.code === 'UNDECLARED_VARIABLE_DEPENDENCY')).toBe(true);
+    expect(report.errors.some((error) => error.code === 'UNDECLARED_VARIABLE_DEPENDENCY')).toBe(
+      true,
+    );
   });
-
 });

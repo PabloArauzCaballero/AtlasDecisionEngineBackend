@@ -66,14 +66,24 @@ export class JwtVerifierService {
       if (!signatureValid) throw new Error('Invalid signature');
 
       this.validateClaims(claims, audience);
-      const tenantClaim = this.readClaim(claims, this.config.get<string>('JWT_TENANT_CLAIM') ?? 'tenant_id');
-      const rolesClaim = this.readClaim(claims, this.config.get<string>('JWT_ROLES_CLAIM') ?? 'roles');
+      const tenantClaim = this.readClaim(
+        claims,
+        this.config.get<string>('JWT_TENANT_CLAIM') ?? 'tenant_id',
+      );
+      const rolesClaim = this.readClaim(
+        claims,
+        this.config.get<string>('JWT_ROLES_CLAIM') ?? 'roles',
+      );
       const tenantId = this.parseTenantId(tenantClaim);
       const roles = this.parseRoles(rolesClaim);
       if (!claims.sub) throw new Error('Missing subject');
       return { subject: claims.sub, tenantId, roles, tokenId: claims.jti };
     } catch {
-      throw new DomainException('UNAUTHORIZED', 'Invalid or expired bearer token', HttpStatus.UNAUTHORIZED);
+      throw new DomainException(
+        'UNAUTHORIZED',
+        'Invalid or expired bearer token',
+        HttpStatus.UNAUTHORIZED,
+      );
     }
   }
 
@@ -86,10 +96,13 @@ export class JwtVerifierService {
     const skew = this.config.get<number>('JWT_CLOCK_SKEW_SECONDS') ?? 30;
     if (!issuer || claims.iss !== issuer) throw new Error('Invalid issuer');
     const audiences = Array.isArray(claims.aud) ? claims.aud : claims.aud ? [claims.aud] : [];
-    if (!expectedAudience || !audiences.includes(expectedAudience)) throw new Error('Invalid audience');
+    if (!expectedAudience || !audiences.includes(expectedAudience))
+      throw new Error('Invalid audience');
     if (typeof claims.exp !== 'number' || claims.exp + skew < now) throw new Error('Expired token');
-    if (typeof claims.nbf === 'number' && claims.nbf - skew > now) throw new Error('Token not active');
-    if (typeof claims.iat === 'number' && claims.iat - skew > now) throw new Error('Issued in the future');
+    if (typeof claims.nbf === 'number' && claims.nbf - skew > now)
+      throw new Error('Token not active');
+    if (typeof claims.iat === 'number' && claims.iat - skew > now)
+      throw new Error('Issued in the future');
   }
 
   private async getKey(kid: string): Promise<Jwk> {
@@ -155,8 +168,13 @@ export class JwtVerifierService {
       : typeof value === 'string'
         ? value.split(/[\s,]+/)
         : [];
-    return [...new Set(raw.filter((role): role is string => typeof role === 'string')
-      .map((role) => role.trim().toUpperCase())
-      .filter(Boolean))];
+    return [
+      ...new Set(
+        raw
+          .filter((role): role is string => typeof role === 'string')
+          .map((role) => role.trim().toUpperCase())
+          .filter(Boolean),
+      ),
+    ];
   }
 }

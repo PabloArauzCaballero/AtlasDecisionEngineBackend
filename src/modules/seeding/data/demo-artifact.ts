@@ -30,7 +30,9 @@ export async function seedDemoArtifact(
     include: { versions: true },
   });
   if (existing?.versions.length) {
-    console.log(`Seed already present: ${ARTIFACT_CODE} version ${existing.versions[0].semanticVersion}`);
+    console.log(
+      `Seed already present: ${ARTIFACT_CODE} version ${existing.versions[0].semanticVersion}`,
+    );
     return undefined;
   }
 
@@ -40,9 +42,11 @@ export async function seedDemoArtifact(
       artifactCode: ARTIFACT_CODE,
       artifactType: 'CREDIT_POLICY',
       name: 'Decisión inicial de crédito BNPL',
-      description: 'Política semilla para originación BNPL: KYC, consentimiento, fraude, elegibilidad y riesgo.',
+      description:
+        'Política semilla para originación BNPL: KYC, consentimiento, fraude, elegibilidad y riesgo.',
       ownerTeam: 'RISK_DECISIONING',
-      businessPurpose: 'Emitir una decisión consistente, explicable, versionada y auditable para solicitudes de crédito BNPL.',
+      businessPurpose:
+        'Emitir una decisión consistente, explicable, versionada y auditable para solicitudes de crédito BNPL.',
       riskDomain: 'CREDIT_ORIGINATION',
     },
   });
@@ -78,7 +82,14 @@ export async function seedDemoArtifact(
     reasonByCode,
     graph,
   );
-  const { deployment } = await seedDemoWorkflow(prisma, tenantId, version, compiledArtifact, prodEnvironment, canonicalChecksum);
+  const { deployment } = await seedDemoWorkflow(
+    prisma,
+    tenantId,
+    version,
+    compiledArtifact,
+    prodEnvironment,
+    canonicalChecksum,
+  );
 
   return {
     artifactCode: ARTIFACT_CODE,
