@@ -108,6 +108,7 @@ export interface ArtifactGraphSnapshot {
     semanticVersion: string;
     status: string;
     checksum?: string | null;
+    authoringNotes?: string | null;
   };
   variables: VariableContractSnapshot[];
   conditions: GraphConditionSnapshot[];

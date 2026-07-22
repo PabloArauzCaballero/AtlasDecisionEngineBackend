@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Patch, Post, Put, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { parseBigIntId, parseIfMatch } from '../../common/http/id';
 import { CurrentPrincipal, Roles, TenantId } from '../../common/security/security.decorators';
@@ -12,6 +12,7 @@ import {
   CloneVersionDto,
   CreateArtifactDto,
   ReplaceGraphDto,
+  UpdateVersionNotesDto,
 } from './artifact.dto';
 
 @ApiTags('Decision Artifacts')
@@ -88,6 +89,22 @@ export class ArtifactController {
       parseBigIntId(versionId, 'versionId'),
       parseIfMatch(ifMatch),
       dto,
+      principal,
+    );
+  }
+
+  @Patch('artifact-versions/:versionId/notes')
+  @Roles('RISK_ANALYST', 'FRAUD_ANALYST')
+  updateNotes(
+    @TenantId() tenantId: bigint,
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('versionId') versionId: string,
+    @Body() dto: UpdateVersionNotesDto,
+  ) {
+    return this.artifacts.updateVersionNotes(
+      tenantId,
+      parseBigIntId(versionId, 'versionId'),
+      dto.notes ?? null,
       principal,
     );
   }

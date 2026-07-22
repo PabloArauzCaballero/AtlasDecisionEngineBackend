@@ -116,8 +116,7 @@ export class ArtifactService {
         name: artifact.name,
         artifactType: artifact.artifactType,
         ownerTeam: artifact.ownerTeam,
-        latestVersion:
-          latest?.semanticVersion ?? (latest ? `v${latest.versionNumber}` : null),
+        latestVersion: latest?.semanticVersion ?? (latest ? `v${latest.versionNumber}` : null),
         latestStatus: latest?.status ?? null,
         environmentCode: deriveEnvironmentFromStatus(latest?.status),
         lastValidatedAt: latest?.approvedAt ?? null,
@@ -163,6 +162,44 @@ export class ArtifactService {
         HttpStatus.NOT_FOUND,
       );
     return version;
+  }
+
+  async updateVersionNotes(
+    tenantId: bigint,
+    versionId: bigint,
+    notes: string | null,
+    principal: AuthenticatedPrincipal,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const version = await tx.decisionArtifactVersion.findFirst({
+        where: { id: versionId, artifact: { tenantId } },
+        select: { id: true },
+      });
+      if (!version)
+        throw new DomainException(
+          'VERSION_NOT_FOUND',
+          'Artifact version not found',
+          HttpStatus.NOT_FOUND,
+        );
+      const updated = await tx.decisionArtifactVersion.update({
+        where: { id: versionId },
+        data: { authoringNotes: notes },
+        select: { id: true, authoringNotes: true },
+      });
+      await this.audit.append(
+        {
+          tenantId,
+          eventType: 'ARTIFACT_VERSION_NOTES_UPDATED',
+          aggregateType: 'ArtifactVersion',
+          aggregateId: versionId.toString(),
+          actorId: principal.id,
+          requestId: principal.requestId,
+          payload: { length: notes?.length ?? 0 },
+        },
+        tx,
+      );
+      return updated;
+    });
   }
 
   async cloneVersion(

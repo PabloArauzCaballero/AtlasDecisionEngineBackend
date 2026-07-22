@@ -71,6 +71,7 @@ export class ArtifactGraphReaderService {
         semanticVersion: version.semanticVersion,
         status: version.status,
         checksum: version.canonicalChecksum,
+        authoringNotes: version.authoringNotes,
       },
       variables: version.variableDependencies.map((dependency) => ({
         variableVersionId: dependency.variableVersion.id.toString(),

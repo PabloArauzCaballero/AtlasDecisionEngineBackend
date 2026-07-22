@@ -139,6 +139,7 @@ model DecisionArtifactVersion {
   sourceVersionId   BigInt?       @map("source_version_id")
   semanticVersion   String        @map("semantic_version") @db.VarChar(40)
   changeSummary     String?       @map("change_summary") @db.Text
+  authoringNotes    String?       @map("authoring_notes") @db.Text
   canonicalChecksum String?       @map("canonical_checksum") @db.VarChar(128)
   lockVersion       Int           @default(1) @map("lock_version")
   createdBy         String        @map("created_by") @db.VarChar(160)
@@ -826,24 +827,24 @@ model RuntimeIdempotency {
 }
 
 model DecisionAuditEvent {
-  id            BigInt   @id @default(autoincrement())
-  tenantId      BigInt   @map("tenant_id")
-  eventType     String   @map("event_type") @db.VarChar(100)
-  aggregateType String   @map("aggregate_type") @db.VarChar(100)
-  aggregateId   String   @map("aggregate_id") @db.VarChar(160)
-  actorId       String   @map("actor_id") @db.VarChar(160)
-  requestId     String?  @map("request_id") @db.VarChar(120)
-  payloadJson   Json     @map("payload_json")
-  previousHash  String?  @map("previous_hash") @db.VarChar(128)
-  eventHash     String   @map("event_hash") @db.VarChar(128)
+  id               BigInt   @id @default(autoincrement())
+  tenantId         BigInt   @map("tenant_id")
+  eventType        String   @map("event_type") @db.VarChar(100)
+  aggregateType    String   @map("aggregate_type") @db.VarChar(100)
+  aggregateId      String   @map("aggregate_id") @db.VarChar(160)
+  actorId          String   @map("actor_id") @db.VarChar(160)
+  requestId        String?  @map("request_id") @db.VarChar(120)
+  payloadJson      Json     @map("payload_json")
+  previousHash     String?  @map("previous_hash") @db.VarChar(128)
+  eventHash        String   @map("event_hash") @db.VarChar(128)
   // Identifies which signing secret produced eventHash, so AUDIT_HASH_SECRET can be
   // rotated without invalidating the historical chain.
-  hashKeyId     String   @default("v1") @map("hash_key_id") @db.VarChar(40)
+  hashKeyId        String   @default("v1") @map("hash_key_id") @db.VarChar(40)
   // The exact canonical string that eventHash was computed over. Verification hashes this
   // instead of re-serializing payloadJson, because Postgres JSONB re-normalizes some
   // numbers (e.g. high-precision decimals) on round-trip, which would otherwise flip a
   // valid event to a false EVENT_HASH_MISMATCH. Nullable for events written before this.
-  canonicalPayload String? @map("canonical_payload") @db.Text
+  canonicalPayload String?  @map("canonical_payload") @db.Text
   occurredAt       DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
 
   @@index([tenantId, occurredAt])

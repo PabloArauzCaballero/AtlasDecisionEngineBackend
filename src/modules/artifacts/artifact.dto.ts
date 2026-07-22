@@ -178,3 +178,7 @@ export class ArtifactListQueryDto extends PaginationQueryDto {
   @IsOptional() @IsEnum(VersionStatus) status?: VersionStatus;
   @IsOptional() @IsString() @MaxLength(120) search?: string;
 }
+
+export class UpdateVersionNotesDto {
+  @IsOptional() @IsString() @MaxLength(8000) notes?: string;
+}
