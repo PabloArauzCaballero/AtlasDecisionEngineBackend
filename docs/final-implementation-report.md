@@ -97,12 +97,40 @@ Ambos flujos de trabajo conviven en `main`: los 4 módulos de este trabajo
 Rebanada 1 (`notifications`, `outbox-relay`, `seeding`), con sus pruebas en verde
 juntas.
 
+### Frontend — también fusionado y verificado
+
+El repo frontend siguió el mismo patrón seguro: se preservó su WIP de la
+Rebanada 1 (notifications UI, GlobalSearchBox, RouteProgress, su propio tutorial,
+etc.) en `wip/rebanada-1`, se hizo fast-forward de mi rama y se reconciliaron 8
+conflictos (merge `a5825df`):
+
+- **Solape de tutoriales**: ambas sesiones construyeron un tutorial. Se adoptó el
+  de la Rebanada 1 en el chrome (`NextTopbar` con `TutorialLauncher` +
+  `NotificationCenter`, más completo); mi `TutorialProvider` queda montado como
+  sistema latente no destructivo (mis 5 pruebas siguen en verde).
+- **Aditivos** (`ArtifactDetailPage`, `ApprovalRequestDetailPage`, `SimulatorPage`,
+  `global.css`, `operations-governance.css`): se conservaron ambos lados; mis
+  enlaces (dependency-graph, security-review) + las mejoras de R1.
+- **Límite de 299 líneas**: el merge empujó `useGraphEditor.ts` a 310; el
+  auto-load del editor (Fase 3 QA) se movió a `GraphEditorPage` y los estilos de
+  árboles anidados a `parts/nested-trees.css`.
+
+Gates del frontend fusionado (evidencia real):
+
+| Gate | Resultado |
+|---|---|
+| `yarn verify:source` | ✅ 246 archivos, 26 rutas |
+| `yarn typecheck` | ✅ sin errores |
+| `yarn lint` | ✅ `--max-warnings=0` |
+| `yarn test` (mías + Rebanada 1) | ✅ **76 pasan / 19 suites** |
+| `yarn build` | ✅ 26 rutas |
+
 ### Pendiente menor (no bloqueante)
 
-- **Frontend**: la rama `feature/rebanadas-2-a-5` del repo frontend está lista;
-  su `main` no tenía tanto trabajo ajeno, pero conviene aplicar el mismo patrón
-  (preservar cualquier WIP → merge → reconciliar `route-access.ts` si hay
-  solapamiento). Ver la sección de frontend abajo.
+- **Solape de tutoriales (frontend)**: quedan dos implementaciones de tutorial en
+  el árbol (la de R1, activa; la mía, latente). Es una decisión de producto
+  —cuál conservar— que dejé sin forzar; ambas compilan y prueban. Limpiar la no
+  elegida es un paso posterior trivial.
 - **Integración de ejecución en vivo con el bus de eventos** (opcional, ver
   `live-execution.md`): publicar `live_execution.step` al bus de R1 ahora que
   coexisten; no es requisito para que la vista funcione.
@@ -110,6 +138,8 @@ juntas.
   estado de seed; el suite `test:e2e` (52 pruebas, ya verde sobre este `main`)
   cubre el mismo camino HTTP/auth/RBAC con más profundidad, y el smoke dio 5/5 en
   la corrida aislada durante el desarrollo.
+- **`git push`**: no ejecutado (no autorizado explícitamente); ambos `main`
+  locales están adelantados de `origin`. Empujar cuando se desee publicar.
 
 ## Nota de infraestructura
 
