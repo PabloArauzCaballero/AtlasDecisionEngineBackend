@@ -146,6 +146,24 @@ export class ManualReviewService {
         HttpStatus.CONFLICT,
       );
     }
+    // Segregation of duties: resolving a fraud/AML/credit review is a one-person decision with
+    // real financial consequence, so it requires an explicit prior `assign()` call — never
+    // auto-self-assigned here — and only the assigned analyst may resolve it. Without this, any
+    // principal holding the review role could open and close any case unilaterally in one call.
+    if (!review.assignedTo) {
+      throw new DomainException(
+        'MANUAL_REVIEW_NOT_ASSIGNED',
+        'Manual review case must be assigned before it can be resolved',
+        HttpStatus.CONFLICT,
+      );
+    }
+    if (review.assignedTo !== principal.id) {
+      throw new DomainException(
+        'MANUAL_REVIEW_ASSIGNEE_MISMATCH',
+        'Only the analyst assigned to this manual review case may resolve it',
+        HttpStatus.FORBIDDEN,
+      );
+    }
     const status =
       dto.decision === 'APPROVE'
         ? ManualReviewStatus.RESOLVED_APPROVED
@@ -157,7 +175,7 @@ export class ManualReviewService {
         where: { id: caseId },
         data: {
           status,
-          assignedTo: review.assignedTo ?? principal.id,
+          assignedTo: review.assignedTo,
           resolutionJson: {
             decision: dto.decision,
             reason: dto.reason,

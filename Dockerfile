@@ -19,6 +19,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 COPY prisma.config.ts ./
 COPY prisma ./prisma
+COPY scripts ./scripts
 COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 ENTRYPOINT ["npx", "prisma"]
 CMD ["migrate", "deploy"]

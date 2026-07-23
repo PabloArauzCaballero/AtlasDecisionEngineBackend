@@ -97,7 +97,7 @@ export async function ensureVariable(prisma: PrismaClient, seed: VariableSeed) {
       versionNumber: 1,
       dataType: seed.type,
       unitCode: seed.unit ?? null,
-      nullable: false,
+      nullable: seed.nullable ?? false,
       validationSchemaJson: seed.validation,
       sources: { create: source },
     },

@@ -8,16 +8,106 @@ import { scoringCatalog } from './data/scoring-catalog.data';
 import type { VariableSeed } from './data/types';
 import { variableCatalog } from './data/variable-catalog.data';
 
-// Variables referenced by the BNPL_CREDIT_DECISION demonstration graph. A small subset of the
-// full bootstrap catalog, not a separate list.
-const DEMO_VARIABLE_CODES = [
+// INPUT variables the BNPL_CREDIT_DECISION demonstration graph resolves before executing —
+// a curated subset of the full bootstrap catalog (see src/modules/seeding/data/demo-graph.ts
+// for the formulas that consume each one), not a separate list.
+const DEMO_INPUT_CODES = [
+  // Identidad / KYC
   'kyc_status',
   'consent_active',
   'age',
+  'national_id_verified',
+  'biometric_match_score',
+  'liveness_check_passed',
+  'address_verified',
+  'phone_verified',
+  'email_verified',
+  'pep_status',
+  'identity_confidence_score',
+  // Fraude / dispositivo / comportamiento
   'fraud_signal',
-  'bureau_score',
-  'monthly_income',
+  'device_reputation',
+  'device_risk_score',
+  'ip_address_risk_score',
+  'ip_tor_detected',
+  'velocity_applications_24h',
+  'synthetic_identity_score',
+  'sim_swap_detected',
+  'geolocation_mismatch_flag',
+  'known_fraud_device_flag',
+  'known_fraud_email_flag',
+  'known_fraud_phone_flag',
+  'previous_fraud_case_flag',
+  'account_takeover_risk_score',
+  'browser_automation_detected',
+  // Elegibilidad / afordabilidad (monto y plazo también alimentan riesgo/pricing)
+  'employment_status',
   'requested_amount',
+  'requested_term_months',
+  // Buró de crédito
+  'bureau_score',
+  'delinquency_count_12m',
+  'worst_delinquency_status',
+  'revolving_utilization_ratio',
+  'inquiries_last_6m',
+  'public_records_count',
+  'bankruptcy_flag',
+  'charge_off_count',
+  'payment_history_score',
+  'debt_to_income_ratio',
+  'credit_mix_score',
+  'thin_file_flag',
+  'no_hit_flag',
+  'oldest_trade_age_months',
+  // Capacidad de pago
+  'disposable_income',
+  'affordability_ratio',
+  'income_stability_score',
+  'bank_statement_nsf_count',
+  'self_employed_flag',
+  'tax_return_verified',
+  // AML / sanciones
+  'pep_relationship_type',
+  'ofac_screening_result',
+  'sanctions_screening_result',
+  'high_risk_jurisdiction_flag',
+  'adverse_media_hit',
+  'source_of_funds_verified',
+  // Regulatorio (tope de tasa para el pricing final)
+  'usury_cap_rate',
+];
+
+// OUTPUT variables this graph's RESULT/SET_FIELD nodes produce (see scoring-catalog.data.ts —
+// excludes the collections_* scoring outputs, which belong to a future servicing/collections
+// artifact, not to BNPL origination).
+const DEMO_OUTPUT_CODES = [
+  'identity_verification_score',
+  'kyc_decision',
+  'fraud_score',
+  'fraud_risk_band',
+  'fraud_decision',
+  'eligibility_score',
+  'eligibility_decision',
+  'credit_risk_score',
+  'risk_band',
+  'probability_of_default',
+  'expected_loss_amount',
+  'credit_risk_decision',
+  'affordability_score',
+  'max_affordable_installment',
+  'affordability_decision',
+  'aml_risk_score',
+  'aml_decision',
+  'compliance_decision',
+  'scoring',
+  'decision_outcome',
+  'decision_confidence',
+  'approved_amount',
+  'approved_credit_limit',
+  'approved_term_months',
+  'annual_percentage_rate',
+  'pricing_tier',
+  'adverse_action_reason_codes',
 ];
 
 /**
@@ -88,12 +178,14 @@ export async function runBootstrapSeeds(prisma: PrismaClient): Promise<Bootstrap
  * governance approval and an active PROD deployment). Idempotent — skips if already present.
  */
 export async function runMockupSeeds(prisma: PrismaClient, context: BootstrapContext) {
-  const demoVariables = DEMO_VARIABLE_CODES.map((code) => context.variableByCode[code]);
+  const inputVariables = DEMO_INPUT_CODES.map((code) => context.variableByCode[code]);
+  const outputVariables = DEMO_OUTPUT_CODES.map((code) => context.variableByCode[code]);
   return seedDemoArtifact(
     prisma,
     TENANT_ID,
     context.environments.prod,
-    demoVariables,
+    inputVariables,
+    outputVariables,
     context.reasonByCode,
   );
 }

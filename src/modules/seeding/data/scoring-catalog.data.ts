@@ -7,6 +7,13 @@ import type { VariableSeed } from './types';
 //
 // Convención de unidades: SCORE_0_100 (puntaje normalizado), SCORE_0_1000 (escala de buró),
 // PROBABILITY (0-1), PERCENT (0-100 %), BOB (bolivianos), MONTHS.
+//
+// `nullable`: el grafo BNPL_CREDIT_DECISION es una cascada por etapas (identidad -> fraude ->
+// elegibilidad -> riesgo de crédito -> capacidad de pago -> AML -> composición final). Un
+// rechazo temprano (p. ej. en KYC) nunca llega a calcular fraud_score/credit_risk_score/etc:
+// esos outputs son legítimamente ausentes en ese camino, no ceros ficticios. Solo los outputs
+// de la primera etapa (siempre evaluada) y los de cierre (siempre fijados en cada nodo
+// terminal) quedan no-nulos.
 
 // ── Identidad / KYC ─────────────────────────────────────────────────────────
 const identityScoring: VariableSeed[] = [
@@ -39,6 +46,7 @@ const fraudScoring: VariableSeed[] = [
     type: 'NUMBER',
     kind: 'OUTPUT',
     unit: 'SCORE_0_100',
+    nullable: true,
     validation: { minimum: 0, maximum: 100 },
   },
   {
@@ -47,6 +55,7 @@ const fraudScoring: VariableSeed[] = [
     description: 'Clasificación categórica del riesgo de fraude.',
     type: 'STRING',
     kind: 'OUTPUT',
+    nullable: true,
     validation: { enum: ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] },
   },
   {
@@ -55,6 +64,7 @@ const fraudScoring: VariableSeed[] = [
     description: 'Acción recomendada por el subproceso antifraude.',
     type: 'STRING',
     kind: 'OUTPUT',
+    nullable: true,
     validation: { enum: ['CLEAR', 'REVIEW', 'BLOCK'] },
   },
 ];
@@ -68,6 +78,7 @@ const creditRiskScoring: VariableSeed[] = [
     type: 'INTEGER',
     kind: 'OUTPUT',
     unit: 'SCORE_0_1000',
+    nullable: true,
     validation: { minimum: 0, maximum: 1000 },
   },
   {
@@ -76,6 +87,7 @@ const creditRiskScoring: VariableSeed[] = [
     description: 'Clasificación categórica del riesgo crediticio asignada por el modelo.',
     type: 'STRING',
     kind: 'OUTPUT',
+    nullable: true,
     validation: { enum: ['LOW', 'MEDIUM', 'HIGH', 'VERY_HIGH'] },
   },
   {
@@ -85,6 +97,7 @@ const creditRiskScoring: VariableSeed[] = [
     type: 'NUMBER',
     kind: 'OUTPUT',
     unit: 'PROBABILITY',
+    nullable: true,
     validation: { minimum: 0, maximum: 1 },
   },
   {
@@ -94,6 +107,7 @@ const creditRiskScoring: VariableSeed[] = [
     type: 'NUMBER',
     kind: 'OUTPUT',
     unit: 'BOB',
+    nullable: true,
     validation: { minimum: 0 },
   },
   {
@@ -102,6 +116,7 @@ const creditRiskScoring: VariableSeed[] = [
     description: 'Resultado del subproceso de riesgo de crédito.',
     type: 'STRING',
     kind: 'OUTPUT',
+    nullable: true,
     validation: { enum: ['PASS', 'REVIEW', 'FAIL'] },
   },
 ];
@@ -115,6 +130,7 @@ const affordabilityScoring: VariableSeed[] = [
     type: 'NUMBER',
     kind: 'OUTPUT',
     unit: 'SCORE_0_100',
+    nullable: true,
     validation: { minimum: 0, maximum: 100 },
   },
   {
@@ -124,6 +140,7 @@ const affordabilityScoring: VariableSeed[] = [
     type: 'NUMBER',
     kind: 'OUTPUT',
     unit: 'BOB',
+    nullable: true,
     validation: { minimum: 0 },
   },
   {
@@ -132,6 +149,7 @@ const affordabilityScoring: VariableSeed[] = [
     description: 'Resultado del subproceso de capacidad de pago.',
     type: 'STRING',
     kind: 'OUTPUT',
+    nullable: true,
     validation: { enum: ['PASS', 'FAIL'] },
   },
 ];
@@ -146,6 +164,7 @@ const eligibilityScoring: VariableSeed[] = [
     type: 'NUMBER',
     kind: 'OUTPUT',
     unit: 'SCORE_0_100',
+    nullable: true,
     validation: { minimum: 0, maximum: 100 },
   },
   {
@@ -154,6 +173,7 @@ const eligibilityScoring: VariableSeed[] = [
     description: 'Resultado del subproceso de elegibilidad.',
     type: 'STRING',
     kind: 'OUTPUT',
+    nullable: true,
     validation: { enum: ['ELIGIBLE', 'INELIGIBLE'] },
   },
 ];
@@ -168,6 +188,7 @@ const amlComplianceScoring: VariableSeed[] = [
     kind: 'OUTPUT',
     unit: 'SCORE_0_100',
     sensitive: true,
+    nullable: true,
     validation: { minimum: 0, maximum: 100 },
   },
   {
@@ -177,6 +198,7 @@ const amlComplianceScoring: VariableSeed[] = [
     type: 'STRING',
     kind: 'OUTPUT',
     sensitive: true,
+    nullable: true,
     validation: { enum: ['CLEAR', 'REVIEW', 'BLOCK'] },
   },
   {
@@ -185,11 +207,15 @@ const amlComplianceScoring: VariableSeed[] = [
     description: 'Resultado del subproceso de cumplimiento regulatorio.',
     type: 'STRING',
     kind: 'OUTPUT',
+    nullable: true,
     validation: { enum: ['PASS', 'REVIEW', 'FAIL'] },
   },
 ];
 
 // ── Cobranza / Recuperación ─────────────────────────────────────────────────
+// Outputs de un proceso de cobranza post-desembolso (cuentas ya en mora), NO parte del flujo
+// de originación BNPL_CREDIT_DECISION — se mantienen en el catálogo para el día en que exista
+// un artefacto dedicado de gestión de cartera, pero ningún grafo los emite todavía.
 const collectionsScoring: VariableSeed[] = [
   {
     code: 'collections_priority_score',
@@ -198,6 +224,7 @@ const collectionsScoring: VariableSeed[] = [
     type: 'NUMBER',
     kind: 'OUTPUT',
     unit: 'SCORE_0_100',
+    nullable: true,
     validation: { minimum: 0, maximum: 100 },
   },
   {
@@ -207,6 +234,7 @@ const collectionsScoring: VariableSeed[] = [
     type: 'NUMBER',
     kind: 'OUTPUT',
     unit: 'SCORE_0_100',
+    nullable: true,
     validation: { minimum: 0, maximum: 100 },
   },
   {
@@ -215,6 +243,7 @@ const collectionsScoring: VariableSeed[] = [
     description: 'Estrategia de gestión recomendada para la cuenta en mora.',
     type: 'STRING',
     kind: 'OUTPUT',
+    nullable: true,
     validation: {
       enum: ['SELF_CURE', 'SOFT_CONTACT', 'INTENSIVE_CONTACT', 'RESTRUCTURE', 'LEGAL', 'WRITE_OFF'],
     },
@@ -230,6 +259,7 @@ const decisionScoring: VariableSeed[] = [
     type: 'NUMBER',
     kind: 'OUTPUT',
     unit: 'SCORE_0_1000',
+    nullable: true,
     validation: { minimum: 0, maximum: 1000 },
   },
   {
@@ -256,6 +286,7 @@ const decisionScoring: VariableSeed[] = [
     type: 'NUMBER',
     kind: 'OUTPUT',
     unit: 'BOB',
+    nullable: true,
     validation: { minimum: 0 },
   },
   {
@@ -265,6 +296,7 @@ const decisionScoring: VariableSeed[] = [
     type: 'NUMBER',
     kind: 'OUTPUT',
     unit: 'BOB',
+    nullable: true,
     validation: { minimum: 0 },
   },
   {
@@ -274,6 +306,7 @@ const decisionScoring: VariableSeed[] = [
     type: 'INTEGER',
     kind: 'OUTPUT',
     unit: 'MONTHS',
+    nullable: true,
     validation: { minimum: 0, maximum: 360 },
   },
   {
@@ -283,6 +316,7 @@ const decisionScoring: VariableSeed[] = [
     type: 'NUMBER',
     kind: 'OUTPUT',
     unit: 'PERCENT',
+    nullable: true,
     validation: { minimum: 0, maximum: 500 },
   },
   {
@@ -291,6 +325,7 @@ const decisionScoring: VariableSeed[] = [
     description: 'Nivel de precio/tasa asignado según el riesgo del solicitante.',
     type: 'STRING',
     kind: 'OUTPUT',
+    nullable: true,
     validation: { enum: ['A', 'B', 'C', 'D', 'E'] },
   },
   {

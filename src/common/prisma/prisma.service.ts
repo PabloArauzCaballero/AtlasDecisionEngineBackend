@@ -26,6 +26,8 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   private readonly logger = new Logger(PrismaService.name);
   private readonly pool: Pool;
 
+  private readonly nodeEnv: string;
+
   constructor(
     config: ConfigService,
     private readonly requestContext: RequestContextService,
@@ -53,12 +55,35 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     });
     super({ adapter: new PrismaPg(pool, { disposeExternalPool: false }) });
     this.pool = pool;
+    this.nodeEnv = config.get<string>('NODE_ENV') ?? 'development';
     return this.withTenantRls();
   }
 
   async onModuleInit(): Promise<void> {
     await this.$connect();
+    await this.assertNotSuperuser();
     this.logger.log('PostgreSQL connection established');
+  }
+
+  /**
+   * RLS is inert for a superuser connection (see the class doc comment), so a superuser
+   * DATABASE_URL reaching the API in production would silently disable every tenant-isolation
+   * policy. Fails closed in production; only warns elsewhere so local/dev flows that
+   * legitimately use the admin role (before `bootstrap-app-role` is wired up) still work.
+   */
+  private async assertNotSuperuser(): Promise<void> {
+    const [{ isSuperuser }] = await this.$queryRaw<{ isSuperuser: boolean }[]>`
+      SELECT current_setting('is_superuser')::boolean AS "isSuperuser"
+    `;
+    if (!isSuperuser) return;
+    const message =
+      'Database connection is a superuser role — tenant Row-Level Security policies are ' +
+      'inert for this connection. The API must connect as the non-superuser atlas_app role ' +
+      '(see scripts/set-app-db-role.mjs and docs/DEPLOYMENT.md).';
+    if (this.nodeEnv === 'production') {
+      throw new Error(message);
+    }
+    this.logger.warn(message);
   }
 
   async onModuleDestroy(): Promise<void> {

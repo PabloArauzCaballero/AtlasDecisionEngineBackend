@@ -34,6 +34,8 @@ export interface DemoSnapshotResult {
 }
 
 /** Builds the deterministic graph/compiled snapshots for the demo artifact and persists the compiled record. */
+const PRIMARY_OUTPUT_CODE = 'decision_outcome';
+
 export async function buildDemoSnapshots(
   prisma: PrismaClient,
   artifact: {
@@ -45,7 +47,8 @@ export async function buildDemoSnapshots(
     riskDomain: string;
   },
   version: { id: bigint },
-  variables: DemoVariable[],
+  inputVariables: DemoVariable[],
+  outputVariables: DemoVariable[],
   reasonByCode: Record<string, DemoReason>,
   graph: DemoGraphResult,
 ): Promise<DemoSnapshotResult> {
@@ -60,8 +63,10 @@ export async function buildDemoSnapshots(
     edgeRows,
   } = graph;
 
-  const variableSnapshots = variables.map(({ definition, version: variable }) => ({
+  const inputSnapshots = inputVariables.map(({ definition, version: variable }) => ({
     variableVersionId: variable.id.toString(),
+    usageType: 'INPUT',
+    dependencyPath: `input.${definition.variableCode}`,
     code: definition.variableCode,
     version: variable.versionNumber,
     dataType: variable.dataType,
@@ -83,6 +88,38 @@ export async function buildDemoSnapshots(
     fallbackPolicy: 'FAIL_CLOSED',
     sensitive: definition.isSensitive,
   }));
+
+  // OUTPUT contracts the engine validates after execution (execution-engine.service.ts):
+  // usageType + dependencyPath drive the outputContracts filter, and `required`/`nullable`
+  // decide whether a missing output fails closed. `decision_outcome` is the single
+  // OUTPUT_PRIMARY; it is always set on every terminal path so it stays non-nullable/required.
+  const outputSnapshots = outputVariables.map(({ definition, version: variable }) => ({
+    variableVersionId: variable.id.toString(),
+    usageType: definition.variableCode === PRIMARY_OUTPUT_CODE ? 'OUTPUT_PRIMARY' : 'OUTPUT',
+    dependencyPath: `output.${definition.variableCode}`,
+    code: definition.variableCode,
+    version: variable.versionNumber,
+    dataType: variable.dataType,
+    unitCode: variable.unitCode,
+    nullable: variable.nullable,
+    validationSchema: variable.validationSchemaJson,
+    validationRules: [],
+    sources: [
+      {
+        system: 'DECISION_ENGINE',
+        path: '$.output',
+        field: definition.variableCode,
+        precedence: 1,
+        freshnessSlaSeconds: 0,
+        authoritative: true,
+      },
+    ],
+    required: true,
+    fallbackPolicy: 'NOT_APPLICABLE',
+    sensitive: definition.isSensitive,
+  }));
+
+  const variableSnapshots = [...inputSnapshots, ...outputSnapshots];
 
   const conditionSnapshots = conditionDefinitions.map((item: ConditionDefinition) => ({
     id: conditionByCode[item.code].id.toString(),
@@ -158,9 +195,13 @@ export async function buildDemoSnapshots(
     edges: edgeSnapshots,
   };
   const canonicalChecksum = sha256(graphSnapshot);
+  // Runtime schema 1.1: this artifact declares OUTPUT variables and uses RESULT terminals, the
+  // configurable-outputs feature the engine gates on `runtimeSchemaVersion`/OUTPUT contracts
+  // (compiler.service.ts sets 1.1 for exactly this shape).
+  const terminalPaths = nodeSnapshots.filter((node) => node.terminal).length;
   const compiled = {
-    runtimeSchemaVersion: '1.0',
-    compilerVersion: 'atlas-compiler-1.0.0',
+    runtimeSchemaVersion: '1.1',
+    compilerVersion: 'atlas-compiler-1.1.0',
     artifact: graphSnapshot.artifact,
     version: { ...graphSnapshot.version, checksum: canonicalChecksum },
     variables: variableSnapshots,
@@ -178,14 +219,14 @@ export async function buildDemoSnapshots(
       conditionSnapshots.map((condition) => [condition.code, condition]),
     ),
     actions: Object.fromEntries(actionSnapshots.map((action) => [action.code, action])),
-    totals: { nodes: nodeSnapshots.length, edges: edgeSnapshots.length, terminalPaths: 5 },
+    totals: { nodes: nodeSnapshots.length, edges: edgeSnapshots.length, terminalPaths },
   };
   const compiledChecksum = sha256(compiled);
   const compiledArtifact = await prisma.decisionCompiledArtifact.create({
     data: {
       artifactVersionId: version.id,
-      compilerVersion: 'atlas-compiler-1.0.0',
-      runtimeSchemaVersion: '1.0',
+      compilerVersion: 'atlas-compiler-1.1.0',
+      runtimeSchemaVersion: '1.1',
       compiledPayloadJson: compiled as unknown as Prisma.InputJsonValue,
       compiledChecksum,
       compileStatus: CompileStatus.SUCCESS,

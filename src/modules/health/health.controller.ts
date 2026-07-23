@@ -1,4 +1,4 @@
-import { Controller, Get, HttpStatus } from '@nestjs/common';
+import { Controller, Get, HttpStatus, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiTags } from '@nestjs/swagger';
 import { CacheService } from '../../common/cache/cache.service';
@@ -10,6 +10,7 @@ import { Public, SkipRateLimit } from '../../common/security/security.decorators
 @Controller()
 export class HealthController {
   private readonly startedAt = Date.now();
+  private readonly logger = new Logger(HealthController.name);
 
   constructor(
     private readonly prisma: PrismaService,
@@ -46,14 +47,19 @@ export class HealthController {
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
+      // /ready is @Public() — an unauthenticated caller must never see raw infra error text
+      // (hostnames, ports, driver messages). Log the real cause server-side only; the response
+      // carries just the check name that failed.
+      checks.database ??= 'error';
+      checks.cache ??= 'error';
+      this.logger.error(
+        `Readiness check failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
       throw new DomainException(
         'SERVICE_NOT_READY',
         'One or more required dependencies are unavailable',
         HttpStatus.SERVICE_UNAVAILABLE,
-        {
-          checks,
-          cause: error instanceof Error ? error.message : String(error),
-        },
+        { checks },
       );
     }
   }

@@ -76,29 +76,35 @@ export class CodeImportService {
       ? { dependencies: [], nodes: [], edges: [] }
       : this.graphGenerator.generate(ir);
 
-    const record = await this.prisma.decisionCodeImport.create({
-      data: {
-        tenantId,
-        artifactId: dto.artifactId ? BigInt(dto.artifactId) : undefined,
-        language: dto.language,
-        sourceCode: dto.sourceCode,
-        sourceChecksum: ir.sourceChecksum,
-        contractVersion: ir.contract.contractVersion,
-        contractJson: ir.contract as unknown as Prisma.InputJsonValue,
-        irJson: ir as unknown as Prisma.InputJsonValue,
-        issuesJson: issues as unknown as Prisma.InputJsonValue,
-        status: 'ANALYZED',
-        createdBy: principal.id,
-      },
-    });
-    await this.audit.append({
-      tenantId,
-      eventType: 'CODE_IMPORT_ANALYZED',
-      aggregateType: 'DecisionCodeImport',
-      aggregateId: record.id.toString(),
-      actorId: principal.id,
-      requestId: principal.requestId,
-      payload: { language: dto.language, issueCount: issues.length, hasBlockingIssues },
+    const record = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.decisionCodeImport.create({
+        data: {
+          tenantId,
+          artifactId: dto.artifactId ? BigInt(dto.artifactId) : undefined,
+          language: dto.language,
+          sourceCode: dto.sourceCode,
+          sourceChecksum: ir.sourceChecksum,
+          contractVersion: ir.contract.contractVersion,
+          contractJson: ir.contract as unknown as Prisma.InputJsonValue,
+          irJson: ir as unknown as Prisma.InputJsonValue,
+          issuesJson: issues as unknown as Prisma.InputJsonValue,
+          status: 'ANALYZED',
+          createdBy: principal.id,
+        },
+      });
+      await this.audit.append(
+        {
+          tenantId,
+          eventType: 'CODE_IMPORT_ANALYZED',
+          aggregateType: 'DecisionCodeImport',
+          aggregateId: created.id.toString(),
+          actorId: principal.id,
+          requestId: principal.requestId,
+          payload: { language: dto.language, issueCount: issues.length, hasBlockingIssues },
+        },
+        tx,
+      );
+      return created;
     });
 
     return { id: record.id.toString(), ir, issues, generatedGraph };
@@ -140,20 +146,25 @@ export class CodeImportService {
 
   async cancel(tenantId: bigint, id: bigint, principal: AuthenticatedPrincipal) {
     const record = await this.get(tenantId, id);
-    const updated = await this.prisma.decisionCodeImport.update({
-      where: { id: record.id },
-      data: { status: 'CANCELLED' },
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.decisionCodeImport.update({
+        where: { id: record.id },
+        data: { status: 'CANCELLED' },
+      });
+      await this.audit.append(
+        {
+          tenantId,
+          eventType: 'CODE_IMPORT_CANCELLED',
+          aggregateType: 'DecisionCodeImport',
+          aggregateId: record.id.toString(),
+          actorId: principal.id,
+          requestId: principal.requestId,
+          payload: {},
+        },
+        tx,
+      );
+      return updated;
     });
-    await this.audit.append({
-      tenantId,
-      eventType: 'CODE_IMPORT_CANCELLED',
-      aggregateType: 'DecisionCodeImport',
-      aggregateId: record.id.toString(),
-      actorId: principal.id,
-      requestId: principal.requestId,
-      payload: {},
-    });
-    return updated;
   }
 
   private async writeToArtifact(
@@ -229,18 +240,24 @@ export class CodeImportService {
       principal,
     );
 
-    const updatedRecord = await this.prisma.decisionCodeImport.update({
-      where: { id: record.id },
-      data: { artifactVersionId: versionId, status },
-    });
-    await this.audit.append({
-      tenantId,
-      eventType: status === 'CONFIRMED' ? 'CODE_IMPORT_CONFIRMED' : 'CODE_IMPORT_DRAFT_SAVED',
-      aggregateType: 'DecisionCodeImport',
-      aggregateId: record.id.toString(),
-      actorId: principal.id,
-      requestId: principal.requestId,
-      payload: { artifactVersionId: versionId.toString() },
+    const updatedRecord = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.decisionCodeImport.update({
+        where: { id: record.id },
+        data: { artifactVersionId: versionId, status },
+      });
+      await this.audit.append(
+        {
+          tenantId,
+          eventType: status === 'CONFIRMED' ? 'CODE_IMPORT_CONFIRMED' : 'CODE_IMPORT_DRAFT_SAVED',
+          aggregateType: 'DecisionCodeImport',
+          aggregateId: record.id.toString(),
+          actorId: principal.id,
+          requestId: principal.requestId,
+          payload: { artifactVersionId: versionId.toString() },
+        },
+        tx,
+      );
+      return result;
     });
 
     return { record: updatedRecord, updatedVersion };

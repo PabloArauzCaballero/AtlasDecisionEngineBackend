@@ -214,6 +214,25 @@ export class DeploymentService {
     }
     const previous = current.previousDeployment;
     await this.prisma.$transaction(async (tx) => {
+      // Same lock key as deploy() for this (artifact, environment) pair: without it, a
+      // concurrent deploy()/rollback()/suspend() on the same environment could both read
+      // `current` as active and each commit their own view of the "previous" deployment,
+      // leaving two deployments active or the runtime binding pointing at a stale one.
+      const lockKey = BigInt.asIntN(
+        64,
+        (current.artifactVersion.artifactId << 32n) ^ current.environmentId,
+      );
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${lockKey})`;
+      const freshCurrent = await tx.decisionDeployment.findUniqueOrThrow({
+        where: { id: current.id },
+      });
+      if (!freshCurrent.isActive) {
+        throw new DomainException(
+          'DEPLOYMENT_NOT_ACTIVE',
+          'Deployment is no longer the active deployment for this environment',
+          HttpStatus.CONFLICT,
+        );
+      }
       await tx.decisionDeployment.update({
         where: { id: current.id },
         data: {
@@ -291,6 +310,23 @@ export class DeploymentService {
         HttpStatus.NOT_FOUND,
       );
     await this.prisma.$transaction(async (tx) => {
+      // Same lock key as deploy()/rollback() for this (artifact, environment) pair — see the
+      // comment in rollback() for why this must serialize against those.
+      const lockKey = BigInt.asIntN(
+        64,
+        (deployment.artifactVersion.artifactId << 32n) ^ deployment.environmentId,
+      );
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${lockKey})`;
+      const freshDeployment = await tx.decisionDeployment.findUniqueOrThrow({
+        where: { id: deploymentId },
+      });
+      if (freshDeployment.deploymentStatus === DeploymentStatus.SUSPENDED) {
+        throw new DomainException(
+          'DEPLOYMENT_ALREADY_SUSPENDED',
+          'Deployment is already suspended',
+          HttpStatus.CONFLICT,
+        );
+      }
       await tx.decisionDeployment.update({
         where: { id: deploymentId },
         data: { deploymentStatus: DeploymentStatus.SUSPENDED, isActive: false },

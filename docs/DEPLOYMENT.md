@@ -45,15 +45,24 @@ El servicio `script-runner` de Compose usa `runtime: runsc`. Un host sin gVisor 
 Orden recomendado:
 
 1. Construir imágenes inmutables etiquetadas con versión y commit.
-2. Ejecutar `prisma migrate deploy` con el target `migrator`.
-3. Provisionar clientes técnicos mediante un proceso controlado si el modo híbrido los necesita.
-4. Desplegar la API con `AUTH_MODE=JWT`, `HYBRID`, `IDENTITY_PROVIDER` o `IDENTITY_HYBRID`.
-5. Verificar `/health/live`, `/health/ready`, métricas y smoke tests.
-6. Habilitar tráfico gradualmente.
+2. Ejecutar `prisma migrate deploy` con el target `migrator`, conectado con un rol
+   administrador/superusuario (`ADMIN_DATABASE_URL` o el `DATABASE_URL` de ese Job).
+3. Ejecutar `node scripts/set-app-db-role.mjs` (target `migrator`, mismo rol admin) para fijar
+   la contraseña del rol `atlas_app` desde el secret manager. **Obligatorio**: la política RLS
+   por tenant (migración `20260719080000_tenant_rls_and_app_role`) queda inerte si la API se
+   conecta como superusuario — un superusuario ignora RLS sin importar las políticas definidas.
+4. Provisionar clientes técnicos mediante un proceso controlado si el modo híbrido los necesita.
+5. Desplegar la API con `DATABASE_URL` apuntando a `atlas_app` (nunca al rol admin/`atlas`) y
+   `AUTH_MODE=JWT`, `HYBRID`, `IDENTITY_PROVIDER` o `IDENTITY_HYBRID`.
+6. Verificar `/health/live`, `/health/ready`, métricas y smoke tests.
+7. Habilitar tráfico gradualmente.
 
 Requisitos:
 
 - secretos desde un secret manager, nunca desde Git o ConfigMap;
+- **el `DATABASE_URL` de la API debe usar el rol `atlas_app`, no el rol admin usado por
+  `migrate`/`seed`** — de lo contrario RLS no aplica y el aislamiento por tenant depende
+  solo del código de aplicación;
 - JWKS, IdP y proveedores externos por HTTPS;
 - PostgreSQL y Redis privados con TLS, backups y monitoreo;
 - al menos dos réplicas, PDB, anti-affinity, HPA y NetworkPolicy;

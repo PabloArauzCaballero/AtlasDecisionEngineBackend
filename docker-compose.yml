@@ -44,6 +44,23 @@ services:
     command: ["migrate", "deploy"]
     restart: "no"
 
+  # One-shot: gives the non-superuser app role (atlas_app) a login password so the api
+  # service below can connect as it. RLS (migration 20260719080000_tenant_rls_and_app_role)
+  # is inert for any connection made as a superuser, so the api must never use the
+  # POSTGRES_USER (atlas) credential that migrate/seed use.
+  bootstrap-app-role:
+    build:
+      context: .
+      target: migrator
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      ADMIN_DATABASE_URL: postgresql://${POSTGRES_USER:-atlas}:${POSTGRES_PASSWORD:-atlas-local-only}@postgres:5432/${POSTGRES_DB:-atlas_decision}?schema=public
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:-atlas-app-local-only-change-before-sharing}
+    entrypoint: ["node", "scripts/set-app-db-role.mjs"]
+    restart: "no"
+
   seed:
     profiles: ["seed"]
     build:
@@ -98,6 +115,8 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+      bootstrap-app-role:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       script-runner:
@@ -107,7 +126,9 @@ services:
       BUILD_VERSION: ${BUILD_VERSION:-2.0.0}
       COMMIT_SHA: ${COMMIT_SHA:-local-compose}
       PORT: 3000
-      DATABASE_URL: postgresql://${POSTGRES_USER:-atlas}:${POSTGRES_PASSWORD:-atlas-local-only}@postgres:5432/${POSTGRES_DB:-atlas_decision}?schema=public
+      # Connects as atlas_app (non-superuser), NOT the atlas/POSTGRES_USER role migrate and
+      # seed use — RLS is inert for a superuser connection (see bootstrap-app-role above).
+      DATABASE_URL: postgresql://atlas_app:${APP_DB_PASSWORD:-atlas-app-local-only-change-before-sharing}@postgres:5432/${POSTGRES_DB:-atlas_decision}?schema=public
       REDIS_URL: redis://redis:6379
       AUTH_MODE: API_KEY
       MANAGEMENT_API_KEY: ${MANAGEMENT_API_KEY:-local-management-key-change-before-sharing}

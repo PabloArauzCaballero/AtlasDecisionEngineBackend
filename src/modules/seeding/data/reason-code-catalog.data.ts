@@ -531,6 +531,15 @@ const compliance: ReasonSeed[] = [
 
 const aml: ReasonSeed[] = [
   {
+    code: 'SANCTIONS_CONFIRMED_MATCH',
+    category: 'AML',
+    publicMessage: 'No es posible procesar la solicitud en este momento.',
+    internalMessage:
+      'ofac_screening_result=MATCH o sanctions_screening_result=CONFIRMED_MATCH: coincidencia ' +
+      'confirmada contra listas de sanciones; bloqueo obligatorio, no admite excepción manual.',
+    adverseAction: true,
+  },
+  {
     code: 'AML_HIGH_RISK_RATING',
     category: 'AML',
     publicMessage: 'Tu solicitud requiere una revisión adicional de cumplimiento.',
