@@ -94,6 +94,26 @@ enum ManualReviewStatus {
   CANCELLED
 }
 
+/// Progreso de tutoriales por usuario. No hay tabla de usuarios (la identidad
+/// viene del IdP / credencial), así que se llavea por (tenant, userId, tutorialId).
+model UserTutorialProgress {
+  id          BigInt    @id @default(autoincrement())
+  tenantId    BigInt    @map("tenant_id")
+  userId      String    @map("user_id") @db.VarChar(200)
+  tutorialId  String    @map("tutorial_id") @db.VarChar(200)
+  status      String    @default("STARTED") @db.VarChar(30)
+  lastStep    Int       @default(0) @map("last_step")
+  version     Int       @default(1)
+  autoShow    Boolean   @default(true) @map("auto_show")
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, userId, tutorialId])
+  @@index([tenantId, userId])
+  @@map("user_tutorial_progress")
+}
+
 model DecisionEnvironment {
   id              BigInt   @id @default(autoincrement())
   code            String   @unique @db.VarChar(40)

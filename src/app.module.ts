@@ -25,6 +25,7 @@ import { SecurityReviewModule } from './modules/security-review/security-review.
 import { SeedingModule } from './modules/seeding/seeding.module';
 import { TestingModule } from './modules/testing/testing.module';
 import { TraceabilityModule } from './modules/traceability/traceability.module';
+import { TutorialModule } from './modules/tutorials/tutorial.module';
 import { VariableModule } from './modules/variables/variable.module';
 import { ViewsModule } from './modules/views/views.module';
 import { IdentitySessionModule } from './modules/identity-session/identity-session.module';
@@ -63,6 +64,7 @@ import { IdentitySessionModule } from './modules/identity-session/identity-sessi
     TraceabilityModule,
     SecurityReviewModule,
     ViewsModule,
+    TutorialModule,
   ],
 })
 export class AppModule {}
