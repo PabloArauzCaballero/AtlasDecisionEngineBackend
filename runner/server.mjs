@@ -42,11 +42,18 @@ import ast, json, sys
 payload = json.load(sys.stdin)
 tree = ast.parse(payload['source'], filename='atlas-result-node.py', mode='exec')
 blocked = (ast.Import, ast.ImportFrom, ast.Global, ast.Nonlocal, ast.ClassDef, ast.With, ast.AsyncWith, ast.Try, ast.Raise)
+# str.format()/format_map() resolve "{0.__class__.__bases__[0]...}"-style field specs at
+# runtime via getattr chains inside a plain string constant — no ast.Attribute node is ever
+# produced, so the dunder-attribute check below never sees it. This is the classic Python
+# restricted-builtins sandbox escape (class introspection -> __subclasses__ -> real
+# __builtins__ -> exec). Blocking the call sites closes it without dropping str() itself.
 for node in ast.walk(tree):
     if isinstance(node, blocked):
         raise ValueError('Unsupported Python statement in RESULT node')
     if isinstance(node, ast.Attribute) and node.attr.startswith('__'):
         raise ValueError('Dunder attributes are not allowed')
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in ('format', 'format_map'):
+        raise ValueError('String formatting methods are not allowed')
 safe_builtins = {
     'abs': abs, 'bool': bool, 'dict': dict, 'enumerate': enumerate, 'float': float,
     'int': int, 'len': len, 'list': list, 'max': max, 'min': min, 'range': range,

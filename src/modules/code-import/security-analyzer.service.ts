@@ -30,6 +30,11 @@ const PYTHON_FORBIDDEN: ForbiddenPattern[] = [
   { pattern: /\b__import__\s*\(/, code: 'PY_DUNDER_IMPORT', message: '__import__() is not allowed in imported code' },
   { pattern: /\bopen\s*\(/, code: 'PY_OPEN', message: 'open() (filesystem access) is not allowed in imported code' },
   { pattern: /__[a-zA-Z]+__/, code: 'PY_DUNDER', message: 'dunder attribute access is not allowed in imported code' },
+  // str.format()/format_map() resolve "{0.__class__...}" field specs via getattr chains inside
+  // a plain string constant, so PY_DUNDER's literal `__x__` scan can miss it when the dunder is
+  // itself embedded there — flag the call sites directly (mirrors the runtime AST check added
+  // to script-node-runner.service.ts / runner/server.mjs for the same escape).
+  { pattern: /\.\s*format(?:_map)?\s*\(/, code: 'PY_STR_FORMAT', message: 'str.format()/format_map() are not allowed in imported code' },
 ];
 
 /**

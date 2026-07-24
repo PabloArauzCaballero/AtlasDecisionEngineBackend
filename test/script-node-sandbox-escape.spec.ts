@@ -55,3 +55,39 @@ describe('ScriptNodeRunnerService sandbox escape (IN_PROCESS)', () => {
     expect(result).toEqual({ escaped: 'undefined' });
   });
 });
+
+/**
+ * Regression guard for the Python restricted-builtins sandbox escape: str.format()/
+ * format_map() resolve "{0.__class__...}"-style field specs at runtime via getattr chains
+ * inside a plain string constant, so the AST-level dunder-attribute check never sees a real
+ * ast.Attribute node — the classic bypass (class introspection -> __subclasses__ -> the real
+ * __builtins__ -> full code execution), reachable with no import/exec/eval token in source.
+ * Confirmed exploitable before the fix; this asserts the call sites are rejected outright while
+ * ordinary str usage keeps working.
+ */
+describe('ScriptNodeRunnerService Python sandbox escape (IN_PROCESS)', () => {
+  const runner = new ScriptNodeRunnerService(
+    new ConfigService({ SCRIPT_NODES_ENABLED: true, SCRIPT_NODE_TIMEOUT_MS: 5000 }),
+  );
+
+  it('rejects str.format() attribute-traversal payloads', async () => {
+    const payload =
+      "result = {'escaped': '{0.__class__.__bases__[0].__subclasses__()}'.format(variables)}";
+    await expect(runner.execute('PYTHON', payload, { variables: {}, decision: {}, output: {} })).rejects.toThrow();
+  });
+
+  it('rejects str.format_map() the same way', async () => {
+    const payload = "result = {'escaped': '{x.__class__}'.format_map({'x': variables})}";
+    await expect(runner.execute('PYTHON', payload, { variables: {}, decision: {}, output: {} })).rejects.toThrow();
+  });
+
+  it('still allows ordinary str() and string concatenation', async () => {
+    const payload = "result = {'value': str(variables['amount']) + '-ok'}";
+    const result = await runner.execute('PYTHON', payload, {
+      variables: { amount: 42 },
+      decision: {},
+      output: {},
+    });
+    expect(result).toEqual({ value: '42-ok' });
+  });
+});
