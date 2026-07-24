@@ -24,7 +24,7 @@ export interface DemoArtifactSummary {
 export async function seedDemoArtifact(
   prisma: PrismaClient,
   tenantId: bigint,
-  prodEnvironment: { id: bigint },
+  environments: { sandbox: { id: bigint }; test: { id: bigint }; prod: { id: bigint } },
   inputVariables: DemoVariable[],
   outputVariables: DemoVariable[],
   reasonByCode: Record<string, DemoReason>,
@@ -34,7 +34,9 @@ export async function seedDemoArtifact(
     include: { versions: true },
   });
   if (existing?.versions.length) {
-    logger.log(`Seed already present: ${ARTIFACT_CODE} version ${existing.versions[0].semanticVersion}`);
+    logger.log(
+      `Seed already present: ${ARTIFACT_CODE} version ${existing.versions[0].semanticVersion}`,
+    );
     return undefined;
   }
 
@@ -82,8 +84,7 @@ export async function seedDemoArtifact(
       ...outputVariables.map(({ version: variable, definition }) => ({
         artifactVersionId: version.id,
         variableVersionId: variable.id,
-        usageType:
-          definition.variableCode === PRIMARY_OUTPUT_CODE ? 'OUTPUT_PRIMARY' : 'OUTPUT',
+        usageType: definition.variableCode === PRIMARY_OUTPUT_CODE ? 'OUTPUT_PRIMARY' : 'OUTPUT',
         isRequired: true,
         fallbackPolicy: 'NOT_APPLICABLE',
         dependencyPath: `output.${definition.variableCode}`,
@@ -106,7 +107,7 @@ export async function seedDemoArtifact(
     tenantId,
     version,
     compiledArtifact,
-    prodEnvironment,
+    environments,
     canonicalChecksum,
     {
       nodes: graph.nodeDefinitions.length,
@@ -118,7 +119,7 @@ export async function seedDemoArtifact(
   return {
     artifactCode: ARTIFACT_CODE,
     version: '1.0.0',
-    productionEnvironmentId: prodEnvironment.id.toString(),
+    productionEnvironmentId: environments.prod.id.toString(),
     deploymentId: deployment.id.toString(),
     compiledChecksum,
   };

@@ -183,7 +183,7 @@ export async function runMockupSeeds(prisma: PrismaClient, context: BootstrapCon
   return seedDemoArtifact(
     prisma,
     TENANT_ID,
-    context.environments.prod,
+    context.environments,
     inputVariables,
     outputVariables,
     context.reasonByCode,

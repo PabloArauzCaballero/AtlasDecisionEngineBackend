@@ -193,13 +193,18 @@ const STATUS_HISTORY = [
   },
 ];
 
-/** Seeds a passing regression suite, a completed governance approval, and an active PROD deployment. */
+/**
+ * Seeds a passing regression suite, a completed governance approval, and an ACTIVE
+ * deployment in every environment (sandbox, test and prod) so the demo can be
+ * simulated/run in the non-production environments the Simulator offers — not only
+ * in production.
+ */
 export async function seedDemoWorkflow(
   prisma: PrismaClient,
   tenantId: bigint,
   version: { id: bigint },
   compiledArtifact: { id: bigint },
-  prodEnvironment: { id: bigint },
+  environments: { sandbox: { id: bigint }; test: { id: bigint }; prod: { id: bigint } },
   canonicalChecksum: string,
   graphTotals: { nodes: number; edges: number; terminals: number },
 ) {
@@ -308,27 +313,35 @@ export async function seedDemoWorkflow(
     });
   }
 
-  const deployment = await prisma.decisionDeployment.create({
-    data: {
-      artifactVersionId: version.id,
-      compiledArtifactId: compiledArtifact.id,
-      environmentId: prodEnvironment.id,
-      deploymentMode: 'FULL',
-      deploymentStatus: DeploymentStatus.ACTIVE,
-      effectiveFrom: new Date(),
-      isActive: true,
-      deployedBy: 'seed.release-manager',
-    },
-  });
-  await prisma.decisionRuntimeBinding.create({
-    data: {
-      tenantId,
-      artifactCode: 'BNPL_CREDIT_DECISION',
-      environmentId: prodEnvironment.id,
-      activeDeploymentId: deployment.id,
-      bindingKey: 'default',
-    },
-  });
+  // Deploy to sandbox, test AND prod so the demo is runnable everywhere. Each
+  // environment gets its own ACTIVE deployment and runtime binding; the prod one is
+  // returned as the canonical deployment for the summary.
+  const orderedEnvironments = [environments.sandbox, environments.test, environments.prod];
+  let deployment!: Awaited<ReturnType<typeof prisma.decisionDeployment.create>>;
+  for (const environment of orderedEnvironments) {
+    const created = await prisma.decisionDeployment.create({
+      data: {
+        artifactVersionId: version.id,
+        compiledArtifactId: compiledArtifact.id,
+        environmentId: environment.id,
+        deploymentMode: 'FULL',
+        deploymentStatus: DeploymentStatus.ACTIVE,
+        effectiveFrom: new Date(),
+        isActive: true,
+        deployedBy: 'seed.release-manager',
+      },
+    });
+    await prisma.decisionRuntimeBinding.create({
+      data: {
+        tenantId,
+        artifactCode: 'BNPL_CREDIT_DECISION',
+        environmentId: environment.id,
+        activeDeploymentId: created.id,
+        bindingKey: 'default',
+      },
+    });
+    if (environment.id === environments.prod.id) deployment = created;
+  }
 
   await prisma.decisionArtifactVersion.update({
     where: { id: version.id },
