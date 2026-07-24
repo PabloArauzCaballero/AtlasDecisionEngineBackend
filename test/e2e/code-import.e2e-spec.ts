@@ -1,5 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
+import { PrismaService } from '../../src/common/prisma/prisma.service';
 import { createTestApp } from './support/test-app';
 import { managementHeaders } from './support/headers';
 
@@ -29,6 +30,16 @@ return { riskLevel: variables.age >= 21 ? 'LOW' : 'HIGH' };
   });
 
   afterAll(async () => {
+    // Clean up the artifacts this suite creates so they don't pollute the DB
+    // (they were showing up in the Simulator as "No active deployment").
+    try {
+      const prisma = app.get(PrismaService);
+      const where = { artifactCode: { startsWith: 'E2E_CODE_IMPORT_' } };
+      await prisma.decisionRuntimeBinding.deleteMany({ where });
+      await prisma.decisionArtifact.deleteMany({ where });
+    } catch {
+      // best-effort teardown; never fail the suite on cleanup
+    }
     await app.close();
   });
 
@@ -190,7 +201,12 @@ const x = ;
         suiteType: 'REGRESSION',
         isBlocking: true,
         cases: [
-          { caseCode: 'ADULT', testName: 'Low risk for an adult', input: { age: 30 }, expectedResult: { riskLevel: 'LOW' } },
+          {
+            caseCode: 'ADULT',
+            testName: 'Low risk for an adult',
+            input: { age: 30 },
+            expectedResult: { riskLevel: 'LOW' },
+          },
         ],
       })
       .expect(201);
@@ -216,8 +232,16 @@ const x = ;
     const [qaStep, riskStep] = submitted.body.steps.sort(
       (a: { stepOrder: number }, b: { stepOrder: number }) => a.stepOrder - b.stepOrder,
     );
-    await request(server()).post(`/v1/approval-steps/${qaStep.id}/decisions`).set(qaApprover).send({ decision: 'APPROVE', evidence: [] }).expect(201);
-    await request(server()).post(`/v1/approval-steps/${riskStep.id}/decisions`).set(riskApprover).send({ decision: 'APPROVE', evidence: [] }).expect(201);
+    await request(server())
+      .post(`/v1/approval-steps/${qaStep.id}/decisions`)
+      .set(qaApprover)
+      .send({ decision: 'APPROVE', evidence: [] })
+      .expect(201);
+    await request(server())
+      .post(`/v1/approval-steps/${riskStep.id}/decisions`)
+      .set(riskApprover)
+      .send({ decision: 'APPROVE', evidence: [] })
+      .expect(201);
     await request(server())
       .post(`/v1/artifact-versions/${versionId}/deployments`)
       .set(deployer)
@@ -227,7 +251,11 @@ const x = ;
     const simulated = await request(server())
       .post(`/v1/simulations/${artifactCode}`)
       .set(author)
-      .send({ requestId: `code-import-sim-${runId}`, environmentCode: 'SANDBOX', variables: { age: 30 } })
+      .send({
+        requestId: `code-import-sim-${runId}`,
+        environmentCode: 'SANDBOX',
+        variables: { age: 30 },
+      })
       .expect(201);
     expect(simulated.body.output.riskLevel).toBe('LOW');
   }, 20_000);
