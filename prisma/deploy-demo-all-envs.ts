@@ -7,9 +7,12 @@
  *
  * Uso:  npx ts-node --transpile-only prisma/deploy-demo-all-envs.ts
  */
+import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
+import { Pool } from 'pg';
 
-const prisma = new PrismaClient();
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 const TENANT_ID = BigInt(process.env.SEED_TENANT_ID ?? '1');
 const ARTIFACT_CODE = 'BNPL_CREDIT_DECISION';
 
