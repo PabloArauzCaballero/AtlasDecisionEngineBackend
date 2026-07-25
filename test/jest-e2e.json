@@ -4,5 +4,6 @@
   "testRegex": "test/e2e/.*\\.e2e-spec\\.ts$",
   "transform": { "^.+\\.(t|j)s$": ["ts-jest", { "tsconfig": "tsconfig.json" }] },
   "testEnvironment": "node",
-  "testTimeout": 30000
+  "testTimeout": 30000,
+  "globalTeardown": "<rootDir>/test/e2e/support/global-teardown.ts"
 }

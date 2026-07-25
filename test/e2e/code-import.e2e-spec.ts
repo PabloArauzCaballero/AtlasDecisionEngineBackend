@@ -1,6 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { PrismaService } from '../../src/common/prisma/prisma.service';
 import { createTestApp } from './support/test-app';
 import { managementHeaders } from './support/headers';
 
@@ -30,16 +29,8 @@ return { riskLevel: variables.age >= 21 ? 'LOW' : 'HIGH' };
   });
 
   afterAll(async () => {
-    // Clean up the artifacts this suite creates so they don't pollute the DB
-    // (they were showing up in the Simulator as "No active deployment").
-    try {
-      const prisma = app.get(PrismaService);
-      const where = { artifactCode: { startsWith: 'E2E_CODE_IMPORT_' } };
-      await prisma.decisionRuntimeBinding.deleteMany({ where });
-      await prisma.decisionArtifact.deleteMany({ where });
-    } catch {
-      // best-effort teardown; never fail the suite on cleanup
-    }
+    // Test artifacts are cleaned by the suite-wide global teardown
+    // (test/e2e/support/global-teardown.ts), not per-spec.
     await app.close();
   });
 
