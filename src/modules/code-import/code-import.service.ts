@@ -42,11 +42,19 @@ export class CodeImportService {
     private readonly lifecycle: ArtifactLifecycleService,
   ) {}
 
-  async analyze(tenantId: bigint, dto: AnalyzeCodeImportDto, principal: AuthenticatedPrincipal): Promise<AnalyzeCodeImportResult & { id: string }> {
+  async analyze(
+    tenantId: bigint,
+    dto: AnalyzeCodeImportDto,
+    principal: AuthenticatedPrincipal,
+  ): Promise<AnalyzeCodeImportResult & { id: string }> {
     const maxBytes = this.config.get<number>('CODE_IMPORT_MAX_SOURCE_BYTES') ?? 131_072;
     const sourceBytes = Buffer.byteLength(dto.sourceCode, 'utf8');
     if (sourceBytes > maxBytes) {
-      throw new DomainException('CODE_IMPORT_SOURCE_TOO_LARGE', `Source exceeds ${maxBytes} bytes`, HttpStatus.BAD_REQUEST);
+      throw new DomainException(
+        'CODE_IMPORT_SOURCE_TOO_LARGE',
+        `Source exceeds ${maxBytes} bytes`,
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     const issues: LineIssue[] = [];
@@ -61,7 +69,9 @@ export class CodeImportService {
 
     const contract = extraction.contract;
     if (contract) {
-      issues.push(...this.contractValidator.validate(contract, dto.language, extraction.scriptBody));
+      issues.push(
+        ...this.contractValidator.validate(contract, dto.language, extraction.scriptBody),
+      );
     }
 
     const hasBlockingIssues = issues.some((issue) => issue.severity === 'ERROR');
@@ -112,7 +122,12 @@ export class CodeImportService {
 
   async get(tenantId: bigint, id: bigint) {
     const record = await this.prisma.decisionCodeImport.findFirst({ where: { id, tenantId } });
-    if (!record) throw new DomainException('CODE_IMPORT_NOT_FOUND', 'Code import not found', HttpStatus.NOT_FOUND);
+    if (!record)
+      throw new DomainException(
+        'CODE_IMPORT_NOT_FOUND',
+        'Code import not found',
+        HttpStatus.NOT_FOUND,
+      );
     return record;
   }
 
@@ -134,14 +149,39 @@ export class CodeImportService {
     return pageResult(items, total, paging.page, paging.pageSize);
   }
 
-  async saveDraft(tenantId: bigint, id: bigint, dto: SaveCodeImportDto, principal: AuthenticatedPrincipal) {
+  async saveDraft(
+    tenantId: bigint,
+    id: bigint,
+    dto: SaveCodeImportDto,
+    principal: AuthenticatedPrincipal,
+  ) {
     return this.writeToArtifact(tenantId, id, dto, principal, 'DRAFT_SAVED');
   }
 
-  async confirm(tenantId: bigint, id: bigint, dto: SaveCodeImportDto, principal: AuthenticatedPrincipal) {
-    const { record, updatedVersion } = await this.writeToArtifact(tenantId, id, dto, principal, 'CONFIRMED');
-    const outcome = await this.lifecycle.validateAndCompile(tenantId, BigInt(dto.artifactVersionId), principal);
-    return { record, updatedVersion, validation: outcome.validation, compiledArtifact: outcome.compiledArtifact };
+  async confirm(
+    tenantId: bigint,
+    id: bigint,
+    dto: SaveCodeImportDto,
+    principal: AuthenticatedPrincipal,
+  ) {
+    const { record, updatedVersion } = await this.writeToArtifact(
+      tenantId,
+      id,
+      dto,
+      principal,
+      'CONFIRMED',
+    );
+    const outcome = await this.lifecycle.validateAndCompile(
+      tenantId,
+      BigInt(dto.artifactVersionId),
+      principal,
+    );
+    return {
+      record,
+      updatedVersion,
+      validation: outcome.validation,
+      compiledArtifact: outcome.compiledArtifact,
+    };
   }
 
   async cancel(tenantId: bigint, id: bigint, principal: AuthenticatedPrincipal) {
@@ -209,13 +249,15 @@ export class CodeImportService {
       })),
       conditions: [],
       actions: [],
-      nodes: generatedGraph.nodes.map((node, index) => ({
+      nodes: generatedGraph.nodes.map((node, index, all) => ({
         key: node.key,
         type: node.type,
         label: node.label,
         config: node.config,
-        x: index * 200,
-        y: 0,
+        // The editor canvas positions nodes as percentages (0–100), not pixels;
+        // spread them left→right across that space so the graph renders correctly.
+        x: all.length > 1 ? Math.round(12 + (index / (all.length - 1)) * 66) : 38,
+        y: 45,
         order: index + 1,
         terminal: node.type === 'RESULT',
         conditions: [],
