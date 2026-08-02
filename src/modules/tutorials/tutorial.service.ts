@@ -1,3 +1,4 @@
+/** Reads/upserts tenant-and-principal scoped progress without granting any domain authority. */
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { UpsertTutorialProgressDto } from './tutorial.dto';

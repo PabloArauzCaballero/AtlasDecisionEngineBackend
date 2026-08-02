@@ -86,4 +86,10 @@ describe('JwtVerifierService', () => {
       service().verify(token({ exp: now - 1, iat: now - 300 }), 'management'),
     ).rejects.toMatchObject({ code: 'UNAUTHORIZED', status: 401 });
   });
+
+  it('rejects a tenant claim outside the database identifier range', async () => {
+    await expect(
+      service().verify(token({ tenant_id: '9223372036854775808' }), 'management'),
+    ).rejects.toMatchObject({ code: 'UNAUTHORIZED', status: 401 });
+  });
 });

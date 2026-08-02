@@ -25,6 +25,7 @@ describe('keyset pagination', () => {
     expect(() => decodeCursor(Buffer.from('abc', 'utf8').toString('base64url'))).toThrow(
       /malformed/,
     );
+    expect(() => decodeCursor(encodeCursor(9_223_372_036_854_775_808n))).toThrow(/malformed/);
   });
 
   it('builds a first-page query with take = pageSize + 1 and no where clause', () => {

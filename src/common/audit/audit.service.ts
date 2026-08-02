@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma, DecisionAuditEvent } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { AdvisoryLockDomain, advisoryLockKey } from '../prisma/advisory-lock';
+import { MetricsService } from '../observability/metrics.service';
 import { HashService } from '../crypto/hash.service';
 import { canonicalize } from '../crypto/canonical-json';
 
@@ -32,6 +34,12 @@ export class AuditService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly hashes: HashService,
+    /**
+     * Solo para observar la contención de la cadena. Es opcional a propósito: varias pruebas
+     * de integración construyen este servicio con lo mínimo para ejercitar el encadenamiento,
+     * y una métrica no debe convertirse en un requisito para poder auditar.
+     */
+    private readonly metrics?: MetricsService,
   ) {}
 
   /**
@@ -64,8 +72,16 @@ export class AuditService {
     input: AppendAuditEventInput,
   ): Promise<DecisionAuditEvent> {
     // Serialize the per-tenant hash chain so concurrent writers cannot create forks.
-    // The lock is held until the surrounding transaction ends, which is now the caller's.
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${input.tenantId})`;
+    // The lock is held until the surrounding transaction ends, which is now the caller's —
+    // so callers append LAST, keeping the window down to the insert plus the commit.
+    //
+    // The key is namespaced (advisory-lock.ts): advisory locks share one key space for the
+    // whole database, and a raw tenant id could land on a deployment's key and serialize two
+    // unrelated operations against each other.
+    const chainLock = advisoryLockKey(AdvisoryLockDomain.AuditChain, input.tenantId);
+    const lockStarted = performance.now();
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${chainLock})`;
+    this.metrics?.recordAuditChainLockWait(performance.now() - lockStarted);
     const previous = await tx.decisionAuditEvent.findFirst({
       where: { tenantId: input.tenantId },
       orderBy: { id: 'desc' },

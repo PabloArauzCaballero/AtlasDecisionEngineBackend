@@ -1,0 +1,107 @@
+# Proceso de trabajos de fondo (relay del outbox, worker de corridas de prueba y purga de
+# retención). Es la MISMA imagen que la API con otro arranque: desplegar dos imágenes
+# distintas permitiría que una corriera código más viejo que la otra sobre el mismo esquema.
+#
+# Se escala aparte de la API a propósito. Los tres trabajos reclaman su carga con
+# FOR UPDATE SKIP LOCKED más un lease que caduca, así que N réplicas no duplican trabajo y
+# una réplica que muere a mitad de lote solo libera sus filas cuando el lease vence.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: atlas-decision-worker
+spec:
+  replicas: 1
+  revisionHistoryLimit: 5
+  strategy:
+    # Recreate y no RollingUpdate: durante un rollout no aporta nada tener dos generaciones
+    # compitiendo por las mismas filas, y `terminationGracePeriodSeconds` ya deja que la
+    # saliente drene sus trabajos en vuelo antes de que arranque la entrante.
+    type: Recreate
+  selector:
+    matchLabels:
+      app: atlas-decision-worker
+  template:
+    metadata:
+      labels:
+        app: atlas-decision-worker
+      annotations:
+        # Las métricas atlas_job_*, atlas_outbox_* y atlas_notification_created_total SOLO
+        # nacen en este proceso: sin raspar este puerto, el panel del outbox se alimenta de
+        # réplicas de API que ya no reparten nada y parece sano por vacío.
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3001"
+        prometheus.io/path: /metrics
+    spec:
+      automountServiceAccountToken: false
+      # Más margen que la API: un lote de casos de prueba en vuelo tarda más en drenar que
+      # una petición HTTP, y matarlo a mitad devuelve la corrida a la cola por lease vencido.
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker
+          image: REGISTRY/atlas-decision-engine:2.0.0
+          command: ["node", "dist/worker.js"]
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: health
+              containerPort: 3001
+          envFrom:
+            - configMapRef:
+                name: atlas-decision-config
+            - secretRef:
+                name: atlas-decision-secrets
+          env:
+            # Sobrescribe el ConfigMap, que sirve a las réplicas de API.
+            - name: WORKER_ROLE
+              value: "WORKER"
+            - name: WORKER_HEALTH_PORT
+              value: "3001"
+            # La siembra de arranque la hacen los Jobs de migración/semilla, no el worker.
+            - name: STARTUP_SEED_ENABLED
+              value: "false"
+            # La concurrencia del worker la fijan sus trabajos, no el tráfico entrante: un
+            # pool menor que el de la API deja conexiones libres al plano de decisión.
+            - name: DATABASE_POOL_MAX
+              value: "5"
+            # Cota explícita del heap de V8. Sin ella, V8 se dimensiona por la memoria del
+            # NODO y no por el límite del contenedor, y el OOM killer llega antes que el GC.
+            - name: NODE_OPTIONS
+              value: "--max-old-space-size=512"
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: health
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: health
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 768Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi

@@ -1,3 +1,4 @@
+/** Installs authentication, roles, throttling and denial auditing as global controls. */
 import { Global, Module } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { AccessAuditInterceptor } from './access-audit.interceptor';

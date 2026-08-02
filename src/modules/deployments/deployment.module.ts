@@ -1,3 +1,4 @@
+/** Joins governance, version state and runtime binding resolution for safe publication. */
 import { Module } from '@nestjs/common';
 import { ArtifactModule } from '../artifacts/artifact.module';
 import { GovernanceModule } from '../governance/governance.module';

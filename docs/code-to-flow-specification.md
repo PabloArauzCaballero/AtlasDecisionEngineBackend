@@ -84,22 +84,29 @@ interface CodeImportIR {
   sourceChecksum: string;       // sha256 del código fuente completo tal como se envió
   contract: MetadataContract;   // el contrato extraído y validado
   scriptBody: string;           // el código con el encabezado @atlas-contract removido
+  branches?: DecisionBranch[];  // ramas traducidas sin pérdida; ausente si requiere SCRIPT
 }
 ```
 
-Es deliberadamente **independiente del lenguaje**: el único paso que difiere entre
-JS y Python es la extracción del contrato y el análisis de sintaxis/seguridad;
-todo lo posterior (generación del grafo, validación, ejecución) es idéntico para
-ambos, porque ambos terminan como un nodo RESULT en modo `SCRIPT` con un
-`language` distinto — el mismo mecanismo de ejecución que ya soportan los nodos de
-script de los artefactos autorados manualmente.
+Es deliberadamente **independiente del lenguaje**: JS y Python se leen con reglas
+de bloques distintas, pero ambos producen el mismo `DecisionBranch[]` y el mismo
+AST de expresiones. Si alguna sentencia queda fuera del subconjunto soportado, la
+IR conserva `scriptBody` y no conserva ramas parciales; el generador elige el nodo
+`SCRIPT` original.
 
 ## Generación del grafo (`GraphGeneratorService`)
 
-El IR se mapea de forma determinística a un grafo mínimo de dos nodos:
+Cuando todas las ramas se pueden traducir sin pérdida, el IR genera una escalera
+de condiciones y resultados:
 
 ```
-START --(default)--> CODE_IMPORT_RESULT [RESULT, mode=SCRIPT]
+START -> CHECK_1 --sí--> RESULT_1
+           | no
+           v
+         CHECK_2 --sí--> RESULT_2
+           | no
+           v
+         RESULT_DEFAULT
 ```
 
 - Una dependencia `INPUT` por cada entrada del contrato (`dependencyPath:
@@ -109,14 +116,26 @@ START --(default)--> CODE_IMPORT_RESULT [RESULT, mode=SCRIPT]
   contrato (o la primera declarada si no se especifica) se marca
   `OUTPUT_PRIMARY` — exactamente la única permitida por
   `graph-structure.validator.ts`.
-- El nodo RESULT lleva `config.mode = 'SCRIPT'`, `config.script = { language,
-  source: scriptBody }` — el mismo `configJson` que ya acepta cualquier RESULT
-  node en modo SCRIPT autorado manualmente en el editor visual.
+- Cada `if`/`elif` produce una condición `JSON_AST`, un nodo `CONDITION`, una
+  arista condicional y un `RESULT` en modo `MAPPING`.
+- La salida “no” encadena la siguiente condición y termina en el `else`, que es
+  obligatorio para demostrar un camino por defecto.
+- Cada rama debe escribir todas las salidas requeridas del contrato. Si omite
+  alguna, la traducción se descarta completa; así un script válido no se convierte
+  en un grafo que falle después con `REQUIRED_OUTPUT_MISSING`.
+- Salidas desconocidas, `if` anidados, múltiples cadenas principales, funciones,
+  bucles u operadores no soportados generan
+  `CODE_IMPORT_TREE_NOT_DERIVABLE` (warning) y activan el fallback seguro.
 
-No se generan nodos CONDITION/SWITCH/EXPRESSION/DECISION_TABLE: el código
-importado es, por diseño, un único paso de cómputo — igual que un nodo de script
-autorado a mano. Si el algoritmo necesita ramificarse visualmente, el autor puede
-seguir editando el grafo generado en el editor visual después de `save-draft`.
+El fallback es determinista y conserva la semántica original:
+
+```
+START --(default)--> CODE_IMPORT_RESULT [RESULT, mode=SCRIPT]
+```
+
+Ese nodo lleva `config.script = { language, source: scriptBody }` y usa el runner
+aislado existente. Una warning de derivación no bloquea guardar; los errores de
+sintaxis, contrato o seguridad sí lo bloquean.
 
 Las variables de entrada/salida del contrato se resuelven contra
 `DecisionVariableDefinition` existentes por `variableCode` dentro del tenant; si
@@ -172,8 +191,10 @@ Fase 5 no introduce un runner nuevo ni relaja esa política.
 
 ## Configuración
 
-`CODE_IMPORT_MAX_SOURCE_BYTES` (default 131072), `CODE_IMPORT_ANALYSIS_TIMEOUT_MS`
-(default 2000, reservado para el analizador de sintaxis Python).
+`CODE_IMPORT_MAX_SOURCE_BYTES` (default 131072) limita bytes UTF-8.
+`CODE_IMPORT_ANALYSIS_TIMEOUT_MS` (default 2000, rango 100–10000) limita el
+subproceso de `ast.parse` de Python; un timeout falla cerrado como analizador no
+disponible.
 
 ## Pruebas
 
@@ -191,12 +212,11 @@ Fase 5 no introduce un runner nuevo ni relaja esa política.
   bloqueante, gobierna, despliega y ejecuta una decisión real end-to-end
   confirmando la salida (`riskLevel: 'LOW'`/`'HIGH'`) según la entrada.
 
-## Pendiente / fuera de alcance de esta rebanada
+## Límites deliberados
 
-- El código generado siempre produce un único nodo RESULT en modo SCRIPT; no
-  descompone el algoritmo en múltiples nodos CONDITION/ACTION visuales
-  automáticamente (ver arriba — el autor puede seguir editando visualmente tras
-  `save-draft`).
+- La derivación visual admite una cadena principal `if/elif/else`, asignaciones
+  simples, retornos de objetos, lógica/comparaciones, aritmética, ternarios y
+  `min`/`max`/`round`. Código fuera de ese subconjunto conserva el nodo SCRIPT.
 - La verificación "input leído / output asignado" en `ContractValidatorService`
   es una heurística basada en patrones (regex), no un análisis de flujo de datos
   completo; solo emite advertencias, nunca bloquea el guardado.

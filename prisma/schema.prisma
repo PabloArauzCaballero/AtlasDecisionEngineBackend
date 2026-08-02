@@ -94,6 +94,83 @@ enum ManualReviewStatus {
   CANCELLED
 }
 
+/// Clasificación de sensibilidad de un dato del contrato (§1.1 / §3.2).
+enum SensitivityClass {
+  PUBLIC
+  INTERNAL
+  CONFIDENTIAL
+  PII
+  SENSITIVE_PII
+  SECRET
+}
+
+/// Estado del ciclo de vida de una variable del catálogo (§1.1).
+enum VariableLifecycleState {
+  DRAFT
+  ACTIVE
+  DEPRECATED
+  RETIRED
+}
+
+/// Estrategia de actualización de una variable intermedia (§2.2).
+enum IntermediateUpdatePolicy {
+  /// Solo el nodo productor puede escribirla, y una única vez por ejecución.
+  SINGLE_WRITE
+  /// El nodo productor puede reescribirla en cada visita (bucles controlados).
+  OVERWRITE
+  /// Cada escritura acumula sobre el valor previo (sumas, listas).
+  ACCUMULATE
+}
+
+/// Política de inclusión de un valor en la traza persistida (§2.2 / §3.2).
+enum TracePolicy {
+  FULL
+  MASKED
+  REDACTED
+  EXCLUDED
+}
+
+/// Origen que produce un campo del contrato de salida (§4).
+enum OutputSourceKind {
+  NODE
+  EXPRESSION
+  INTERMEDIATE
+  CONSTANT
+  REFERENCE
+}
+
+/// Estado de gobierno de un campo calculado (§5.2).
+enum CalculatedFieldStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  PUBLISHED
+  DEPRECATED
+  RETIRED
+}
+
+/// Modalidad de implementación de un campo calculado (§6).
+enum CalculatedFieldImplKind {
+  OPERATION
+  JAVASCRIPT
+  PYTHON
+}
+
+/// Estado de una librería en el registro autorizado (§7).
+enum ApprovedLibraryStatus {
+  APPROVED
+  RESTRICTED
+  BLOCKED
+}
+
+/// Estado de una corrida de generación masiva de QA (§10).
+enum QaRunStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
 /// Progreso de tutoriales por usuario. No hay tabla de usuarios (la identidad
 /// viene del IdP / credencial), así que se llavea por (tenant, userId, tutorialId).
 model UserTutorialProgress {
@@ -185,6 +262,10 @@ model DecisionArtifactVersion {
   changeLogs           DecisionChangeLog[]
   policyLinks          PolicyArtifactLink[]
   nodeScripts          DecisionNodeScript[]
+  intermediateVariables DecisionIntermediateVariable[]
+  outputContractFields  DecisionOutputContractField[]
+  calculatedFieldUses   DecisionArtifactCalculatedFieldUse[]
+  qaGenerationRuns      QaGenerationRun[]
 
   @@unique([artifactId, versionNumber])
   @@index([artifactId, status])
@@ -257,10 +338,20 @@ model DecisionVariableDefinition {
   isSensitive         Boolean @default(false) @map("is_sensitive")
   isActive            Boolean @default(true) @map("is_active")
 
+  /// Clasificación formal de sensibilidad (taxonomía §1.1). `isSensitive` se mantiene
+  /// como bandera derivada para no romper consumidores existentes.
+  sensitivityClass SensitivityClass       @default(INTERNAL) @map("sensitivity_class")
+  /// Ciclo de vida del catálogo: una variable RETIRED no puede añadirse a nuevos contratos.
+  lifecycleState   VariableLifecycleState @default(ACTIVE) @map("lifecycle_state")
+  /// Versión del contrato en la que se introdujo la variable (§1.1).
+  contractVersion  String                 @default("1") @map("contract_version") @db.VarChar(20)
+  metadataJson     Json?                  @map("metadata_json")
+
   versions DecisionVariableVersion[]
 
   @@unique([tenantId, variableCode])
   @@index([tenantId, isActive])
+  @@index([tenantId, lifecycleState])
   @@map("decision_variable_definition")
 }
 
@@ -276,6 +367,21 @@ model DecisionVariableVersion {
   derivationExpressionJson Json?     @map("derivation_expression_json")
   effectiveFrom            DateTime  @default(now()) @map("effective_from") @db.Timestamptz(6)
   effectiveTo              DateTime? @map("effective_to") @db.Timestamptz(6)
+
+  /// Nombre visible y descripción por versión: el contrato puede renombrar sin
+  /// tocar el código técnico estable de la definición.
+  displayName       String? @map("display_name") @db.VarChar(160)
+  description       String? @map("description") @db.Text
+  /// Restricciones configurables normalizadas (§1.1). Fuente autoritativa que el
+  /// backend compila e impone; `validationSchemaJson` queda como proyección JSON-Schema.
+  constraintsJson   Json?   @map("constraints_json")
+  /// Mensaje de error mostrado cuando la validación falla.
+  validationMessage String? @map("validation_message") @db.VarChar(400)
+  exampleValidJson  Json?   @map("example_valid_json")
+  exampleInvalidJson Json?  @map("example_invalid_json")
+  /// Origen esperado del dato (REQUEST, PROVIDER, DERIVED, CALCULATED_FIELD…).
+  expectedOrigin    String  @default("REQUEST") @map("expected_origin") @db.VarChar(40)
+  contractVersion   String  @default("1") @map("contract_version") @db.VarChar(20)
 
   definition         DecisionVariableDefinition           @relation(fields: [variableDefinitionId], references: [id], onDelete: Cascade)
   sources            DecisionVariableSource[]
@@ -340,8 +446,10 @@ model DecisionRuleNode {
   nodeType          String  @map("node_type") @db.VarChar(50)
   label             String  @db.VarChar(200)
   configJson        Json    @map("config_json")
-  xPos              Int     @default(0) @map("x_pos")
-  yPos              Int     @default(0) @map("y_pos")
+  // Porcentaje (0–100) del lienzo del editor, CON decimales: redondear a entero
+  // movía los nodos ~17 px cada vez que se recargaba el grafo.
+  xPos              Float   @default(0) @map("x_pos")
+  yPos              Float   @default(0) @map("y_pos")
   orderIndex        Int     @default(0) @map("order_index")
   isTerminal        Boolean @default(false) @map("is_terminal")
 
@@ -1074,6 +1182,14 @@ enum ArtifactReferenceErrorPolicy {
   SKIP
 }
 
+/// Cómo se elige la versión del artefacto hijo en cada ejecución (§9.1).
+enum ArtifactVersionSelection {
+  /// Siempre la versión fijada. Obligatoria de facto en PROD: es la única reproducible.
+  EXACT
+  /// La versión activa del ambiente en el momento de ejecutar.
+  ACTIVE_IN_ENVIRONMENT
+}
+
 model DecisionArtifactReference {
   id                      BigInt                       @id @default(autoincrement())
   tenantId                BigInt                       @map("tenant_id")
@@ -1090,6 +1206,21 @@ model DecisionArtifactReference {
   timeoutMs               Int                          @default(2000) @map("timeout_ms")
   onErrorPolicy           ArtifactReferenceErrorPolicy @default(FAIL) @map("on_error_policy")
   fallbackOutputJson      Json?                        @map("fallback_output_json")
+
+  // --- §9: configuración completa de la referencia ---
+  /// Ambiente en el que se resuelve el hijo. Null = el mismo que el padre.
+  environmentCode  String?                  @map("environment_code") @db.VarChar(40)
+  versionSelection ArtifactVersionSelection @default(EXACT) @map("version_selection")
+  /// Reintentos ante error transitorio. 0 = ninguno (por defecto: una decisión no debe
+  /// reintentar sola algo que puede tener efectos).
+  maxRetries       Int                      @default(0) @map("max_retries")
+  retryDelayMs     Int                      @default(0) @map("retry_delay_ms")
+  /// Expresión booleana; si no se cumple, la referencia se omite sin ejecutar al hijo.
+  executionConditionJson Json?              @map("execution_condition_json")
+  /// Una referencia opcional que falla no tumba la decisión del padre.
+  isRequired       Boolean                  @default(true) @map("is_required")
+  /// Qué se expone del resultado del hijo en la traza del padre.
+  tracePolicy      TracePolicy              @default(FULL) @map("trace_policy")
   // Execution scope: when set, only principals holding this role may create or
   // edit the reference; enforced in the service layer on top of route RBAC.
   requiredRole            String?                      @map("required_role") @db.VarChar(80)
@@ -1246,3 +1377,326 @@ model Notification {
   @@index([tenantId, recipientId, readAt, id])
   @@map("decision_notification")
 }
+
+// ---------------------------------------------------------------------------
+// Fase 1/2 â€” Variables intermedias del grafo (Â§2)
+// ---------------------------------------------------------------------------
+
+/// Variable que solo existe DENTRO de una ejecuciÃ³n del grafo que la declara.
+/// Deliberadamente NO cuelga de `decision_variable_definition`: el catÃ¡logo global
+/// es de variables reutilizables y una intermedia no debe aparecer allÃ­ (Â§2.1).
+/// Su unicidad es (versiÃ³n del artefacto, cÃ³digo), no (tenant, cÃ³digo).
+model DecisionIntermediateVariable {
+  id                BigInt @id @default(autoincrement())
+  tenantId          BigInt @map("tenant_id")
+  artifactVersionId BigInt @map("artifact_version_id")
+  /// Identificador Ãºnico dentro del grafo. Se referencia como `intermediate.<code>`.
+  code              String @db.VarChar(120)
+  name              String @db.VarChar(160)
+  description       String @db.Text
+  dataType          String @map("data_type") @db.VarChar(40)
+
+  /// Nodo que la crea. Obligatorio: sin productor no hay disponibilidad calculable.
+  producerNodeKey  String   @map("producer_node_key") @db.VarChar(120)
+  /// Nodos autorizados a leerla. VacÃ­o = cualquier nodo alcanzable tras el productor.
+  consumerNodeKeys String[] @map("consumer_node_keys")
+
+  initialValueJson          Json?                    @map("initial_value_json")
+  constraintsJson           Json?                    @map("constraints_json")
+  nullable                  Boolean                  @default(true)
+  updatePolicy              IntermediateUpdatePolicy @default(SINGLE_WRITE) @map("update_policy")
+  /// ExpresiÃ³n booleana opcional que debe cumplirse para que la variable estÃ© disponible.
+  availabilityConditionJson Json?                    @map("availability_condition_json")
+  sensitivityClass          SensitivityClass         @default(INTERNAL) @map("sensitivity_class")
+  tracePolicy               TracePolicy              @default(FULL) @map("trace_policy")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  artifactVersion DecisionArtifactVersion @relation(fields: [artifactVersionId], references: [id], onDelete: Cascade)
+
+  @@unique([artifactVersionId, code])
+  @@index([tenantId, artifactVersionId])
+  @@map("decision_intermediate_variable")
+}
+
+// ---------------------------------------------------------------------------
+// Fase 1 â€” Contrato de salida explÃ­cito del artefacto (Â§4)
+// ---------------------------------------------------------------------------
+
+/// Gobierno y mapeo de origen de cada campo del contrato de salida. El TIPO y la
+/// obligatoriedad siguen viviendo en la dependencia de variable OUTPUT/OUTPUT_PRIMARY
+/// (una sola fuente de verdad para el motor); esta tabla aÃ±ade el origen explÃ­cito,
+/// los motivos de ausencia y la documentaciÃ³n exigidos por Â§4. La validaciÃ³n exige
+/// correspondencia 1:1 entre ambas antes de publicar (ver ADR-0003).
+model DecisionOutputContractField {
+  id                BigInt @id @default(autoincrement())
+  tenantId          BigInt @map("tenant_id")
+  artifactVersionId BigInt @map("artifact_version_id")
+  fieldCode         String @map("field_code") @db.VarChar(120)
+
+  name        String  @db.VarChar(160)
+  description String? @db.Text
+
+  /// Origen declarado del valor: nodo productor, expresiÃ³n, intermedia, constante o
+  /// artefacto referenciado. `sourceRef` se interpreta segÃºn el tipo.
+  sourceKind       OutputSourceKind @map("source_kind")
+  sourceRef        String           @map("source_ref") @db.VarChar(500)
+  /// Mapeo desde valores internos: { [valorInterno]: valorPublicado }.
+  valueMappingJson Json?            @map("value_mapping_json")
+
+  /// Motivos vÃ¡lidos por los que el campo puede faltar (solo para campos opcionales).
+  absenceReasons   String[]         @map("absence_reasons")
+  exampleJson      Json?            @map("example_json")
+  contractVersion  String           @default("1") @map("contract_version") @db.VarChar(20)
+  sensitivityClass SensitivityClass @default(INTERNAL) @map("sensitivity_class")
+  tracePolicy      TracePolicy      @default(FULL) @map("trace_policy")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  artifactVersion DecisionArtifactVersion @relation(fields: [artifactVersionId], references: [id], onDelete: Cascade)
+
+  @@unique([artifactVersionId, fieldCode])
+  @@index([tenantId, artifactVersionId])
+  @@map("decision_output_contract_field")
+}
+
+// ---------------------------------------------------------------------------
+// Fase 4 â€” Registro de librerÃ­as autorizadas (Â§7)
+// ---------------------------------------------------------------------------
+
+model ApprovedLibrary {
+  id       BigInt @id @default(autoincrement())
+  tenantId BigInt @map("tenant_id")
+  /// Nombre lÃ³gico expuesto al autor (p. ej. "math", "statistics").
+  logicalName String @map("logical_name") @db.VarChar(80)
+  /// Paquete real detrÃ¡s del nombre lÃ³gico (p. ej. Math nativo, statistics de stdlib).
+  packageName String @map("package_name") @db.VarChar(160)
+  /// VersiÃ³n exacta y bloqueada: PROD nunca resuelve rangos.
+  version     String @db.VarChar(40)
+
+  language         CalculatedFieldImplKind
+  category         String                  @db.VarChar(60)
+  description      String                  @db.Text
+  documentationUrl String?                 @map("documentation_url") @db.VarChar(500)
+  /// Lista blanca de funciones invocables. VacÃ­o = ninguna (fail-closed).
+  allowedFunctions String[]                @map("allowed_functions")
+  blockedFunctions String[]                @map("blocked_functions")
+  /// Ambientes en los que puede usarse (cÃ³digos de DecisionEnvironment).
+  allowedEnvironments String[]             @map("allowed_environments")
+
+  status        ApprovedLibraryStatus @default(APPROVED)
+  knownRisks    String?               @map("known_risks") @db.Text
+  integrityHash String?               @map("integrity_hash") @db.VarChar(128)
+  updatePolicy  String                @default("PINNED") @map("update_policy") @db.VarChar(40)
+  reviewedAt    DateTime?             @map("reviewed_at") @db.Timestamptz(6)
+  reviewedBy    String?               @map("reviewed_by") @db.VarChar(160)
+  createdAt     DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  calculatedFieldUses CalculatedFieldLibrary[]
+
+  @@unique([tenantId, logicalName, language, version])
+  @@index([tenantId, status])
+  @@map("decision_approved_library")
+}
+
+// ---------------------------------------------------------------------------
+// Fase 3 â€” Campos calculados reutilizables (Â§5, Â§6, Â§8)
+// ---------------------------------------------------------------------------
+
+model CalculatedField {
+  id          BigInt @id @default(autoincrement())
+  tenantId    BigInt @map("tenant_id")
+  fieldCode   String @map("field_code") @db.VarChar(120)
+  name        String @db.VarChar(160)
+  description String @db.Text
+  /// JustificaciÃ³n funcional: por quÃ© existe este cÃ¡lculo (Â§5.2).
+  rationale   String @db.Text
+  category    String @db.VarChar(60)
+  ownerTeam   String @map("owner_team") @db.VarChar(100)
+
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  versions CalculatedFieldVersion[]
+
+  @@unique([tenantId, fieldCode])
+  @@index([tenantId, isActive])
+  @@map("decision_calculated_field")
+}
+
+model CalculatedFieldVersion {
+  id                 BigInt                  @id @default(autoincrement())
+  calculatedFieldId  BigInt                  @map("calculated_field_id")
+  versionNumber      Int                     @map("version_number")
+  status             CalculatedFieldStatus   @default(DRAFT)
+  implementationKind CalculatedFieldImplKind @map("implementation_kind")
+
+  /// Entradas genÃ©ricas: [{ id, name, description, dataType, required, constraints }].
+  inputsJson   Json  @map("inputs_json")
+  /// Contrato de retorno (Â§5.3): { dataType, nullable, constraints, precision,
+  /// nullConditions, divisionByZero, missingData, outOfRange, errorCode }.
+  returnJson   Json  @map("return_json")
+  /// Comentarios estructurados (Â§5.4), fuera del cÃ³digo ejecutable.
+  commentsJson Json? @map("comments_json")
+
+  /// Ãrbol de operaciones del constructor visual (implementationKind = OPERATION).
+  operationJson  Json?   @map("operation_json")
+  /// ExpresiÃ³n JS/Python. MÃ¡ximo 3 lÃ­neas ejecutables (Â§6.2), validado en backend.
+  sourceCode     String? @map("source_code") @db.Text
+  sourceChecksum String? @map("source_checksum") @db.VarChar(128)
+
+  timeoutMs        Int    @default(50) @map("timeout_ms")
+  /// PolÃ­tica de errores: FAIL | RETURN_NULL | RETURN_DEFAULT.
+  errorPolicy      String @default("FAIL") @map("error_policy") @db.VarChar(40)
+  defaultValueJson Json?  @map("default_value_json")
+
+  contentHash String  @map("content_hash") @db.VarChar(128)
+  environment String? @db.VarChar(40)
+
+  authorId    String    @map("author_id") @db.VarChar(160)
+  reviewerId  String?   @map("reviewer_id") @db.VarChar(160)
+  approverId  String?   @map("approver_id") @db.VarChar(160)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  publishedAt DateTime? @map("published_at") @db.Timestamptz(6)
+
+  calculatedField CalculatedField                      @relation(fields: [calculatedFieldId], references: [id], onDelete: Cascade)
+  libraries       CalculatedFieldLibrary[]
+  testCases       CalculatedFieldTestCase[]
+  artifactUses    DecisionArtifactCalculatedFieldUse[]
+
+  @@unique([calculatedFieldId, versionNumber])
+  @@index([calculatedFieldId, status])
+  @@map("decision_calculated_field_version")
+}
+
+/// Uso de un campo calculado desde un nodo del grafo (§5.1).
+///
+/// Existe como tabla —y no solo dentro del `config` del nodo— por dos razones: fija la
+/// versión del campo que ese artefacto usa (inmutabilidad) y hace consultable la
+/// dependencia inversa que exige §5.2 ("qué artefactos usan este campo calculado"),
+/// que sobre JSON sería un escaneo completo.
+model DecisionArtifactCalculatedFieldUse {
+  id                       BigInt @id @default(autoincrement())
+  tenantId                 BigInt @map("tenant_id")
+  artifactVersionId        BigInt @map("artifact_version_id")
+  nodeKey                  String @map("node_key") @db.VarChar(120)
+  callKey                  String @map("call_key") @db.VarChar(120)
+  calculatedFieldVersionId BigInt @map("calculated_field_version_id")
+
+  /// { [inputId]: { source, path?, value?, expression? } }
+  inputMappingJson Json   @map("input_mapping_json")
+  targetKind       String @map("target_kind") @db.VarChar(20)
+  targetCode       String @map("target_code") @db.VarChar(120)
+  /// Definición congelada del campo en el momento de guardar el grafo. El motor la
+  /// ejecuta sin volver a consultar la base, así que la decisión es reproducible.
+  definitionJson   Json   @map("definition_json")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  artifactVersion        DecisionArtifactVersion @relation(fields: [artifactVersionId], references: [id], onDelete: Cascade)
+  calculatedFieldVersion CalculatedFieldVersion  @relation(fields: [calculatedFieldVersionId], references: [id], onDelete: Restrict)
+
+  @@unique([artifactVersionId, nodeKey, callKey])
+  @@index([tenantId, calculatedFieldVersionId])
+  @@map("decision_artifact_calculated_field_use")
+}
+
+model CalculatedFieldLibrary {
+  id                       BigInt @id @default(autoincrement())
+  calculatedFieldVersionId BigInt @map("calculated_field_version_id")
+  approvedLibraryId        BigInt @map("approved_library_id")
+
+  calculatedFieldVersion CalculatedFieldVersion @relation(fields: [calculatedFieldVersionId], references: [id], onDelete: Cascade)
+  library                ApprovedLibrary        @relation(fields: [approvedLibraryId], references: [id], onDelete: Restrict)
+
+  @@unique([calculatedFieldVersionId, approvedLibraryId])
+  @@map("decision_calculated_field_library")
+}
+
+model CalculatedFieldTestCase {
+  id                       BigInt   @id @default(autoincrement())
+  calculatedFieldVersionId BigInt   @map("calculated_field_version_id")
+  name                     String   @db.VarChar(160)
+  inputsJson               Json     @map("inputs_json")
+  expectedJson             Json?    @map("expected_json")
+  /// CÃ³digo de error esperado cuando el caso debe fallar de forma controlada.
+  expectedErrorCode        String?  @map("expected_error_code") @db.VarChar(80)
+  createdAt                DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  calculatedFieldVersion CalculatedFieldVersion @relation(fields: [calculatedFieldVersionId], references: [id], onDelete: Cascade)
+
+  @@index([calculatedFieldVersionId])
+  @@map("decision_calculated_field_test_case")
+}
+
+// ---------------------------------------------------------------------------
+// Fase 6 â€” QA Lab: generaciÃ³n masiva reproducible (Â§10)
+// ---------------------------------------------------------------------------
+
+model QaGenerationRun {
+  id                BigInt      @id @default(autoincrement())
+  tenantId          BigInt      @map("tenant_id")
+  artifactVersionId BigInt      @map("artifact_version_id")
+  environmentCode   String      @map("environment_code") @db.VarChar(40)
+  status            QaRunStatus @default(QUEUED)
+
+  /// Semilla que hace la corrida reproducible bit a bit.
+  seed                 String @db.VarChar(64)
+  /// ConfiguraciÃ³n completa: cantidad, mezcla vÃ¡lido/invÃ¡lido/lÃ­mite, concurrencia,
+  /// timeout y estrategia de parada.
+  configJson           Json   @map("config_json")
+  /// VersiÃ³n del generador y de sus dependencias, para reproducir el resultado exacto.
+  generatorVersion     String @map("generator_version") @db.VarChar(40)
+  toolingJson          Json   @map("tooling_json")
+  /// Copia del contrato usado para generar (entradas + salidas), congelada.
+  contractSnapshotJson Json   @map("contract_snapshot_json")
+
+  totalCases   Int @default(0) @map("total_cases")
+  passedCases  Int @default(0) @map("passed_cases")
+  failedCases  Int @default(0) @map("failed_cases")
+  erroredCases Int @default(0) @map("errored_cases")
+  durationMs   Int @default(0) @map("duration_ms")
+
+  summaryJson Json?     @map("summary_json")
+  startedAt   DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  finishedAt  DateTime? @map("finished_at") @db.Timestamptz(6)
+  createdBy   String    @map("created_by") @db.VarChar(160)
+
+  artifactVersion DecisionArtifactVersion @relation(fields: [artifactVersionId], references: [id], onDelete: Cascade)
+  counterexamples QaCounterexample[]
+
+  @@index([tenantId, artifactVersionId, startedAt])
+  @@map("decision_qa_generation_run")
+}
+
+model QaCounterexample {
+  id       BigInt @id @default(autoincrement())
+  tenantId BigInt @map("tenant_id")
+  qaRunId  BigInt @map("qa_run_id")
+  /// Propiedad violada (p. ej. OUTPUT_CONTRACT_RESPECTED, DETERMINISM).
+  property String @db.VarChar(120)
+
+  /// Contraejemplo MÃNIMO tras la reducciÃ³n de fast-check.
+  shrunkInputJson   Json   @map("shrunk_input_json")
+  originalInputJson Json?  @map("original_input_json")
+  observedJson      Json?  @map("observed_json")
+  failureCode       String @map("failure_code") @db.VarChar(120)
+  failureMessage    String @map("failure_message") @db.Text
+  /// Semilla + path de fast-check para volver a ejecutar exactamente este caso.
+  replaySeed        String  @map("replay_seed") @db.VarChar(64)
+  replayPath        String? @map("replay_path") @db.VarChar(200)
+
+  resolvedAt DateTime? @map("resolved_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  qaRun QaGenerationRun @relation(fields: [qaRunId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, qaRunId])
+  @@index([tenantId, property, createdAt])
+  @@map("decision_qa_counterexample")
+}
+

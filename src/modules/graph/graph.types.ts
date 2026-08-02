@@ -21,6 +21,19 @@ export interface VariableContractSnapshot {
   nullable: boolean;
   defaultValue?: unknown;
   validationSchema?: unknown;
+  /** Restricciones normalizadas (§1.1); autoritativas frente a `validationSchema`. */
+  constraints?: unknown;
+  displayName?: string | null;
+  description?: string | null;
+  /** Mensaje mostrado cuando el valor incumple el contrato. */
+  validationMessage?: string | null;
+  exampleValid?: unknown;
+  exampleInvalid?: unknown;
+  /** REQUEST | PROVIDER | DERIVED | CALCULATED_FIELD | GRAPH_NODE. */
+  expectedOrigin?: string;
+  contractVersion?: string;
+  /** Clasificación formal; `sensitive` se conserva como bandera derivada. */
+  sensitivityClass?: string;
   validationRules: Array<{
     ruleType: string;
     config: unknown;
@@ -38,6 +51,96 @@ export interface VariableContractSnapshot {
   required: boolean;
   fallbackPolicy: string;
   sensitive: boolean;
+}
+
+/**
+ * Variable INTERMEDIATE (§2): existe solo durante una ejecución del grafo que la
+ * declara. No es una variable del catálogo y nunca sale en la respuesta pública
+ * salvo que un campo del contrato de salida la mapee explícitamente.
+ */
+export interface IntermediateVariableSnapshot {
+  id?: string;
+  code: string;
+  name: string;
+  description: string;
+  dataType: string;
+  producerNodeKey: string;
+  /** Vacío = cualquier nodo alcanzable después del productor puede leerla. */
+  consumerNodeKeys: string[];
+  initialValue?: unknown;
+  constraints?: unknown;
+  nullable: boolean;
+  updatePolicy: 'SINGLE_WRITE' | 'OVERWRITE' | 'ACCUMULATE';
+  availabilityCondition?: unknown;
+  sensitivityClass: string;
+  tracePolicy: 'FULL' | 'MASKED' | 'REDACTED' | 'EXCLUDED';
+}
+
+/**
+ * Invocación de un campo calculado desde un nodo del grafo (§5.1).
+ *
+ * La definición del campo viaja EMBEBIDA en el artefacto compilado, no se consulta en
+ * ejecución. Así una decisión sigue siendo reproducible aunque el campo se deprecie o se
+ * republique después, igual que ocurre con las variables y las condiciones.
+ */
+export interface CalculatedFieldCallSnapshot {
+  /** Identificador de la llamada dentro del nodo. */
+  callKey: string;
+  fieldCode: string;
+  /** Versión fijada del campo calculado. */
+  calculatedFieldVersionId: string;
+  versionNumber: number;
+  /** Cómo se alimenta cada entrada del campo: `{ [inputId]: origen }`. */
+  inputMapping: Record<
+    string,
+    {
+      source: 'VARIABLE' | 'INTERMEDIATE' | 'LITERAL' | 'EXPRESSION';
+      path?: string;
+      value?: unknown;
+      expression?: unknown;
+    }
+  >;
+  /** Dónde se deja el resultado. */
+  target: { kind: 'INTERMEDIATE' | 'OUTPUT'; code: string };
+  /** Definición congelada, lista para ejecutarse sin tocar la base de datos. */
+  definition: {
+    implementationKind: 'OPERATION' | 'JAVASCRIPT' | 'PYTHON';
+    contract: unknown;
+    operation?: unknown;
+    sourceCode?: string;
+    libraryPackages: string[];
+    defaultValue?: unknown;
+    timeoutMs?: number;
+  };
+}
+
+/** Una invocación de campo calculado tal como ocurrió, para la traza (§12). */
+export interface CalculatedFieldTraceEntry {
+  nodeKey: string;
+  callKey: string;
+  fieldCode: string;
+  versionNumber: number;
+  target: string;
+  outcome: 'VALID' | 'NULL_BY_POLICY' | 'DEFAULTED' | 'ERROR';
+  durationMs: number;
+  value?: unknown;
+  errorCode?: string;
+}
+
+/** Gobierno y origen de un campo del contrato de salida (§4). */
+export interface OutputContractFieldSnapshot {
+  id?: string;
+  code: string;
+  name: string;
+  description?: string | null;
+  sourceKind: 'NODE' | 'EXPRESSION' | 'INTERMEDIATE' | 'CONSTANT' | 'REFERENCE';
+  sourceRef: string;
+  valueMapping?: Record<string, unknown> | null;
+  absenceReasons: string[];
+  example?: unknown;
+  contractVersion: string;
+  sensitivityClass: string;
+  tracePolicy: 'FULL' | 'MASKED' | 'REDACTED' | 'EXCLUDED';
 }
 
 export interface GraphConditionSnapshot {
@@ -80,6 +183,8 @@ export interface GraphNodeSnapshot {
   terminal: boolean;
   conditions: Array<{ code: string; order: number; expected: boolean }>;
   actions: Array<{ code: string; order: number }>;
+  /** Campos calculados que este nodo invoca (§5.1). Vacío en la mayoría de nodos. */
+  calculatedFieldCalls?: CalculatedFieldCallSnapshot[];
 }
 
 export interface GraphEdgeSnapshot {
@@ -111,6 +216,10 @@ export interface ArtifactGraphSnapshot {
     authoringNotes?: string | null;
   };
   variables: VariableContractSnapshot[];
+  /** Variables intermedias declaradas por este grafo (§2). */
+  intermediates: IntermediateVariableSnapshot[];
+  /** Contrato de salida explícito con el origen de cada campo (§4). */
+  outputContract: OutputContractFieldSnapshot[];
   conditions: GraphConditionSnapshot[];
   actions: GraphActionSnapshot[];
   nodes: GraphNodeSnapshot[];
@@ -142,11 +251,14 @@ export interface GraphValidationReport {
 }
 
 export interface CompiledDecisionArtifact {
-  runtimeSchemaVersion: '1.0' | '1.1';
+  runtimeSchemaVersion: '1.0' | '1.1' | '1.2';
   compilerVersion: string;
   artifact: ArtifactGraphSnapshot['artifact'];
   version: ArtifactGraphSnapshot['version'];
   variables: VariableContractSnapshot[];
+  /** Compilado a partir del snapshot; `[]` en artefactos compilados antes de §2. */
+  intermediates: IntermediateVariableSnapshot[];
+  outputContract: OutputContractFieldSnapshot[];
   startNodeKey: string;
   nodes: Record<string, GraphNodeSnapshot>;
   edgesByNode: Record<string, GraphEdgeSnapshot[]>;
@@ -171,6 +283,81 @@ export interface DecisionReasonResult {
   priority: number;
 }
 
+/** Estados posibles de un valor durante la ejecución (§3.1). */
+export type ValueLifecycleState =
+  | 'NOT_AVAILABLE'
+  | 'AVAILABLE'
+  | 'VALID'
+  | 'INVALID'
+  | 'COMPUTED'
+  | 'UPDATED'
+  | 'CONSUMED'
+  | 'SKIPPED'
+  | 'ERROR'
+  | 'REDACTED';
+
+/** Estado de un valor concreto en un nodo (§3.1). */
+export interface NodeValueState {
+  code: string;
+  dataType: string;
+  state: ValueLifecycleState;
+  value: unknown;
+  sensitivityClass: string;
+  /**
+   * De dónde procede el valor: para una entrada es el origen declarado en su contrato;
+   * para una salida, el tipo de origen del contrato de salida.
+   */
+  origin: string;
+}
+
+/** Estado de una variable intermedia en un punto de la ejecución (§2.2 / §3.1). */
+export interface IntermediateStateEntry {
+  code: string;
+  dataType: string;
+  state: ValueLifecycleState;
+  /** Valor ya sanitizado según la política de traza de la variable. */
+  value: unknown;
+  producerNodeKey: string;
+  writtenByNodeKey?: string;
+  consumedByNodeKeys: string[];
+  previousValue?: unknown;
+  /**
+   * Índice (base 0) del paso de la traza que le dio valor por primera vez (§3.1,
+   * "momento de creación"). Ausente en dos casos que no son lo mismo y por eso no se
+   * colapsan en un 0: la variable sigue en NOT_AVAILABLE, o nació con `initialValue` y
+   * por tanto existía antes de que se ejecutara ningún nodo.
+   *
+   * Es el índice del paso y no una marca de tiempo porque lo que reconstruye el
+   * razonamiento es el ORDEN dentro de la traza; un reloj además haría que dos
+   * ejecuciones idénticas produjeran trazas distintas.
+   */
+  createdAtStepIndex?: number;
+  sensitivityClass: string;
+  tracePolicy: string;
+}
+
+/**
+ * Qué procesó un nodo, separado por naturaleza del dato (§3): lo que recibió, las
+ * intermedias antes y después, y qué salidas públicas dejó escritas. No todo valor
+ * que produce un nodo es una salida del artefacto.
+ */
+export interface NodeVariableState {
+  nodeKey: string;
+  /** COMPLETED cuando el nodo terminó; ERROR cuando abortó la ejecución. */
+  status: 'COMPLETED' | 'ERROR';
+  durationUs: number;
+  inputs: NodeValueState[];
+  intermediatesBefore: IntermediateStateEntry[];
+  intermediatesAfter: IntermediateStateEntry[];
+  intermediatesCreated: string[];
+  intermediatesUpdated: string[];
+  outputs: NodeValueState[];
+  /** Errores del nodo. Vacío salvo que la ejecución abortara aquí. */
+  errors: Array<{ code: string; message: string }>;
+  /** Avisos que no detienen la ejecución (p. ej. una intermedia creada y no consumida). */
+  warnings: string[];
+}
+
 export interface ExecutionTraceStep {
   nodeId?: string;
   nodeKey: string;
@@ -178,6 +365,8 @@ export interface ExecutionTraceStep {
   branchTaken?: string;
   evaluation: Record<string, unknown>;
   durationUs: number;
+  /** Ausente en artefactos compilados antes de §3. */
+  variableState?: NodeVariableState;
 }
 
 export interface EngineExecutionResult {
@@ -206,6 +395,8 @@ export interface EngineExecutionResult {
    * `execute()`. See ArtifactReferenceResolver.
    */
   nestedExecutions: NestedExecutionTraceEntry[];
+  /** Toda invocación de campo calculado de esta ejecución, en orden (§12). */
+  calculatedFieldCalls: CalculatedFieldTraceEntry[];
 }
 
 /**

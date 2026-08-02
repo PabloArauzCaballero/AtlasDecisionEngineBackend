@@ -1,3 +1,4 @@
+/** Bounded decision request contract; caller input remains separate from engine-produced outputs. */
 import { IsNotEmpty, IsObject, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 
 export class ExecuteDecisionDto {

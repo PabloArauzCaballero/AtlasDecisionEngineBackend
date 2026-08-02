@@ -5,9 +5,11 @@ import { EventBus } from '../src/common/events/event-bus';
 import { DispatchedEvent } from '../src/common/events/event-envelope';
 import { DecisionEventType } from '../src/common/events/event-types';
 import { OutboxPublisherService } from '../src/common/events/outbox-publisher.service';
+import type { JobSignalService } from '../src/common/jobs/job-signal.service';
 import { NotificationProjectorService } from '../src/modules/notifications/notification-projector.service';
 import { NotificationService } from '../src/modules/notifications/notification.service';
 import { OutboxRelayService } from '../src/modules/outbox-relay/outbox-relay.service';
+import type { JobSchedulerService } from '../src/common/jobs/job-scheduler.service';
 import type { MetricsService } from '../src/common/observability/metrics.service';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
 import { uniqueTenantId } from './support/unique-tenant';
@@ -36,7 +38,15 @@ describeDb('Outbox relay + notification projector (integration)', () => {
     OUTBOX_MAX_ATTEMPTS: 8,
     OUTBOX_BATCH_SIZE: 25,
   });
-  const publisher = new OutboxPublisherService();
+  // El anuncio por pg_notify es una optimización de latencia que este test no ejercita: aquí
+  // el relay se dispara explícitamente con dispatchBatch(), como hacía antes del orquestador.
+  const jobSignal = {
+    notify: jest.fn().mockResolvedValue(undefined),
+  } as unknown as JobSignalService;
+  const publisher = new OutboxPublisherService(jobSignal);
+  // Aquí, como en la prueba unitaria del relay, dispatchBatch() se llama directamente y el
+  // orquestador nunca entra en juego.
+  const scheduler = { register: jest.fn() } as unknown as JobSchedulerService;
   const notifications = new NotificationService(
     prisma as unknown as PrismaService,
     config,
@@ -70,9 +80,16 @@ describeDb('Outbox relay + notification projector (integration)', () => {
       prisma as unknown as PrismaService,
       bus,
       notifications,
+      { get: () => undefined } as never,
     );
     projector.onModuleInit();
-    const relay = new OutboxRelayService(prisma as unknown as PrismaService, bus, config, metrics);
+    const relay = new OutboxRelayService(
+      prisma as unknown as PrismaService,
+      bus,
+      config,
+      metrics,
+      scheduler,
+    );
 
     // A business transaction that also emits its event: both commit together.
     const outboxRow = await prisma.$transaction((tx) =>
@@ -136,9 +153,16 @@ describeDb('Outbox relay + notification projector (integration)', () => {
       prisma as unknown as PrismaService,
       bus,
       notifications,
+      { get: () => undefined } as never,
     );
     projector.onModuleInit();
-    const relay = new OutboxRelayService(prisma as unknown as PrismaService, bus, config, metrics);
+    const relay = new OutboxRelayService(
+      prisma as unknown as PrismaService,
+      bus,
+      config,
+      metrics,
+      scheduler,
+    );
 
     await prisma.$transaction((tx) =>
       publisher.publish(tx, {

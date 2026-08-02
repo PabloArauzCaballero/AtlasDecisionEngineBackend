@@ -1,3 +1,7 @@
+/**
+ * Prisma CLI entrypoint for idempotent bootstrap data. Production excludes demo records while
+ * retaining structural catalogs and explicitly configured integration clients.
+ */
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 import { runSeeds } from '../src/modules/seeding/seed-runner';

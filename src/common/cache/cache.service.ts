@@ -1,3 +1,7 @@
+/**
+ * Redis-backed cache and fixed-window counter. Production fails closed when Redis is required;
+ * the in-memory fallback exists only for local development and isolated tests.
+ */
 import { HttpStatus, Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';

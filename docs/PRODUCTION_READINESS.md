@@ -18,6 +18,9 @@ Esta versión está **endurecida y preparada como release candidate**, pero no d
 - Paginación del servidor en inventarios y auditoría.
 - Contenedores separados para migración y runtime; la API no ejecuta seeds al arrancar.
 - Runtime no root, filesystem de solo lectura y capacidades Linux eliminadas en Compose.
+- RLS forzado por tenant mediante el rol de aplicación no-superusuario `atlas_app`.
+- Outbox transaccional, relay con lease/dead-letter y proyección idempotente de notificaciones.
+- Árboles anidados versionados, importación Code → Flow y previsualización SSE opt-in.
 - Catálogo de vistas, controles operativos y brechas de API documentados.
 
 ## Gates obligatorios antes de Go-Live
@@ -47,8 +50,14 @@ Esta versión está **endurecida y preparada como release candidate**, pero no d
 
 1. IAM/JWKS real aún depende del proveedor elegido.
 2. Buró, KYC, bancos, QR y notificaciones requieren contratos y sandbox.
-3. El editor gráfico necesita escritura transaccional y ETag/If-Match.
+3. La comparación automática de un test run contra otro artefacto baseline aún no está
+   implementada; la API rechaza el parámetro reservado para no generar evidencia incompleta.
 4. No existe aún una política legal final de retención por país/tipo de dato.
 5. Falta validar volumen real y comportamiento bajo saturación.
 6. El seed es demostrativo y no sustituye aprobación formal de políticas crediticias.
-7. La cobertura unitaria global actual es 17.55%; antes del Go-Live deben cubrirse servicios con DB/Redis, seguridad, idempotencia, gobierno, despliegues y runtime end-to-end.
+7. La cobertura Jest unitaria/integración medida el 2026-07-28 es 50.14% de statements; los
+   controladores y wiring se verifican principalmente en 58 pruebas E2E, pero conviene elevar la
+   cobertura directa de servicios de despliegue, artefactos y runtime antes del Go-Live.
+
+La evidencia reproducible más reciente está en `verification-2026-07-28.md`. Un release posterior
+debe volver a ejecutar los gates: el porcentaje y los resultados no son una certificación permanente.

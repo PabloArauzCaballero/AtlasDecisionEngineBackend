@@ -1,15 +1,18 @@
 param(
-  [string]$BaseUrl = $(if ($env:BASE_URL) { $env:BASE_URL } else { "http://localhost:3000" }),
-  [string]$RuntimeApiKey = $(if ($env:RUNTIME_API_KEY) { $env:RUNTIME_API_KEY } else { "local-runtime-key-change-before-sharing" }),
-  [string]$ManagementApiKey = $(if ($env:MANAGEMENT_API_KEY) { $env:MANAGEMENT_API_KEY } else { "local-management-key-change-before-sharing" }),
-  [string]$TenantId = $(if ($env:TENANT_ID) { $env:TENANT_ID } else { "1" })
+  [string]$BaseUrl,
+  [string]$RuntimeApiKey,
+  [string]$ManagementApiKey,
+  [string]$TenantId
 )
 
+# Thin wrapper: every setting comes from .env (loaded by smoke.mjs) or from the environment.
+# Only an explicitly passed parameter overrides them, so the smoke can never authenticate with
+# a credential that lives in this file instead of in configuration.
 $ErrorActionPreference = "Stop"
-$env:BASE_URL = $BaseUrl
-$env:RUNTIME_API_KEY = $RuntimeApiKey
-$env:MANAGEMENT_API_KEY = $ManagementApiKey
-$env:TENANT_ID = $TenantId
+if ($BaseUrl) { $env:BASE_URL = $BaseUrl }
+if ($RuntimeApiKey) { $env:RUNTIME_API_KEY = $RuntimeApiKey }
+if ($ManagementApiKey) { $env:MANAGEMENT_API_KEY = $ManagementApiKey }
+if ($TenantId) { $env:TENANT_ID = $TenantId }
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 node (Join-Path $scriptDir "smoke.mjs")

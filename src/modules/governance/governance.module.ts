@@ -1,3 +1,4 @@
+/** Composes approval persistence, blocking test evidence and version transitions. */
 import { Module } from '@nestjs/common';
 import { EventsModule } from '../../common/events/events.module';
 import { ArtifactModule } from '../artifacts/artifact.module';

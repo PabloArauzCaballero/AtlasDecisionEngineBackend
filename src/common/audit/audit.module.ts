@@ -1,3 +1,4 @@
+/** Exposes the single audit writer used to keep business mutations and evidence atomic. */
 import { Global, Module } from '@nestjs/common';
 import { AuditService } from './audit.service';
 

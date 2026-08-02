@@ -3,6 +3,12 @@ import { ConfigService } from '@nestjs/config';
 import { HashService } from '../../common/crypto/hash.service';
 import { MetricsService } from '../../common/observability/metrics.service';
 import { safeRegexTest } from '../../common/validation/safe-regex';
+import {
+  isRequiredIn,
+  parseConstraints,
+  validateAgainstConstraints,
+} from '../../common/contracts/constraint-engine';
+import type { ConstraintScope } from '../../common/contracts/constraints.types';
 import type { VariableContractSnapshot } from '../graph/graph.types';
 
 /** Persistable evidence describing how one variable was resolved. */
@@ -51,6 +57,8 @@ export class VariableResolutionService {
       artifactCode: string;
       requestId: string;
       allowExternal: boolean;
+      /** Ejes de despliegue con los que se resuelven las restricciones acotadas (§1.1). */
+      scope?: ConstraintScope;
     },
   ): Promise<VariableResolutionResult> {
     // Reject hidden inputs by construction: only declared, versioned contracts enter the engine.
@@ -68,35 +76,48 @@ export class VariableResolutionService {
       Object.assign(values, external);
     }
 
-    const snapshots: ResolvedVariableSnapshot[] = [];
-    const errors: VariableResolutionResult['errors'] = [];
+    // Los valores por defecto se aplican ANTES de validar nada: una regla condicional
+    // ("obligatorio si país = BO") tiene que ver el contrato completo, no el estado
+    // parcial del bucle. Validar y defaultear en la misma pasada hacía que el
+    // resultado dependiera del orden de las variables.
+    const defaulted = new Set<string>();
     for (const contract of contracts) {
-      let value = values[contract.code];
-      let defaulted = false;
-      let sourceCode = value === undefined ? 'UNRESOLVED' : 'REQUEST_PAYLOAD';
-
       if (
-        value === undefined &&
+        values[contract.code] === undefined &&
         contract.defaultValue !== undefined &&
         contract.fallbackPolicy !== 'FAIL'
       ) {
-        value = contract.defaultValue;
-        values[contract.code] = value;
-        defaulted = true;
-        sourceCode = 'DEFAULT';
+        values[contract.code] = contract.defaultValue;
+        defaulted.add(contract.code);
       }
+    }
+
+    const snapshots: ResolvedVariableSnapshot[] = [];
+    const errors: VariableResolutionResult['errors'] = [];
+    for (const contract of contracts) {
+      const value = values[contract.code];
+      const sourceCode = defaulted.has(contract.code)
+        ? 'DEFAULT'
+        : value === undefined
+          ? 'UNRESOLVED'
+          : 'REQUEST_PAYLOAD';
 
       if (value === undefined || value === null) {
-        if (contract.required && !contract.nullable) {
+        const constraints = parseConstraints(contract.constraints ?? contract.validationSchema);
+        const required = isRequiredIn(contract.required, constraints, {
+          ...options.scope,
+          siblings: values,
+        });
+        if (required && !contract.nullable) {
           errors.push({
             code: 'VARIABLE_MISSING_OR_INVALID',
             variable: contract.code,
-            message: `Required variable ${contract.code} is missing`,
+            message: contract.validationMessage ?? `Required variable ${contract.code} is missing`,
           });
           continue;
         }
       } else {
-        const validationErrors = this.validateValue(contract, value);
+        const validationErrors = this.validateValue(contract, value, values, options.scope);
         errors.push(
           ...validationErrors.map((message) => ({
             code: 'VARIABLE_MISSING_OR_INVALID',
@@ -123,49 +144,36 @@ export class VariableResolutionService {
         resolutionStatus: errors.some((error) => error.variable === contract.code)
           ? 'INVALID'
           : 'RESOLVED',
-        wasDefaulted: defaulted,
+        wasDefaulted: defaulted.has(contract.code),
         sensitive: contract.sensitive,
       });
     }
     return { valid: errors.length === 0, values, snapshots, errors };
   }
 
-  private validateValue(contract: VariableContractSnapshot, value: unknown): string[] {
+  private validateValue(
+    contract: VariableContractSnapshot,
+    value: unknown,
+    siblings: Record<string, unknown>,
+    scope: ConstraintScope | undefined,
+  ): string[] {
     const errors: string[] = [];
-    const type = contract.dataType.toUpperCase();
-    const validType =
-      (['STRING', 'TEXT', 'UUID', 'DATE', 'DATETIME'].includes(type) &&
-        typeof value === 'string') ||
-      (['INTEGER', 'INT'].includes(type) && typeof value === 'number' && Number.isInteger(value)) ||
-      (['NUMBER', 'DECIMAL', 'FLOAT'].includes(type) &&
-        typeof value === 'number' &&
-        Number.isFinite(value)) ||
-      (['BOOLEAN', 'BOOL'].includes(type) && typeof value === 'boolean') ||
-      (type === 'ARRAY' && Array.isArray(value)) ||
-      (type === 'OBJECT' && value !== null && typeof value === 'object' && !Array.isArray(value));
-    if (!validType) errors.push(`${contract.code} must be of type ${contract.dataType}`);
-
-    const schema = (contract.validationSchema ?? {}) as Record<string, unknown>;
-    if (typeof value === 'number') {
-      if (typeof schema.minimum === 'number' && value < schema.minimum)
-        errors.push(`${contract.code} is below minimum ${schema.minimum}`);
-      if (typeof schema.exclusiveMinimum === 'number' && value <= schema.exclusiveMinimum)
-        errors.push(`${contract.code} must be greater than ${schema.exclusiveMinimum}`);
-      if (typeof schema.maximum === 'number' && value > schema.maximum)
-        errors.push(`${contract.code} is above maximum ${schema.maximum}`);
-      if (typeof schema.exclusiveMaximum === 'number' && value >= schema.exclusiveMaximum)
-        errors.push(`${contract.code} must be lower than ${schema.exclusiveMaximum}`);
+    // Restricciones normalizadas (§1.1). `constraints` es la fuente autoritativa;
+    // `validationSchema` se sigue leyendo para contratos anteriores a la migración.
+    const constraints = parseConstraints(contract.constraints ?? contract.validationSchema);
+    const violations = validateAgainstConstraints(contract.dataType, constraints, value, {
+      ...scope,
+      siblings,
+    });
+    for (const violation of violations) {
+      // §12: qué restricción se incumple, no solo cuántas veces falla la variable.
+      this.metrics.recordContractViolation('INPUT', violation.constraint);
+      errors.push(
+        contract.validationMessage
+          ? `${contract.code}: ${contract.validationMessage}`
+          : `${contract.code} ${violation.message}`,
+      );
     }
-    if (typeof value === 'string') {
-      if (typeof schema.minLength === 'number' && value.length < schema.minLength)
-        errors.push(`${contract.code} is shorter than ${schema.minLength}`);
-      if (typeof schema.maxLength === 'number' && value.length > schema.maxLength)
-        errors.push(`${contract.code} is longer than ${schema.maxLength}`);
-      if (typeof schema.pattern === 'string' && !safeRegexTest(schema.pattern, value).matched)
-        errors.push(`${contract.code} does not match required pattern`);
-    }
-    if (Array.isArray(schema.enum) && !schema.enum.includes(value))
-      errors.push(`${contract.code} is outside the allowed enum`);
 
     for (const rule of contract.validationRules) {
       const config = rule.config as Record<string, unknown>;
@@ -220,7 +228,19 @@ export class VariableResolutionService {
         return {};
       }
       const body = (await response.json()) as { values?: Record<string, unknown> };
-      return body.values ?? {};
+      const returned = body.values;
+      if (!returned || typeof returned !== 'object' || Array.isArray(returned)) return {};
+      // Solo se acepta lo que se pidió. Sin este filtro, el proveedor podía introducir
+      // códigos que el artefacto no declara —que entrarían al contexto del motor por la
+      // puerta de atrás— y, peor, sobrescribir un valor que sí venía en la petición del
+      // cliente. Se consulta únicamente por lo que falta, así que devolver otra cosa
+      // nunca es legítimo.
+      const requested = new Set(codes);
+      return Object.fromEntries(
+        Object.entries(returned).filter(
+          ([code, value]) => requested.has(code) && value !== undefined,
+        ),
+      );
     } catch (error) {
       const reason =
         error instanceof Error && error.name === 'AbortError' ? 'timeout' : 'unreachable';

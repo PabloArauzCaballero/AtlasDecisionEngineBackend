@@ -49,7 +49,16 @@ function projector(prisma: unknown): NotificationProjectorService {
     { get: () => 100 } as never,
     metrics as never,
   );
-  return new NotificationProjectorService(prisma as PrismaService, {} as EventBus, notifications);
+  const projector = new NotificationProjectorService(
+    prisma as PrismaService,
+    {} as EventBus,
+    notifications,
+    { get: () => undefined } as never,
+  );
+  // Estos tests llaman a `handle()` directamente, sin pasar por la suscripción del bus, así
+  // que no necesitan un onModuleInit real; se mantiene fuera para no acoplar el ciclo de
+  // vida de Nest a una prueba unitaria.
+  return projector;
 }
 
 describe('NotificationProjectorService', () => {

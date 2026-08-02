@@ -1,3 +1,7 @@
+/**
+ * Decision-relevant signals supplied by AtlasBackend. Operational fields, credentials and raw PII
+ * are intentionally excluded so the engine's catalog remains minimized and governable.
+ */
 import type { VariableSeed } from './types';
 
 // Catálogo de variables INYECTADAS DESDE ATLAS BACKEND (el proveedor de identidad y datos

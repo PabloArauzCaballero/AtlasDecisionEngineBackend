@@ -1,4 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { runsBackgroundJobs, workerRoleOf } from '../../common/config/worker-role';
 import { DispatchedEvent } from '../../common/events/event-envelope';
 import { DecisionEventType } from '../../common/events/event-types';
 import { EventBus } from '../../common/events/event-bus';
@@ -27,6 +29,12 @@ function stringArray(payload: unknown, key: string): string[] {
  * Exactly-once effect on at-least-once delivery: the ProcessedEvent insert (unique on
  * consumerName + outboxEventId, ON CONFLICT DO NOTHING) and the notification rows share
  * one transaction, so a redelivered event finds the marker and contributes nothing.
+ *
+ * Solo se suscribe donde corren los trabajos de fondo. El bus es EN PROCESO y su único
+ * productor es el relay del outbox, que ya no corre en una réplica de API: allí la
+ * suscripción era un consumidor registrado a un bus que jamás emite. Declararlo por rol —y
+ * no dejarlo en «inofensivo»— es lo que hace que la ruta del evento se pueda leer del código
+ * en vez de deducirse de qué otro servicio quedó apagado.
  */
 @Injectable()
 export class NotificationProjectorService implements OnModuleInit, OnModuleDestroy {
@@ -39,9 +47,16 @@ export class NotificationProjectorService implements OnModuleInit, OnModuleDestr
     private readonly prisma: PrismaService,
     private readonly bus: EventBus,
     private readonly notifications: NotificationService,
+    private readonly config: ConfigService,
   ) {}
 
   onModuleInit(): void {
+    if (!runsBackgroundJobs(this.config)) {
+      this.logger.log(
+        `Notification projector not subscribed: WORKER_ROLE=${workerRoleOf(this.config)}`,
+      );
+      return;
+    }
     this.unsubscribe = this.bus.subscribeAll((event) => this.handle(event));
   }
 

@@ -107,6 +107,44 @@ describe('ExpressionEvaluator operator coverage', () => {
         }),
       ).toBe(true);
     });
+
+    /**
+     * Todo lo que no fueran dos números o una fecha caía en una comparación de cadenas.
+     * Eso hacía que un dato ausente APROBARA: `"undefined" >= "600"` y `"null" >= "600"`
+     * son ambos true por orden lexicográfico, igual que `"80" >= "600"`. Un umbral de
+     * crédito no puede depender de que dos valores se conviertan a texto.
+     */
+    describe('operandos no comparables', () => {
+      const gte600 = { op: 'gte', left: { var: 'bureau_score' }, right: { value: 600 } };
+
+      it('una variable ausente no supera un umbral numérico: falla cerrado', () => {
+        expect(() => evaluate(gte600, {})).toThrow(DomainException);
+        expect(() => evaluate(gte600, {})).toThrow(/Cannot order a missing value/);
+      });
+
+      it('un null tampoco supera el umbral', () => {
+        expect(() => evaluate(gte600, { bureau_score: null })).toThrow(/Cannot order null against/);
+      });
+
+      it('una cadena numérica no se ordena contra un número', () => {
+        // "80" >= 600 devolvía true por orden de código Unicode.
+        expect(() => evaluate(gte600, { bureau_score: '80' })).toThrow(
+          /Cannot order a value of type string/,
+        );
+      });
+
+      it('sigue ordenando números y cadenas del mismo tipo', () => {
+        expect(evaluate(gte600, { bureau_score: 700 })).toBe(true);
+        expect(evaluate(gte600, { bureau_score: 550 })).toBe(false);
+        expect(evaluate({ op: 'lt', left: { value: 'Z' }, right: { value: 'a' } })).toBe(true);
+      });
+
+      it('rechaza ordenar contra un NaN', () => {
+        expect(() =>
+          evaluate({ op: 'gt', left: { value: Number.NaN }, right: { value: 1 } }),
+        ).toThrow(/non-finite/);
+      });
+    });
   });
 
   describe('membership and string operators', () => {

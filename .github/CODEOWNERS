@@ -1,0 +1,66 @@
+# Propietarios por área.
+#
+# GitHub solo resuelve equipos que existen en la organización del repositorio
+# (`PabloArauzCaballero`). Hoy esa organización no tiene equipos técnicos creados —crearlos
+# es administración de GitHub, no un cambio de código— así que cada regla usa como *fallback*
+# al propietario real del repositorio (`@PabloArauzCaballero`, ver `git remote -v`) en vez de
+# inventar una cuenta o un equipo que no existe. Cuando se creen los equipos de
+# `docs/governance/ownership.md` (p. ej. `@AtlasDecisionEngineBackend/riesgo-cumplimiento`),
+# reemplazar cada línea por el equipo correspondiente; la tabla de abajo ya dice cuál va en
+# cada una.
+#
+# La última regla que coincide gana: las más específicas van después.
+
+# Propietario por defecto de todo lo no cubierto abajo.
+*                                     @PabloArauzCaballero
+
+# Motor de decisión — futuro equipo: ingeniería-motor
+/src/modules/graph/                  @PabloArauzCaballero
+/src/modules/runtime/                @PabloArauzCaballero
+/src/modules/nested-trees/           @PabloArauzCaballero
+
+# Contratos y variables — futuro equipo: riesgo-cumplimiento + ingeniería-motor
+/src/modules/variables/              @PabloArauzCaballero
+/src/common/contracts/               @PabloArauzCaballero
+
+# Gobierno y despliegues — futuro equipo: riesgo-cumplimiento
+/src/modules/governance/             @PabloArauzCaballero
+/src/modules/deployments/            @PabloArauzCaballero
+
+# Campos calculados y librerías — futuro equipo: ingeniería-motor
+/src/modules/calculated-fields/      @PabloArauzCaballero
+/src/modules/libraries/              @PabloArauzCaballero
+
+# Pruebas y QA Lab — futuro equipo: qa
+/src/modules/testing/                @PabloArauzCaballero
+/src/modules/qa-lab/                 @PabloArauzCaballero
+
+# Seguridad y auditoría — área crítica, revisión obligatoria (ver docs/governance/ownership.md)
+/src/common/security/                @PabloArauzCaballero
+/src/common/audit/                   @PabloArauzCaballero
+/src/modules/audit-query/            @PabloArauzCaballero
+
+# Ejecución de código no confiable — área crítica
+/src/modules/graph/script-node-runner.service.ts   @PabloArauzCaballero
+/runner/                             @PabloArauzCaballero
+
+# Plataforma y operación — futuro equipo: plataforma
+/deploy/                             @PabloArauzCaballero
+/Dockerfile                          @PabloArauzCaballero
+/docker-compose.yml                  @PabloArauzCaballero
+/.github/workflows/                  @PabloArauzCaballero
+/src/common/observability/           @PabloArauzCaballero
+
+# Datos y migraciones — área crítica, revisión obligatoria
+/prisma/                             @PabloArauzCaballero
+/src/common/prisma/                  @PabloArauzCaballero
+
+# Configuración — un valor por defecto equivocado se despliega en todas partes
+/src/common/config/env.schema.ts     @PabloArauzCaballero
+/.env.example                        @PabloArauzCaballero
+
+# Documentación — futuro equipo: plataforma
+/docs/                                @PabloArauzCaballero
+/scripts/docs/                        @PabloArauzCaballero
+/mkdocs.yml                           @PabloArauzCaballero
+/redocly.yaml                         @PabloArauzCaballero

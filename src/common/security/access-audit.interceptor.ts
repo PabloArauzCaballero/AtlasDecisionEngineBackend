@@ -1,3 +1,4 @@
+/** Captures security-relevant denials without retaining request bodies or credentials. */
 import { CallHandler, ExecutionContext, Injectable, Logger, NestInterceptor } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Request } from 'express';

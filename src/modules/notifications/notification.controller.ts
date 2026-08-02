@@ -1,6 +1,12 @@
 import { Controller, Get, HttpCode, HttpStatus, Param, Post, Query } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiKeysetResponse } from '../../common/http/pagination.dto';
 import { parseBigIntId } from '../../common/http/id';
+import {
+  MarkAllReadResponseDto,
+  NotificationDto,
+  UnreadCountResponseDto,
+} from './notification.response.dto';
 import { PLATFORM_ROLES } from '../../common/security/platform-roles';
 import { CurrentPrincipal, Roles, TenantId } from '../../common/security/security.decorators';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
@@ -23,6 +29,10 @@ export class NotificationController {
   }
 
   @Get()
+  @ApiOperation({ summary: 'List notifications addressed to the caller or its roles' })
+  @ApiKeysetResponse(
+    'Página por cursor de la bandeja del llamante. Sin `total`: recorrer por cursor evita contar.',
+  )
   list(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -32,12 +42,16 @@ export class NotificationController {
   }
 
   @Get('unread-count')
+  @ApiOperation({ summary: 'Count unread notifications visible to the caller' })
+  @ApiOkResponse({ description: 'Contador de no leídas.', type: UnreadCountResponseDto })
   unreadCount(@TenantId() tenantId: bigint, @CurrentPrincipal() principal: AuthenticatedPrincipal) {
     return this.notifications.unreadCount(tenantId, this.recipient(principal));
   }
 
   @Post(':id/read')
+  @ApiOperation({ summary: 'Mark one visible notification as read' })
   @HttpCode(HttpStatus.OK)
+  @ApiOkResponse({ description: 'Notificación marcada como leída.', type: NotificationDto })
   markRead(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -51,7 +65,12 @@ export class NotificationController {
   }
 
   @Post('read-all')
+  @ApiOperation({ summary: 'Mark every visible notification as read' })
   @HttpCode(HttpStatus.OK)
+  @ApiOkResponse({
+    description: 'Cuántas notificaciones pasaron a leídas. Idempotente: repetir devuelve 0.',
+    type: MarkAllReadResponseDto,
+  })
   markAllRead(@TenantId() tenantId: bigint, @CurrentPrincipal() principal: AuthenticatedPrincipal) {
     return this.notifications.markAllRead(tenantId, this.recipient(principal));
   }

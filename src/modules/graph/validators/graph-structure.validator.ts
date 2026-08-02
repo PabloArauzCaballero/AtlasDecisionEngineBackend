@@ -279,22 +279,52 @@ export function validateGraphStructure(
         // The referenced artifact/version/mapping itself lives in DecisionArtifactReference
         // (keyed by this node's key) and is validated by NestedTreeService at save time —
         // structural validation here only checks the shape the engine reads at runtime.
-        const outputAssignments = Array.isArray(node.config.outputAssignments) ? node.config.outputAssignments : [];
+        const outputAssignments = Array.isArray(node.config.outputAssignments)
+          ? node.config.outputAssignments
+          : [];
         if (!outputAssignments.length) {
-          errors.push(issue('REFERENCE_ASSIGNMENTS_EMPTY', `RESULT node ${node.key} has no output assignments for its nested reference`, 'NODE', node.key));
+          errors.push(
+            issue(
+              'REFERENCE_ASSIGNMENTS_EMPTY',
+              `RESULT node ${node.key} has no output assignments for its nested reference`,
+              'NODE',
+              node.key,
+            ),
+          );
         }
         const seen = new Set<string>();
         for (const raw of outputAssignments) {
           const assignment = raw as Record<string, unknown>;
           const outputCode = String(assignment.outputCode ?? '');
           if (!outputs.some((output) => output.code === outputCode)) {
-            errors.push(issue('UNDECLARED_OUTPUT', `RESULT node ${node.key} assigns undeclared output ${outputCode}`, 'NODE', node.key));
+            errors.push(
+              issue(
+                'UNDECLARED_OUTPUT',
+                `RESULT node ${node.key} assigns undeclared output ${outputCode}`,
+                'NODE',
+                node.key,
+              ),
+            );
           }
           if (!String(assignment.childOutputCode ?? '').trim()) {
-            errors.push(issue('REFERENCE_CHILD_OUTPUT_MISSING', `RESULT node ${node.key} has an output assignment with no childOutputCode`, 'NODE', node.key));
+            errors.push(
+              issue(
+                'REFERENCE_CHILD_OUTPUT_MISSING',
+                `RESULT node ${node.key} has an output assignment with no childOutputCode`,
+                'NODE',
+                node.key,
+              ),
+            );
           }
           if (seen.has(outputCode)) {
-            errors.push(issue('DUPLICATE_RESULT_ASSIGNMENT', `RESULT node ${node.key} assigns ${outputCode} more than once`, 'NODE', node.key));
+            errors.push(
+              issue(
+                'DUPLICATE_RESULT_ASSIGNMENT',
+                `RESULT node ${node.key} assigns ${outputCode} more than once`,
+                'NODE',
+                node.key,
+              ),
+            );
           }
           seen.add(outputCode);
         }

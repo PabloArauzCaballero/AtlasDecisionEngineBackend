@@ -1,5 +1,7 @@
+/** Protected Prometheus scrape boundary with a token independent from application auth. */
 import { Controller, Get, Headers, HttpStatus, Res } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ApiExcludeController } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { HashService } from '../crypto/hash.service';
@@ -8,6 +10,7 @@ import { Public } from '../security/security.decorators';
 import { MetricsService } from './metrics.service';
 
 @ApiExcludeController()
+@ApiTags('Observability')
 @Controller()
 export class MetricsController {
   constructor(
@@ -17,6 +20,7 @@ export class MetricsController {
   ) {}
 
   @Get('metrics')
+  @ApiOperation({ summary: 'Expose Prometheus metrics to an authorized scraper' })
   @Public()
   async getMetrics(
     @Headers('x-metrics-token') token: string | undefined,

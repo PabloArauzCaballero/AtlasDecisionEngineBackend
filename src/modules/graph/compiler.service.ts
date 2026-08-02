@@ -1,10 +1,11 @@
+/** Converts a validated authoring snapshot into the compact immutable runtime representation. */
 import { Injectable } from '@nestjs/common';
 import { HashService } from '../../common/crypto/hash.service';
 import type { ArtifactGraphSnapshot, CompiledDecisionArtifact } from './graph.types';
 
 @Injectable()
 export class CompilerService {
-  static readonly VERSION = 'atlas-compiler-1.1.0';
+  static readonly VERSION = 'atlas-compiler-1.2.0';
 
   constructor(private readonly hashes: HashService) {}
 
@@ -20,12 +21,23 @@ export class CompilerService {
     const usesConfigurableOutputs =
       snapshot.nodes.some((node) => node.type === 'RESULT') ||
       snapshot.variables.some((variable) => String(variable.usageType ?? '').startsWith('OUTPUT'));
+    // 1.2 solo cuando el grafo usa de verdad las capacidades nuevas: un artefacto
+    // ya aprobado sin intermedias ni contrato explícito debe recompilar al mismo
+    // esquema de runtime (y al mismo checksum) que antes.
+    const usesContractExtensions =
+      snapshot.intermediates.length > 0 || snapshot.outputContract.length > 0;
     const compiled: CompiledDecisionArtifact = {
-      runtimeSchemaVersion: usesConfigurableOutputs ? '1.1' : '1.0',
+      runtimeSchemaVersion: usesContractExtensions
+        ? '1.2'
+        : usesConfigurableOutputs
+          ? '1.1'
+          : '1.0',
       compilerVersion: CompilerService.VERSION,
       artifact: snapshot.artifact,
       version: snapshot.version,
       variables: snapshot.variables,
+      intermediates: snapshot.intermediates,
+      outputContract: snapshot.outputContract,
       startNodeKey: start.key,
       nodes: Object.fromEntries(snapshot.nodes.map((node) => [node.key, node])),
       edgesByNode: Object.fromEntries(

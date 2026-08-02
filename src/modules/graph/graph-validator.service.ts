@@ -6,6 +6,9 @@ import { buildGraphLookups } from './validators/graph-lookups';
 import { validateGraphStructure } from './validators/graph-structure.validator';
 import { validateGraphExpressions } from './validators/graph-expression.validator';
 import { validateGraphDeterminism } from './validators/graph-determinism.validator';
+import { validateGraphIntermediates } from './validators/graph-intermediate.validator';
+import { validateOutputContract } from './validators/graph-output-contract.validator';
+import { validateGraphCalculatedFields } from './validators/graph-calculated-field.validator';
 
 @Injectable()
 export class GraphValidatorService {
@@ -19,15 +22,30 @@ export class GraphValidatorService {
     const structure = validateGraphStructure(snapshot, lookups);
     const expressions = validateGraphExpressions(snapshot, lookups, this.expressions);
     const determinism = validateGraphDeterminism(snapshot, lookups);
+    const intermediates = validateGraphIntermediates(snapshot, lookups);
+    const outputContract = validateOutputContract(snapshot, lookups);
+    const calculatedFields = validateGraphCalculatedFields(snapshot, lookups);
 
-    const errors = [...structure.errors, ...expressions.errors, ...determinism.errors];
+    const errors = [
+      ...structure.errors,
+      ...expressions.errors,
+      ...determinism.errors,
+      ...intermediates.errors,
+      ...outputContract.errors,
+      ...calculatedFields.errors,
+    ];
     const canonicalAst = this.canonicalSnapshot(snapshot);
     const checksum = this.hashes.sha256(canonicalAst);
 
     return {
       valid: errors.length === 0,
       errors,
-      warnings: structure.warnings,
+      warnings: [
+        ...structure.warnings,
+        ...intermediates.warnings,
+        ...outputContract.warnings,
+        ...calculatedFields.warnings,
+      ],
       metrics: {
         nodeCount: snapshot.nodes.length,
         edgeCount: snapshot.edges.length,
@@ -51,6 +69,8 @@ export class GraphValidatorService {
       ...snapshot,
       version: { ...snapshot.version, status: 'STRUCTURAL', checksum: null },
       variables: [...snapshot.variables].sort((a, b) => a.code.localeCompare(b.code)),
+      intermediates: [...snapshot.intermediates].sort((a, b) => a.code.localeCompare(b.code)),
+      outputContract: [...snapshot.outputContract].sort((a, b) => a.code.localeCompare(b.code)),
       conditions: [...snapshot.conditions].sort((a, b) => a.code.localeCompare(b.code)),
       actions: [...snapshot.actions]
         .map((action) => ({

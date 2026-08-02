@@ -1,17 +1,30 @@
+/**
+ * Atomically replaces editable graph children under optimistic locking. Batched inserts keep the
+ * authoring transaction bounded while audit evidence commits with the graph.
+ */
 import { createHash } from 'node:crypto';
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { Prisma, VersionStatus } from '@prisma/client';
+import {
+  OutputSourceKind,
+  Prisma,
+  SensitivityClass,
+  TracePolicy,
+  VersionStatus,
+} from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { DomainException } from '../../common/errors/domain-exception';
+import { parseBigIntId } from '../../common/http/id';
 import { AuditService } from '../../common/audit/audit.service';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
 import { ReplaceGraphDto } from './artifact.dto';
+import { CalculatedFieldBindingService } from './calculated-field-binding.service';
 
 @Injectable()
 export class ArtifactGraphWriterService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly calculatedFields: CalculatedFieldBindingService,
   ) {}
 
   async replaceDraftGraph(
@@ -82,10 +95,15 @@ export class ArtifactGraphWriterService {
       await tx.decisionArtifactVariableDependency.deleteMany({
         where: { artifactVersionId: versionId },
       });
+      await tx.decisionArtifactCalculatedFieldUse.deleteMany({
+        where: { artifactVersionId: versionId },
+      });
+      await tx.decisionIntermediateVariable.deleteMany({ where: { artifactVersionId: versionId } });
+      await tx.decisionOutputContractField.deleteMany({ where: { artifactVersionId: versionId } });
       await tx.decisionCompiledArtifact.deleteMany({ where: { artifactVersionId: versionId } });
 
       const dependencyIds = dto.dependencies.map((dependency) =>
-        BigInt(dependency.variableVersionId),
+        parseBigIntId(dependency.variableVersionId, 'variableVersionId'),
       );
       const variables = await tx.decisionVariableVersion.findMany({
         where: {
@@ -102,15 +120,59 @@ export class ArtifactGraphWriterService {
       }
 
       await tx.decisionArtifactVariableDependency.createMany({
-        data: dto.dependencies.map((dependency) => ({
+        data: dto.dependencies.map((dependency, index) => ({
           artifactVersionId: versionId,
-          variableVersionId: BigInt(dependency.variableVersionId),
+          variableVersionId: dependencyIds[index],
           usageType: dependency.usageType,
           isRequired: dependency.isRequired,
           fallbackPolicy: dependency.fallbackPolicy,
           dependencyPath: dependency.dependencyPath,
         })),
       });
+
+      // Intermedias y contrato de salida: se reemplazan con el resto del grafo, en la
+      // misma transacción, para que nunca queden apuntando a nodos que ya no existen.
+      if (dto.intermediates?.length) {
+        await tx.decisionIntermediateVariable.createMany({
+          data: dto.intermediates.map((intermediate) => ({
+            tenantId,
+            artifactVersionId: versionId,
+            code: intermediate.code,
+            name: intermediate.name,
+            description: intermediate.description,
+            dataType: intermediate.dataType,
+            producerNodeKey: intermediate.producerNodeKey,
+            consumerNodeKeys: intermediate.consumerNodeKeys,
+            initialValueJson: intermediate.initialValue as Prisma.InputJsonValue | undefined,
+            constraintsJson: intermediate.constraints as Prisma.InputJsonValue | undefined,
+            nullable: intermediate.nullable,
+            updatePolicy: intermediate.updatePolicy,
+            availabilityConditionJson: intermediate.availabilityCondition as
+              Prisma.InputJsonValue | undefined,
+            sensitivityClass: intermediate.sensitivityClass as SensitivityClass,
+            tracePolicy: intermediate.tracePolicy as TracePolicy,
+          })),
+        });
+      }
+      if (dto.outputContract?.length) {
+        await tx.decisionOutputContractField.createMany({
+          data: dto.outputContract.map((field) => ({
+            tenantId,
+            artifactVersionId: versionId,
+            fieldCode: field.code,
+            name: field.name,
+            description: field.description,
+            sourceKind: field.sourceKind as OutputSourceKind,
+            sourceRef: field.sourceRef,
+            valueMappingJson: field.valueMapping as Prisma.InputJsonValue | undefined,
+            absenceReasons: field.absenceReasons,
+            exampleJson: field.example as Prisma.InputJsonValue | undefined,
+            contractVersion: field.contractVersion,
+            sensitivityClass: field.sensitivityClass as SensitivityClass,
+            tracePolicy: field.tracePolicy as TracePolicy,
+          })),
+        });
+      }
 
       // Every child insert below is batched with createManyAndReturn / createMany rather
       // than one create() per row. The author path is low-volume, but a graph with
@@ -172,7 +234,7 @@ export class ArtifactGraphWriterService {
         const reasonMappingRows = dto.actions.flatMap((action) =>
           action.reasonCodes.map((reason) => ({
             actionId: actionIds.get(action.code)!,
-            reasonCodeId: BigInt(reason.reasonCodeId),
+            reasonCodeId: parseBigIntId(reason.reasonCodeId, 'reasonCodeId'),
             priority: reason.priority,
             messageTemplateJson: reason.messageTemplate as Prisma.InputJsonValue | undefined,
           })),
@@ -191,8 +253,10 @@ export class ArtifactGraphWriterService {
             nodeType: node.type,
             label: node.label,
             configJson: node.config as Prisma.InputJsonValue,
-            xPos: Math.round(node.x),
-            yPos: Math.round(node.y),
+            // Porcentajes del lienzo con dos decimales: redondear a entero movía
+            // el nodo ~17 px respecto de donde el autor lo soltó.
+            xPos: Math.round(node.x * 100) / 100,
+            yPos: Math.round(node.y * 100) / 100,
             orderIndex: node.order,
             isTerminal: node.terminal,
           })),
@@ -278,6 +342,12 @@ export class ArtifactGraphWriterService {
       if (edgeConditionRows.length)
         await tx.decisionEdgeCondition.createMany({ data: edgeConditionRows });
 
+      // Las invocaciones a campos calculados se resuelven contra la base y se congelan
+      // aquí: el cliente nunca aporta la definición ejecutable (ver
+      // CalculatedFieldBindingService).
+      const calculatedFieldCalls = await this.calculatedFields.resolve(tenantId, dto.nodes, tx);
+      await this.calculatedFields.persist(tenantId, versionId, calculatedFieldCalls, tx);
+
       // Registry copy of node scripts: the engine keeps executing config_json,
       // but every script becomes queryable/auditable with a checksum and the
       // variable contract it was written against.
@@ -321,6 +391,9 @@ export class ArtifactGraphWriterService {
           operation: 'REPLACE',
           newValueJson: {
             dependencies: dto.dependencies.length,
+            intermediates: dto.intermediates?.length ?? 0,
+            calculatedFieldCalls: calculatedFieldCalls.length,
+            outputContract: dto.outputContract?.length ?? 0,
             conditions: dto.conditions.length,
             actions: dto.actions.length,
             nodes: dto.nodes.length,

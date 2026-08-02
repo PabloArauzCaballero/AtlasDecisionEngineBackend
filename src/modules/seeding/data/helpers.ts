@@ -1,5 +1,6 @@
+/** Pure seed helpers keep canonical values/checksums independent from Nest providers and I/O. */
 import { createHash } from 'node:crypto';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient, SensitivityClass, VariableLifecycleState } from '@prisma/client';
 import type { ReasonSeed, VariableSeed } from './types';
 
 const TENANT_ID = 1n;
@@ -38,27 +39,47 @@ export async function ensureEnvironment(
 export async function ensureVariable(prisma: PrismaClient, seed: VariableSeed) {
   const isOutput = seed.kind === 'OUTPUT';
   const ownerTeam = seed.owner ?? 'RISK_DECISIONING';
+  // Taxonomía formal §1.1. `isSensitive` y `dataClassification` se mantienen como
+  // proyecciones derivadas para no romper a los consumidores que ya las leen.
+  const governance = {
+    dataClassification: seed.sensitive ? 'CONFIDENTIAL' : 'INTERNAL',
+    ownerTeam,
+    isSensitive: seed.sensitive ?? false,
+    isActive: true,
+    sensitivityClass: (seed.sensitive ? 'PII' : 'INTERNAL') as SensitivityClass,
+    lifecycleState: 'ACTIVE' as VariableLifecycleState,
+    contractVersion: '1',
+  };
   const definition = await prisma.decisionVariableDefinition.upsert({
     where: { tenantId_variableCode: { tenantId: TENANT_ID, variableCode: seed.code } },
-    update: {
-      canonicalName: seed.name,
-      businessDescription: seed.description,
-      dataClassification: seed.sensitive ? 'CONFIDENTIAL' : 'INTERNAL',
-      ownerTeam,
-      isSensitive: seed.sensitive ?? false,
-      isActive: true,
-    },
+    update: { canonicalName: seed.name, businessDescription: seed.description, ...governance },
     create: {
       tenantId: TENANT_ID,
       variableCode: seed.code,
       canonicalName: seed.name,
       businessDescription: seed.description,
-      dataClassification: seed.sensitive ? 'CONFIDENTIAL' : 'INTERNAL',
-      ownerTeam,
-      isSensitive: seed.sensitive ?? false,
-      isActive: true,
+      ...governance,
     },
   });
+
+  // El catálogo del repositorio es la fuente de verdad de la versión 1: es la que crea y
+  // posee el seeder (la API siempre crea versiones NUEVAS, nunca edita la 1). Antes esta
+  // función salía antes de tocar nada si la fila ya existía, así que cualquier corrección
+  // del catálogo no llegaba jamás a una base ya sembrada. Ese desfase es real y costó una
+  // ejecución rota: `fraud_score` se declaró anulable en el catálogo —un rechazo temprano
+  // en KYC nunca lo calcula— pero la fila seguía con `nullable = false` y toda decisión
+  // declinada en KYC moría con REQUIRED_OUTPUT_MISSING.
+  const contractMetadata = {
+    displayName: seed.name,
+    description: seed.description,
+    dataType: seed.type,
+    unitCode: seed.unit ?? null,
+    nullable: seed.nullable ?? false,
+    validationSchemaJson: seed.validation,
+    constraintsJson: seed.validation ?? undefined,
+    expectedOrigin: isOutput ? 'DERIVED' : (seed.source ?? 'REQUEST'),
+    contractVersion: '1',
+  };
 
   const current = await prisma.decisionVariableVersion.findUnique({
     where: {
@@ -68,7 +89,13 @@ export async function ensureVariable(prisma: PrismaClient, seed: VariableSeed) {
       },
     },
   });
-  if (current) return { definition, version: current };
+  if (current) {
+    const version = await prisma.decisionVariableVersion.update({
+      where: { id: current.id },
+      data: contractMetadata,
+    });
+    return { definition, version };
+  }
 
   // OUTPUT (target/scoring) variables are produced by the engine, so their authoritative
   // "source" is the decision output envelope, not an inbound request field. INPUT variables
@@ -95,10 +122,7 @@ export async function ensureVariable(prisma: PrismaClient, seed: VariableSeed) {
     data: {
       variableDefinitionId: definition.id,
       versionNumber: 1,
-      dataType: seed.type,
-      unitCode: seed.unit ?? null,
-      nullable: seed.nullable ?? false,
-      validationSchemaJson: seed.validation,
+      ...contractMetadata,
       sources: { create: source },
     },
   });

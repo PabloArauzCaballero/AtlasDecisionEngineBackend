@@ -1,3 +1,4 @@
+/** Precomputed graph indexes keep validation rules linear and consistent about terminal nodes. */
 import type { ArtifactGraphSnapshot } from '../graph.types';
 
 export interface GraphLookups {
@@ -5,6 +6,10 @@ export interface GraphLookups {
   conditionCodes: Set<string>;
   actionCodes: Set<string>;
   variableCodes: Set<string>;
+  /** Códigos de variable intermedia declarados por este grafo (§2). */
+  intermediateCodes: Set<string>;
+  /** Códigos declarados como salida pública del artefacto. */
+  outputCodes: Set<string>;
   terminalActionCodes: Set<string>;
   isTerminalNode: (node: ArtifactGraphSnapshot['nodes'][number]) => boolean;
 }
@@ -25,6 +30,12 @@ export function buildGraphLookups(snapshot: ArtifactGraphSnapshot): GraphLookups
     conditionCodes: new Set(snapshot.conditions.map((condition) => condition.code)),
     actionCodes: new Set(snapshot.actions.map((action) => action.code)),
     variableCodes: new Set(snapshot.variables.map((variable) => variable.code)),
+    intermediateCodes: new Set(snapshot.intermediates.map((intermediate) => intermediate.code)),
+    outputCodes: new Set(
+      snapshot.variables
+        .filter((variable) => String(variable.usageType ?? '').startsWith('OUTPUT'))
+        .map((variable) => variable.code),
+    ),
     terminalActionCodes,
     isTerminalNode,
   };

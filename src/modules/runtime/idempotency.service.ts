@@ -5,6 +5,9 @@ import { DomainException } from '../../common/errors/domain-exception';
 import { HashService } from '../../common/crypto/hash.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 
+/** How many times a lost reclaim race may restart the resolution before giving up. */
+const MAX_RECLAIM_ATTEMPTS = 2;
+
 /** Result of claiming or replaying an idempotency key. */
 export type IdempotencyReservation =
   | { kind: 'reserved'; id: bigint }
@@ -44,6 +47,14 @@ export class IdempotencyService {
     artifactCode: string,
     key: string,
     requestHash: string,
+    /**
+     * Reclaim attempts already spent. Losing the race to reclaim an expired reservation
+     * restarts the resolution from a re-read, and each restart must be bounded: without a
+     * ceiling, a key under heavy contention could recurse until the stack gave out, and a
+     * stack overflow in the decision path is a far worse outcome than a 409 the caller can
+     * retry. Two retries is already generous — every restart means another request won.
+     */
+    attempt = 0,
   ): Promise<IdempotencyReservation> {
     const now = new Date();
     try {
@@ -100,7 +111,14 @@ export class IdempotencyService {
         });
         if (renewed.count === 1) return { kind: 'reserved', id: existing.id };
         // Another request won the reclaim; re-read and follow the normal path.
-        return this.reserve(tenantId, artifactCode, key, requestHash);
+        if (attempt >= MAX_RECLAIM_ATTEMPTS) {
+          throw new DomainException(
+            'IDEMPOTENCY_CONTENDED',
+            'The idempotency key is under contention; retry the request',
+            HttpStatus.CONFLICT,
+          );
+        }
+        return this.reserve(tenantId, artifactCode, key, requestHash, attempt + 1);
       }
 
       // The reservation is live (terminal within TTL, or PROCESSING with a valid lease).

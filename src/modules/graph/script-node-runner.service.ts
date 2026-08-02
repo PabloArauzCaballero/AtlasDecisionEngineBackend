@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { spawnSync } from 'node:child_process';
 import * as http from 'node:http';
@@ -63,6 +63,18 @@ process.stdin.on('end', () => {
 const PYTHON_WRAPPER = String.raw`
 import ast, json, sys
 payload = json.load(sys.stdin)
+# Cota de memoria por proceso (§9.3). El runner de JS ya recibe --max-old-space-size; Python
+# no tenia ninguna, asi que un script desbocado podia crecer hasta el limite del CONTENEDOR y
+# llevarse por delante las ejecuciones vecinas — mas probable desde que el sidecar atiende
+# varias a la vez. Medido: a 32 MiB un script normal corre igual y una fuga muere a los ~18 MiB.
+# RLIMIT_AS solo existe en POSIX; en Windows (solo desarrollo) no hay nada que aplicar.
+try:
+    import resource
+    _max_bytes = int(payload.get('maxMemoryBytes') or 0)
+    if _max_bytes > 0:
+        resource.setrlimit(resource.RLIMIT_AS, (_max_bytes, _max_bytes))
+except (ImportError, ValueError, OSError):
+    pass
 tree = ast.parse(payload['source'], filename='atlas-result-node.py', mode='exec')
 blocked = (ast.Import, ast.ImportFrom, ast.Global, ast.Nonlocal, ast.ClassDef, ast.With, ast.AsyncWith, ast.Try, ast.Raise)
 # str.format()/format_map() resolve "{0.__class__.__bases__[0]...}"-style field specs at
@@ -80,14 +92,19 @@ for node in ast.walk(tree):
 safe_builtins = {
     'abs': abs, 'bool': bool, 'dict': dict, 'enumerate': enumerate, 'float': float,
     'int': int, 'len': len, 'list': list, 'max': max, 'min': min, 'range': range,
-    'round': round, 'str': str, 'sum': sum, 'tuple': tuple, 'zip': zip,
+    'round': round, 'str': str, 'sum': sum, 'tuple': tuple, 'zip': zip, 'sorted': sorted,
 }
 scope = {
     'variables': payload['context'].get('variables', {}),
     'decision': payload['context'].get('decision', {}),
     'output': payload['context'].get('output', {}),
 }
-exec(compile(tree, 'atlas-result-node.py', 'exec'), {'__builtins__': safe_builtins}, scope)
+# Un único diccionario como globals Y locals: con globals y locals separados, una
+# función definida por el script queda en locals y su cuerpo no la ve al ejecutarse
+# (busca en globals), así que cualquier helper que llame a otro helper falla con
+# NameError. Los builtins restringidos siguen siendo los mismos.
+scope['__builtins__'] = safe_builtins
+exec(compile(tree, 'atlas-result-node.py', 'exec'), scope)
 sys.stdout.write(json.dumps(scope.get('result')))
 `;
 
@@ -108,6 +125,8 @@ export class ScriptNodeRunnerService {
   private readonly timeoutMs: number;
   private readonly maxSourceBytes: number;
   private readonly maxOutputBytes: number;
+  private readonly maxMemoryBytes: number;
+  private readonly pythonExecutable: string;
 
   private readonly isProduction: boolean;
 
@@ -121,6 +140,10 @@ export class ScriptNodeRunnerService {
     this.timeoutMs = config.get<number>('SCRIPT_NODE_TIMEOUT_MS') ?? 250;
     this.maxSourceBytes = config.get<number>('SCRIPT_NODE_MAX_SOURCE_BYTES') ?? 16_384;
     this.maxOutputBytes = config.get<number>('SCRIPT_NODE_MAX_OUTPUT_BYTES') ?? 65_536;
+    // El runner de JS recibe la cota en sus argumentos (--max-old-space-size); el de Python
+    // la recibe en el payload y la aplica con RLIMIT_AS. Mismo techo para los dos.
+    this.maxMemoryBytes = (config.get<number>('SCRIPT_NODE_MAX_MEMORY_MB') ?? 32) * 1024 * 1024;
+    this.pythonExecutable = config.get<string>('PYTHON_EXECUTABLE') ?? 'python';
   }
 
   async execute(
@@ -132,6 +155,7 @@ export class ScriptNodeRunnerService {
       throw new DomainException(
         'SCRIPT_NODES_DISABLED',
         'Script RESULT nodes are disabled. Set SCRIPT_NODES_ENABLED=true only with an isolated runner.',
+        HttpStatus.SERVICE_UNAVAILABLE,
       );
     }
     if (this.isProduction && this.mode !== 'SIDECAR') {
@@ -141,6 +165,7 @@ export class ScriptNodeRunnerService {
       throw new DomainException(
         'SCRIPT_RUNNER_INSECURE_IN_PRODUCTION',
         'The in-process script runner cannot execute in production; use SCRIPT_RUNNER_MODE=SIDECAR.',
+        HttpStatus.SERVICE_UNAVAILABLE,
       );
     }
     if (Buffer.byteLength(source, 'utf8') > this.maxSourceBytes) {
@@ -166,14 +191,34 @@ export class ScriptNodeRunnerService {
       timeoutMs: this.timeoutMs,
       maxSourceBytes: this.maxSourceBytes,
       maxOutputBytes: this.maxOutputBytes,
+      maxMemoryBytes: this.maxMemoryBytes,
     });
     const { statusCode, payload } = await this.postToSidecar(body);
     if (statusCode === 200 && payload?.ok) {
-      return payload.result as Record<string, unknown>;
+      // The sidecar already validates the script's output, but this side must not take that
+      // on trust: it is a separate process and the value flows straight into the decision's
+      // output contract. Same shape check as the in-process path.
+      const result = payload.result;
+      if (!result || typeof result !== 'object' || Array.isArray(result)) {
+        throw new DomainException(
+          'SCRIPT_INVALID_OUTPUT',
+          'RESULT script must return a JSON object',
+        );
+      }
+      return result as Record<string, unknown>;
     }
     const code = payload?.code ?? 'SCRIPT_EXECUTION_FAILED';
     const message = payload?.message ?? 'RESULT script execution failed';
-    throw new DomainException(code, message);
+    // A 5xx from the sidecar means the script never ran (at capacity, crashed, restarting).
+    // That must surface as a transient failure so RuntimeService releases the idempotency
+    // reservation; as a 4xx it would be cached as this request's terminal decision and the
+    // caller could not retry the same key at all.
+    throw new DomainException(code, message, this.statusForSidecar(statusCode));
+  }
+
+  /** Anything the sidecar answers with 5xx — or does not answer at all — is transient. */
+  private statusForSidecar(statusCode: number): HttpStatus {
+    return statusCode >= 500 ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.UNPROCESSABLE_ENTITY;
   }
 
   private postToSidecar(body: string): Promise<{
@@ -194,9 +239,27 @@ export class ScriptNodeRunnerService {
         },
         (response) => {
           let raw = '';
+          // The sidecar is bounded, but a hung or compromised one must not be able to grow
+          // this buffer without limit: the API process would OOM on a response it never
+          // asked for. Budget = the script's own output cap plus envelope overhead.
+          const maxResponseBytes = this.maxOutputBytes + 4_096;
+          let aborted = false;
           response.setEncoding('utf8');
-          response.on('data', (chunk) => (raw += chunk));
+          response.on('data', (chunk: string) => {
+            if (aborted) return;
+            raw += chunk;
+            if (Buffer.byteLength(raw, 'utf8') <= maxResponseBytes) return;
+            aborted = true;
+            response.destroy();
+            reject(
+              new DomainException(
+                'SCRIPT_INVALID_OUTPUT',
+                `The isolated script runner returned more than ${maxResponseBytes} bytes`,
+              ),
+            );
+          });
           response.on('end', () => {
+            if (aborted) return;
             try {
               resolve({
                 statusCode: response.statusCode ?? 500,
@@ -214,6 +277,7 @@ export class ScriptNodeRunnerService {
           new DomainException(
             'SCRIPT_RUNNER_UNAVAILABLE',
             `Could not reach the isolated script runner: ${error.message}`,
+            HttpStatus.SERVICE_UNAVAILABLE,
           ),
         ),
       );
@@ -226,13 +290,21 @@ export class ScriptNodeRunnerService {
     source: string,
     context: Record<string, unknown>,
   ): Record<string, unknown> {
-    const input = JSON.stringify({ source, context, timeoutMs: this.timeoutMs });
-    const command =
-      language === 'PYTHON' ? process.env.PYTHON_EXECUTABLE || 'python' : process.execPath;
+    const input = JSON.stringify({
+      source,
+      context,
+      timeoutMs: this.timeoutMs,
+      maxMemoryBytes: this.maxMemoryBytes,
+    });
+    const command = language === 'PYTHON' ? this.pythonExecutable : process.execPath;
     const args =
       language === 'PYTHON'
         ? ['-I', '-S', '-B', '-c', PYTHON_WRAPPER]
-        : ['--max-old-space-size=32', '-e', JS_WRAPPER];
+        : [
+            `--max-old-space-size=${Math.trunc(this.maxMemoryBytes / (1024 * 1024))}`,
+            '-e',
+            JS_WRAPPER,
+          ];
     const execution = spawnSync(command, args, {
       input,
       encoding: 'utf8',

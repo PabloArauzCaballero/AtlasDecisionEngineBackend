@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export BASE_URL="${BASE_URL:-http://localhost:3000}"
-export RUNTIME_API_KEY="${RUNTIME_API_KEY:-local-runtime-key-change-before-sharing}"
-export MANAGEMENT_API_KEY="${MANAGEMENT_API_KEY:-local-management-key-change-before-sharing}"
-export TENANT_ID="${TENANT_ID:-1}"
+# Thin wrapper: every setting comes from .env (loaded by smoke.mjs) or from the environment,
+# so the smoke can never authenticate with a credential that lives in this file instead of in
+# configuration. Exported values already present here still win over the file.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 exec node "$SCRIPT_DIR/smoke.mjs"

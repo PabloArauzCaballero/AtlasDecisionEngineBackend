@@ -25,7 +25,9 @@ export default async function globalTeardown(): Promise<void> {
   try {
     const result = await cleanTestArtifacts(prisma);
     if (result.artifacts) {
-      process.stdout.write(`\n[e2e teardown] ${result.artifacts} artefactos de prueba eliminados\n`);
+      process.stdout.write(
+        `\n[e2e teardown] ${result.artifacts} artefactos de prueba eliminados\n`,
+      );
     }
   } catch (error) {
     process.stdout.write(`[e2e teardown] limpieza omitida: ${(error as Error).message}\n`);

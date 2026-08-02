@@ -15,7 +15,7 @@ import {
 // terminal path they exercise — so each case is a complete, resolvable input set (the engine
 // fails closed on any missing required input), and each override maps to exactly one decline
 // cause / review trigger in demo-graph.ts.
-const BASE_APPLICANT: Record<string, unknown> = {
+export const DEMO_BASE_APPLICANT: Record<string, unknown> = {
   // Identidad / KYC
   kyc_status: 'VERIFIED',
   consent_active: true,
@@ -82,7 +82,7 @@ const BASE_APPLICANT: Record<string, unknown> = {
 };
 
 const applicant = (overrides: Record<string, unknown>): Record<string, unknown> => ({
-  ...BASE_APPLICANT,
+  ...DEMO_BASE_APPLICANT,
   ...overrides,
 });
 

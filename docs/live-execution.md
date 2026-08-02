@@ -6,35 +6,22 @@ pendiente/ejecutando/completado/error, la ruta recorrida, las ramas
 descartadas en cada nodo de bifurcación, y las llamadas a árboles anidados
 (Fase 7) que ocurrieron durante la ejecución.
 
-## ⚠️ Dependencia de la Rebanada 1 — estado de la integración
+## Justificación de arquitectura
 
-Esta característica **depende conceptualmente** del bus de eventos que la
-Rebanada 1 (Event-driven + Outbox + Notificaciones) está construyendo en
-paralelo sobre `src/common/events/**`, `src/modules/outbox-relay/**` y
-`src/modules/notifications/**`. Esos archivos son propiedad exclusiva de esa
-sesión y **no se editaron ni se leyeron como dependencia** en esta rebanada —
-siguiendo la instrucción explícita de programar contra el contrato documentado
-en su brief sin tocar código ajeno.
+El bus transaccional, el relay y las notificaciones ya están integrados, pero el
+progreso por nodo **no se publica al outbox**. Es una decisión deliberada: los
+eventos de dominio representan hechos durables de baja cardinalidad; los pasos
+de una previsualización son telemetría efímera, potencialmente voluminosa y útil
+sólo para la conexión que la solicitó. Persistirlos aumentaría el tamaño del
+outbox, acoplaría la latencia del preview a consumidores y podría confundirse
+con evidencia de una decisión productiva.
 
-**Lo que se implementó aquí es autosuficiente**: el stream SSE conduce la
-ejecución directamente (misma conexión HTTP = misma llamada a
-`ExecutionEngineService.execute()`), sin pasar por ningún bus de eventos. No
-requiere que la Rebanada 1 exista para funcionar, y funciona hoy contra la
-rama de este trabajo tal cual.
-
-**Pendiente de merge de R1**: una vez fusionado el bus de eventos, tendría
-sentido que el motor de ejecución **además** publique un evento
-`live_execution.step` (o similar) al bus para que otros consumidores
-(auditoría en tiempo real, notificaciones, un panel de operaciones separado)
-puedan escuchar sin necesidad de una conexión SSE dedicada. Esa publicación
-adicional **no se implementó** — es un paso de integración posterior,
-documentado aquí explícitamente como pendiente, en lugar de fabricar una
-versión propia del contrato de eventos de R1 que luego colisionaría en el
-merge.
+El SSE conduce el motor directamente en el request. Las ejecuciones reales de
+runtime siguen persistiendo evidencia y eventos por sus caminos normales.
 
 ## Diseño
 
-`ExecutionEngineService.execute()` gana un **sexto parámetro opcional**,
+`ExecutionEngineService.execute()` acepta un **quinto parámetro opcional**,
 `onStep?: (event: LiveStepEvent) => void` — un argumento de llamada plano, no
 una dependencia de constructor (mismo patrón que `ArtifactReferenceResolver`,
 ver `docs/nested-decision-trees.md`), así que **ningún llamador existente
@@ -70,6 +57,7 @@ justificación que `SimulationService`.
 
 Eventos SSE emitidos:
 - `node_step` — un `LiveStepEvent` por cada inicio/fin de nodo.
+- `heartbeat` — timestamp periódico que mantiene vivos proxy y timeout global.
 - `execution_completed` — resultado final (`status`, `outcome`, `output`,
   `reasons`, `nestedExecutions`).
 - `execution_failed` — variables inválidas, PROD prohibido, o cualquier error
@@ -83,6 +71,21 @@ Eventos SSE emitidos:
 | GET | `/v1/live-executions/stream?artifactCode&environmentCode&requestId&variables` | RISK_ANALYST, FRAUD_ANALYST, QA_ANALYST |
 
 `variables` es un objeto JSON codificado como string en el query param.
+`null`, arrays y valores primitivos se rechazan con
+`LIVE_EXECUTION_VARIABLES_INVALID`.
+
+## Configuración y seguridad
+
+- `LIVE_EXECUTION_STREAM_ENABLED=false` por defecto. Si está deshabilitado, el
+  endpoint responde `LIVE_EXECUTION_DISABLED` (503) antes de abrir el stream.
+- `LIVE_EXECUTION_STREAM_HEARTBEAT_MS=15000`, rango 1000–60000.
+- `variables` se limita a 16384 caracteres y `requestId` usa el mismo alfabeto
+  acotado del resto de la API.
+- PROD está prohibido. No hay idempotencia, `DecisionExecution`, auditoría ni
+  outbox porque la herramienta es un preview de gestión.
+- Una excepción inesperada se registra con correlación en el logger estructurado
+  y se devuelve como mensaje genérico; SSE ya confirmó HTTP 200 y no puede usar
+  el filtro global para redactar el body.
 
 ## Pruebas
 
@@ -98,9 +101,10 @@ con `branchTaken`/`discardedEdgeKeys` correctos, entrega un
 `execution_completed` con el `outcome` correcto, y rechaza PROD con un
 `execution_failed` en vez de ejecutar.
 
-## Pendiente / fuera de alcance de esta rebanada
+## Fuera de alcance
 
-- Publicación al bus de eventos de R1 (ver arriba).
+- Persistencia o publicación de pasos al outbox (excluida deliberadamente; ver
+  justificación de arquitectura).
 - El frontend anima una lista de nodos con su estado en tiempo real (no un
   lienzo 2D interactivo completo — el editor de grafo existente ya cubre esa
   vista para autoría; repurpose-arlo para animación en vivo sería un trabajo

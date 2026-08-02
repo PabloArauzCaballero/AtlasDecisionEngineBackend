@@ -1,3 +1,4 @@
+/** Publishes objectives and evidence links as a cohesive governance capability. */
 import { Module } from '@nestjs/common';
 import { TraceabilityController } from './traceability.controller';
 import { TraceabilityService } from './traceability.service';

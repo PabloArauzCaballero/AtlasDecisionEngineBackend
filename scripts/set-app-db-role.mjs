@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+/**
+ * Sets the login secret for the pre-created non-superuser role. Keeping it outside migration SQL
+ * prevents credentials from entering history while making RLS effective at runtime.
+ */
 // Sets the login password of the non-superuser application role (atlas_app) from an
 // environment variable, so the secret never lives in a migration or in git.
 //

@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
+import { layoutSeedNodes } from '../../../common/graph/tree-layout';
 
 export interface ConditionDefinition {
   code: string;
@@ -101,10 +102,19 @@ const identityVerificationScoreExpr = ROUND(
   ),
 );
 const kycDecisionExpr = IF(
-  OR(EQ(V('kyc_status'), L('REJECTED')), NOT(V('consent_active')), NOT(V('liveness_check_passed')), NOT(V('national_id_verified'))),
+  OR(
+    EQ(V('kyc_status'), L('REJECTED')),
+    NOT(V('consent_active')),
+    NOT(V('liveness_check_passed')),
+    NOT(V('national_id_verified')),
+  ),
   L('FAIL'),
   IF(
-    OR(EQ(V('kyc_status'), L('PENDING')), V('pep_status'), LT(OUT('identity_verification_score'), L(60))),
+    OR(
+      EQ(V('kyc_status'), L('PENDING')),
+      V('pep_status'),
+      LT(OUT('identity_verification_score'), L(60)),
+    ),
     L('REVIEW'),
     L('PASS'),
   ),
@@ -123,7 +133,11 @@ const fraudScoreExpr = ROUND(
       IF_TRUE('known_fraud_email_flag', 30),
       IF_TRUE('known_fraud_phone_flag', 30),
       IF_TRUE('previous_fraud_case_flag', 40),
-      IF(EQ(V('device_reputation'), L('BLOCKLISTED')), L(25), IF(EQ(V('device_reputation'), L('SUSPICIOUS')), L(12), L(0))),
+      IF(
+        EQ(V('device_reputation'), L('BLOCKLISTED')),
+        L(25),
+        IF(EQ(V('device_reputation'), L('SUSPICIOUS')), L(12), L(0)),
+      ),
       IF_TRUE('sim_swap_detected', 20),
       IF_TRUE('geolocation_mismatch_flag', 15),
       IF_TRUE('browser_automation_detected', 15),
@@ -133,7 +147,11 @@ const fraudScoreExpr = ROUND(
       MUL(V('ip_address_risk_score'), L(0.15)),
       MUL(V('synthetic_identity_score'), L(0.2)),
       MUL(V('account_takeover_risk_score'), L(0.1)),
-      IF(GTE(V('velocity_applications_24h'), L(5)), L(10), IF(GTE(V('velocity_applications_24h'), L(3)), L(5), L(0))),
+      IF(
+        GTE(V('velocity_applications_24h'), L(5)),
+        L(10),
+        IF(GTE(V('velocity_applications_24h'), L(3)), L(5), L(0)),
+      ),
     ),
     0,
     100,
@@ -142,12 +160,26 @@ const fraudScoreExpr = ROUND(
 const fraudRiskBandExpr = IF(
   LT(OUT('fraud_score'), L(25)),
   L('LOW'),
-  IF(LT(OUT('fraud_score'), L(50)), L('MEDIUM'), IF(LT(OUT('fraud_score'), L(75)), L('HIGH'), L('CRITICAL'))),
+  IF(
+    LT(OUT('fraud_score'), L(50)),
+    L('MEDIUM'),
+    IF(LT(OUT('fraud_score'), L(75)), L('HIGH'), L('CRITICAL')),
+  ),
 );
 const fraudDecisionExpr = IF(
-  OR(V('known_fraud_device_flag'), V('known_fraud_email_flag'), V('known_fraud_phone_flag'), V('previous_fraud_case_flag'), EQ(V('device_reputation'), L('BLOCKLISTED'))),
+  OR(
+    V('known_fraud_device_flag'),
+    V('known_fraud_email_flag'),
+    V('known_fraud_phone_flag'),
+    V('previous_fraud_case_flag'),
+    EQ(V('device_reputation'), L('BLOCKLISTED')),
+  ),
   L('BLOCK'),
-  IF(OR(GTE(OUT('fraud_score'), L(40)), V('sim_swap_detected'), V('ip_tor_detected')), L('REVIEW'), L('CLEAR')),
+  IF(
+    OR(GTE(OUT('fraud_score'), L(40)), V('sim_swap_detected'), V('ip_tor_detected')),
+    L('REVIEW'),
+    L('CLEAR'),
+  ),
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -159,8 +191,14 @@ const fraudDecisionExpr = IF(
 // ─────────────────────────────────────────────────────────────────────────────
 const eligibilityAgeFail = LT(V('age'), L(18));
 const eligibilityEmploymentFail = IN(V('employment_status'), ['UNEMPLOYED', 'STUDENT']);
-const eligibilityAmountFail = OR(LT(V('requested_amount'), L(200)), GT(V('requested_amount'), L(15000)));
-const eligibilityTermFail = OR(LT(V('requested_term_months'), L(1)), GT(V('requested_term_months'), L(24)));
+const eligibilityAmountFail = OR(
+  LT(V('requested_amount'), L(200)),
+  GT(V('requested_amount'), L(15000)),
+);
+const eligibilityTermFail = OR(
+  LT(V('requested_term_months'), L(1)),
+  GT(V('requested_term_months'), L(24)),
+);
 const eligibilityScoreExpr = ADD(
   IF(NOT(eligibilityAgeFail), L(25), L(0)),
   IF(NOT(eligibilityEmploymentFail), L(25), L(0)),
@@ -184,23 +222,50 @@ const eligibilityDecisionExpr = IF(
 // term applies).
 // ─────────────────────────────────────────────────────────────────────────────
 const creditRiskBankruptcyFail = V('bankruptcy_flag');
-const creditRiskChargeOffFail = OR(GT(V('charge_off_count'), L(0)), EQ(V('worst_delinquency_status'), L('CHARGE_OFF')));
+const creditRiskChargeOffFail = OR(
+  GT(V('charge_off_count'), L(0)),
+  EQ(V('worst_delinquency_status'), L('CHARGE_OFF')),
+);
 const utilizationPoints = IF(
   LT(V('revolving_utilization_ratio'), L(0.3)),
   L(40),
-  IF(LT(V('revolving_utilization_ratio'), L(0.6)), L(15), IF(LT(V('revolving_utilization_ratio'), L(0.9)), L(-15), L(-40))),
+  IF(
+    LT(V('revolving_utilization_ratio'), L(0.6)),
+    L(15),
+    IF(LT(V('revolving_utilization_ratio'), L(0.9)), L(-15), L(-40)),
+  ),
 );
 const dtiPoints = IF(
   LT(V('debt_to_income_ratio'), L(0.2)),
   L(40),
-  IF(LT(V('debt_to_income_ratio'), L(0.36)), L(15), IF(LT(V('debt_to_income_ratio'), L(0.5)), L(-15), L(-45))),
+  IF(
+    LT(V('debt_to_income_ratio'), L(0.36)),
+    L(15),
+    IF(LT(V('debt_to_income_ratio'), L(0.5)), L(-15), L(-45)),
+  ),
 );
-const delinquencyPoints = IF(EQ(V('delinquency_count_12m'), L(0)), L(30), IF(LTE(V('delinquency_count_12m'), L(2)), L(-20), L(-60)));
-const inquiryPoints = IF(LTE(V('inquiries_last_6m'), L(2)), L(10), IF(LTE(V('inquiries_last_6m'), L(5)), L(-5), L(-20)));
-const hardDerogatoryPenalty = IF(OR(creditRiskBankruptcyFail, creditRiskChargeOffFail), L(-300), L(0));
+const delinquencyPoints = IF(
+  EQ(V('delinquency_count_12m'), L(0)),
+  L(30),
+  IF(LTE(V('delinquency_count_12m'), L(2)), L(-20), L(-60)),
+);
+const inquiryPoints = IF(
+  LTE(V('inquiries_last_6m'), L(2)),
+  L(10),
+  IF(LTE(V('inquiries_last_6m'), L(5)), L(-5), L(-20)),
+);
+const hardDerogatoryPenalty = IF(
+  OR(creditRiskBankruptcyFail, creditRiskChargeOffFail),
+  L(-300),
+  L(0),
+);
 const publicRecordPoints = IF(EQ(V('public_records_count'), L(0)), L(10), L(-40));
 const thinFilePoints = IF(OR(V('thin_file_flag'), V('no_hit_flag')), L(-50), L(0));
-const historyLengthPoints = IF(GTE(V('oldest_trade_age_months'), L(60)), L(20), IF(GTE(V('oldest_trade_age_months'), L(24)), L(10), L(0)));
+const historyLengthPoints = IF(
+  GTE(V('oldest_trade_age_months'), L(60)),
+  L(20),
+  IF(GTE(V('oldest_trade_age_months'), L(24)), L(10), L(0)),
+);
 const creditRiskScoreExpr = ROUND(
   CLAMP(
     ADD(
@@ -224,7 +289,11 @@ const creditRiskScoreExpr = ROUND(
 const riskBandExpr = IF(
   GTE(OUT('credit_risk_score'), L(750)),
   L('LOW'),
-  IF(GTE(OUT('credit_risk_score'), L(600)), L('MEDIUM'), IF(GTE(OUT('credit_risk_score'), L(450)), L('HIGH'), L('VERY_HIGH'))),
+  IF(
+    GTE(OUT('credit_risk_score'), L(600)),
+    L('MEDIUM'),
+    IF(GTE(OUT('credit_risk_score'), L(450)), L('HIGH'), L('VERY_HIGH')),
+  ),
 );
 // Master-scale PD calibration (anchor points typical of a retail unsecured rating-grade term
 // structure) rather than a computed sigmoid — see the stage banner comment above.
@@ -240,7 +309,11 @@ const probabilityOfDefaultExpr = IF(
       IF(
         GTE(OUT('credit_risk_score'), L(550)),
         L(0.07),
-        IF(GTE(OUT('credit_risk_score'), L(450)), L(0.13), IF(GTE(OUT('credit_risk_score'), L(350)), L(0.22), L(0.35))),
+        IF(
+          GTE(OUT('credit_risk_score'), L(450)),
+          L(0.13),
+          IF(GTE(OUT('credit_risk_score'), L(350)), L(0.22), L(0.35)),
+        ),
       ),
     ),
   ),
@@ -248,7 +321,10 @@ const probabilityOfDefaultExpr = IF(
 // Flat unsecured-retail LGD benchmark (~80%, within the typical 75-90% Basel IRB retail-unsecured
 // range) — BNPL originations here carry no collateral term.
 const UNSECURED_LGD = 0.8;
-const expectedLossAmountExpr = ROUND(MUL(OUT('probability_of_default'), L(UNSECURED_LGD), V('requested_amount')), 2);
+const expectedLossAmountExpr = ROUND(
+  MUL(OUT('probability_of_default'), L(UNSECURED_LGD), V('requested_amount')),
+  2,
+);
 const creditRiskDecisionExpr = IF(
   OR(creditRiskBankruptcyFail, creditRiskChargeOffFail, LT(OUT('credit_risk_score'), L(450))),
   L('FAIL'),
@@ -266,19 +342,39 @@ const affordabilityNsfFail = GTE(V('bank_statement_nsf_count'), L(6));
 const affordabilityRatioPenalty = IF(
   GT(V('affordability_ratio'), L(0.4)),
   L(-50),
-  IF(GT(V('affordability_ratio'), L(0.3)), L(-20), IF(GT(V('affordability_ratio'), L(0.2)), L(0), L(10))),
+  IF(
+    GT(V('affordability_ratio'), L(0.3)),
+    L(-20),
+    IF(GT(V('affordability_ratio'), L(0.2)), L(0), L(10)),
+  ),
 );
 // min(nsf, 3) * -10: capped at -30 so a handful of NSF events don't dominate the score.
 const nsfPenalty = MUL(MIN(V('bank_statement_nsf_count'), L(3)), L(-10));
-const selfEmployedPenalty = IF(AND(V('self_employed_flag'), NOT(V('tax_return_verified'))), L(-15), L(0));
+const selfEmployedPenalty = IF(
+  AND(V('self_employed_flag'), NOT(V('tax_return_verified'))),
+  L(-15),
+  L(0),
+);
 const affordabilityScoreExpr = CLAMP(
-  ADD(L(100), affordabilityRatioPenalty, MUL(V('income_stability_score'), L(0.2)), nsfPenalty, selfEmployedPenalty),
+  ADD(
+    L(100),
+    affordabilityRatioPenalty,
+    MUL(V('income_stability_score'), L(0.2)),
+    nsfPenalty,
+    selfEmployedPenalty,
+  ),
   0,
   100,
 );
 const MAX_AFFORDABLE_SHARE_OF_DISPOSABLE_INCOME = 0.35;
-const maxAffordableInstallmentExpr = ROUND(MUL(V('disposable_income'), L(MAX_AFFORDABLE_SHARE_OF_DISPOSABLE_INCOME)), 2);
-const affordabilityDisposableFail = OR(LTE(V('disposable_income'), L(0)), LT(OUT('affordability_score'), L(40)));
+const maxAffordableInstallmentExpr = ROUND(
+  MUL(V('disposable_income'), L(MAX_AFFORDABLE_SHARE_OF_DISPOSABLE_INCOME)),
+  2,
+);
+const affordabilityDisposableFail = OR(
+  LTE(V('disposable_income'), L(0)),
+  LT(OUT('affordability_score'), L(40)),
+);
 const affordabilityDecisionExpr = IF(
   OR(affordabilityRatioFail, affordabilityNsfFail, affordabilityDisposableFail),
   L('FAIL'),
@@ -291,13 +387,28 @@ const affordabilityDecisionExpr = IF(
 // the reason catalog for this; the existing OFAC_POTENTIAL_MATCH is deliberately softer and
 // review-only), everything else is a weighted score feeding CLEAR/REVIEW.
 // ─────────────────────────────────────────────────────────────────────────────
-const amlSanctionsConfirmed = OR(EQ(V('ofac_screening_result'), L('MATCH')), EQ(V('sanctions_screening_result'), L('CONFIRMED_MATCH')));
-const pepIsHighRisk = OR(EQ(V('pep_relationship_type'), L('SELF')), EQ(V('pep_relationship_type'), L('FAMILY')), EQ(V('pep_relationship_type'), L('CLOSE_ASSOCIATE')));
+const amlSanctionsConfirmed = OR(
+  EQ(V('ofac_screening_result'), L('MATCH')),
+  EQ(V('sanctions_screening_result'), L('CONFIRMED_MATCH')),
+);
+const pepIsHighRisk = OR(
+  EQ(V('pep_relationship_type'), L('SELF')),
+  EQ(V('pep_relationship_type'), L('FAMILY')),
+  EQ(V('pep_relationship_type'), L('CLOSE_ASSOCIATE')),
+);
 const amlRiskScoreExpr = CLAMP(
   ADD(
-    IF(EQ(V('ofac_screening_result'), L('MATCH')), L(30), IF(EQ(V('ofac_screening_result'), L('REVIEW_REQUIRED')), L(12), L(0))),
+    IF(
+      EQ(V('ofac_screening_result'), L('MATCH')),
+      L(30),
+      IF(EQ(V('ofac_screening_result'), L('REVIEW_REQUIRED')), L(12), L(0)),
+    ),
     IF(EQ(V('pep_relationship_type'), L('SELF')), L(25), IF(pepIsHighRisk, L(15), L(0))),
-    IF(EQ(V('sanctions_screening_result'), L('CONFIRMED_MATCH')), L(20), IF(EQ(V('sanctions_screening_result'), L('POTENTIAL_MATCH')), L(10), L(0))),
+    IF(
+      EQ(V('sanctions_screening_result'), L('CONFIRMED_MATCH')),
+      L(20),
+      IF(EQ(V('sanctions_screening_result'), L('POTENTIAL_MATCH')), L(10), L(0)),
+    ),
     IF_TRUE('high_risk_jurisdiction_flag', 15),
     IF_TRUE('adverse_media_hit', 15),
     IF(NOT(V('source_of_funds_verified')), L(10), L(0)),
@@ -308,9 +419,22 @@ const amlRiskScoreExpr = CLAMP(
 const amlDecisionExpr = IF(
   amlSanctionsConfirmed,
   L('BLOCK'),
-  IF(OR(GTE(OUT('aml_risk_score'), L(40)), pepIsHighRisk, V('high_risk_jurisdiction_flag'), V('adverse_media_hit')), L('REVIEW'), L('CLEAR')),
+  IF(
+    OR(
+      GTE(OUT('aml_risk_score'), L(40)),
+      pepIsHighRisk,
+      V('high_risk_jurisdiction_flag'),
+      V('adverse_media_hit'),
+    ),
+    L('REVIEW'),
+    L('CLEAR'),
+  ),
 );
-const complianceDecisionExpr = IF(EQ(OUT('aml_decision'), L('BLOCK')), L('FAIL'), IF(EQ(OUT('aml_decision'), L('REVIEW')), L('REVIEW'), L('PASS')));
+const complianceDecisionExpr = IF(
+  EQ(OUT('aml_decision'), L('BLOCK')),
+  L('FAIL'),
+  IF(EQ(OUT('aml_decision'), L('REVIEW')), L('REVIEW'), L('PASS')),
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Final composition. `scoring` blends the domain scores the way a "second-generation" BNPL
@@ -334,21 +458,39 @@ const scoringExpr = ROUND(
 const pricingTierExpr = IF(
   GTE(OUT('credit_risk_score'), L(800)),
   L('A'),
-  IF(GTE(OUT('credit_risk_score'), L(700)), L('B'), IF(GTE(OUT('credit_risk_score'), L(600)), L('C'), IF(GTE(OUT('credit_risk_score'), L(450)), L('D'), L('E')))),
+  IF(
+    GTE(OUT('credit_risk_score'), L(700)),
+    L('B'),
+    IF(
+      GTE(OUT('credit_risk_score'), L(600)),
+      L('C'),
+      IF(GTE(OUT('credit_risk_score'), L(450)), L('D'), L('E')),
+    ),
+  ),
 );
 const BASE_APR_PERCENT = 24;
 const tierPremiumExpr = IF(
   EQ(OUT('pricing_tier'), L('A')),
   L(0),
-  IF(EQ(OUT('pricing_tier'), L('B')), L(6), IF(EQ(OUT('pricing_tier'), L('C')), L(14), IF(EQ(OUT('pricing_tier'), L('D')), L(24), L(40)))),
+  IF(
+    EQ(OUT('pricing_tier'), L('B')),
+    L(6),
+    IF(EQ(OUT('pricing_tier'), L('C')), L(14), IF(EQ(OUT('pricing_tier'), L('D')), L(24), L(40))),
+  ),
 );
 // usury_cap_rate is stored as a ratio (e.g. 0.6 = 60%), converted to percent to compare against
 // annual_percentage_rate (unit PERCENT).
-const annualPercentageRateExpr = MIN(ADD(L(BASE_APR_PERCENT), tierPremiumExpr), MUL(V('usury_cap_rate'), L(100)));
+const annualPercentageRateExpr = MIN(
+  ADD(L(BASE_APR_PERCENT), tierPremiumExpr),
+  MUL(V('usury_cap_rate'), L(100)),
+);
 const MAX_POLICY_CREDIT_LIMIT_BOB = 5000;
 const AFFORDABLE_LIMIT_HORIZON_MONTHS = 12;
 const approvedCreditLimitExpr = ROUND(
-  MIN(L(MAX_POLICY_CREDIT_LIMIT_BOB), MUL(OUT('max_affordable_installment'), L(AFFORDABLE_LIMIT_HORIZON_MONTHS))),
+  MIN(
+    L(MAX_POLICY_CREDIT_LIMIT_BOB),
+    MUL(OUT('max_affordable_installment'), L(AFFORDABLE_LIMIT_HORIZON_MONTHS)),
+  ),
   2,
 );
 const approvedAmountExpr = ROUND(MIN(V('requested_amount'), OUT('approved_credit_limit')), 2);
@@ -416,8 +558,16 @@ const STAGES: Stage[] = [
       { field: 'kyc_decision', expression: kycDecisionExpr },
     ],
     declineCauses: [
-      { code: 'KYC_INVALID', condition: OR(EQ(V('kyc_status'), L('REJECTED')), NOT(V('consent_active'))), reason: 'KYC_OR_CONSENT_INVALID' },
-      { code: 'KYC_LIVENESS', condition: NOT(V('liveness_check_passed')), reason: 'LIVENESS_CHECK_FAILED' },
+      {
+        code: 'KYC_INVALID',
+        condition: OR(EQ(V('kyc_status'), L('REJECTED')), NOT(V('consent_active'))),
+        reason: 'KYC_OR_CONSENT_INVALID',
+      },
+      {
+        code: 'KYC_LIVENESS',
+        condition: NOT(V('liveness_check_passed')),
+        reason: 'LIVENESS_CHECK_FAILED',
+      },
       { code: 'KYC_ID', condition: NOT(V('national_id_verified')), reason: 'DOCUMENT_ILLEGIBLE' },
     ],
   },
@@ -430,11 +580,23 @@ const STAGES: Stage[] = [
       { field: 'fraud_decision', expression: fraudDecisionExpr },
     ],
     declineCauses: [
-      { code: 'FRAUD_DEVICE', condition: V('known_fraud_device_flag'), reason: 'KNOWN_FRAUD_DEVICE' },
+      {
+        code: 'FRAUD_DEVICE',
+        condition: V('known_fraud_device_flag'),
+        reason: 'KNOWN_FRAUD_DEVICE',
+      },
       { code: 'FRAUD_EMAIL', condition: V('known_fraud_email_flag'), reason: 'KNOWN_FRAUD_EMAIL' },
       { code: 'FRAUD_PHONE', condition: V('known_fraud_phone_flag'), reason: 'KNOWN_FRAUD_PHONE' },
-      { code: 'FRAUD_PRIOR_CASE', condition: V('previous_fraud_case_flag'), reason: 'PREVIOUS_FRAUD_CASE' },
-      { code: 'FRAUD_DEVICE_BLOCKLISTED', condition: EQ(V('device_reputation'), L('BLOCKLISTED')), reason: 'DEVICE_BLOCKLISTED' },
+      {
+        code: 'FRAUD_PRIOR_CASE',
+        condition: V('previous_fraud_case_flag'),
+        reason: 'PREVIOUS_FRAUD_CASE',
+      },
+      {
+        code: 'FRAUD_DEVICE_BLOCKLISTED',
+        condition: EQ(V('device_reputation'), L('BLOCKLISTED')),
+        reason: 'DEVICE_BLOCKLISTED',
+      },
     ],
   },
   {
@@ -446,8 +608,16 @@ const STAGES: Stage[] = [
     ],
     declineCauses: [
       { code: 'ELIG_AGE', condition: eligibilityAgeFail, reason: 'AGE_NOT_ELIGIBLE' },
-      { code: 'ELIG_EMPLOYMENT', condition: eligibilityEmploymentFail, reason: 'EMPLOYMENT_STATUS_NOT_ELIGIBLE' },
-      { code: 'ELIG_AMOUNT', condition: eligibilityAmountFail, reason: 'PRODUCT_AMOUNT_OUT_OF_RANGE' },
+      {
+        code: 'ELIG_EMPLOYMENT',
+        condition: eligibilityEmploymentFail,
+        reason: 'EMPLOYMENT_STATUS_NOT_ELIGIBLE',
+      },
+      {
+        code: 'ELIG_AMOUNT',
+        condition: eligibilityAmountFail,
+        reason: 'PRODUCT_AMOUNT_OUT_OF_RANGE',
+      },
       { code: 'ELIG_TERM', condition: eligibilityTermFail, reason: 'TERM_OUT_OF_RANGE' },
     ],
   },
@@ -464,7 +634,11 @@ const STAGES: Stage[] = [
     declineCauses: [
       { code: 'CR_BANKRUPTCY', condition: creditRiskBankruptcyFail, reason: 'RECENT_BANKRUPTCY' },
       { code: 'CR_CHARGE_OFF', condition: creditRiskChargeOffFail, reason: 'RECENT_CHARGE_OFF' },
-      { code: 'CR_SCORE', condition: LT(OUT('credit_risk_score'), L(450)), reason: 'BUREAU_SCORE_TOO_LOW' },
+      {
+        code: 'CR_SCORE',
+        condition: LT(OUT('credit_risk_score'), L(450)),
+        reason: 'BUREAU_SCORE_TOO_LOW',
+      },
     ],
   },
   {
@@ -476,9 +650,17 @@ const STAGES: Stage[] = [
       { field: 'affordability_decision', expression: affordabilityDecisionExpr },
     ],
     declineCauses: [
-      { code: 'AFF_RATIO', condition: affordabilityRatioFail, reason: 'AFFORDABILITY_RATIO_EXCEEDED' },
+      {
+        code: 'AFF_RATIO',
+        condition: affordabilityRatioFail,
+        reason: 'AFFORDABILITY_RATIO_EXCEEDED',
+      },
       { code: 'AFF_NSF', condition: affordabilityNsfFail, reason: 'NSF_HISTORY_EXCESSIVE' },
-      { code: 'AFF_DISPOSABLE', condition: affordabilityDisposableFail, reason: 'INSUFFICIENT_DISPOSABLE_INCOME' },
+      {
+        code: 'AFF_DISPOSABLE',
+        condition: affordabilityDisposableFail,
+        reason: 'INSUFFICIENT_DISPOSABLE_INCOME',
+      },
     ],
   },
   {
@@ -490,7 +672,11 @@ const STAGES: Stage[] = [
       { field: 'compliance_decision', expression: complianceDecisionExpr },
     ],
     declineCauses: [
-      { code: 'AML_SANCTIONS', condition: amlSanctionsConfirmed, reason: 'SANCTIONS_CONFIRMED_MATCH' },
+      {
+        code: 'AML_SANCTIONS',
+        condition: amlSanctionsConfirmed,
+        reason: 'SANCTIONS_CONFIRMED_MATCH',
+      },
     ],
   },
 ];
@@ -525,11 +711,22 @@ export async function buildDemoGraph(
   const edgeDefinitions: EdgeDefinition[] = [];
   let order = 0;
 
-  const addNode = (key: string, type: string, label: string, terminal: boolean, config: Record<string, unknown> = {}) => {
+  const addNode = (
+    key: string,
+    type: string,
+    label: string,
+    terminal: boolean,
+    config: Record<string, unknown> = {},
+  ) => {
     order += 1;
     nodeDefinitions.push({ key, type, label, order, terminal, config });
   };
-  const addAction = (code: string, type: string, payload: Record<string, unknown>, reason?: string) => {
+  const addAction = (
+    code: string,
+    type: string,
+    payload: Record<string, unknown>,
+    reason?: string,
+  ) => {
     actionDefinitions.push({ code, type, payload, terminal: false, reason });
     return code;
   };
@@ -539,7 +736,13 @@ export async function buildDemoGraph(
   const addEdge = (definition: EdgeDefinition) => edgeDefinitions.push(definition);
 
   addNode('START', 'START', 'Inicio', false);
-  addEdge({ key: 'E_START_FIRST_STAGE', from: 'START', to: computeNodeKey(STAGES[0].key), priority: 1, default: true });
+  addEdge({
+    key: 'E_START_FIRST_STAGE',
+    from: 'START',
+    to: computeNodeKey(STAGES[0].key),
+    priority: 1,
+    default: true,
+  });
 
   const declinedResultKey = 'DECLINED_RESULT';
 
@@ -553,7 +756,11 @@ export async function buildDemoGraph(
 
     stage.declineCauses.forEach((cause, index) => {
       const conditionCode = `COND_${cause.code}`;
-      conditionDefinitions.push({ code: conditionCode, name: `${stage.label}: ${cause.code}`, expression: cause.condition });
+      conditionDefinitions.push({
+        code: conditionCode,
+        name: `${stage.label}: ${cause.code}`,
+        expression: cause.condition,
+      });
 
       const declineKey = declineNodeKey(stage.key, cause.code);
       addNode(declineKey, 'ACTION', `Rechazo: ${cause.reason}`, false);
@@ -576,7 +783,13 @@ export async function buildDemoGraph(
         default: false,
         condition: conditionCode,
       });
-      addEdge({ key: `E_${declineKey}_RESULT`, from: declineKey, to: declinedResultKey, priority: 1, default: true });
+      addEdge({
+        key: `E_${declineKey}_RESULT`,
+        from: declineKey,
+        to: declinedResultKey,
+        priority: 1,
+        default: true,
+      });
     });
 
     addEdge({
@@ -611,52 +824,95 @@ export async function buildDemoGraph(
   );
   bindActions('COMPUTE_FINAL', finalActionCodes);
 
-  conditionDefinitions.push({ code: 'COND_REVIEW_NEEDED', name: 'Alguna etapa requiere revisión manual', expression: reviewNeededExpr });
-  addEdge({ key: 'E_FINAL_REVIEW', from: 'COMPUTE_FINAL', to: 'REVIEW_REASONS', priority: 1, default: false, condition: 'COND_REVIEW_NEEDED' });
-  addEdge({ key: 'E_FINAL_APPROVE', from: 'COMPUTE_FINAL', to: 'APPROVE_REASONS', priority: 999, default: true });
+  conditionDefinitions.push({
+    code: 'COND_REVIEW_NEEDED',
+    name: 'Alguna etapa requiere revisión manual',
+    expression: reviewNeededExpr,
+  });
+  addEdge({
+    key: 'E_FINAL_REVIEW',
+    from: 'COMPUTE_FINAL',
+    to: 'REVIEW_REASONS',
+    priority: 1,
+    default: false,
+    condition: 'COND_REVIEW_NEEDED',
+  });
+  addEdge({
+    key: 'E_FINAL_APPROVE',
+    from: 'COMPUTE_FINAL',
+    to: 'APPROVE_REASONS',
+    priority: 999,
+    default: true,
+  });
 
   addNode('REVIEW_REASONS', 'ACTION', 'Derivar a revisión manual', false);
-  const manualReviewActionCode = addAction(
-    'CREATE_MANUAL_REVIEW',
-    'CREATE_MANUAL_REVIEW',
-    {
-      queueCode: 'CREDIT_REVIEW',
-      priority: 50,
-      slaMinutes: 240,
-      evidence: {
-        kycDecision: '{{decision.output.kyc_decision}}',
-        fraudDecision: '{{decision.output.fraud_decision}}',
-        creditRiskDecision: '{{decision.output.credit_risk_decision}}',
-        amlDecision: '{{decision.output.aml_decision}}',
-        bureauScore: '{{bureau_score}}',
-        requestedAmount: '{{requested_amount}}',
-      },
+  const manualReviewActionCode = addAction('CREATE_MANUAL_REVIEW', 'CREATE_MANUAL_REVIEW', {
+    queueCode: 'CREDIT_REVIEW',
+    priority: 50,
+    slaMinutes: 240,
+    evidence: {
+      kycDecision: '{{decision.output.kyc_decision}}',
+      fraudDecision: '{{decision.output.fraud_decision}}',
+      creditRiskDecision: '{{decision.output.credit_risk_decision}}',
+      amlDecision: '{{decision.output.aml_decision}}',
+      bureauScore: '{{bureau_score}}',
+      requestedAmount: '{{requested_amount}}',
     },
+  });
+  const reviewReasonActionCode = addAction(
+    'EMIT_SCORE_BAND_BORDERLINE',
+    'EMIT_REASON',
+    {},
+    'SCORE_BAND_BORDERLINE',
   );
-  const reviewReasonActionCode = addAction('EMIT_SCORE_BAND_BORDERLINE', 'EMIT_REASON', {}, 'SCORE_BAND_BORDERLINE');
   const reviewAdverseFieldCode = addAction('SET_ADVERSE_REASON_REVIEW', 'SET_FIELD', {
     field: 'adverse_action_reason_codes',
     value: '',
   });
-  bindActions('REVIEW_REASONS', [manualReviewActionCode, reviewReasonActionCode, reviewAdverseFieldCode]);
-  addEdge({ key: 'E_REVIEW_RESULT', from: 'REVIEW_REASONS', to: 'REVIEW_RESULT', priority: 1, default: true });
+  bindActions('REVIEW_REASONS', [
+    manualReviewActionCode,
+    reviewReasonActionCode,
+    reviewAdverseFieldCode,
+  ]);
+  addEdge({
+    key: 'E_REVIEW_RESULT',
+    from: 'REVIEW_REASONS',
+    to: 'REVIEW_RESULT',
+    priority: 1,
+    default: true,
+  });
   addNode('REVIEW_RESULT', 'RESULT', 'Resultado: revisión manual', true, {
     mode: 'MAPPING',
     assignments: [{ outputCode: 'decision_outcome', source: 'LITERAL', value: 'MANUAL_REVIEW' }],
   });
 
   addNode('APPROVE_REASONS', 'ACTION', 'Registrar aprobación', false);
-  const approvedReasonActionCode = addAction('EMIT_APPROVED_POLICY', 'EMIT_REASON', {}, 'APPROVED_POLICY');
+  const approvedReasonActionCode = addAction(
+    'EMIT_APPROVED_POLICY',
+    'EMIT_REASON',
+    {},
+    'APPROVED_POLICY',
+  );
   const approveAdverseFieldCode = addAction('SET_ADVERSE_REASON_APPROVE', 'SET_FIELD', {
     field: 'adverse_action_reason_codes',
     value: '',
   });
   bindActions('APPROVE_REASONS', [approvedReasonActionCode, approveAdverseFieldCode]);
-  addEdge({ key: 'E_APPROVE_RESULT', from: 'APPROVE_REASONS', to: 'APPROVE_RESULT', priority: 1, default: true });
+  addEdge({
+    key: 'E_APPROVE_RESULT',
+    from: 'APPROVE_REASONS',
+    to: 'APPROVE_RESULT',
+    priority: 1,
+    default: true,
+  });
   addNode('APPROVE_RESULT', 'RESULT', 'Resultado: aprobada', true, {
     mode: 'MAPPING',
     assignments: [
-      { outputCode: 'decision_outcome', source: 'EXPRESSION', expression: decisionOutcomeApprovedExpr },
+      {
+        outputCode: 'decision_outcome',
+        source: 'EXPRESSION',
+        expression: decisionOutcomeApprovedExpr,
+      },
     ],
   });
 
@@ -694,8 +950,12 @@ export async function buildDemoGraph(
     }
   }
 
+  // Posiciones de árbol en % del lienzo (ver demo-layout.ts): el editor abre el
+  // grafo ya legible, sin tener que re-acomodarlo.
+  const positions = layoutSeedNodes(nodeDefinitions, edgeDefinitions);
   const nodeByKey: Record<string, { id: bigint }> = {};
   for (const node of nodeDefinitions) {
+    const position = positions.get(node.key) ?? { x: 4, y: 45 };
     nodeByKey[node.key] = await prisma.decisionRuleNode.create({
       data: {
         artifactVersionId: versionId,
@@ -703,8 +963,8 @@ export async function buildDemoGraph(
         nodeType: node.type,
         label: node.label,
         configJson: node.config as Prisma.InputJsonValue,
-        xPos: node.order * 160,
-        yPos: 100,
+        xPos: position.x,
+        yPos: position.y,
         orderIndex: node.order,
         isTerminal: node.terminal,
       },

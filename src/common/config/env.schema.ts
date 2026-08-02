@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { WORKER_ROLES } from './worker-role';
 
 const booleanFromString = z.preprocess((value) => {
   if (typeof value === 'boolean') return value;
@@ -24,6 +25,45 @@ export const envSchema = z
       .string()
       .regex(/^v[0-9]+$/)
       .default('v1'),
+
+    // Reparto de responsabilidades entre procesos; ver common/config/worker-role.ts.
+    // `ALL` conserva el comportamiento de un solo contenedor que sirve y procesa.
+    WORKER_ROLE: z.enum(WORKER_ROLES).default('ALL'),
+    // Puerto de sondas del proceso WORKER, que no sirve tráfico de negocio pero sí debe
+    // poder declararse vivo y listo ante el orquestador. También sirve `/metrics`.
+    WORKER_HEALTH_PORT: z.coerce.number().int().min(1).max(65_535).default(3001),
+
+    // ---------------------------------------------------------------------
+    // Orquestación central de trabajos de fondo (common/jobs).
+    //
+    // El coste al ralentí del plano de fondo lo fijan estos valores, no cada trabajo por su
+    // cuenta: un lote vacío multiplica su espera por JOB_BACKOFF_FACTOR hasta
+    // JOB_MAX_IDLE_INTERVAL_MS, y el despertar por `pg_notify` la reinicia cuando de verdad
+    // hay algo. Subir el techo abarata el ralentí sin tocar la latencia MIENTRAS la señal
+    // funcione; con JOB_WAKE_ENABLED=false el techo pasa a ser la latencia del peor caso.
+    // ---------------------------------------------------------------------
+    JOB_SCHEDULER_ENABLED: booleanFromString.default(true),
+    JOB_INITIAL_DELAY_MS: z.coerce.number().int().min(0).max(300_000).default(500),
+    JOB_MIN_IDLE_INTERVAL_MS: z.coerce.number().int().min(50).max(600_000).default(1_000),
+    JOB_MAX_IDLE_INTERVAL_MS: z.coerce.number().int().min(100).max(3_600_000).default(30_000),
+    // 1 desactiva el retroceso y deja una cadencia fija en el mínimo: solo tiene sentido
+    // para depurar, porque devuelve el coste plano que este mecanismo existe para eliminar.
+    JOB_BACKOFF_FACTOR: z.coerce.number().min(1).max(10).default(2),
+    JOB_ERROR_INTERVAL_MS: z.coerce.number().int().min(100).max(600_000).default(5_000),
+    JOB_MAX_ERROR_INTERVAL_MS: z.coerce.number().int().min(1_000).max(3_600_000).default(120_000),
+    // Despertar por LISTEN/NOTIFY. Desactívalo si la conexión pasa por un `pgbouncer` en
+    // modo transacción o statement, que no propaga las notificaciones: el sistema sigue
+    // siendo correcto, solo pierde latencia hasta el siguiente sondeo.
+    JOB_WAKE_ENABLED: booleanFromString.default(true),
+    JOB_WAKE_CHANNEL: z
+      .string()
+      .regex(/^[a-z0-9][a-z0-9_-]{0,62}$/)
+      .default('atlas_jobs'),
+
+    // URL pública desde la que los consumidores alcanzan esta API. Se publica en el
+    // contrato OpenAPI; sin ella solo se declara el servidor relativo, que es preferible a
+    // publicar la URL de otro ambiente y que un cliente generado apunte al sitio equivocado.
+    API_PUBLIC_URL: optionalUrl,
 
     DATABASE_URL: z.string().min(1),
     DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(100).default(15),
@@ -92,6 +132,10 @@ export const envSchema = z
     LOG_OUTPUT: z.enum(['stdout', 'stdout_and_file']).default('stdout'),
     LOG_FILE_PATH: z.string().min(1).default('logs/atlas-decision-engine.log'),
     ACCESS_AUDIT_ENABLED: booleanFromString.default(true),
+    // Authentication denials are buffered only long enough to bridge a transient database
+    // outage. Bounds prevent an attacker from turning the safety net into unbounded memory.
+    ACCESS_AUDIT_QUEUE_MAX: z.coerce.number().int().min(10).max(100_000).default(1_000),
+    ACCESS_AUDIT_RETRY_SECONDS: z.coerce.number().int().min(1).max(3_600).default(15),
 
     // Distributed tracing. Read directly from process.env by observability/tracing.ts (it runs
     // before the Nest container exists); declared here so the values are still validated and
@@ -117,16 +161,32 @@ export const envSchema = z
       .regex(/^[A-Z0-9_-]{2,40}$/)
       .default('PROD'),
     MAX_EXECUTION_STEPS: z.coerce.number().int().min(16).max(10_000).default(256),
+    // El worker de corridas de prueba era el único trabajo de fondo sin interruptor: se
+    // arrancaba en todo proceso que cargara el módulo, incluidas las réplicas de API.
+    TEST_RUN_WORKER_ENABLED: booleanFromString.default(true),
+    // Suelo del sondeo. Con el despertar por señal activo, una corrida encolada arranca al
+    // commit y este valor solo gobierna la red de seguridad.
     TEST_RUN_WORKER_POLL_MS: z.coerce.number().int().min(50).max(10_000).default(500),
+    // Techo del retroceso cuando la cola lleva rato vacía.
+    TEST_RUN_WORKER_MAX_POLL_MS: z.coerce.number().int().min(500).max(600_000).default(30_000),
+    // Cada cuánto se buscan corridas con el lease vencido. Un lease dura
+    // TEST_RUN_LEASE_SECONDS, así que buscarlas más a menudo no puede encontrar nada nuevo.
+    TEST_RUN_RECOVERY_INTERVAL_MS: z.coerce.number().int().min(1_000).max(600_000).default(30_000),
     TEST_RUN_WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(2),
     TEST_RUN_LEASE_SECONDS: z.coerce.number().int().min(30).max(3_600).default(300),
     TEST_CASE_CONCURRENCY: z.coerce.number().int().min(1).max(32).default(4),
     SCRIPT_NODES_ENABLED: booleanFromString.default(false),
     SCRIPT_RUNNER_MODE: z.enum(['IN_PROCESS', 'SIDECAR']).default('IN_PROCESS'),
+    // Interpreter used by the in-process runner and the Code->Flow Python syntax checker.
+    // The SIDECAR image ships only `python3`, so that container sets this explicitly; the
+    // default matches the usual development install where the launcher is named `python`.
+    PYTHON_EXECUTABLE: z.string().min(1).default('python'),
     SCRIPT_RUNNER_SOCKET_PATH: z.string().min(1).default('/var/run/atlas-runner/runner.sock'),
     SCRIPT_NODE_TIMEOUT_MS: z.coerce.number().int().min(10).max(5_000).default(250),
     SCRIPT_NODE_MAX_SOURCE_BYTES: z.coerce.number().int().min(1).max(65_536).default(16_384),
     SCRIPT_NODE_MAX_OUTPUT_BYTES: z.coerce.number().int().min(1_024).max(1_048_576).default(65_536),
+    /** Cota de memoria por proceso de script (§9.3): --max-old-space-size en JS, RLIMIT_AS en Python. */
+    SCRIPT_NODE_MAX_MEMORY_MB: z.coerce.number().int().min(16).max(512).default(32),
     IDEMPOTENCY_TTL_HOURS: z.coerce.number().int().min(1).max(720).default(24),
     // Short lease held while a decision is PROCESSING, so a crashed holder frees the key in
     // seconds instead of blocking it for the full response TTL. Must be declared here or the
@@ -149,6 +209,9 @@ export const envSchema = z
     // Upper bound on rows deleted per statement, so a purge never holds a long lock.
     RUNTIME_RETENTION_SWEEP_BATCH: z.coerce.number().int().min(100).max(50_000).default(1_000),
     MAX_PAGE_SIZE: z.coerce.number().int().min(10).max(500).default(100),
+    // Verification streams the append-only chain in bounded batches rather than loading a
+    // tenant's full regulatory history into memory.
+    AUDIT_VERIFY_BATCH_SIZE: z.coerce.number().int().min(10).max(10_000).default(500),
 
     // ---------------------------------------------------------------------
     // Nested decision trees (Fase 7), Code->Flow import (Fase 5), live
@@ -156,17 +219,52 @@ export const envSchema = z
     // ---------------------------------------------------------------------
     NESTED_TREE_MAX_DEPTH: z.coerce.number().int().min(1).max(20).default(5),
     NESTED_TREE_DEFAULT_TIMEOUT_MS: z.coerce.number().int().min(50).max(60_000).default(2_000),
-    CODE_IMPORT_MAX_SOURCE_BYTES: z.coerce.number().int().min(1_024).max(1_048_576).default(131_072),
+    /** Cota de aristas de la vista de dependencias; por encima se recorta y se declara. */
+    NESTED_TREE_GRAPH_MAX_EDGES: z.coerce.number().int().min(10).max(50_000).default(2_000),
+    NESTED_TREE_MAX_ARTIFACTS: z.coerce.number().int().min(1).max(500).default(25),
+    NESTED_TREE_MAX_TOTAL_MS: z.coerce.number().int().min(100).max(120_000).default(10_000),
+    NESTED_TREE_MAX_RESULT_BYTES: z.coerce
+      .number()
+      .int()
+      .min(1_024)
+      .max(10_485_760)
+      .default(262_144),
+    /** Bytes acumulados de resultados intermedios que puede retener una cadena (§9.3). */
+    NESTED_TREE_MAX_RETAINED_BYTES: z.coerce
+      .number()
+      .int()
+      .min(4_096)
+      .max(67_108_864)
+      .default(1_048_576),
+    CODE_IMPORT_MAX_SOURCE_BYTES: z.coerce
+      .number()
+      .int()
+      .min(1_024)
+      .max(1_048_576)
+      .default(131_072),
     CODE_IMPORT_ANALYSIS_TIMEOUT_MS: z.coerce.number().int().min(100).max(10_000).default(2_000),
-    // Live execution stream (Fase 8) can additionally publish to the event bus below.
+    // Live preview is opt-in: it executes real non-PROD graphs but intentionally writes no
+    // decision/audit/outbox record. Heartbeats keep proxies and the global timeout alive.
     LIVE_EXECUTION_STREAM_ENABLED: booleanFromString.default(false),
-    LIVE_EXECUTION_STREAM_HEARTBEAT_MS: z.coerce.number().int().min(1_000).max(60_000).default(15_000),
+    LIVE_EXECUTION_STREAM_HEARTBEAT_MS: z.coerce
+      .number()
+      .int()
+      .min(1_000)
+      .max(60_000)
+      .default(15_000),
 
     // Transactional outbox relay (event-driven backbone). The relay claims PENDING events
     // with a short lease and dispatches them to the in-process bus; disable only in tests
     // that drive dispatch manually or in replicas that must not run background workers.
     OUTBOX_RELAY_ENABLED: booleanFromString.default(true),
+    // Suelo del sondeo del relay y base del backoff por evento fallido.
     OUTBOX_RELAY_INTERVAL_MS: z.coerce.number().int().min(100).max(60_000).default(1_000),
+    // Techo del retroceso con el outbox vacío. El productor anuncia cada fila con
+    // `pg_notify` al confirmar, así que subir este techo no retrasa el reparto real.
+    OUTBOX_RELAY_MAX_INTERVAL_MS: z.coerce.number().int().min(500).max(600_000).default(30_000),
+    // Cada cuánto se cuenta la profundidad del outbox para el gauge. Contarla en cada ciclo
+    // hacía que medir el backlog costara más que repartirlo.
+    OUTBOX_BACKLOG_SAMPLE_MS: z.coerce.number().int().min(1_000).max(600_000).default(30_000),
     OUTBOX_BATCH_SIZE: z.coerce.number().int().min(1).max(500).default(25),
     // Failed dispatches back off exponentially via available_at; after this many attempts
     // the event is dead-lettered (status DEAD) for operator attention.
@@ -176,9 +274,43 @@ export const envSchema = z
     // Idempotently injects bootstrap seeds (every environment) and mockup/demo seeds
     // (development only) at application startup. Left unset it is on everywhere except
     // `test`, where suites provision their own fixtures. Set explicitly to force either way.
+    // Solo surte efecto donde corren los trabajos de fondo (WORKER_ROLE ∈ ALL, WORKER): una
+    // réplica de API nunca siembra, aunque esto esté en `true`.
     STARTUP_SEED_ENABLED: booleanFromString.optional(),
+    // Bootstrap integration clients. Read straight from process.env by the seed helpers
+    // (they stay framework-free so `prisma db seed` can run them without Nest); declared
+    // here so the values are validated and documented instead of being magic strings.
+    BOOTSTRAP_TENANT_ID: z
+      .string()
+      .regex(/^[0-9]+$/)
+      .default('1'),
+    BOOTSTRAP_MANAGEMENT_ROLES: z.string().default(''),
+    BOOTSTRAP_RUNTIME_ROLES: z.string().default(''),
   })
   .superRefine((value, ctx) => {
+    if (value.AUDIT_HASH_PREVIOUS_SECRETS) {
+      try {
+        const retired = JSON.parse(value.AUDIT_HASH_PREVIOUS_SECRETS) as unknown;
+        const valid =
+          retired !== null &&
+          typeof retired === 'object' &&
+          !Array.isArray(retired) &&
+          Object.entries(retired).every(
+            ([keyId, secret]) =>
+              /^[A-Za-z0-9_.-]{1,40}$/.test(keyId) &&
+              typeof secret === 'string' &&
+              secret.length >= 32,
+          );
+        if (!valid) throw new Error('invalid retired key map');
+      } catch {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['AUDIT_HASH_PREVIOUS_SECRETS'],
+          message: 'Must be a JSON object of {keyId: secret}, with secrets at least 32 characters',
+        });
+      }
+    }
+
     const requiresApiKeys =
       value.AUTH_MODE === 'API_KEY' ||
       value.AUTH_MODE === 'HYBRID' ||
@@ -305,18 +437,19 @@ export const envSchema = z
           message: 'LOG_LEVEL must not be debug or verbose in production',
         });
       }
-      const forbiddenExamples: Array<[keyof AppEnv, string]> = [
+      const forbiddenExamplePrefixes: Array<[keyof AppEnv, string]> = [
         ['MANAGEMENT_API_KEY', 'change-me-management'],
         ['RUNTIME_API_KEY', 'change-me-runtime'],
         ['AUDIT_HASH_SECRET', 'replace-with-a-long-random-secret'],
         ['METRICS_TOKEN', 'change-me-metrics-token'],
       ];
-      for (const [key, example] of forbiddenExamples) {
-        if (value[key] === example) {
+      for (const [key, examplePrefix] of forbiddenExamplePrefixes) {
+        const configured = value[key];
+        if (typeof configured === 'string' && configured.startsWith(examplePrefix)) {
           ctx.addIssue({
             code: 'custom',
             path: [key],
-            message: `${key} cannot use the example value in production`,
+            message: `${key} cannot use an example value in production`,
           });
         }
       }

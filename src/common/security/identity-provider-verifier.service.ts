@@ -1,3 +1,4 @@
+/** Converts trusted provider profiles to ATLAS claims and rejects malformed authority data. */
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { DomainException } from '../errors/domain-exception';
 import { IdentityProviderClient } from './identity-provider.client';

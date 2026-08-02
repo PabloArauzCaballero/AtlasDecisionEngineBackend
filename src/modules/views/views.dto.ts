@@ -1,10 +1,12 @@
 import { Type } from 'class-transformer';
+import { DATABASE_ID_PATTERN } from '../../common/http/id';
 import {
   IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -41,16 +43,19 @@ export class ArtifactInputContractQueryDto {
   @IsString() @IsNotEmpty() @MaxLength(100) artifactCode!: string;
 }
 
+/** Narrows suite options to the selected immutable artifact version. */
 export class TestSuitePickerQueryDto {
-  @IsOptional() @IsString() @MaxLength(30) versionId?: string;
+  @IsOptional() @IsString() @Matches(DATABASE_ID_PATTERN) versionId?: string;
 }
 
+/** Narrows historical run options without converting database bigint IDs to JavaScript numbers. */
 export class TestRunPickerQueryDto {
-  @IsOptional() @IsString() @MaxLength(30) versionId?: string;
+  @IsOptional() @IsString() @Matches(DATABASE_ID_PATTERN) versionId?: string;
 }
 
+/** Requires the artifact version whose reusable scripts the portal must display. */
 export class NodeScriptListQueryDto {
-  @IsString() @IsNotEmpty() @MaxLength(30) versionId!: string;
+  @IsString() @IsNotEmpty() @Matches(DATABASE_ID_PATTERN) versionId!: string;
 }
 
 export class GlobalSearchQueryDto {

@@ -1,13 +1,19 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { parseBigIntId } from '../../common/http/id';
 import { CurrentPrincipal, Roles, TenantId } from '../../common/security/security.decorators';
+import { ApiPagedResponse } from '../../common/http/pagination.dto';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
 import {
   AssignManualReviewDto,
   ManualReviewListQueryDto,
   ResolveManualReviewDto,
 } from './manual-review.dto';
+import {
+  ManualReviewDetailDto,
+  ManualReviewListItemDto,
+  ManualReviewWriteResultDto,
+} from './manual-review.response.dto';
 import { ManualReviewService } from './manual-review.service';
 
 @ApiTags('Manual Review')
@@ -17,16 +23,25 @@ export class ManualReviewController {
   constructor(private readonly reviews: ManualReviewService) {}
 
   @Get()
+  @ApiOperation({ summary: 'List manual-review cases visible to the tenant' })
+  @ApiPagedResponse('Página de casos de revisión manual del tenant.', ManualReviewListItemDto)
   list(@TenantId() tenantId: bigint, @Query() query: ManualReviewListQueryDto) {
     return this.reviews.list(tenantId, query);
   }
 
   @Get(':caseId')
+  @ApiOperation({ summary: 'Get one manual-review case and decision context' })
+  @ApiOkResponse({
+    description: 'Caso con la traza completa de la ejecución que lo originó.',
+    type: ManualReviewDetailDto,
+  })
   get(@TenantId() tenantId: bigint, @Param('caseId') caseId: string) {
     return this.reviews.get(tenantId, parseBigIntId(caseId, 'caseId'));
   }
 
   @Post(':caseId/assign')
+  @ApiOperation({ summary: 'Assign an open case to an analyst' })
+  @ApiCreatedResponse({ description: 'Caso asignado.', type: ManualReviewWriteResultDto })
   assign(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -37,6 +52,8 @@ export class ManualReviewController {
   }
 
   @Post(':caseId/resolve')
+  @ApiOperation({ summary: 'Resolve a case as its assigned analyst' })
+  @ApiCreatedResponse({ description: 'Caso resuelto.', type: ManualReviewWriteResultDto })
   resolve(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,

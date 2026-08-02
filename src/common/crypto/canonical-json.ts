@@ -1,3 +1,7 @@
+/**
+ * Canonical JSON primitives for checksums and audit hashes. Ordering and numeric treatment are
+ * persisted integrity contracts, so changes require compatibility analysis.
+ */
 import { Money } from '../money/money';
 
 export type JsonPrimitive = string | number | boolean | null;

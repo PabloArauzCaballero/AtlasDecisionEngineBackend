@@ -1,5 +1,9 @@
 import type { PrismaClient } from '@prisma/client';
 import { atlasBackendCatalog } from './data/atlas-backend-catalog.data';
+import { seedCalculatedFields } from './data/calculated-field-catalog.data';
+import { seedContractDemoArtifact } from './data/contract-demo.seed';
+import { seedGovernanceScenarios } from './data/governance-scenarios.seed';
+import { seedApprovedLibraries } from './data/library-catalog.data';
 import { seedDemoArtifact } from './data/demo-artifact';
 import { ensureEnvironment, ensureReason, ensureVariable, TENANT_ID } from './data/helpers';
 import { seedIntegrationClients } from './data/integration-clients';
@@ -131,13 +135,20 @@ export interface BootstrapContext {
   environments: { sandbox: { id: bigint }; test: { id: bigint }; prod: { id: bigint } };
   variableByCode: Record<string, Awaited<ReturnType<typeof ensureVariable>>>;
   reasonByCode: Record<string, Awaited<ReturnType<typeof ensureReason>>>;
-  counts: { variables: number; reasonCodes: number; integrationClients: number };
+  counts: {
+    variables: number;
+    reasonCodes: number;
+    integrationClients: number;
+    approvedLibraries: number;
+    calculatedFields: number;
+  };
 }
 
 /**
  * BOOTSTRAP seeds — reference data that MUST exist in every environment (dev, test, prod):
  * decision environments, the full variable catalog (inputs + scoring targets + AtlasBackend),
- * the reason-code catalog, and the bootstrap integration clients. Fully idempotent (upserts).
+ * the reason-code catalog, the bootstrap integration clients, the approved-library registry
+ * and the reusable calculated fields. Fully idempotent (upserts).
  */
 export async function runBootstrapSeeds(prisma: PrismaClient): Promise<BootstrapContext> {
   const [sandbox, test, prod] = await Promise.all([
@@ -159,6 +170,10 @@ export async function runBootstrapSeeds(prisma: PrismaClient): Promise<Bootstrap
   const reasonByCode = Object.fromEntries(seededReasons.map((item) => [item.reasonCode, item]));
 
   const integrationClients = await seedIntegrationClients(prisma);
+  // Las librerías van antes que los campos calculados: un campo que selecciona `math`
+  // no puede sembrarse si la librería todavía no existe (falla cerrado a propósito).
+  const approvedLibraries = await seedApprovedLibraries(prisma);
+  const calculatedFields = await seedCalculatedFields(prisma);
 
   return {
     environments: { sandbox, test, prod },
@@ -168,6 +183,8 @@ export async function runBootstrapSeeds(prisma: PrismaClient): Promise<Bootstrap
       variables: seededVariables.length,
       reasonCodes: seededReasons.length,
       integrationClients: integrationClients.length,
+      approvedLibraries: approvedLibraries.length,
+      calculatedFields: calculatedFields.length,
     },
   };
 }
@@ -180,6 +197,13 @@ export async function runBootstrapSeeds(prisma: PrismaClient): Promise<Bootstrap
 export async function runMockupSeeds(prisma: PrismaClient, context: BootstrapContext) {
   const inputVariables = DEMO_INPUT_CODES.map((code) => context.variableByCode[code]);
   const outputVariables = DEMO_OUTPUT_CODES.map((code) => context.variableByCode[code]);
+  // Demo de contratos (§11): pequeño, completo y verificado contra el motor real por
+  // `contract-demo-seed.spec.ts`. Se siembra aparte del demo BNPL para que cada uno
+  // pueda evolucionar sin arrastrar al otro.
+  await seedContractDemoArtifact(prisma, context.environments);
+  // Escenarios negativos de gobierno (§11): ciclo, versión no disponible, contrato
+  // incompatible y una corrida de QA con su contraejemplo.
+  await seedGovernanceScenarios(prisma);
   return seedDemoArtifact(
     prisma,
     TENANT_ID,

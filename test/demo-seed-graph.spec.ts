@@ -1,3 +1,4 @@
+import { MetricsService } from '../src/common/observability/metrics.service';
 import { ConfigService } from '@nestjs/config';
 import { HashService } from '../src/common/crypto/hash.service';
 import { ExecutionEngineService } from '../src/modules/graph/execution-engine.service';
@@ -29,12 +30,10 @@ interface StubRow {
 function makeStubPrisma() {
   let nextId = 0n;
   let compiledPayload: CompiledDecisionArtifact | undefined;
-  const create =
-    () =>
-    async (): Promise<StubRow> => {
-      nextId += 1n;
-      return { id: nextId };
-    };
+  const create = () => async (): Promise<StubRow> => {
+    nextId += 1n;
+    return { id: nextId };
+  };
   const prisma = {
     decisionRuleCondition: { create: create() },
     decisionRuleAction: { create: create() },
@@ -120,8 +119,15 @@ async function buildCompiledArtifact(): Promise<{
   await buildDemoSnapshots(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     prisma as any,
-    { id: 1n, tenantId: 1n, artifactCode: 'BNPL_CREDIT_DECISION', artifactType: 'CREDIT_POLICY', name: 'demo', riskDomain: 'CREDIT_ORIGINATION' },
-    { id: 1n },
+    {
+      id: 1n,
+      tenantId: 1n,
+      artifactCode: 'BNPL_CREDIT_DECISION',
+      artifactType: 'CREDIT_POLICY',
+      name: 'demo',
+      riskDomain: 'CREDIT_ORIGINATION',
+    },
+    { id: 1n, semanticVersion: '2.0.0' },
     inputVariables,
     outputVariables,
     reasonSnapshots,
@@ -135,6 +141,8 @@ async function buildCompiledArtifact(): Promise<{
     artifact: compiled.artifact,
     version: { ...compiled.version, status: 'STRUCTURAL' },
     variables: compiled.variables,
+    intermediates: compiled.intermediates ?? [],
+    outputContract: compiled.outputContract ?? [],
     conditions: Object.values(compiled.conditions),
     actions: Object.values(compiled.actions),
     nodes: Object.values(compiled.nodes),
@@ -208,6 +216,7 @@ describe('BNPL_CREDIT_DECISION seed graph', () => {
     new ExpressionEvaluator(),
     new ConfigService({ MAX_EXECUTION_STEPS: 256 }),
     new ScriptNodeRunnerService(new ConfigService({ SCRIPT_NODES_ENABLED: false })),
+    new MetricsService(),
   );
 
   it('compiles into a structurally valid, deterministic graph', async () => {
@@ -226,25 +235,88 @@ describe('BNPL_CREDIT_DECISION seed graph', () => {
     expect(report.metrics.terminalNodeCount).toBe(3);
   });
 
+  it('siembra los nodos como un árbol dentro del lienzo y sin solaparse', async () => {
+    const { snapshot } = await buildCompiledArtifact();
+    // Coordenadas = porcentaje del lienzo del editor (1680x1020 px). Antes se
+    // sembraban en píxeles (order*160, y=100): fuera de rango y todas en una fila.
+    for (const node of snapshot.nodes) {
+      expect(node.x).toBeGreaterThanOrEqual(0);
+      expect(node.x).toBeLessThanOrEqual(100);
+      expect(node.y).toBeGreaterThanOrEqual(0);
+      expect(node.y).toBeLessThanOrEqual(100);
+    }
+    // Dos nodos nunca comparten hueco (el lienzo agranda su "mundo" cuando el
+    // grafo es denso, así que basta con que las posiciones sean distintas).
+    const slots = snapshot.nodes.map((node) => `${node.x}:${node.y}`);
+    expect(new Set(slots).size).toBe(slots.length);
+    // Y el flujo avanza: el inicio queda a la izquierda de todo terminal.
+    const start = snapshot.nodes.find((node) => node.type === 'START')!;
+    for (const terminal of snapshot.nodes.filter((node) => node.terminal)) {
+      expect(terminal.x).toBeGreaterThan(start.x);
+    }
+  });
+
   const cases: Array<{
     name: string;
     input: Record<string, unknown>;
     outcome: string;
     reason?: string;
   }> = [
-    { name: 'approves a clean low-risk applicant', input: applicant({}), outcome: 'APPROVED', reason: 'APPROVED_POLICY' },
-    { name: 'declines invalid KYC/consent', input: applicant({ kyc_status: 'REJECTED' }), outcome: 'DECLINED', reason: 'KYC_OR_CONSENT_INVALID' },
-    { name: 'declines a known-fraud device', input: applicant({ known_fraud_device_flag: true }), outcome: 'DECLINED', reason: 'KNOWN_FRAUD_DEVICE' },
-    { name: 'declines an under-age applicant', input: applicant({ age: 16 }), outcome: 'DECLINED', reason: 'AGE_NOT_ELIGIBLE' },
+    {
+      name: 'approves a clean low-risk applicant',
+      input: applicant({}),
+      outcome: 'APPROVED',
+      reason: 'APPROVED_POLICY',
+    },
+    {
+      name: 'declines invalid KYC/consent',
+      input: applicant({ kyc_status: 'REJECTED' }),
+      outcome: 'DECLINED',
+      reason: 'KYC_OR_CONSENT_INVALID',
+    },
+    {
+      name: 'declines a known-fraud device',
+      input: applicant({ known_fraud_device_flag: true }),
+      outcome: 'DECLINED',
+      reason: 'KNOWN_FRAUD_DEVICE',
+    },
+    {
+      name: 'declines an under-age applicant',
+      input: applicant({ age: 16 }),
+      outcome: 'DECLINED',
+      reason: 'AGE_NOT_ELIGIBLE',
+    },
     {
       name: 'declines low credit-risk score',
-      input: applicant({ bureau_score: 300, payment_history_score: 40, debt_to_income_ratio: 0.6, revolving_utilization_ratio: 0.95, delinquency_count_12m: 5, inquiries_last_6m: 8 }),
+      input: applicant({
+        bureau_score: 300,
+        payment_history_score: 40,
+        debt_to_income_ratio: 0.6,
+        revolving_utilization_ratio: 0.95,
+        delinquency_count_12m: 5,
+        inquiries_last_6m: 8,
+      }),
       outcome: 'DECLINED',
       reason: 'BUREAU_SCORE_TOO_LOW',
     },
-    { name: 'declines insufficient affordability', input: applicant({ affordability_ratio: 0.6 }), outcome: 'DECLINED', reason: 'AFFORDABILITY_RATIO_EXCEEDED' },
-    { name: 'blocks a confirmed sanctions match', input: applicant({ ofac_screening_result: 'MATCH' }), outcome: 'DECLINED', reason: 'SANCTIONS_CONFIRMED_MATCH' },
-    { name: 'routes a PEP to manual review', input: applicant({ pep_status: true, pep_relationship_type: 'FAMILY' }), outcome: 'MANUAL_REVIEW', reason: 'SCORE_BAND_BORDERLINE' },
+    {
+      name: 'declines insufficient affordability',
+      input: applicant({ affordability_ratio: 0.6 }),
+      outcome: 'DECLINED',
+      reason: 'AFFORDABILITY_RATIO_EXCEEDED',
+    },
+    {
+      name: 'blocks a confirmed sanctions match',
+      input: applicant({ ofac_screening_result: 'MATCH' }),
+      outcome: 'DECLINED',
+      reason: 'SANCTIONS_CONFIRMED_MATCH',
+    },
+    {
+      name: 'routes a PEP to manual review',
+      input: applicant({ pep_status: true, pep_relationship_type: 'FAMILY' }),
+      outcome: 'MANUAL_REVIEW',
+      reason: 'SCORE_BAND_BORDERLINE',
+    },
   ];
 
   it.each(cases)('$name', async ({ input, outcome, reason }) => {

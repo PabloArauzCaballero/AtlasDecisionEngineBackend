@@ -1,3 +1,4 @@
+/** Composes durable queueing, bounded workers and the real graph execution test path. */
 import { Module } from '@nestjs/common';
 import { GraphModule } from '../graph/graph.module';
 import { NestedTreesModule } from '../nested-trees/nested-trees.module';

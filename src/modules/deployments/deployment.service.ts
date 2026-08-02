@@ -1,9 +1,12 @@
+/** Enforces approval, separation of duties and atomic environment-binding invariants. */
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DeploymentStatus, Prisma, VersionStatus } from '@prisma/client';
 import { AuditService } from '../../common/audit/audit.service';
 import { DomainException } from '../../common/errors/domain-exception';
+import { parseBigIntId } from '../../common/http/id';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { AdvisoryLockDomain, advisoryLockKey } from '../../common/prisma/advisory-lock';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
 import { VersionStateService } from '../artifacts/version-state.service';
 import { GovernanceService } from '../governance/governance.service';
@@ -69,7 +72,7 @@ export class DeploymentService {
       );
     }
     const requestedCompiledArtifactId = dto.compiledArtifactId
-      ? BigInt(dto.compiledArtifactId)
+      ? parseBigIntId(dto.compiledArtifactId, 'compiledArtifactId')
       : undefined;
     const compiled = requestedCompiledArtifactId
       ? version.compiledArtifacts.find((item) => item.id === requestedCompiledArtifactId)
@@ -91,7 +94,11 @@ export class DeploymentService {
     }
 
     const deployment = await this.prisma.$transaction(async (tx) => {
-      const deploymentLockKey = BigInt.asIntN(64, (version.artifactId << 32n) ^ environment.id);
+      const deploymentLockKey = advisoryLockKey(
+        AdvisoryLockDomain.Deployment,
+        version.artifactId,
+        environment.id,
+      );
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(${deploymentLockKey})`;
       const previous = await tx.decisionDeployment.findFirst({
         where: {
@@ -218,9 +225,10 @@ export class DeploymentService {
       // concurrent deploy()/rollback()/suspend() on the same environment could both read
       // `current` as active and each commit their own view of the "previous" deployment,
       // leaving two deployments active or the runtime binding pointing at a stale one.
-      const lockKey = BigInt.asIntN(
-        64,
-        (current.artifactVersion.artifactId << 32n) ^ current.environmentId,
+      const lockKey = advisoryLockKey(
+        AdvisoryLockDomain.Deployment,
+        current.artifactVersion.artifactId,
+        current.environmentId,
       );
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(${lockKey})`;
       const freshCurrent = await tx.decisionDeployment.findUniqueOrThrow({
@@ -312,9 +320,10 @@ export class DeploymentService {
     await this.prisma.$transaction(async (tx) => {
       // Same lock key as deploy()/rollback() for this (artifact, environment) pair — see the
       // comment in rollback() for why this must serialize against those.
-      const lockKey = BigInt.asIntN(
-        64,
-        (deployment.artifactVersion.artifactId << 32n) ^ deployment.environmentId,
+      const lockKey = advisoryLockKey(
+        AdvisoryLockDomain.Deployment,
+        deployment.artifactVersion.artifactId,
+        deployment.environmentId,
       );
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(${lockKey})`;
       const freshDeployment = await tx.decisionDeployment.findUniqueOrThrow({

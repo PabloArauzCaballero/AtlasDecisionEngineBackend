@@ -9,6 +9,7 @@ import {
 import { AuditService } from '../src/common/audit/audit.service';
 import { HashService } from '../src/common/crypto/hash.service';
 import { OutboxPublisherService } from '../src/common/events/outbox-publisher.service';
+import type { JobSignalService } from '../src/common/jobs/job-signal.service';
 import { PlatformRole } from '../src/common/security/platform-roles';
 import { GovernanceService } from '../src/modules/governance/governance.service';
 import { VersionStateService } from '../src/modules/artifacts/version-state.service';
@@ -41,7 +42,9 @@ describeDb('GovernanceService separation of duties (integration)', () => {
     { verifyBlockingTests } as unknown as TestExecutionService,
     new VersionStateService(prisma as unknown as PrismaService),
     new AuditService(prisma as unknown as PrismaService, new HashService(config)),
-    new OutboxPublisherService(),
+    new OutboxPublisherService({
+      notify: jest.fn().mockResolvedValue(undefined),
+    } as unknown as JobSignalService),
     config,
   );
 

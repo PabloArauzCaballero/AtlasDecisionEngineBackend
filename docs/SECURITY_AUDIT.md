@@ -1,5 +1,8 @@
 # Auditoría de seguridad y calidad — 2026-07-12
 
+> **Documento histórico (2026-07-12).** Explica hallazgos y correcciones de aquella auditoría;
+> no sustituye SAST/SCA, pentest ni una revisión de la versión que se vaya a desplegar.
+
 Auditoría dirigida sobre las áreas de mayor riesgo: CLI de Prisma/migraciones, autenticación,
 autorización, rate limiting, cadena de auditoría, idempotencia runtime, criptografía y DTOs de
 escritura del grafo. Cada hallazgo indica severidad, evidencia y el fix aplicado.

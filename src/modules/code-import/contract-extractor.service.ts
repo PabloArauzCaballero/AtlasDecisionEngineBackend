@@ -35,7 +35,9 @@ export class ContractExtractorService {
   extract(language: ImportLanguage, source: string): ContractExtractionResult {
     const commentPrefix = language === 'PYTHON' ? '#' : '//';
     const lines = source.split('\n');
-    const markerIndex = lines.findIndex((line) => line.trim() === `${commentPrefix} @atlas-contract`);
+    const markerIndex = lines.findIndex(
+      (line) => line.trim() === `${commentPrefix} @atlas-contract`,
+    );
     if (markerIndex === -1) {
       return {
         scriptBody: source,

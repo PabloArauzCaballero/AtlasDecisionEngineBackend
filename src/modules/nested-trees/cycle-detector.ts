@@ -110,7 +110,11 @@ function buildAdjacency(edges: ArtifactReferenceEdge[]): Map<string, string[]> {
 }
 
 /** DFS for a path from `start` to `target`. Returns the path (excluding `start`) or undefined. */
-function findPath(adjacency: Map<string, string[]>, start: string, target: string): string[] | undefined {
+function findPath(
+  adjacency: Map<string, string[]>,
+  start: string,
+  target: string,
+): string[] | undefined {
   const visited = new Set<string>();
 
   function walk(node: string): string[] | undefined {

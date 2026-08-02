@@ -143,8 +143,15 @@ export class ExpressionEvaluator {
    * `variables.<code>`), so it is stripped and the reported root is the variable code itself —
    * not the literal word "variables". Any other prefix (`decision.*`, `customer.*`, …) keeps its
    * first segment, so the graph validator resolves references the same way the runtime does.
+   *
+   * `intermediate.*` es la excepción: ahí el primer segmento nombra el espacio de nombres,
+   * no la variable, así que se conserva el código completo (`intermediate.dti`). Devolver
+   * solo "intermediate" haría imposible comprobar QUÉ variable intermedia se está leyendo.
    */
   private referenceRoot(path: string): string {
+    if (path.startsWith('intermediate.')) {
+      return `intermediate.${path.slice('intermediate.'.length).split('.')[0]}`;
+    }
     const bare = path.startsWith('variables.') ? path.slice('variables.'.length) : path;
     return bare.split('.')[0];
   }
@@ -197,8 +204,26 @@ export class ExpressionEvaluator {
     }, context);
   }
 
+  /**
+   * Ordena dos operandos, o falla cerrado si no son comparables entre sí.
+   *
+   * Antes, todo lo que no fuesen dos números o una fecha caía en `String(left)` vs
+   * `String(right)`, y eso convertía un dato ausente en una decisión favorable: con
+   * `bureau_score` sin resolver, `bureau_score >= 600` comparaba `"undefined"` con `"600"`
+   * y devolvía **true**, igual que `"80" >= 600`. Una comparación de orden solo tiene
+   * sentido entre valores del mismo tipo ordenable; cualquier otra combinación es un error
+   * del contrato o del grafo, y el motor debe decirlo en vez de inventarse un resultado.
+   */
   private compare(left: unknown, right: unknown): number {
-    if (typeof left === 'number' && typeof right === 'number') return left - right;
+    if (typeof left === 'number' && typeof right === 'number') {
+      if (!Number.isFinite(left) || !Number.isFinite(right)) {
+        throw new DomainException(
+          'EXPRESSION_INCOMPARABLE_OPERANDS',
+          'Cannot order a non-finite numeric value',
+        );
+      }
+      return left - right;
+    }
     if (left instanceof Date || right instanceof Date) {
       const leftTime = new Date(String(left)).getTime();
       const rightTime = new Date(String(right)).getTime();
@@ -212,13 +237,18 @@ export class ExpressionEvaluator {
       }
       return leftTime - rightTime;
     }
-    // Compare by Unicode code point, not localeCompare: locale/ICU differences between
-    // environments must never change a decision outcome (regulatory reproducibility).
-    const a = String(left);
-    const b = String(right);
-    if (a < b) return -1;
-    if (a > b) return 1;
-    return 0;
+    if (typeof left === 'string' && typeof right === 'string') {
+      // Compare by Unicode code point, not localeCompare: locale/ICU differences between
+      // environments must never change a decision outcome (regulatory reproducibility).
+      if (left < right) return -1;
+      if (left > right) return 1;
+      return 0;
+    }
+    throw new DomainException(
+      'EXPRESSION_INCOMPARABLE_OPERANDS',
+      `Cannot order ${describeOperand(left)} against ${describeOperand(right)}; ` +
+        'use exists/is_null or align the declared data types',
+    );
   }
 
   private asNumber(value: unknown): number {
@@ -231,4 +261,12 @@ export class ExpressionEvaluator {
     }
     return number;
   }
+}
+
+/** Describes an operand for an error message without leaking its value (may be PII). */
+function describeOperand(value: unknown): string {
+  if (value === null) return 'null';
+  if (value === undefined) return 'a missing value';
+  if (Array.isArray(value)) return 'an array';
+  return `a value of type ${typeof value}`;
 }

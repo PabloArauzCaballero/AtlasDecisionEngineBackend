@@ -1,0 +1,94 @@
+# Superposición de producción.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --scale api=3 --scale worker=2
+#
+# El fichero base describe la topología —quién depende de quién, qué volumen monta cada
+# servicio, qué capacidades suelta— y esta superposición cambia SOLO lo que distingue a
+# producción de un portátil: el modo del proceso, el modo de autenticación, la rotación de
+# logs y las cotas de recursos. Mantenerlos separados evita el error clásico de tener dos
+# descripciones completas de la misma pila que se van separando release a release.
+#
+# Requisitos que el esquema de entorno YA impone en NODE_ENV=production y que esta
+# superposición no puede saltarse (src/common/config/env.schema.ts):
+#   - AUTH_MODE no puede ser API_KEY.
+#   - SWAGGER_ENABLED debe ser false.
+#   - REDIS_URL es obligatorio.
+#   - METRICS_TOKEN es obligatorio si METRICS_ENABLED.
+#   - Si SCRIPT_NODES_ENABLED, SCRIPT_RUNNER_MODE debe ser SIDECAR (y el host, gVisor).
+#   - LOG_LEVEL no puede ser debug ni verbose.
+# Arrancar con un valor de ejemplo de .env.example falla al validar, a propósito.
+
+services:
+  postgres:
+    # `always` y no `unless-stopped`: tras un reinicio del daemon, la base de datos debe
+    # volver sin que nadie la levante a mano.
+    restart: always
+    logging: &json-logging
+      driver: json-file
+      options:
+        # Sin rotación, el log de un contenedor de larga vida llena el disco del nodo y se
+        # lleva por delante a todos los demás servicios que comparten ese disco.
+        max-size: "10m"
+        max-file: "5"
+    cpus: ${POSTGRES_CPUS:-4}
+    mem_limit: ${POSTGRES_MEMORY:-4g}
+    shm_size: ${POSTGRES_SHM:-1gb}
+
+  redis:
+    restart: always
+    logging: *json-logging
+    cpus: ${REDIS_CPUS:-1}
+    mem_limit: ${REDIS_MEMORY:-512m}
+
+  script-runner:
+    restart: always
+    logging: *json-logging
+
+  api:
+    restart: always
+    logging: *json-logging
+    environment:
+      NODE_ENV: production
+      # El portal usa el proveedor de identidad; IDENTITY_HYBRID solo mientras queden
+      # integraciones técnicas con API key. API_KEY a secas lo rechaza el esquema.
+      AUTH_MODE: ${AUTH_MODE:?set AUTH_MODE (JWT, HYBRID, IDENTITY_PROVIDER or IDENTITY_HYBRID) in .env}
+      SWAGGER_ENABLED: "false"
+      LOG_LEVEL: ${LOG_LEVEL:-log}
+      # Producción exige el sidecar aislado para cualquier nodo de script (el esquema lo
+      # verifica). Se declara aquí para que el valor no dependa de lo que haya en .env.
+      SCRIPT_RUNNER_MODE: SIDECAR
+      # Cada réplica abre su propio pool: DATABASE_POOL_MAX x réplicas debe caber en el
+      # max_connections del servidor, junto con el del worker y el de las migraciones.
+      DATABASE_POOL_MAX: ${API_DATABASE_POOL_MAX:-15}
+    cpus: ${API_CPUS:-2}
+    mem_limit: ${API_MEMORY:-1g}
+
+  worker:
+    restart: always
+    logging: *json-logging
+    environment:
+      NODE_ENV: production
+      AUTH_MODE: ${AUTH_MODE:?set AUTH_MODE (JWT, HYBRID, IDENTITY_PROVIDER or IDENTITY_HYBRID) in .env}
+      SWAGGER_ENABLED: "false"
+      LOG_LEVEL: ${LOG_LEVEL:-log}
+      # Escalar el worker a N réplicas es seguro: los tres trabajos reclaman su carga con
+      # FOR UPDATE SKIP LOCKED más un lease que caduca. Lo que N NO debe hacer es agotar el
+      # pool de conexiones, de ahí que su pool sea deliberadamente pequeño.
+      DATABASE_POOL_MAX: ${WORKER_DATABASE_POOL_MAX:-5}
+    cpus: ${WORKER_CPUS:-1}
+    mem_limit: ${WORKER_MEMORY:-1g}
+
+  # Los Jobs de un solo disparo no se reinician nunca: repetir una migración o una siembra
+  # porque el orquestador reintentó el contenedor es cómo un despliegue se queda en bucle.
+  migrate:
+    restart: "no"
+    logging: *json-logging
+
+  bootstrap-app-role:
+    restart: "no"
+    logging: *json-logging
+
+  seed:
+    restart: "no"
+    logging: *json-logging

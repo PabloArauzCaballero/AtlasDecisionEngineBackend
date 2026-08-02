@@ -1,0 +1,241 @@
+﻿# Portal técnico del backend.
+#
+# Se construye SIEMPRE en contenedor (`yarn docs:build`), no con una instalación local de
+# Python: la versión de MkDocs y de sus extensiones forma parte del resultado, y una máquina
+# con otra versión produce un sitio distinto del que valida CI.
+#
+# `--strict` convierte en error cualquier enlace roto o página fuera de la navegación. Es la
+# diferencia entre un portal que se puede recorrer y una carpeta de Markdown.
+site_name: ATLAS Decision Platform — Backend
+site_description: Documentación técnica del motor de decisión de crédito, riesgo y fraude.
+site_author: Plataforma ATLAS
+docs_dir: docs
+site_dir: site
+
+# Documentos que viven en `docs/` pero NO forman parte del portal.
+#
+# Dos familias, ambas legítimas fuera de la navegación:
+#   - Informes históricos fechados (auditorías, verificaciones). Su valor es ser un registro
+#     del momento en que se escribieron, y enlazan a ficheros de código con rutas del
+#     repositorio, que en un portal serían enlaces rotos.
+#   - Documentación de herramientas de asistencia y de progreso interno.
+#
+# Excluirlos es preferible a reescribirlos: alterar un informe fechado destruye justamente lo
+# que lo hace útil. `scripts/docs/check-doc-links.mjs` lee esta misma lista.
+#
+# Los patrones van ANCLADOS con `/` inicial. Sin anclar, la sintaxis estilo gitignore de
+# MkDocs los aplica a cualquier nivel: `audit-*.md` llegó a excluir `modules/audit-query.md`,
+# es decir, una página de módulo generada del código.
+exclude_docs: |
+  # MkDocs trata `README.md` como el índice de su directorio y entra en conflicto con la
+  # portada `index.md`, que es la que el portal usa.
+  /README.md
+  /audit-*.md
+  /contract-extension-audit-*.md
+  /verification-*.md
+  /testing-report.md
+  /final-implementation-report.md
+  /PENDIENTES-*.md
+  /IMPLEMENTATION_MATRIX.md
+  /VISTAS_POR_FASES.md
+  /claude/
+  /progress/
+  /atlas/
+  /plantuml/
+  /stitch-reference/
+
+theme:
+  name: material
+  language: es
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Cambiar a tema oscuro
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Cambiar a tema claro
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.instant
+    - navigation.tracking
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+
+plugins:
+  - search:
+      lang: es
+
+nav:
+  - Inicio: index.md
+  - Empezar:
+      - Requisitos previos: getting-started/prerequisites.md
+      - Entorno local: getting-started/local-setup.md
+      - Variables de entorno: getting-started/environment-variables.md
+      - Base de datos: getting-started/database-setup.md
+      - Ejecutar las pruebas: getting-started/running-tests.md
+      - Diagnóstico de problemas: getting-started/troubleshooting.md
+  - Negocio:
+      - Contexto: business/business-context.md
+      - Actores y roles: business/actors-and-roles.md
+      - Capacidades: business/capabilities.md
+      - Flujos críticos: business/critical-workflows.md
+      - Reglas de negocio: business/business-rules.md
+      - Glosario: business/glossary.md
+  - Arquitectura:
+      - Panorama: architecture/overview.md
+      - Contexto del sistema: architecture/system-context.md
+      - Contenedores: architecture/containers.md
+      - Componentes: architecture/components.md
+      - Dependencias entre módulos: architecture/module-dependencies.md
+      - Ciclo de vida de una petición: architecture/request-lifecycle.md
+      - Procesamiento en segundo plano: architecture/background-processing.md
+      - Orquestación de trabajos de fondo: worker-orchestration.md
+      - Mapa de integraciones: architecture/integration-map.md
+  - Módulos:
+      - Índice: modules/index.md
+  - API:
+      - Convenciones: api/conventions.md
+      - Autenticación: api/authentication.md
+      - Autorización: api/authorization.md
+      - Versionado: api/versioning.md
+      - Paginación: api/pagination.md
+      - Filtrado y ordenamiento: api/filtering-and-sorting.md
+      - Idempotencia: api/idempotency.md
+      - Modelo de error: api/error-model.md
+      - Catálogo de errores: api/error-catalog.md
+      - Límites de tasa: api/rate-limits.md
+      - Política de deprecación: api/deprecation-policy.md
+      - Catálogo de endpoints: api/endpoint-catalog.md
+      - Ejemplos de integración: api/integration-examples.md
+  - Datos:
+      - Arquitectura de datos: data/data-architecture.md
+      - Catálogo de entidades: data/entity-catalog.md
+      - Relaciones: data/relationships.md
+      - Restricciones e índices: data/constraints-and-indexes.md
+      - Migraciones: data/migrations.md
+      - Semillas: data/seeds.md
+      - Retención: data/retention.md
+      - Clasificación: data/classification.md
+      - Respaldo y restauración: data/backup-and-restore.md
+  - Eventos:
+      - Panorama: events/overview.md
+      - Catálogo de eventos: events/event-catalog.md
+      - Semántica de entrega: events/delivery-semantics.md
+      - Reintentos y cola muerta: events/retries-and-dlq.md
+      - Guía para consumidores: events/consumer-guidelines.md
+  - Seguridad:
+      - Arquitectura de seguridad: security/security-architecture.md
+      - Modelo de amenazas: security/threat-model.md
+      - Gestión de secretos: security/secrets-management.md
+      - Control de acceso: security/access-control.md
+      - Aislamiento por tenant: security/tenant-isolation.md
+      - Auditabilidad: security/auditability.md
+      - Seguridad de dependencias: security/dependency-security.md
+      - Respuesta a incidentes: security/incident-response.md
+  - Observabilidad:
+      - Registros: observability/logging.md
+      - Métricas: observability/metrics.md
+      - Trazas: observability/tracing.md
+      - Tableros: observability/dashboards.md
+      - Alertas: observability/alerts.md
+      - Objetivos de nivel de servicio: observability/service-level-objectives.md
+  - Operación:
+      - Ambientes: operations/environments.md
+      - Despliegue: operations/deployment.md
+      - Configuración: operations/configuration.md
+      - Sondas de salud: operations/health-checks.md
+      - Escalado: operations/scaling.md
+      - Reversión: operations/rollback.md
+      - Recuperación ante desastres: operations/disaster-recovery.md
+      - Mantenimiento: operations/maintenance.md
+      - Runbooks:
+          - Índice: runbooks/README.md
+          - Operación general: runbooks/OPERATIONS.md
+          - Contratos de variables: runbooks/CONTRATOS_DE_VARIABLES.md
+          - Campos calculados: runbooks/CAMPOS_CALCULADOS.md
+          - QA Lab: runbooks/QA_LAB.md
+  - Pruebas:
+      - Estrategia: testing/strategy.md
+      - Unitarias: testing/unit-tests.md
+      - Integración: testing/integration-tests.md
+      - Extremo a extremo: testing/e2e-tests.md
+      - Contrato: testing/contract-tests.md
+      - Rendimiento: testing/performance-tests.md
+      - Datos de prueba: testing/test-data.md
+  - Decisiones (ADR):
+      - Índice: adr/index.md
+      - ADR-0011 Extensiones de contrato: adr/ADR-0011-contract-extensions.md
+      - ADR-0021 Separación de workers: adr/ADR-0021-worker-role-separation.md
+      - ADR-0022 OpenAPI como fuente de verdad: adr/ADR-0022-openapi-source-of-truth.md
+      - ADR-0023 Documentación generada: adr/ADR-0023-generated-documentation.md
+      - ADR-0024 Adopción de SLO/RTO/RPO: adr/ADR-0024-slo-rto-rpo-adoption.md
+      - ADR-0025 Umbral de archivado de ejecuciones: adr/ADR-0025-execution-archival-threshold.md
+  - Gobierno:
+      - Propiedad: governance/ownership.md
+      - Política de documentación: governance/documentation-policy.md
+      - Proceso de revisión: governance/review-process.md
+      - Gestión del cambio: governance/change-management.md
+      - Matriz de trazabilidad: governance/traceability-matrix.md
+  - Manuales de dominio:
+      # `README.md` no se lista: MkDocs lo trata como `index.md` del directorio y ya existe
+      # una portada propia.
+      - Contratos de variables: variable-contracts.md
+      - Campos calculados y QA Lab: calculated-fields.md
+      - Árboles de decisión anidados: nested-decision-trees.md
+      - Código a flujo: code-to-flow-specification.md
+      - Ejecución en vivo: live-execution.md
+      - Arquitectura dirigida por eventos: event-driven-architecture.md
+      - Notificaciones: notifications.md
+      - Salidas configurables: CONFIGURABLE_OUTPUTS.md
+      - Revisión de seguridad: security-review.md
+      - Tutoriales: tutorials.md
+      - Guía del editor de flujo: flowchart-user-guide.md
+      - Comandos: COMANDOS.md
+      - Arquitectura (documento original): ARCHITECTURE.md
+      - Despliegue (documento original): DEPLOYMENT.md
+      - Ejemplos de API (documento original): API_EXAMPLES.md
+      - Auditoría de seguridad: SECURITY_AUDIT.md
+      - Preparación productiva (documento original): PRODUCTION_READINESS.md
+  - Informes:
+      - Línea base: reports/baseline.md
+      - Auditoría Graphify: reports/graphify-audit.md
+      - Análisis de brechas: reports/documentation-gap-analysis.md
+      - Métricas documentales: reports/documentation-metrics.md
+      - Preparación para producción: reports/production-readiness.md
+      - Validación final: reports/final-validation.md
+      - Plan de corrección 2026-07-31: reports/correction-plan-2026-07-31.md

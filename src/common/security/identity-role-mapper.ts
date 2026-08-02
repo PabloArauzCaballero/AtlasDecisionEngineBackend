@@ -1,3 +1,4 @@
+/** Maps provider aliases into the closed platform role vocabulary; unknown roles grant nothing. */
 import { PlatformRole, PLATFORM_ROLES } from './platform-roles';
 
 const DIRECT_ROLES = new Set<string>(PLATFORM_ROLES);

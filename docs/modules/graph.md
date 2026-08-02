@@ -1,0 +1,59 @@
+<!-- GENERADO POR scripts/docs/generate-catalogs.mjs — NO EDITAR A MANO.
+     Fuente: src/modules/graph/. Ejecute `yarn docs:catalog` tras cambiar el código. -->
+
+# Módulo `graph`
+
+
+## Responsabilidad
+
+Código: [`src/modules/graph/`](https://github.com/) · 17 ficheros TypeScript.
+
+No expone endpoints HTTP.
+
+## Autorización
+
+Este módulo no declara roles: o no expone rutas, o son públicas por diseño.
+
+## Códigos de error propios
+
+- `EXECUTION_WITHOUT_TERMINAL`
+- `EXPRESSION_DIVISION_BY_ZERO`
+- `EXPRESSION_INCOMPARABLE_OPERANDS`
+- `EXPRESSION_INVALID_ARGUMENTS`
+- `EXPRESSION_INVALID_DATE`
+- `EXPRESSION_NOT_NUMERIC`
+- `INTERMEDIATE_ACCUMULATE_UNSUPPORTED`
+- `INTERMEDIATE_ALREADY_WRITTEN`
+- `INTERMEDIATE_NOT_DECLARED`
+- `INTERMEDIATE_NULL_NOT_ALLOWED`
+- `INTERMEDIATE_VALUE_INVALID`
+- `INTERMEDIATE_WRITE_UNAUTHORIZED`
+- `MAX_EXECUTION_STEPS_EXCEEDED`
+- `NESTED_REFERENCE_NOT_CONFIGURED`
+- `NO_MATCHING_EDGE`
+- `OUTPUT_TYPE_INVALID`
+- `PRIMARY_OUTPUT_TOO_LONG`
+- `REQUIRED_OUTPUT_MISSING`
+- `RESULT_MODE_INVALID`
+- `RESULT_SCRIPT_LANGUAGE_INVALID`
+- `RUNTIME_ACTION_NOT_FOUND`
+- `RUNTIME_NODE_NOT_FOUND`
+- `SCRIPT_EXECUTION_FAILED`
+- `SCRIPT_INVALID_OUTPUT`
+- `SCRIPT_NODES_DISABLED`
+- `SCRIPT_RUNNER_INSECURE_IN_PRODUCTION`
+- `SCRIPT_RUNNER_UNAVAILABLE`
+- `SCRIPT_SOURCE_TOO_LARGE`
+- `UNDECLARED_OUTPUT`
+- `UNSUPPORTED_ACTION_TYPE`
+- `UNSUPPORTED_EXPRESSION_OPERATOR`
+
+## Clases exportadas
+
+- `CompilerService`
+- `ExecutionEngineService`
+- `ExpressionEvaluator`
+- `GraphModule`
+- `GraphValidatorService`
+- `IntermediateScope`
+- `ScriptNodeRunnerService`

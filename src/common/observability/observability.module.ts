@@ -1,3 +1,4 @@
+/** Installs one global telemetry stack so domains cannot silently omit observability. */
 import { Global, Module } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { RequestContextService } from '../context/request-context.service';

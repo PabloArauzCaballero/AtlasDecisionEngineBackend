@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Request } from 'express';
 import { MetricsService } from '../observability/metrics.service';
@@ -19,9 +19,16 @@ type DenialRecord = Prisma.DecisionAccessAuditCreateInput;
  * database recovers (plan §1.4). The buffer is in-process and bounded — it survives the
  * transient database outages this system actually sees, not a process restart; a
  * cross-restart guarantee would need a persisted outbox, which is a larger change.
+ *
+ * El reintento se arma BAJO DEMANDA, no en un intervalo permanente. El buffer solo tiene
+ * contenido cuando la base de datos está caída —minutos al año, si acaso—, así que un
+ * `setInterval` cada 15 segundos despertaba el proceso ~5 700 veces al día por cada réplica
+ * para comprobar una lista vacía. Ahora el primer elemento encolado arma el temporizador y
+ * el drenaje se re-arma solo mientras quede algo, de modo que el coste al ralentí es cero y
+ * la garantía es idéntica.
  */
 @Injectable()
-export class AccessDenialAuditorService implements OnModuleInit, OnModuleDestroy {
+export class AccessDenialAuditorService implements OnModuleDestroy {
   private readonly logger = new Logger(AccessDenialAuditorService.name);
   private readonly enabled: boolean;
   private readonly maxQueue: number;
@@ -31,6 +38,7 @@ export class AccessDenialAuditorService implements OnModuleInit, OnModuleDestroy
   private readonly pending: DenialRecord[] = [];
   private retryTimer?: NodeJS.Timeout;
   private flushing = false;
+  private stopped = false;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -42,18 +50,23 @@ export class AccessDenialAuditorService implements OnModuleInit, OnModuleDestroy
     this.retryIntervalMs = (config.get<number>('ACCESS_AUDIT_RETRY_SECONDS') ?? 15) * 1_000;
   }
 
-  onModuleInit(): void {
-    if (!this.enabled) return;
-    // Drain the buffer periodically. unref() so a pending retry never keeps the process
-    // alive on shutdown.
-    this.retryTimer = setInterval(() => void this.flushQueued(), this.retryIntervalMs);
-    this.retryTimer.unref?.();
-  }
-
   async onModuleDestroy(): Promise<void> {
-    if (this.retryTimer) clearInterval(this.retryTimer);
+    this.stopped = true;
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryTimer = undefined;
     // A best-effort final drain so a graceful shutdown does not strand buffered denials.
     await this.flushQueued();
+  }
+
+  /** Arma un único reintento pendiente. Idempotente: varios encolados no crean varios timers. */
+  private scheduleRetry(): void {
+    if (this.stopped || this.retryTimer || !this.pending.length) return;
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = undefined;
+      void this.flushQueued();
+    }, this.retryIntervalMs);
+    // unref() so a pending retry never keeps the process alive on shutdown.
+    this.retryTimer.unref?.();
   }
 
   /** Denials that carry security meaning; other 4xx responses are validation traffic. */
@@ -107,6 +120,7 @@ export class AccessDenialAuditorService implements OnModuleInit, OnModuleDestroy
         error instanceof Error ? error.message : String(error)
       }`,
     );
+    this.scheduleRetry();
   }
 
   /**
@@ -129,6 +143,9 @@ export class AccessDenialAuditorService implements OnModuleInit, OnModuleDestroy
       }
     } finally {
       this.flushing = false;
+      // Solo se re-arma si quedó algo: cuando el buffer se vacía, no queda ningún
+      // temporizador vivo y el servicio vuelve a costar cero mientras no falle una escritura.
+      this.scheduleRetry();
     }
   }
 

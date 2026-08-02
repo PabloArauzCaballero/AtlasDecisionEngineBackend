@@ -16,7 +16,9 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { Pool } from 'pg';
 
-const prisma = new PrismaClient({ adapter: new PrismaPg(new Pool({ connectionString: process.env.DATABASE_URL })) });
+const prisma = new PrismaClient({
+  adapter: new PrismaPg(new Pool({ connectionString: process.env.DATABASE_URL })),
+});
 const TENANT = BigInt(process.env.SEED_TENANT_ID ?? '1');
 const PARENT = 'CREDITO_CON_SUBCHEQUEO';
 const CHILD = 'SUBCHECK_FRAUD';
@@ -54,7 +56,13 @@ async function makeArtifact(code: string, name: string, purpose: string) {
 
 async function makeVersion(artifactId: bigint, summary: string) {
   return prisma.decisionArtifactVersion.create({
-    data: { artifactId, versionNumber: 1, semanticVersion: '1.0.0', changeSummary: summary, createdBy: 'seed.example' },
+    data: {
+      artifactId,
+      versionNumber: 1,
+      semanticVersion: '1.0.0',
+      changeSummary: summary,
+      createdBy: 'seed.example',
+    },
   });
 }
 
@@ -83,13 +91,31 @@ async function node(
   isTerminal = false,
 ) {
   return prisma.decisionRuleNode.create({
-    data: { artifactVersionId: versionId, nodeKey, nodeType, label, configJson: config as Prisma.InputJsonValue, xPos: x, yPos: 42, orderIndex: x, isTerminal },
+    data: {
+      artifactVersionId: versionId,
+      nodeKey,
+      nodeType,
+      label,
+      configJson: config as Prisma.InputJsonValue,
+      xPos: x,
+      yPos: 42,
+      orderIndex: x,
+      isTerminal,
+    },
   });
 }
 
 async function edge(versionId: bigint, fromId: bigint, toId: bigint, key: string) {
   return prisma.decisionRuleEdge.create({
-    data: { artifactVersionId: versionId, fromNodeId: fromId, toNodeId: toId, edgeKey: key, edgeType: 'DEFAULT', priority: 1, isDefault: true },
+    data: {
+      artifactVersionId: versionId,
+      fromNodeId: fromId,
+      toNodeId: toId,
+      edgeKey: key,
+      edgeType: 'DEFAULT',
+      priority: 1,
+      isDefault: true,
+    },
   });
 }
 
@@ -102,7 +128,9 @@ async function removeExisting() {
     });
     if (!artifact) continue;
     for (const version of artifact.versions) {
-      await prisma.decisionArtifactReference.deleteMany({ where: { parentArtifactVersionId: version.id } });
+      await prisma.decisionArtifactReference.deleteMany({
+        where: { parentArtifactVersionId: version.id },
+      });
     }
     await prisma.decisionArtifact.delete({ where: { id: artifact.id } });
     console.log(`= Ejemplo previo borrado: ${code}.`);
@@ -117,30 +145,60 @@ async function main() {
   const fraudSignalVar = await latestVar(FRAUD_SIGNAL);
 
   // Hijo: START -> RESULT(MAPPING) — evalúa señales y devuelve fraud_signal.
-  const childArt = await makeArtifact(CHILD, 'Sub-chequeo de fraude', 'Sub-algoritmo que evalúa señales de fraude y devuelve una única bandera fraud_signal.');
+  const childArt = await makeArtifact(
+    CHILD,
+    'Sub-chequeo de fraude',
+    'Sub-algoritmo que evalúa señales de fraude y devuelve una única bandera fraud_signal.',
+  );
   const childVer = await makeVersion(childArt.id, 'Sub-algoritmo de ejemplo.');
   await dep(childVer.id, amountVar, 'INPUT', AMOUNT);
   await dep(childVer.id, fraudScoreVar, 'INPUT', FRAUD_SCORE);
   await dep(childVer.id, fraudSignalVar, 'OUTPUT_PRIMARY', FRAUD_SIGNAL);
-  const cStart = await node(childVer.id, 'START_C', 'START', 'Inicio', 12, { description: 'Recibe el monto de la transacción y el score de fraude.' });
-  const cResult = await node(childVer.id, 'RESULT_C', 'RESULT', 'Devolver bandera de fraude', 55, {
-    mode: 'MAPPING',
-    assignments: [{ outputCode: FRAUD_SIGNAL, source: 'LITERAL', value: false }],
-    description: 'Devuelve fraud_signal = true/false según las señales evaluadas. Es la única salida del sub-árbol.',
-  }, true);
+  const cStart = await node(childVer.id, 'START_C', 'START', 'Inicio', 12, {
+    description: 'Recibe el monto de la transacción y el score de fraude.',
+  });
+  const cResult = await node(
+    childVer.id,
+    'RESULT_C',
+    'RESULT',
+    'Devolver bandera de fraude',
+    55,
+    {
+      mode: 'MAPPING',
+      assignments: [{ outputCode: FRAUD_SIGNAL, source: 'LITERAL', value: false }],
+      description:
+        'Devuelve fraud_signal = true/false según las señales evaluadas. Es la única salida del sub-árbol.',
+    },
+    true,
+  );
   await edge(childVer.id, cStart.id, cResult.id, 'E_C');
 
   // Padre: START -> RESULT(REFERENCE -> hijo). Su única salida es fraud_signal, tomada del hijo.
-  const parentArt = await makeArtifact(PARENT, 'Crédito con sub-chequeo (ejemplo encadenado)', 'Ejemplo: un algoritmo que ejecuta otro (sub-chequeo de fraude) dentro de su flujo y usa su resultado.');
+  const parentArt = await makeArtifact(
+    PARENT,
+    'Crédito con sub-chequeo (ejemplo encadenado)',
+    'Ejemplo: un algoritmo que ejecuta otro (sub-chequeo de fraude) dentro de su flujo y usa su resultado.',
+  );
   const parentVer = await makeVersion(parentArt.id, 'Ejemplo de encadenamiento.');
   await dep(parentVer.id, amountVar, 'INPUT', AMOUNT);
   await dep(parentVer.id, fraudSignalVar, 'OUTPUT_PRIMARY', FRAUD_SIGNAL);
-  const pStart = await node(parentVer.id, 'START_P', 'START', 'Inicio', 12, { description: 'Recibe el monto de la solicitud de crédito.' });
-  const pRef = await node(parentVer.id, 'REF_1', 'RESULT', 'Ejecutar sub-chequeo de fraude', 55, {
-    mode: 'REFERENCE',
-    outputAssignments: [{ outputCode: FRAUD_SIGNAL, childOutputCode: FRAUD_SIGNAL }],
-    description: 'Ejecuta el algoritmo "Sub-chequeo de fraude" (otro algoritmo) y adopta su fraud_signal como salida propia. Haz clic en "Abrir algoritmo" para verlo.',
-  }, true);
+  const pStart = await node(parentVer.id, 'START_P', 'START', 'Inicio', 12, {
+    description: 'Recibe el monto de la solicitud de crédito.',
+  });
+  const pRef = await node(
+    parentVer.id,
+    'REF_1',
+    'RESULT',
+    'Ejecutar sub-chequeo de fraude',
+    55,
+    {
+      mode: 'REFERENCE',
+      outputAssignments: [{ outputCode: FRAUD_SIGNAL, childOutputCode: FRAUD_SIGNAL }],
+      description:
+        'Ejecuta el algoritmo "Sub-chequeo de fraude" (otro algoritmo) y adopta su fraud_signal como salida propia. Haz clic en "Abrir algoritmo" para verlo.',
+    },
+    true,
+  );
   await edge(parentVer.id, pStart.id, pRef.id, 'E_P');
 
   await prisma.decisionArtifactReference.create({
@@ -157,8 +215,17 @@ async function main() {
     },
   });
 
-  console.log(`✓ Ejemplo encadenado creado: ${PARENT} (v${parentVer.id}) → ${CHILD} (v${childVer.id}).`);
-  console.log(`  Abre "${PARENT}" en el Editor de Grafo, clic en el nodo "Ejecutar sub-chequeo de fraude" → "Abrir algoritmo".`);
+  console.log(
+    `✓ Ejemplo encadenado creado: ${PARENT} (v${parentVer.id}) → ${CHILD} (v${childVer.id}).`,
+  );
+  console.log(
+    `  Abre "${PARENT}" en el Editor de Grafo, clic en el nodo "Ejecutar sub-chequeo de fraude" → "Abrir algoritmo".`,
+  );
 }
 
-main().catch((error) => { console.error(error); process.exit(1); }).finally(() => prisma.$disconnect());
+main()
+  .catch((error) => {
+    console.error(error);
+    process.exit(1);
+  })
+  .finally(() => prisma.$disconnect());

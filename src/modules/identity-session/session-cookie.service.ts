@@ -1,3 +1,4 @@
+/** Serializes and reads the refresh cookie with production-only Secure and safe expiry semantics. */
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 

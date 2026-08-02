@@ -1,3 +1,4 @@
+/** Output contracts for score, risk, affordability and pricing stages of the demonstrator. */
 import type { VariableSeed } from './types';
 
 // Catálogo maestro de VARIABLES OBJETIVO (targets/outputs) que el motor de decisión

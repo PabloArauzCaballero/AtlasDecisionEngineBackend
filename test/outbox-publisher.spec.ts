@@ -1,12 +1,18 @@
 import type { Prisma } from '@prisma/client';
 import { OutboxPublisherService } from '../src/common/events/outbox-publisher.service';
+import type { JobSignalService } from '../src/common/jobs/job-signal.service';
 import { DecisionEventType } from '../src/common/events/event-types';
+
+function fakeJobSignal(): JobSignalService {
+  return { notify: jest.fn().mockResolvedValue(undefined) } as unknown as JobSignalService;
+}
 
 describe('OutboxPublisherService', () => {
   it('writes the outbox row on the caller-supplied transaction, never its own', async () => {
     const create = jest.fn().mockResolvedValue({ id: 99n });
     const tx = { decisionOutboxEvent: { create } } as unknown as Prisma.TransactionClient;
-    const publisher = new OutboxPublisherService();
+    const jobSignal = fakeJobSignal();
+    const publisher = new OutboxPublisherService(jobSignal);
 
     await publisher.publish(tx, {
       eventType: DecisionEventType.VERSION_APPROVED,
@@ -32,13 +38,16 @@ describe('OutboxPublisherService', () => {
         payloadJson: { versionId: '5' },
       }),
     });
+    // Anuncia el trabajo en la MISMA transacción que el INSERT, para que el relay solo
+    // despierte si el commit de negocio realmente ocurrió.
+    expect(jobSignal.notify).toHaveBeenCalledWith(tx, 'outbox-relay');
   });
 
   it('carries an explicit schemaVersion through unchanged', async () => {
     const create = jest.fn().mockResolvedValue({ id: 1n });
     const tx = { decisionOutboxEvent: { create } } as unknown as Prisma.TransactionClient;
 
-    await new OutboxPublisherService().publish(tx, {
+    await new OutboxPublisherService(fakeJobSignal()).publish(tx, {
       eventType: 'version.approved',
       schemaVersion: '2',
       tenantId: 1n,

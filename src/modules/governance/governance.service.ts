@@ -1,3 +1,4 @@
+/** Applies ordered approvals and separation of duties before an artifact can be published. */
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {

@@ -81,7 +81,115 @@ jobs:
           done
           curl -fsS http://localhost:3000/health/ready
           yarn smoke:sh
-      - name: Build runtime and migrator images
+      - name: Build runtime, worker and migrator images
         run: |
           docker build --target runtime -t atlas-decision-engine:${{ github.sha }} .
+          docker build --target worker -t atlas-decision-worker:${{ github.sha }} .
           docker build --target migrator -t atlas-decision-migrator:${{ github.sha }} .
+
+  # Puerta documental. Corre aparte de `verify` para que un fallo de documentación se
+  # distinga de un fallo de código, pero bloquea igual: una documentación desactualizada es
+  # un defecto del producto, no un detalle estético.
+  docs:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: atlas_decision
+          POSTGRES_USER: atlas
+          POSTGRES_PASSWORD: atlas
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atlas -d atlas_decision"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://atlas:atlas@localhost:5432/atlas_decision?schema=public
+      AUTH_MODE: API_KEY
+      MANAGEMENT_API_KEY: ci-management-key-with-enough-entropy
+      RUNTIME_API_KEY: ci-runtime-key-with-different-entropy
+      AUDIT_HASH_SECRET: ci-audit-secret-with-at-least-32-characters-total
+      METRICS_TOKEN: ci-metrics-token-with-enough-entropy
+      SWAGGER_ENABLED: "true"
+      STARTUP_SEED_ENABLED: "false"
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+      - run: yarn install --frozen-lockfile
+      - run: yarn prisma:generate
+      - run: yarn prisma:migrate
+      - run: yarn build
+
+      # El contrato se genera de la aplicación REAL. Si un cambio de controlador altera la
+      # API, la diferencia aparece aquí y no como sorpresa en producción.
+      - name: Generar el contrato OpenAPI
+        run: yarn docs:openapi:generate
+
+      - name: Detectar un contrato desactualizado
+        run: |
+          if ! git diff --exit-code --stat openapi/openapi.json; then
+            echo "::error::openapi/openapi.json está desactualizado. Ejecute 'yarn docs:openapi:generate' y confirme el resultado."
+            exit 1
+          fi
+
+      - name: Calidad del contrato (reglas propias)
+        run: yarn docs:openapi:check
+
+      - name: Gobierno del contrato (Redocly)
+        run: yarn docs:openapi:lint
+
+      - name: Regenerar catálogos y auditoría del grafo
+        run: |
+          yarn docs:catalog
+          node scripts/docs/analyze-graphify.mjs
+
+      - name: Detectar catálogos desactualizados
+        run: |
+          if ! git diff --exit-code --stat docs/; then
+            echo "::error::Los catálogos generados están desactualizados. Ejecute 'yarn docs:catalog' y confirme el resultado."
+            exit 1
+          fi
+
+      # El workspace es la definición estructural oficial. Validarlo evita el modo de fallo
+      # clásico de la arquitectura como texto: que deje de compilar sin que nadie lo note,
+      # porque nadie la abre hasta que hace falta para una revisión.
+      #
+      # Solo `validate`, no `export`: el `structurizr/cli` está descontinuado y su `export`
+      # ya no produce nada (sale con código 0 y sin ficheros — comprobado), y su reemplazo es
+      # una imagen bastante más pesada. Renderizar aquí sería además redundante: los diagramas
+      # que se leen viven como Mermaid dentro del portal. Lo que el DSL aporta es ser la
+      # definición estructural versionable, y eso es justo lo que `validate` protege.
+      - name: Validar la arquitectura (Structurizr)
+        run: |
+          docker run --rm -v "$PWD/structurizr:/usr/local/structurizr" \
+            structurizr/cli:latest validate -workspace workspace.dsl
+
+      - name: Cobertura documental
+        run: yarn docs:coverage
+
+      - name: Enlaces y páginas huérfanas
+        run: yarn docs:links
+
+      # Modo estricto: un enlace roto o una página fuera de la navegación es un error.
+      - name: Construir el portal
+        run: |
+          docker run --rm -v "$PWD:/docs" squidfunk/mkdocs-material:9.6.14 build --strict
+
+      - name: Publicar el portal y el contrato como artefactos
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation-${{ github.sha }}
+          path: |
+            site/
+            openapi/openapi.json
+            docs/reports/*.json
+          retention-days: 30

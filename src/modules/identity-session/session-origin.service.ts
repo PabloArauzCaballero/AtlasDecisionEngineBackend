@@ -1,3 +1,4 @@
+/** Enforces browser Origin independently from CORS because session routes carry ambient cookies. */
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DomainException } from '../../common/errors/domain-exception';

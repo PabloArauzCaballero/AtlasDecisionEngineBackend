@@ -26,6 +26,8 @@ Este paquete contiene una arquitectura integral para un motor de decisión de cr
 20. Evolución de reglas a scorecards y ML.
 21. Trazabilidad de requisitos a evidencia.
 22. Paquetes backend y límites modulares.
+23. Taxonomía de variables y su contrato (§1–§5).
+24. Ciclo de vida de una variable intermedia (§2, §3.1).
 
 ## Principios de diseño incorporados
 

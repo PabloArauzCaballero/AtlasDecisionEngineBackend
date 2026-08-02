@@ -1,3 +1,4 @@
+/** Composes the portal-session adapter without turning provider sessions into local authority. */
 import { Module } from '@nestjs/common';
 import { IdentitySessionController } from './identity-session.controller';
 import { IdentitySessionService } from './identity-session.service';

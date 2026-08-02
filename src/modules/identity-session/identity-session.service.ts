@@ -1,3 +1,4 @@
+/** Delegates login/refresh/logout to the identity provider and returns only normalized session data. */
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { DomainException } from '../../common/errors/domain-exception';
 import { IdentityProviderClient } from '../../common/security/identity-provider.client';

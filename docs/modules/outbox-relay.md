@@ -1,0 +1,24 @@
+<!-- GENERADO POR scripts/docs/generate-catalogs.mjs — NO EDITAR A MANO.
+     Fuente: src/modules/outbox-relay/. Ejecute `yarn docs:catalog` tras cambiar el código. -->
+
+# Módulo `outbox-relay`
+
+
+## Responsabilidad
+
+Código: [`src/modules/outbox-relay/`](https://github.com/) · 2 ficheros TypeScript.
+
+No expone endpoints HTTP.
+
+## Autorización
+
+Este módulo no declara roles: o no expone rutas, o son públicas por diseño.
+
+## Códigos de error propios
+
+No lanza `DomainException` propias.
+
+## Clases exportadas
+
+- `OutboxRelayModule`
+- `OutboxRelayService`

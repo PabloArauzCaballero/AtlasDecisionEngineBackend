@@ -11,7 +11,11 @@ describe('ManualReviewService.resolve — segregation of duties', () => {
   const principal = (id: string): AuthenticatedPrincipal =>
     ({ id, requestId: 'req-1', roles: ['FRAUD_ANALYST'] }) as unknown as AuthenticatedPrincipal;
 
-  function makeService(review: { id: bigint; status: ManualReviewStatus; assignedTo: string | null }) {
+  function makeService(review: {
+    id: bigint;
+    status: ManualReviewStatus;
+    assignedTo: string | null;
+  }) {
     const updateCalls: unknown[] = [];
     const prisma = {
       decisionManualReviewCase: {
@@ -46,9 +50,11 @@ describe('ManualReviewService.resolve — segregation of duties', () => {
       status: ManualReviewStatus.OPEN,
       assignedTo: null,
     });
-    await expect(service.resolve(1n, 1n, resolveDto, principal('analyst-a'))).rejects.toMatchObject({
-      code: 'MANUAL_REVIEW_NOT_ASSIGNED',
-    });
+    await expect(service.resolve(1n, 1n, resolveDto, principal('analyst-a'))).rejects.toMatchObject(
+      {
+        code: 'MANUAL_REVIEW_NOT_ASSIGNED',
+      },
+    );
     expect(updateCalls).toHaveLength(0);
   });
 
@@ -61,9 +67,9 @@ describe('ManualReviewService.resolve — segregation of duties', () => {
     await expect(
       service.resolve(1n, 1n, resolveDto, principal('analyst-b')),
     ).rejects.toBeInstanceOf(DomainException);
-    await expect(
-      service.resolve(1n, 1n, resolveDto, principal('analyst-b')),
-    ).rejects.toMatchObject({ code: 'MANUAL_REVIEW_ASSIGNEE_MISMATCH' });
+    await expect(service.resolve(1n, 1n, resolveDto, principal('analyst-b'))).rejects.toMatchObject(
+      { code: 'MANUAL_REVIEW_ASSIGNEE_MISMATCH' },
+    );
     expect(updateCalls).toHaveLength(0);
   });
 

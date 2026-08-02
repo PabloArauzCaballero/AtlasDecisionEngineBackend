@@ -89,6 +89,15 @@ supports two modes, controlled by `SCRIPT_RUNNER_MODE`:
     intercepts syscalls in userspace and is the actual OS security boundary the in-process mode
     lacks — the same approach Google Cloud Run/GKE Sandbox use for untrusted code execution.
 
+  The runner executes scripts asynchronously and admits at most `RUNNER_MAX_CONCURRENCY` (4)
+  at a time with `RUNNER_MAX_QUEUE` (64) waiting — kept well under the container's `pids_limit`,
+  since each interpreter costs several pids. Beyond that it answers **503
+  `SCRIPT_RUNNER_BUSY`**, which the API treats as a transient failure: the reservation is
+  released so the caller can retry the same idempotency key, because the script never ran and
+  no decision was made. Every infrastructure-level runner failure behaves the same way
+  (`SCRIPT_RUNNER_UNAVAILABLE`, script nodes disabled); only a genuinely deterministic outcome
+  — invalid script, non-serializable output — is a cached 4xx.
+
   Enabling this in production requires gVisor installed on the Docker host and registered as a
   runtime (once per host):
 

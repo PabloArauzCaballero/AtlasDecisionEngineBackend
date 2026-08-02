@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { parseBigIntId } from '../../common/http/id';
 import type {
   ArtifactInputContractQueryDto,
   ArtifactPickerQueryDto,
@@ -92,7 +93,8 @@ export class ViewsService {
              is_required AS "isRequired", fallback_policy AS "fallbackPolicy",
              dependency_path AS "dependencyPath", variable_code AS "variableCode",
              canonical_name AS "canonicalName", data_type AS "dataType", nullable,
-             default_value_json AS "defaultValue"
+             default_value_json AS "defaultValue",
+             validation_schema_json AS "validationSchema"
       FROM "vw_artifact_input_contract"
       WHERE tenant_id = ${tenantId} AND artifact_code = ${query.artifactCode}
       ORDER BY version_number DESC, usage_type ASC, variable_code ASC`);
@@ -108,7 +110,7 @@ export class ViewsService {
 
   testSuitePicker(tenantId: bigint, query: TestSuitePickerQueryDto) {
     const byVersion = query.versionId
-      ? Prisma.sql`AND artifact_version_id = ${BigInt(query.versionId)}`
+      ? Prisma.sql`AND artifact_version_id = ${parseBigIntId(query.versionId, 'versionId')}`
       : Prisma.empty;
     return this.prisma.$queryRaw(Prisma.sql`
       SELECT id, suite_code AS "suiteCode", name, suite_type AS "suiteType",
@@ -122,7 +124,7 @@ export class ViewsService {
 
   testRunPicker(tenantId: bigint, query: TestRunPickerQueryDto) {
     const byVersion = query.versionId
-      ? Prisma.sql`AND artifact_version_id = ${BigInt(query.versionId)}`
+      ? Prisma.sql`AND artifact_version_id = ${parseBigIntId(query.versionId, 'versionId')}`
       : Prisma.empty;
     return this.prisma.$queryRaw(Prisma.sql`
       SELECT id, status, queued_at AS "queuedAt", finished_at AS "finishedAt",

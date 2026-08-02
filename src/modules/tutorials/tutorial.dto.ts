@@ -1,3 +1,4 @@
+/** Progress updates constrain step and completion state while content stays client-owned. */
 import { IsBoolean, IsIn, IsInt, IsOptional, Min } from 'class-validator';
 
 export class UpsertTutorialProgressDto {

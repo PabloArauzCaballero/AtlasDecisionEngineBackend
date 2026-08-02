@@ -1,8 +1,10 @@
+/** Maintains tenant-safe policy links and computes coverage without asserting approval. */
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { AuditService } from '../../common/audit/audit.service';
 import { DomainException } from '../../common/errors/domain-exception';
+import { parseBigIntId } from '../../common/http/id';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { pageResult, paginationArgs } from '../../common/http/pagination';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
@@ -192,7 +194,7 @@ export class TraceabilityService {
     principal: AuthenticatedPrincipal,
   ) {
     await this.assertPolicyTenant(tenantId, policyId);
-    const versionId = BigInt(dto.artifactVersionId);
+    const versionId = parseBigIntId(dto.artifactVersionId, 'artifactVersionId');
     const version = await this.prisma.decisionArtifactVersion.findFirst({
       where: { id: versionId, artifact: { tenantId } },
     });
@@ -229,7 +231,7 @@ export class TraceabilityService {
     principal: AuthenticatedPrincipal,
   ) {
     await this.assertPolicyTenant(tenantId, policyId);
-    const suiteId = BigInt(dto.testSuiteId);
+    const suiteId = parseBigIntId(dto.testSuiteId, 'testSuiteId');
     const suite = await this.prisma.decisionTestSuite.findFirst({
       where: { id: suiteId, artifactVersion: { artifact: { tenantId } } },
     });

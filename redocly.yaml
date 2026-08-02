@@ -1,0 +1,64 @@
+# Gobierno automático del contrato de API.
+#
+# Existe para que el contrato no se degrade con el tiempo: sin una puerta, cada endpoint
+# nuevo tiende a nacer sin descripción, sin etiqueta o sin sus errores, y la degradación solo
+# se descubre cuando un integrador se queda bloqueado.
+#
+# Reparto con `scripts/docs/check-openapi-quality.mjs`: aquí van las reglas estructurales que
+# Redocly ya sabe evaluar; allí las que son de este producto (unicidad de operationId, sondas
+# públicas, ausencia de secretos) y que ninguna regla genérica conoce.
+apis:
+  atlas@v1:
+    root: openapi/openapi.json
+
+extends:
+  - recommended
+
+rules:
+  # --- Identidad y descubribilidad de cada operación ---
+  operation-operationId: error
+  operation-operationId-unique: error
+  operation-operationId-url-safe: error
+  operation-summary: error
+  operation-tag-defined: error
+  tags-alphabetical: off
+
+  # --- Contrato de datos ---
+  # Una respuesta sin esquema obliga al consumidor a adivinar la forma leyendo ejemplos.
+  #
+  # `operation-4xx-response` queda en `warn` y no en `error` por un caso concreto: las cuatro
+  # sondas de salud son públicas, saltan el límite de tasa y no pueden devolver ningún 4xx,
+  # así que la regla exigiría documentar un error imposible. Lo que sí importa —que toda
+  # operación AUTENTICADA declare 401 y 403— lo comprueba
+  # `scripts/docs/check-openapi-quality.mjs`, que sí distingue las sondas.
+  operation-4xx-response: warn
+  operation-2xx-response: error
+  no-invalid-media-type-examples: error
+  no-invalid-schema-examples: error
+  # La conformidad estructural con la especificación ya la aplica `extends: recommended`;
+  # declararla aquí como regla suelta no es una propiedad válida de la configuración.
+  struct: error
+
+  # --- Seguridad ---
+  security-defined: error
+
+  # --- Higiene de nombres y estructura ---
+  no-ambiguous-paths: error
+  no-identical-paths: error
+  path-declaration-must-exist: error
+  path-not-include-query: error
+  no-unused-components: warn
+  no-server-example.com: error
+  no-server-trailing-slash: error
+
+  # --- Deprecación gobernada ---
+  # Deprecar sin explicar a qué migrar deja al consumidor sin salida.
+  operation-description: off
+  info-license: off
+  info-contact: off
+
+  # El contrato lo genera Nest desde los controladores, así que las descripciones de
+  # parámetros provienen del JSDoc del DTO; se avisa en vez de bloquear para que la deuda sea
+  # visible sin frenar un despliegue por un comentario ausente.
+  parameter-description: warn
+  no-enum-type-mismatch: error

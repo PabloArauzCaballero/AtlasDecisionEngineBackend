@@ -1,3 +1,7 @@
+/**
+ * Enforces the process-wide request budget. Observable emissions reset the timeout, so long-lived
+ * SSE routes use bounded heartbeats rather than bypassing this guard.
+ */
 import {
   CallHandler,
   ExecutionContext,

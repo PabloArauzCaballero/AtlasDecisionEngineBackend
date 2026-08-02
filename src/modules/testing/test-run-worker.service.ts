@@ -1,73 +1,99 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma, TestRunStatus } from '@prisma/client';
+import { runsBackgroundJobs, workerRoleOf } from '../../common/config/worker-role';
+import { BackgroundJob } from '../../common/jobs/background-job';
+import { JobName } from '../../common/jobs/job-names';
+import { JobSchedulerService } from '../../common/jobs/job-scheduler.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { TestExecutionService } from './test-execution.service';
 
-/** Database-backed worker with atomic claims, bounded concurrency and expiring leases. */
+/**
+ * Database-backed worker with atomic claims, bounded concurrency and expiring leases.
+ *
+ * El orquestador ({@link JobSchedulerService}) decide cuándo se reclama; aquí solo queda el
+ * reclamo y la ejecución. Una corrida encolada anuncia su llegada con `pg_notify` dentro de
+ * la misma transacción que la crea, así que arranca al ritmo del commit y no al del sondeo:
+ * el intervalo de 500 ms que este worker usaba dejó de ser la cota de latencia y pasó a ser
+ * solo el suelo de la red de seguridad.
+ */
 @Injectable()
-export class TestRunWorkerService implements OnModuleInit, OnModuleDestroy {
+export class TestRunWorkerService implements OnModuleInit, OnModuleDestroy, BackgroundJob {
   private readonly logger = new Logger(TestRunWorkerService.name);
   private readonly activeJobs = new Set<Promise<void>>();
-  private pollTimer?: ReturnType<typeof setTimeout>;
   private stopped = false;
+
+  readonly name = JobName.TestRun;
+  readonly minIdleIntervalMs: number;
+  readonly maxIdleIntervalMs: number;
+  readonly initialDelayMs = 0;
+
+  /** Último barrido de leases vencidos; ver {@link recoverExpiredRuns}. */
+  private lastRecoveryAt = 0;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly execution: TestExecutionService,
     private readonly config: ConfigService,
-  ) {}
+    private readonly scheduler: JobSchedulerService,
+  ) {
+    this.minIdleIntervalMs = config.get<number>('TEST_RUN_WORKER_POLL_MS') ?? 500;
+    this.maxIdleIntervalMs = Math.max(
+      config.get<number>('TEST_RUN_WORKER_MAX_POLL_MS') ?? 30_000,
+      this.minIdleIntervalMs,
+    );
+  }
 
   onModuleInit(): void {
-    this.schedule(0);
+    if (!runsBackgroundJobs(this.config)) {
+      this.logger.log(`Test run worker not started: WORKER_ROLE=${workerRoleOf(this.config)}`);
+      return;
+    }
+    if (!(this.config.get<boolean>('TEST_RUN_WORKER_ENABLED') ?? true)) {
+      this.logger.log('Test run worker disabled by configuration');
+      return;
+    }
+    this.scheduler.register(this);
   }
 
   async onModuleDestroy(): Promise<void> {
     this.stopped = true;
-    if (this.pollTimer) clearTimeout(this.pollTimer);
     await Promise.allSettled(this.activeJobs);
   }
 
-  private schedule(delay = this.config.get<number>('TEST_RUN_WORKER_POLL_MS') ?? 500): void {
-    if (this.stopped || this.pollTimer) return;
-    this.pollTimer = setTimeout(() => {
-      this.pollTimer = undefined;
-      void this.poll();
-    }, delay);
-    this.pollTimer.unref?.();
-  }
-
-  private async poll(): Promise<void> {
-    try {
-      await this.recoverExpiredRuns();
-      const concurrency = this.config.get<number>('TEST_RUN_WORKER_CONCURRENCY') ?? 2;
-      while (!this.stopped && this.activeJobs.size < concurrency) {
-        const runId = await this.claimNextRun();
-        if (!runId) break;
-        const job = this.execute(runId);
-        this.activeJobs.add(job);
-        void job
-          .finally(() => {
-            this.activeJobs.delete(job);
-            this.schedule(0);
-          })
-          .catch((error: unknown) => {
-            // execute() already records the run failure; this protects the
-            // detached worker task if even that final persistence step fails.
-            this.logger.error(
-              `Detached test-run task failed: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
-            );
-          });
-      }
-    } catch (error) {
-      this.logger.error(
-        `Test-run worker poll failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    } finally {
-      this.schedule();
+  /**
+   * Un ciclo: recupera leases vencidos si toca y reclama corridas hasta llenar la
+   * concurrencia. Devuelve cuántas arrancó, de modo que el orquestador vuelva de inmediato
+   * mientras siga habiendo cola y retroceda cuando se vacíe.
+   */
+  async runOnce(): Promise<number> {
+    await this.recoverExpiredRuns();
+    const concurrency = this.config.get<number>('TEST_RUN_WORKER_CONCURRENCY') ?? 2;
+    let started = 0;
+    while (!this.stopped && this.activeJobs.size < concurrency) {
+      const runId = await this.claimNextRun();
+      if (!runId) break;
+      started += 1;
+      const job = this.execute(runId);
+      this.activeJobs.add(job);
+      void job
+        .finally(() => {
+          this.activeJobs.delete(job);
+          // Se liberó una ranura de concurrencia: puede haber cola esperándola, y esperar
+          // el retroceso dejaría el worker ocioso con trabajo disponible.
+          this.scheduler.wake(this.name);
+        })
+        .catch((error: unknown) => {
+          // execute() already records the run failure; this protects the
+          // detached worker task if even that final persistence step fails.
+          this.logger.error(
+            `Detached test-run task failed: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        });
     }
+    return started;
   }
 
   /**
@@ -141,7 +167,19 @@ export class TestRunWorkerService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /**
+   * Devuelve a la cola las corridas cuyo lease venció porque el proceso que las tenía murió.
+   *
+   * Se ejecuta como mucho una vez por `TEST_RUN_RECOVERY_INTERVAL_MS` y no en cada ciclo: un
+   * lease dura minutos (`TEST_RUN_LEASE_SECONDS`, 300 s por defecto), así que buscar
+   * vencidos dos veces por segundo no podía encontrar nada nuevo — era un `findMany` fijo
+   * por réplica cuyo resultado estaba garantizado vacío el 99,9 % de las veces.
+   */
   private async recoverExpiredRuns(): Promise<void> {
+    const intervalMs = this.config.get<number>('TEST_RUN_RECOVERY_INTERVAL_MS') ?? 30_000;
+    if (Date.now() - this.lastRecoveryAt < intervalMs) return;
+    this.lastRecoveryAt = Date.now();
+
     const now = new Date();
     const expiredLease = {
       OR: [{ leaseExpiresAt: null }, { leaseExpiresAt: { lt: now } }],
