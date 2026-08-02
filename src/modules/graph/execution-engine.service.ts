@@ -1,11 +1,24 @@
+/**
+ * Deterministic graph interpreter. It enforces step/output contracts and emits explainable traces;
+ * infrastructure resolution and persistence remain outside the engine.
+ */
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DomainException } from '../../common/errors/domain-exception';
+import { MetricsService } from '../../common/observability/metrics.service';
 import { ExpressionEvaluator } from './expression-evaluator';
 import { renderTemplate } from './template-reference';
 import { ScriptNodeRunnerService, type ScriptLanguage } from './script-node-runner.service';
+import { IntermediateScope, sanitize } from './intermediate-scope';
+import {
+  executeCalculatedField,
+  type ExecutableCalculatedField,
+} from '../calculated-fields/calculated-field-runtime';
+import { intermediateAssignmentsOf } from './validators/graph-intermediate.validator';
 import type {
   ArtifactReferenceResolver,
+  CalculatedFieldCallSnapshot,
+  CalculatedFieldTraceEntry,
   CompiledDecisionArtifact,
   DecisionReasonResult,
   EngineExecutionResult,
@@ -26,6 +39,16 @@ interface MutableExecutionState {
   reasons: DecisionReasonResult[];
   primaryResult?: EngineExecutionResult['primaryResult'];
   manualReview?: EngineExecutionResult['manualReview'];
+  /**
+   * Ámbito de las variables intermedias de ESTA ejecución. Vive en el estado, no en
+   * el servicio: el servicio es un singleton compartido entre peticiones y ahí una
+   * intermedia sobreviviría a su ejecución, que es justo lo que §2.1 prohíbe.
+   */
+  intermediates: IntermediateScope;
+  /** Nodo en evaluación; determina qué intermedias son legibles y quién las consume. */
+  currentNodeKey: string;
+  /** Invocaciones a campos calculados de esta ejecución, en orden (§12). */
+  calculatedFieldCalls: CalculatedFieldTraceEntry[];
 }
 
 @Injectable()
@@ -36,6 +59,7 @@ export class ExecutionEngineService {
     private readonly expressions: ExpressionEvaluator,
     config: ConfigService,
     private readonly scripts: ScriptNodeRunnerService,
+    private readonly metrics: MetricsService,
   ) {
     this.maxSteps = config.get<number>('MAX_EXECUTION_STEPS') ?? 256;
   }
@@ -55,7 +79,14 @@ export class ExecutionEngineService {
     // TestCaseExecutorService), so this changes nothing for them.
     onStep?: (event: LiveStepEvent) => void,
   ): Promise<EngineExecutionResult> {
-    const state: MutableExecutionState = { outcome: 'NO_DECISION', output: {}, reasons: [] };
+    const state: MutableExecutionState = {
+      outcome: 'NO_DECISION',
+      output: {},
+      reasons: [],
+      intermediates: new IntermediateScope(compiled.intermediates ?? []),
+      currentNodeKey: compiled.startNodeKey,
+      calculatedFieldCalls: [],
+    };
     const trace: EngineExecutionResult['trace'] = [];
     const visitedNodeKeys: string[] = [];
     const traversedEdgeKeys: string[] = [];
@@ -73,7 +104,14 @@ export class ExecutionEngineService {
           `Compiled node ${currentKey} not found`,
         );
       visitedNodeKeys.push(node.key);
+      state.currentNodeKey = node.key;
+      // Antes de ejecutar nada: toda intermedia que nazca en este nodo queda fechada en
+      // ESTE paso, que es el mismo índice con el que la traza lo publica (§3.1).
+      state.intermediates.enterStep(stepIndex);
       const evaluation: Record<string, unknown> = {};
+      // Foto de las intermedias ANTES de ejecutar el nodo (§3.1: "variables
+      // intermedias disponibles antes de la ejecución").
+      const intermediatesBefore = state.intermediates.snapshot();
       onStep?.({ status: 'RUNNING', nodeKey: node.key, nodeType: node.type });
 
       try {
@@ -113,23 +151,79 @@ export class ExecutionEngineService {
           terminalNodeKey = node.key;
         }
 
-        const terminalByAction = node.actions.some((reference) => compiled.actions[reference.code]?.terminal);
-        if (node.terminal || node.type === 'END' || node.type === 'RESULT' || node.type === 'MANUAL_REVIEW' || terminalByAction) {
+        // Los campos calculados corren ANTES de las asignaciones de intermedias: una
+        // asignación puede combinar el resultado de un campo con otros valores, pero un
+        // campo nunca depende de una asignación posterior del mismo nodo.
+        await this.applyCalculatedFieldCalls(node, compiled, variables, state, evaluation);
+
+        // Las escrituras de intermedias van DESPUÉS de la lógica del nodo: una
+        // asignación puede depender del score o del output que el propio nodo acaba
+        // de calcular.
+        this.applyIntermediateWrites(node, variables, state, evaluation);
+
+        const terminalByAction = node.actions.some(
+          (reference) => compiled.actions[reference.code]?.terminal,
+        );
+        if (
+          node.terminal ||
+          node.type === 'END' ||
+          node.type === 'RESULT' ||
+          node.type === 'MANUAL_REVIEW' ||
+          terminalByAction
+        ) {
           terminalNodeKey = node.key;
           const durationUs = Number((process.hrtime.bigint() - started) / 1000n);
-          trace.push({ nodeId: node.id, nodeKey: node.key, nodeType: node.type, evaluation, durationUs });
+          trace.push({
+            nodeId: node.id,
+            nodeKey: node.key,
+            nodeType: node.type,
+            evaluation,
+            durationUs,
+            variableState: this.nodeVariableState(
+              node,
+              compiled,
+              variables,
+              state,
+              intermediatesBefore,
+              { durationUs },
+            ),
+          });
           onStep?.({ status: 'COMPLETED', nodeKey: node.key, nodeType: node.type, durationUs });
           currentKey = undefined;
           break;
         }
 
-        const selected = this.selectEdge(compiled.edgesByNode[node.key] ?? [], compiled, variables, state, evaluation);
+        const selected = this.selectEdge(
+          compiled.edgesByNode[node.key] ?? [],
+          compiled,
+          variables,
+          state,
+          evaluation,
+        );
         if (!selected) {
-          throw new DomainException('NO_MATCHING_EDGE', `No outgoing edge matched node ${node.key}`);
+          throw new DomainException(
+            'NO_MATCHING_EDGE',
+            `No outgoing edge matched node ${node.key}`,
+          );
         }
         traversedEdgeKeys.push(selected.key);
         const durationUs = Number((process.hrtime.bigint() - started) / 1000n);
-        trace.push({ nodeId: node.id, nodeKey: node.key, nodeType: node.type, branchTaken: selected.key, evaluation, durationUs });
+        trace.push({
+          nodeId: node.id,
+          nodeKey: node.key,
+          nodeType: node.type,
+          branchTaken: selected.key,
+          evaluation,
+          durationUs,
+          variableState: this.nodeVariableState(
+            node,
+            compiled,
+            variables,
+            state,
+            intermediatesBefore,
+            { durationUs },
+          ),
+        });
         onStep?.({
           status: 'COMPLETED',
           nodeKey: node.key,
@@ -146,11 +240,34 @@ export class ExecutionEngineService {
         });
         currentKey = selected.to;
       } catch (error) {
+        // Sin esto, el nodo que rompe la decisión era justo el único que no aparecía en
+        // la traza: quedaba un hueco donde más falta hace la evidencia.
+        const durationUs = Number((process.hrtime.bigint() - started) / 1000n);
+        const failure = {
+          code: error instanceof DomainException ? error.code : 'NODE_EXECUTION_FAILED',
+          message: error instanceof Error ? error.message : String(error),
+        };
+        trace.push({
+          nodeId: node.id,
+          nodeKey: node.key,
+          nodeType: node.type,
+          evaluation,
+          durationUs,
+          variableState: this.nodeVariableState(
+            node,
+            compiled,
+            variables,
+            state,
+            intermediatesBefore,
+            { durationUs, error: failure },
+          ),
+        });
         onStep?.({
           status: 'ERROR',
           nodeKey: node.key,
           nodeType: node.type,
-          errorMessage: error instanceof Error ? error.message : String(error),
+          durationUs,
+          errorMessage: failure.message,
         });
         throw error;
       }
@@ -170,6 +287,7 @@ export class ExecutionEngineService {
     }
 
     this.finalizeOutputContract(compiled, state);
+    this.recordIntermediateLifecycle(state);
 
     return {
       status:
@@ -197,6 +315,7 @@ export class ExecutionEngineService {
       terminalNodeKey,
       manualReview: state.manualReview,
       nestedExecutions,
+      calculatedFieldCalls: state.calculatedFieldCalls,
     };
   }
 
@@ -243,7 +362,9 @@ export class ExecutionEngineService {
         cursor,
       );
       nestedExecutions.push(...resolution.trace);
-      const outputAssignments = Array.isArray(node.config.outputAssignments) ? node.config.outputAssignments : [];
+      const outputAssignments = Array.isArray(node.config.outputAssignments)
+        ? node.config.outputAssignments
+        : [];
       for (const raw of outputAssignments) {
         const assignment = raw as Record<string, unknown>;
         const outputCode = String(assignment.outputCode ?? '');
@@ -323,6 +444,7 @@ export class ExecutionEngineService {
         this.setOutputValue(compiled, state, contract.code, contract.defaultValue);
       }
       if (state.output[contract.code] === undefined && contract.required && !contract.nullable) {
+        this.metrics.recordMissingRequiredOutput(compiled.artifact.code);
         throw new DomainException(
           'REQUIRED_OUTPUT_MISSING',
           `Execution finished without required output ${contract.code}`,
@@ -396,7 +518,7 @@ export class ExecutionEngineService {
       );
     }
     state.score = score;
-    state.output.score = score;
+    this.publishOutput(compiled, state, 'score', score, false);
     evaluation.score = score;
     evaluation.appliedComponents = applied;
   }
@@ -413,14 +535,44 @@ export class ExecutionEngineService {
       const action = compiled.actions[reference.code];
       if (!action)
         throw new DomainException('RUNTIME_ACTION_NOT_FOUND', `Action ${reference.code} not found`);
-      this.executeAction(action, variables, state);
+      this.executeAction(action, compiled, variables, state);
       executed.push(action.code);
     }
     evaluation.actions = executed;
   }
 
+  /**
+   * Escribe una salida desde fuera de un nodo RESULT (acción SET_FIELD, score de un nodo
+   * SCORE) respetando el contrato cuando lo hay.
+   *
+   * Un artefacto que declara contrato de salida espera que TODO lo que se publica pase por
+   * él: si solo lo aplicáramos en los nodos RESULT, una acción podría publicar un campo no
+   * declarado, o el tipo equivocado en uno declarado, y la respuesta saldría igualmente.
+   * Los artefactos 1.0 —sin contrato declarado— conservan la escritura libre de siempre.
+   *
+   * @param requireDeclared `false` para los campos heredados que el motor publica siempre
+   *   (`score`): ahí el contrato se valida si el campo está declarado, pero no declararlo
+   *   no puede convertirse de golpe en un error para artefactos que ya funcionaban.
+   */
+  private publishOutput(
+    compiled: CompiledDecisionArtifact,
+    state: MutableExecutionState,
+    code: string,
+    value: unknown,
+    requireDeclared = true,
+  ): void {
+    const contracts = this.outputContracts(compiled);
+    const declared = contracts.some((contract) => contract.code === code);
+    if (!contracts.length || (!declared && !requireDeclared)) {
+      state.output[code] = value;
+      return;
+    }
+    this.setOutputValue(compiled, state, code, value);
+  }
+
   private executeAction(
     action: GraphActionSnapshot,
+    compiled: CompiledDecisionArtifact,
     variables: Record<string, unknown>,
     state: MutableExecutionState,
   ): void {
@@ -444,7 +596,7 @@ export class ExecutionEngineService {
         break;
       case 'SET_FIELD': {
         const field = String(payload.field);
-        state.output[field] = this.resolveActionValue(payload, context);
+        this.publishOutput(compiled, state, field, this.resolveActionValue(payload, context));
         break;
       }
       case 'CREATE_MANUAL_REVIEW':
@@ -540,6 +692,248 @@ export class ExecutionEngineService {
         output: state.output,
       },
       output: state.output,
+      // Espacio de nombres propio: las intermedias nunca se mezclan con las variables
+      // del contrato, así una expresión no puede leer `dti` creyendo que es una entrada.
+      intermediate: state.intermediates.readableView(state.currentNodeKey),
+    };
+  }
+
+  /**
+   * Publica el ciclo de vida de las intermedias de esta ejecución (§12). Una intermedia
+   * que se crea y nunca se consume suele ser lógica muerta: conviene poder medirlo.
+   */
+  private recordIntermediateLifecycle(state: MutableExecutionState): void {
+    if (!state.intermediates.size) return;
+    const entries = state.intermediates.snapshot();
+    const created = entries.filter((entry) => entry.state !== 'NOT_AVAILABLE');
+    const consumed = created.filter((entry) => entry.consumedByNodeKeys.length);
+    this.metrics.recordIntermediateEvent('CREATED', created.length);
+    this.metrics.recordIntermediateEvent('CONSUMED', consumed.length);
+    this.metrics.recordIntermediateEvent('UNUSED', created.length - consumed.length);
+  }
+
+  /**
+   * Ejecuta los campos calculados que el nodo invoca (§5.1) y deja cada resultado en su
+   * destino declarado.
+   *
+   * La definición viaja EMBEBIDA en el artefacto compilado, así que no se consulta la
+   * base de datos durante una decisión: la versión del campo quedó fijada al compilar y
+   * la ejecución sigue siendo reproducible aunque el campo se deprecie después.
+   */
+  private async applyCalculatedFieldCalls(
+    node: GraphNodeSnapshot,
+    compiled: CompiledDecisionArtifact,
+    variables: Record<string, unknown>,
+    state: MutableExecutionState,
+    evaluation: Record<string, unknown>,
+  ): Promise<void> {
+    const calls = node.calculatedFieldCalls ?? [];
+    if (!calls.length) return;
+
+    for (const call of calls) {
+      const started = Date.now();
+      try {
+        const inputs = this.resolveCalculatedFieldInputs(call, variables, state);
+        const result = await executeCalculatedField(
+          this.toExecutableField(call),
+          inputs,
+          this.scripts,
+        );
+        this.storeCalculatedFieldResult(call, compiled, state, result.value);
+        state.calculatedFieldCalls.push({
+          nodeKey: node.key,
+          callKey: call.callKey,
+          fieldCode: call.fieldCode,
+          versionNumber: call.versionNumber,
+          target: `${call.target.kind.toLowerCase()}.${call.target.code}`,
+          outcome: result.outcome,
+          durationMs: result.durationMs,
+          value: result.value,
+        });
+        this.metrics.recordCalculatedField(call.fieldCode, 'SUCCESS', result.durationMs);
+      } catch (error) {
+        const errorCode = error instanceof DomainException ? error.code : 'CALCULATED_FIELD_FAILED';
+        state.calculatedFieldCalls.push({
+          nodeKey: node.key,
+          callKey: call.callKey,
+          fieldCode: call.fieldCode,
+          versionNumber: call.versionNumber,
+          target: `${call.target.kind.toLowerCase()}.${call.target.code}`,
+          outcome: 'ERROR',
+          durationMs: Date.now() - started,
+          errorCode,
+        });
+        this.metrics.recordCalculatedField(call.fieldCode, 'ERROR', Date.now() - started);
+        throw error;
+      }
+    }
+    evaluation.calculatedFields = calls.map((call) => call.fieldCode).sort();
+  }
+
+  /** Alimenta cada entrada del campo calculado desde el contexto del grafo. */
+  private resolveCalculatedFieldInputs(
+    call: CalculatedFieldCallSnapshot,
+    variables: Record<string, unknown>,
+    state: MutableExecutionState,
+  ): Record<string, unknown> {
+    const inputs: Record<string, unknown> = {};
+    for (const [inputId, entry] of Object.entries(call.inputMapping ?? {})) {
+      if (entry.source === 'LITERAL') {
+        inputs[inputId] = entry.value;
+        continue;
+      }
+      if (entry.source === 'EXPRESSION') {
+        inputs[inputId] = this.expressions.evaluate(
+          entry.expression,
+          this.context(variables, state),
+        );
+        continue;
+      }
+      const path =
+        entry.source === 'INTERMEDIATE' ? `intermediate.${entry.path ?? ''}` : (entry.path ?? '');
+      inputs[inputId] = this.expressions.evaluate({ var: path }, this.context(variables, state));
+    }
+    return inputs;
+  }
+
+  /** Guarda el resultado en la intermedia o en la salida declarada como destino. */
+  private storeCalculatedFieldResult(
+    call: CalculatedFieldCallSnapshot,
+    compiled: CompiledDecisionArtifact,
+    state: MutableExecutionState,
+    value: unknown,
+  ): void {
+    if (call.target.kind === 'INTERMEDIATE') {
+      // Pasa por el mismo ámbito que cualquier otra escritura, así que hereda las
+      // comprobaciones de autorización, tipo y política de actualización de §2.3.
+      state.intermediates.write(call.target.code, state.currentNodeKey, value);
+      return;
+    }
+    this.setOutputValue(compiled, state, call.target.code, value);
+  }
+
+  private toExecutableField(call: CalculatedFieldCallSnapshot): ExecutableCalculatedField {
+    return {
+      fieldCode: call.fieldCode,
+      versionNumber: call.versionNumber,
+      implementationKind: call.definition.implementationKind,
+      contract: call.definition.contract as ExecutableCalculatedField['contract'],
+      operation: call.definition.operation as ExecutableCalculatedField['operation'],
+      sourceCode: call.definition.sourceCode,
+      libraryPackages: call.definition.libraryPackages ?? [],
+      defaultValue: call.definition.defaultValue,
+      timeoutMs: call.definition.timeoutMs,
+    };
+  }
+
+  /** Aplica las escrituras de variables intermedias declaradas por el nodo (§2). */
+  private applyIntermediateWrites(
+    node: GraphNodeSnapshot,
+    variables: Record<string, unknown>,
+    state: MutableExecutionState,
+    evaluation: Record<string, unknown>,
+  ): void {
+    const assignments = intermediateAssignmentsOf(node);
+    if (!assignments.length) return;
+    const written: string[] = [];
+    for (const assignment of assignments) {
+      const code = String(assignment.code ?? '');
+      const source = String(assignment.source ?? 'LITERAL').toUpperCase();
+      let value: unknown;
+      if (source === 'EXPRESSION') {
+        value = this.expressions.evaluate(
+          assignment.expression ?? assignment.valueExpression,
+          this.context(variables, state),
+        );
+      } else if (source === 'VARIABLE') {
+        value = this.expressions.evaluate(
+          { var: String(assignment.variablePath ?? assignment.path ?? '') },
+          this.context(variables, state),
+        );
+      } else if (source === 'TEMPLATE') {
+        value = renderTemplate(assignment.value, this.context(variables, state));
+      } else {
+        value = assignment.value;
+      }
+      state.intermediates.write(code, node.key, value);
+      written.push(code);
+    }
+    evaluation.intermediatesWritten = written.sort();
+  }
+
+  /**
+   * Estado de los valores que este nodo procesó (§3.1). Distingue explícitamente lo
+   * recibido, lo intermedio y lo publicado: sin esa separación el editor mostraba
+   * cualquier valor calculado como si fuera una salida pública del artefacto.
+   */
+  private nodeVariableState(
+    node: GraphNodeSnapshot,
+    compiled: CompiledDecisionArtifact,
+    variables: Record<string, unknown>,
+    state: MutableExecutionState,
+    intermediatesBefore: ReturnType<IntermediateScope['snapshot']>,
+    outcome: { durationUs: number; error?: { code: string; message: string } } = { durationUs: 0 },
+  ): NonNullable<EngineExecutionResult['trace'][number]['variableState']> {
+    const inputs = compiled.variables
+      .filter((variable) => !String(variable.usageType ?? 'INPUT').startsWith('OUTPUT'))
+      .map((variable) => ({
+        code: variable.code,
+        dataType: variable.dataType,
+        state:
+          variables[variable.code] === undefined ? ('NOT_AVAILABLE' as const) : ('VALID' as const),
+        value: variable.sensitive ? null : variables[variable.code],
+        sensitivityClass: variable.sensitivityClass ?? (variable.sensitive ? 'PII' : 'INTERNAL'),
+        origin: variable.expectedOrigin ?? 'REQUEST',
+      }));
+
+    const outputs = compiled.variables
+      .filter((variable) => String(variable.usageType ?? '').startsWith('OUTPUT'))
+      .map((variable) => {
+        const field = (compiled.outputContract ?? []).find(
+          (candidate) => candidate.code === variable.code,
+        );
+        const produced = state.output[variable.code] !== undefined;
+        return {
+          code: variable.code,
+          dataType: variable.dataType,
+          state: produced ? ('COMPUTED' as const) : ('NOT_AVAILABLE' as const),
+          value: sanitize(state.output[variable.code], field?.tracePolicy ?? 'FULL'),
+          sensitivityClass: variable.sensitivityClass ?? (variable.sensitive ? 'PII' : 'INTERNAL'),
+          // El contrato de salida dice quién produce el campo; sin él, solo sabemos que
+          // lo escribió algún nodo.
+          origin: field?.sourceKind ?? 'NODE',
+        };
+      });
+
+    const before = new Map(intermediatesBefore.map((entry) => [entry.code, entry]));
+    const after = state.intermediates.snapshot();
+    return {
+      nodeKey: node.key,
+      status: outcome.error ? ('ERROR' as const) : ('COMPLETED' as const),
+      durationUs: outcome.durationUs,
+      errors: outcome.error ? [outcome.error] : [],
+      // Una intermedia disponible que ningún nodo ha leído todavía suele ser lógica
+      // muerta; se avisa aquí para que se vea en el nodo, no solo en una métrica.
+      warnings: after
+        .filter((entry) => entry.state !== 'NOT_AVAILABLE' && !entry.consumedByNodeKeys.length)
+        .map((entry) => `La variable intermedia ${entry.code} aún no la ha consumido ningún nodo`),
+      inputs,
+      intermediatesBefore,
+      intermediatesAfter: after,
+      intermediatesCreated: after
+        .filter(
+          (entry) =>
+            before.get(entry.code)?.state === 'NOT_AVAILABLE' && entry.state !== 'NOT_AVAILABLE',
+        )
+        .map((entry) => entry.code),
+      intermediatesUpdated: after
+        .filter(
+          (entry) =>
+            before.get(entry.code)?.state !== 'NOT_AVAILABLE' &&
+            entry.writtenByNodeKey === node.key,
+        )
+        .map((entry) => entry.code),
+      outputs,
     };
   }
 }

@@ -1,6 +1,10 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
+import { runsBackgroundJobs, workerRoleOf } from '../../common/config/worker-role';
+import { BackgroundJob } from '../../common/jobs/background-job';
+import { JobName } from '../../common/jobs/job-names';
+import { JobSchedulerService } from '../../common/jobs/job-scheduler.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 
 /**
@@ -17,27 +21,42 @@ import { PrismaService } from '../../common/prisma/prisma.service';
  * expired row changes no observable behaviour. The grace margin adds slack against a
  * replay racing the expiry boundary.
  *
- * The scheduling mirrors {@link TestRunWorkerService}: a self-rescheduling unref'd
- * timer, so the platform depends on no external scheduler and the timer never keeps the
- * process alive on shutdown.
+ * Es un trabajo puramente periódico: no lo despierta nadie (`wakeChannel: null`), porque
+ * nada «ocurre» que lo haga urgente — solo pasa el tiempo. El {@link JobSchedulerService} le
+ * da su cadencia y, como cada ciclo purga UN lote y devuelve cuántas filas borró, un backlog
+ * grande se drena lote a lote sin que ningún ciclo mantenga un bloqueo largo ni bloquee el
+ * apagado a mitad de un bucle interno.
  */
 @Injectable()
-export class RetentionSweeperService implements OnModuleInit, OnModuleDestroy {
+export class RetentionSweeperService implements OnModuleInit, BackgroundJob {
   private readonly logger = new Logger(RetentionSweeperService.name);
   private readonly enabled: boolean;
-  private readonly intervalMs: number;
   private readonly graceMs: number;
   private readonly batchSize: number;
-  private sweepTimer?: ReturnType<typeof setTimeout>;
-  private running?: Promise<void>;
-  private stopped = false;
+  private readonly role: string;
+
+  readonly name = JobName.RuntimeRetention;
+  /** Ningún productor puede hacer esta purga urgente: solo la hace urgente el reloj. */
+  readonly wakeChannel = null;
+  readonly minIdleIntervalMs: number;
+  readonly maxIdleIntervalMs: number;
+  readonly initialDelayMs: number;
 
   constructor(
     private readonly prisma: PrismaService,
     config: ConfigService,
+    private readonly scheduler: JobSchedulerService,
   ) {
-    this.enabled = config.get<boolean>('RUNTIME_RETENTION_SWEEP_ENABLED') ?? true;
-    this.intervalMs = config.get<number>('RUNTIME_RETENTION_SWEEP_INTERVAL_MS') ?? 3_600_000;
+    this.role = workerRoleOf(config);
+    this.enabled =
+      runsBackgroundJobs(config) &&
+      (config.get<boolean>('RUNTIME_RETENTION_SWEEP_ENABLED') ?? true);
+    const intervalMs = config.get<number>('RUNTIME_RETENTION_SWEEP_INTERVAL_MS') ?? 3_600_000;
+    // Mínimo y máximo iguales: la purga tiene una cadencia fija, no un retroceso adaptativo.
+    this.minIdleIntervalMs = intervalMs;
+    this.maxIdleIntervalMs = intervalMs;
+    // Retrasa la primera pasada para que no compita con el arranque.
+    this.initialDelayMs = Math.min(intervalMs, 60_000);
     this.graceMs =
       (config.get<number>('RUNTIME_IDEMPOTENCY_RETENTION_GRACE_HOURS') ?? 24) * 60 * 60 * 1_000;
     this.batchSize = config.get<number>('RUNTIME_RETENTION_SWEEP_BATCH') ?? 1_000;
@@ -45,64 +64,46 @@ export class RetentionSweeperService implements OnModuleInit, OnModuleDestroy {
 
   onModuleInit(): void {
     if (!this.enabled) {
-      this.logger.log('Runtime retention sweep disabled by configuration');
+      this.logger.log(`Runtime retention sweep not started (WORKER_ROLE=${this.role})`);
       return;
     }
-    // Delay the first sweep so it never competes with startup work, then fall into the
-    // steady cadence. Both are jittered by the same interval-relative delay.
-    this.schedule(Math.min(this.intervalMs, 60_000));
+    this.scheduler.register(this);
   }
 
-  async onModuleDestroy(): Promise<void> {
-    this.stopped = true;
-    if (this.sweepTimer) clearTimeout(this.sweepTimer);
-    await this.running;
+  /** Un ciclo del orquestador: purga un lote. Devolver `>0` encadena el siguiente lote. */
+  async runOnce(): Promise<number> {
+    return this.sweep();
   }
 
-  private schedule(delay = this.intervalMs): void {
-    if (this.stopped || this.sweepTimer) return;
-    this.sweepTimer = setTimeout(() => {
-      this.sweepTimer = undefined;
-      this.running = this.sweep()
-        .then(() => undefined)
-        .finally(() => {
-          this.running = undefined;
-          this.schedule();
-        });
-    }, delay);
-    this.sweepTimer.unref?.();
-  }
-
-  /** Deletes expired idempotency rows in bounded batches. Exposed for tests and ops. */
+  /**
+   * Deletes one bounded batch of expired idempotency rows and returns how many. Exposed for
+   * tests and ops. A failure is operationally benign — the rows are simply retried on the
+   * next cycle — so it is logged and swallowed instead of crashing the process; devolver 0
+   * hace además que el orquestador espere el intervalo completo antes de reintentar, en vez
+   * de encadenar borrados contra una base de datos que acaba de rechazar uno.
+   */
   async sweep(): Promise<number> {
     const cutoff = new Date(Date.now() - this.graceMs);
-    let purged = 0;
     try {
-      for (;;) {
-        if (this.stopped) break;
-        const deleted = await this.prisma.$executeRaw(Prisma.sql`
-          DELETE FROM decision_runtime_idempotency
-          WHERE id IN (
-            SELECT id
-            FROM decision_runtime_idempotency
-            WHERE expires_at < ${cutoff}
-            ORDER BY expires_at ASC
-            LIMIT ${this.batchSize}
-          )
-        `);
-        purged += deleted;
-        if (deleted < this.batchSize) break;
-      }
+      const purged = await this.prisma.$executeRaw(Prisma.sql`
+        DELETE FROM decision_runtime_idempotency
+        WHERE id IN (
+          SELECT id
+          FROM decision_runtime_idempotency
+          WHERE expires_at < ${cutoff}
+          ORDER BY expires_at ASC
+          LIMIT ${this.batchSize}
+        )
+      `);
       if (purged > 0) {
         this.logger.log(`Purged ${purged} expired runtime idempotency row(s)`);
       }
+      return purged;
     } catch (error) {
-      // A sweep failure is operationally benign — the rows are simply retried next
-      // interval — and must never crash the process, so it is logged and swallowed.
       this.logger.error(
         `Runtime retention sweep failed: ${error instanceof Error ? error.message : String(error)}`,
       );
+      return 0;
     }
-    return purged;
   }
 }

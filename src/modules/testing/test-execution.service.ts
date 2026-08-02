@@ -3,6 +3,9 @@ import { ConfigService } from '@nestjs/config';
 import { Prisma, TestCaseRunStatus, TestRunStatus } from '@prisma/client';
 import { AuditService } from '../../common/audit/audit.service';
 import { DomainException } from '../../common/errors/domain-exception';
+import { parseBigIntId } from '../../common/http/id';
+import { JobName } from '../../common/jobs/job-names';
+import { JobSignalService } from '../../common/jobs/job-signal.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
 import type { CompiledDecisionArtifact } from '../graph/graph.types';
@@ -16,6 +19,7 @@ export class TestExecutionService {
     private readonly caseExecutor: TestCaseExecutorService,
     private readonly audit: AuditService,
     private readonly config: ConfigService,
+    private readonly jobSignal: JobSignalService,
   ) {}
 
   /** Persists a durable job and returns immediately; workers claim it independently. */
@@ -25,6 +29,15 @@ export class TestExecutionService {
     dto: RunTestSuiteDto,
     principal: AuthenticatedPrincipal,
   ) {
+    if (dto.baselineCompiledArtifactId) {
+      // Silently ignoring a requested baseline would create false regression evidence.
+      throw new DomainException(
+        'BASELINE_COMPARISON_NOT_SUPPORTED',
+        'Baseline comparison is not available; omit baselineCompiledArtifactId and use explicit expected results',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+    }
+
     const suite = await this.prisma.decisionTestSuite.findFirst({
       where: { id: suiteId, artifactVersion: { artifact: { tenantId } } },
       select: { id: true, artifactVersionId: true, suiteCode: true },
@@ -40,7 +53,7 @@ export class TestExecutionService {
     const compiled = dto.compiledArtifactId
       ? await this.prisma.decisionCompiledArtifact.findFirst({
           where: {
-            id: BigInt(dto.compiledArtifactId),
+            id: parseBigIntId(dto.compiledArtifactId, 'compiledArtifactId'),
             artifactVersionId: suite.artifactVersionId,
             compileStatus: 'SUCCESS',
           },
@@ -85,6 +98,10 @@ export class TestExecutionService {
         },
         tx,
       );
+      // Despierta al worker en el commit. Va DENTRO de la transacción a propósito: Postgres
+      // solo entrega el aviso si esta transacción confirma, así que el worker nunca busca una
+      // corrida que se deshizo, y nunca la busca antes de que sea visible.
+      await this.jobSignal.notify(tx, JobName.TestRun);
       return { ...run, caseRuns: [], coverage: [], durationMs: 0 };
     });
   }

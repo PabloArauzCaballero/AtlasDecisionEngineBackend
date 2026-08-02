@@ -1,0 +1,93 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam titleFontName Arial
+skinparam titleFontSize 20
+skinparam titleFontColor #17365D
+skinparam ArrowColor #355C7D
+skinparam ArrowThickness 1
+skinparam NoteBackgroundColor #FFF7E6
+skinparam NoteBorderColor #D97706
+skinparam NoteFontColor #4A2B0B
+skinparam state {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+}
+title ATLAS — Ciclo de vida de una variable intermedia (§2, §3.1)
+hide empty description
+
+[*] --> NotAvailable : se crea el ámbito\nal empezar execute()
+
+state NotAvailable
+state Available
+state Computed
+state Updated
+state Consumed
+state Invalid
+state Redacted
+
+NotAvailable --> Available : tiene initialValue
+[sin createdAtStepIndex:\nexistía antes del paso 0]
+
+NotAvailable --> Computed : el PRODUCTOR escribe
+[createdAtStepIndex = paso actual]
+
+Computed --> Updated : reescribe
+[OVERWRITE / ACCUMULATE;\nel momento de creación NO se mueve]
+
+Available --> Consumed : un consumidor lee
+Computed --> Consumed : un consumidor lee
+Updated --> Consumed : un consumidor lee
+Consumed --> Updated : el productor vuelve a escribir
+
+Computed --> Invalid : incumple constraints
+Updated --> Invalid : incumple constraints
+NotAvailable --> Invalid : valor nulo y no nullable
+
+Available --> Redacted : tracePolicy = REDACTED
+Computed --> Redacted : tracePolicy = REDACTED
+Updated --> Redacted : tracePolicy = REDACTED
+Consumed --> Redacted : tracePolicy = REDACTED
+
+NotAvailable --> [*] : termina o falla la ejecución
+Consumed --> [*] : termina o falla la ejecución
+Invalid --> [*] : aborta la ejecución
+Redacted --> [*] : termina la ejecución
+
+note right of NotAvailable
+  No aparece en la vista legible:
+  un nodo no puede leer lo que
+  todavía no existe.
+end note
+
+note right of Computed
+  Solo producerNodeKey puede escribir
+  (INTERMEDIATE_WRITE_UNAUTHORIZED).
+  SINGLE_WRITE rechaza la segunda
+  escritura (INTERMEDIATE_ALREADY_WRITTEN).
+end note
+
+note bottom of Consumed
+  El consumidor se registra al ACCEDER
+  al valor, no al construir el contexto:
+  la traza dice quién leyó de verdad.
+end note
+
+note bottom of Invalid
+  Falla CERRADO: aborta la ejecución.
+  Degradar aquí convertiría una avería
+  en una decisión de crédito incorrecta.
+end note
+
+note top of Redacted
+  El estado y el valor se sanean ANTES
+  de salir del motor: la traza nunca
+  transporta el dato sensible.
+end note
+@enduml

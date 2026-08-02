@@ -2,6 +2,7 @@ import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { createTestApp } from './support/test-app';
 import { managementHeaders } from './support/headers';
+import { seededVariableVersionId } from './support/seeded-variables';
 
 /**
  * Exercises live execution (Fase 8) end to end: a real deployed artifact
@@ -30,7 +31,7 @@ describe('Live execution (e2e)', () => {
   }
 
   beforeAll(async () => {
-    app = await createTestApp();
+    app = await createTestApp({ LIVE_EXECUTION_STREAM_ENABLED: true });
   });
 
   afterAll(async () => {
@@ -38,14 +39,7 @@ describe('Live execution (e2e)', () => {
   });
 
   it('deploys an age-eligibility artifact to SANDBOX', async () => {
-    const ageVariable = await request(server())
-      .get('/v1/variables')
-      .query({ search: 'age', pageSize: 5 })
-      .set(author)
-      .expect(200);
-    const ageVariableVersionId = ageVariable.body.items.find(
-      (item: { variableCode: string }) => item.variableCode === 'age',
-    ).versions[0].id;
+    const ageVariableVersionId = await seededVariableVersionId(app, author, 'age');
 
     artifactCode = `E2E_LIVE_EXECUTION_${runId}`;
     const created = await request(server())
@@ -67,31 +61,130 @@ describe('Live execution (e2e)', () => {
       .set({ ...author, 'if-match': '1' })
       .send({
         dependencies: [
-          { variableVersionId: ageVariableVersionId, usageType: 'INPUT', isRequired: true, fallbackPolicy: 'FAIL_CLOSED', dependencyPath: 'input.age' },
+          {
+            variableVersionId: ageVariableVersionId,
+            usageType: 'INPUT',
+            isRequired: true,
+            fallbackPolicy: 'FAIL_CLOSED',
+            dependencyPath: 'input.age',
+          },
         ],
         conditions: [
-          { code: 'AGE_OK', name: 'Age at least 21', expressionType: 'JSON_AST', expression: { op: 'gte', left: { var: 'age' }, right: { value: 21 } }, severity: 'BLOCKING', reusable: true },
+          {
+            code: 'AGE_OK',
+            name: 'Age at least 21',
+            expressionType: 'JSON_AST',
+            expression: { op: 'gte', left: { var: 'age' }, right: { value: 21 } },
+            severity: 'BLOCKING',
+            reusable: true,
+          },
         ],
         actions: [
-          { code: 'SET_APPROVED', type: 'SET_OUTCOME', payload: { outcome: 'APPROVED' }, terminal: true, reasonCodes: [] },
-          { code: 'SET_DECLINED', type: 'SET_OUTCOME', payload: { outcome: 'DECLINED' }, terminal: true, reasonCodes: [] },
+          {
+            code: 'SET_APPROVED',
+            type: 'SET_OUTCOME',
+            payload: { outcome: 'APPROVED' },
+            terminal: true,
+            reasonCodes: [],
+          },
+          {
+            code: 'SET_DECLINED',
+            type: 'SET_OUTCOME',
+            payload: { outcome: 'DECLINED' },
+            terminal: true,
+            reasonCodes: [],
+          },
         ],
         nodes: [
-          { key: 'START', type: 'START', label: 'Start', config: {}, x: 0, y: 0, order: 1, terminal: false, conditions: [], actions: [] },
-          { key: 'CHECK', type: 'CONDITION', label: 'Check age', config: {}, x: 100, y: 0, order: 2, terminal: false, conditions: [], actions: [] },
-          { key: 'APPROVE', type: 'ACTION', label: 'Approve', config: {}, x: 200, y: -50, order: 3, terminal: true, conditions: [], actions: [{ actionCode: 'SET_APPROVED', order: 1 }] },
-          { key: 'DECLINE', type: 'ACTION', label: 'Decline', config: {}, x: 200, y: 50, order: 4, terminal: true, conditions: [], actions: [{ actionCode: 'SET_DECLINED', order: 1 }] },
+          {
+            key: 'START',
+            type: 'START',
+            label: 'Start',
+            config: {},
+            x: 0,
+            y: 0,
+            order: 1,
+            terminal: false,
+            conditions: [],
+            actions: [],
+          },
+          {
+            key: 'CHECK',
+            type: 'CONDITION',
+            label: 'Check age',
+            config: {},
+            x: 100,
+            y: 0,
+            order: 2,
+            terminal: false,
+            conditions: [],
+            actions: [],
+          },
+          {
+            key: 'APPROVE',
+            type: 'ACTION',
+            label: 'Approve',
+            config: {},
+            x: 200,
+            y: -50,
+            order: 3,
+            terminal: true,
+            conditions: [],
+            actions: [{ actionCode: 'SET_APPROVED', order: 1 }],
+          },
+          {
+            key: 'DECLINE',
+            type: 'ACTION',
+            label: 'Decline',
+            config: {},
+            x: 200,
+            y: 50,
+            order: 4,
+            terminal: true,
+            conditions: [],
+            actions: [{ actionCode: 'SET_DECLINED', order: 1 }],
+          },
         ],
         edges: [
-          { key: 'START_CHECK', from: 'START', to: 'CHECK', type: 'DEFAULT', priority: 1, default: true, conditions: [] },
-          { key: 'CHECK_APPROVE', from: 'CHECK', to: 'APPROVE', type: 'CONDITIONAL', priority: 1, default: false, conditions: [{ conditionCode: 'AGE_OK', order: 1 }] },
-          { key: 'CHECK_DECLINE', from: 'CHECK', to: 'DECLINE', type: 'DEFAULT', priority: 999, default: true, conditions: [] },
+          {
+            key: 'START_CHECK',
+            from: 'START',
+            to: 'CHECK',
+            type: 'DEFAULT',
+            priority: 1,
+            default: true,
+            conditions: [],
+          },
+          {
+            key: 'CHECK_APPROVE',
+            from: 'CHECK',
+            to: 'APPROVE',
+            type: 'CONDITIONAL',
+            priority: 1,
+            default: false,
+            conditions: [{ conditionCode: 'AGE_OK', order: 1 }],
+          },
+          {
+            key: 'CHECK_DECLINE',
+            from: 'CHECK',
+            to: 'DECLINE',
+            type: 'DEFAULT',
+            priority: 999,
+            default: true,
+            conditions: [],
+          },
         ],
       })
       .expect(200);
 
-    await request(server()).post(`/v1/artifact-versions/${versionId}/validate`).set(author).expect(201);
-    await request(server()).post(`/v1/artifact-versions/${versionId}/compile`).set(author).expect(201);
+    await request(server())
+      .post(`/v1/artifact-versions/${versionId}/validate`)
+      .set(author)
+      .expect(201);
+    await request(server())
+      .post(`/v1/artifact-versions/${versionId}/compile`)
+      .set(author)
+      .expect(201);
 
     const suite = await request(server())
       .post(`/v1/artifact-versions/${versionId}/test-suites`)
@@ -102,12 +195,26 @@ describe('Live execution (e2e)', () => {
         suiteType: 'REGRESSION',
         isBlocking: true,
         cases: [
-          { caseCode: 'ADULT', testName: 'Approves an adult', input: { age: 30 }, expectedResult: { outcome: 'APPROVED' } },
-          { caseCode: 'YOUNG_ADULT', testName: 'Declines a young adult under 21', input: { age: 19 }, expectedResult: { outcome: 'DECLINED' } },
+          {
+            caseCode: 'ADULT',
+            testName: 'Approves an adult',
+            input: { age: 30 },
+            expectedResult: { outcome: 'APPROVED' },
+          },
+          {
+            caseCode: 'YOUNG_ADULT',
+            testName: 'Declines a young adult under 21',
+            input: { age: 19 },
+            expectedResult: { outcome: 'DECLINED' },
+          },
         ],
       })
       .expect(201);
-    const queued = await request(server()).post(`/v1/test-suites/${suite.body.id}/runs`).set(author).send({}).expect(202);
+    const queued = await request(server())
+      .post(`/v1/test-suites/${suite.body.id}/runs`)
+      .set(author)
+      .send({})
+      .expect(202);
     const deadline = Date.now() + 15_000;
     let run = queued;
     while (Date.now() < deadline) {
@@ -125,8 +232,16 @@ describe('Live execution (e2e)', () => {
     const [qaStep, riskStep] = submitted.body.steps.sort(
       (a: { stepOrder: number }, b: { stepOrder: number }) => a.stepOrder - b.stepOrder,
     );
-    await request(server()).post(`/v1/approval-steps/${qaStep.id}/decisions`).set(qaApprover).send({ decision: 'APPROVE', evidence: [] }).expect(201);
-    await request(server()).post(`/v1/approval-steps/${riskStep.id}/decisions`).set(riskApprover).send({ decision: 'APPROVE', evidence: [] }).expect(201);
+    await request(server())
+      .post(`/v1/approval-steps/${qaStep.id}/decisions`)
+      .set(qaApprover)
+      .send({ decision: 'APPROVE', evidence: [] })
+      .expect(201);
+    await request(server())
+      .post(`/v1/approval-steps/${riskStep.id}/decisions`)
+      .set(riskApprover)
+      .send({ decision: 'APPROVE', evidence: [] })
+      .expect(201);
     await request(server())
       .post(`/v1/artifact-versions/${versionId}/deployments`)
       .set(deployer)
@@ -153,9 +268,14 @@ describe('Live execution (e2e)', () => {
       expect.arrayContaining(['START', 'CHECK', 'APPROVE']),
     );
     const checkCompleted = nodeSteps.find(
-      (event) => (event.data as { nodeKey: string; status: string }).nodeKey === 'CHECK' && (event.data as { status: string }).status === 'COMPLETED',
+      (event) =>
+        (event.data as { nodeKey: string; status: string }).nodeKey === 'CHECK' &&
+        (event.data as { status: string }).status === 'COMPLETED',
     );
-    expect(checkCompleted?.data).toMatchObject({ branchTaken: 'CHECK_APPROVE', discardedEdgeKeys: ['CHECK_DECLINE'] });
+    expect(checkCompleted?.data).toMatchObject({
+      branchTaken: 'CHECK_APPROVE',
+      discardedEdgeKeys: ['CHECK_DECLINE'],
+    });
 
     const completed = events.find((event) => event.type === 'execution_completed');
     expect(completed?.data).toMatchObject({ outcome: 'APPROVED' });
@@ -176,7 +296,30 @@ describe('Live execution (e2e)', () => {
     // Observable runs); the rejection arrives as an execution_failed frame instead.
     const events = parseSseEvents(response.text);
     expect(events).toEqual([
-      { type: 'execution_failed', data: expect.objectContaining({ code: 'LIVE_EXECUTION_PROD_FORBIDDEN' }) },
+      {
+        type: 'execution_failed',
+        data: expect.objectContaining({ code: 'LIVE_EXECUTION_PROD_FORBIDDEN' }),
+      },
+    ]);
+  });
+
+  it('rejects JSON arrays instead of treating them as a variable map', async () => {
+    const response = await request(server())
+      .get('/v1/live-executions/stream')
+      .set(author)
+      .query({
+        artifactCode,
+        environmentCode: 'SANDBOX',
+        requestId: `live-exec-array-${runId}`,
+        variables: JSON.stringify([30]),
+      })
+      .expect(200);
+
+    expect(parseSseEvents(response.text)).toEqual([
+      {
+        type: 'execution_failed',
+        data: expect.objectContaining({ code: 'LIVE_EXECUTION_VARIABLES_INVALID' }),
+      },
     ]);
   });
 });

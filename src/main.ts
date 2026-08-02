@@ -1,3 +1,7 @@
+/**
+ * Process bootstrap and HTTP trust boundary. Centralizing validation, correlation, security,
+ * OpenAPI and shutdown guarantees prevents domain endpoints from configuring them inconsistently.
+ */
 import 'reflect-metadata';
 // Must precede every other import: the OpenTelemetry instrumentations patch http/express/pg/
 // ioredis as those modules are required, so starting after Nest has loaded them yields no spans.
@@ -10,7 +14,9 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { randomUUID } from 'node:crypto';
 import { json, type NextFunction, type Request, type Response, urlencoded } from 'express';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { SwaggerModule } from '@nestjs/swagger';
+import { buildOpenApiDocument } from './common/openapi/openapi-document';
+import { mountApiReference } from './common/openapi/api-reference';
 import compression from 'compression';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
@@ -127,29 +133,14 @@ async function bootstrap(): Promise<void> {
     // BUILD_VERSION moves every release. The build is still published, as metadata, so a
     // returned spec can be traced back to the exact artifact that served it.
     const apiVersion = config.get<string>('API_VERSION') ?? 'v1';
-    const buildVersion = config.get<string>('BUILD_VERSION') ?? '2.0.0';
-    const swaggerConfig = new DocumentBuilder()
-      .setTitle('ATLAS Decision Platform API')
-      .setDescription(
-        `Governed credit, risk and fraud decision platform.\n\n` +
-          `Contract version **${apiVersion}** — served by build ${buildVersion} ` +
-          `(commit ${config.get<string>('COMMIT_SHA') ?? 'local'}).`,
-      )
-      .setVersion(apiVersion)
-      .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'bearer')
-      .addApiKey({ type: 'apiKey', in: 'header', name: 'x-api-key' }, 'api-key')
-      .addApiKey({ type: 'apiKey', in: 'header', name: 'x-tenant-id' }, 'tenant')
-      .build();
-    const document = SwaggerModule.createDocument(app, swaggerConfig);
-    document.security = [{ bearer: [] }, { 'api-key': [], tenant: [] }];
-    for (const publicPath of ['/health', '/health/live', '/health/ready', '/ready']) {
-      const pathItem = document.paths[publicPath];
-      if (!pathItem) continue;
-      for (const operation of Object.values(pathItem)) {
-        if (operation && typeof operation === 'object' && 'responses' in operation)
-          operation.security = [];
-      }
-    }
+    // Mismo constructor que usa scripts/docs/generate-openapi.mjs: el contrato servido y el
+    // publicado no pueden divergir.
+    const document = buildOpenApiDocument(app, {
+      apiVersion,
+      buildVersion: config.get<string>('BUILD_VERSION') ?? '2.0.0',
+      commitSha: config.get<string>('COMMIT_SHA') ?? 'local',
+      publicUrl: config.get<string>('API_PUBLIC_URL') || undefined,
+    });
     // Served at a version-pinned path so a consumer can fetch the contract it was built
     // against. `docs/openapi.json` stays as the unversioned alias for existing tooling.
     SwaggerModule.setup(`docs/${apiVersion}`, app, document, {
@@ -159,6 +150,13 @@ async function bootstrap(): Promise<void> {
     SwaggerModule.setup('docs', app, document, {
       jsonDocumentUrl: 'docs/openapi.json',
       swaggerOptions: { persistAuthorization: true, displayRequestDuration: true },
+    });
+    // Referencia interactiva moderna (Scalar) servida por el propio backend, junto al
+    // Swagger UI que ya consumían las herramientas existentes.
+    mountApiReference(app, `docs/${apiVersion}/reference`, `/docs/${apiVersion}/openapi.json`, {
+      apiVersion,
+      buildVersion: config.get<string>('BUILD_VERSION') ?? '2.0.0',
+      nodeEnv: config.get<string>('NODE_ENV') ?? 'development',
     });
   }
 

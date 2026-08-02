@@ -1,3 +1,4 @@
+/** Applies distributed budgets after authentication to protect management and runtime traffic. */
 import { CanActivate, ExecutionContext, HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';

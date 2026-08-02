@@ -1,3 +1,4 @@
+/** Shares hashing and key-rotation policy across compiler, audit and identity consumers. */
 import { Global, Module } from '@nestjs/common';
 import { HashService } from './hash.service';
 

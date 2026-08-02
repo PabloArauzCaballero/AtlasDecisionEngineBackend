@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { AuditService } from '../../common/audit/audit.service';
 import { DomainException } from '../../common/errors/domain-exception';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { VariableContractService } from './variable-contract.service';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
 import {
   CreateReasonCodeDto,
@@ -20,6 +21,7 @@ export class VariableService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly config: ConfigService,
+    private readonly contracts: VariableContractService,
   ) {}
 
   async createDefinition(
@@ -27,6 +29,15 @@ export class VariableService {
     dto: CreateVariableDefinitionDto,
     principal: AuthenticatedPrincipal,
   ) {
+    const contract = this.contracts.validateContract(dto.initialVersion);
+    if (!contract.valid) {
+      throw new DomainException(
+        'VARIABLE_CONTRACT_INVALID',
+        `El contrato de ${dto.variableCode} no es válido: ${contract.issues[0].message}`,
+        HttpStatus.BAD_REQUEST,
+        { issues: contract.issues },
+      );
+    }
     return this.prisma.$transaction(async (tx) => {
       const definition = await tx.decisionVariableDefinition.create({
         data: {
@@ -78,6 +89,19 @@ export class VariableService {
         HttpStatus.NOT_FOUND,
       );
     }
+    // §1.2 — el backend rechaza configuraciones inválidas y verifica compatibilidad
+    // ANTES de crear la versión: una vez creada es inmutable y ya alimenta artefactos.
+    const contract = this.contracts.validateContract(dto);
+    if (!contract.valid) {
+      throw new DomainException(
+        'VARIABLE_CONTRACT_INVALID',
+        `El contrato de ${definition.variableCode} no es válido: ${contract.issues[0].message}`,
+        HttpStatus.BAD_REQUEST,
+        { issues: contract.issues },
+      );
+    }
+    const compatibility = await this.contracts.assertSafeToVersion(tenantId, definitionId, dto);
+
     const latest = definition.versions[0];
     const versionNumber = (latest?.versionNumber ?? 0) + 1;
     return this.prisma.$transaction(async (tx) => {
@@ -102,7 +126,12 @@ export class VariableService {
           aggregateId: definitionId.toString(),
           actorId: principal.id,
           requestId: principal.requestId,
-          payload: { variableCode: definition.variableCode, versionNumber },
+          payload: {
+            variableCode: definition.variableCode,
+            versionNumber,
+            compatibility: compatibility.level,
+            changes: compatibility.changes.map((change) => change.code),
+          },
         },
         tx,
       );
@@ -122,6 +151,21 @@ export class VariableService {
               { canonicalName: { contains: query.search, mode: 'insensitive' } },
               { businessDescription: { contains: query.search, mode: 'insensitive' } },
             ],
+          }
+        : {}),
+      // Filtro por sentido: `OUTPUT` cubre también `OUTPUT_PRIMARY`.
+      ...(query.usage
+        ? {
+            versions: {
+              some: {
+                artifactUses: {
+                  some:
+                    query.usage === 'OUTPUT'
+                      ? { usageType: { startsWith: 'OUTPUT' } }
+                      : { usageType: 'INPUT' },
+                },
+              },
+            },
           }
         : {}),
     };
@@ -146,13 +190,13 @@ export class VariableService {
     // cruda con `canonicalName` y la versión anidada, y todas las columnas menos
     // el código salían vacías. El detalle (`get`) sigue devolviendo el grafo
     // completo; solo el listado se aplana.
+    const usageByDefinition = await this.usageDirections(items.map((item) => item.id));
     const mapped = items.map((definition) => {
       const latest = definition.versions[0];
       const authoritativeSource = latest
         ? [...latest.sources].sort(
             (a, b) =>
-              Number(b.isAuthoritative) - Number(a.isAuthoritative) ||
-              a.precedence - b.precedence,
+              Number(b.isAuthoritative) - Number(a.isAuthoritative) || a.precedence - b.precedence,
           )[0]
         : undefined;
       return {
@@ -164,12 +208,35 @@ export class VariableService {
         source: authoritativeSource?.sourceSystemCode ?? null,
         latestVersion: latest?.versionNumber ?? null,
         sensitivity: definition.isSensitive ? 'SENSIBLE' : 'ESTÁNDAR',
+        // Sentido en el que la usan los algoritmos: sin esto, el catálogo mostraba
+        // por igual un dato que hay que aportar y un resultado que el motor produce.
+        usage: usageByDefinition.get(definition.id.toString()) ?? 'SIN USO',
         status: definition.isActive ? 'ACTIVE' : 'INACTIVE',
         updatedAt: latest?.effectiveFrom ?? null,
         businessDescription: definition.businessDescription,
       };
     });
     return pageResult(mapped, total, paging.page, paging.pageSize);
+  }
+
+  /**
+   * Sentido (entrada/salida) en el que cada definición es usada por algún
+   * artefacto. Una sola consulta agrupada para toda la página del listado.
+   */
+  private async usageDirections(definitionIds: bigint[]): Promise<Map<string, string>> {
+    const directions = new Map<string, string>();
+    if (!definitionIds.length) return directions;
+    const uses = await this.prisma.decisionArtifactVariableDependency.findMany({
+      where: { variableVersion: { variableDefinitionId: { in: definitionIds } } },
+      select: { usageType: true, variableVersion: { select: { variableDefinitionId: true } } },
+    });
+    for (const use of uses) {
+      const key = use.variableVersion.variableDefinitionId.toString();
+      const direction = use.usageType.startsWith('OUTPUT') ? 'SALIDA' : 'ENTRADA';
+      const current = directions.get(key);
+      directions.set(key, !current || current === direction ? direction : 'ENTRADA Y SALIDA');
+    }
+    return directions;
   }
 
   async get(tenantId: bigint, definitionId: bigint) {
@@ -260,6 +327,48 @@ export class VariableService {
     return pageResult(items, total, paging.page, paging.pageSize);
   }
 
+  /**
+   * Dónde se usa la variable (§1.2 «visualizar dependencias»). Sin esto, cambiar un
+   * contrato es a ciegas: no hay forma de saber a quién afecta.
+   */
+  async dependencies(tenantId: bigint, definitionId: bigint) {
+    const uses = await this.prisma.decisionArtifactVariableDependency.findMany({
+      where: {
+        variableVersion: { variableDefinitionId: definitionId, definition: { tenantId } },
+      },
+      include: {
+        variableVersion: { select: { versionNumber: true } },
+        artifactVersion: {
+          select: {
+            id: true,
+            versionNumber: true,
+            semanticVersion: true,
+            status: true,
+            artifact: { select: { artifactCode: true, name: true } },
+          },
+        },
+      },
+      orderBy: { id: 'asc' },
+    });
+    const items = uses.map((use) => ({
+      artifactCode: use.artifactVersion.artifact.artifactCode,
+      artifactName: use.artifactVersion.artifact.name,
+      artifactVersionId: use.artifactVersion.id.toString(),
+      artifactVersionNumber: use.artifactVersion.versionNumber,
+      semanticVersion: use.artifactVersion.semanticVersion,
+      status: use.artifactVersion.status,
+      usageType: use.usageType,
+      isRequired: use.isRequired,
+      variableVersionNumber: use.variableVersion.versionNumber,
+    }));
+    return {
+      total: items.length,
+      // Cambiar el contrato con estas versiones vivas es lo que rompe producción.
+      deployed: items.filter((item) => item.status.startsWith('DEPLOYED')).length,
+      items,
+    };
+  }
+
   private versionCreateData(versionNumber: number, dto: CreateVariableVersionDto) {
     return {
       versionNumber,
@@ -270,6 +379,17 @@ export class VariableService {
       validationSchemaJson: dto.validationSchema as Prisma.InputJsonValue | undefined,
       derivationExpressionJson: dto.derivationExpression as Prisma.InputJsonValue | undefined,
       effectiveFrom: dto.effectiveFrom ? new Date(dto.effectiveFrom) : new Date(),
+      // §1.1 — el resto del contrato: cómo se llama, qué significa, qué restringe, qué
+      // decir cuando falla, con qué ejemplos se documenta y de dónde debería venir.
+      displayName: dto.displayName,
+      description: dto.description,
+      constraintsJson: (dto.constraints ?? dto.validationSchema) as
+        Prisma.InputJsonValue | undefined,
+      validationMessage: dto.validationMessage,
+      exampleValidJson: dto.exampleValid as Prisma.InputJsonValue | undefined,
+      exampleInvalidJson: dto.exampleInvalid as Prisma.InputJsonValue | undefined,
+      expectedOrigin: dto.expectedOrigin ?? 'REQUEST',
+      contractVersion: dto.contractVersion ?? '1',
       sources: {
         create: dto.sources.map((source) => ({
           sourceSystemCode: source.sourceSystemCode,

@@ -1,5 +1,6 @@
+/** Runtime-audience HTTP boundary for idempotent production decision requests. */
 import { Body, Controller, Param, Post, Res } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { Audience, CurrentPrincipal, TenantId } from '../../common/security/security.decorators';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
@@ -13,6 +14,7 @@ export class RuntimeController {
   constructor(private readonly runtime: RuntimeService) {}
 
   @Post(':artifactCode')
+  @ApiOperation({ summary: 'Execute an idempotent decision against the active deployment' })
   async execute(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,

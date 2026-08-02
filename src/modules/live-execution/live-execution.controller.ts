@@ -1,6 +1,7 @@
-import { Controller, HttpStatus, MessageEvent, Query, Sse } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
-import { Observable } from 'rxjs';
+import { Controller, HttpStatus, Logger, MessageEvent, Query, Sse } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Observable, type Subscriber } from 'rxjs';
 import { DomainException } from '../../common/errors/domain-exception';
 import { CurrentPrincipal, Roles, TenantId } from '../../common/security/security.decorators';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
@@ -16,18 +17,18 @@ import { LiveExecutionStreamQueryDto } from './live-execution.dto';
  * completed/error, path taken, discarded branches, nested-tree calls) over
  * Server-Sent Events while the decision actually executes.
  *
- * Not wired to Rebanada 1's event bus (src/common/events/**), which is still
- * in progress on a separate branch and out of scope here to edit — see
- * docs/live-execution.md for the documented "pending R1 merge" integration:
- * once that bus exists, this stream can additionally publish a
- * `live_execution.step` event for other consumers, but the live view itself
- * does not depend on it — it drives the engine directly, over its own SSE
- * connection.
+ * The stream is deliberately request-scoped rather than outbox-backed: node
+ * progress is transient UI telemetry, while the transactional event bus is for
+ * durable domain facts. This avoids filling the outbox with high-cardinality
+ * per-node events and keeps execution latency independent from consumers.
  */
 @ApiTags('Live Execution')
 @Controller('v1/live-executions')
 export class LiveExecutionController {
+  private readonly logger = new Logger(LiveExecutionController.name);
+
   constructor(
+    private readonly config: ConfigService,
     private readonly deployments: DeploymentResolverService,
     private readonly variables: VariableResolutionService,
     private readonly engine: ExecutionEngineService,
@@ -35,14 +36,34 @@ export class LiveExecutionController {
   ) {}
 
   @Sse('stream')
+  @ApiOperation({ summary: 'Stream an opt-in non-production decision preview node by node' })
   @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST')
   stream(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Query() query: LiveExecutionStreamQueryDto,
   ): Observable<MessageEvent> {
+    if (!(this.config.get<boolean>('LIVE_EXECUTION_STREAM_ENABLED') ?? false)) {
+      throw new DomainException(
+        'LIVE_EXECUTION_DISABLED',
+        'Live execution is disabled for this environment',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
     return new Observable<MessageEvent>((subscriber) => {
-      void this.run(tenantId, principal, query, subscriber);
+      // A comment frame is not observable through Nest's @Sse serializer, so use a
+      // named heartbeat event. Besides detecting dead clients, each emission resets
+      // the global RxJS request timeout while a long nested decision is still alive.
+      const heartbeat = setInterval(
+        () => {
+          subscriber.next({ type: 'heartbeat', data: { at: new Date().toISOString() } });
+        },
+        this.config.get<number>('LIVE_EXECUTION_STREAM_HEARTBEAT_MS') ?? 15_000,
+      );
+      heartbeat.unref();
+      void this.run(tenantId, principal, query, subscriber).finally(() => clearInterval(heartbeat));
+      return () => clearInterval(heartbeat);
     });
   }
 
@@ -50,23 +71,47 @@ export class LiveExecutionController {
     tenantId: bigint,
     principal: AuthenticatedPrincipal,
     query: LiveExecutionStreamQueryDto,
-    subscriber: { next: (event: MessageEvent) => void; complete: () => void },
+    subscriber: Subscriber<MessageEvent>,
   ): Promise<void> {
     try {
       if (query.environmentCode === 'PROD') {
         // Same policy as SimulationService: this is a dry-run preview tool (no
         // idempotency/audit persistence, see below), and must never be aimed at
         // production traffic patterns.
-        throw new DomainException('LIVE_EXECUTION_PROD_FORBIDDEN', 'Production decisions cannot be executed through live execution', HttpStatus.FORBIDDEN);
+        throw new DomainException(
+          'LIVE_EXECUTION_PROD_FORBIDDEN',
+          'Production decisions cannot be executed through live execution',
+          HttpStatus.FORBIDDEN,
+        );
       }
-      let inputVariables: Record<string, unknown>;
+      let parsedVariables: unknown;
       try {
-        inputVariables = JSON.parse(query.variables) as Record<string, unknown>;
+        parsedVariables = JSON.parse(query.variables);
       } catch {
-        throw new DomainException('LIVE_EXECUTION_VARIABLES_INVALID', 'variables must be a JSON object', HttpStatus.BAD_REQUEST);
+        throw new DomainException(
+          'LIVE_EXECUTION_VARIABLES_INVALID',
+          'variables must be a JSON object',
+          HttpStatus.BAD_REQUEST,
+        );
       }
+      if (
+        !parsedVariables ||
+        typeof parsedVariables !== 'object' ||
+        Array.isArray(parsedVariables)
+      ) {
+        throw new DomainException(
+          'LIVE_EXECUTION_VARIABLES_INVALID',
+          'variables must be a JSON object',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      const inputVariables = parsedVariables as Record<string, unknown>;
 
-      const deployment = await this.deployments.resolve(tenantId, query.artifactCode, query.environmentCode);
+      const deployment = await this.deployments.resolve(
+        tenantId,
+        query.artifactCode,
+        query.environmentCode,
+      );
       const inputContracts = deployment.compiled.variables.filter(
         (variable) => !String(variable.usageType ?? 'INPUT').startsWith('OUTPUT'),
       );
@@ -107,11 +152,25 @@ export class LiveExecutionController {
       });
       subscriber.complete();
     } catch (error) {
+      if (!(error instanceof DomainException)) {
+        // SSE has already committed HTTP 200, so the global exception filter cannot
+        // redact this failure. Keep implementation details in structured server logs
+        // and send the client a stable, non-sensitive message.
+        this.logger.error(
+          {
+            event: 'LIVE_EXECUTION_FAILED',
+            artifactCode: query.artifactCode,
+            requestId: query.requestId,
+          },
+          error instanceof Error ? error : new Error(String(error)),
+        );
+      }
       subscriber.next({
         type: 'execution_failed',
         data: {
           code: error instanceof DomainException ? error.code : 'LIVE_EXECUTION_FAILED',
-          message: error instanceof Error ? error.message : String(error),
+          message:
+            error instanceof DomainException ? error.message : 'Live execution failed unexpectedly',
         },
       });
       subscriber.complete();

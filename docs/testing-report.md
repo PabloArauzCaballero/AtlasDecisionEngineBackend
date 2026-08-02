@@ -1,5 +1,8 @@
 # Reporte de pruebas — Rebanadas 2-5 (Fases 3, 4, 5, 7, 8, 10)
 
+> **Documento histórico (2026-07-21).** Sus resultados justifican la entrega que se probó ese día,
+> no el estado actual ni un Go-Live. Consulte `docs/README.md` y repita los gates de release.
+
 **Fecha:** 2026-07-21
 **Entorno de verificación:** PostgreSQL 16 + Redis 7 en contenedores Docker
 aislados (`atlas-pendientes`, puertos 55433/6380), rol de aplicación

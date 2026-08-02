@@ -1,3 +1,4 @@
+/** Composes deployment/variable resolution, deterministic execution, evidence and retention. */
 import { Module } from '@nestjs/common';
 import { DeploymentModule } from '../deployments/deployment.module';
 import { GraphModule } from '../graph/graph.module';
@@ -8,6 +9,7 @@ import { IdempotencyService } from './idempotency.service';
 import { RetentionSweeperService } from './retention-sweeper.service';
 import { RuntimeController } from './runtime.controller';
 import { RuntimeService } from './runtime.service';
+import { SampleInputService } from './sample-input.service';
 import { SimulationController } from './simulation.controller';
 import { SimulationService } from './simulation.service';
 
@@ -17,6 +19,7 @@ import { SimulationService } from './simulation.service';
   providers: [
     RuntimeService,
     SimulationService,
+    SampleInputService,
     IdempotencyService,
     ExecutionWriterService,
     RetentionSweeperService,

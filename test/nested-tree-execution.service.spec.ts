@@ -5,7 +5,14 @@ import type { ExecutionEngineService } from '../src/modules/graph/execution-engi
 import type { PrismaService } from '../src/common/prisma/prisma.service';
 import type { AuthenticatedPrincipal } from '../src/common/security/security.types';
 
-const principal = { id: 'user-1', tenantId: 1n, roles: [], audience: 'management', requestId: 'r1', authMethod: 'jwt' } as unknown as AuthenticatedPrincipal;
+const principal = {
+  id: 'user-1',
+  tenantId: 1n,
+  roles: [],
+  audience: 'management',
+  requestId: 'r1',
+  authMethod: 'jwt',
+} as unknown as AuthenticatedPrincipal;
 
 function baseReference(overrides: Partial<Record<string, unknown>> = {}) {
   return {
@@ -22,15 +29,17 @@ function baseReference(overrides: Partial<Record<string, unknown>> = {}) {
 
 function setup(referenceOverrides: Partial<Record<string, unknown>> = {}, engineResult?: unknown) {
   const prisma = {
-    decisionArtifactReference: { findFirst: jest.fn().mockResolvedValue(baseReference(referenceOverrides)) },
+    decisionArtifactReference: {
+      findFirst: jest.fn().mockResolvedValue(baseReference(referenceOverrides)),
+    },
     decisionCompiledArtifact: {
       findFirst: jest.fn().mockResolvedValue({ compiledPayloadJson: { startNodeKey: 'START' } }),
     },
   };
   const engine = {
-    execute: jest.fn().mockResolvedValue(
-      engineResult ?? { output: { level: 'HIGH' }, nestedExecutions: [] },
-    ),
+    execute: jest
+      .fn()
+      .mockResolvedValue(engineResult ?? { output: { level: 'HIGH' }, nestedExecutions: [] }),
   };
   const config = new ConfigService({ NESTED_TREE_MAX_DEPTH: 5 });
   const service = new NestedTreeExecutionService(
@@ -68,16 +77,29 @@ describe('NestedTreeExecutionService', () => {
     const resolver = service.bind(1n, principal);
 
     await expect(
-      resolver.resolve('10', 'NESTED_CHECK', {}, { sequence: { value: 0 }, parentSequence: null, depth: 1 }),
+      resolver.resolve(
+        '10',
+        'NESTED_CHECK',
+        {},
+        { sequence: { value: 0 }, parentSequence: null, depth: 1 },
+      ),
     ).rejects.toThrow('boom');
   });
 
   it('falls back to fallbackOutputJson when onErrorPolicy=FALLBACK', async () => {
-    const { service, engine } = setup({ onErrorPolicy: 'FALLBACK', fallbackOutputJson: { riskLevel: 'UNKNOWN' } });
+    const { service, engine } = setup({
+      onErrorPolicy: 'FALLBACK',
+      fallbackOutputJson: { riskLevel: 'UNKNOWN' },
+    });
     engine.execute.mockRejectedValue(new Error('boom'));
     const resolver = service.bind(1n, principal);
 
-    const result = await resolver.resolve('10', 'NESTED_CHECK', {}, { sequence: { value: 0 }, parentSequence: null, depth: 1 });
+    const result = await resolver.resolve(
+      '10',
+      'NESTED_CHECK',
+      {},
+      { sequence: { value: 0 }, parentSequence: null, depth: 1 },
+    );
 
     expect(result.output).toEqual({ riskLevel: 'UNKNOWN' });
     expect(result.trace[0]).toMatchObject({ status: 'FALLBACK', childArtifactVersionId: null });
@@ -88,7 +110,12 @@ describe('NestedTreeExecutionService', () => {
     engine.execute.mockRejectedValue(new Error('boom'));
     const resolver = service.bind(1n, principal);
 
-    const result = await resolver.resolve('10', 'NESTED_CHECK', {}, { sequence: { value: 0 }, parentSequence: null, depth: 1 });
+    const result = await resolver.resolve(
+      '10',
+      'NESTED_CHECK',
+      {},
+      { sequence: { value: 0 }, parentSequence: null, depth: 1 },
+    );
 
     expect(result.output).toEqual({});
     expect(result.trace[0]).toMatchObject({ status: 'SKIPPED' });
@@ -100,7 +127,12 @@ describe('NestedTreeExecutionService', () => {
     const resolver = service.bind(1n, principal);
 
     await expect(
-      resolver.resolve('10', 'NESTED_CHECK', {}, { sequence: { value: 0 }, parentSequence: null, depth: 1 }),
+      resolver.resolve(
+        '10',
+        'NESTED_CHECK',
+        {},
+        { sequence: { value: 0 }, parentSequence: null, depth: 1 },
+      ),
     ).rejects.toMatchObject({ code: 'NESTED_EXECUTION_TIMEOUT' });
   });
 
@@ -109,7 +141,12 @@ describe('NestedTreeExecutionService', () => {
     const resolver = service.bind(1n, principal);
 
     await expect(
-      resolver.resolve('10', 'NESTED_CHECK', {}, { sequence: { value: 0 }, parentSequence: null, depth: 6 }),
+      resolver.resolve(
+        '10',
+        'NESTED_CHECK',
+        {},
+        { sequence: { value: 0 }, parentSequence: null, depth: 6 },
+      ),
     ).rejects.toMatchObject({ code: 'NESTED_TREE_MAX_DEPTH_EXCEEDED' });
   });
 
@@ -119,7 +156,12 @@ describe('NestedTreeExecutionService', () => {
     const resolver = service.bind(1n, principal);
 
     await expect(
-      resolver.resolve('10', 'MISSING_NODE', {}, { sequence: { value: 0 }, parentSequence: null, depth: 1 }),
+      resolver.resolve(
+        '10',
+        'MISSING_NODE',
+        {},
+        { sequence: { value: 0 }, parentSequence: null, depth: 1 },
+      ),
     ).rejects.toMatchObject({ code: 'REFERENCE_NOT_FOUND' });
   });
 });

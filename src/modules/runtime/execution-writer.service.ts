@@ -153,7 +153,9 @@ export class ExecutionWriterService {
             sequence: entry.sequence,
             parentSequence: entry.parentSequence,
             nodeKey: entry.nodeKey,
-            childArtifactVersionId: entry.childArtifactVersionId ? BigInt(entry.childArtifactVersionId) : undefined,
+            childArtifactVersionId: entry.childArtifactVersionId
+              ? BigInt(entry.childArtifactVersionId)
+              : undefined,
             depth: entry.depth,
             status: entry.status,
             durationMs: entry.durationMs,

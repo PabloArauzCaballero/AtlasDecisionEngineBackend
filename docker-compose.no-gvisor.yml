@@ -1,0 +1,28 @@
+# Anulación para levantar el stack en una máquina SIN gVisor (Docker Desktop, Windows/macOS).
+#
+# ┌──────────────────────────────────────────────────────────────────────────────────────┐
+# │  SOLO DESARROLLO LOCAL. Nunca en producción ni en un ambiente compartido.             │
+# └──────────────────────────────────────────────────────────────────────────────────────┘
+#
+# `docker-compose.yml` pide `runtime: runsc` para el sidecar que ejecuta el código importado
+# por los analistas. Ese runtime ES la frontera de seguridad: `runc` comparte el kernel del
+# anfitrión, así que un escape del sandbox de JavaScript o Python deja de estar contenido por
+# el sistema operativo. Con esta anulación el sidecar arranca, pero el aislamiento **no es el
+# que la documentación describe**.
+#
+# Es un fichero aparte y NO `docker-compose.override.yml` a propósito: el override se carga
+# solo, y eso significaría desactivar gVisor en silencio también en la máquina que sí lo tiene.
+# Aquí hay que pedirlo a mano, y el nombre dice lo que hace:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.no-gvisor.yml up -d
+#
+# Lo que se conserva aunque falte gVisor: sin red, sin capacidades, raíz de solo lectura,
+# usuario no root y las cotas de CPU, memoria y pids. Lo que se pierde: el kernel aislado.
+#
+# Mitigación adicional mientras se trabaja así: `SCRIPT_NODES_ENABLED` sigue en `false` por
+# defecto, de modo que ningún artefacto puede ejecutar código en el sidecar salvo que alguien
+# lo habilite conscientemente.
+services:
+  script-runner:
+    # Compose no admite "quitar" una clave, así que se sobrescribe con el runtime por defecto.
+    runtime: runc

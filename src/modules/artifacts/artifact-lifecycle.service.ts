@@ -1,3 +1,4 @@
+/** Coordinates validation, canonical checksum and immutable compilation state transitions. */
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { CompileStatus, Prisma, VersionStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';

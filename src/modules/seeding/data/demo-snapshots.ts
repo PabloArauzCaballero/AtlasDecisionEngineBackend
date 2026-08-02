@@ -1,4 +1,5 @@
 import { CompileStatus, type Prisma, type PrismaClient } from '@prisma/client';
+import { layoutSeedNodes } from '../../../common/graph/tree-layout';
 import { sha256 } from './helpers';
 import type {
   ActionDefinition,
@@ -46,7 +47,7 @@ export async function buildDemoSnapshots(
     name: string;
     riskDomain: string;
   },
-  version: { id: bigint },
+  version: { id: bigint; semanticVersion: string },
   inputVariables: DemoVariable[],
   outputVariables: DemoVariable[],
   reasonByCode: Record<string, DemoReason>,
@@ -60,6 +61,7 @@ export async function buildDemoSnapshots(
     conditionByCode,
     actionByCode,
     nodeByKey,
+    edgeDefinitions,
     edgeRows,
   } = graph;
 
@@ -151,14 +153,17 @@ export async function buildDemoSnapshots(
         ]
       : [],
   }));
+  // Mismas coordenadas (porcentaje del lienzo) que se persisten en los nodos, para
+  // que el snapshot compilado y el grafo editable describan el mismo dibujo.
+  const positions = layoutSeedNodes(nodeDefinitions, edgeDefinitions);
   const nodeSnapshots = nodeDefinitions.map((item: NodeDefinition) => ({
     id: nodeByKey[item.key].id.toString(),
     key: item.key,
     type: item.type,
     label: item.label,
     config: item.config,
-    x: item.order * 120,
-    y: 100,
+    x: positions.get(item.key)?.x ?? 4,
+    y: positions.get(item.key)?.y ?? 45,
     order: item.order,
     terminal: item.terminal,
     conditions: [],
@@ -187,7 +192,12 @@ export async function buildDemoSnapshots(
       name: artifact.name,
       riskDomain: artifact.riskDomain,
     },
-    version: { id: version.id.toString(), number: 1, semanticVersion: '1.0.0', status: 'APPROVED' },
+    version: {
+      id: version.id.toString(),
+      number: 1,
+      semanticVersion: version.semanticVersion,
+      status: 'APPROVED',
+    },
     variables: variableSnapshots,
     conditions: conditionSnapshots,
     actions: actionSnapshots,

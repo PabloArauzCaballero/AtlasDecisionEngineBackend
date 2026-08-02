@@ -1,3 +1,4 @@
+/** Factory for stable validation codes consumed by authoring UI, tests and governance evidence. */
 import type { ValidationIssue } from '../graph.types';
 
 export function issue(

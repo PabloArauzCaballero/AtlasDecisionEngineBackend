@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { spawnSync } from 'node:child_process';
 import * as vm from 'node:vm';
 import type { ImportLanguage, LineIssue } from './code-import.types';
@@ -20,6 +21,8 @@ except SyntaxError as error:
  */
 @Injectable()
 export class SyntaxAnalyzerService {
+  constructor(private readonly config: ConfigService = new ConfigService()) {}
+
   analyze(language: ImportLanguage, source: string): LineIssue[] {
     return language === 'PYTHON' ? this.analyzePython(source) : this.analyzeJavaScript(source);
   }
@@ -68,13 +71,19 @@ export class SyntaxAnalyzerService {
   }
 
   private analyzePython(source: string): LineIssue[] {
-    const execution = spawnSync(process.env.PYTHON_EXECUTABLE || 'python', ['-I', '-S', '-B', '-c', PYTHON_SYNTAX_CHECK], {
-      input: source,
-      encoding: 'utf8',
-      timeout: 5_000,
-      windowsHide: true,
-      env: { PATH: process.env.PATH, SYSTEMROOT: process.env.SYSTEMROOT },
-    });
+    const execution = spawnSync(
+      this.config.get<string>('PYTHON_EXECUTABLE') ?? 'python',
+      ['-I', '-S', '-B', '-c', PYTHON_SYNTAX_CHECK],
+      {
+        input: source,
+        encoding: 'utf8',
+        // The checker is a separate interpreter process. Honour the documented
+        // bound so a broken Python installation cannot pin an API worker.
+        timeout: this.config.get<number>('CODE_IMPORT_ANALYSIS_TIMEOUT_MS') ?? 2_000,
+        windowsHide: true,
+        env: { PATH: process.env.PATH, SYSTEMROOT: process.env.SYSTEMROOT },
+      },
+    );
     if (execution.error) {
       return [
         {

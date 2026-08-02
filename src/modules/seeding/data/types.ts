@@ -1,10 +1,16 @@
 import type { Prisma } from '@prisma/client';
+import type { DataType } from '../../../common/contracts/data-types';
 
 export interface VariableSeed {
   code: string;
   name: string;
   description: string;
-  type: 'STRING' | 'BOOLEAN' | 'INTEGER' | 'NUMBER' | 'DATE' | 'DATETIME';
+  /**
+   * Tipo canónico del catálogo (§1.1). Se siguen admitiendo los alias históricos que
+   * usan los catálogos ya sembrados (`NUMBER`, `TEXT`…): el motor los normaliza, y
+   * reescribir cientos de semillas no cambiaría ningún comportamiento.
+   */
+  type: DataType | 'NUMBER' | 'TEXT' | 'ARRAY' | 'JSON';
   sensitive?: boolean;
   validation?: Prisma.InputJsonValue;
   /**

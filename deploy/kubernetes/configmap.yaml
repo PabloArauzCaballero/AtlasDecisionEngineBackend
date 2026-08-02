@@ -5,6 +5,10 @@ metadata:
 data:
   NODE_ENV: production
   PORT: "3000"
+  # Las réplicas de este Deployment solo deciden; los trabajos de fondo corren en
+  # atlas-decision-worker, que sobrescribe este valor con WORKER.
+  WORKER_ROLE: API
+  API_VERSION: v1
   AUTH_MODE: JWT
   JWT_MANAGEMENT_AUDIENCE: atlas-decision-management
   JWT_RUNTIME_AUDIENCE: atlas-decision-runtime
@@ -15,4 +19,48 @@ data:
   SWAGGER_ENABLED: "false"
   METRICS_ENABLED: "true"
   ACCESS_AUDIT_ENABLED: "true"
+  ACCESS_AUDIT_QUEUE_MAX: "1000"
+  ACCESS_AUDIT_RETRY_SECONDS: "15"
+  AUDIT_VERIFY_BATCH_SIZE: "500"
+  LOG_LEVEL: log
+  LOG_OUTPUT: stdout
   DEFAULT_ENVIRONMENT: PROD
+  STARTUP_SEED_ENABLED: "false"
+  SCRIPT_NODES_ENABLED: "false"
+  NESTED_TREE_MAX_DEPTH: "5"
+  NESTED_TREE_DEFAULT_TIMEOUT_MS: "2000"
+  NESTED_TREE_GRAPH_MAX_EDGES: "2000"
+  NESTED_TREE_MAX_ARTIFACTS: "25"
+  NESTED_TREE_MAX_TOTAL_MS: "10000"
+  NESTED_TREE_MAX_RESULT_BYTES: "262144"
+  NESTED_TREE_MAX_RETAINED_BYTES: "1048576"
+  CODE_IMPORT_MAX_SOURCE_BYTES: "131072"
+  CODE_IMPORT_ANALYSIS_TIMEOUT_MS: "2000"
+  LIVE_EXECUTION_STREAM_ENABLED: "false"
+  LIVE_EXECUTION_STREAM_HEARTBEAT_MS: "15000"
+  OUTBOX_RELAY_ENABLED: "true"
+  # Cada réplica abre su propio pool: este valor por réplica de API, más el del worker, más
+  # el de los Jobs de migración, tiene que caber en el max_connections del servidor.
+  DATABASE_POOL_MAX: "15"
+
+  # --- Orquestación central de trabajos de fondo (src/common/jobs) ---
+  # Estas claves solo tienen efecto en el Deployment del worker (WORKER_ROLE=WORKER); en las
+  # réplicas de API el orquestador ni siquiera arranca. Viven aquí, y no en el worker, para
+  # que un solo objeto describa la configuración de la plataforma.
+  #
+  # Con el despertar por LISTEN/NOTIFY activo, el techo de sondeo NO es la latencia: un
+  # evento de outbox despierta al worker en el commit de quien lo escribió. Si la conexión
+  # pasara por un pgbouncer en modo transaction, pon JOB_WAKE_ENABLED en "false" y baja
+  # JOB_MAX_IDLE_INTERVAL_MS, porque entonces el techo SÍ pasa a ser la latencia del peor caso.
+  JOB_SCHEDULER_ENABLED: "true"
+  JOB_WAKE_ENABLED: "true"
+  JOB_WAKE_CHANNEL: atlas_jobs
+  JOB_MIN_IDLE_INTERVAL_MS: "1000"
+  JOB_MAX_IDLE_INTERVAL_MS: "30000"
+  JOB_BACKOFF_FACTOR: "2"
+  JOB_ERROR_INTERVAL_MS: "5000"
+  JOB_MAX_ERROR_INTERVAL_MS: "120000"
+  OUTBOX_RELAY_MAX_INTERVAL_MS: "30000"
+  OUTBOX_BACKLOG_SAMPLE_MS: "30000"
+  TEST_RUN_WORKER_MAX_POLL_MS: "30000"
+  TEST_RUN_RECOVERY_INTERVAL_MS: "30000"

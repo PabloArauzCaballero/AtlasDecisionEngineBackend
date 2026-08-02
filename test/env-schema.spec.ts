@@ -86,6 +86,23 @@ describe('environment validation', () => {
     ).toThrow();
   });
 
+  it('validates retired audit keys during startup rather than during a chain verification', () => {
+    expect(() =>
+      validateEnvironment({ ...base, AUDIT_HASH_PREVIOUS_SECRETS: '["not-a-map"]' }),
+    ).toThrow(/JSON object/);
+    expect(() =>
+      validateEnvironment({ ...base, AUDIT_HASH_PREVIOUS_SECRETS: '{"v0":"short"}' }),
+    ).toThrow(/at least 32/);
+    expect(
+      validateEnvironment({
+        ...base,
+        AUDIT_HASH_PREVIOUS_SECRETS: JSON.stringify({
+          v0: 'retired-audit-secret-with-at-least-thirty-two-characters',
+        }),
+      }).AUDIT_HASH_PREVIOUS_SECRETS,
+    ).toContain('v0');
+  });
+
   it('rejects the in-process script runner in production', () => {
     expect(() =>
       validateEnvironment({
@@ -125,6 +142,17 @@ describe('environment validation', () => {
   it('rejects a debug log level in production', () => {
     expect(() => validateEnvironment({ ...jwtProduction, LOG_LEVEL: 'debug' })).toThrow();
     expect(() => validateEnvironment({ ...jwtProduction, LOG_LEVEL: 'verbose' })).toThrow();
+  });
+
+  it.each([
+    ['MANAGEMENT_API_KEY', 'change-me-management-with-at-least-24-characters'],
+    ['RUNTIME_API_KEY', 'change-me-runtime-with-at-least-24-characters'],
+    ['AUDIT_HASH_SECRET', 'replace-with-a-long-random-secret-at-least-32-characters'],
+    ['METRICS_TOKEN', 'change-me-metrics-token-with-at-least-24-characters'],
+  ])('rejects the complete example value for %s in production', (key, exampleValue) => {
+    expect(() => validateEnvironment({ ...jwtProduction, [key]: exampleValue })).toThrow(
+      /example value/,
+    );
   });
 
   it('requires an HTTPS variable backend URL in production', () => {

@@ -1,12 +1,17 @@
 name: atlas-decision-engine
 
+# Every credential is read from the .env file Compose loads from this directory (see
+# .env.example for the full list) and none has a default here: a password committed as a
+# fallback is a password that ships. Non-secret settings keep their defaults, which mirror
+# the ones declared in src/common/config/env.schema.ts.
+
 services:
   postgres:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-atlas_decision}
       POSTGRES_USER: ${POSTGRES_USER:-atlas}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-atlas-local-only}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     healthcheck:
@@ -16,13 +21,29 @@ services:
       retries: 20
     volumes:
       - atlas_decision_pg:/var/lib/postgresql/data
+    # Sin `shm_size`, Postgres en contenedor recibe 64 MiB de /dev/shm y una ordenación o un
+    # hash join medianos fallan con "could not resize shared memory segment". No es ajuste
+    # fino: es el mínimo para que una consulta normal no aborte.
+    shm_size: 256mb
+    cpus: ${POSTGRES_CPUS:-2}
+    mem_limit: ${POSTGRES_MEMORY:-1g}
     restart: unless-stopped
 
   redis:
     image: redis:7-alpine
     ports:
       - "127.0.0.1:${REDIS_PORT:-6379}:6379"
-    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    # `maxmemory` acotado con política noeviction: esta instancia guarda contadores de rate
+    # limit y caché tenant-scoped, y desalojar una clave en silencio convertiría un límite en
+    # una sugerencia. Al llegar al tope Redis rechaza escrituras y el fallo se ve.
+    command:
+      - "redis-server"
+      - "--appendonly"
+      - "yes"
+      - "--maxmemory-policy"
+      - "noeviction"
+      - "--maxmemory"
+      - "${REDIS_MAXMEMORY:-192mb}"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -30,6 +51,8 @@ services:
       retries: 20
     volumes:
       - atlas_decision_redis:/data
+    cpus: ${REDIS_CPUS:-0.5}
+    mem_limit: ${REDIS_MEMORY:-256m}
     restart: unless-stopped
 
   migrate:
@@ -40,7 +63,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-atlas}:${POSTGRES_PASSWORD:-atlas-local-only}@postgres:5432/${POSTGRES_DB:-atlas_decision}?schema=public
+      DATABASE_URL: postgresql://${POSTGRES_USER:-atlas}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-atlas_decision}?schema=public
     command: ["migrate", "deploy"]
     restart: "no"
 
@@ -56,13 +79,17 @@ services:
       migrate:
         condition: service_completed_successfully
     environment:
-      ADMIN_DATABASE_URL: postgresql://${POSTGRES_USER:-atlas}:${POSTGRES_PASSWORD:-atlas-local-only}@postgres:5432/${POSTGRES_DB:-atlas_decision}?schema=public
-      APP_DB_PASSWORD: ${APP_DB_PASSWORD:-atlas-app-local-only-change-before-sharing}
+      ADMIN_DATABASE_URL: postgresql://${POSTGRES_USER:-atlas}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-atlas_decision}?schema=public
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env}
     entrypoint: ["node", "scripts/set-app-db-role.mjs"]
     restart: "no"
 
+  # Siembra idempotente del catálogo de arranque. Es un servicio de un solo disparo y NO un
+  # perfil opcional a propósito: al pasar la siembra de arranque al rol de fondo, dejar que
+  # cada proceso la intentara al bootear significaba que api y worker compitieran por el
+  # mismo bloqueo consultivo en cada despliegue para hacer exactamente el mismo trabajo.
+  # Como Job explícito, ocurre una vez, antes que nadie, y su fallo se ve en el acto.
   seed:
-    profiles: ["seed"]
     build:
       context: .
       target: migrator
@@ -70,9 +97,9 @@ services:
       migrate:
         condition: service_completed_successfully
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-atlas}:${POSTGRES_PASSWORD:-atlas-local-only}@postgres:5432/${POSTGRES_DB:-atlas_decision}?schema=public
-      MANAGEMENT_API_KEY: ${MANAGEMENT_API_KEY:-local-management-key-change-before-sharing}
-      RUNTIME_API_KEY: ${RUNTIME_API_KEY:-local-runtime-key-change-before-sharing}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-atlas}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-atlas_decision}?schema=public
+      MANAGEMENT_API_KEY: ${MANAGEMENT_API_KEY:?set MANAGEMENT_API_KEY in .env}
+      RUNTIME_API_KEY: ${RUNTIME_API_KEY:?set RUNTIME_API_KEY in .env}
       BOOTSTRAP_TENANT_ID: ${BOOTSTRAP_TENANT_ID:-1}
       BOOTSTRAP_MANAGEMENT_ROLES: ${BOOTSTRAP_MANAGEMENT_ROLES:-AUDITOR,COMPLIANCE,FRAUD_ANALYST,OPERATIONS,PLATFORM_ADMIN,QA_ANALYST,RISK_ANALYST,RISK_APPROVER}
       BOOTSTRAP_RUNTIME_ROLES: ${BOOTSTRAP_RUNTIME_ROLES:-DECISION_RUNTIME}
@@ -104,8 +131,82 @@ services:
     cpus: "0.5"
     environment:
       RUNNER_SOCKET_PATH: /var/run/atlas-runner/runner.sock
+      # This image installs only the minimal `python3` package (see the script-runner stage
+      # in the Dockerfile), so the interpreter name differs from the development default.
+      PYTHON_EXECUTABLE: ${PYTHON_EXECUTABLE:-python3}
+      # Admission control. Kept well under pids_limit (each interpreter costs several pids)
+      # and matched to the cpus share: beyond these the runner answers 503
+      # SCRIPT_RUNNER_BUSY, which the API treats as transient and retryable — never as a
+      # decision about the request.
+      RUNNER_MAX_CONCURRENCY: ${RUNNER_MAX_CONCURRENCY:-4}
+      RUNNER_MAX_QUEUE: ${RUNNER_MAX_QUEUE:-64}
     volumes:
       - atlas_runner_socket:/var/run/atlas-runner
+    restart: unless-stopped
+
+  # Trabajos de fondo en su propio proceso: relay del outbox, worker de corridas de prueba
+  # y purga de idempotencia, todos bajo el orquestador central (src/common/jobs). Se escala
+  # con `--scale worker=N` sin tocar la API — los tres reclaman su trabajo con
+  # FOR UPDATE SKIP LOCKED + lease, así que N réplicas no duplican nada. La API arranca con
+  # WORKER_ROLE=API y por tanto ya no los ejecuta.
+  worker:
+    build:
+      context: .
+      target: worker
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      bootstrap-app-role:
+        condition: service_completed_successfully
+      seed:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    ports:
+      # Solo en loopback: /metrics del worker se raspa desde el host, nunca desde fuera.
+      - "127.0.0.1:${WORKER_HEALTH_PORT:-3001}:3001"
+    environment:
+      NODE_ENV: development
+      WORKER_ROLE: WORKER
+      WORKER_HEALTH_PORT: 3001
+      BUILD_VERSION: ${BUILD_VERSION:-2.0.0}
+      COMMIT_SHA: ${COMMIT_SHA:-local-compose}
+      DATABASE_URL: postgresql://atlas_app:${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-atlas_decision}?schema=public
+      # Un pool pequeño: la concurrencia del worker la fijan sus trabajos, no el tráfico.
+      DATABASE_POOL_MAX: ${WORKER_DATABASE_POOL_MAX:-5}
+      REDIS_URL: redis://redis:6379
+      # El worker no autentica peticiones, pero el esquema de entorno es el mismo proceso de
+      # validación para los dos: arrancarlo sin estos valores fallaría al validar.
+      AUTH_MODE: API_KEY
+      MANAGEMENT_API_KEY: ${MANAGEMENT_API_KEY:?set MANAGEMENT_API_KEY in .env}
+      RUNTIME_API_KEY: ${RUNTIME_API_KEY:?set RUNTIME_API_KEY in .env}
+      AUDIT_HASH_SECRET: ${AUDIT_HASH_SECRET:?set AUDIT_HASH_SECRET in .env (at least 32 characters)}
+      AUDIT_HASH_KEY_ID: ${AUDIT_HASH_KEY_ID:-v1}
+      METRICS_TOKEN: ${METRICS_TOKEN:?set METRICS_TOKEN in .env (at least 24 characters)}
+      # La siembra la hace el servicio `seed` una sola vez, antes de que arranque nadie.
+      STARTUP_SEED_ENABLED: "false"
+      OUTBOX_RELAY_ENABLED: ${OUTBOX_RELAY_ENABLED:-true}
+      TEST_RUN_WORKER_ENABLED: ${TEST_RUN_WORKER_ENABLED:-true}
+      RUNTIME_RETENTION_SWEEP_ENABLED: ${RUNTIME_RETENTION_SWEEP_ENABLED:-true}
+      # Orquestación de trabajos. El despertar por LISTEN/NOTIFY llega directo a Postgres
+      # (sin pgbouncer de por medio en esta topología), así que el techo de sondeo puede ser
+      # alto sin coste de latencia: al ralentí el worker consulta cada 30 s en vez de cada
+      # segundo, y una escritura de la API lo despierta en el commit.
+      JOB_SCHEDULER_ENABLED: ${JOB_SCHEDULER_ENABLED:-true}
+      JOB_WAKE_ENABLED: ${JOB_WAKE_ENABLED:-true}
+      JOB_MAX_IDLE_INTERVAL_MS: ${JOB_MAX_IDLE_INTERVAL_MS:-30000}
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    init: true
+    # Más margen que la API: un lote de casos de prueba en vuelo tarda más en drenar que una
+    # petición HTTP, y matarlo a mitad devuelve la corrida a la cola por lease vencido.
+    stop_grace_period: 60s
+    cpus: ${WORKER_CPUS:-1}
+    mem_limit: ${WORKER_MEMORY:-768m}
     restart: unless-stopped
 
   api:
@@ -117,6 +218,8 @@ services:
         condition: service_completed_successfully
       bootstrap-app-role:
         condition: service_completed_successfully
+      seed:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       script-runner:
@@ -126,21 +229,45 @@ services:
       BUILD_VERSION: ${BUILD_VERSION:-2.0.0}
       COMMIT_SHA: ${COMMIT_SHA:-local-compose}
       PORT: 3000
+      # Los trabajos de fondo viven en el servicio `worker`. Sin esto, cada réplica de API
+      # los ejecutaría también y competirían por su mismo pool de conexiones. Con rol API,
+      # el orquestador de trabajos ni siquiera abre su conexión de escucha: esta réplica solo
+      # PRODUCE señales (pg_notify dentro de sus transacciones), nunca las consume.
+      WORKER_ROLE: ${API_WORKER_ROLE:-API}
+      # La siembra la hace el servicio `seed`; una réplica de API nunca siembra.
+      STARTUP_SEED_ENABLED: "false"
+      DATABASE_POOL_MAX: ${API_DATABASE_POOL_MAX:-15}
       # Connects as atlas_app (non-superuser), NOT the atlas/POSTGRES_USER role migrate and
       # seed use — RLS is inert for a superuser connection (see bootstrap-app-role above).
-      DATABASE_URL: postgresql://atlas_app:${APP_DB_PASSWORD:-atlas-app-local-only-change-before-sharing}@postgres:5432/${POSTGRES_DB:-atlas_decision}?schema=public
+      DATABASE_URL: postgresql://atlas_app:${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-atlas_decision}?schema=public
       REDIS_URL: redis://redis:6379
       AUTH_MODE: API_KEY
-      MANAGEMENT_API_KEY: ${MANAGEMENT_API_KEY:-local-management-key-change-before-sharing}
-      RUNTIME_API_KEY: ${RUNTIME_API_KEY:-local-runtime-key-change-before-sharing}
-      AUDIT_HASH_SECRET: ${AUDIT_HASH_SECRET:-local-audit-hash-secret-must-be-at-least-32-characters}
-      METRICS_TOKEN: ${METRICS_TOKEN:-local-metrics-token-change-before-sharing}
+      MANAGEMENT_API_KEY: ${MANAGEMENT_API_KEY:?set MANAGEMENT_API_KEY in .env}
+      RUNTIME_API_KEY: ${RUNTIME_API_KEY:?set RUNTIME_API_KEY in .env}
+      AUDIT_HASH_SECRET: ${AUDIT_HASH_SECRET:?set AUDIT_HASH_SECRET in .env (at least 32 characters)}
+      AUDIT_HASH_KEY_ID: ${AUDIT_HASH_KEY_ID:-v1}
+      AUDIT_HASH_PREVIOUS_SECRETS: ${AUDIT_HASH_PREVIOUS_SECRETS:-}
+      ACCESS_AUDIT_QUEUE_MAX: ${ACCESS_AUDIT_QUEUE_MAX:-1000}
+      ACCESS_AUDIT_RETRY_SECONDS: ${ACCESS_AUDIT_RETRY_SECONDS:-15}
+      AUDIT_VERIFY_BATCH_SIZE: ${AUDIT_VERIFY_BATCH_SIZE:-500}
+      METRICS_TOKEN: ${METRICS_TOKEN:?set METRICS_TOKEN in .env (at least 24 characters)}
       REQUIRE_REDIS_IN_PRODUCTION: "true"
       SWAGGER_ENABLED: "true"
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3001,http://localhost:5173}
       SCRIPT_NODES_ENABLED: ${SCRIPT_NODES_ENABLED:-false}
       SCRIPT_RUNNER_MODE: SIDECAR
       SCRIPT_RUNNER_SOCKET_PATH: /var/run/atlas-runner/runner.sock
+      # Cota de memoria por proceso de script (§9.3). Con RUNNER_MAX_CONCURRENCY=4 el peor
+      # caso son 4 x 32 MiB, que cabe en el mem_limit de 128m del sidecar.
+      SCRIPT_NODE_MAX_MEMORY_MB: ${SCRIPT_NODE_MAX_MEMORY_MB:-32}
+      NESTED_TREE_MAX_DEPTH: ${NESTED_TREE_MAX_DEPTH:-5}
+      NESTED_TREE_DEFAULT_TIMEOUT_MS: ${NESTED_TREE_DEFAULT_TIMEOUT_MS:-2000}
+      NESTED_TREE_GRAPH_MAX_EDGES: ${NESTED_TREE_GRAPH_MAX_EDGES:-2000}
+      NESTED_TREE_MAX_RETAINED_BYTES: ${NESTED_TREE_MAX_RETAINED_BYTES:-1048576}
+      CODE_IMPORT_MAX_SOURCE_BYTES: ${CODE_IMPORT_MAX_SOURCE_BYTES:-131072}
+      CODE_IMPORT_ANALYSIS_TIMEOUT_MS: ${CODE_IMPORT_ANALYSIS_TIMEOUT_MS:-2000}
+      LIVE_EXECUTION_STREAM_ENABLED: ${LIVE_EXECUTION_STREAM_ENABLED:-false}
+      LIVE_EXECUTION_STREAM_HEARTBEAT_MS: ${LIVE_EXECUTION_STREAM_HEARTBEAT_MS:-15000}
     ports:
       - "127.0.0.1:${API_PORT:-3000}:3000"
     read_only: true
@@ -151,9 +278,58 @@ services:
       - no-new-privileges:true
     init: true
     stop_grace_period: 25s
+    cpus: ${API_CPUS:-2}
+    mem_limit: ${API_MEMORY:-768m}
     restart: unless-stopped
     volumes:
       - atlas_runner_socket:/var/run/atlas-runner:ro
+
+  # Smoke de runtime contra la API viva, dentro de la red de Compose. Va en contenedor por la
+  # misma razón que el portal: el resultado depende de la versión de Node que lo ejecuta y de
+  # que alcance a la API por su nombre de servicio, no por un puerto publicado en el host.
+  # Uso: `docker compose --profile tools run --rm smoke`
+  smoke:
+    profiles: ["tools"]
+    build:
+      context: .
+      target: smoke
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      BASE_URL: http://api:3000
+      MANAGEMENT_API_KEY: ${MANAGEMENT_API_KEY:?set MANAGEMENT_API_KEY in .env}
+      RUNTIME_API_KEY: ${RUNTIME_API_KEY:?set RUNTIME_API_KEY in .env}
+      TENANT_ID: ${BOOTSTRAP_TENANT_ID:-1}
+      DEFAULT_ENVIRONMENT: ${DEFAULT_ENVIRONMENT:-PROD}
+      SMOKE_ARTIFACT_CODE: ${SMOKE_ARTIFACT_CODE:-BNPL_CREDIT_DECISION}
+    volumes:
+      # La evidencia sale del contenedor: `smoke/last-run.json` es el artefacto que se revisa.
+      - ./smoke:/app/smoke
+    restart: "no"
+
+  # Portal técnico. Va en contenedor y no con una instalación local de Python porque la
+  # versión de MkDocs y de sus extensiones forma parte del resultado: otra versión produce
+  # un sitio distinto del que valida CI. Perfil `docs` para que no arranque con el resto.
+  docs:
+    profiles: ["docs"]
+    image: squidfunk/mkdocs-material:9.6.14
+    working_dir: /docs
+    volumes:
+      - .:/docs
+    entrypoint: ["mkdocs"]
+    command: ["build", "--strict"]
+
+  docs-serve:
+    profiles: ["docs"]
+    image: squidfunk/mkdocs-material:9.6.14
+    working_dir: /docs
+    volumes:
+      - .:/docs
+    ports:
+      - "127.0.0.1:${DOCS_PORT:-8000}:8000"
+    entrypoint: ["mkdocs"]
+    command: ["serve", "--dev-addr", "0.0.0.0:8000"]
 
 volumes:
   atlas_decision_pg:

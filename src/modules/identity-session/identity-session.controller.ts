@@ -1,3 +1,4 @@
+/** Browser session boundary: origin checks, rate limits and HttpOnly refresh-cookie handling. */
 import {
   Body,
   Controller,
@@ -8,10 +9,11 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { Public } from '../../common/security/security.decorators';
 import { IdentityLoginDto, IdentityLogoutDto } from './identity-session.dto';
+import { LogoutResultDto } from './identity-session.response.dto';
 import { IdentitySessionService } from './identity-session.service';
 import { SessionCookieService } from './session-cookie.service';
 import { SessionOriginService } from './session-origin.service';
@@ -29,6 +31,7 @@ export class IdentitySessionController {
   ) {}
 
   @Post('login')
+  @ApiOperation({ summary: 'Authenticate through the configured identity provider' })
   @HttpCode(HttpStatus.OK)
   async login(
     @Headers('origin') origin: string | undefined,
@@ -42,6 +45,7 @@ export class IdentitySessionController {
   }
 
   @Post('refresh')
+  @ApiOperation({ summary: 'Rotate the provider session using the HttpOnly refresh cookie' })
   @HttpCode(HttpStatus.OK)
   async refresh(
     @Headers('origin') origin: string | undefined,
@@ -55,7 +59,9 @@ export class IdentitySessionController {
   }
 
   @Post('logout')
+  @ApiOperation({ summary: 'Revoke the provider session and clear the refresh cookie' })
   @HttpCode(HttpStatus.OK)
+  @ApiOkResponse({ description: 'Sesión revocada.', type: LogoutResultDto })
   async logout(
     @Headers('origin') origin: string | undefined,
     @Headers('cookie') cookieHeader: string | undefined,

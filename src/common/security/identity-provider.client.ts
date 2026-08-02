@@ -52,7 +52,14 @@ export class IdentityProviderClient {
       headers: { authorization: `Bearer ${accessToken}`, accept: 'application/json' },
     });
     const parsed = identityProfileSchema.safeParse(payload);
-    if (!parsed.success || parsed.data.user.status.toUpperCase() !== 'ACTIVE') {
+    if (!parsed.success) {
+      throw new DomainException(
+        'IDENTITY_PROVIDER_INVALID_RESPONSE',
+        'Identity provider returned a profile that does not match the expected contract',
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
+    if (parsed.data.user.status.toUpperCase() !== 'ACTIVE') {
       throw this.unauthorized();
     }
     return parsed.data;

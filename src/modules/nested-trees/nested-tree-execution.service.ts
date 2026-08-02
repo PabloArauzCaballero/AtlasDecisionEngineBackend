@@ -5,6 +5,7 @@ import { DomainException } from '../../common/errors/domain-exception';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
 import { ExecutionEngineService } from '../graph/execution-engine.service';
 import { ExpressionEvaluator } from '../graph/expression-evaluator';
+import { ChainBudget, DEFAULT_CHAIN_LIMITS } from './chain-budget';
 import type {
   ArtifactReferenceResolution,
   ArtifactReferenceResolver,
@@ -44,11 +45,37 @@ export class NestedTreeExecutionService {
     private readonly expressions: ExpressionEvaluator,
   ) {}
 
-  /** Binds a resolver to one request's tenant/principal for use with engine.execute(). */
+  /**
+   * Binds a resolver to one request's tenant/principal for use with engine.execute().
+   *
+   * El presupuesto de cadena (§9.3) se crea aquí, una vez por ejecución raíz, y se
+   * comparte con todos los saltos: acotar solo cada salto por separado dejaba pasar
+   * cadenas de decenas de artefactos o de minutos de duración total.
+   */
   bind(tenantId: bigint, principal: AuthenticatedPrincipal): ArtifactReferenceResolver {
+    const budget = new ChainBudget({
+      maxArtifacts:
+        this.config.get<number>('NESTED_TREE_MAX_ARTIFACTS') ?? DEFAULT_CHAIN_LIMITS.maxArtifacts,
+      maxTotalMs:
+        this.config.get<number>('NESTED_TREE_MAX_TOTAL_MS') ?? DEFAULT_CHAIN_LIMITS.maxTotalMs,
+      maxResultBytes:
+        this.config.get<number>('NESTED_TREE_MAX_RESULT_BYTES') ??
+        DEFAULT_CHAIN_LIMITS.maxResultBytes,
+      maxRetainedBytes:
+        this.config.get<number>('NESTED_TREE_MAX_RETAINED_BYTES') ??
+        DEFAULT_CHAIN_LIMITS.maxRetainedBytes,
+    });
     return {
       resolve: (parentArtifactVersionId, nodeKey, context, cursor) =>
-        this.resolveInternal(tenantId, principal, parentArtifactVersionId, nodeKey, context, cursor),
+        this.resolveInternal(
+          tenantId,
+          principal,
+          parentArtifactVersionId,
+          nodeKey,
+          context,
+          cursor,
+          budget,
+        ),
     };
   }
 
@@ -59,6 +86,7 @@ export class NestedTreeExecutionService {
     nodeKey: string,
     context: Record<string, unknown>,
     cursor: NestedReferenceCursor,
+    budget: ChainBudget,
   ): Promise<ArtifactReferenceResolution> {
     const maxDepth = this.config.get<number>('NESTED_TREE_MAX_DEPTH') ?? 5;
     if (cursor.depth > maxDepth) {
@@ -69,6 +97,7 @@ export class NestedTreeExecutionService {
       );
     }
     const mySequence = ++cursor.sequence.value;
+    budget.consumeInvocation(nodeKey);
     const started = performance.now();
 
     const reference = await this.prisma.decisionArtifactReference.findFirst({
@@ -104,12 +133,29 @@ export class NestedTreeExecutionService {
         parentSequence: mySequence,
         depth: cursor.depth + 1,
       };
+      const nestedResolver: ArtifactReferenceResolver = {
+        resolve: (parentVersionId, childNodeKey, childContext, nextCursor) =>
+          this.resolveInternal(
+            tenantId,
+            principal,
+            parentVersionId,
+            childNodeKey,
+            childContext,
+            nextCursor,
+            budget,
+          ),
+      };
       const result = await this.withTimeout(
-        this.engine.execute(compiled, childVariables, this.bind(tenantId, principal), childCursor),
-        reference.timeoutMs,
+        this.engine.execute(compiled, childVariables, nestedResolver, childCursor),
+        // El salto nunca puede durar más de lo que le queda a la cadena entera.
+        budget.remainingMs(reference.timeoutMs),
       );
       const durationMs = Math.round(performance.now() - started);
-      const output = this.mapOutputs(reference.outputMappingJson as unknown as OutputMappingEntry[], result.output);
+      const output = this.mapOutputs(
+        reference.outputMappingJson as unknown as OutputMappingEntry[],
+        result.output,
+      );
+      budget.consumeResult(nodeKey, output);
       const ownEntry: NestedExecutionTraceEntry = {
         sequence: mySequence,
         parentSequence: cursor.parentSequence,
@@ -122,7 +168,14 @@ export class NestedTreeExecutionService {
       };
       return { output, trace: [ownEntry, ...result.nestedExecutions] };
     } catch (error) {
-      return this.handleError(reference, nodeKey, cursor, mySequence, Math.round(performance.now() - started), error);
+      return this.handleError(
+        reference,
+        nodeKey,
+        cursor,
+        mySequence,
+        Math.round(performance.now() - started),
+        error,
+      );
     }
   }
 
@@ -177,7 +230,11 @@ export class NestedTreeExecutionService {
     // FAIL (default): propagate so the parent execution fails closed.
     throw error instanceof DomainException
       ? error
-      : new DomainException('NESTED_EXECUTION_FAILED', errorInfo.message, HttpStatus.INTERNAL_SERVER_ERROR);
+      : new DomainException(
+          'NESTED_EXECUTION_FAILED',
+          errorInfo.message,
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
   }
 
   private buildInputVariables(
@@ -189,7 +246,10 @@ export class NestedTreeExecutionService {
       if (entry.source === 'LITERAL') {
         variables[entry.childVariableCode] = entry.value;
       } else if (entry.source === 'VARIABLE') {
-        variables[entry.childVariableCode] = this.expressions.evaluate({ var: entry.path ?? '' }, context);
+        variables[entry.childVariableCode] = this.expressions.evaluate(
+          { var: entry.path ?? '' },
+          context,
+        );
       } else if (entry.source === 'EXPRESSION') {
         variables[entry.childVariableCode] = this.expressions.evaluate(entry.expression, context);
       }

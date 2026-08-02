@@ -1,5 +1,9 @@
 # Arquitectura técnica
 
+Esta arquitectura existe para que Riesgo y Compliance puedan cambiar políticas sin perder
+aprobación, reproducibilidad ni evidencia. A nivel de sistema separa autoría, compilación,
+despliegue, ejecución y auditoría, de modo que cada frontera tenga controles verificables.
+
 ## 1. Separación Control Plane / Data Plane
 
 El proyecto usa un único despliegue NestJS para facilitar el MVP, pero mantiene límites internos que permiten separar procesos más adelante:
@@ -105,3 +109,19 @@ Siguientes extracciones naturales, sin reescribir dominio:
 4. IAM adapter;
 5. variable provider adapters;
 6. runtime de scorecards/ML como nuevo tipo de componente compilado.
+
+## 11. Capacidades complementarias y sus límites
+
+- **Árboles anidados:** reutilizan una versión concreta de otra política; los mapeos, ciclos,
+  profundidad y timeout se validan antes y durante la ejecución.
+- **Código → Flow:** transforma JavaScript/Python aceptado en un grafo gobernable cuando puede
+  demostrar sus ramas y outputs. Si no puede preservar el contrato, genera un nodo `SCRIPT`
+  aislado en vez de inventar semántica visual.
+- **Ejecución en vivo:** es una previsualización management-only para SANDBOX/TEST. No escribe
+  `DecisionExecution`, auditoría ni outbox, y por eso está desactivada por defecto.
+- **Outbox y notificaciones:** publican efectos secundarios at-least-once desde la misma
+  transacción de negocio. Los consumidores deben ser idempotentes; una notificación nunca es la
+  fuente de verdad del estado de aprobación.
+- **Testing asíncrono:** persiste una cola y cobertura reproducible contra un artefacto compilado.
+  La comparación contra un baseline todavía no está implementada y la API rechaza ese parámetro
+  explícitamente para no producir evidencia de regresión incompleta.

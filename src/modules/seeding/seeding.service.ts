@@ -1,12 +1,15 @@
 import { Injectable, Logger, type OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
+import { runsBackgroundJobs, workerRoleOf } from '../../common/config/worker-role';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { AdvisoryLockDomain, advisoryLockKey } from '../../common/prisma/advisory-lock';
 import { runSeeds } from './seed-runner';
 
-// Arbitrary but stable key for the Postgres session-level advisory lock that serializes
-// startup seeding across replicas. Only the holder seeds; the rest skip immediately.
-const SEED_ADVISORY_LOCK_KEY = 4626_2026n;
+// Stable key for the Postgres session-level advisory lock that serializes startup seeding
+// across replicas. Only the holder seeds; the rest skip immediately. Namespaced by domain
+// (advisory-lock.ts) so it cannot land on a tenant's audit-chain key or a deployment's.
+const SEED_ADVISORY_LOCK_KEY = advisoryLockKey(AdvisoryLockDomain.Seeding);
 
 /**
  * Injects the seeds at application startup, idempotently.
@@ -16,31 +19,42 @@ const SEED_ADVISORY_LOCK_KEY = 4626_2026n;
  *   EVERY environment, so a fresh database is usable the moment the API accepts traffic.
  * - MOCKUP seeds (the BNPL demo artifact) run ONLY in development.
  *
- * Runs before the HTTP server starts serving (OnApplicationBootstrap). A Postgres advisory
- * lock serializes seeding when several replicas boot together; every operation is an upsert,
- * so a second run converges on the same state either way. Enabled by default outside `test`;
- * override with STARTUP_SEED_ENABLED. Kept out of the CLI seed path so `prisma db seed` and the
- * startup injector share the exact same {@link runSeeds} logic.
+ * A Postgres advisory lock serializes seeding when several replicas boot together; every
+ * operation is an upsert, so a second run converges on the same state either way. Enabled by
+ * default outside `test`; override with STARTUP_SEED_ENABLED. Kept out of the CLI seed path
+ * so `prisma db seed` and the startup injector share the exact same {@link runSeeds} logic.
+ *
+ * **Es trabajo de fondo, y por eso solo corre donde corren los trabajos de fondo**
+ * (`WORKER_ROLE` ∈ ALL, WORKER). Una réplica de API que sembraba al arrancar pagaba una
+ * ronda completa de upserts sobre el catálogo antes de aceptar su primera petición, y
+ * escalar la API a N réplicas convertía cada despliegue en N intentos compitiendo por el
+ * mismo bloqueo consultivo para hacer exactamente el mismo trabajo. En un despliegue
+ * orquestado la fuente de verdad siguen siendo los Jobs de migración y semilla; esto es la
+ * red de seguridad del proceso de fondo y el camino cómodo de desarrollo (`WORKER_ROLE=ALL`).
  */
 @Injectable()
 export class SeedingService implements OnApplicationBootstrap {
   private readonly logger = new Logger(SeedingService.name);
   private readonly enabled: boolean;
   private readonly includeMockup: boolean;
+  private readonly role: string;
 
   constructor(
     private readonly prisma: PrismaService,
     config: ConfigService,
   ) {
     const nodeEnv = config.get<string>('NODE_ENV') ?? 'development';
+    this.role = workerRoleOf(config);
     // Default on everywhere except automated tests, which provision their own fixtures.
-    this.enabled = config.get<boolean>('STARTUP_SEED_ENABLED') ?? nodeEnv !== 'test';
+    this.enabled =
+      runsBackgroundJobs(config) &&
+      (config.get<boolean>('STARTUP_SEED_ENABLED') ?? nodeEnv !== 'test');
     this.includeMockup = nodeEnv === 'development';
   }
 
   async onApplicationBootstrap(): Promise<void> {
     if (!this.enabled) {
-      this.logger.log('Startup seeding disabled by configuration');
+      this.logger.log(`Startup seeding not run in this process (WORKER_ROLE=${this.role})`);
       return;
     }
 

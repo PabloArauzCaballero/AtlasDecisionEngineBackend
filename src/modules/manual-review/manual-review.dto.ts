@@ -1,14 +1,15 @@
+/** Manual-review commands constrain assignment, outcome and evidence to auditable shapes. */
 import { IsEnum, IsIn, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
 import { ManualReviewStatus } from '@prisma/client';
 import { PaginationQueryDto } from '../../common/http/pagination';
 
 export class AssignManualReviewDto {
-  @IsString() assignedTo!: string;
+  @IsString() @MaxLength(160) assignedTo!: string;
 }
 
 export class ResolveManualReviewDto {
   @IsIn(['APPROVE', 'DECLINE', 'CANCEL']) decision!: 'APPROVE' | 'DECLINE' | 'CANCEL';
-  @IsString() reason!: string;
+  @IsString() @MaxLength(8_000) reason!: string;
   @IsOptional() @IsObject() metadata?: Record<string, unknown>;
 }
 

@@ -16,6 +16,24 @@ export function validateGraphExpressions(
 ): GraphExpressionResult {
   const errors: ValidationIssue[] = [];
 
+  const reportUnknownIntermediate = (
+    reference: string,
+    entityType: ValidationIssue['entityType'],
+    entityKey: string,
+    label: string,
+  ): void => {
+    const code = reference.slice('intermediate.'.length).split('.')[0];
+    if (lookups.intermediateCodes.has(code)) return;
+    errors.push(
+      issue(
+        'UNDECLARED_INTERMEDIATE_REFERENCE',
+        `${label} references undeclared intermediate variable ${reference}`,
+        entityType,
+        entityKey,
+      ),
+    );
+  };
+
   const validateExpressionReferences = (
     expression: unknown,
     entityType: ValidationIssue['entityType'],
@@ -29,6 +47,13 @@ export function validateGraphExpressions(
           ? variable.slice('variables.'.length).split('.')[0]
           : variable.split('.')[0];
         if (normalized === 'decision') continue;
+        // `intermediate.<code>` es un espacio de nombres propio (§2): su disponibilidad
+        // y autorización las comprueba graph-intermediate.validator; aquí basta con que
+        // el código esté declarado, y sin este caso caería como "variable no declarada".
+        if (normalized === 'intermediate') {
+          reportUnknownIntermediate(variable, entityType, entityKey, label);
+          continue;
+        }
         if (!lookups.variableCodes.has(normalized)) {
           errors.push(
             issue(
@@ -62,6 +87,10 @@ export function validateGraphExpressions(
       const code = path.startsWith('variables.')
         ? path.slice('variables.'.length).split('.')[0]
         : path.split('.')[0];
+      if (code === 'intermediate') {
+        reportUnknownIntermediate(path, entityType, entityKey, 'Template');
+        continue;
+      }
       if (!lookups.variableCodes.has(code)) {
         errors.push(
           issue(

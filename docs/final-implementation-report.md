@@ -1,5 +1,9 @@
 # Reporte final de implementación — Rebanadas 2-5
 
+> **Documento histórico (2026-07-21).** Conserva la evidencia y el alcance de esa entrega; no
+> describe necesariamente el backend vigente. Consulte `docs/README.md` y la verificación más
+> reciente antes de tomar una decisión de release.
+
 **Fecha:** 2026-07-21
 **Ramas:** `feature/rebanadas-2-a-5` en `AtlasDecisionEngine` (backend) y
 `AtlasDecisionEngineFrontend` (frontend).

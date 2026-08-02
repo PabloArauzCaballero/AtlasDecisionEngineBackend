@@ -1,3 +1,4 @@
+/** Wires idempotent event projection and the role/principal-scoped inbox API. */
 import { Module } from '@nestjs/common';
 import { EventsModule } from '../../common/events/events.module';
 import { NotificationController } from './notification.controller';

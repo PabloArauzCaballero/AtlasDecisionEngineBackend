@@ -1,12 +1,27 @@
 import { Logger } from '@nestjs/common';
 import { VersionStatus, type PrismaClient } from '@prisma/client';
 import { buildDemoGraph } from './demo-graph';
+import { resetDemoArtifact } from './demo-reset';
 import { buildDemoSnapshots, type DemoReason, type DemoVariable } from './demo-snapshots';
 import { seedDemoWorkflow } from './demo-workflow';
 
 const logger = new Logger('SeedDemoArtifact');
 
 const ARTIFACT_CODE = 'BNPL_CREDIT_DECISION';
+
+/**
+ * Versión semántica que produce ESTA siembra. Como el sembrado sólo crea el demo
+ * si no existe, una base sembrada con un seeder anterior se quedaba con los datos
+ * viejos (grafo en línea recta, sin variables de salida, casos que el motor no
+ * podía cumplir) y ninguna corrección llegaba a verse. Al cambiar el contenido
+ * sembrado se sube esta versión: la demo desfasada se borra y se rehace.
+ *
+ * 2.1.0 — el compilado guardado llevaba dentro `nullable: false` para las salidas de
+ * etapas tardías (`fraud_score`, `credit_risk_score`…), copiado de unas filas de catálogo
+ * desfasadas. Con eso, toda decisión que declinaba temprano en KYC moría con
+ * REQUIRED_OUTPUT_MISSING en vez de devolver DECLINED.
+ */
+const DEMO_SEMANTIC_VERSION = '2.1.0';
 
 export interface DemoArtifactSummary {
   artifactCode: string;
@@ -34,10 +49,28 @@ export async function seedDemoArtifact(
     include: { versions: true },
   });
   if (existing?.versions.length) {
-    logger.log(
-      `Seed already present: ${ARTIFACT_CODE} version ${existing.versions[0].semanticVersion}`,
+    const seeded = existing.versions.some(
+      (version) => version.semanticVersion === DEMO_SEMANTIC_VERSION,
     );
-    return undefined;
+    if (seeded) {
+      logger.log(`Seed already present: ${ARTIFACT_CODE} version ${DEMO_SEMANTIC_VERSION}`);
+      return undefined;
+    }
+    logger.warn(
+      `Demo ${ARTIFACT_CODE} seeded by an older seeder (${existing.versions[0].semanticVersion}); re-seeding as ${DEMO_SEMANTIC_VERSION}`,
+    );
+    try {
+      await resetDemoArtifact(prisma, tenantId, ARTIFACT_CODE);
+    } catch (error) {
+      // Si algo real (una decisión productiva, una revisión abierta) impide
+      // borrarlo, la aplicación debe arrancar igual: se avisa y se deja lo que hay.
+      logger.error(
+        `Could not refresh the demo artifact; keeping the existing data: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return undefined;
+    }
   }
 
   const artifact = await prisma.decisionArtifact.create({
@@ -59,7 +92,7 @@ export async function seedDemoArtifact(
     data: {
       artifactId: artifact.id,
       versionNumber: 1,
-      semanticVersion: '1.0.0',
+      semanticVersion: DEMO_SEMANTIC_VERSION,
       status: VersionStatus.DRAFT,
       changeSummary: 'Versión inicial productiva del flujo BNPL de ATLAS.',
       createdBy: 'seed.system',
@@ -118,7 +151,7 @@ export async function seedDemoArtifact(
 
   return {
     artifactCode: ARTIFACT_CODE,
-    version: '1.0.0',
+    version: DEMO_SEMANTIC_VERSION,
     productionEnvironmentId: environments.prod.id.toString(),
     deploymentId: deployment.id.toString(),
     compiledChecksum,

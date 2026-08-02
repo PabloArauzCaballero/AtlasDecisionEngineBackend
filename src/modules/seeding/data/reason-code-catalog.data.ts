@@ -1,3 +1,4 @@
+/** Versioned explanation vocabulary used by demo decisions and downstream adverse-action evidence. */
 import type { ReasonSeed } from './types';
 
 // Catálogo maestro de reason codes (motivos de decisión) que se mantiene en

@@ -1,3 +1,4 @@
+/** Owns version-scoped suites/cases and their transactional creation audit. */
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';

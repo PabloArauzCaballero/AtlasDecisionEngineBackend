@@ -73,7 +73,18 @@ describe('Security review (e2e)', () => {
         conditions: [],
         actions: [],
         nodes: [
-          { key: 'START', type: 'START', label: 'Start', config: {}, x: 0, y: 0, order: 1, terminal: false, conditions: [], actions: [] },
+          {
+            key: 'START',
+            type: 'START',
+            label: 'Start',
+            config: {},
+            x: 0,
+            y: 0,
+            order: 1,
+            terminal: false,
+            conditions: [],
+            actions: [],
+          },
           {
             key: 'RESULT',
             type: 'RESULT',
@@ -87,7 +98,17 @@ describe('Security review (e2e)', () => {
             actions: [],
           },
         ],
-        edges: [{ key: 'START_RESULT', from: 'START', to: 'RESULT', type: 'DEFAULT', priority: 1, default: true, conditions: [] }],
+        edges: [
+          {
+            key: 'START_RESULT',
+            from: 'START',
+            to: 'RESULT',
+            type: 'DEFAULT',
+            priority: 1,
+            default: true,
+            conditions: [],
+          },
+        ],
       })
       .expect(200);
   });
@@ -115,7 +136,11 @@ describe('Security review (e2e)', () => {
     ]);
     expect(response.body.severity).toBe('HIGH');
     expect(response.body.findings.map((finding: { code: string }) => finding.code)).toEqual(
-      expect.arrayContaining(['CONTAINS_SCRIPT_NODES', 'SENSITIVE_VARIABLES', 'RESTRICTED_CLASSIFICATION_VARIABLES']),
+      expect.arrayContaining([
+        'CONTAINS_SCRIPT_NODES',
+        'SENSITIVE_VARIABLES',
+        'RESTRICTED_CLASSIFICATION_VARIABLES',
+      ]),
     );
     expect(response.body.governance).toEqual([]);
     // Authoring actions (like replacing the draft graph) are themselves audited,
@@ -136,6 +161,9 @@ describe('Security review (e2e)', () => {
   });
 
   it('returns 404 for a version in a different tenant/not found', async () => {
-    await request(server()).get('/v1/security-review/versions/999999999').set(compliance).expect(404);
+    await request(server())
+      .get('/v1/security-review/versions/999999999')
+      .set(compliance)
+      .expect(404);
   });
 });

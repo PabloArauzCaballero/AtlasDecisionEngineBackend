@@ -111,4 +111,68 @@ describe('VariableResolutionService', () => {
     expect(result.values).toEqual({ monthly_income: 4500 });
     expect(result.values).not.toHaveProperty('hidden_override');
   });
+
+  /**
+   * El mismo principio que arriba, por la otra puerta. La respuesta del proveedor externo se
+   * fusionaba tal cual con `Object.assign`, así que un backend comprometido o simplemente
+   * mal implementado podía introducir códigos que el artefacto no declara —que entraban al
+   * contexto del motor— y sobrescribir un valor que el cliente sí había enviado. Solo se
+   * pregunta por lo que falta: devolver otra cosa nunca es legítimo.
+   */
+  describe('respuesta del backend externo de variables', () => {
+    const externalConfig = new ConfigService({
+      AUDIT_HASH_SECRET: 'test-secret-with-at-least-24-characters',
+      VARIABLE_BACKEND_URL: 'http://variables.internal',
+    });
+    const externalService = new VariableResolutionService(
+      externalConfig,
+      new HashService(externalConfig),
+      new MetricsService(),
+    );
+    const originalFetch = globalThis.fetch;
+
+    afterEach(() => {
+      globalThis.fetch = originalFetch;
+    });
+
+    function respondWith(values: unknown) {
+      globalThis.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ values }),
+      }) as unknown as typeof fetch;
+    }
+
+    const resolveWithExternal = (input: Record<string, unknown>) =>
+      externalService.resolve(
+        [contract({ sensitive: false }), contract({ code: 'age', dataType: 'NUMBER' })],
+        input,
+        { tenantId: 1n, artifactCode: 'TEST', requestId: 'r-ext', allowExternal: true },
+      );
+
+    it('acepta el valor que sí se pidió', async () => {
+      respondWith({ age: 33 });
+      const result = await resolveWithExternal({ monthly_income: 4500 });
+      expect(result.values.age).toBe(33);
+      expect(result.valid).toBe(true);
+    });
+
+    it('descarta códigos que no se pidieron', async () => {
+      respondWith({ age: 33, hidden_override: 'APPROVED' });
+      const result = await resolveWithExternal({ monthly_income: 4500 });
+      expect(result.values).not.toHaveProperty('hidden_override');
+    });
+
+    it('no deja que el proveedor sobrescriba un valor enviado por el cliente', async () => {
+      respondWith({ age: 33, monthly_income: 999_999 });
+      const result = await resolveWithExternal({ monthly_income: 4500 });
+      expect(result.values.monthly_income).toBe(4500);
+    });
+
+    it('ignora una respuesta con forma inesperada', async () => {
+      respondWith([{ age: 33 }]);
+      const result = await resolveWithExternal({ monthly_income: 4500 });
+      expect(result.values).not.toHaveProperty('0');
+      expect(result.valid).toBe(false);
+    });
+  });
 });

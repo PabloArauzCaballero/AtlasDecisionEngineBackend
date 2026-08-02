@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { Client } from 'pg';
 
 /**
@@ -88,5 +90,49 @@ describeDb('Tenant RLS isolation (integration)', () => {
         ),
       ).rejects.toThrow(/row-level security/i);
     });
+  });
+
+  /**
+   * `yarn migration:validate` answers this question by grepping the migration SQL, which
+   * means it can only see the statements it knows how to spell: six tables protected through
+   * a `DO $$ ... EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', target)` loop
+   * were reported as unprotected while the database had them enabled, forced and policied.
+   * The catalog is the authority, so ask it directly — this passes or fails on what is
+   * actually true of the database, not on how the migration happened to be written.
+   */
+  it('has RLS enabled, forced and policied on every tenant-scoped table', async () => {
+    const schema = readFileSync(join(__dirname, '..', 'prisma', 'schema.prisma'), 'utf8');
+    const tenantTables: string[] = [];
+    for (const model of schema.matchAll(/^model\s+\w+\s*\{([\s\S]*?)^\}/gm)) {
+      const body = model[1];
+      if (!/^\s+tenantId\s+.*@map\("tenant_id"\)/m.test(body)) continue;
+      const mapped = body.match(/@@map\("([^"]+)"\)/);
+      if (mapped) tenantTables.push(mapped[1]);
+    }
+    expect(tenantTables.length).toBeGreaterThan(0);
+
+    const state = await client.query<{
+      relname: string;
+      enabled: boolean;
+      forced: boolean;
+      policies: number;
+    }>(
+      `SELECT c.relname,
+              c.relrowsecurity AS enabled,
+              c.relforcerowsecurity AS forced,
+              (SELECT count(*)::int FROM pg_policies p
+                WHERE p.schemaname = 'public' AND p.tablename = c.relname
+                  AND p.policyname = 'tenant_isolation') AS policies
+         FROM pg_class c
+         JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public' AND c.relname = ANY($1::text[])`,
+      [tenantTables],
+    );
+    expect(state.rows.map((row) => row.relname).sort()).toEqual([...tenantTables].sort());
+    expect(
+      state.rows
+        .filter((row) => !row.enabled || !row.forced || row.policies !== 1)
+        .map((row) => row.relname),
+    ).toEqual([]);
   });
 });

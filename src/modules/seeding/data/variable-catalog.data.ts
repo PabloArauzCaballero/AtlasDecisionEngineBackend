@@ -1,3 +1,4 @@
+/** Core request/provider variable definitions with ownership, type, sensitivity and validation. */
 import type { VariableSeed } from './types';
 
 // Catálogo maestro de variables del dominio crédito/riesgo/fraude. Son datos de

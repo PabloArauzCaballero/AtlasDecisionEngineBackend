@@ -133,6 +133,28 @@ describe('external identity integration', () => {
     ).rejects.toMatchObject({ code: 'IDENTITY_PROVIDER_INVALID_RESPONSE' });
   });
 
+  it('rejects an out-of-range provider tenant as an upstream contract failure', async () => {
+    jest
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({ data: { user: { ...identityUser, tenantId: '9223372036854775808' } } }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+      );
+    const client = new IdentityProviderClient(
+      new ConfigService({
+        IDENTITY_PROVIDER_URL: 'http://localhost:3005/api/v1',
+        IDENTITY_PROVIDER_TIMEOUT_MS: 3_000,
+      }),
+    );
+
+    await expect(client.profile('valid-access-token')).rejects.toMatchObject({
+      code: 'IDENTITY_PROVIDER_INVALID_RESPONSE',
+      status: 502,
+    });
+  });
+
   it('surfaces the super admin PIN challenge instead of denying the login', async () => {
     jest.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(

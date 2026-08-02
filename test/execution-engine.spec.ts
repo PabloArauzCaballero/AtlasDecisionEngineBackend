@@ -1,3 +1,4 @@
+import { MetricsService } from '../src/common/observability/metrics.service';
 import { ConfigService } from '@nestjs/config';
 import { ExecutionEngineService } from '../src/modules/graph/execution-engine.service';
 import { ExpressionEvaluator } from '../src/modules/graph/expression-evaluator';
@@ -10,6 +11,7 @@ describe('ExecutionEngineService', () => {
     new ExpressionEvaluator(),
     new ConfigService({ MAX_EXECUTION_STEPS: 32 }),
     new ScriptNodeRunnerService(new ConfigService({ SCRIPT_NODES_ENABLED: false })),
+    new MetricsService(),
   );
 
   it('approves when the conditional edge matches', async () => {
@@ -122,11 +124,17 @@ describe('ExecutionEngineService', () => {
   describe('onStep live progress (Fase 8)', () => {
     it('reports RUNNING then COMPLETED for each visited node, with the discarded edge on a branch', async () => {
       const events: unknown[] = [];
-      await engine.execute(compiledFixture(), { score: 700 }, undefined, undefined, (event) => events.push(event));
+      await engine.execute(compiledFixture(), { score: 700 }, undefined, undefined, (event) =>
+        events.push(event),
+      );
 
       expect(events).toEqual([
         { status: 'RUNNING', nodeKey: 'START', nodeType: 'START' },
-        expect.objectContaining({ status: 'COMPLETED', nodeKey: 'START', branchTaken: 'START_CHECK' }),
+        expect.objectContaining({
+          status: 'COMPLETED',
+          nodeKey: 'START',
+          branchTaken: 'START_CHECK',
+        }),
         { status: 'RUNNING', nodeKey: 'CHECK', nodeType: 'CONDITION' },
         expect.objectContaining({
           status: 'COMPLETED',
@@ -145,7 +153,9 @@ describe('ExecutionEngineService', () => {
       const events: unknown[] = [];
 
       await expect(
-        engine.execute(compiled, { score: 700 }, undefined, undefined, (event) => events.push(event)),
+        engine.execute(compiled, { score: 700 }, undefined, undefined, (event) =>
+          events.push(event),
+        ),
       ).rejects.toThrow(/No outgoing edge matched/);
       expect(events).toEqual([
         { status: 'RUNNING', nodeKey: 'START', nodeType: 'START' },
@@ -160,9 +170,18 @@ describe('ExecutionEngineService', () => {
     function referenceCompiled() {
       const compiled = compiledFixture();
       compiled.variables.push({
-        variableVersionId: '11', usageType: 'OUTPUT_PRIMARY', dependencyPath: 'output.riskLevel',
-        code: 'riskLevel', version: 1, dataType: 'STRING', nullable: false,
-        validationRules: [], sources: [], required: true, fallbackPolicy: 'FAIL_CLOSED', sensitive: false,
+        variableVersionId: '11',
+        usageType: 'OUTPUT_PRIMARY',
+        dependencyPath: 'output.riskLevel',
+        code: 'riskLevel',
+        version: 1,
+        dataType: 'STRING',
+        nullable: false,
+        validationRules: [],
+        sources: [],
+        required: true,
+        fallbackPolicy: 'FAIL_CLOSED',
+        sensitive: false,
       });
       compiled.nodes = {
         START: compiled.nodes.START,
@@ -184,7 +203,17 @@ describe('ExecutionEngineService', () => {
         },
       };
       compiled.edgesByNode = {
-        START: [{ key: 'START_RESULT', from: 'START', to: 'NESTED_CHECK', type: 'DEFAULT', priority: 1, default: true, conditions: [] }],
+        START: [
+          {
+            key: 'START_RESULT',
+            from: 'START',
+            to: 'NESTED_CHECK',
+            type: 'DEFAULT',
+            priority: 1,
+            default: true,
+            conditions: [],
+          },
+        ],
         NESTED_CHECK: [],
       };
       return compiled as unknown as CompiledDecisionArtifact;
@@ -225,7 +254,11 @@ describe('ExecutionEngineService', () => {
       );
       expect(result.output.riskLevel).toBe('HIGH');
       expect(result.nestedExecutions).toEqual([
-        expect.objectContaining({ nodeKey: 'NESTED_CHECK', status: 'SUCCEEDED', childArtifactVersionId: '99' }),
+        expect.objectContaining({
+          nodeKey: 'NESTED_CHECK',
+          status: 'SUCCEEDED',
+          childArtifactVersionId: '99',
+        }),
       ]);
     });
   });

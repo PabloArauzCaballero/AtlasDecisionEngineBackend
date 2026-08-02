@@ -1,3 +1,4 @@
+/** Wires the opt-in SSE preview to existing resolver, variable, graph and nested-tree services. */
 import { Module } from '@nestjs/common';
 import { DeploymentModule } from '../deployments/deployment.module';
 import { GraphModule } from '../graph/graph.module';

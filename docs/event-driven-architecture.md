@@ -16,17 +16,23 @@ se confirman o revierten juntos, nunca por separado.
 │  2. states.transition(...)                                   │
 │  3. audit.append(tx, ...)                                    │
 │  4. outboxPublisher.publish(tx, envelope)  ← misma tx        │
+│     └─ pg_notify('atlas_jobs', 'outbox-relay')  ← misma tx   │
 └─────────────────────────────────────────────────────────────┘
              │ commit atómico
              ▼
    decision_outbox_event (status = PENDING)
              │
-             ▼  OutboxRelayService (poll + lease)
+             ▼  OutboxRelayService, bajo JobSchedulerService (poll + lease + NOTIFY)
    FOR UPDATE SKIP LOCKED → EventBus.emit → status = DISPATCHED
              │
-             ▼  NotificationProjectorService (subscribeAll)
+             ▼  NotificationProjectorService (subscribeAll, solo en el proceso WORKER)
    ProcessedEvent (idempotencia) + decision_notification
 ```
+
+El relay y el proyector corren en el proceso **WORKER**, no en las réplicas de API — ver
+[`docs/worker-orchestration.md`](worker-orchestration.md) para el reparto completo de
+trabajos de fondo y el mecanismo de despertar por `LISTEN`/`NOTIFY` que reemplaza el
+sondeo fijo por segundo.
 
 ## Componentes
 
@@ -40,9 +46,12 @@ se confirman o revierten juntos, nunca por separado.
 
 ## El relay (entrega at-least-once)
 
-Misma forma que `TestRunWorkerService`: un bucle de sondeo que reclama trabajo con
+Misma forma que `TestRunWorkerService`: reclama trabajo con
 `UPDATE … WHERE id IN (SELECT … FOR UPDATE SKIP LOCKED) RETURNING`, más un **lease** que
-expira. Consecuencias:
+expira. Ya no trae su propio temporizador: el `JobSchedulerService` decide cuándo se
+ejecuta un ciclo (`runOnce()`), y `OutboxPublisherService.publish` despierta ese ciclo con
+`pg_notify` en la misma transacción que escribe la fila — ver
+[`docs/worker-orchestration.md`](worker-orchestration.md). Consecuencias:
 
 - **Sin doble entrega entre réplicas.** `SKIP LOCKED` hace que cada réplica reclame filas
   distintas; si una muere a mitad de lote, su lease expira y las filas vuelven a ser
@@ -72,18 +81,26 @@ tenant y `atlas_app` accede vía los privilegios por defecto del esquema.
 
 | Variable | Default | Descripción |
 |---|---|---|
-| `OUTBOX_RELAY_ENABLED` | `true` | Habilita el worker de relay. |
-| `OUTBOX_RELAY_INTERVAL_MS` | `1000` | Intervalo de sondeo. |
+| `OUTBOX_RELAY_ENABLED` | `true` | Habilita el trabajo de relay. |
+| `OUTBOX_RELAY_INTERVAL_MS` | `1000` | Suelo del sondeo (red de seguridad; el `NOTIFY` da la latencia real). |
+| `OUTBOX_RELAY_MAX_INTERVAL_MS` | `30000` | Techo del retroceso adaptativo con el outbox vacío. |
+| `OUTBOX_BACKLOG_SAMPLE_MS` | `30000` | Cada cuánto se cuenta el backlog para el gauge, ociosa la cola. |
 | `OUTBOX_BATCH_SIZE` | `25` | Eventos reclamados por lote. |
 | `OUTBOX_MAX_ATTEMPTS` | `8` | Intentos antes de `DEAD`. |
 | `OUTBOX_LEASE_MS` | `30000` | Duración del lease de reclamo. |
 
+Las claves `JOB_*` que gobiernan el orquestador (cadencia, backoff, `LISTEN`/`NOTIFY`) se
+documentan en [`docs/worker-orchestration.md`](worker-orchestration.md).
+
 ## Observabilidad
 
-- `atlas_outbox_pending` (gauge) — backlog PENDING, muestreado en cada poll.
+- `atlas_outbox_pending` (gauge) — backlog PENDING, muestreado cuando el relay está ocioso.
 - `atlas_outbox_dispatched_total{event_type}` — eventos entregados.
 - `atlas_outbox_dead_total{event_type}` — eventos dead-lettered.
 - `atlas_notification_created_total{event_type}` — notificaciones proyectadas.
+- `atlas_job_*` — ciclos, duración y despertares del trabajo `outbox-relay` como trabajo de
+  fondo genérico (ver worker-orchestration.md). Solo se exponen en `/metrics` del proceso
+  WORKER: una réplica de API ya no ejecuta el relay y por tanto nunca las produce.
 
 ## Ruta de escalado (fuera de alcance de esta rebanada)
 

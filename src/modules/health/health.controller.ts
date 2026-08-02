@@ -1,66 +1,84 @@
-import { Controller, Get, HttpStatus, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { ApiTags } from '@nestjs/swagger';
-import { CacheService } from '../../common/cache/cache.service';
+/** Public liveness/readiness endpoints that redact infrastructure detail while retaining diagnostics. */
+import { Controller, Get, HttpStatus } from '@nestjs/common';
+import {
+  ApiOkResponse,
+  ApiOperation,
+  ApiServiceUnavailableResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { DomainException } from '../../common/errors/domain-exception';
-import { PrismaService } from '../../common/prisma/prisma.service';
 import { Public, SkipRateLimit } from '../../common/security/security.decorators';
+import { HealthProbeService } from './health-probe.service';
+import { LivenessResponseDto, ReadinessResponseDto } from './health.dto';
 
 @ApiTags('Health')
 @Controller()
 export class HealthController {
-  private readonly startedAt = Date.now();
-  private readonly logger = new Logger(HealthController.name);
+  constructor(private readonly probe: HealthProbeService) {}
 
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly cache: CacheService,
-    private readonly config: ConfigService,
-  ) {}
-
-  @Get(['health', 'health/live'])
+  @Get('health/live')
+  @ApiOperation({
+    operationId: 'healthLive',
+    summary: 'Report process liveness without checking dependencies',
+  })
+  @ApiOkResponse({ description: 'El proceso está vivo.', type: LivenessResponseDto })
   @Public()
   @SkipRateLimit()
   live() {
-    return {
-      status: 'ok',
-      service: 'atlas-decision-engine-backend',
-      version: this.config.get<string>('BUILD_VERSION') ?? 'unknown',
-      commit: this.config.get<string>('COMMIT_SHA') ?? 'unknown',
-      uptimeSeconds: Math.floor((Date.now() - this.startedAt) / 1_000),
-      timestamp: new Date().toISOString(),
-    };
+    return this.probe.live();
   }
 
-  @Get(['ready', 'health/ready'])
+  // Alias histórico de `/health/live`. Va en su propio método —y no como segunda ruta del
+  // anterior— porque dos rutas en un mismo manejador producen dos operaciones OpenAPI con
+  // el MISMO operationId, y un cliente generado a partir de ese contrato sobrescribe un
+  // método con el otro. Delegar mantiene una sola definición de "vivo".
+  @Get('health')
+  @ApiOperation({
+    operationId: 'healthLiveAlias',
+    summary: 'Alias of /health/live kept for existing probes',
+  })
+  @ApiOkResponse({ description: 'El proceso está vivo.', type: LivenessResponseDto })
+  @Public()
+  @SkipRateLimit()
+  liveAlias() {
+    return this.live();
+  }
+
+  @Get('health/ready')
+  @ApiOperation({
+    operationId: 'healthReady',
+    summary: 'Report database and cache readiness with redacted failures',
+  })
+  @ApiOkResponse({ description: 'Todas las dependencias responden.', type: ReadinessResponseDto })
+  @ApiServiceUnavailableResponse({ description: 'Alguna dependencia no está disponible.' })
   @Public()
   @SkipRateLimit()
   async ready() {
-    const checks: Record<string, string> = {};
-    try {
-      await this.prisma.$queryRaw`SELECT 1`;
-      checks.database = 'ok';
-      checks.cache = await this.cache.ping();
-      return {
-        status: 'ready',
-        checks,
-        timestamp: new Date().toISOString(),
-      };
-    } catch (error) {
-      // /ready is @Public() — an unauthenticated caller must never see raw infra error text
-      // (hostnames, ports, driver messages). Log the real cause server-side only; the response
-      // carries just the check name that failed.
-      checks.database ??= 'error';
-      checks.cache ??= 'error';
-      this.logger.error(
-        `Readiness check failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      throw new DomainException(
-        'SERVICE_NOT_READY',
-        'One or more required dependencies are unavailable',
-        HttpStatus.SERVICE_UNAVAILABLE,
-        { checks },
-      );
+    const report = await this.probe.ready();
+    if (report.ready) {
+      return { status: 'ready', checks: report.checks, timestamp: report.timestamp };
     }
+    // El detalle del fallo ya quedó en el log del servidor; la respuesta solo lleva qué
+    // comprobación falló, porque este endpoint es público.
+    throw new DomainException(
+      'SERVICE_NOT_READY',
+      'One or more required dependencies are unavailable',
+      HttpStatus.SERVICE_UNAVAILABLE,
+      { checks: report.checks },
+    );
+  }
+
+  /** Alias histórico de `/health/ready`; ver la nota de `liveAlias`. */
+  @Get('ready')
+  @ApiOperation({
+    operationId: 'healthReadyAlias',
+    summary: 'Alias of /health/ready kept for existing probes',
+  })
+  @ApiOkResponse({ description: 'Todas las dependencias responden.', type: ReadinessResponseDto })
+  @ApiServiceUnavailableResponse({ description: 'Alguna dependencia no está disponible.' })
+  @Public()
+  @SkipRateLimit()
+  readyAlias() {
+    return this.ready();
   }
 }

@@ -1,4 +1,5 @@
 import { ViewsService } from '../src/modules/views/views.service';
+import { CalculatedFieldBindingService } from '../src/modules/artifacts/calculated-field-binding.service';
 import { ArtifactGraphWriterService } from '../src/modules/artifacts/artifact-graph-writer.service';
 
 describe('read model views', () => {
@@ -72,6 +73,9 @@ describe('read model views', () => {
       decisionNodeAction: { createMany: jest.fn() },
       decisionEdgeCondition: { createMany: jest.fn() },
       decisionArtifactVariableDependency: { deleteMany: jest.fn(), createMany: jest.fn() },
+      decisionIntermediateVariable: { deleteMany: jest.fn(), createMany: jest.fn() },
+      decisionArtifactCalculatedFieldUse: { deleteMany: jest.fn(), createMany: jest.fn() },
+      decisionOutputContractField: { deleteMany: jest.fn(), createMany: jest.fn() },
       decisionCompiledArtifact: { deleteMany: jest.fn() },
       decisionNodeScript: { deleteMany: scriptDeleteMany, createMany: scriptCreateMany },
       decisionVariableVersion: { findMany: jest.fn().mockResolvedValue([{ id: 11n }]) },
@@ -84,7 +88,11 @@ describe('read model views', () => {
       $transaction: jest.fn((callback: (transaction: typeof tx) => unknown) => callback(tx)),
     };
     const audit = { append: jest.fn() };
-    const service = new ArtifactGraphWriterService(prisma as never, audit as never);
+    const service = new ArtifactGraphWriterService(
+      prisma as never,
+      audit as never,
+      new CalculatedFieldBindingService(prisma as never),
+    );
 
     await service.replaceDraftGraph(
       7n,

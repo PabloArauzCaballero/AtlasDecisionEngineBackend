@@ -31,7 +31,11 @@ export class SecurityReviewService {
       include: { artifact: true },
     });
     if (!version) {
-      throw new DomainException('VERSION_NOT_FOUND', 'Artifact version not found', HttpStatus.NOT_FOUND);
+      throw new DomainException(
+        'VERSION_NOT_FOUND',
+        'Artifact version not found',
+        HttpStatus.NOT_FOUND,
+      );
     }
 
     const [
@@ -49,14 +53,20 @@ export class SecurityReviewService {
         where: { artifactVersionId: versionId },
         include: { variableVersion: { include: { definition: true } } },
       }),
-      this.prisma.decisionArtifactReference.findMany({ where: { tenantId, parentArtifactVersionId: versionId } }),
-      this.prisma.decisionArtifactReference.findMany({ where: { tenantId, childArtifactVersionId: versionId } }),
+      this.prisma.decisionArtifactReference.findMany({
+        where: { tenantId, parentArtifactVersionId: versionId },
+      }),
+      this.prisma.decisionArtifactReference.findMany({
+        where: { tenantId, childArtifactVersionId: versionId },
+      }),
       this.prisma.decisionApprovalRequest.findMany({
         where: { artifactVersionId: versionId },
         include: { steps: { include: { decisions: { include: { evidence: true } } } } },
         orderBy: { requestedAt: 'desc' },
       }),
-      this.prisma.decisionCodeImport.findMany({ where: { tenantId, artifactVersionId: versionId } }),
+      this.prisma.decisionCodeImport.findMany({
+        where: { tenantId, artifactVersionId: versionId },
+      }),
       this.prisma.decisionAuditEvent.findMany({
         where: { tenantId, aggregateType: 'ArtifactVersion', aggregateId: versionId.toString() },
         orderBy: { id: 'desc' },
@@ -71,7 +81,12 @@ export class SecurityReviewService {
     ]);
 
     const executionsWithErrors = executions.filter((execution) => execution.errors.length);
-    const findings = this.computeFindings(nodeScripts, dependencies, references, executionsWithErrors);
+    const findings = this.computeFindings(
+      nodeScripts,
+      dependencies,
+      references,
+      executionsWithErrors,
+    );
     const severity = this.overallSeverity(findings);
 
     return {
@@ -169,7 +184,9 @@ export class SecurityReviewService {
 
   private computeFindings(
     nodeScripts: Array<{ language: string }>,
-    dependencies: Array<{ variableVersion: { definition: { isSensitive: boolean; dataClassification: string } } }>,
+    dependencies: Array<{
+      variableVersion: { definition: { isSensitive: boolean; dataClassification: string } };
+    }>,
     references: unknown[],
     executionsWithErrors: unknown[],
   ): SecurityFinding[] {
@@ -181,7 +198,9 @@ export class SecurityReviewService {
         message: `This version runs ${nodeScripts.length} script node(s) (${[...new Set(nodeScripts.map((script) => script.language))].join(', ')}) — verify the sandbox mode before approving.`,
       });
     }
-    const sensitiveCount = dependencies.filter((dependency) => dependency.variableVersion.definition.isSensitive).length;
+    const sensitiveCount = dependencies.filter(
+      (dependency) => dependency.variableVersion.definition.isSensitive,
+    ).length;
     if (sensitiveCount) {
       findings.push({
         severity: 'HIGH',
@@ -190,7 +209,10 @@ export class SecurityReviewService {
       });
     }
     const restrictedCount = dependencies.filter(
-      (dependency) => !['INTERNAL', 'PUBLIC'].includes(dependency.variableVersion.definition.dataClassification.toUpperCase()),
+      (dependency) =>
+        !['INTERNAL', 'PUBLIC'].includes(
+          dependency.variableVersion.definition.dataClassification.toUpperCase(),
+        ),
     ).length;
     if (restrictedCount) {
       findings.push({

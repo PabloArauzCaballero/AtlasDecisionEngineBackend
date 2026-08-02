@@ -1,3 +1,4 @@
+/** Applies a stricter IP budget to public login/refresh/logout routes before provider calls. */
 import { CanActivate, ExecutionContext, HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';

@@ -3,13 +3,16 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { AuditService } from '../../common/audit/audit.service';
+import { layoutSeedNodes } from '../../common/graph/tree-layout';
 import { DomainException } from '../../common/errors/domain-exception';
 import { pageResult, paginationArgs } from '../../common/http/pagination';
+import { parseBigIntId } from '../../common/http/id';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
 import { ArtifactGraphWriterService } from '../artifacts/artifact-graph-writer.service';
 import { ArtifactLifecycleService } from '../artifacts/artifact-lifecycle.service';
 import { VariableService } from '../variables/variable.service';
+import { BranchExtractorService } from './branch-extractor.service';
 import { AnalyzeCodeImportDto, CodeImportListQueryDto, SaveCodeImportDto } from './code-import.dto';
 import { ContractExtractorService } from './contract-extractor.service';
 import { ContractValidatorService } from './contract-validator.service';
@@ -33,6 +36,7 @@ export class CodeImportService {
     private readonly audit: AuditService,
     private readonly config: ConfigService,
     private readonly syntax: SyntaxAnalyzerService,
+    private readonly branches: BranchExtractorService,
     private readonly contractExtractor: ContractExtractorService,
     private readonly contractValidator: ContractValidatorService,
     private readonly security: SecurityAnalyzerService,
@@ -82,15 +86,22 @@ export class CodeImportService {
       contract: contract ?? { contractVersion: '1', inputs: [], outputs: [] },
       scriptBody: extraction.scriptBody,
     };
+    // Se intenta derivar el árbol de decisión del código; si no es traducible se
+    // avisa con el motivo exacto y se cae al nodo de script (nunca a medias).
+    if (contract && !hasBlockingIssues) {
+      const derived = this.branches.extract(dto.language, extraction.scriptBody, contract);
+      ir.branches = derived.branches;
+      if (derived.unsupported) issues.push(derived.unsupported);
+    }
     const generatedGraph = hasBlockingIssues
       ? { dependencies: [], nodes: [], edges: [] }
-      : this.graphGenerator.generate(ir);
+      : this.graphGenerator.generate(ir, await this.reasonCodeCatalog(tenantId));
 
     const record = await this.prisma.$transaction(async (tx) => {
       const created = await tx.decisionCodeImport.create({
         data: {
           tenantId,
-          artifactId: dto.artifactId ? BigInt(dto.artifactId) : undefined,
+          artifactId: dto.artifactId ? parseBigIntId(dto.artifactId, 'artifactId') : undefined,
           language: dto.language,
           sourceCode: dto.sourceCode,
           sourceChecksum: ir.sourceChecksum,
@@ -135,7 +146,9 @@ export class CodeImportService {
     const paging = paginationArgs(query, this.config.get<number>('MAX_PAGE_SIZE') ?? 100);
     const where: Prisma.DecisionCodeImportWhereInput = {
       tenantId,
-      ...(query.artifactVersionId ? { artifactVersionId: BigInt(query.artifactVersionId) } : {}),
+      ...(query.artifactVersionId
+        ? { artifactVersionId: parseBigIntId(query.artifactVersionId, 'artifactVersionId') }
+        : {}),
     };
     const [total, items] = await this.prisma.$transaction([
       this.prisma.decisionCodeImport.count({ where }),
@@ -173,7 +186,7 @@ export class CodeImportService {
     );
     const outcome = await this.lifecycle.validateAndCompile(
       tenantId,
-      BigInt(dto.artifactVersionId),
+      parseBigIntId(dto.artifactVersionId, 'artifactVersionId'),
       principal,
     );
     return {
@@ -225,8 +238,15 @@ export class CodeImportService {
       );
     }
     const ir = record.irJson as unknown as CodeImportIR;
-    const generatedGraph = this.graphGenerator.generate(ir);
-    const versionId = BigInt(dto.artifactVersionId);
+    const reasonCodes = await this.reasonCodeCatalog(tenantId);
+    const generatedGraph = this.graphGenerator.generate(ir, reasonCodes);
+    const versionId = parseBigIntId(dto.artifactVersionId, 'artifactVersionId');
+    // Las acciones que emiten motivos necesitan el id del reason code del catálogo:
+    // se referencia el que ya existe, nunca se crea uno nuevo desde una importación.
+    const reasonIds = await this.reasonCodeIds(
+      tenantId,
+      (generatedGraph.actions ?? []).map((action) => action.reasonCode),
+    );
 
     const variableVersionIds = new Map<string, bigint>();
     for (const dependency of generatedGraph.dependencies) {
@@ -239,38 +259,53 @@ export class CodeImportService {
       variableVersionIds.set(dependency.variableCode, variableVersionId);
     }
 
+    // El lienzo del editor coloca los nodos en porcentajes (0–100), no en píxeles:
+    // se dibuja el árbol en escalera (una columna por condición, el resultado de
+    // cada rama arriba y el camino "no" bajando a la siguiente).
+    const layout = layoutSeedNodes(generatedGraph.nodes, generatedGraph.edges);
+    const positions = generatedGraph.nodes.map((node) => layout.get(node.key) ?? { x: 38, y: 45 });
     const replaceGraphDto = {
       dependencies: generatedGraph.dependencies.map((dependency) => ({
         variableVersionId: variableVersionIds.get(dependency.variableCode)!.toString(),
         usageType: dependency.usageType,
         isRequired: dependency.required,
-        fallbackPolicy: 'FAIL_CLOSED',
+        fallbackPolicy: dependency.usageType === 'INPUT' ? 'FAIL_CLOSED' : 'NOT_APPLICABLE',
         dependencyPath: dependency.dependencyPath,
       })),
-      conditions: [],
-      actions: [],
-      nodes: generatedGraph.nodes.map((node, index, all) => ({
+      conditions: (generatedGraph.conditions ?? []).map((condition) => ({
+        code: condition.code,
+        name: condition.name,
+        expressionType: 'JSON_AST',
+        expression: condition.expression as Record<string, unknown>,
+        severity: 'BLOCKING',
+        reusable: false,
+      })),
+      actions: (generatedGraph.actions ?? []).map((action) => ({
+        code: action.code,
+        type: action.type,
+        payload: {},
+        terminal: false,
+        reasonCodes: [{ reasonCodeId: reasonIds.get(action.reasonCode)!.toString(), priority: 10 }],
+      })),
+      nodes: generatedGraph.nodes.map((node, index) => ({
         key: node.key,
         type: node.type,
         label: node.label,
         config: node.config,
-        // The editor canvas positions nodes as percentages (0–100), not pixels;
-        // spread them left→right across that space so the graph renders correctly.
-        x: all.length > 1 ? Math.round(12 + (index / (all.length - 1)) * 66) : 38,
-        y: 45,
+        ...positions[index],
         order: index + 1,
         terminal: node.type === 'RESULT',
         conditions: [],
-        actions: [],
+        actions: node.actions ?? [],
       })),
-      edges: generatedGraph.edges.map((edge) => ({
+      edges: generatedGraph.edges.map((edge, index) => ({
         key: edge.key,
         from: edge.from,
         to: edge.to,
-        type: 'DEFAULT',
-        priority: 1,
+        type: edge.conditionCode ? 'CONDITIONAL' : 'DEFAULT',
+        priority: edge.default ? 999 : index + 1,
         default: edge.default,
-        conditions: [],
+        conditions: edge.conditionCode ? [{ conditionCode: edge.conditionCode, order: 1 }] : [],
       })),
     };
 
@@ -303,6 +338,45 @@ export class CodeImportService {
     });
 
     return { record: updatedRecord, updatedVersion };
+  }
+
+  /**
+   * Códigos de motivo activos del tenant.
+   *
+   * Sirven para reconocer, entre los literales que escribe el código importado,
+   * cuáles son motivos de negocio ya declarados. Sin esto un `"AGE_NOT_ELIGIBLE"`
+   * entra al grafo como una cadena suelta: la decisión no se puede filtrar por
+   * motivo, ni explicar al cliente, ni auditar.
+   */
+  private async reasonCodeCatalog(tenantId: bigint): Promise<ReadonlySet<string>> {
+    const rows = await this.prisma.decisionReasonCode.findMany({
+      where: { tenantId, isActive: true },
+      select: { reasonCode: true },
+    });
+    return new Set(rows.map((row) => row.reasonCode));
+  }
+
+  /** Ids de los motivos que las acciones generadas van a emitir. */
+  private async reasonCodeIds(tenantId: bigint, codes: string[]): Promise<Map<string, bigint>> {
+    if (!codes.length) return new Map();
+    const rows = await this.prisma.decisionReasonCode.findMany({
+      where: { tenantId, isActive: true, reasonCode: { in: codes } },
+      select: { id: true, reasonCode: true },
+    });
+    const byCode = new Map(rows.map((row) => [row.reasonCode, row.id]));
+    const missing = codes.filter((code) => !byCode.has(code));
+    if (missing.length) {
+      // No debería ocurrir (la generación sólo usa códigos del catálogo), pero si
+      // alguien desactiva un motivo entre analizar y guardar, mejor decirlo claro
+      // que escribir un grafo con una acción rota.
+      throw new DomainException(
+        'CODE_IMPORT_REASON_CODE_MISSING',
+        `These reason codes no longer exist in the catalog: ${missing.join(', ')}`,
+        HttpStatus.CONFLICT,
+        { missing },
+      );
+    }
+    return byCode;
   }
 
   /** Finds an existing variable definition by code within the tenant, or provisions

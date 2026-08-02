@@ -1,11 +1,48 @@
+# Contexto de build. Todo lo que no COPIE el Dockerfile sobra aquí: BuildKit sube el
+# contexto entero al daemon antes de ejecutar la primera instrucción, así que un directorio
+# excluido no solo ahorra capa — ahorra transferencia en cada `docker build`.
+#
+# Regla para editar este archivo: si el Dockerfile no lo copia, va excluido.
+
+# Artefactos y dependencias que se reconstruyen dentro de la imagen
 node_modules
 dist
 coverage
+.nyc_output
+
+# Historia y automatización de CI: nunca se copian
 .git
+.gitattributes
+.gitignore
 .github
-*.zip
-*.log
+.claude
+.nvmrc
+
+# Pruebas, documentación y sitios generados: ninguna etapa los usa
+test
+docs
+site
+mkdocs.yml
+graphify-out
+structurizr
+openapi
+asyncapi
+smoke
+logs
+*.md
+!README.md
+
+# Configuración de herramientas de desarrollo
+.prettierrc.json
+.prettierignore
+redocly.yaml
+jest.config.js
+
+# Secretos y artefactos locales. `.env` NUNCA entra en una imagen: la configuración llega
+# por variables de entorno del orquestador, no horneada en una capa que se puede leer.
 .env
 .env.*
 !/.env.example
+*.zip
+*.log
 MANIFEST.sha256

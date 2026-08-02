@@ -1,3 +1,7 @@
+/**
+ * Carries correlation and trusted identity through async call chains without retaining request
+ * bodies, enabling structured logs and transaction-local tenant RLS.
+ */
 import { Injectable } from '@nestjs/common';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { ApiAudience, AuthMethod } from '../security/security.types';

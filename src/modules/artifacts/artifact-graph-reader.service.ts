@@ -1,7 +1,8 @@
+/** Reconstructs the canonical graph snapshot used by validation, compilation and the editor. */
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { DomainException } from '../../common/errors/domain-exception';
-import type { ArtifactGraphSnapshot } from '../graph/graph.types';
+import type { ArtifactGraphSnapshot, CalculatedFieldCallSnapshot } from '../graph/graph.types';
 
 @Injectable()
 export class ArtifactGraphReaderService {
@@ -12,6 +13,16 @@ export class ArtifactGraphReaderService {
       where: { id: versionId, artifact: { tenantId } },
       include: {
         artifact: true,
+        intermediateVariables: { orderBy: { code: 'asc' } },
+        calculatedFieldUses: {
+          orderBy: [{ nodeKey: 'asc' }, { callKey: 'asc' }],
+          include: {
+            calculatedFieldVersion: {
+              select: { versionNumber: true, calculatedField: { select: { fieldCode: true } } },
+            },
+          },
+        },
+        outputContractFields: { orderBy: { fieldCode: 'asc' } },
         variableDependencies: {
           include: {
             variableVersion: {
@@ -84,6 +95,15 @@ export class ArtifactGraphReaderService {
         nullable: dependency.variableVersion.nullable,
         defaultValue: dependency.variableVersion.defaultValueJson,
         validationSchema: dependency.variableVersion.validationSchemaJson,
+        constraints: dependency.variableVersion.constraintsJson,
+        displayName: dependency.variableVersion.displayName,
+        description: dependency.variableVersion.description,
+        validationMessage: dependency.variableVersion.validationMessage,
+        exampleValid: dependency.variableVersion.exampleValidJson,
+        exampleInvalid: dependency.variableVersion.exampleInvalidJson,
+        expectedOrigin: dependency.variableVersion.expectedOrigin,
+        contractVersion: dependency.variableVersion.contractVersion,
+        sensitivityClass: dependency.variableVersion.definition.sensitivityClass,
         validationRules: dependency.variableVersion.validationRules.map((rule) => ({
           ruleType: rule.ruleType,
           config: rule.ruleConfigJson,
@@ -101,6 +121,36 @@ export class ArtifactGraphReaderService {
         required: dependency.isRequired,
         fallbackPolicy: dependency.fallbackPolicy,
         sensitive: dependency.variableVersion.definition.isSensitive,
+      })),
+      intermediates: version.intermediateVariables.map((intermediate) => ({
+        id: intermediate.id.toString(),
+        code: intermediate.code,
+        name: intermediate.name,
+        description: intermediate.description,
+        dataType: intermediate.dataType,
+        producerNodeKey: intermediate.producerNodeKey,
+        consumerNodeKeys: intermediate.consumerNodeKeys,
+        initialValue: intermediate.initialValueJson ?? undefined,
+        constraints: intermediate.constraintsJson,
+        nullable: intermediate.nullable,
+        updatePolicy: intermediate.updatePolicy,
+        availabilityCondition: intermediate.availabilityConditionJson ?? undefined,
+        sensitivityClass: intermediate.sensitivityClass,
+        tracePolicy: intermediate.tracePolicy,
+      })),
+      outputContract: version.outputContractFields.map((field) => ({
+        id: field.id.toString(),
+        code: field.fieldCode,
+        name: field.name,
+        description: field.description,
+        sourceKind: field.sourceKind,
+        sourceRef: field.sourceRef,
+        valueMapping: (field.valueMappingJson ?? null) as Record<string, unknown> | null,
+        absenceReasons: field.absenceReasons,
+        example: field.exampleJson ?? undefined,
+        contractVersion: field.contractVersion,
+        sensitivityClass: field.sensitivityClass,
+        tracePolicy: field.tracePolicy,
       })),
       conditions: version.conditions.map((condition) => ({
         id: condition.id.toString(),
@@ -130,6 +180,22 @@ export class ArtifactGraphReaderService {
       })),
       nodes: version.nodes.map((node) => ({
         id: node.id.toString(),
+        // Las llamadas a campos calculados se reconstruyen desde el registro, no desde
+        // el `config` del nodo: allí está la definición congelada que el motor ejecuta.
+        calculatedFieldCalls: version.calculatedFieldUses
+          .filter((use) => use.nodeKey === node.nodeKey)
+          .map((use) => ({
+            callKey: use.callKey,
+            fieldCode: use.calculatedFieldVersion.calculatedField.fieldCode,
+            calculatedFieldVersionId: use.calculatedFieldVersionId.toString(),
+            versionNumber: use.calculatedFieldVersion.versionNumber,
+            inputMapping: use.inputMappingJson as CalculatedFieldCallSnapshot['inputMapping'],
+            target: {
+              kind: use.targetKind as 'INTERMEDIATE' | 'OUTPUT',
+              code: use.targetCode,
+            },
+            definition: use.definitionJson as unknown as CalculatedFieldCallSnapshot['definition'],
+          })),
         key: node.nodeKey,
         type: node.nodeType as ArtifactGraphSnapshot['nodes'][number]['type'],
         label: node.label,

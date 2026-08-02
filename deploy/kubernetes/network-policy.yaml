@@ -32,3 +32,45 @@ spec:
           port: 5432
         - protocol: TCP
           port: 6379
+---
+# El worker no atiende tráfico de negocio, así que su única entrada legítima es el raspado de
+# /metrics y las sondas del kubelet. Sin una política propia, la carga que tiene acceso de
+# escritura a la cadena de auditoría y al outbox quedaba fuera de toda restricción de red
+# porque la única política existente seleccionaba `app: atlas-decision-api`.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: atlas-decision-worker
+spec:
+  podSelector:
+    matchLabels:
+      app: atlas-decision-worker
+  policyTypes: [Ingress, Egress]
+  ingress:
+    # Restrinja este selector al namespace de monitorización real antes de desplegar; se deja
+    # permisivo, como el resto de estos manifiestos de referencia, para que apliquen en seco.
+    - from:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 3001
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - namespaceSelector: {}
+      ports:
+        # 5432 lleva DOS conexiones distintas: el pool de Prisma y la conexión dedicada de
+        # LISTEN que despierta los trabajos (src/common/jobs/job-signal.service.ts). Bloquear
+        # este puerto no degrada la latencia: deja el worker sin poder trabajar.
+        - protocol: TCP
+          port: 5432
+        - protocol: TCP
+          port: 6379
+        - protocol: TCP
+          port: 443

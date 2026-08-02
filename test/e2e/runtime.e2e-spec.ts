@@ -1,5 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
+import { DEMO_BASE_APPLICANT } from '../../src/modules/seeding/data/demo-workflow';
 import { createTestApp } from './support/test-app';
 import { runtimeHeaders } from './support/headers';
 
@@ -27,6 +28,7 @@ describe('Runtime decisions (e2e)', () => {
         subjectReference: 'e2e-subject',
         environmentCode: 'PROD',
         variables: {
+          ...DEMO_BASE_APPLICANT,
           kyc_status: 'VERIFIED',
           consent_active: true,
           age: 30,
@@ -38,7 +40,7 @@ describe('Runtime decisions (e2e)', () => {
       })
       .expect(200);
     expect(response.body.outcome).toBe('APPROVED');
-    expect(response.body.limit).toBeGreaterThan(0);
+    expect(response.body.output.approved_credit_limit).toBeGreaterThan(0);
     expect(response.body.executionId).toBeTruthy();
   });
 
@@ -49,6 +51,7 @@ describe('Runtime decisions (e2e)', () => {
       subjectReference: 'e2e-subject',
       environmentCode: 'PROD',
       variables: {
+        ...DEMO_BASE_APPLICANT,
         kyc_status: 'VERIFIED',
         consent_active: true,
         age: 30,
@@ -81,6 +84,7 @@ describe('Runtime decisions (e2e)', () => {
         idempotencyKey: key,
         environmentCode: 'PROD',
         variables: {
+          ...DEMO_BASE_APPLICANT,
           kyc_status: 'VERIFIED',
           consent_active: true,
           age: 30,
@@ -99,6 +103,7 @@ describe('Runtime decisions (e2e)', () => {
         idempotencyKey: key,
         environmentCode: 'PROD',
         variables: {
+          ...DEMO_BASE_APPLICANT,
           kyc_status: 'VERIFIED',
           consent_active: true,
           age: 30,
@@ -120,7 +125,8 @@ describe('Runtime decisions (e2e)', () => {
         idempotencyKey: `e2e-decline-${runId}`,
         environmentCode: 'PROD',
         variables: {
-          kyc_status: 'PENDING',
+          ...DEMO_BASE_APPLICANT,
+          kyc_status: 'REJECTED',
           consent_active: true,
           age: 30,
           fraud_signal: false,
@@ -138,7 +144,7 @@ describe('Runtime decisions (e2e)', () => {
     ).toBe(true);
   });
 
-  it('routes a fraud signal to manual review', async () => {
+  it('routes a politically exposed applicant to manual review', async () => {
     const response = await request(server())
       .post('/v1/decisions/BNPL_CREDIT_DECISION')
       .set(runtimeHeaders('e2e.runtime'))
@@ -147,10 +153,12 @@ describe('Runtime decisions (e2e)', () => {
         idempotencyKey: `e2e-fraud-${runId}`,
         environmentCode: 'PROD',
         variables: {
+          ...DEMO_BASE_APPLICANT,
           kyc_status: 'VERIFIED',
           consent_active: true,
           age: 30,
-          fraud_signal: true,
+          pep_status: true,
+          pep_relationship_type: 'FAMILY',
           bureau_score: 760,
           monthly_income: 8000,
           requested_amount: 2500,

@@ -1,3 +1,4 @@
+/** Central state machine preventing illegal or unaudited artifact-version transitions. */
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { Prisma, VersionStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';

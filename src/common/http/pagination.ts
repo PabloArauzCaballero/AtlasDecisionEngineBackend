@@ -1,13 +1,15 @@
 import { HttpStatus } from '@nestjs/common';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { DomainException } from '../errors/domain-exception';
+import { MAX_DATABASE_ID } from './id';
 
 export class PaginationQueryDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(1_000_000)
   page = 1;
 
   @IsOptional()
@@ -66,6 +68,7 @@ export class KeysetPaginationQueryDto {
   /** Opaque cursor from a previous page's `nextCursor`. Absent on the first page. */
   @IsOptional()
   @IsString()
+  @MaxLength(40)
   cursor?: string;
 
   @IsOptional()
@@ -93,7 +96,7 @@ export function encodeCursor(id: bigint): string {
 export function decodeCursor(cursor: string): bigint {
   try {
     const value = BigInt(Buffer.from(cursor, 'base64url').toString('utf8').trim());
-    if (value < 0n) throw new Error('negative cursor');
+    if (value < 0n || value > MAX_DATABASE_ID) throw new Error('cursor outside database range');
     return value;
   } catch {
     throw new DomainException(

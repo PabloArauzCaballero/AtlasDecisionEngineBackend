@@ -1,3 +1,4 @@
+import { MetricsService } from '../src/common/observability/metrics.service';
 import { ConfigService } from '@nestjs/config';
 import { ExecutionEngineService } from '../src/modules/graph/execution-engine.service';
 import { ExpressionEvaluator } from '../src/modules/graph/expression-evaluator';
@@ -24,6 +25,7 @@ describe('ExecutionEngineService node and action coverage', () => {
     new ExpressionEvaluator(),
     new ConfigService({ MAX_EXECUTION_STEPS: 32 }),
     new ScriptNodeRunnerService(new ConfigService({ SCRIPT_NODES_ENABLED: false })),
+    new MetricsService(),
   );
 
   function node(
@@ -460,6 +462,46 @@ describe('ExecutionEngineService node and action coverage', () => {
       expect(result.limit).toBe(1000);
       expect(result.riskBand).toBe('A');
       expect(result.output.flag).toBe('on');
+    });
+
+    /**
+     * El contrato de salida lo aplicaba solo `setOutputValue`, es decir solo los nodos
+     * RESULT. Una acción SET_FIELD escribía directamente en `state.output`, así que un
+     * artefacto con contrato declarado podía publicar un campo que no estaba en él, o el
+     * tipo equivocado en uno que sí, y la respuesta salía igual: el contrato dejaba de ser
+     * un contrato en cuanto la salida se producía desde una acción.
+     */
+    describe('SET_FIELD frente al contrato de salida', () => {
+      const setFieldGraph = (
+        field: string,
+        value: unknown,
+        variables?: VariableContractSnapshot[],
+      ) =>
+        compile({
+          nodes: [
+            node('START', 'START', {}),
+            node('ACT', 'ACTION', {}, { terminal: true, actions: [{ code: 'A_FIELD', order: 1 }] }),
+          ],
+          edges: [edge('START_ACT', 'START', 'ACT')],
+          actions: [action('A_FIELD', 'SET_FIELD', { field, value })],
+          variables,
+        });
+
+      it('rechaza una salida no declarada cuando el artefacto declara contrato', async () => {
+        const compiled = setFieldGraph('flag', 'on', [outputVar('decision', 'STRING')]);
+        await expect(engine.execute(compiled, {})).rejects.toThrow(/undeclared output flag/);
+      });
+
+      it('rechaza un valor que no respeta el tipo declarado', async () => {
+        const compiled = setFieldGraph('decision', 42, [outputVar('decision', 'STRING')]);
+        await expect(engine.execute(compiled, {})).rejects.toThrow(/must match STRING/);
+      });
+
+      it('publica la salida declarada cuando respeta el contrato', async () => {
+        const compiled = setFieldGraph('decision', 'APPROVED', [outputVar('decision', 'STRING')]);
+        const result = await engine.execute(compiled, {});
+        expect(result.output.decision).toBe('APPROVED');
+      });
     });
 
     it('creates a manual review from an action and emits sorted reasons', async () => {

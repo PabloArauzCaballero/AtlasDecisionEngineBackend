@@ -1,6 +1,8 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+/** Resolves the active compiled payload with tenant-scoped caching and explicit invalidation. */
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { CacheService } from '../../common/cache/cache.service';
 import { DomainException } from '../../common/errors/domain-exception';
+import { parseBigIntId } from '../../common/http/id';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { CompiledDecisionArtifact } from '../graph/graph.types';
 
@@ -16,6 +18,8 @@ export interface ResolvedDeployment {
 
 @Injectable()
 export class DeploymentResolverService {
+  private readonly logger = new Logger(DeploymentResolverService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly cache: CacheService,
@@ -29,22 +33,22 @@ export class DeploymentResolverService {
     const key = this.cacheKey(artifactCode, environmentCode);
     const cached = await this.cache.getForTenant(tenantId, key);
     if (cached) {
-      const parsed = JSON.parse(cached) as Omit<
-        ResolvedDeployment,
-        'deploymentId' | 'artifactVersionId' | 'environmentId' | 'compiledArtifactId'
-      > & {
-        deploymentId: string;
-        artifactVersionId: string;
-        environmentId: string;
-        compiledArtifactId: string;
-      };
-      return {
-        ...parsed,
-        deploymentId: BigInt(parsed.deploymentId),
-        artifactVersionId: BigInt(parsed.artifactVersionId),
-        environmentId: BigInt(parsed.environmentId),
-        compiledArtifactId: BigInt(parsed.compiledArtifactId),
-      };
+      try {
+        return this.deserialize(cached);
+      } catch (error) {
+        // Redis is an optimisation, not authority. A corrupt/old entry must fall back to
+        // PostgreSQL instead of turning every decision for this binding into a 500.
+        this.logger.warn(
+          `Discarding invalid deployment cache entry for ${artifactCode}/${environmentCode}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        try {
+          await this.cache.delForTenant(tenantId, key);
+        } catch {
+          // The authoritative read below remains safe even if cache eviction races an outage.
+        }
+      }
     }
 
     const binding = await this.prisma.decisionRuntimeBinding.findFirst({
@@ -95,6 +99,28 @@ export class DeploymentResolverService {
       60,
     );
     return resolved;
+  }
+
+  private deserialize(cached: string): ResolvedDeployment {
+    const parsed = JSON.parse(cached) as Omit<
+      ResolvedDeployment,
+      'deploymentId' | 'artifactVersionId' | 'environmentId' | 'compiledArtifactId'
+    > & {
+      deploymentId: string;
+      artifactVersionId: string;
+      environmentId: string;
+      compiledArtifactId: string;
+    };
+    if (!parsed || typeof parsed !== 'object' || !parsed.compiled || !parsed.compiledChecksum) {
+      throw new Error('missing required deployment fields');
+    }
+    return {
+      ...parsed,
+      deploymentId: parseBigIntId(parsed.deploymentId, 'cached deploymentId'),
+      artifactVersionId: parseBigIntId(parsed.artifactVersionId, 'cached artifactVersionId'),
+      environmentId: parseBigIntId(parsed.environmentId, 'cached environmentId'),
+      compiledArtifactId: parseBigIntId(parsed.compiledArtifactId, 'cached compiledArtifactId'),
+    };
   }
 
   invalidate(tenantId: bigint, artifactCode: string, environmentCode: string): Promise<void> {

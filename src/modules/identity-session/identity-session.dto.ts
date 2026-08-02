@@ -1,3 +1,4 @@
+/** Credentials/session commands are tightly bounded and tenant identifiers are positive decimals. */
 import {
   IsBoolean,
   IsEmail,
@@ -7,10 +8,11 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { DATABASE_ID_PATTERN } from '../../common/http/id';
 
 export class IdentityLoginDto {
   @IsString()
-  @Matches(/^[1-9]\d*$/)
+  @Matches(DATABASE_ID_PATTERN)
   tenantId!: string;
 
   @IsEmail()

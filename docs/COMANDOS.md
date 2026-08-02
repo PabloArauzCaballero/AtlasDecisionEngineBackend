@@ -21,7 +21,7 @@ cualquiera con `yarn <comando>`.
 | `yarn typecheck` | `tsc --noEmit`, sin emitir artefactos. | No |
 | `yarn format` | Aplica Prettier sobre `src`, `test`, `prisma`. | No |
 | `yarn format:check` | Falla si algo no está formateado (lo que valida CI). | No |
-| `yarn build` | Compila con `nest build`. | No |
+| `yarn build` | Compila únicamente `src/**` con Nest y produce el entrypoint verificable `dist/main.js`. | No |
 | `yarn security:audit` | `yarn audit` de dependencias de producción, umbral **high**. | No |
 | `yarn verify` | Puerta local: `typecheck` → `build` → `test`. | Sí (`test`) |
 | `yarn verify:release` | Puerta de release: verify + `migration:validate` + `security:audit`. | Sí |
@@ -50,7 +50,7 @@ Convención: una suite que toca la base de datos se nombra `*.integration.spec.t
 | `yarn prisma:migrate` | `migrate deploy` (aplica migraciones; producción/CI). |
 | `yarn prisma:migrate:dev` | `migrate dev` (crea/aplica en desarrollo). |
 | `yarn prisma:seed` | Ejecuta el seed idempotente. |
-| `yarn migration:validate` | Chequeo de deriva de migraciones (`scripts/validate-migrations.py`). |
+| `yarn migration:validate` | Chequea deriva de schema/tablas/enums/nombres y exige RLS (`ENABLE`, `FORCE`, policy) en toda tabla con `tenant_id`. |
 | `yarn db:reset` | **Destructivo:** resetea la base y reaplica todo. |
 
 ## Aplicación

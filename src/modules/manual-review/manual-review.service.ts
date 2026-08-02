@@ -1,3 +1,4 @@
+/** Enforces tenant ownership and assignee-only resolution with transactional audit evidence. */
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ManualReviewStatus, Prisma } from '@prisma/client';

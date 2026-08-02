@@ -92,7 +92,12 @@ export class TestCaseExecutorService {
       });
 
       if (!resolution.valid) {
-        actual = { outcome: 'NO_DECISION', variableErrors: resolution.errors };
+        actual = {
+          outcome: 'NO_DECISION',
+          reasonCodes: ['VARIABLE_MISSING_OR_INVALID'],
+          reasons: ['VARIABLE_MISSING_OR_INVALID'],
+          variableErrors: resolution.errors,
+        };
       } else {
         const result = await this.engine.execute(
           payload,
@@ -102,11 +107,16 @@ export class TestCaseExecutorService {
         visitedNodeKeys = result.visitedNodeKeys;
         traversedEdgeKeys = result.traversedEdgeKeys;
         terminalNodeKey = result.terminalNodeKey;
+        const reasonCodes = result.reasons.map((reason) => reason.code);
         actual = {
           ...result.output,
           outcome: result.outcome,
           primaryResult: result.primaryResult,
-          reasons: result.reasons.map((reason) => reason.code),
+          // `reasonCodes` es el nombre del contrato público (runtime y simulación);
+          // los casos de prueba lo asertan como `$.reasonCodes`. Se mantiene
+          // `reasons` como alias para no romper suites antiguas que ya lo usaban.
+          reasonCodes,
+          reasons: reasonCodes,
           trace: {
             nodes: visitedNodeKeys,
             edges: traversedEdgeKeys,

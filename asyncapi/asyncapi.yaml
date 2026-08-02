@@ -1,0 +1,190 @@
+# Contrato de los eventos de dominio.
+#
+# Hoy NO hay consumidores externos: el outbox despacha a un bus en proceso. Este documento
+# existe por dos razones concretas, no por completitud formal:
+#   1. Fijar la forma de los payloads v1, para que romperla exija subir `schemaVersion` en
+#      lugar de mutar el tipo — hay eventos ya procesados con la forma anterior.
+#   2. Dejar el contrato listo el día que un consumidor externo se conecte, sin tener que
+#      reconstruirlo desde el código.
+#
+# El catálogo con productores y consumidores REALES se genera del código:
+# docs/events/event-catalog.md
+asyncapi: 3.0.0
+
+info:
+  title: ATLAS Decision Platform — eventos de dominio
+  version: '1'
+  description: |
+    Eventos publicados a través de un **outbox transaccional**: cada evento se escribe en la
+    misma transacción que el cambio de negocio que lo produce y se despacha después.
+
+    **Entrega al menos una vez.** El consumidor debe deduplicar; el proyector de
+    notificaciones lo hace con `decision_processed_event`.
+
+    **Sin garantía de orden global.** Un evento que falló y se reintentó llega después de
+    otros posteriores. Reconstruya el orden por agregado usando `occurredAt`.
+
+defaultContentType: application/json
+
+servers:
+  inProcess:
+    host: 'in-process'
+    protocol: 'internal'
+    description: |
+      Bus en proceso. No hay broker externo: añadirlo resolvería un problema que este sistema
+      todavía no tiene y añadiría un modo de fallo. El outbox es la pieza que permitiría
+      cambiarlo sin tocar a los productores.
+
+channels:
+  decisionEvents:
+    address: decision.events
+    description: Canal lógico único; el tipo concreto viaja en el sobre.
+    messages:
+      versionSubmittedForReview:
+        $ref: '#/components/messages/VersionSubmittedForReview'
+      versionChangesRequested:
+        $ref: '#/components/messages/VersionReviewOutcome'
+      versionApproved:
+        $ref: '#/components/messages/VersionReviewOutcome'
+      versionRejected:
+        $ref: '#/components/messages/VersionReviewOutcome'
+      versionPublished:
+        $ref: '#/components/messages/VersionPublished'
+      securityRiskDetected:
+        $ref: '#/components/messages/SecurityRiskDetected'
+
+operations:
+  receiveDecisionEvents:
+    action: receive
+    channel:
+      $ref: '#/channels/decisionEvents'
+    summary: Consumir eventos de dominio
+    description: |
+      El consumidor **debe** ser idempotente y tolerar payloads con campos añadidos. El tenant
+      viaja en el sobre: nunca lo deduzca del contenido, porque el relay es cross-tenant por
+      diseño y drena la tabla completa.
+
+components:
+  schemas:
+    Envelope:
+      type: object
+      description: Sobre común de todo evento.
+      required: [tenantId, eventType, schemaVersion, aggregateType, aggregateId, actorId, occurredAt]
+      properties:
+        tenantId:
+          type: string
+          description: Tenant propietario del hecho. Autoritativo; no lo deduzca del payload.
+        eventType:
+          type: string
+          example: version.approved
+        schemaVersion:
+          type: string
+          description: Versión del payload. Se sube al romper la forma; nunca se muta el tipo.
+          example: '1'
+        aggregateType:
+          type: string
+          example: DecisionArtifactVersion
+        aggregateId:
+          type: string
+        actorId:
+          type: string
+          description: Principal que provocó el hecho.
+        correlationId:
+          type: string
+          nullable: true
+        causationId:
+          type: string
+          nullable: true
+        occurredAt:
+          type: string
+          format: date-time
+
+    VersionSubmittedForReviewPayload:
+      type: object
+      required: [versionId, approvalRequestId, artifactCode, versionNumber, workflowCode, authorId, reviewerRoles]
+      properties:
+        versionId: { type: string }
+        approvalRequestId: { type: string }
+        artifactCode: { type: string }
+        versionNumber: { type: integer }
+        workflowCode: { type: string }
+        authorId:
+          type: string
+          description: Autor de la versión; es a quien se notifica el resultado de la revisión.
+        reviewerRoles:
+          type: array
+          items: { type: string }
+          description: Roles exigidos por los pasos de aprobación, en orden.
+
+    VersionReviewOutcomePayload:
+      type: object
+      description: Payload compartido por changes_requested, approved y rejected.
+      required: [versionId, approvalRequestId, artifactCode, versionNumber, authorId, decidedBy]
+      properties:
+        versionId: { type: string }
+        approvalRequestId: { type: string }
+        artifactCode: { type: string }
+        versionNumber: { type: integer }
+        authorId: { type: string }
+        decidedBy:
+          type: string
+          description: Quien votó. Nunca puede coincidir con `authorId` — segregación de funciones.
+        comments:
+          type: string
+          nullable: true
+
+    VersionPublishedPayload:
+      type: object
+      required: [versionId, artifactCode, versionNumber, deploymentId, environmentCode]
+      properties:
+        versionId: { type: string }
+        artifactCode: { type: string }
+        versionNumber: { type: integer }
+        deploymentId: { type: string }
+        environmentCode: { type: string }
+
+  messages:
+    VersionSubmittedForReview:
+      name: version.submitted_for_review
+      title: Versión enviada a revisión
+      payload:
+        type: object
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties:
+              payload:
+                $ref: '#/components/schemas/VersionSubmittedForReviewPayload'
+
+    VersionReviewOutcome:
+      name: version.review_outcome
+      title: Resultado de la revisión de una versión
+      description: Cubre `version.changes_requested`, `version.approved` y `version.rejected`.
+      payload:
+        type: object
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties:
+              payload:
+                $ref: '#/components/schemas/VersionReviewOutcomePayload'
+
+    VersionPublished:
+      name: version.published
+      title: Versión desplegada en un ambiente
+      payload:
+        type: object
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties:
+              payload:
+                $ref: '#/components/schemas/VersionPublishedPayload'
+
+    SecurityRiskDetected:
+      name: security.risk_detected
+      title: Riesgo de seguridad detectado en una versión
+      payload:
+        type: object
+        allOf:
+          - $ref: '#/components/schemas/Envelope'

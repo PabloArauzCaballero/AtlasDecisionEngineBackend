@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AuditService } from '../../common/audit/audit.service';
 import { HashService } from '../../common/crypto/hash.service';
@@ -30,6 +30,8 @@ export interface RuntimeHttpResult {
  */
 @Injectable()
 export class RuntimeService {
+  private readonly logger = new Logger(RuntimeService.name);
+
   constructor(
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
@@ -229,17 +231,82 @@ export class RuntimeService {
         this.metrics.recordDecision('FAILED', 'FAILED');
         throw error;
       }
+      const errorCode = error instanceof DomainException ? error.code : 'RUNTIME_EXECUTION_FAILED';
       const body = {
         requestId: dto.requestId,
         status: 'FAILED',
         error: {
-          code: error instanceof DomainException ? error.code : 'RUNTIME_EXECUTION_FAILED',
+          code: errorCode,
           message: error instanceof Error ? error.message : String(error),
         },
       };
-      await this.idempotency.fail(reservation.id, { httpStatus: this.statusForError(error), body });
+      await this.recordDeterministicFailure(
+        tenantId,
+        artifactCode,
+        dto,
+        principal,
+        reservation.id,
+        {
+          httpStatus: this.statusForError(error),
+          body,
+          errorCode,
+        },
+      );
       this.metrics.recordDecision('FAILED', 'FAILED');
       throw error;
+    }
+  }
+
+  /**
+   * Persists the terminal FAILED outcome and its audit evidence in one transaction.
+   *
+   * A deterministic failure is a decision the platform actually took — the caller is told
+   * "no", and every retry with the same key replays that same "no". The success and
+   * NO_DECISION paths both leave an audit event; without this one, the only outcome with no
+   * entry in the hash chain was the refusal, which is precisely the one a regulator asks
+   * about. Persistence is best-effort on purpose: if the database is what broke, the caller
+   * must still receive the original error rather than a masking one.
+   */
+  private async recordDeterministicFailure(
+    tenantId: bigint,
+    artifactCode: string,
+    dto: ExecuteDecisionDto,
+    principal: AuthenticatedPrincipal,
+    reservationId: bigint,
+    outcome: { httpStatus: number; body: Record<string, unknown>; errorCode: string },
+  ): Promise<void> {
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await this.idempotency.fail(
+          reservationId,
+          { httpStatus: outcome.httpStatus, body: outcome.body },
+          tx,
+        );
+        await this.audit.append(
+          {
+            tenantId,
+            eventType: 'DECISION_FAILED',
+            aggregateType: 'RuntimeIdempotency',
+            aggregateId: reservationId.toString(),
+            actorId: principal.id,
+            requestId: principal.requestId,
+            payload: {
+              artifactCode,
+              requestId: dto.requestId,
+              correlationId: dto.correlationId ?? null,
+              errorCode: outcome.errorCode,
+              httpStatus: outcome.httpStatus,
+            },
+          },
+          tx,
+        );
+      });
+    } catch (persistenceError) {
+      this.logger.error(
+        `Could not persist the FAILED outcome for idempotency reservation ${reservationId.toString()}: ${
+          persistenceError instanceof Error ? persistenceError.message : String(persistenceError)
+        }`,
+      );
     }
   }
 

@@ -14,16 +14,62 @@ if not migration_files:
 sql = "\n".join(path.read_text(encoding="utf-8") for path in migration_files)
 
 model_tables: set[str] = set()
+tenant_tables: set[str] = set()
 for match in re.finditer(r"^model\s+(\w+)\s*\{(.*?)^\}", schema, flags=re.M | re.S):
     model_name, body = match.groups()
     mapped = re.search(r'@@map\("([^"]+)"\)', body)
-    model_tables.add(mapped.group(1) if mapped else model_name)
+    table_name = mapped.group(1) if mapped else model_name
+    model_tables.add(table_name)
+    if re.search(r'^\s+tenantId\s+.*@map\("tenant_id"\)', body, flags=re.M):
+        tenant_tables.add(table_name)
 tables = set(re.findall(r'^CREATE TABLE\s+"([^"]+)"', sql, flags=re.M))
 if model_tables != tables:
     raise SystemExit(
         f"Model/table mismatch: SQL-only={sorted(tables-model_tables)}, "
         f"schema-only={sorted(model_tables-tables)}"
     )
+
+# A tenant_id column without database-enforced RLS is an isolation vulnerability even
+# when every current service remembers a tenant filter. Check the full chain rather than
+# only the latest migration, because policies are intentionally added after baseline tables.
+#
+# Two forms count. The literal one, and the DO-block loop that applies the same statements
+# to a list of tables through `EXECUTE format(..., %I)`. Reading only the literal form made
+# this gate report six tables as unprotected while the database had RLS enabled, forced and
+# policied on all six — a security check that cries wolf gets waved through, and the next
+# time it is right nobody will believe it.
+def _static(pattern: str) -> set[str]:
+    return set(re.findall(pattern, sql))
+
+
+def _dynamic(template: str) -> set[str]:
+    """Tables covered by `EXECUTE format('<template with %I>', target)` inside a DO block."""
+    covered: set[str] = set()
+    for block in re.findall(r"DO\s+\$\$(.*?)\$\$\s*;", sql, flags=re.S):
+        if not re.search(r"format\(\s*'" + template + r"'", block):
+            continue
+        for array in re.findall(r"IN ARRAY ARRAY\[(.*?)\]", block, flags=re.S):
+            covered.update(re.findall(r"'([^']+)'", array))
+    return covered
+
+
+rls_enabled = _static(r'ALTER TABLE\s+"([^"]+)"\s+ENABLE ROW LEVEL SECURITY') | _dynamic(
+    r"ALTER TABLE %I ENABLE ROW LEVEL SECURITY"
+)
+rls_forced = _static(r'ALTER TABLE\s+"([^"]+)"\s+FORCE ROW LEVEL SECURITY') | _dynamic(
+    r"ALTER TABLE %I FORCE ROW LEVEL SECURITY"
+)
+tenant_policies = _static(r'CREATE POLICY\s+tenant_isolation\s+ON\s+"([^"]+)"') | _dynamic(
+    r"CREATE POLICY tenant_isolation ON %I.*?"
+)
+for label, protected in [
+    ("RLS ENABLE", rls_enabled),
+    ("RLS FORCE", rls_forced),
+    ("tenant_isolation policy", tenant_policies),
+]:
+    missing = sorted(tenant_tables - protected)
+    if missing:
+        raise SystemExit(f"Tenant tables missing {label}: {missing}")
 
 if "DEFAULT 'now(" in sql:
     raise SystemExit("Malformed now() default found")

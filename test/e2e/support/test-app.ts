@@ -10,11 +10,15 @@ import { provisionE2eClients } from './integration-clients';
   return this.toString();
 };
 
-export async function createTestApp(): Promise<INestApplication> {
+export async function createTestApp(
+  configOverrides: Record<string, unknown> = {},
+): Promise<INestApplication> {
   // API key identity resolves from the database, so the credentials the specs use must
   // exist before the app serves a single request.
   await provisionE2eClients();
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+  const config = moduleRef.get(ConfigService);
+  for (const [key, value] of Object.entries(configOverrides)) config.set(key, value);
   const app = moduleRef.createNestApplication();
   app.useGlobalPipes(
     new ValidationPipe({
@@ -26,9 +30,7 @@ export async function createTestApp(): Promise<INestApplication> {
       validationError: { target: false, value: false },
     }),
   );
-  app.useGlobalFilters(
-    new DomainExceptionFilter(app.get(ConfigService), app.get(AccessDenialAuditorService)),
-  );
+  app.useGlobalFilters(new DomainExceptionFilter(config, app.get(AccessDenialAuditorService)));
   await app.init();
   return app;
 }

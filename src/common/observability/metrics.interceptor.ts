@@ -1,3 +1,4 @@
+/** Records bounded-label latency and status metrics for each completed request or stream. */
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { Observable, finalize } from 'rxjs';

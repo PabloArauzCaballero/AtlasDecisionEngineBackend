@@ -1,3 +1,4 @@
+/** Exports the pure validator/compiler/evaluator/engine stack to authoring and runtime domains. */
 import { Module } from '@nestjs/common';
 import { ExpressionEvaluator } from './expression-evaluator';
 import { GraphValidatorService } from './graph-validator.service';

@@ -73,12 +73,16 @@ describe('ScriptNodeRunnerService Python sandbox escape (IN_PROCESS)', () => {
   it('rejects str.format() attribute-traversal payloads', async () => {
     const payload =
       "result = {'escaped': '{0.__class__.__bases__[0].__subclasses__()}'.format(variables)}";
-    await expect(runner.execute('PYTHON', payload, { variables: {}, decision: {}, output: {} })).rejects.toThrow();
+    await expect(
+      runner.execute('PYTHON', payload, { variables: {}, decision: {}, output: {} }),
+    ).rejects.toThrow();
   });
 
   it('rejects str.format_map() the same way', async () => {
     const payload = "result = {'escaped': '{x.__class__}'.format_map({'x': variables})}";
-    await expect(runner.execute('PYTHON', payload, { variables: {}, decision: {}, output: {} })).rejects.toThrow();
+    await expect(
+      runner.execute('PYTHON', payload, { variables: {}, decision: {}, output: {} }),
+    ).rejects.toThrow();
   });
 
   it('still allows ordinary str() and string concatenation', async () => {

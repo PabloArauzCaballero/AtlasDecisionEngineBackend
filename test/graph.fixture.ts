@@ -14,6 +14,8 @@ export function graphSnapshot(): ArtifactGraphSnapshot {
       riskDomain: 'CREDIT',
     },
     version: { id: '1', number: 1, semanticVersion: '1.0.0', status: 'DRAFT' },
+    intermediates: [],
+    outputContract: [],
     variables: [
       {
         variableVersionId: '10',
@@ -176,6 +178,8 @@ export function compiledFixture(): CompiledDecisionArtifact {
     artifact: graph.artifact,
     version: graph.version,
     variables: graph.variables,
+    intermediates: graph.intermediates,
+    outputContract: graph.outputContract,
     startNodeKey: 'START',
     nodes: Object.fromEntries(graph.nodes.map((node) => [node.key, node])),
     edgesByNode: Object.fromEntries(

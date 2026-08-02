@@ -1,7 +1,9 @@
+/** Verifies signature, issuer, audience, time and JWKS rotation before trusting JWT claims. */
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createPublicKey, verify, type JsonWebKey } from 'node:crypto';
 import { DomainException } from '../errors/domain-exception';
+import { parseBigIntId } from '../http/id';
 import type { ApiAudience } from './security.types';
 
 interface JwtHeader {
@@ -159,7 +161,7 @@ export class JwtVerifierService {
     if (typeof normalized !== 'string' || !/^[1-9]\d*$/.test(normalized)) {
       throw new Error('Invalid tenant claim');
     }
-    return BigInt(normalized);
+    return parseBigIntId(normalized, 'tenant claim');
   }
 
   private parseRoles(value: unknown): string[] {

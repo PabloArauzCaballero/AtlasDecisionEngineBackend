@@ -1,0 +1,123 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam titleFontName Arial
+skinparam titleFontSize 20
+skinparam titleFontColor #17365D
+skinparam ArrowColor #355C7D
+skinparam ArrowThickness 1
+skinparam NoteBackgroundColor #FFF7E6
+skinparam NoteBorderColor #D97706
+skinparam NoteFontColor #4A2B0B
+skinparam package {
+  BackgroundColor #F7FAFC
+  BorderColor #6B8EAD
+  FontColor #17365D
+  FontStyle bold
+}
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #355C7D
+  FontColor #1F2937
+  HeaderBackgroundColor #EAF2F8
+}
+title ATLAS — Taxonomía de variables y su contrato (§1–§5)
+
+package "Catálogo global (persistente, versionado)" {
+  class "DecisionVariable" as Catalogo {
+    code
+    kind
+    owner
+    --
+    Existe fuera de toda ejecución
+  }
+
+  class "DecisionVariableVersion" as Version {
+    version
+    dataType, nullable
+    constraints (§1.1)
+    validationMessage
+    exampleValid / exampleInvalid
+    expectedOrigin
+    sensitivityClass
+    --
+    INMUTABLE una vez creada
+  }
+
+  class "INPUT" as Input {
+    Llega en la petición
+    o de un proveedor
+    --
+    usageType = INPUT
+  }
+
+  class "OUTPUT" as Output {
+    Publicable en la respuesta
+    --
+    usageType = OUTPUT / OUTPUT_PRIMARY
+  }
+}
+
+package "Ámbito de UNA ejecución (no persiste en el catálogo)" {
+  class "INTERMEDIATE" as Intermedia {
+    producerNodeKey
+    consumerNodeKeys
+    updatePolicy
+    tracePolicy
+    --
+    Tabla propia; muere con la ejecución
+  }
+
+  class "Campo calculado" as Campo {
+    Contrato de RETORNO
+    (un único valor)
+    --
+    Catálogo propio, no del de variables
+  }
+}
+
+package "Contrato de salida explícito (§4)" {
+  class "OutputContractField" as Contrato {
+    sourceKind: NODE | EXPRESSION |
+    INTERMEDIATE | CONSTANT | REFERENCE
+    absenceReasons
+    tracePolicy
+  }
+}
+
+Catalogo "1" *-- "N" Version : versiona
+Version <|-- Input
+Version <|-- Output
+
+Input --> Intermedia : alimenta
+Intermedia --> Intermedia : la lee otro nodo
+Campo --> Intermedia : deja su retorno
+Campo --> Contrato : deja su retorno
+Intermedia --> Contrato : mapeo explícito
+Input --> Contrato : mapeo explícito
+Contrato --> Output : produce el valor publicado
+
+note right of Intermedia
+  Se referencia como intermediate.<code>.
+  NUNCA cuelga del catálogo global:
+  reutilizarla entre ejecuciones
+  rompería el aislamiento de §2.1.
+end note
+
+note bottom of Contrato
+  La salida final NO se infiere del último
+  nodo: si el campo no está declarado aquí,
+  no se publica.
+end note
+
+note left of Campo
+  No es una variable: es una función
+  gobernada. Ver la frontera §8 en
+  docs/calculated-fields.md.
+end note
+@enduml

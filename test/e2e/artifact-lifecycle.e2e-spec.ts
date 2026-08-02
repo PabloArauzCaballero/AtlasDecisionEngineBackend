@@ -2,6 +2,7 @@ import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { createTestApp } from './support/test-app';
 import { managementHeaders } from './support/headers';
+import { seededVariableVersionId } from './support/seeded-variables';
 
 /**
  * Exercises the full authoring-to-production golden path against a real Postgres/Redis:
@@ -31,16 +32,7 @@ describe('Artifact lifecycle (e2e)', () => {
   });
 
   it('finds the seeded "age" variable to use as a graph dependency', async () => {
-    const response = await request(server())
-      .get('/v1/variables')
-      .query({ search: 'age', pageSize: 5 })
-      .set(author)
-      .expect(200);
-    const match = response.body.items.find(
-      (item: { variableCode: string }) => item.variableCode === 'age',
-    );
-    expect(match).toBeDefined();
-    ageVariableVersionId = match.versions[0].id;
+    ageVariableVersionId = await seededVariableVersionId(app, author, 'age');
     expect(ageVariableVersionId).toBeTruthy();
   });
 

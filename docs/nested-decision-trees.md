@@ -144,10 +144,17 @@ Al persistir la ejecución raíz (`ExecutionWriterService.write`), si
 
 ## Vista de dependencias
 
-`GET /v1/artifacts/{artifactId}/dependency-graph` devuelve `{ nodes, edges, maxDepth }`
-— todos los artefactos alcanzables desde `artifactId` (sus dependencias) y todos los
-que dependen de él (sus dependientes), hasta `NESTED_TREE_MAX_DEPTH` saltos en cada
-dirección, como fuente de datos para la vista visual de navegación del frontend.
+`GET /v1/artifacts/{artifactId}/dependency-graph` devuelve
+`{ nodes, edges, maxDepth, maxEdges, truncated }` — todos los artefactos alcanzables
+desde `artifactId` (sus dependencias) y todos los que dependen de él (sus
+dependientes), hasta `NESTED_TREE_MAX_DEPTH` saltos en cada dirección, como fuente de
+datos para la vista visual de navegación del frontend.
+
+El recorrido consulta **solo la frontera de cada nivel** (`NestedTreeService
+.getDependencyGraph`), nunca el catálogo completo del tenant, y está acotado a
+`NESTED_TREE_GRAPH_MAX_EDGES` aristas (2000 por defecto). Si alcanza esa cota,
+`truncated: true` lo declara en la propia respuesta: la vista no debe presentar un
+grafo recortado como si fuera el conjunto completo de dependencias.
 
 ## Endpoints
 

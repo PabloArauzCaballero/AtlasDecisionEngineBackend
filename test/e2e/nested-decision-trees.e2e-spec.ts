@@ -2,6 +2,7 @@ import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { createTestApp } from './support/test-app';
 import { managementHeaders } from './support/headers';
+import { seededVariableVersionId } from './support/seeded-variables';
 
 /**
  * Exercises nested decision trees end to end (Fase 7): compile a child artifact,
@@ -34,14 +35,8 @@ describe('Nested decision trees (e2e)', () => {
   });
 
   it('finds the seeded "age" variable', async () => {
-    const response = await request(server())
-      .get('/v1/variables')
-      .query({ search: 'age', pageSize: 5 })
-      .set(author)
-      .expect(200);
-    const match = response.body.items.find((item: { variableCode: string }) => item.variableCode === 'age');
-    expect(match).toBeDefined();
-    ageVariableVersionId = match.versions[0].id;
+    ageVariableVersionId = await seededVariableVersionId(app, author, 'age');
+    expect(ageVariableVersionId).toBeTruthy();
   });
 
   it('creates and compiles the child artifact (age-eligibility)', async () => {
@@ -65,31 +60,130 @@ describe('Nested decision trees (e2e)', () => {
       .set({ ...author, 'if-match': '1' })
       .send({
         dependencies: [
-          { variableVersionId: ageVariableVersionId, usageType: 'INPUT', isRequired: true, fallbackPolicy: 'FAIL_CLOSED', dependencyPath: 'input.age' },
+          {
+            variableVersionId: ageVariableVersionId,
+            usageType: 'INPUT',
+            isRequired: true,
+            fallbackPolicy: 'FAIL_CLOSED',
+            dependencyPath: 'input.age',
+          },
         ],
         conditions: [
-          { code: 'AGE_OK', name: 'Age at least 21', expressionType: 'JSON_AST', expression: { op: 'gte', left: { var: 'age' }, right: { value: 21 } }, severity: 'BLOCKING', reusable: true },
+          {
+            code: 'AGE_OK',
+            name: 'Age at least 21',
+            expressionType: 'JSON_AST',
+            expression: { op: 'gte', left: { var: 'age' }, right: { value: 21 } },
+            severity: 'BLOCKING',
+            reusable: true,
+          },
         ],
         actions: [
-          { code: 'SET_APPROVED', type: 'SET_OUTCOME', payload: { outcome: 'APPROVED' }, terminal: true, reasonCodes: [] },
-          { code: 'SET_DECLINED', type: 'SET_OUTCOME', payload: { outcome: 'DECLINED' }, terminal: true, reasonCodes: [] },
+          {
+            code: 'SET_APPROVED',
+            type: 'SET_OUTCOME',
+            payload: { outcome: 'APPROVED' },
+            terminal: true,
+            reasonCodes: [],
+          },
+          {
+            code: 'SET_DECLINED',
+            type: 'SET_OUTCOME',
+            payload: { outcome: 'DECLINED' },
+            terminal: true,
+            reasonCodes: [],
+          },
         ],
         nodes: [
-          { key: 'START', type: 'START', label: 'Start', config: {}, x: 0, y: 0, order: 1, terminal: false, conditions: [], actions: [] },
-          { key: 'CHECK', type: 'CONDITION', label: 'Check age', config: {}, x: 100, y: 0, order: 2, terminal: false, conditions: [], actions: [] },
-          { key: 'APPROVE', type: 'ACTION', label: 'Approve', config: {}, x: 200, y: -50, order: 3, terminal: true, conditions: [], actions: [{ actionCode: 'SET_APPROVED', order: 1 }] },
-          { key: 'DECLINE', type: 'ACTION', label: 'Decline', config: {}, x: 200, y: 50, order: 4, terminal: true, conditions: [], actions: [{ actionCode: 'SET_DECLINED', order: 1 }] },
+          {
+            key: 'START',
+            type: 'START',
+            label: 'Start',
+            config: {},
+            x: 0,
+            y: 0,
+            order: 1,
+            terminal: false,
+            conditions: [],
+            actions: [],
+          },
+          {
+            key: 'CHECK',
+            type: 'CONDITION',
+            label: 'Check age',
+            config: {},
+            x: 100,
+            y: 0,
+            order: 2,
+            terminal: false,
+            conditions: [],
+            actions: [],
+          },
+          {
+            key: 'APPROVE',
+            type: 'ACTION',
+            label: 'Approve',
+            config: {},
+            x: 200,
+            y: -50,
+            order: 3,
+            terminal: true,
+            conditions: [],
+            actions: [{ actionCode: 'SET_APPROVED', order: 1 }],
+          },
+          {
+            key: 'DECLINE',
+            type: 'ACTION',
+            label: 'Decline',
+            config: {},
+            x: 200,
+            y: 50,
+            order: 4,
+            terminal: true,
+            conditions: [],
+            actions: [{ actionCode: 'SET_DECLINED', order: 1 }],
+          },
         ],
         edges: [
-          { key: 'START_CHECK', from: 'START', to: 'CHECK', type: 'DEFAULT', priority: 1, default: true, conditions: [] },
-          { key: 'CHECK_APPROVE', from: 'CHECK', to: 'APPROVE', type: 'CONDITIONAL', priority: 1, default: false, conditions: [{ conditionCode: 'AGE_OK', order: 1 }] },
-          { key: 'CHECK_DECLINE', from: 'CHECK', to: 'DECLINE', type: 'DEFAULT', priority: 999, default: true, conditions: [] },
+          {
+            key: 'START_CHECK',
+            from: 'START',
+            to: 'CHECK',
+            type: 'DEFAULT',
+            priority: 1,
+            default: true,
+            conditions: [],
+          },
+          {
+            key: 'CHECK_APPROVE',
+            from: 'CHECK',
+            to: 'APPROVE',
+            type: 'CONDITIONAL',
+            priority: 1,
+            default: false,
+            conditions: [{ conditionCode: 'AGE_OK', order: 1 }],
+          },
+          {
+            key: 'CHECK_DECLINE',
+            from: 'CHECK',
+            to: 'DECLINE',
+            type: 'DEFAULT',
+            priority: 999,
+            default: true,
+            conditions: [],
+          },
         ],
       })
       .expect(200);
 
-    await request(server()).post(`/v1/artifact-versions/${childVersionId}/validate`).set(author).expect(201);
-    const compiled = await request(server()).post(`/v1/artifact-versions/${childVersionId}/compile`).set(author).expect(201);
+    await request(server())
+      .post(`/v1/artifact-versions/${childVersionId}/validate`)
+      .set(author)
+      .expect(201);
+    const compiled = await request(server())
+      .post(`/v1/artifact-versions/${childVersionId}/compile`)
+      .set(author)
+      .expect(201);
     expect(compiled.body.compileStatus).toBe('SUCCESS');
   });
 
@@ -131,18 +225,44 @@ describe('Nested decision trees (e2e)', () => {
       .set({ ...author, 'if-match': '1' })
       .send({
         dependencies: [
-          { variableVersionId: ageVariableVersionId, usageType: 'INPUT', isRequired: true, fallbackPolicy: 'FAIL_CLOSED', dependencyPath: 'input.age' },
-          { variableVersionId: outputVariableVersionId, usageType: 'OUTPUT_PRIMARY', isRequired: true, fallbackPolicy: 'FAIL_CLOSED', dependencyPath: `output.${outputVariableCode}` },
+          {
+            variableVersionId: ageVariableVersionId,
+            usageType: 'INPUT',
+            isRequired: true,
+            fallbackPolicy: 'FAIL_CLOSED',
+            dependencyPath: 'input.age',
+          },
+          {
+            variableVersionId: outputVariableVersionId,
+            usageType: 'OUTPUT_PRIMARY',
+            isRequired: true,
+            fallbackPolicy: 'FAIL_CLOSED',
+            dependencyPath: `output.${outputVariableCode}`,
+          },
         ],
         conditions: [],
         actions: [],
         nodes: [
-          { key: 'START', type: 'START', label: 'Start', config: {}, x: 0, y: 0, order: 1, terminal: false, conditions: [], actions: [] },
+          {
+            key: 'START',
+            type: 'START',
+            label: 'Start',
+            config: {},
+            x: 0,
+            y: 0,
+            order: 1,
+            terminal: false,
+            conditions: [],
+            actions: [],
+          },
           {
             key: 'NESTED_CHECK',
             type: 'RESULT',
             label: 'Nested eligibility check',
-            config: { mode: 'REFERENCE', outputAssignments: [{ outputCode: outputVariableCode, childOutputCode: 'outcome' }] }, // childOutputCode must match the reference's outputMapping allowlist above
+            config: {
+              mode: 'REFERENCE',
+              outputAssignments: [{ outputCode: outputVariableCode, childOutputCode: 'outcome' }],
+            }, // childOutputCode must match the reference's outputMapping allowlist above
             x: 100,
             y: 0,
             order: 2,
@@ -152,7 +272,15 @@ describe('Nested decision trees (e2e)', () => {
           },
         ],
         edges: [
-          { key: 'START_NESTED', from: 'START', to: 'NESTED_CHECK', type: 'DEFAULT', priority: 1, default: true, conditions: [] },
+          {
+            key: 'START_NESTED',
+            from: 'START',
+            to: 'NESTED_CHECK',
+            type: 'DEFAULT',
+            priority: 1,
+            default: true,
+            conditions: [],
+          },
         ],
       })
       .expect(200);
@@ -256,8 +384,18 @@ describe('Nested decision trees (e2e)', () => {
         suiteType: 'REGRESSION',
         isBlocking: true,
         cases: [
-          { caseCode: 'APPROVE_ADULT', testName: 'Nested-approves an adult', input: { age: 30 }, expectedResult: { [outputVariableCode]: 'APPROVED' } },
-          { caseCode: 'DECLINE_YOUNG_ADULT', testName: 'Nested-declines a young adult under 21', input: { age: 19 }, expectedResult: { [outputVariableCode]: 'DECLINED' } },
+          {
+            caseCode: 'APPROVE_ADULT',
+            testName: 'Nested-approves an adult',
+            input: { age: 30 },
+            expectedResult: { [outputVariableCode]: 'APPROVED' },
+          },
+          {
+            caseCode: 'DECLINE_YOUNG_ADULT',
+            testName: 'Nested-declines a young adult under 21',
+            input: { age: 19 },
+            expectedResult: { [outputVariableCode]: 'DECLINED' },
+          },
         ],
       })
       .expect(201);

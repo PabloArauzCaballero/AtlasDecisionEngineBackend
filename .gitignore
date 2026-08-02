@@ -19,3 +19,7 @@ dist/
 # "invalid or damaged lockfile" warning. Ignore it so an accidental npm run cannot be
 # committed and cannot become a second source of truth. Use yarn.
 package-lock.json
+
+# Portal MkDocs generado (se construye en CI y en contenedor).
+site/
+

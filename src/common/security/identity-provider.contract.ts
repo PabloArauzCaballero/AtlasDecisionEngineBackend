@@ -1,8 +1,14 @@
 import { z } from 'zod';
+import { DATABASE_ID_PATTERN, MAX_DATABASE_ID } from '../http/id';
+
+const databaseIdSchema = z
+  .string()
+  .regex(DATABASE_ID_PATTERN)
+  .refine((value) => BigInt(value) <= MAX_DATABASE_ID, 'Identifier exceeds PostgreSQL BIGINT');
 
 const userSchema = z.object({
-  id: z.string().regex(/^[1-9]\d*$/),
-  tenantId: z.string().regex(/^[1-9]\d*$/),
+  id: databaseIdSchema,
+  tenantId: databaseIdSchema,
   email: z.string().email(),
   fullName: z.string().min(1),
   name: z.string().min(1),
