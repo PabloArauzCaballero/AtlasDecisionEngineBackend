@@ -241,7 +241,13 @@ services:
       # seed use — RLS is inert for a superuser connection (see bootstrap-app-role above).
       DATABASE_URL: postgresql://atlas_app:${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-atlas_decision}?schema=public
       REDIS_URL: redis://redis:6379
-      AUTH_MODE: API_KEY
+      # IDENTITY_HYBRID (not API_KEY): the browser portal signs in through the identity
+      # provider (AtlasBackend), while runtime/management clients keep using API keys — both
+      # paths must stay open on the same api service. See docs/architecture/integration-map.md.
+      AUTH_MODE: ${AUTH_MODE:-IDENTITY_HYBRID}
+      # AtlasBackend is a separate Compose project reachable only via the host, hence
+      # host.docker.internal rather than a service name on this project's default network.
+      IDENTITY_PROVIDER_URL: ${IDENTITY_PROVIDER_URL:-http://host.docker.internal:53005/api/v1}
       MANAGEMENT_API_KEY: ${MANAGEMENT_API_KEY:?set MANAGEMENT_API_KEY in .env}
       RUNTIME_API_KEY: ${RUNTIME_API_KEY:?set RUNTIME_API_KEY in .env}
       AUDIT_HASH_SECRET: ${AUDIT_HASH_SECRET:?set AUDIT_HASH_SECRET in .env (at least 32 characters)}
