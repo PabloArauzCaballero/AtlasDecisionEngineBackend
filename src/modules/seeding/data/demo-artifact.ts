@@ -20,8 +20,15 @@ const ARTIFACT_CODE = 'BNPL_CREDIT_DECISION';
  * etapas tardías (`fraud_score`, `credit_risk_score`…), copiado de unas filas de catálogo
  * desfasadas. Con eso, toda decisión que declinaba temprano en KYC moría con
  * REQUIRED_OUTPUT_MISSING en vez de devolver DECLINED.
+ *
+ * 2.2.0 — el contrato de `age` exigía mínimo 18, así que un menor de edad se
+ * rechazaba como DATO INVÁLIDO antes de que el algoritmo pudiera evaluarlo: la
+ * regla de elegibilidad y su motivo `AGE_NOT_ELIGIBLE` no se alcanzaban nunca y el
+ * caso DECLINE_ELIGIBILITY_AGE fallaba en cada corrida. El umbral es política y
+ * vive en la regla; el contrato sólo acota el dato. El compilado lleva el contrato
+ * embebido, así que el cambio no llega sin volver a sembrar.
  */
-const DEMO_SEMANTIC_VERSION = '2.1.0';
+const DEMO_SEMANTIC_VERSION = '2.2.0';
 
 export interface DemoArtifactSummary {
   artifactCode: string;

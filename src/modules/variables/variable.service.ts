@@ -207,7 +207,12 @@ export class VariableService {
         dataType: latest?.dataType ?? null,
         source: authoritativeSource?.sourceSystemCode ?? null,
         latestVersion: latest?.versionNumber ?? null,
-        sensitivity: definition.isSensitive ? 'SENSIBLE' : 'ESTÁNDAR',
+        // La clasificación real del catálogo (§1.1), no una etiqueta inventada:
+        // antes se devolvía «SENSIBLE»/«ESTÁNDAR», dos valores en castellano que no
+        // existen en `SensitivityClass` y que ningún consumidor podía interpretar
+        // ni traducir. El detalle ya devolvía el enum; el listado mentía.
+        sensitivity: definition.sensitivityClass,
+        sensitive: definition.isSensitive,
         // Sentido en el que la usan los algoritmos: sin esto, el catálogo mostraba
         // por igual un dato que hay que aportar y un resultado que el motor produce.
         usage: usageByDefinition.get(definition.id.toString()) ?? 'SIN USO',

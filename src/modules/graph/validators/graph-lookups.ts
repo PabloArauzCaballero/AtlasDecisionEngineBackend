@@ -6,6 +6,14 @@ export interface GraphLookups {
   conditionCodes: Set<string>;
   actionCodes: Set<string>;
   variableCodes: Set<string>;
+  /**
+   * Códigos declarados como ENTRADA del artefacto.
+   *
+   * Se separan de `variableCodes` porque una salida no está disponible para
+   * alimentar un cálculo: aún no existe cuando el nodo se ejecuta. Comprobar
+   * contra el conjunto completo dejaba pasar esa confusión.
+   */
+  inputCodes: Set<string>;
   /** Códigos de variable intermedia declarados por este grafo (§2). */
   intermediateCodes: Set<string>;
   /** Códigos declarados como salida pública del artefacto. */
@@ -30,6 +38,11 @@ export function buildGraphLookups(snapshot: ArtifactGraphSnapshot): GraphLookups
     conditionCodes: new Set(snapshot.conditions.map((condition) => condition.code)),
     actionCodes: new Set(snapshot.actions.map((action) => action.code)),
     variableCodes: new Set(snapshot.variables.map((variable) => variable.code)),
+    inputCodes: new Set(
+      snapshot.variables
+        .filter((variable) => !String(variable.usageType ?? 'INPUT').startsWith('OUTPUT'))
+        .map((variable) => variable.code),
+    ),
     intermediateCodes: new Set(snapshot.intermediates.map((intermediate) => intermediate.code)),
     outputCodes: new Set(
       snapshot.variables

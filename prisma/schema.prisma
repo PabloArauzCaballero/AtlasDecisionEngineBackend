@@ -245,23 +245,23 @@ model DecisionArtifactVersion {
   approvedAt        DateTime?     @map("approved_at") @db.Timestamptz(6)
   retiredAt         DateTime?     @map("retired_at") @db.Timestamptz(6)
 
-  artifact             DecisionArtifact                     @relation(fields: [artifactId], references: [id], onDelete: Cascade)
-  sourceVersion        DecisionArtifactVersion?             @relation("VersionSource", fields: [sourceVersionId], references: [id], onDelete: SetNull)
-  derivedVersions      DecisionArtifactVersion[]            @relation("VersionSource")
-  compiledArtifacts    DecisionCompiledArtifact[]
-  statusHistory        DecisionVersionStatusHistory[]
-  variableDependencies DecisionArtifactVariableDependency[]
-  nodes                DecisionRuleNode[]
-  edges                DecisionRuleEdge[]
-  conditions           DecisionRuleCondition[]
-  actions              DecisionRuleAction[]
-  approvalRequests     DecisionApprovalRequest[]
-  testSuites           DecisionTestSuite[]
-  deployments          DecisionDeployment[]
-  executions           DecisionExecution[]
-  changeLogs           DecisionChangeLog[]
-  policyLinks          PolicyArtifactLink[]
-  nodeScripts          DecisionNodeScript[]
+  artifact              DecisionArtifact                     @relation(fields: [artifactId], references: [id], onDelete: Cascade)
+  sourceVersion         DecisionArtifactVersion?             @relation("VersionSource", fields: [sourceVersionId], references: [id], onDelete: SetNull)
+  derivedVersions       DecisionArtifactVersion[]            @relation("VersionSource")
+  compiledArtifacts     DecisionCompiledArtifact[]
+  statusHistory         DecisionVersionStatusHistory[]
+  variableDependencies  DecisionArtifactVariableDependency[]
+  nodes                 DecisionRuleNode[]
+  edges                 DecisionRuleEdge[]
+  conditions            DecisionRuleCondition[]
+  actions               DecisionRuleAction[]
+  approvalRequests      DecisionApprovalRequest[]
+  testSuites            DecisionTestSuite[]
+  deployments           DecisionDeployment[]
+  executions            DecisionExecution[]
+  changeLogs            DecisionChangeLog[]
+  policyLinks           PolicyArtifactLink[]
+  nodeScripts           DecisionNodeScript[]
   intermediateVariables DecisionIntermediateVariable[]
   outputContractFields  DecisionOutputContractField[]
   calculatedFieldUses   DecisionArtifactCalculatedFieldUse[]
@@ -370,18 +370,18 @@ model DecisionVariableVersion {
 
   /// Nombre visible y descripción por versión: el contrato puede renombrar sin
   /// tocar el código técnico estable de la definición.
-  displayName       String? @map("display_name") @db.VarChar(160)
-  description       String? @map("description") @db.Text
+  displayName        String? @map("display_name") @db.VarChar(160)
+  description        String? @map("description") @db.Text
   /// Restricciones configurables normalizadas (§1.1). Fuente autoritativa que el
   /// backend compila e impone; `validationSchemaJson` queda como proyección JSON-Schema.
-  constraintsJson   Json?   @map("constraints_json")
+  constraintsJson    Json?   @map("constraints_json")
   /// Mensaje de error mostrado cuando la validación falla.
-  validationMessage String? @map("validation_message") @db.VarChar(400)
-  exampleValidJson  Json?   @map("example_valid_json")
-  exampleInvalidJson Json?  @map("example_invalid_json")
+  validationMessage  String? @map("validation_message") @db.VarChar(400)
+  exampleValidJson   Json?   @map("example_valid_json")
+  exampleInvalidJson Json?   @map("example_invalid_json")
   /// Origen esperado del dato (REQUEST, PROVIDER, DERIVED, CALCULATED_FIELD…).
-  expectedOrigin    String  @default("REQUEST") @map("expected_origin") @db.VarChar(40)
-  contractVersion   String  @default("1") @map("contract_version") @db.VarChar(20)
+  expectedOrigin     String  @default("REQUEST") @map("expected_origin") @db.VarChar(40)
+  contractVersion    String  @default("1") @map("contract_version") @db.VarChar(20)
 
   definition         DecisionVariableDefinition           @relation(fields: [variableDefinitionId], references: [id], onDelete: Cascade)
   sources            DecisionVariableSource[]
@@ -572,8 +572,9 @@ model DecisionReasonCode {
   isAdverseAction Boolean @default(false) @map("is_adverse_action")
   isActive        Boolean @default(true) @map("is_active")
 
-  actionMappings   DecisionActionReasonMapping[]
-  executionReasons DecisionExecutionReason[]
+  actionMappings      DecisionActionReasonMapping[]
+  executionReasons    DecisionExecutionReason[]
+  outputFieldMappings DecisionOutputFieldReasonMap[]
 
   @@unique([tenantId, reasonCode])
   @@index([tenantId, isActive])
@@ -1209,24 +1210,24 @@ model DecisionArtifactReference {
 
   // --- §9: configuración completa de la referencia ---
   /// Ambiente en el que se resuelve el hijo. Null = el mismo que el padre.
-  environmentCode  String?                  @map("environment_code") @db.VarChar(40)
-  versionSelection ArtifactVersionSelection @default(EXACT) @map("version_selection")
+  environmentCode        String?                  @map("environment_code") @db.VarChar(40)
+  versionSelection       ArtifactVersionSelection @default(EXACT) @map("version_selection")
   /// Reintentos ante error transitorio. 0 = ninguno (por defecto: una decisión no debe
   /// reintentar sola algo que puede tener efectos).
-  maxRetries       Int                      @default(0) @map("max_retries")
-  retryDelayMs     Int                      @default(0) @map("retry_delay_ms")
+  maxRetries             Int                      @default(0) @map("max_retries")
+  retryDelayMs           Int                      @default(0) @map("retry_delay_ms")
   /// Expresión booleana; si no se cumple, la referencia se omite sin ejecutar al hijo.
-  executionConditionJson Json?              @map("execution_condition_json")
+  executionConditionJson Json?                    @map("execution_condition_json")
   /// Una referencia opcional que falla no tumba la decisión del padre.
-  isRequired       Boolean                  @default(true) @map("is_required")
+  isRequired             Boolean                  @default(true) @map("is_required")
   /// Qué se expone del resultado del hijo en la traza del padre.
-  tracePolicy      TracePolicy              @default(FULL) @map("trace_policy")
+  tracePolicy            TracePolicy              @default(FULL) @map("trace_policy")
   // Execution scope: when set, only principals holding this role may create or
   // edit the reference; enforced in the service layer on top of route RBAC.
-  requiredRole            String?                      @map("required_role") @db.VarChar(80)
-  createdBy               String                       @map("created_by") @db.VarChar(160)
-  createdAt               DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt               DateTime                     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  requiredRole           String?                  @map("required_role") @db.VarChar(80)
+  createdBy              String                   @map("created_by") @db.VarChar(160)
+  createdAt              DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@unique([parentArtifactVersionId, nodeKey])
   @@index([tenantId, childArtifactId])
@@ -1455,11 +1456,32 @@ model DecisionOutputContractField {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  artifactVersion DecisionArtifactVersion @relation(fields: [artifactVersionId], references: [id], onDelete: Cascade)
+  artifactVersion DecisionArtifactVersion        @relation(fields: [artifactVersionId], references: [id], onDelete: Cascade)
+  reasonCodes     DecisionOutputFieldReasonMap[]
 
   @@unique([artifactVersionId, fieldCode])
   @@index([tenantId, artifactVersionId])
   @@map("decision_output_contract_field")
+}
+
+/// Motivos estructurados que un campo del contrato de salida puede devolver (§4).
+///
+/// Es la contraparte legible por máquina de `absenceReasons`: esos son prosa para
+/// explicar una ausencia; estos son códigos del catálogo gobernado, con FK real,
+/// para que quien consume la decisión pueda ramificar por ellos. Se restringe el
+/// borrado del reason code (igual que en las acciones): un contrato publicado no
+/// puede quedar apuntando a un motivo que ya no existe.
+model DecisionOutputFieldReasonMap {
+  id            BigInt @id @default(autoincrement())
+  outputFieldId BigInt @map("output_field_id")
+  reasonCodeId  BigInt @map("reason_code_id")
+  priority      Int    @default(100)
+
+  outputField DecisionOutputContractField @relation(fields: [outputFieldId], references: [id], onDelete: Cascade)
+  reasonCode  DecisionReasonCode          @relation(fields: [reasonCodeId], references: [id], onDelete: Restrict)
+
+  @@unique([outputFieldId, reasonCodeId])
+  @@map("decision_output_field_reason_map")
 }
 
 // ---------------------------------------------------------------------------
@@ -1467,8 +1489,8 @@ model DecisionOutputContractField {
 // ---------------------------------------------------------------------------
 
 model ApprovedLibrary {
-  id       BigInt @id @default(autoincrement())
-  tenantId BigInt @map("tenant_id")
+  id          BigInt @id @default(autoincrement())
+  tenantId    BigInt @map("tenant_id")
   /// Nombre lÃ³gico expuesto al autor (p. ej. "math", "statistics").
   logicalName String @map("logical_name") @db.VarChar(80)
   /// Paquete real detrÃ¡s del nombre lÃ³gico (p. ej. Math nativo, statistics de stdlib).
@@ -1476,15 +1498,15 @@ model ApprovedLibrary {
   /// VersiÃ³n exacta y bloqueada: PROD nunca resuelve rangos.
   version     String @db.VarChar(40)
 
-  language         CalculatedFieldImplKind
-  category         String                  @db.VarChar(60)
-  description      String                  @db.Text
-  documentationUrl String?                 @map("documentation_url") @db.VarChar(500)
+  language            CalculatedFieldImplKind
+  category            String                  @db.VarChar(60)
+  description         String                  @db.Text
+  documentationUrl    String?                 @map("documentation_url") @db.VarChar(500)
   /// Lista blanca de funciones invocables. VacÃ­o = ninguna (fail-closed).
-  allowedFunctions String[]                @map("allowed_functions")
-  blockedFunctions String[]                @map("blocked_functions")
+  allowedFunctions    String[]                @map("allowed_functions")
+  blockedFunctions    String[]                @map("blocked_functions")
   /// Ambientes en los que puede usarse (cÃ³digos de DecisionEnvironment).
-  allowedEnvironments String[]             @map("allowed_environments")
+  allowedEnvironments String[]                @map("allowed_environments")
 
   status        ApprovedLibraryStatus @default(APPROVED)
   knownRisks    String?               @map("known_risks") @db.Text
@@ -1681,11 +1703,11 @@ model QaCounterexample {
   property String @db.VarChar(120)
 
   /// Contraejemplo MÃNIMO tras la reducciÃ³n de fast-check.
-  shrunkInputJson   Json   @map("shrunk_input_json")
-  originalInputJson Json?  @map("original_input_json")
-  observedJson      Json?  @map("observed_json")
-  failureCode       String @map("failure_code") @db.VarChar(120)
-  failureMessage    String @map("failure_message") @db.Text
+  shrunkInputJson   Json    @map("shrunk_input_json")
+  originalInputJson Json?   @map("original_input_json")
+  observedJson      Json?   @map("observed_json")
+  failureCode       String  @map("failure_code") @db.VarChar(120)
+  failureMessage    String  @map("failure_message") @db.Text
   /// Semilla + path de fast-check para volver a ejecutar exactamente este caso.
   replaySeed        String  @map("replay_seed") @db.VarChar(64)
   replayPath        String? @map("replay_path") @db.VarChar(200)
@@ -1699,4 +1721,3 @@ model QaCounterexample {
   @@index([tenantId, property, createdAt])
   @@map("decision_qa_counterexample")
 }
-

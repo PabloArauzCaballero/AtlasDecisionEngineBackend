@@ -19,6 +19,7 @@ import {
   resolveConstraints,
   validateAgainstConstraints,
 } from '../../common/contracts/constraint-engine';
+import { checkConstraintCoherence } from '../../common/contracts/constraint-coherence';
 import type { VariableConstraints } from '../../common/contracts/constraints.types';
 import {
   isTypeAssignable,
@@ -139,45 +140,13 @@ export class VariableContractService {
     };
   }
 
-  /** Restricciones que se contradicen entre sí y harían imposible cualquier valor. */
+  /**
+   * Restricciones que se contradicen entre sí. La regla vive en
+   * `common/contracts/constraint-coherence` porque el validador de artefactos la
+   * aplica también a las entradas declaradas, antes de publicar.
+   */
   private checkConstraintCoherence(constraints: VariableConstraints): ContractIssue[] {
-    const issues: ContractIssue[] = [];
-    const pair = (
-      min: number | undefined,
-      max: number | undefined,
-      code: string,
-      label: string,
-    ) => {
-      if (min !== undefined && max !== undefined && min > max) {
-        issues.push({ code, message: `${label}: el mínimo (${min}) supera al máximo (${max})` });
-      }
-    };
-    pair(constraints.min, constraints.max, 'RANGE_INVERTED', 'Rango');
-    pair(constraints.minLength, constraints.maxLength, 'LENGTH_INVERTED', 'Longitud');
-    pair(constraints.minItems, constraints.maxItems, 'ITEMS_INVERTED', 'Cardinalidad');
-
-    if (constraints.scale !== undefined && constraints.precision !== undefined) {
-      if (constraints.scale > constraints.precision) {
-        issues.push({
-          code: 'SCALE_ABOVE_PRECISION',
-          message: `La escala (${constraints.scale}) no puede superar la precisión (${constraints.precision})`,
-        });
-      }
-    }
-    if (constraints.pattern) {
-      try {
-        new RegExp(constraints.pattern);
-      } catch {
-        issues.push({ code: 'PATTERN_INVALID', message: 'La expresión regular no compila' });
-      }
-    }
-    if (constraints.allowedValues?.length === 0) {
-      issues.push({
-        code: 'ALLOWED_VALUES_EMPTY',
-        message: 'La lista de valores permitidos está vacía: ningún valor sería válido',
-      });
-    }
-    return issues;
+    return checkConstraintCoherence(constraints);
   }
 
   /**

@@ -137,6 +137,8 @@ export interface OutputContractFieldSnapshot {
   sourceRef: string;
   valueMapping?: Record<string, unknown> | null;
   absenceReasons: string[];
+  /** Códigos del catálogo que la decisión puede devolver con este campo (§4). */
+  reasonCodes?: string[];
   example?: unknown;
   contractVersion: string;
   sensitivityClass: string;

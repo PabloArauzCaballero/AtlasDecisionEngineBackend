@@ -155,7 +155,10 @@ export class ArtifactGraphWriterService {
         });
       }
       if (dto.outputContract?.length) {
-        await tx.decisionOutputContractField.createMany({
+        // Igual que las acciones: primero los campos, luego sus motivos, porque
+        // `createMany` no puede escribir la relación anidada. Los ids se recuperan
+        // por `fieldCode`, que es único dentro de la versión.
+        const createdFields = await tx.decisionOutputContractField.createManyAndReturn({
           data: dto.outputContract.map((field) => ({
             tenantId,
             artifactVersionId: versionId,
@@ -171,7 +174,38 @@ export class ArtifactGraphWriterService {
             sensitivityClass: field.sensitivityClass as SensitivityClass,
             tracePolicy: field.tracePolicy as TracePolicy,
           })),
+          select: { id: true, fieldCode: true },
         });
+
+        const outputReasonCodes = [
+          ...new Set(dto.outputContract.flatMap((field) => field.reasonCodes ?? [])),
+        ];
+        if (outputReasonCodes.length) {
+          const known = await tx.decisionReasonCode.findMany({
+            where: { tenantId, reasonCode: { in: outputReasonCodes } },
+            select: { id: true, reasonCode: true },
+          });
+          if (known.length !== outputReasonCodes.length) {
+            const found = new Set(known.map((row) => row.reasonCode));
+            const missing = outputReasonCodes.filter((code) => !found.has(code));
+            throw new DomainException(
+              'REASON_CODE_NOT_FOUND',
+              `Unknown reason codes in the output contract: ${missing.join(', ')}`,
+            );
+          }
+          const reasonIdByCode = new Map(known.map((row) => [row.reasonCode, row.id]));
+          const fieldIdByCode = new Map(createdFields.map((row) => [row.fieldCode, row.id]));
+          const rows = dto.outputContract.flatMap((field) =>
+            (field.reasonCodes ?? []).map((code, index) => ({
+              outputFieldId: fieldIdByCode.get(field.code)!,
+              reasonCodeId: reasonIdByCode.get(code)!,
+              // El orden declarado es la prioridad: quien consume la decisión lee
+              // los motivos en el mismo orden en que el autor los puso.
+              priority: (index + 1) * 10,
+            })),
+          );
+          if (rows.length) await tx.decisionOutputFieldReasonMap.createMany({ data: rows });
+        }
       }
 
       // Every child insert below is batched with createManyAndReturn / createMany rather

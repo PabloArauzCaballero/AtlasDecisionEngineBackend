@@ -280,6 +280,12 @@ class OutputContractFieldSnapshotDto {
   @ApiProperty({ example: 'RESULT_NODE:limit' }) sourceRef!: string;
   @ApiProperty({ nullable: true }) valueMapping?: Record<string, unknown> | null;
   @ApiProperty({ type: [String] }) absenceReasons!: string[];
+  @ApiProperty({
+    type: [String],
+    example: ['DTI_TOO_HIGH'],
+    description: 'Motivos estructurados del catálogo que pueden devolverse con el campo (§4).',
+  })
+  reasonCodes!: string[];
   @ApiProperty({ nullable: true }) example?: unknown;
   @ApiProperty({ example: '1.0' }) contractVersion!: string;
   @ApiProperty({ example: 'INTERNAL' }) sensitivityClass!: string;

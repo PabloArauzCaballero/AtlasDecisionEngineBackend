@@ -22,7 +22,15 @@ export class ArtifactGraphReaderService {
             },
           },
         },
-        outputContractFields: { orderBy: { fieldCode: 'asc' } },
+        outputContractFields: {
+          orderBy: { fieldCode: 'asc' },
+          include: {
+            reasonCodes: {
+              include: { reasonCode: true },
+              orderBy: [{ priority: 'asc' }, { id: 'asc' }],
+            },
+          },
+        },
         variableDependencies: {
           include: {
             variableVersion: {
@@ -147,6 +155,9 @@ export class ArtifactGraphReaderService {
         sourceRef: field.sourceRef,
         valueMapping: (field.valueMappingJson ?? null) as Record<string, unknown> | null,
         absenceReasons: field.absenceReasons,
+        // Se devuelven los CÓDIGOS, que es como los manda el autor: el editor
+        // vuelve a cargar exactamente lo que guardó, sin traducir ids.
+        reasonCodes: field.reasonCodes.map((mapping) => mapping.reasonCode.reasonCode),
         example: field.exampleJson ?? undefined,
         contractVersion: field.contractVersion,
         sensitivityClass: field.sensitivityClass,

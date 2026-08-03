@@ -24,6 +24,8 @@ import { DATABASE_ID_PATTERN } from '../../common/http/id';
 
 const VARIABLE_CODE = /^[a-zA-Z][a-zA-Z0-9_]{1,119}$/;
 const NODE_KEY = /^[A-Za-z0-9_\-]{2,120}$/;
+/** Mismo formato que `decision_reason_code.reason_code` (VarChar(120)). */
+const REASON_CODE = /^[A-Za-z0-9_\-]{2,120}$/;
 
 const SENSITIVITY = [
   'PUBLIC',
@@ -82,6 +84,20 @@ export class OutputContractFieldDto {
   @IsString({ each: true })
   @MaxLength(120, { each: true })
   absenceReasons!: string[];
+
+  /**
+   * Motivos estructurados que la decisión puede devolver junto a este campo (§4).
+   *
+   * Van por CÓDIGO, no por id: es lo que el autor conoce y lo que hace que un
+   * contrato siga significando lo mismo al moverlo entre entornos. El backend los
+   * resuelve contra el catálogo del tenant y rechaza los que no existen.
+   */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  @Matches(REASON_CODE, { each: true })
+  reasonCodes?: string[];
 
   @IsOptional() example?: unknown;
   @IsString() @MaxLength(20) contractVersion!: string;

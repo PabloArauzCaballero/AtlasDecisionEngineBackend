@@ -7,8 +7,10 @@ import { validateGraphStructure } from './validators/graph-structure.validator';
 import { validateGraphExpressions } from './validators/graph-expression.validator';
 import { validateGraphDeterminism } from './validators/graph-determinism.validator';
 import { validateGraphIntermediates } from './validators/graph-intermediate.validator';
+import { validateInputContract } from './validators/graph-input-contract.validator';
 import { validateOutputContract } from './validators/graph-output-contract.validator';
 import { validateGraphCalculatedFields } from './validators/graph-calculated-field.validator';
+import { validateOperationInputs } from './validators/graph-operation-inputs.validator';
 
 @Injectable()
 export class GraphValidatorService {
@@ -23,16 +25,20 @@ export class GraphValidatorService {
     const expressions = validateGraphExpressions(snapshot, lookups, this.expressions);
     const determinism = validateGraphDeterminism(snapshot, lookups);
     const intermediates = validateGraphIntermediates(snapshot, lookups);
+    const inputContract = validateInputContract(snapshot);
     const outputContract = validateOutputContract(snapshot, lookups);
     const calculatedFields = validateGraphCalculatedFields(snapshot, lookups);
+    const operationInputs = validateOperationInputs(snapshot, lookups);
 
     const errors = [
       ...structure.errors,
       ...expressions.errors,
       ...determinism.errors,
       ...intermediates.errors,
+      ...inputContract.errors,
       ...outputContract.errors,
       ...calculatedFields.errors,
+      ...operationInputs.errors,
     ];
     const canonicalAst = this.canonicalSnapshot(snapshot);
     const checksum = this.hashes.sha256(canonicalAst);
@@ -43,8 +49,10 @@ export class GraphValidatorService {
       warnings: [
         ...structure.warnings,
         ...intermediates.warnings,
+        ...inputContract.warnings,
         ...outputContract.warnings,
         ...calculatedFields.warnings,
+        ...operationInputs.warnings,
       ],
       metrics: {
         nodeCount: snapshot.nodes.length,

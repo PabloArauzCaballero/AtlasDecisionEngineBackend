@@ -99,9 +99,15 @@ export class ArtifactLifecycleService {
         HttpStatus.NOT_FOUND,
       );
     if (version.status !== VersionStatus.VALIDATED) {
+      // `VERSION_NOT_COMPILABLE`, no `VERSION_NOT_COMPILED`: son cosas distintas y
+      // confundirlas producía un consejo circular. Esto es «el estado actual no
+      // admite compilar»; lo otro es «no existe artefacto compilado». El portal
+      // traducía el segundo por «compílala antes de ejecutarla», que es justo la
+      // operación que acababa de rechazarse —y sobre una versión ya desplegada,
+      // que además SÍ tiene compilado—.
       throw new DomainException(
-        'VERSION_NOT_COMPILED',
-        'Version must be VALIDATED before compilation',
+        'VERSION_NOT_COMPILABLE',
+        `No se puede compilar una versión en estado ${version.status}: sólo se compila lo que está VALIDATED. Si ya está desplegada, crea una versión nueva.`,
         HttpStatus.CONFLICT,
       );
     }

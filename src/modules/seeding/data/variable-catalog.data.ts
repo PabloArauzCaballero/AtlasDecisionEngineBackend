@@ -25,7 +25,19 @@ const identityKyc: VariableSeed[] = [
     name: 'Edad',
     description: 'Edad del solicitante en años cumplidos.',
     type: 'INTEGER',
-    validation: { minimum: 18, maximum: 100 },
+    /*
+     * El contrato acota el DATO (una edad plausible), no la política. El mínimo
+     * era 18, y eso convertía a cualquier menor de edad en un error técnico
+     * (`VARIABLE_MISSING_OR_INVALID`) antes de que el algoritmo lo evaluara: la
+     * regla de elegibilidad y su motivo `AGE_NOT_ELIGIBLE` no se alcanzaban
+     * nunca, y el caso de regresión que los ejercita fallaba siempre.
+     *
+     * En una decisión de crédito eso además no es defendible ante el regulador:
+     * un rechazo debe ser explicable («no cumple la edad mínima»), no un fallo de
+     * validación sin motivo. El umbral de 18 vive en la regla, que es donde se
+     * versiona, se audita y se explica.
+     */
+    validation: { minimum: 0, maximum: 120 },
   },
   {
     code: 'national_id_verified',

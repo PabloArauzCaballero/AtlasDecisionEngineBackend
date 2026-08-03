@@ -153,3 +153,17 @@ export class PromoteCalculatedFieldVersionDto {
 export class TryCalculatedFieldDto {
   @IsObject() inputs!: Record<string, unknown>;
 }
+
+/**
+ * Generación de entradas de ejemplo a partir del contrato de la versión.
+ *
+ * Mismo vocabulario que el QA Lab (`GenerateSampleCasesDto`) a propósito: el
+ * generador es el mismo, y dos nombres distintos para la misma clase de caso
+ * acabarían significando cosas distintas.
+ */
+export class SampleCalculatedFieldInputsDto {
+  @IsOptional() @IsIn(['VALID', 'BOUNDARY', 'INVALID']) kind?: 'VALID' | 'BOUNDARY' | 'INVALID';
+  /** Repetir la semilla devuelve exactamente el mismo lote. */
+  @IsOptional() @IsString() @MaxLength(120) seed?: string;
+  @IsOptional() @IsInt() @Min(1) @Max(20) count?: number;
+}

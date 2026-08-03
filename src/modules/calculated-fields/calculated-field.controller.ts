@@ -23,6 +23,7 @@ import {
   CreateCalculatedFieldVersionDto,
   PromoteCalculatedFieldVersionDto,
   TryCalculatedFieldDto,
+  SampleCalculatedFieldInputsDto,
 } from './calculated-field.dto';
 import { CalculatedFieldService } from './calculated-field.service';
 
@@ -124,6 +125,21 @@ export class CalculatedFieldController {
     @Body() dto: TryCalculatedFieldDto,
   ) {
     return this.fields.tryRun(tenantId, parseBigIntId(versionId, 'versionId'), dto.inputs);
+  }
+
+  @Post('versions/:versionId/sample-inputs')
+  @ApiOperation({
+    summary: 'Generar entradas de ejemplo del contrato de la versión, sin ejecutarlas',
+    description:
+      'Deriva valores de las entradas declaradas (tipo y restricciones). Usa el mismo generador que el QA Lab, así que «válido», «frontera» e «inválido» significan lo mismo en las dos pantallas. La semilla devuelta reproduce el lote.',
+  })
+  @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST', 'PLATFORM_ADMIN')
+  sampleInputs(
+    @TenantId() tenantId: bigint,
+    @Param('versionId') versionId: string,
+    @Body() dto: SampleCalculatedFieldInputsDto,
+  ) {
+    return this.fields.sampleInputs(tenantId, parseBigIntId(versionId, 'versionId'), dto);
   }
 
   @Post('versions/:versionId/test')

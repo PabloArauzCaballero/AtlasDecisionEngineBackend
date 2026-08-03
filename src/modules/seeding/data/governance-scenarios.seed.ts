@@ -13,7 +13,7 @@
  * tenga algo que reproducir.
  */
 import { Logger } from '@nestjs/common';
-import { VersionStatus, type Prisma, type PrismaClient } from '@prisma/client';
+import { DeploymentStatus, VersionStatus, type Prisma, type PrismaClient } from '@prisma/client';
 import { GENERATOR_VERSION } from '../../qa-lab/seeded-random';
 import { TENANT_ID, sha256 } from './helpers';
 
@@ -50,6 +50,13 @@ export async function seedGovernanceScenarios(
   if (already) {
     logger.log(`Escenarios de gobierno ya sembrados (${SCENARIOS_VERSION})`);
     const existing = await loadExisting(prisma);
+    // Reconciliación, no sólo comprobación: una base sembrada por una versión
+    // anterior tenía la versión del padre marcada como desplegada SIN despliegue
+    // que la respaldara. Volver a ejecutar la siembra debe converger al estado
+    // correcto en vez de dejar la incoherencia para siempre.
+    if (existing) {
+      await markDeployedToTest(prisma, BigInt(existing.cycleParentVersionId));
+    }
     return existing;
   }
 
@@ -333,9 +340,54 @@ async function seedIncompatibleContractScenario(
       dependencyPath: 'input.scenario_locked_score',
     },
   });
+  await markDeployedToTest(prisma, artifactVersionId);
+}
+
+/**
+ * Marca la versión como desplegada en TEST **y crea el despliegue que lo respalda**.
+ *
+ * Antes sólo se escribía el estado. Eso dejaba una versión que se anunciaba como
+ * `DEPLOYED_TO_TEST` sin ninguna fila en `decision_deployment`: el listado la
+ * mostraba desplegada y, al ejecutarla, el motor respondía «no active deployment»
+ * —un estado que se contradecía a sí mismo y que costaba entender desde la UI—.
+ * El escenario necesita que la versión esté REALMENTE en uso para que estrechar el
+ * contrato de su variable se rechace; fingirlo con un estado suelto no lo lograba.
+ *
+ * Idempotente: si ya existe el despliegue activo, no crea otro.
+ */
+async function markDeployedToTest(prisma: PrismaClient, artifactVersionId: bigint): Promise<void> {
   await prisma.decisionArtifactVersion.update({
     where: { id: artifactVersionId },
     data: { status: VersionStatus.DEPLOYED_TO_TEST },
+  });
+
+  const environment = await prisma.decisionEnvironment.findFirst({
+    where: { environmentType: 'TEST' },
+  });
+  const compiled = await prisma.decisionCompiledArtifact.findFirst({
+    where: { artifactVersionId },
+    orderBy: { id: 'desc' },
+  });
+  // Sin entorno o sin compilado no se puede desplegar de verdad. Se deja el estado
+  // como estaba en vez de inventar una fila que mentiría de otra forma.
+  if (!environment || !compiled) return;
+
+  const existing = await prisma.decisionDeployment.findFirst({
+    where: { artifactVersionId, environmentId: environment.id, isActive: true },
+  });
+  if (existing) return;
+
+  await prisma.decisionDeployment.create({
+    data: {
+      artifactVersionId,
+      compiledArtifactId: compiled.id,
+      environmentId: environment.id,
+      deploymentMode: 'FULL',
+      deploymentStatus: DeploymentStatus.ACTIVE,
+      effectiveFrom: new Date(),
+      isActive: true,
+      deployedBy: 'seed.governance-scenarios',
+    },
   });
 }
 
