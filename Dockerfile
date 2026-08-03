@@ -72,8 +72,13 @@ ENV NODE_ENV=production
 # Se declara aquí, no en el orquestador, para que la cota exista incluso en un `docker run`
 # sin argumentos; cualquier despliegue puede subirla sobrescribiendo NODE_OPTIONS.
 ENV NODE_OPTIONS=--max-old-space-size=512
+# `python3` lo necesita el comprobador de sintaxis de «Importar código»: analiza el
+# script del analista ANTES de aceptarlo, dentro del proceso de la API. Sin él, subir
+# un algoritmo Python fallaba con `spawnSync python ENOENT` — un error de sistema
+# donde se esperaba el análisis. Comprobar sintaxis no es ejecutar: el código sigue
+# ejecutándose únicamente en el sidecar aislado.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates dumb-init \
+  && apt-get install -y --no-install-recommends ca-certificates dumb-init python3 \
   && rm -rf /var/lib/apt/lists/*
 COPY package.json yarn.lock ./
 # The cache is a BuildKit mount and is not committed to the image layer. `yarn cache clean`

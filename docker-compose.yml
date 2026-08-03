@@ -133,8 +133,13 @@ services:
     runtime: runsc
     network_mode: none
     pids_limit: 64
-    mem_limit: 128m
-    cpus: "0.5"
+    # 128m dejaba el sidecar al 54 % EN REPOSO: cada ejecución lanza un intérprete
+    # (Node ronda los 40 MB por proceso) y con dos o tres a la vez el hijo moría por
+    # memoria. El síntoma era SCRIPT_EXECUTION_FAILED intermitente —a veces pasaba,
+    # a veces no— que parecía un fallo del código del usuario y no lo era.
+    # Sigue acotado: el límite existe para que un script no se coma el anfitrión.
+    mem_limit: ${SCRIPT_RUNNER_MEMORY:-512m}
+    cpus: ${SCRIPT_RUNNER_CPUS:-1.0}
     environment:
       RUNNER_SOCKET_PATH: /var/run/atlas-runner/runner.sock
       # This image installs only the minimal `python3` package (see the script-runner stage
@@ -269,19 +274,28 @@ services:
       # lista valida TAMBIÉN el Origin de las rutas de sesión, así que un puerto
       # ausente impide iniciar sesión con 403 UNTRUSTED_ORIGIN.
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3001,http://localhost:5173,http://localhost:5180}
+      # El comprobador de sintaxis de «Importar código» invoca este binario. La imagen
+      # instala `python3` (Debian no crea el alias `python`), así que sin esta línea
+      # subir un algoritmo Python fallaba con `spawnSync python ENOENT`.
+      PYTHON_EXECUTABLE: ${PYTHON_EXECUTABLE:-python3}
       SCRIPT_NODES_ENABLED: ${SCRIPT_NODES_ENABLED:-false}
       SCRIPT_RUNNER_MODE: SIDECAR
       SCRIPT_RUNNER_SOCKET_PATH: /var/run/atlas-runner/runner.sock
-      # Cota de memoria por proceso de script (§9.3). Con RUNNER_MAX_CONCURRENCY=4 el peor
-      # caso son 4 x 32 MiB, que cabe en el mem_limit de 128m del sidecar.
-      SCRIPT_NODE_MAX_MEMORY_MB: ${SCRIPT_NODE_MAX_MEMORY_MB:-32}
+      # Cota de memoria por proceso de script (§9.3). Con RUNNER_MAX_CONCURRENCY=4 el
+      # peor caso son 4 x 64 MiB, que cabe holgado en el mem_limit del sidecar. A 32 MiB
+      # un intérprete Node se quedaba corto y moría a mitad de ejecución.
+      SCRIPT_NODE_MAX_MEMORY_MB: ${SCRIPT_NODE_MAX_MEMORY_MB:-64}
       NESTED_TREE_MAX_DEPTH: ${NESTED_TREE_MAX_DEPTH:-5}
       NESTED_TREE_DEFAULT_TIMEOUT_MS: ${NESTED_TREE_DEFAULT_TIMEOUT_MS:-2000}
       NESTED_TREE_GRAPH_MAX_EDGES: ${NESTED_TREE_GRAPH_MAX_EDGES:-2000}
       NESTED_TREE_MAX_RETAINED_BYTES: ${NESTED_TREE_MAX_RETAINED_BYTES:-1048576}
       CODE_IMPORT_MAX_SOURCE_BYTES: ${CODE_IMPORT_MAX_SOURCE_BYTES:-131072}
       CODE_IMPORT_ANALYSIS_TIMEOUT_MS: ${CODE_IMPORT_ANALYSIS_TIMEOUT_MS:-2000}
-      LIVE_EXECUTION_STREAM_ENABLED: ${LIVE_EXECUTION_STREAM_ENABLED:-false}
+      # Traza paso a paso mientras el motor decide. Apagada, la pantalla de ejecución
+      # en vivo sólo sabe decir «deshabilitada para este ambiente». Mantiene una
+      # conexión abierta por espectador, de ahí que el valor de fábrica sea `false`;
+      # en este compose de desarrollo es justo lo que se quiere ver.
+      LIVE_EXECUTION_STREAM_ENABLED: ${LIVE_EXECUTION_STREAM_ENABLED:-true}
       LIVE_EXECUTION_STREAM_HEARTBEAT_MS: ${LIVE_EXECUTION_STREAM_HEARTBEAT_MS:-15000}
     ports:
       - "127.0.0.1:${API_PORT:-3000}:3000"
