@@ -226,6 +226,128 @@ export const calculatedFieldCatalog: CalculatedFieldSeed[] = [
       { name: 'sin cuota', inputs: { cuota_solicitada: 0, ingreso_disponible: 1000 }, expected: 0 },
     ],
   },
+  {
+    fieldCode: 'ingreso_disponible_neto',
+    name: 'Ingreso disponible neto',
+    description: 'Lo que le queda al solicitante cada mes tras cubrir sus gastos fijos.',
+    rationale:
+      'Es la base de toda medida de capacidad de pago. Se implementa en Python porque el equipo de riesgo mantiene sus modelos en ese lenguaje y así la fórmula no se traduce dos veces.',
+    category: 'AFORDABILIDAD',
+    implementationKind: 'PYTHON',
+    inputs: [
+      {
+        id: 'ingreso_mensual',
+        name: 'Ingreso mensual',
+        description: 'Ingreso neto declarado y verificado',
+        dataType: 'DECIMAL',
+        required: true,
+        constraints: { min: 0 },
+      },
+      {
+        id: 'gastos_mensuales',
+        name: 'Gastos mensuales',
+        description: 'Gastos fijos comprometidos',
+        dataType: 'DECIMAL',
+        required: true,
+        constraints: { min: 0 },
+      },
+    ],
+    returns: {
+      dataType: 'DECIMAL',
+      nullable: false,
+      precision: 2,
+      nullConditions: [],
+      divisionByZero: 'FAIL',
+      missingData: 'FAIL',
+      // Un disponible negativo no es un error de cálculo: es un solicitante
+      // sobreendeudado, y el algoritmo debe poder verlo y decidir.
+      outOfRange: 'RETURN_DEFAULT',
+      errorCode: 'DISPOSABLE_NOT_COMPUTABLE',
+      constraints: { min: -100000, max: 100000 },
+    },
+    comments: {
+      overview: 'Ingreso menos gastos fijos, redondeado a dos decimales.',
+      example: 'ingreso 4200, gastos 1500 -> 2700',
+    },
+    sourceCode: [
+      '# Lo que queda libre cada mes; puede ser negativo si hay sobreendeudamiento.',
+      'result = math_round(variables["ingreso_mensual"] - variables["gastos_mensuales"], 2)',
+    ].join('\n'),
+    libraries: [{ logicalName: 'math', language: 'PYTHON' }],
+    testCases: [
+      {
+        name: 'holgura normal',
+        inputs: { ingreso_mensual: 4200, gastos_mensuales: 1500 },
+        expected: 2700,
+      },
+      {
+        name: 'sobreendeudado: queda en negativo',
+        inputs: { ingreso_mensual: 1000, gastos_mensuales: 1400 },
+        expected: -400,
+      },
+    ],
+  },
+  {
+    fieldCode: 'holgura_sobre_cuota',
+    name: 'Holgura sobre la cuota',
+    description:
+      'Cuantas veces cabe la cuota solicitada dentro del ingreso disponible. Cuanto mas alto, mas colchon tiene el solicitante.',
+    rationale:
+      'El porcentaje de carga responde "cuanto consume"; esta responde "cuanto margen queda", que es lo que mira un analista al aprobar con excepcion. Usa la libreria matematica autorizada para acotar el resultado.',
+    category: 'AFORDABILIDAD',
+    implementationKind: 'JAVASCRIPT',
+    inputs: [
+      {
+        id: 'ingreso_disponible',
+        name: 'Ingreso disponible',
+        description: 'Ingreso neto menos gastos fijos',
+        dataType: 'DECIMAL',
+        required: true,
+        constraints: { exclusiveMin: 0 },
+      },
+      {
+        id: 'cuota_solicitada',
+        name: 'Cuota solicitada',
+        description: 'Cuota mensual del credito pedido',
+        dataType: 'DECIMAL',
+        required: true,
+        constraints: { exclusiveMin: 0 },
+      },
+    ],
+    returns: {
+      dataType: 'DECIMAL',
+      nullable: false,
+      precision: 2,
+      nullConditions: [],
+      divisionByZero: 'FAIL',
+      missingData: 'FAIL',
+      outOfRange: 'RETURN_DEFAULT',
+      errorCode: 'HEADROOM_NOT_COMPUTABLE',
+      constraints: { min: 0, max: 50 },
+    },
+    comments: {
+      overview: 'Ingreso disponible dividido entre la cuota, acotado a 50.',
+      example: 'disponible 2700, cuota 300 -> 9 (la cuota cabe nueve veces)',
+    },
+    sourceCode: [
+      '// Cuantas veces cabe la cuota en el disponible; a mas alto, mas colchon.',
+      'const veces = variables.ingreso_disponible / variables.cuota_solicitada;',
+      'return math.min(math.round(veces * 100) / 100, 50);',
+    ].join('\n'),
+    libraries: [{ logicalName: 'math', language: 'JAVASCRIPT' }],
+    testCases: [
+      {
+        name: 'colchon holgado',
+        inputs: { ingreso_disponible: 2700, cuota_solicitada: 300 },
+        expected: 9,
+      },
+      {
+        name: 'cuota igual al disponible: sin colchon',
+        inputs: { ingreso_disponible: 1000, cuota_solicitada: 1000 },
+        expected: 1,
+      },
+    ],
+  },
 ];
 
 export async function seedCalculatedFields(prisma: PrismaClient) {

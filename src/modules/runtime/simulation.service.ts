@@ -117,6 +117,27 @@ export class SimulationService {
         edges: result.traversedEdgeKeys,
         terminal: result.terminalNodeKey,
         nested: result.nestedExecutions,
+        /*
+         * Recorrido paso a paso, con el estado de las variables ANTES y DESPUÉS de
+         * cada nodo. El motor ya lo calcula para toda ejecución; la simulación lo
+         * descartaba y devolvía sólo la lista de claves visitadas, así que la
+         * pantalla podía decir por dónde pasó la decisión pero no POR QUÉ: no se
+         * veía qué valor tenía cada variable al llegar a cada paso ni en cuál
+         * apareció una intermedia. Es lo que convierte el simulador en una
+         * herramienta de depuración y no en una caja negra con un veredicto.
+         *
+         * Se devuelve sólo en simulación (nunca se persiste, y el ambiente PROD ya
+         * está vetado más arriba), así que no amplía la superficie de datos
+         * sensibles de una decisión real: el enmascarado por sensibilidad lo aplica
+         * igualmente el propio `variableState`.
+         */
+        steps: (result.trace ?? []).map((step) => ({
+          nodeKey: step.nodeKey,
+          nodeType: step.nodeType,
+          branchTaken: step.branchTaken,
+          durationUs: step.durationUs,
+          variableState: step.variableState,
+        })),
       },
       durationMs: Math.max(0, Math.round(performance.now() - started)),
     };
