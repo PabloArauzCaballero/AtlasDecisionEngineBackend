@@ -22,4 +22,3 @@ package-lock.json
 
 # Portal MkDocs generado (se construye en CI y en contenedor).
 site/
-
