@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-01T05:01:23.370Z",
+  "generatedAt": "2026-08-04T05:06:37.535Z",
   "modules": {
     "total": 24,
     "documented": 24
@@ -9,8 +9,8 @@
     "documented": 22
   },
   "operations": {
-    "total": 109,
-    "documented": 109
+    "total": 110,
+    "documented": 110
   },
   "environmentVariables": {
     "total": 118,

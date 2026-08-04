@@ -4,6 +4,7 @@ import { ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestj
 import { parseBigIntId } from '../../common/http/id';
 import { CurrentPrincipal, Roles, TenantId } from '../../common/security/security.decorators';
 import { ApiPagedResponse } from '../../common/http/pagination.dto';
+import { VersionSampleInputsDto } from '../qa-lab/sample-inputs.response.dto';
 import {
   CalculatedFieldCreatedDto,
   CalculatedFieldDetailDto,
@@ -132,6 +133,10 @@ export class CalculatedFieldController {
     summary: 'Generar entradas de ejemplo del contrato de la versión, sin ejecutarlas',
     description:
       'Deriva valores de las entradas declaradas (tipo y restricciones). Usa el mismo generador que el QA Lab, así que «válido», «frontera» e «inválido» significan lo mismo en las dos pantallas. La semilla devuelta reproduce el lote.',
+  })
+  @ApiCreatedResponse({
+    description: 'Lote de entradas generadas, con la semilla que las reproduce.',
+    type: VersionSampleInputsDto,
   })
   @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST', 'PLATFORM_ADMIN')
   sampleInputs(

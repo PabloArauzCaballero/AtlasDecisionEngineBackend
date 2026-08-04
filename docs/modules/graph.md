@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/graph/`](https://github.com/) · 17 ficheros TypeScript.
+Código: [`src/modules/graph/`](https://github.com/) · 19 ficheros TypeScript.
 
 No expone endpoints HTTP.
 

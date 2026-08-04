@@ -20,6 +20,7 @@ Etiquetas de API: **Calculated Fields**.
 | `POST` | `/v1/calculated-fields/{fieldId}/versions` | `calculatedFieldCreateVersion` | Crear una versión con su contrato de retorno e implementación |
 | `GET` | `/v1/calculated-fields/operations` | `calculatedFieldOperations` | Catálogo de operaciones del constructor visual |
 | `POST` | `/v1/calculated-fields/versions/{versionId}/promote` | `calculatedFieldPromote` | Promover una versión en su ciclo de gobierno |
+| `POST` | `/v1/calculated-fields/versions/{versionId}/sample-inputs` | `calculatedFieldSampleInputs` | Generar entradas de ejemplo del contrato de la versión, sin ejecutarlas |
 | `POST` | `/v1/calculated-fields/versions/{versionId}/test` | `calculatedFieldTest` | Ejecutar los casos de prueba declarados de la versión |
 | `POST` | `/v1/calculated-fields/versions/{versionId}/try` | `calculatedFieldTryRun` | Ejecutar la versión con entradas de ejemplo, sin persistir nada |
 
@@ -34,6 +35,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `PLATFOR
 - `CALCULATED_FIELD_CONTRACT_INVALID`
 - `CALCULATED_FIELD_CONVERSION_FAILED`
 - `CALCULATED_FIELD_DIVISION_BY_ZERO`
+- `CALCULATED_FIELD_HAS_NO_INPUTS`
 - `CALCULATED_FIELD_INPUT_INVALID`
 - `CALCULATED_FIELD_INPUT_MISSING`
 - `CALCULATED_FIELD_LIBRARY_UNAVAILABLE`
@@ -69,4 +71,5 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `PLATFOR
 - `CreateCalculatedFieldVersionDto`
 - `OperationCatalogDto`
 - `PromoteCalculatedFieldVersionDto`
+- `SampleCalculatedFieldInputsDto`
 - `TryCalculatedFieldDto`

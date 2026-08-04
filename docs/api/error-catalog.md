@@ -3,7 +3,7 @@
 
 # Catálogo de códigos de error
 
-164 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
+166 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
 el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 
 | Código | Mensaje de referencia | Origen |
@@ -25,6 +25,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `CALCULATED_FIELD_CONTRACT_INVALID` | El contrato del campo calculado no es válido | `src/modules/calculated-fields/calculated-field.service.ts` |
 | `CALCULATED_FIELD_CONVERSION_FAILED` | TO_NUMBER no pudo convertir el valor recibido | `src/modules/calculated-fields/operation-evaluator.ts` |
 | `CALCULATED_FIELD_DIVISION_BY_ZERO` | División entre cero en el campo calculado | `src/modules/calculated-fields/operation-evaluator.ts` |
+| `CALCULATED_FIELD_HAS_NO_INPUTS` | Esta versión no declara entradas, así que no hay valores que generar | `src/modules/calculated-fields/calculated-field.service.ts` |
 | `CALCULATED_FIELD_INPUT_INVALID` | La entrada ${input.id} de ${field.fieldCode} ${violations[0].message} | `src/modules/calculated-fields/calculated-field-runtime.ts` |
 | `CALCULATED_FIELD_INPUT_MISSING` | El campo calculado ${field.fieldCode} requiere la entrada ${input.id} | `src/modules/calculated-fields/calculated-field-runtime.ts` |
 | `CALCULATED_FIELD_LIBRARY_BLOCKED` | El campo calculado ${version.calculatedField.fieldCode} usa la librería ${blocked.library.packageName}, que está bloqueada | `src/modules/artifacts/calculated-field-binding.service.ts` |
@@ -48,6 +49,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `CODE_IMPORT_NOT_FOUND` | Code import not found | `src/modules/code-import/code-import.service.ts` |
 | `CODE_IMPORT_REASON_CODE_MISSING` | These reason codes no longer exist in the catalog: ${missing.join(', ')} | `src/modules/code-import/code-import.service.ts` |
 | `CODE_IMPORT_SOURCE_TOO_LARGE` | Source exceeds ${maxBytes} bytes | `src/modules/code-import/code-import.service.ts` |
+| `CODE_IMPORT_VARIABLE_NOT_IN_CATALOG` | These variables are not declared in the catalog: ${missing.join(', ')} | `src/modules/code-import/code-import.service.ts` |
 | `COMPILED_ARTIFACT_NOT_FOUND` | Compiled artifact not found | `src/modules/deployments/deployment.service.ts` |
 | `DEPLOYMENT_ALREADY_SUSPENDED` | Deployment is already suspended | `src/modules/deployments/deployment.service.ts` |
 | `DEPLOYMENT_NOT_ACTIVE` | Deployment is no longer the active deployment for this environment | `src/modules/deployments/deployment.service.ts` |
@@ -129,7 +131,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `QA_RUN_PROD_FORBIDDEN` | El QA Lab no puede ejecutarse contra PROD | `src/modules/qa-lab/qa-lab.service.ts` |
 | `QA_VERSION_NOT_COMPILED` | La versión no tiene un artefacto compilado con éxito: compílala antes de generar casos | `src/modules/qa-lab/qa-lab.service.ts` |
 | `RATE_LIMIT_EXCEEDED` | Too many requests | `src/common/security/rate-limit.guard.ts` |
-| `REASON_CODE_NOT_FOUND` | One or more reason codes do not exist in this tenant | `src/modules/artifacts/artifact-graph-writer.service.ts` |
+| `REASON_CODE_NOT_FOUND` | Unknown reason codes in the output contract: ${missing.join(', ')} | `src/modules/artifacts/artifact-graph-writer.service.ts` |
 | `REDIS_REQUIRED` | In-memory cache fallback is disabled in production | `src/common/cache/cache.service.ts` |
 | `REDIS_UNAVAILABLE` | Redis is required but unavailable | `src/common/cache/cache.service.ts` |
 | `REFERENCE_CONTRACT_INCOMPATIBLE` | El contrato del artefacto referenciado no puede satisfacerse: ${issues[0].message} | `src/modules/nested-trees/nested-tree.service.ts` |
@@ -168,7 +170,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `VARIABLE_NOT_FOUND` | Variable definition not found | `src/modules/variables/variable.service.ts` |
 | `VERSION_IMMUTABLE` | Only DRAFT or VALIDATION_FAILED versions are editable; current state is ${version.status} | `src/modules/artifacts/artifact-graph-writer.service.ts` |
 | `VERSION_NOT_APPROVED` | Version is not fully approved | `src/modules/governance/governance.service.ts` |
-| `VERSION_NOT_COMPILED` | Version must be VALIDATED before compilation | `src/modules/artifacts/artifact-lifecycle.service.ts` |
+| `VERSION_NOT_COMPILABLE` | No se puede compilar una versión en estado ${version.status}: sólo se compila lo que está VALIDATED. Si ya está desplegada, crea una versión nueva. | `src/modules/artifacts/artifact-lifecycle.service.ts` |
 | `VERSION_NOT_FOUND` | Artifact version not found | `src/modules/artifacts/artifact-graph-reader.service.ts` |
 | `VERSION_NOT_REVIEWABLE` | Version must be COMPILED before review | `src/modules/governance/governance.service.ts` |
 | `VERSION_NOT_VALIDATABLE` | Version in state ${version.status} cannot be validated | `src/modules/artifacts/artifact-lifecycle.service.ts` |

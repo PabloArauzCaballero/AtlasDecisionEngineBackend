@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-04T05:02:16.368Z",
+  "generatedAt": "2026-08-04T05:05:58.892Z",
   "apiVersion": "v1",
   "paths": 98,
   "operations": 110,
@@ -7,8 +7,8 @@
   "withSummary": 110,
   "withTag": 110,
   "withSecurity": 106,
-  "withSuccessSchema": 109,
+  "withSuccessSchema": 110,
   "schemas": 222,
   "publicOperations": 4,
-  "successSchemaDebt": 1
+  "successSchemaDebt": 0
 }

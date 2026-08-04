@@ -1646,7 +1646,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "Lote de entradas generadas, con la semilla que las reproduce.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionSampleInputsDto"
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/Error400"
@@ -8578,6 +8585,84 @@
           }
         }
       },
+      "SampleCaseDto": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "number",
+            "example": 0,
+            "description": "Posición dentro del lote, empezando en 0."
+          },
+          "kind": {
+            "type": "string",
+            "example": "BOUNDARY",
+            "enum": [
+              "VALID",
+              "BOUNDARY",
+              "INVALID"
+            ]
+          },
+          "mutation": {
+            "type": "string",
+            "example": "ingreso_mensual: por encima del máximo",
+            "description": "Qué se manipuló para llevar el caso al límite o hacerlo inválido."
+          },
+          "input": {
+            "type": "object",
+            "additionalProperties": true,
+            "example": {
+              "ingreso_mensual": 4200.5,
+              "edad": 33
+            },
+            "description": "Entradas generadas, listas para simular o para guardar como caso."
+          }
+        },
+        "required": [
+          "index",
+          "kind",
+          "input"
+        ]
+      },
+      "VersionSampleInputsDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "example": "VALID",
+            "enum": [
+              "VALID",
+              "BOUNDARY",
+              "INVALID"
+            ]
+          },
+          "seed": {
+            "type": "string",
+            "example": "k3f2m1a",
+            "description": "Reenviarla en otra petición devuelve exactamente los mismos valores."
+          },
+          "generatorVersion": {
+            "type": "string",
+            "example": "atlas-qa-generator-1.0.0"
+          },
+          "cases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SampleCaseDto"
+            }
+          },
+          "versionId": {
+            "type": "string",
+            "example": "4001"
+          }
+        },
+        "required": [
+          "kind",
+          "seed",
+          "generatorVersion",
+          "cases",
+          "versionId"
+        ]
+      },
       "CalculatedFieldTestResultDto": {
         "type": "object",
         "properties": {
@@ -13042,84 +13127,6 @@
             "maxLength": 64
           }
         }
-      },
-      "SampleCaseDto": {
-        "type": "object",
-        "properties": {
-          "index": {
-            "type": "number",
-            "example": 0,
-            "description": "Posición dentro del lote, empezando en 0."
-          },
-          "kind": {
-            "type": "string",
-            "example": "BOUNDARY",
-            "enum": [
-              "VALID",
-              "BOUNDARY",
-              "INVALID"
-            ]
-          },
-          "mutation": {
-            "type": "string",
-            "example": "ingreso_mensual: por encima del máximo",
-            "description": "Qué se manipuló para llevar el caso al límite o hacerlo inválido."
-          },
-          "input": {
-            "type": "object",
-            "additionalProperties": true,
-            "example": {
-              "ingreso_mensual": 4200.5,
-              "edad": 33
-            },
-            "description": "Entradas generadas, listas para simular o para guardar como caso."
-          }
-        },
-        "required": [
-          "index",
-          "kind",
-          "input"
-        ]
-      },
-      "VersionSampleInputsDto": {
-        "type": "object",
-        "properties": {
-          "kind": {
-            "type": "string",
-            "example": "VALID",
-            "enum": [
-              "VALID",
-              "BOUNDARY",
-              "INVALID"
-            ]
-          },
-          "seed": {
-            "type": "string",
-            "example": "k3f2m1a",
-            "description": "Reenviarla en otra petición devuelve exactamente los mismos valores."
-          },
-          "generatorVersion": {
-            "type": "string",
-            "example": "atlas-qa-generator-1.0.0"
-          },
-          "cases": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SampleCaseDto"
-            }
-          },
-          "versionId": {
-            "type": "string",
-            "example": "4001"
-          }
-        },
-        "required": [
-          "kind",
-          "seed",
-          "generatorVersion",
-          "cases",
-          "versionId"
-        ]
       },
       "ExecutionObservationDto": {
         "type": "object",

@@ -1,8 +1,6 @@
 {
   "description": "Operaciones cuyo cuerpo de respuesta no está descrito en el contrato. El límite llegó a 0 el 2026-07-31: describir la respuesta de un endpoint nuevo es un requisito, no una aspiración. Este fichero solo puede bajar.",
   "maxOperationsWithoutSuccessSchema": 0,
-  "current": 1,
-  "operations": [
-    "POST /v1/calculated-fields/versions/{versionId}/sample-inputs"
-  ]
+  "current": 0,
+  "operations": []
 }

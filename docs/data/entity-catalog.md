@@ -3,7 +3,7 @@
 
 # Catálogo de entidades
 
-68 modelos persistentes. El nombre técnico es el de la tabla; el nombre del
+69 modelos persistentes. El nombre técnico es el de la tabla; el nombre del
 modelo es el que usa el código. Las restricciones e índices son los declarados en el
 esquema, que es la fuente que las migraciones aplican.
 
@@ -46,8 +46,9 @@ esquema, que es la fuente que las migraciones aplican.
 | [`DecisionNodeCondition`](#decisionnodecondition) | `decision_node_condition` | 7 | 1 | 2 |
 | [`DecisionNodeScript`](#decisionnodescript) | `decision_node_script` | 13 | 2 | 1 |
 | [`DecisionOutboxEvent`](#decisionoutboxevent) | `decision_outbox_event` | 18 | 3 | 0 |
-| [`DecisionOutputContractField`](#decisionoutputcontractfield) | `decision_output_contract_field` | 17 | 2 | 1 |
-| [`DecisionReasonCode`](#decisionreasoncode) | `decision_reason_code` | 11 | 2 | 0 |
+| [`DecisionOutputContractField`](#decisionoutputcontractfield) | `decision_output_contract_field` | 18 | 2 | 1 |
+| [`DecisionOutputFieldReasonMap`](#decisionoutputfieldreasonmap) | `decision_output_field_reason_map` | 6 | 1 | 2 |
+| [`DecisionReasonCode`](#decisionreasoncode) | `decision_reason_code` | 12 | 2 | 0 |
 | [`DecisionRuleAction`](#decisionruleaction) | `decision_rule_action` | 11 | 1 | 1 |
 | [`DecisionRuleCondition`](#decisionrulecondition) | `decision_rule_condition` | 11 | 1 | 1 |
 | [`DecisionRuleEdge`](#decisionruleedge) | `decision_rule_edge` | 12 | 2 | 3 |
@@ -986,11 +987,29 @@ Tabla `decision_output_contract_field`.
 | `createdAt` | `DateTime` | @default(now()) @map("created_at") @db.Timestamptz(6) |
 | `updatedAt` | `DateTime` | @updatedAt @map("updated_at") @db.Timestamptz(6) |
 | `artifactVersion` | `DecisionArtifactVersion` | @relation(fields: [artifactVersionId], references: [id], onDelete: Cascade) |
+| `reasonCodes` | `DecisionOutputFieldReasonMap[]` | — |
 
 Índices y restricciones:
 
 - `unique([artifactVersionId, fieldCode])`
 - `index([tenantId, artifactVersionId])`
+
+## DecisionOutputFieldReasonMap
+
+Tabla `decision_output_field_reason_map`.
+
+| Campo | Tipo | Atributos |
+| --- | --- | --- |
+| `id` | `BigInt` | @id @default(autoincrement()) |
+| `outputFieldId` | `BigInt` | @map("output_field_id") |
+| `reasonCodeId` | `BigInt` | @map("reason_code_id") |
+| `priority` | `Int` | @default(100) |
+| `outputField` | `DecisionOutputContractField` | @relation(fields: [outputFieldId], references: [id], onDelete: Cascade) |
+| `reasonCode` | `DecisionReasonCode` | @relation(fields: [reasonCodeId], references: [id], onDelete: Restrict) |
+
+Índices y restricciones:
+
+- `unique([outputFieldId, reasonCodeId])`
 
 ## DecisionReasonCode
 
@@ -1009,6 +1028,7 @@ Tabla `decision_reason_code`.
 | `isActive` | `Boolean` | @default(true) @map("is_active") |
 | `actionMappings` | `DecisionActionReasonMapping[]` | — |
 | `executionReasons` | `DecisionExecutionReason[]` | — |
+| `outputFieldMappings` | `DecisionOutputFieldReasonMap[]` | — |
 
 Índices y restricciones:
 

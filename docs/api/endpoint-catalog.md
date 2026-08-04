@@ -3,7 +3,7 @@
 
 # Catálogo de endpoints
 
-Contrato **v1** · 97 rutas · 109 operaciones.
+Contrato **v1** · 98 rutas · 110 operaciones.
 
 La referencia interactiva completa —con esquemas, ejemplos y la posibilidad de probar cada
 llamada— está en `/docs/{API_VERSION}/reference` del propio backend. Esta página existe para
@@ -44,6 +44,7 @@ Funciones pequeñas, gobernadas y reutilizables, con contrato de retorno obligat
 | `POST` | `/v1/calculated-fields/{fieldId}/versions` | `calculatedFieldCreateVersion` | Crear una versión con su contrato de retorno e implementación |
 | `GET` | `/v1/calculated-fields/operations` | `calculatedFieldOperations` | Catálogo de operaciones del constructor visual |
 | `POST` | `/v1/calculated-fields/versions/{versionId}/promote` | `calculatedFieldPromote` | Promover una versión en su ciclo de gobierno |
+| `POST` | `/v1/calculated-fields/versions/{versionId}/sample-inputs` | `calculatedFieldSampleInputs` | Generar entradas de ejemplo del contrato de la versión, sin ejecutarlas |
 | `POST` | `/v1/calculated-fields/versions/{versionId}/test` | `calculatedFieldTest` | Ejecutar los casos de prueba declarados de la versión |
 | `POST` | `/v1/calculated-fields/versions/{versionId}/try` | `calculatedFieldTryRun` | Ejecutar la versión con entradas de ejemplo, sin persistir nada |
 
