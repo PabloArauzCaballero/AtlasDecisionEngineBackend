@@ -1763,13 +1763,13 @@ model SemanticAnalysisRun {
 
   /// Identificador público. Es lo que viaja al frontend y a los logs; el `id`
   /// numérico no sale del motor.
-  requestId String @map("request_id") @db.VarChar(64)
+  requestId      String @map("request_id") @db.VarChar(64)
   /// Clave de deduplicación acotada al tenant, tal como la define el contrato
   /// original del worker.
   idempotencyKey String @map("idempotency_key") @db.VarChar(200)
 
-  status   WorkerRunStatus   @default(QUEUED)
-  progress Int               @default(0)
+  status   WorkerRunStatus @default(QUEUED)
+  progress Int             @default(0)
 
   inputSource   WorkerInputSource @map("input_source")
   /// Texto analizado. Se minimiza al vencer el plazo de retención: se conserva
@@ -1814,8 +1814,8 @@ model BankStatementRun {
 
   requestId String @map("request_id") @db.VarChar(64)
 
-  status   WorkerRunStatus   @default(QUEUED)
-  progress Int               @default(0)
+  status   WorkerRunStatus @default(QUEUED)
+  progress Int             @default(0)
 
   inputSource WorkerInputSource @map("input_source")
   fixtureCode String?           @map("fixture_code") @db.VarChar(60)
@@ -1857,4 +1857,99 @@ model BankStatementRun {
   @@index([status, queuedAt])
   @@index([tenantId, queuedAt])
   @@map("decision_bank_statement_run")
+}
+
+// ---------------------------------------------------------------------------
+// Catálogo del worker semántico (ADR-0026).
+//
+// El worker original guardaba esto en su propio esquema `semantic_analysis`
+// con Sequelize y tres migraciones propias. Aquí vive en el mismo esquema y el
+// mismo ORM que el resto del motor: dos ORM contra la misma base es la clase de
+// duplicación que el encargo prohíbe, y además parte las transacciones en dos.
+//
+// El catálogo son DATOS, no código: añadir una categoría o un alias no exige
+// desplegar. Esa era una propiedad del worker original y se conserva.
+// ---------------------------------------------------------------------------
+
+/// Categoría contra la que se clasifica un texto.
+model SemanticCategory {
+  id       BigInt @id @default(autoincrement())
+  tenantId BigInt @map("tenant_id")
+
+  code        String @db.VarChar(120)
+  name        String @db.VarChar(200)
+  description String @db.Text
+
+  /// Ejemplos que SÍ son la categoría, y ejemplos que se le parecen pero NO lo
+  /// son. Los contraejemplos son los que evitan el falso positivo, así que
+  /// pesan tanto como los positivos.
+  positiveExamples     Json @map("positive_examples")
+  counterExamples      Json @map("counter_examples")
+  restrictions         Json
+  relatedCategoryCodes Json @map("related_category_codes")
+
+  /// Confianza mínima para aceptar esta categoría. Es por categoría y no global
+  /// porque no todas cuestan lo mismo al equivocarse.
+  acceptanceThreshold Decimal @map("acceptance_threshold") @db.Decimal(4, 3)
+  /// Sube al cambiar el significado de la categoría. La auditoría guarda con qué
+  /// versión se decidió, para que una reclasificación posterior sea explicable.
+  version             Int     @default(1)
+  isActive            Boolean @default(true) @map("is_active")
+
+  embeddings SemanticCategoryEmbedding[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, isActive])
+  @@map("decision_semantic_category")
+}
+
+/// Alias de una entidad conocida, para resolver menciones a su nombre canónico.
+model SemanticEntityAlias {
+  id       BigInt @id @default(autoincrement())
+  tenantId BigInt @map("tenant_id")
+
+  alias         String  @db.VarChar(200)
+  canonicalName String  @map("canonical_name") @db.VarChar(200)
+  entityType    String  @map("entity_type") @db.VarChar(60)
+  isActive      Boolean @default(true) @map("is_active")
+
+  @@unique([tenantId, entityType, alias])
+  @@index([tenantId, isActive])
+  @@map("decision_semantic_entity_alias")
+}
+
+/// Vector de una categoría, para la recuperación híbrida de candidatos.
+model SemanticCategoryEmbedding {
+  id         BigInt @id @default(autoincrement())
+  categoryId BigInt @map("category_id")
+
+  /// El modelo forma parte de la clave: vectores de modelos distintos no son
+  /// comparables entre sí, y mezclarlos produce una similitud sin significado.
+  model   String @db.VarChar(120)
+  version Int    @default(1)
+  /// Se guarda como JSON y no como `vector` de pgvector para no exigir una
+  /// extensión de PostgreSQL que este despliegue puede no tener. La similitud
+  /// se calcula en el worker; con catálogos de este tamaño es suficiente.
+  vector  Json
+
+  category SemanticCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, model])
+  @@map("decision_semantic_category_embedding")
+}
+
+/// Consumo por tenant dentro de una ventana temporal.
+model SemanticTenantBudget {
+  id       BigInt @id @default(autoincrement())
+  tenantId BigInt @map("tenant_id")
+
+  /// Inicio de la ventana, truncado. Vive en la base y no en memoria porque el
+  /// límite debe respetarse entre TODAS las réplicas del worker, no dentro de
+  /// un proceso.
+  windowStart   DateTime @map("window_start") @db.Timestamptz(6)
+  analyses      Int      @default(0)
+  providerCalls Int      @default(0) @map("provider_calls")
+
+  @@unique([tenantId, windowStart])
+  @@map("decision_semantic_tenant_budget")
 }
