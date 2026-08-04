@@ -150,6 +150,111 @@ const TERMINAL_TEST_CASES = [
     expected: { decision_outcome: 'MANUAL_REVIEW', reasonCodes: ['SCORE_BAND_BORDERLINE'] },
     tags: ['manual-review', 'kyc', 'aml'],
   },
+
+  /*
+   * Cobertura de las ramas restantes. Con los ocho casos de arriba la suite
+   * tocaba 19 de 32 nodos y 23 de 49 aristas: cada etapa tenía varias salidas
+   * de rechazo y sólo se ejercitaba UNA. Una rama que ninguna prueba recorre es
+   * una rama que puede estar rota sin que nadie se entere hasta producción, y
+   * en una política de crédito esa rama es el motivo que se le comunica a una
+   * persona a la que se le niega un préstamo.
+   *
+   * Cada caso cambia UNA sola variable respecto del solicitante base, así que
+   * el motivo esperado identifica la rama sin ambigüedad. El orden importa: las
+   * aristas se evalúan por prioridad, de modo que para llegar a la segunda
+   * salida de una etapa hay que NO disparar la primera.
+   */
+  {
+    caseCode: 'DECLINE_KYC_LIVENESS',
+    testName: 'Rechaza cuando falla la prueba de vida',
+    input: applicant({ liveness_check_passed: false }),
+    expected: { decision_outcome: 'DECLINED', reasonCodes: ['LIVENESS_CHECK_FAILED'] },
+    tags: ['negative', 'kyc'],
+  },
+  {
+    caseCode: 'DECLINE_KYC_DOCUMENT',
+    testName: 'Rechaza documento de identidad no verificado',
+    input: applicant({ national_id_verified: false }),
+    expected: { decision_outcome: 'DECLINED', reasonCodes: ['DOCUMENT_ILLEGIBLE'] },
+    tags: ['negative', 'kyc'],
+  },
+  {
+    caseCode: 'DECLINE_FRAUD_EMAIL',
+    testName: 'Rechaza correo asociado a fraude conocido',
+    input: applicant({ known_fraud_email_flag: true }),
+    expected: { decision_outcome: 'DECLINED', reasonCodes: ['KNOWN_FRAUD_EMAIL'] },
+    tags: ['negative', 'fraud'],
+  },
+  {
+    caseCode: 'DECLINE_FRAUD_PHONE',
+    testName: 'Rechaza teléfono asociado a fraude conocido',
+    input: applicant({ known_fraud_phone_flag: true }),
+    expected: { decision_outcome: 'DECLINED', reasonCodes: ['KNOWN_FRAUD_PHONE'] },
+    tags: ['negative', 'fraud'],
+  },
+  {
+    caseCode: 'DECLINE_FRAUD_PRIOR_CASE',
+    testName: 'Rechaza cliente con caso de fraude previo',
+    input: applicant({ previous_fraud_case_flag: true }),
+    expected: { decision_outcome: 'DECLINED', reasonCodes: ['PREVIOUS_FRAUD_CASE'] },
+    tags: ['negative', 'fraud'],
+  },
+  {
+    caseCode: 'DECLINE_FRAUD_DEVICE_BLOCKLISTED',
+    testName: 'Rechaza dispositivo en lista de bloqueo',
+    input: applicant({ device_reputation: 'BLOCKLISTED' }),
+    expected: { decision_outcome: 'DECLINED', reasonCodes: ['DEVICE_BLOCKLISTED'] },
+    tags: ['negative', 'fraud'],
+  },
+  {
+    caseCode: 'DECLINE_ELIGIBILITY_EMPLOYMENT',
+    testName: 'Rechaza situación laboral no elegible',
+    input: applicant({ employment_status: 'UNEMPLOYED' }),
+    expected: { decision_outcome: 'DECLINED', reasonCodes: ['EMPLOYMENT_STATUS_NOT_ELIGIBLE'] },
+    tags: ['negative', 'eligibility'],
+  },
+  {
+    caseCode: 'DECLINE_ELIGIBILITY_AMOUNT',
+    testName: 'Rechaza monto fuera del rango del producto',
+    input: applicant({ requested_amount: 50000 }),
+    expected: { decision_outcome: 'DECLINED', reasonCodes: ['PRODUCT_AMOUNT_OUT_OF_RANGE'] },
+    tags: ['negative', 'eligibility'],
+  },
+  {
+    caseCode: 'DECLINE_ELIGIBILITY_TERM',
+    testName: 'Rechaza plazo fuera del rango del producto',
+    input: applicant({ requested_term_months: 36 }),
+    expected: { decision_outcome: 'DECLINED', reasonCodes: ['TERM_OUT_OF_RANGE'] },
+    tags: ['negative', 'eligibility'],
+  },
+  {
+    caseCode: 'DECLINE_CREDIT_RISK_BANKRUPTCY',
+    testName: 'Rechaza quiebra reciente',
+    input: applicant({ bankruptcy_flag: true }),
+    expected: { decision_outcome: 'DECLINED', reasonCodes: ['RECENT_BANKRUPTCY'] },
+    tags: ['negative', 'credit-risk'],
+  },
+  {
+    caseCode: 'DECLINE_CREDIT_RISK_CHARGE_OFF',
+    testName: 'Rechaza castigo de cartera reciente',
+    input: applicant({ charge_off_count: 2 }),
+    expected: { decision_outcome: 'DECLINED', reasonCodes: ['RECENT_CHARGE_OFF'] },
+    tags: ['negative', 'credit-risk'],
+  },
+  {
+    caseCode: 'DECLINE_AFFORDABILITY_NSF',
+    testName: 'Rechaza historial excesivo de fondos insuficientes',
+    input: applicant({ bank_statement_nsf_count: 8 }),
+    expected: { decision_outcome: 'DECLINED', reasonCodes: ['NSF_HISTORY_EXCESSIVE'] },
+    tags: ['negative', 'affordability'],
+  },
+  {
+    caseCode: 'DECLINE_AFFORDABILITY_DISPOSABLE',
+    testName: 'Rechaza ingreso disponible insuficiente',
+    input: applicant({ disposable_income: 0 }),
+    expected: { decision_outcome: 'DECLINED', reasonCodes: ['INSUFFICIENT_DISPOSABLE_INCOME'] },
+    tags: ['negative', 'affordability'],
+  },
 ];
 
 const APPROVAL_ROLES = ['QA_APPROVER', 'RISK_APPROVER', 'COMPLIANCE_APPROVER'];

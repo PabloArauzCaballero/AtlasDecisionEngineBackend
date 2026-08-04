@@ -9,9 +9,9 @@ import { pageResult, paginationArgs } from '../../common/http/pagination';
 import { parseBigIntId } from '../../common/http/id';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
+import { normalizeDataTypeOrString } from '../../common/contracts/data-types';
 import { ArtifactGraphWriterService } from '../artifacts/artifact-graph-writer.service';
 import { ArtifactLifecycleService } from '../artifacts/artifact-lifecycle.service';
-import { VariableService } from '../variables/variable.service';
 import { BranchExtractorService } from './branch-extractor.service';
 import { AnalyzeCodeImportDto, CodeImportListQueryDto, SaveCodeImportDto } from './code-import.dto';
 import { ContractExtractorService } from './contract-extractor.service';
@@ -19,7 +19,12 @@ import { ContractValidatorService } from './contract-validator.service';
 import { GraphGeneratorService } from './graph-generator.service';
 import { SecurityAnalyzerService } from './security-analyzer.service';
 import { SyntaxAnalyzerService } from './syntax-analyzer.service';
-import type { AnalyzeCodeImportResult, CodeImportIR, LineIssue } from './code-import.types';
+import type {
+  AnalyzeCodeImportResult,
+  CodeImportIR,
+  GeneratedGraphPreview,
+  LineIssue,
+} from './code-import.types';
 
 /**
  * Orchestrates the Code -> Flow pipeline (Fase 5):
@@ -41,7 +46,6 @@ export class CodeImportService {
     private readonly contractValidator: ContractValidatorService,
     private readonly security: SecurityAnalyzerService,
     private readonly graphGenerator: GraphGeneratorService,
-    private readonly variables: VariableService,
     private readonly graphWriter: ArtifactGraphWriterService,
     private readonly lifecycle: ArtifactLifecycleService,
   ) {}
@@ -96,6 +100,12 @@ export class CodeImportService {
     const generatedGraph = hasBlockingIssues
       ? { dependencies: [], nodes: [], edges: [] }
       : this.graphGenerator.generate(ir, await this.reasonCodeCatalog(tenantId));
+    // El catálogo se comprueba DESPUÉS de generar el grafo, y sus errores no
+    // entran en `hasBlockingIssues`: una variable sin declarar tiene que poder
+    // verse en la vista previa, porque para declararla bien hay que saber qué
+    // pide el algoritmo. Lo que sí impide es escribirla en un artefacto:
+    // `writeToArtifact` rechaza cualquier import con errores guardados.
+    issues.push(...(await this.catalogIssues(tenantId, generatedGraph.dependencies)));
 
     const record = await this.prisma.$transaction(async (tx) => {
       const created = await tx.decisionCodeImport.create({
@@ -248,16 +258,10 @@ export class CodeImportService {
       (generatedGraph.actions ?? []).map((action) => action.reasonCode),
     );
 
-    const variableVersionIds = new Map<string, bigint>();
-    for (const dependency of generatedGraph.dependencies) {
-      const variableVersionId = await this.resolveVariableVersion(
-        tenantId,
-        dependency.variableCode,
-        dependency.dataType,
-        principal,
-      );
-      variableVersionIds.set(dependency.variableCode, variableVersionId);
-    }
+    const variableVersionIds = await this.resolveVariableVersions(
+      tenantId,
+      generatedGraph.dependencies,
+    );
 
     // El lienzo del editor coloca los nodos en porcentajes (0–100), no en píxeles:
     // se dibuja el árbol en escalera (una columna por condición, el resultado de
@@ -379,40 +383,97 @@ export class CodeImportService {
     return byCode;
   }
 
-  /** Finds an existing variable definition by code within the tenant, or provisions
-   *  a minimal one — the contract is the source of truth for id/type/required, so a
-   *  fresh variable just needs a definition + one version to exist for the graph
-   *  writer's dependency check to pass. */
-  private async resolveVariableVersion(
+  /**
+   * Contraste del contrato contra el catálogo de variables del tenant.
+   *
+   * Un artefacto sólo puede usar variables ya declaradas; una importación de
+   * código tenía la puerta abierta: la variable que el contrato mencionaba y no
+   * existía se creaba sola al guardar, con nombre igual al código, sin dueño real
+   * y sin restricciones. El catálogo se llenaba de variables que nadie gobierna
+   * justo por la vía que menos revisión tiene.
+   */
+  private async catalogIssues(
     tenantId: bigint,
-    variableCode: string,
-    dataType: string,
-    principal: AuthenticatedPrincipal,
-  ): Promise<bigint> {
-    const existing = await this.prisma.decisionVariableDefinition.findFirst({
-      where: { tenantId, variableCode },
+    dependencies: GeneratedGraphPreview['dependencies'],
+  ): Promise<LineIssue[]> {
+    if (!dependencies.length) return [];
+    const known = await this.variableVersions(
+      tenantId,
+      dependencies.map((dependency) => dependency.variableCode),
+    );
+    const issues: LineIssue[] = [];
+    for (const dependency of dependencies) {
+      const role = dependency.usageType === 'INPUT' ? 'Input' : 'Output';
+      const existing = known.get(dependency.variableCode);
+      if (!existing) {
+        issues.push({
+          source: 'CONTRACT',
+          severity: 'ERROR',
+          line: 1,
+          code: 'CODE_IMPORT_VARIABLE_NOT_IN_CATALOG',
+          message: `${role} "${dependency.variableCode}" is not declared in the variable catalog; declare it there before importing this code`,
+        });
+        continue;
+      }
+      const declared = normalizeDataTypeOrString(dependency.dataType);
+      const catalog = normalizeDataTypeOrString(existing.dataType);
+      if (declared !== catalog) {
+        issues.push({
+          source: 'CONTRACT',
+          severity: 'ERROR',
+          line: 1,
+          code: 'CODE_IMPORT_VARIABLE_TYPE_MISMATCH',
+          message: `${role} "${dependency.variableCode}" is declared as ${declared} but the catalog registers it as ${catalog}`,
+        });
+      }
+    }
+    return issues;
+  }
+
+  /** Última versión de cada variable pedida, por código. */
+  private async variableVersions(
+    tenantId: bigint,
+    codes: string[],
+  ): Promise<Map<string, { id: bigint; dataType: string }>> {
+    const definitions = await this.prisma.decisionVariableDefinition.findMany({
+      where: { tenantId, variableCode: { in: codes } },
       include: { versions: { orderBy: { versionNumber: 'desc' }, take: 1 } },
     });
-    if (existing?.versions[0]) return existing.versions[0].id;
+    const byCode = new Map<string, { id: bigint; dataType: string }>();
+    for (const definition of definitions) {
+      const latest = definition.versions[0];
+      if (latest) byCode.set(definition.variableCode, { id: latest.id, dataType: latest.dataType });
+    }
+    return byCode;
+  }
 
-    const created = await this.variables.createDefinition(
+  /**
+   * Versiones de variable que usará el grafo. Nunca se crean: si el catálogo no
+   * las tiene, se rechaza la escritura con la lista completa de las que faltan.
+   *
+   * El análisis ya lo avisa como error (ver {@link catalogIssues}) y por eso este
+   * camino no debería alcanzarse; queda como red por si alguien retira una
+   * variable entre analizar y guardar.
+   */
+  private async resolveVariableVersions(
+    tenantId: bigint,
+    dependencies: GeneratedGraphPreview['dependencies'],
+  ): Promise<Map<string, bigint>> {
+    const known = await this.variableVersions(
       tenantId,
-      {
-        variableCode,
-        canonicalName: variableCode,
-        businessDescription: `Auto-provisioned from a Code -> Flow import for ${variableCode}.`,
-        dataClassification: 'INTERNAL',
-        ownerTeam: 'CODE_IMPORT',
-        isSensitive: false,
-        initialVersion: {
-          dataType,
-          nullable: false,
-          sources: [],
-          validationRules: [],
-        },
-      },
-      principal,
+      dependencies.map((dependency) => dependency.variableCode),
     );
-    return created.versions[0].id;
+    const missing = dependencies
+      .map((dependency) => dependency.variableCode)
+      .filter((code) => !known.has(code));
+    if (missing.length) {
+      throw new DomainException(
+        'CODE_IMPORT_VARIABLE_NOT_IN_CATALOG',
+        `These variables are not declared in the catalog: ${missing.join(', ')}`,
+        HttpStatus.CONFLICT,
+        { missing },
+      );
+    }
+    return new Map([...known].map(([code, version]) => [code, version.id]));
   }
 }

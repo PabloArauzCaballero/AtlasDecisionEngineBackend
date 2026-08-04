@@ -54,6 +54,18 @@ export class ContractValidatorService {
       );
     }
 
+    if (
+      contract.reasonOutputId &&
+      !contract.outputs.some((output) => output.id === contract.reasonOutputId)
+    ) {
+      issues.push(
+        this.issue(
+          'CONTRACT_REASON_OUTPUT_UNKNOWN',
+          `reasonOutputId "${contract.reasonOutputId}" does not match any declared output id`,
+        ),
+      );
+    }
+
     for (const input of contract.inputs) {
       if (!this.isReferenced(language, scriptBody, input.id, 'read')) {
         issues.push(

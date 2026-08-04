@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { atlasBackendCatalog } from './data/atlas-backend-catalog.data';
 import { seedCalculatedFields } from './data/calculated-field-catalog.data';
+import { seedCollectionsDemoArtifact } from './data/collections-demo.seed';
 import { seedContractDemoArtifact } from './data/contract-demo.seed';
 import { seedGovernanceScenarios } from './data/governance-scenarios.seed';
 import { seedApprovedLibraries } from './data/library-catalog.data';
@@ -201,6 +202,9 @@ export async function runMockupSeeds(prisma: PrismaClient, context: BootstrapCon
   // `contract-demo-seed.spec.ts`. Se siembra aparte del demo BNPL para que cada uno
   // pueda evolucionar sin arrastrar al otro.
   await seedContractDemoArtifact(prisma, context.environments);
+  // Segundo algoritmo: el único que ejercita nodos de CONDICIÓN y SWITCH, que el
+  // demo BNPL no usa en ninguna parte (allí las bifurcaciones viven en aristas).
+  await seedCollectionsDemoArtifact(prisma);
   // Escenarios negativos de gobierno (§11): ciclo, versión no disponible, contrato
   // incompatible y una corrida de QA con su contraejemplo.
   await seedGovernanceScenarios(prisma);

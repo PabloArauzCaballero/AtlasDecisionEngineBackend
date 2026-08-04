@@ -83,6 +83,11 @@ export class ContractExtractorService {
         inputs: Array.isArray(parsed.inputs) ? parsed.inputs : [],
         outputs: Array.isArray(parsed.outputs) ? parsed.outputs : [],
         primaryOutputId: parsed.primaryOutputId,
+        // Sin copiarlo, declarar `reasonOutputId` no servía de nada: el generador
+        // lo lee (graph-generator.service.ts) para saber QUÉ salida lleva el
+        // motivo, y al llegarle vacío caía a buscar coincidencias en cualquier
+        // salida de texto — más laxo justo cuando el autor fue explícito.
+        reasonOutputId: parsed.reasonOutputId,
       };
       return { contract, scriptBody, issues: [] };
     } catch (error) {

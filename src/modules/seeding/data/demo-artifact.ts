@@ -28,7 +28,17 @@ const ARTIFACT_CODE = 'BNPL_CREDIT_DECISION';
  * vive en la regla; el contrato sólo acota el dato. El compilado lleva el contrato
  * embebido, así que el cambio no llega sin volver a sembrar.
  */
-const DEMO_SEMANTIC_VERSION = '2.2.0';
+/*
+ * 2.3.0: la suite de regresión pasa de 8 casos a 21, uno por cada rama de
+ * rechazo. Con 8 casos la corrida tocaba 19 de 32 nodos y 23 de 49 aristas:
+ * cada etapa (identidad, fraude, elegibilidad, riesgo, capacidad, AML) tiene
+ * varias salidas de rechazo y sólo se ejercitaba UNA. Una rama que ninguna
+ * prueba recorre puede estar rota hasta que la descubre un cliente, y aquí esa
+ * rama es el motivo que se le comunica a quien recibe una negativa de crédito.
+ * El seeder se salta la siembra cuando la versión ya existe, así que ampliar
+ * los casos obliga a subirla.
+ */
+const DEMO_SEMANTIC_VERSION = '2.3.0';
 
 export interface DemoArtifactSummary {
   artifactCode: string;
