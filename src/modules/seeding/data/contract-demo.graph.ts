@@ -20,7 +20,14 @@ export const CONTRACT_DEMO_CODE = 'AFFORDABILITY_CONTRACT_DEMO';
  * 1.1.0 — el nodo CALCULAR_DTI pasa a INVOCAR el campo calculado `debt_to_income` en vez
  * de repetir la fórmula, que es lo que demuestra la reutilización de §5.1.
  */
-export const CONTRACT_DEMO_VERSION = '1.1.0';
+/*
+ * 1.2.0 — el seeder pasa a escribir también las filas relacionales del grafo.
+ * Hasta 1.1.0 sólo escribía el compilado: el demo se ejecutaba perfectamente y
+ * el portal lo mostraba VACÍO, sin un solo nodo que abrir en el editor, porque
+ * la vista de grafo lee `decision_rule_node`/`_edge`/`_condition` y no el
+ * compilado. Resembrar es la única forma de que las filas aparezcan.
+ */
+export const CONTRACT_DEMO_VERSION = '1.2.0';
 
 /** Umbral de DTI a partir del cual la solicitud va a revisión manual. */
 const DTI_LIMIT = 0.45;

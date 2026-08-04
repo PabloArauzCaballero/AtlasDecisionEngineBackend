@@ -17,6 +17,7 @@ import {
   COLLECTIONS_DEMO_CODE,
   COLLECTIONS_DEMO_VERSION,
 } from './collections-demo.graph';
+import { deleteDemoArtifact, writeGraphRows } from './graph-rows';
 import { ensureVariable, sha256, TENANT_ID } from './helpers';
 import type { VariableSeed } from './types';
 
@@ -75,7 +76,7 @@ export async function seedCollectionsDemoArtifact(prisma: PrismaClient) {
   }
   if (existing) {
     logger.warn(`${COLLECTIONS_DEMO_CODE} viene de un seeder anterior; se rehace.`);
-    await prisma.decisionArtifact.delete({ where: { id: existing.id } });
+    await deleteDemoArtifact(prisma, existing.id);
   }
 
   const seededVariables = Object.fromEntries(
@@ -135,69 +136,7 @@ export async function seedCollectionsDemoArtifact(prisma: PrismaClient) {
     ),
   );
 
-  /*
-   * Filas relacionales del grafo. El compilado sirve al MOTOR, pero el editor y
-   * la vista de grafo leen `decision_rule_node`/`_edge`/`_condition`: sin estas
-   * filas el algoritmo se ejecuta perfectamente y aun así el portal lo muestra
-   * vacío. Es exactamente lo que le pasa al demo de contratos, que se sembró sin
-   * ellas y aparece sin un solo nodo en pantalla.
-   */
-  const conditionByCode: Record<string, { id: bigint }> = {};
-  for (const [code, condition] of Object.entries(compiled.conditions ?? {})) {
-    conditionByCode[code] = await prisma.decisionRuleCondition.create({
-      data: {
-        artifactVersionId: version.id,
-        conditionCode: code,
-        name: condition.name,
-        expressionType: 'JSON_AST',
-        expressionJson: condition.expression as unknown as Prisma.InputJsonValue,
-        severity: 'BLOCKING',
-        isReusable: true,
-      },
-    });
-  }
-
-  const nodeByKey: Record<string, { id: bigint }> = {};
-  for (const node of Object.values(compiled.nodes)) {
-    nodeByKey[node.key] = await prisma.decisionRuleNode.create({
-      data: {
-        artifactVersionId: version.id,
-        nodeKey: node.key,
-        nodeType: node.type,
-        label: node.label,
-        configJson: node.config as unknown as Prisma.InputJsonValue,
-        xPos: node.x,
-        yPos: node.y,
-        orderIndex: node.order,
-        isTerminal: node.terminal,
-      },
-    });
-  }
-
-  for (const list of Object.values(compiled.edgesByNode ?? {})) {
-    for (const edge of list) {
-      const row = await prisma.decisionRuleEdge.create({
-        data: {
-          artifactVersionId: version.id,
-          fromNodeId: nodeByKey[edge.from].id,
-          toNodeId: nodeByKey[edge.to].id,
-          edgeKey: edge.key,
-          edgeType: edge.default ? 'DEFAULT' : 'CONDITIONAL',
-          priority: edge.priority,
-          isDefault: edge.default,
-        },
-      });
-      for (const condition of edge.conditions ?? []) {
-        await prisma.decisionEdgeCondition.create({
-          data: {
-            edgeId: row.id,
-            conditionId: conditionByCode[condition.code].id,
-            evaluationOrder: condition.order,
-          },
-        });
-      }
-    }
-  }
+  await writeGraphRows(prisma, version.id, compiled);
 
   await prisma.decisionOutputContractField.createMany({
     data: (compiled.outputContract ?? []).map((field) => ({

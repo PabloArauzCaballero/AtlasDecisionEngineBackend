@@ -15,6 +15,7 @@ import {
   CONTRACT_DEMO_INVALID_CASES,
   CONTRACT_DEMO_VERSION,
 } from './contract-demo.graph';
+import { deleteDemoArtifact, writeGraphRows } from './graph-rows';
 import { ensureVariable, sha256, TENANT_ID } from './helpers';
 import type { VariableSeed } from './types';
 
@@ -91,7 +92,7 @@ export async function seedContractDemoArtifact(
     // que una base ya sembrada no se quede con la versión antigua para siempre (el mismo
     // desfase que ya costó una ejecución rota en el demo BNPL).
     logger.warn(`${CONTRACT_DEMO_CODE} viene de un seeder anterior; se rehace.`);
-    await prisma.decisionArtifact.delete({ where: { id: existing.id } });
+    await deleteDemoArtifact(prisma, existing.id);
   }
 
   const seededVariables = Object.fromEntries(
@@ -176,6 +177,14 @@ export async function seedContractDemoArtifact(
       });
     }
   }
+
+  /*
+   * Filas relacionales del grafo. Faltaban: el demo se sembraba sólo como
+   * compilado, así que se ejecutaba bien y el portal lo mostraba VACÍO, sin un
+   * solo nodo que abrir en el editor. No fallaba ni avisaba; simplemente no se
+   * veía. El escritor es compartido para que no vuelva a olvidarse.
+   */
+  await writeGraphRows(prisma, version.id, compiled);
 
   await prisma.decisionIntermediateVariable.createMany({
     data: compiled.intermediates.map((intermediate) => ({
