@@ -9,6 +9,7 @@ import { seedDemoArtifact } from './data/demo-artifact';
 import { ensureEnvironment, ensureReason, ensureVariable, TENANT_ID } from './data/helpers';
 import { seedIntegrationClients } from './data/integration-clients';
 import { reasonCodeCatalog } from './data/reason-code-catalog.data';
+import { seedSemanticCatalog } from './data/semantic-catalog.data';
 import { scoringCatalog } from './data/scoring-catalog.data';
 import type { VariableSeed } from './data/types';
 import { variableCatalog } from './data/variable-catalog.data';
@@ -142,6 +143,8 @@ export interface BootstrapContext {
     integrationClients: number;
     approvedLibraries: number;
     calculatedFields: number;
+    semanticCategories: number;
+    semanticEntityAliases: number;
   };
 }
 
@@ -175,6 +178,10 @@ export async function runBootstrapSeeds(prisma: PrismaClient): Promise<Bootstrap
   // no puede sembrarse si la librería todavía no existe (falla cerrado a propósito).
   const approvedLibraries = await seedApprovedLibraries(prisma);
   const calculatedFields = await seedCalculatedFields(prisma);
+  // Catálogo del worker semántico (ADR-0026). Va en el bootstrap y no en el
+  // demo porque sin categorías ese worker responde `UNKNOWN` a todo: no es un
+  // dato de demostración, es lo mínimo para que la capacidad exista.
+  const semanticCatalog = await seedSemanticCatalog(prisma);
 
   return {
     environments: { sandbox, test, prod },
@@ -186,6 +193,8 @@ export async function runBootstrapSeeds(prisma: PrismaClient): Promise<Bootstrap
       integrationClients: integrationClients.length,
       approvedLibraries: approvedLibraries.length,
       calculatedFields: calculatedFields.length,
+      semanticCategories: semanticCatalog.categories,
+      semanticEntityAliases: semanticCatalog.aliases,
     },
   };
 }
