@@ -175,6 +175,80 @@ export const envSchema = z
     TEST_RUN_WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(2),
     TEST_RUN_LEASE_SECONDS: z.coerce.number().int().min(30).max(3_600).default(300),
     TEST_CASE_CONCURRENCY: z.coerce.number().int().min(1).max(32).default(4),
+
+    // --- Workers adicionales (ADR-0026) -------------------------------------
+    // Los dos vienen APAGADOS por defecto, al revés que los trabajos nativos: un
+    // despliegue que se actualice no debe empezar a consumir cuota de un
+    // proveedor de modelos ni a cargar `pdfjs-dist` sin que nadie lo haya pedido.
+    SEMANTIC_ANALYSIS_WORKER_ENABLED: booleanFromString.default(false),
+    SEMANTIC_ANALYSIS_WORKER_POLL_MS: z.coerce.number().int().min(50).max(10_000).default(500),
+    SEMANTIC_ANALYSIS_WORKER_MAX_POLL_MS: z.coerce
+      .number()
+      .int()
+      .min(500)
+      .max(600_000)
+      .default(30_000),
+    SEMANTIC_ANALYSIS_RECOVERY_INTERVAL_MS: z.coerce
+      .number()
+      .int()
+      .min(1_000)
+      .max(600_000)
+      .default(30_000),
+    SEMANTIC_ANALYSIS_WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(4),
+    SEMANTIC_ANALYSIS_LEASE_SECONDS: z.coerce.number().int().min(30).max(3_600).default(120),
+    // Agotados los intentos la ejecución queda FAILED en vez de volver a la cola:
+    // reintentar sin cota convierte un fallo permanente en gasto perpetuo.
+    SEMANTIC_ANALYSIS_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(3),
+    SEMANTIC_ANALYSIS_MAX_TEXT_LENGTH: z.coerce.number().int().min(100).max(100_000).default(8_000),
+    // Vacío ⇒ el worker NO se registra, y lo dice en el log. Es preferible a
+    // arrancar y fallar en cada job por falta de credenciales.
+    SEMANTIC_ANALYSIS_PROVIDER: z.enum(['', 'openai', 'ollama']).default(''),
+    SEMANTIC_ANALYSIS_BUDGET_WINDOW_SECONDS: z.coerce
+      .number()
+      .int()
+      .min(60)
+      .max(86_400)
+      .default(3_600),
+    SEMANTIC_ANALYSIS_BUDGET_MAX_ANALYSES: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(1_000_000)
+      .default(1_000),
+
+    BANK_STATEMENT_WORKER_ENABLED: booleanFromString.default(false),
+    BANK_STATEMENT_WORKER_POLL_MS: z.coerce.number().int().min(50).max(10_000).default(500),
+    BANK_STATEMENT_WORKER_MAX_POLL_MS: z.coerce
+      .number()
+      .int()
+      .min(500)
+      .max(600_000)
+      .default(30_000),
+    BANK_STATEMENT_RECOVERY_INTERVAL_MS: z.coerce
+      .number()
+      .int()
+      .min(1_000)
+      .max(600_000)
+      .default(30_000),
+    // Menor que la del semántico: cada job carga un PDF entero en memoria.
+    BANK_STATEMENT_WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(8).default(2),
+    BANK_STATEMENT_LEASE_SECONDS: z.coerce.number().int().min(30).max(3_600).default(300),
+    BANK_STATEMENT_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(3),
+    // 10 MiB. Acota a la vez la memoria del worker y el tamaño de la fila, porque
+    // el documento se guarda en la propia base (ADR-0026).
+    BANK_STATEMENT_MAX_UPLOAD_BYTES: z.coerce
+      .number()
+      .int()
+      .min(1_024)
+      .max(52_428_800)
+      .default(10_485_760),
+    // Un PDF hostil puede hacer trabajar al lector indefinidamente. El presupuesto
+    // corta el job, no el proceso.
+    BANK_STATEMENT_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(600_000).default(60_000),
+
+    // Los escenarios de prueba son sintéticos, pero crean ejecuciones reales. En
+    // producción están apagados para que no contaminen la operación.
+    WORKERS_FIXTURES_ENABLED: booleanFromString.default(false),
     SCRIPT_NODES_ENABLED: booleanFromString.default(false),
     SCRIPT_RUNNER_MODE: z.enum(['IN_PROCESS', 'SIDECAR']).default('IN_PROCESS'),
     // Interpreter used by the in-process runner and the Code->Flow Python syntax checker.

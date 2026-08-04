@@ -16,6 +16,10 @@ export const JobName = {
   TestRun: 'test-run',
   /** Purga las filas de idempotencia de runtime ya expiradas. */
   RuntimeRetention: 'runtime-retention',
+  /** Clasifica semánticamente los textos encolados (ADR-0026). */
+  SemanticAnalysis: 'semantic-analysis',
+  /** Convierte los extractos bancarios encolados (ADR-0026). */
+  BankStatement: 'bank-statement',
 } as const;
 
 export type JobNameValue = (typeof JobName)[keyof typeof JobName];

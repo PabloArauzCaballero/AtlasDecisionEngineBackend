@@ -171,6 +171,30 @@ enum QaRunStatus {
   FAILED
 }
 
+/// Ciclo de vida de una ejecución de worker adicional (ADR-0026).
+///
+/// `SUCCEEDED_WITH_WARNINGS` no es un adorno: los dos workers producen
+/// resultados útiles pero revisables —el semántico degrada a `UNKNOWN` al
+/// agotar el presupuesto del tenant, y el de extractos entrega movimientos con
+/// su nivel de confianza y sus avisos de validación financiera—. Colapsarlo con
+/// `SUCCEEDED` escondería justo lo que hay que mirar.
+enum WorkerRunStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  SUCCEEDED_WITH_WARNINGS
+  FAILED
+  CANCELLED
+}
+
+/// De dónde salió la entrada de una ejecución. Separar el fixture del dato real
+/// permite excluir las pruebas de cualquier lectura de operación.
+enum WorkerInputSource {
+  FIXTURE
+  UPLOAD
+  INLINE
+}
+
 /// Progreso de tutoriales por usuario. No hay tabla de usuarios (la identidad
 /// viene del IdP / credencial), así que se llavea por (tenant, userId, tutorialId).
 model UserTutorialProgress {
@@ -1720,4 +1744,117 @@ model QaCounterexample {
   @@index([tenantId, qaRunId])
   @@index([tenantId, property, createdAt])
   @@map("decision_qa_counterexample")
+}
+
+// ---------------------------------------------------------------------------
+// Workers adicionales — análisis semántico y extractos bancarios (ADR-0026)
+//
+// Una tabla por worker, no una tabla genérica de jobs: los dos tienen entradas
+// y resultados que no se parecen en nada, y una tabla común habría acabado con
+// la mitad de las columnas nulas y un `payload_json` sin forma. Lo que sí es
+// común —ciclo de vida, lease, intentos, correlación— se escribe igual en las
+// dos, así que el frontend las lee con el mismo código.
+// ---------------------------------------------------------------------------
+
+/// Ejecución del worker de análisis semántico.
+model SemanticAnalysisRun {
+  id       BigInt @id @default(autoincrement())
+  tenantId BigInt @map("tenant_id")
+
+  /// Identificador público. Es lo que viaja al frontend y a los logs; el `id`
+  /// numérico no sale del motor.
+  requestId String @map("request_id") @db.VarChar(64)
+  /// Clave de deduplicación acotada al tenant, tal como la define el contrato
+  /// original del worker.
+  idempotencyKey String @map("idempotency_key") @db.VarChar(200)
+
+  status   WorkerRunStatus   @default(QUEUED)
+  progress Int               @default(0)
+
+  inputSource   WorkerInputSource @map("input_source")
+  /// Texto analizado. Se minimiza al vencer el plazo de retención: se conserva
+  /// la trazabilidad, no el contenido.
+  inputText     String            @map("input_text") @db.Text
+  inputMetadata Json?             @map("input_metadata")
+  /// Nombre del escenario cuando `inputSource = FIXTURE`. Permite excluir las
+  /// pruebas de cualquier lectura de operación.
+  fixtureCode   String?           @map("fixture_code") @db.VarChar(60)
+
+  /// `SemanticAnalysisResult` completo, tal como lo produce el núcleo del worker.
+  resultJson   Json?   @map("result_json")
+  warningsJson Json?   @map("warnings_json")
+  errorCode    String? @map("error_code") @db.VarChar(120)
+  errorMessage String? @map("error_message") @db.Text
+
+  attemptCount   Int       @default(0) @map("attempt_count")
+  leaseExpiresAt DateTime? @map("lease_expires_at") @db.Timestamptz(6)
+  queuedAt       DateTime  @default(now()) @map("queued_at") @db.Timestamptz(6)
+  startedAt      DateTime? @map("started_at") @db.Timestamptz(6)
+  finishedAt     DateTime? @map("finished_at") @db.Timestamptz(6)
+
+  requestedBy   String @map("requested_by") @db.VarChar(160)
+  correlationId String @map("correlation_id") @db.VarChar(64)
+
+  /// Reenviar la misma solicitud devuelve la ejecución existente en vez de
+  /// crear una segunda. Es la idempotencia, y es un índice único porque
+  /// confiarla al código deja la puerta abierta a dos peticiones simultáneas.
+  @@unique([tenantId, idempotencyKey])
+  @@unique([tenantId, requestId])
+  /// El reclamo del worker ordena por este índice; sin él, cada ciclo escanea
+  /// la tabla entera para encontrar la fila más antigua en QUEUED.
+  @@index([status, queuedAt])
+  @@index([tenantId, queuedAt])
+  @@map("decision_semantic_analysis_run")
+}
+
+/// Ejecución del worker de extractos bancarios.
+model BankStatementRun {
+  id       BigInt @id @default(autoincrement())
+  tenantId BigInt @map("tenant_id")
+
+  requestId String @map("request_id") @db.VarChar(64)
+
+  status   WorkerRunStatus   @default(QUEUED)
+  progress Int               @default(0)
+
+  inputSource WorkerInputSource @map("input_source")
+  fixtureCode String?           @map("fixture_code") @db.VarChar(60)
+
+  /// Ya saneado en el borde: sin rutas, sin caracteres de control.
+  fileName      String @map("file_name") @db.VarChar(255)
+  /// SHA-256 del contenido. Es la base de la idempotencia porque el worker
+  /// original no traía ninguna y el nombre del archivo no identifica nada.
+  fileHash      String @map("file_hash") @db.Char(64)
+  fileSizeBytes Int    @map("file_size_bytes")
+  /// El documento, mientras hace falta. **Se borra en la misma transacción que
+  /// cierra la ejecución**: lo que se conserva es el resultado normalizado, no
+  /// el extracto bancario. Es a la vez la decisión de privacidad y el motivo
+  /// por el que esta tabla no crece sin cota.
+  fileBytes     Bytes? @map("file_bytes")
+
+  /// `NormalizedBankStatement`. Hereda el enmascarado del motor: nunca trae el
+  /// número de cuenta completo.
+  resultJson       Json?    @map("result_json")
+  warningsJson     Json?    @map("warnings_json")
+  confidence       Decimal? @db.Decimal(4, 3)
+  institutionId    String?  @map("institution_id") @db.VarChar(16)
+  transactionCount Int?     @map("transaction_count")
+
+  errorCode    String? @map("error_code") @db.VarChar(120)
+  errorMessage String? @map("error_message") @db.Text
+
+  attemptCount   Int       @default(0) @map("attempt_count")
+  leaseExpiresAt DateTime? @map("lease_expires_at") @db.Timestamptz(6)
+  queuedAt       DateTime  @default(now()) @map("queued_at") @db.Timestamptz(6)
+  startedAt      DateTime? @map("started_at") @db.Timestamptz(6)
+  finishedAt     DateTime? @map("finished_at") @db.Timestamptz(6)
+
+  requestedBy   String @map("requested_by") @db.VarChar(160)
+  correlationId String @map("correlation_id") @db.VarChar(64)
+
+  @@unique([tenantId, fileHash])
+  @@unique([tenantId, requestId])
+  @@index([status, queuedAt])
+  @@index([tenantId, queuedAt])
+  @@map("decision_bank_statement_run")
 }
