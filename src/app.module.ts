@@ -33,6 +33,7 @@ import { TraceabilityModule } from './modules/traceability/traceability.module';
 import { TutorialModule } from './modules/tutorials/tutorial.module';
 import { VariableModule } from './modules/variables/variable.module';
 import { ViewsModule } from './modules/views/views.module';
+import { WorkersModule } from './modules/workers/workers.module';
 import { IdentitySessionModule } from './modules/identity-session/identity-session.module';
 
 @Module({
@@ -77,6 +78,7 @@ import { IdentitySessionModule } from './modules/identity-session/identity-sessi
     SecurityReviewModule,
     ViewsModule,
     TutorialModule,
+    WorkersModule,
   ],
 })
 export class AppModule {}

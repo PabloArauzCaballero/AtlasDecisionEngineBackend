@@ -1,0 +1,121 @@
+@startuml additional-workers-flow
+title Workers adicionales — flujo de una ejecución
+
+skinparam sequenceMessageAlign center
+skinparam maxMessageSize 220
+
+actor Usuario
+participant "Portal\n(Next.js)" as Portal
+participant "WorkersController\n(API)" as API
+database "PostgreSQL" as DB
+participant "JobScheduler\n(proceso WORKER)" as Sched
+participant "Worker A/B\n(BackgroundJob)" as Worker
+
+== Creación ==
+
+Usuario -> Portal: elige worker\ny fixture o archivo propio
+activate Portal
+Portal -> Portal: valida en cliente\n(tamaño, formato, campos)
+note right of Portal
+  La validación del cliente es
+  para responder rápido.
+  No es autoritativa.
+end note
+Portal -> API: POST /v1/workers/{worker}/runs
+deactivate Portal
+
+activate API
+API -> API: @Roles + @TenantId\nrevalida la entrada\n(firma real del contenido)
+
+alt entrada inválida
+  API --> Portal: 400 con código y campo
+else usuario sin permiso
+  API --> Portal: 403
+else ya existe con esa clave de idempotencia
+  API -> DB: SELECT por (tenant, idempotencyKey | fileHash)
+  API --> Portal: 200 con la ejecución existente
+else
+  group Una sola transacción
+    API -> DB: INSERT ejecución (status = QUEUED)
+    API -> DB: SELECT pg_notify('atlas_jobs', '<nombre-del-trabajo>')
+  end
+  note right of DB
+    El aviso se emite DENTRO de la
+    transacción: Postgres sólo lo
+    entrega si hace commit, así que
+    nunca adelanta a la fila que anuncia.
+  end note
+  API --> Portal: 202 Accepted + runId
+end
+deactivate API
+
+== Procesamiento ==
+
+DB -> Sched: NOTIFY
+activate Sched
+Sched -> Worker: runOnce()
+deactivate Sched
+
+activate Worker
+Worker -> DB: recoverExpiredRuns()\n(devuelve a QUEUED lo que perdió su lease)
+Worker -> DB: UPDATE … WHERE id = (\n  SELECT … FOR UPDATE SKIP LOCKED LIMIT 1)
+note right of Worker
+  Reclamo atómico: varias réplicas
+  compiten sin bloquearse entre sí.
+end note
+
+loop mientras procesa
+  Worker -> DB: renueva lease (latido)
+  Worker -> DB: actualiza progress
+end
+
+alt éxito
+  Worker -> DB: status = SUCCEEDED,\nresult_json, finished_at
+else éxito con advertencias
+  Worker -> DB: status = SUCCEEDED_WITH_WARNINGS,\nresult_json + warnings_json
+else error de negocio o validación
+  Worker -> DB: status = FAILED,\nerror_code + error_message
+  note right of Worker
+    No se reintenta: reintentar una
+    entrada inválida sólo repite el fallo.
+  end note
+else error de infraestructura
+  Worker -> DB: lease liberado
+  note right of Worker
+    Vuelve a QUEUED y se reintenta
+    hasta MAX_ATTEMPTS; agotados,
+    queda FAILED.
+  end note
+end
+
+Worker -> DB: borra file_bytes (worker B)
+note right of Worker
+  El documento bancario no se conserva;
+  sí el resultado normalizado.
+end note
+deactivate Worker
+
+== Consulta ==
+
+loop hasta estado terminal
+  Portal -> API: GET /v1/workers/{worker}/runs/{id}
+  API -> DB: SELECT acotado por tenant
+  API --> Portal: estado, progreso, intento, resultado o error
+end
+
+Usuario -> Portal: descarga (CSV / JSON / normalizado)
+Portal -> API: GET …/runs/{id}/download?format=…
+
+== Apagado controlado ==
+
+Sched -> Worker: onModuleDestroy
+activate Worker
+Worker -> Worker: deja de reclamar jobs nuevos
+Worker -> Worker: espera los que están en vuelo
+note right of Worker
+  Lo no reclamado sigue en QUEUED:
+  otra réplica lo tomará.
+end note
+deactivate Worker
+
+@enduml
