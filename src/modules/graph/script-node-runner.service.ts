@@ -14,21 +14,13 @@ const vm = require('node:vm');
 // sandbox carries a path back out via '.constructor.constructor' — the classic vm
 // escape (V8's codeGeneration.strings restriction only covers code generation APIs
 // native to the sandboxed context, not outer-realm functions reached by reference).
-// Decision data has no functions, so recursively stripping its prototype closes that
-// path for 'variables'/'decision'/'output'; nothing else outer-realm is exposed.
-function toNullProto(value) {
-  if (Array.isArray(value)) {
-    const copy = value.map(toNullProto);
-    Object.setPrototypeOf(copy, null);
-    return Object.freeze(copy);
-  }
-  if (value && typeof value === 'object') {
-    const copy = Object.create(null);
-    for (const key of Object.keys(value)) copy[key] = toNullProto(value[key]);
-    return Object.freeze(copy);
-  }
-  return value;
-}
+//
+// Se cierra parseando los datos DENTRO del contexto (ver la llamada al final): asi
+// nacen con los prototipos del propio sandbox y su cadena no lleva a ninguna parte
+// del realm exterior. Antes se hacia con setPrototypeOf(copy, null), que servia
+// para objetos pero sobre un ARRAY le arrancaba Array.prototype: el script recibia
+// algo sin .map, .reduce ni .sort, de modo que cualquier variable de tipo LISTA era
+// inservible y moria con SCRIPT_EXECUTION_FAILED sin explicar la causa.
 
 let raw = '';
 process.stdin.setEncoding('utf8');
@@ -36,9 +28,10 @@ process.stdin.on('data', chunk => raw += chunk);
 process.stdin.on('end', () => {
   const payload = JSON.parse(raw);
   const sandbox = Object.create(null);
-  sandbox.variables = toNullProto(payload.context.variables || {});
-  sandbox.decision = toNullProto(payload.context.decision || {});
-  sandbox.output = toNullProto(payload.context.output || {});
+  // Viajan como JSON y se parsean dentro del contexto, nunca fuera.
+  sandbox.__atlasVariables = JSON.stringify(payload.context.variables || {});
+  sandbox.__atlasDecision = JSON.stringify(payload.context.decision || {});
+  sandbox.__atlasOutput = JSON.stringify(payload.context.output || {});
   // A bare vm context has no Node-specific globals (setTimeout/setInterval are Node
   // additions, not V8/ECMAScript ones) — assigning undefined primitives here, before
   // context creation, shadows Date and defines otherwise-absent setTimeout/setInterval
@@ -53,7 +46,22 @@ process.stdin.on('end', () => {
   // its property descriptor is {writable:true, configurable:true} per spec, so this succeeds.
   const preamble =
     'Object.defineProperty(Math, "random", { value: () => { throw new Error("Math.random is not allowed"); } });\n';
-  const wrapped = '(function (variables, decision, output) { "use strict";\n' + preamble + payload.source + '\n})(variables, decision, output)';
+  // El congelado tambien ocurre dentro: el script no debe poder alterar sus entradas,
+  // y congelar aqui usa el Object del propio contexto, no el del realm exterior.
+  const freeze =
+    'const __atlasFreeze = (o) => { if (o && typeof o === "object") { ' +
+    'Object.keys(o).forEach(function (k) { __atlasFreeze(o[k]); }); Object.freeze(o); } return o; };\n';
+  const args =
+    '(__atlasFreeze(JSON.parse(__atlasVariables)), ' +
+    '__atlasFreeze(JSON.parse(__atlasDecision)), ' +
+    '__atlasFreeze(JSON.parse(__atlasOutput)))';
+  const wrapped =
+    freeze +
+    '(function (variables, decision, output) { "use strict";\n' +
+    preamble +
+    payload.source +
+    '\n})' +
+    args;
   const result = new vm.Script(wrapped, { filename: 'atlas-result-node.js' })
     .runInContext(context, { timeout: payload.timeoutMs });
   process.stdout.write(JSON.stringify(result));

@@ -41,17 +41,61 @@ function runInSidecarWrapper(source: string, variables: Record<string, unknown> 
 }
 
 describe('runner sidecar JavaScript sandbox escape', () => {
-  it('strips the prototype of injected context objects, so no constructor is reachable', () => {
+  /*
+   * La garantía cambió de forma, no de fondo. Antes se arrancaba el prototipo
+   * (`setPrototypeOf(copy, null)`), y entonces NINGÚN constructor era alcanzable.
+   * Eso cerraba la fuga pero también dejaba a los arrays sin `.map`, `.reduce` ni
+   * `.sort`: cualquier variable de tipo LISTA era inservible y moría con
+   * SCRIPT_EXECUTION_FAILED sin decir por qué.
+   *
+   * Ahora los datos se parsean DENTRO del contexto, así que su constructor sí
+   * existe — pero es el del PROPIO sandbox, cuyo `codeGeneration.strings` está
+   * desactivado. El escape clásico `.constructor.constructor("return process")`
+   * muere en EvalError en vez de devolver el `process` del realm exterior.
+   */
+  it('el constructor alcanzable es el del sandbox, no el del realm exterior', () => {
     const { value } = runInSidecarWrapper(
-      'return { variables: typeof variables.constructor, decision: typeof decision.constructor,' +
-        ' nested: typeof variables.items[0].constructor };',
+      'let escaped = null;' +
+        'try { escaped = variables.items[0].constructor.constructor("return process")().pid; }' +
+        'catch (error) { escaped = "blocked:" + error.name; }' +
+        'return { escaped };',
       { items: [{ nested: true }] },
     );
-    expect(value).toEqual({
-      variables: 'undefined',
-      decision: 'undefined',
-      nested: 'undefined',
-    });
+    expect(String(value?.escaped)).toContain('blocked:');
+  });
+
+  it('el mismo escape por un ARRAY tampoco alcanza el realm exterior', () => {
+    const { value } = runInSidecarWrapper(
+      'let escaped = null;' +
+        'try { escaped = variables.lista.constructor.constructor("return process")().pid; }' +
+        'catch (error) { escaped = "blocked:" + error.name; }' +
+        'return { escaped };',
+      { lista: [1, 2, 3] },
+    );
+    expect(String(value?.escaped)).toContain('blocked:');
+  });
+
+  it('una variable de tipo LISTA conserva sus métodos y se puede recorrer', () => {
+    // Es el defecto que motivó el cambio: con el prototipo arrancado, esto moría.
+    const { value } = runInSidecarWrapper(
+      'return {' +
+        ' suma: variables.lista.reduce(function (a, b) { return a + b; }, 0),' +
+        ' doble: variables.lista.map(function (x) { return x * 2; }),' +
+        ' orden: [3, 1, 2].sort(),' +
+        ' largo: variables.lista.length };',
+      { lista: [1, 2, 3] },
+    );
+    expect(value).toEqual({ suma: 6, doble: [2, 4, 6], orden: [1, 2, 3], largo: 3 });
+  });
+
+  it('las entradas siguen congeladas: el script no puede alterarlas', () => {
+    const { value } = runInSidecarWrapper(
+      'let blocked = false;' +
+        'try { variables.lista.push(9); } catch { blocked = true; }' +
+        'return { blocked, largo: variables.lista.length };',
+      { lista: [1, 2, 3] },
+    );
+    expect(value).toEqual({ blocked: true, largo: 3 });
   });
 
   it('cannot reach the outer realm through Math', () => {
@@ -82,10 +126,10 @@ describe('runner sidecar JavaScript sandbox escape', () => {
       'utf8',
     );
     for (const invariant of [
-      'function toNullProto(value)',
-      'sandbox.variables = toNullProto(payload.context.variables || {})',
-      'sandbox.decision = toNullProto(payload.context.decision || {})',
-      'sandbox.output = toNullProto(payload.context.output || {})',
+      'sandbox.__atlasVariables = JSON.stringify(payload.context.variables || {})',
+      'sandbox.__atlasDecision = JSON.stringify(payload.context.decision || {})',
+      'sandbox.__atlasOutput = JSON.stringify(payload.context.output || {})',
+      '__atlasFreeze(JSON.parse(__atlasVariables))',
       'Object.defineProperty(Math, "random"',
     ]) {
       expect(wrapperOf('JS_WRAPPER')).toContain(invariant);

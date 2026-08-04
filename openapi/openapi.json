@@ -1619,6 +1619,57 @@
         ]
       }
     },
+    "/v1/calculated-fields/versions/{versionId}/sample-inputs": {
+      "post": {
+        "description": "Deriva valores de las entradas declaradas (tipo y restricciones). Usa el mismo generador que el QA Lab, así que «válido», «frontera» e «inválido» significan lo mismo en las dos pantallas. La semilla devuelta reproduce el lote.",
+        "operationId": "calculatedFieldSampleInputs",
+        "parameters": [
+          {
+            "name": "versionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Identificador de la versión del artefacto."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SampleCalculatedFieldInputsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Generar entradas de ejemplo del contrato de la versión, sin ejecutarlas",
+        "tags": [
+          "Calculated Fields"
+        ]
+      }
+    },
     "/v1/calculated-fields/versions/{versionId}/test": {
       "post": {
         "operationId": "calculatedFieldTest",
@@ -8504,6 +8555,29 @@
           "fieldCode"
         ]
       },
+      "SampleCalculatedFieldInputsDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "VALID",
+              "BOUNDARY",
+              "INVALID"
+            ]
+          },
+          "seed": {
+            "type": "string",
+            "description": "Repetir la semilla devuelve exactamente el mismo lote.",
+            "maxLength": 120
+          },
+          "count": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 20
+          }
+        }
+      },
       "CalculatedFieldTestResultDto": {
         "type": "object",
         "properties": {
@@ -9831,6 +9905,16 @@
               "type": "string"
             }
           },
+          "reasonCodes": {
+            "example": [
+              "DTI_TOO_HIGH"
+            ],
+            "description": "Motivos estructurados del catálogo que pueden devolverse con el campo (§4).",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "example": {
             "type": "object",
             "nullable": true
@@ -9859,6 +9943,7 @@
           "sourceKind",
           "sourceRef",
           "absenceReasons",
+          "reasonCodes",
           "contractVersion",
           "sensitivityClass",
           "tracePolicy"
@@ -10899,6 +10984,14 @@
             "items": {
               "type": "string",
               "maxLength": 120
+            }
+          },
+          "reasonCodes": {
+            "description": "Motivos estructurados que la decisión puede devolver junto a este campo (§4).\n\nVan por CÓDIGO, no por id: es lo que el autor conoce y lo que hace que un\ncontrato siga significando lo mismo al moverlo entre entornos. El backend los\nresuelve contra el catálogo del tenant y rechaza los que no existen.",
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "string"
             }
           },
           "example": {

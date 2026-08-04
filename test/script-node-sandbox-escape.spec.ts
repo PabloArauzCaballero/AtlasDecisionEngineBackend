@@ -35,24 +35,55 @@ describe('ScriptNodeRunnerService sandbox escape (IN_PROCESS)', () => {
     ).rejects.toThrow();
   });
 
+  /*
+   * La garantía cambió de forma, no de fondo. Antes se arrancaba el prototipo de
+   * los datos, y entonces NINGÚN constructor era alcanzable. Eso cerraba la fuga
+   * pero dejaba a los arrays sin `.map`, `.reduce` ni `.sort`, así que cualquier
+   * variable de tipo LISTA era inservible. Ahora los datos se parsean DENTRO del
+   * contexto: su constructor existe, pero es el del propio sandbox, con
+   * `codeGeneration.strings` desactivado. Lo que se afirma aquí es lo que de
+   * verdad importa: que el escape no devuelva nada del realm exterior.
+   */
+  const ESCAPE = (path: string) =>
+    'let escaped = null;' +
+    `try { escaped = ${path}.constructor.constructor("return process")().pid; }` +
+    'catch (error) { escaped = "blocked:" + error.name; }' +
+    'return { escaped };';
+
   it('cannot reach the outer Function constructor through decision or output', async () => {
-    const escapePayload = 'return { escaped: typeof decision.constructor };';
-    const result = await runner.execute('JAVASCRIPT', escapePayload, {
+    const result = (await runner.execute('JAVASCRIPT', ESCAPE('decision'), {
       variables: {},
       decision: { foo: 'bar' },
       output: {},
-    });
-    expect(result).toEqual({ escaped: 'undefined' });
+    })) as { escaped: string };
+    expect(String(result.escaped)).toContain('blocked:');
   });
 
   it('cannot reach the outer Function constructor through nested arrays/objects', async () => {
-    const escapePayload = 'return { escaped: typeof variables.items[0].constructor };';
-    const result = await runner.execute('JAVASCRIPT', escapePayload, {
+    const result = (await runner.execute('JAVASCRIPT', ESCAPE('variables.items[0]'), {
       variables: { items: [{ nested: true }] },
       decision: {},
       output: {},
-    });
-    expect(result).toEqual({ escaped: 'undefined' });
+    })) as { escaped: string };
+    expect(String(result.escaped)).toContain('blocked:');
+  });
+
+  it('tampoco por el prototipo de un ARRAY, que es el caso que motivó el cambio', async () => {
+    const result = (await runner.execute('JAVASCRIPT', ESCAPE('variables.lista'), {
+      variables: { lista: [1, 2, 3] },
+      decision: {},
+      output: {},
+    })) as { escaped: string };
+    expect(String(result.escaped)).toContain('blocked:');
+  });
+
+  it('y una LISTA conserva sus métodos, que es para lo que se cambió', async () => {
+    const result = await runner.execute(
+      'JAVASCRIPT',
+      'return { suma: variables.lista.reduce(function (a, b) { return a + b; }, 0) };',
+      { variables: { lista: [1, 2, 3] }, decision: {}, output: {} },
+    );
+    expect(result).toEqual({ suma: 6 });
   });
 });
 

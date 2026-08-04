@@ -348,6 +348,60 @@ export const calculatedFieldCatalog: CalculatedFieldSeed[] = [
       },
     ],
   },
+  {
+    fieldCode: 'estabilidad_ingreso',
+    name: 'Estabilidad del ingreso',
+    description:
+      'Cuanto varia el ingreso de los ultimos meses: a mayor dispersion, menos predecible es la capacidad de pago.',
+    rationale:
+      'Dos solicitantes con el mismo promedio no tienen el mismo riesgo si uno cobra igual todos los meses y el otro alterna picos y ceros. Es ademas el unico campo con entrada de tipo LISTA: mantiene cubierto el caso que el sandbox no soportaba.',
+    category: 'AFORDABILIDAD',
+    implementationKind: 'JAVASCRIPT',
+    inputs: [
+      {
+        id: 'ingresos_ultimos_meses',
+        name: 'Ingresos de los ultimos meses',
+        description: 'Serie de ingresos mensuales verificados',
+        dataType: 'LIST',
+        required: true,
+        constraints: { minItems: 2, maxItems: 24 },
+      },
+    ],
+    returns: {
+      dataType: 'DECIMAL',
+      nullable: false,
+      precision: 2,
+      nullConditions: [],
+      divisionByZero: 'RETURN_DEFAULT',
+      missingData: 'FAIL',
+      outOfRange: 'RETURN_DEFAULT',
+      errorCode: 'STABILITY_NOT_COMPUTABLE',
+      constraints: { min: 0, max: 5 },
+    },
+    comments: {
+      overview:
+        'Coeficiente de variacion: desviacion estandar sobre el promedio. 0 es un ingreso identico cada mes.',
+      example: '[1000, 1000, 1000] -> 0',
+    },
+    sourceCode: [
+      '// Coeficiente de variacion: 0 = ingreso perfectamente estable.',
+      'const media = statistics.mean(variables.ingresos_ultimos_meses);',
+      'return media === 0 ? 1 : statistics.stdev(variables.ingresos_ultimos_meses) / media;',
+    ].join('\n'),
+    libraries: [{ logicalName: 'statistics', language: 'JAVASCRIPT' }],
+    testCases: [
+      {
+        name: 'ingreso identico cada mes',
+        inputs: { ingresos_ultimos_meses: [1000, 1000, 1000] },
+        expected: 0,
+      },
+      {
+        name: 'ingreso muy variable',
+        inputs: { ingresos_ultimos_meses: [500, 1500, 1000] },
+        expected: 0.41,
+      },
+    ],
+  },
 ];
 
 export async function seedCalculatedFields(prisma: PrismaClient) {

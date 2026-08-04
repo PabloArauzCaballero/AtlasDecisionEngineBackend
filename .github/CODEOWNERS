@@ -37,7 +37,7 @@
 
 # Seguridad y auditoría — área crítica, revisión obligatoria (ver docs/governance/ownership.md)
 /src/common/security/                @PabloArauzCaballero
-/src/common/audit/                   @PabloArauzCaballero
+/src/common/audit/                   @ArauzCaballero
 /src/modules/audit-query/            @PabloArauzCaballero
 
 # Ejecución de código no confiable — área crítica

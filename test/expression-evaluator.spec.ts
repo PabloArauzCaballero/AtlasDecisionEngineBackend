@@ -89,8 +89,12 @@ describe('ExpressionEvaluator', () => {
 
   it('orders strings by code point independent of locale', () => {
     // 'Z' (0x5A) precedes 'a' (0x61) by code point; a locale-aware collation would reverse it.
-    expect(evaluator.evaluate({ op: 'lt', left: { value: 'Z' }, right: { value: 'a' } }, {})).toBe(true);
-    expect(evaluator.evaluate({ op: 'gt', left: { value: 'a' }, right: { value: 'Z' } }, {})).toBe(true);
+    expect(evaluator.evaluate({ op: 'lt', left: { value: 'Z' }, right: { value: 'a' } }, {})).toBe(
+      true,
+    );
+    expect(evaluator.evaluate({ op: 'gt', left: { value: 'a' }, right: { value: 'Z' } }, {})).toBe(
+      true,
+    );
   });
 
   it('rejects a comparison against an invalid date instead of silently returning false', () => {

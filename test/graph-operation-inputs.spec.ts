@@ -34,7 +34,10 @@ function variable(
   };
 }
 
-function nodeWithCall(mapping: Record<string, { source: string; path?: string }>, inputs: unknown[]) {
+function nodeWithCall(
+  mapping: Record<string, { source: string; path?: string }>,
+  inputs: unknown[],
+) {
   const node = {
     key: 'CALC',
     type: 'EXPRESSION',
@@ -85,7 +88,8 @@ function snapshot(
   };
 }
 
-const run = (graph: ArtifactGraphSnapshot) => validateOperationInputs(graph, buildGraphLookups(graph));
+const run = (graph: ArtifactGraphSnapshot) =>
+  validateOperationInputs(graph, buildGraphLookups(graph));
 const codes = (issues: Array<{ code: string }>) => issues.map((entry) => entry.code);
 
 describe('cobertura de variables de las operaciones', () => {
