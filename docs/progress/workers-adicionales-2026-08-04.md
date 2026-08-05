@@ -148,6 +148,37 @@ verdad viven —no en JavaScript— y por eso no se pueden probar con dobles:
 Un caso falló al principio por contaminación entre pruebas —no por un defecto
 del producto— y está documentado en el propio archivo.
 
+## 8 bis. Defectos propios encontrados por otros agentes
+
+Trabajaron sobre el mismo árbol y encontraron cosas que yo no vi. Se anotan aquí
+porque son defectos reales de esta integración, no incidencias de proceso.
+
+1. **El motor no arrancaba sin `OPENAI_API_KEY`** (lo corrigió el agente de
+   documentación). `workers.module.ts` construía el proveedor de OpenAI al
+   cablear el módulo, y su fábrica valida la clave al construir: cualquier
+   proceso sin esa variable moría al iniciar, incluida una réplica de API con el
+   worker apagado. Peor: el generador de OpenAPI fallaba **en silencio** —salida
+   0, sin mensajes— y dejaba el contrato publicado sin las operaciones de
+   `/v1/workers`. Resuelto con un puente que construye en la primera
+   clasificación.
+
+2. **La retención del texto analizado no se ejecutaba nunca** (mismo agente).
+   `AuditRetentionService` estaba absorbido y completo, pero nada lo invocaba:
+   en el paquete original lo disparaba el planificador de pg-boss, que se
+   descartó. `input_text` se conservaba indefinidamente. Resuelto con un trabajo
+   `semantic-retention`. **Es el fallo más instructivo de toda la integración**:
+   al sustituir una infraestructura hay que inventariar también lo que esa
+   infraestructura *disparaba*, no sólo lo que ofrecía.
+
+3. **El presupuesto de análisis se quedaba corto** (corregido aquí).
+   `assertProviderTimeoutFitsAnalysis` exige
+   `timeout × intentos × 2 tiers ≤ analysisTimeoutSeconds`, y el puente derivaba
+   el presupuesto del lease sin comprobar la desigualdad: con los valores por
+   defecto salían 180 s de peor caso contra 110 s de presupuesto, y la **primera
+   clasificación** fallaba. El lease pasa a ser un suelo que se eleva al peor
+   caso del proveedor, y `test/semantic-config-bridge.spec.ts` fija la aritmética
+   con un barrido para que no se rompa en silencio.
+
 ## 9. Pendientes que siguen abiertos
 
 - **Smoke de extremo a extremo con el stack levantado**: API → cola → worker →
