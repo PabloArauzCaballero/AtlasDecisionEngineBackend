@@ -179,15 +179,46 @@ porque son defectos reales de esta integración, no incidencias de proceso.
    caso del proveedor, y `test/semantic-config-bridge.spec.ts` fija la aritmética
    con un barrido para que no se rompa en silencio.
 
+## 8 ter. El smoke por HTTP, y lo que destapó
+
+`scripts/smoke-workers.mjs` recorre el camino que ninguna otra prueba tocaba:
+API acepta → fila encolada → `pg_notify` → worker reclama → procesa → resultado
+persistido → consultable por HTTP → descarga.
+
+**20/20 contra el stack real**, con el ciclo de vida observado
+(`RUNNING → SUCCEEDED_WITH_WARNINGS`), institución `BGA` reconocida, dos
+movimientos leídos, cuenta `******7890`, CSV descargado sin filtrar el número,
+idempotencia devolviendo la misma ejecución y `403` al tenant ajeno. En la base:
+`progress=100`, `confidence=0.920`, `file_bytes` a `NULL`.
+
+Encontró dos defectos en la primera vuelta:
+
+1. **El cliente del portal esperaba `{ items }` donde el motor devuelve un array
+   desnudo.** Es la convención de `ApiArrayResponse`, la misma de despliegues y
+   árboles anidados; el sobre sólo aparece en respuestas paginadas. El catálogo
+   llegaba `undefined` y las dos vistas habrían dicho «no se pudo consultar el
+   catálogo» contra un motor que respondía 200: **no se habría podido ejecutar
+   nada desde la interfaz**.
+
+   **El E2E no lo detectó porque el simulado codificaba el mismo error.** Una
+   prueba contra un doble sólo confirma que el código coincide con lo que su
+   autor *cree* del servidor, no con lo que el servidor hace. Es la razón por la
+   que este smoke era necesario aun con 25 pruebas en verde.
+
+2. **Los interruptores estaban declarados sólo en el servicio `worker`.** Pero es
+   la API quien publica el catálogo y sirve los escenarios, así que los dos
+   workers se anunciaban como no disponibles mientras el procesado funcionaba por
+   detrás.
+
 ## 9. Pendientes que siguen abiertos
 
 - **Smoke de extremo a extremo con el stack levantado**: API → cola → worker →
   resultado consultable por HTTP. La integración cubre la cola contra Postgres,
   no el recorrido completo por la API.
-- **Verificación de la inyección de dependencias del módulo semántico** en un
-  arranque real: el typecheck no detecta un proveedor que falte.
-- **Ejecución del E2E del portal**: el spec está escrito y commiteado, falta
-  correrlo en verde.
+- **Verificación de la inyección de dependencias del módulo semántico** con el
+  worker ENCENDIDO: el arranque real ya lo ejercita con el worker apagado, que es
+  como se despliega hoy, pero el camino con proveedor configurado sigue sin
+  probarse por falta de credenciales.
 - **Modo híbrido de recuperación**: absorbido pero no activado; necesita un
   vector por categoría calculado de antemano.
 - **`yarn build` del frontend** no se ejecutó (la imagen Docker sí se
