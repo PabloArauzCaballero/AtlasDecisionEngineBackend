@@ -25,8 +25,42 @@ import type { SemanticWorkerConfig } from './core/config/semantic-worker.config'
  * | `auditRetentionDays`         | `SEMANTIC_ANALYSIS_AUDIT_RETENTION_DAYS`     |
  * | `queueName`, `databaseUrl`…  | **vestigiales** — los administra el motor    |
  */
+/**
+ * Presupuesto de análisis que hace falta para que el proveedor quepa.
+ *
+ * `assertProviderTimeoutFitsAnalysis` (en `core/config/openai-provider.config.ts`)
+ * exige `timeout × intentos × 2 tiers ≤ analysisTimeoutSeconds`, y con razón: si
+ * no se cumple, el análisis se corta SIEMPRE antes de que el proveedor agote sus
+ * intentos, el job expira y se reintenta eternamente sin producir nada.
+ *
+ * El puente derivaba el presupuesto del lease y nada comprobaba la desigualdad.
+ * Con los valores por defecto de OpenAI —30 s × 3 intentos × 2 tiers = 180 s— y
+ * un lease de 120 s, el presupuesto salía 110 s y **la primera clasificación
+ * fallaba** con `SemanticConfigurationError`.
+ *
+ * Se resuelve subiendo el presupuesto, no recortando al proveedor: reducir sus
+ * intentos cambia el comportamiento del worker ante un modelo lento —abandona
+ * antes—, mientras que ampliar el presupuesto sólo alarga el techo del peor
+ * caso. El lease se eleva en consecuencia, porque un lease más corto que el
+ * trabajo que ampara haría que otra réplica reclamara un job todavía vivo.
+ */
+function providerWorstCaseSeconds(config: ConfigService): number {
+  const timeoutMs = config.get<number>('SEMANTIC_PROVIDER_TIMEOUT_MS') ?? 30_000;
+  const attempts = config.get<number>('SEMANTIC_PROVIDER_MAX_ATTEMPTS') ?? 3;
+  const TIERS = 2;
+  return Math.ceil((timeoutMs * attempts * TIERS) / 1_000);
+}
+
 export function buildSemanticWorkerConfig(config: ConfigService): SemanticWorkerConfig {
-  const leaseSeconds = config.get<number>('SEMANTIC_ANALYSIS_LEASE_SECONDS') ?? 120;
+  const worstCaseSeconds = providerWorstCaseSeconds(config);
+  // El lease declarado es un SUELO, no un techo: si el proveedor puede tardar
+  // más que él, se amplía. Un lease por debajo del peor caso deja que otra
+  // réplica reclame un job que todavía se está procesando, y entonces el mismo
+  // texto se clasifica dos veces y se paga dos veces.
+  const leaseSeconds = Math.max(
+    config.get<number>('SEMANTIC_ANALYSIS_LEASE_SECONDS') ?? 120,
+    worstCaseSeconds + 20,
+  );
 
   return {
     // --- Vestigiales -------------------------------------------------------
@@ -59,7 +93,11 @@ export function buildSemanticWorkerConfig(config: ConfigService): SemanticWorker
     // réplica puede reclamar la misma ejecución, así que seguir gastando cuota
     // del proveedor sólo produce trabajo duplicado. Se deja un margen para que
     // el corte lo dé el propio análisis y no el vencimiento del lease.
-    analysisTimeoutSeconds: Math.max(5, leaseSeconds - 10),
+    // Diez segundos por debajo del lease para que el corte lo dé el propio
+    // análisis y no el vencimiento del lease. Como el lease ya se elevó al peor
+    // caso del proveedor + 20 s, esto queda siempre por encima de él y la
+    // invariante se cumple por construcción.
+    analysisTimeoutSeconds: Math.max(worstCaseSeconds, leaseSeconds - 10),
     candidateLimit: config.get<number>('SEMANTIC_ANALYSIS_CANDIDATE_LIMIT') ?? 8,
     ambiguityMargin: config.get<number>('SEMANTIC_ANALYSIS_AMBIGUITY_MARGIN') ?? 0.08,
     catalogCacheTtlSeconds: config.get<number>('SEMANTIC_ANALYSIS_CATALOG_TTL_SECONDS') ?? 300,

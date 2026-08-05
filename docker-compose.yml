@@ -25,6 +25,7 @@ services:
     # hash join medianos fallan con "could not resize shared memory segment". No es ajuste
     # fino: es el mínimo para que una consulta normal no aborte.
     shm_size: 256mb
+    networks: [atlas_data]
     cpus: ${POSTGRES_CPUS:-2}
     mem_limit: ${POSTGRES_MEMORY:-1g}
     restart: unless-stopped
@@ -51,6 +52,7 @@ services:
       retries: 20
     volumes:
       - atlas_decision_redis:/data
+    networks: [atlas_data]
     cpus: ${REDIS_CPUS:-0.5}
     mem_limit: ${REDIS_MEMORY:-256m}
     restart: unless-stopped
@@ -64,6 +66,7 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-atlas}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-atlas_decision}?schema=public
+    networks: [atlas_data]
     command: ["migrate", "deploy"]
     restart: "no"
 
@@ -81,6 +84,7 @@ services:
     environment:
       ADMIN_DATABASE_URL: postgresql://${POSTGRES_USER:-atlas}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-atlas_decision}?schema=public
       APP_DB_PASSWORD: ${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env}
+    networks: [atlas_data]
     entrypoint: ["node", "scripts/set-app-db-role.mjs"]
     restart: "no"
 
@@ -109,6 +113,7 @@ services:
       # «no active deployment». No se deduce de NODE_ENV porque la imagen es la misma
       # que se despliega y lo fija en `production`.
       SEED_INCLUDE_MOCKUP: ${SEED_INCLUDE_MOCKUP:-true}
+    networks: [atlas_data]
     command: ["db", "seed"]
     restart: "no"
 
@@ -199,6 +204,14 @@ services:
       OUTBOX_RELAY_ENABLED: ${OUTBOX_RELAY_ENABLED:-true}
       TEST_RUN_WORKER_ENABLED: ${TEST_RUN_WORKER_ENABLED:-true}
       RUNTIME_RETENTION_SWEEP_ENABLED: ${RUNTIME_RETENTION_SWEEP_ENABLED:-true}
+      # Workers adicionales (ADR-0026). El de extractos se enciende en esta
+      # topología de desarrollo porque no depende de ningún servicio externo. El
+      # semántico NO: necesita credenciales de un proveedor de modelos, y
+      # encenderlo sin ellas sólo encola trabajo condenado a fallar.
+      BANK_STATEMENT_WORKER_ENABLED: ${BANK_STATEMENT_WORKER_ENABLED:-true}
+      SEMANTIC_ANALYSIS_WORKER_ENABLED: ${SEMANTIC_ANALYSIS_WORKER_ENABLED:-false}
+      SEMANTIC_ANALYSIS_PROVIDER: ${SEMANTIC_ANALYSIS_PROVIDER:-}
+      WORKERS_FIXTURES_ENABLED: ${WORKERS_FIXTURES_ENABLED:-true}
       # Orquestación de trabajos. El despertar por LISTEN/NOTIFY llega directo a Postgres
       # (sin pgbouncer de por medio en esta topología), así que el techo de sondeo puede ser
       # alto sin coste de latencia: al ralentí el worker consulta cada 30 s en vez de cada
@@ -216,6 +229,7 @@ services:
     # Más margen que la API: un lote de casos de prueba en vuelo tarda más en drenar que una
     # petición HTTP, y matarlo a mitad devuelve la corrida a la cola por lease vencido.
     stop_grace_period: 60s
+    networks: [atlas_app, atlas_data]
     cpus: ${WORKER_CPUS:-1}
     mem_limit: ${WORKER_MEMORY:-768m}
     restart: unless-stopped
@@ -307,6 +321,7 @@ services:
       - no-new-privileges:true
     init: true
     stop_grace_period: 25s
+    networks: [atlas_app, atlas_data]
     cpus: ${API_CPUS:-2}
     mem_limit: ${API_MEMORY:-768m}
     restart: unless-stopped
@@ -332,6 +347,9 @@ services:
       TENANT_ID: ${BOOTSTRAP_TENANT_ID:-1}
       DEFAULT_ENVIRONMENT: ${DEFAULT_ENVIRONMENT:-PROD}
       SMOKE_ARTIFACT_CODE: ${SMOKE_ARTIFACT_CODE:-BNPL_CREDIT_DECISION}
+    # Solo el plano de aplicación: el smoke ejerce la API por HTTP y no debe poder abrir
+    # una conexión a Postgres ni a Redis para "comprobar" nada por detrás.
+    networks: [atlas_app]
     volumes:
       # La evidencia sale del contenedor: `smoke/last-run.json` es el artefacto que se revisa.
       - ./smoke:/app/smoke
@@ -364,3 +382,27 @@ volumes:
   atlas_decision_pg:
   atlas_decision_redis:
   atlas_runner_socket:
+
+# Segmentación de red. Antes todos los servicios compartían la red `default` que Compose crea
+# sola, de modo que cualquier contenedor del proyecto podía abrir una conexión a Postgres o a
+# Redis. Partirla en dos planos no es un adorno: reduce lo que un contenedor comprometido
+# alcanza sin pedir permiso a nadie.
+#
+#   atlas_app   — plano de aplicación. Lo comparten los procesos que hablan HTTP entre sí
+#                 (api, worker, smoke) y es el que les da salida a Internet: el worker
+#                 semántico llama a proveedores externos y la API resuelve variables remotas.
+#   atlas_data  — plano de datos. Solo Postgres, Redis y los procesos que los consultan.
+#                 El smoke, por ejemplo, NO está aquí: prueba la API por HTTP y no tiene
+#                 ninguna razón para poder abrir una conexión a la base de datos.
+#
+# `script-runner` no aparece en ninguna: mantiene `network_mode: none` y se alcanza solo por
+# el socket Unix del volumen compartido — sigue siendo el contenedor con menos superficie.
+#
+# En desarrollo `atlas_data` NO es `internal`, porque una red interna impide publicar puertos
+# y `127.0.0.1:5432` es lo que permite abrir psql o un cliente gráfico desde el anfitrión.
+# La superposición de producción la cierra (`internal: true`) y retira esas publicaciones.
+networks:
+  atlas_app:
+    driver: bridge
+  atlas_data:
+    driver: bridge
