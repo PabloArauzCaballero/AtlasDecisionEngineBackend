@@ -49,6 +49,17 @@ function check(ok, titulo, detalle = '') {
   return ok;
 }
 
+/**
+ * El motor devuelve un ARRAY DESNUDO en las colecciones no paginadas, no un
+ * sobre `{ items }`. Esta prueba lo asumía mal —igual que lo asumía el cliente
+ * del portal— y por eso el catálogo salía vacío contra una API que respondía
+ * 200. Se normaliza en un sitio.
+ */
+function items(payload) {
+  if (Array.isArray(payload)) return payload;
+  return Array.isArray(payload?.items) ? payload.items : [];
+}
+
 async function api(path, init = {}) {
   const response = await fetch(`${BASE_URL}${path}`, {
     ...init,
@@ -76,6 +87,12 @@ async function esperarTerminal(requestId, maxSegundos = 90) {
   const vistos = new Set();
   for (let i = 0; i < maxSegundos; i += 1) {
     const { status, body } = await api(`/v1/workers/bank-statement/runs/${requestId}`);
+    if (status >= 500) {
+      // Un 5xx aislado tras recrear contenedores es el pool reconectando, no un
+      // defecto. Se reintenta; si persiste, se agota el tope y se informa.
+      await new Promise((resolve) => setTimeout(resolve, 1_000));
+      continue;
+    }
     if (status !== 200) return { error: `consulta devolvió ${status}` };
     vistos.add(body.status);
     if (terminales.includes(body.status)) return { run: body, vistos: [...vistos] };
@@ -89,19 +106,19 @@ console.log(`\nSmoke de workers adicionales contra ${BASE_URL}\n`);
 // 1. El catálogo responde y declara los dos workers.
 const catalogo = await api('/v1/workers');
 check(catalogo.status === 200, 'GET /v1/workers responde 200', `status=${catalogo.status}`);
-const codigos = (catalogo.body?.items ?? []).map((w) => w.code);
+const codigos = items(catalogo.body).map((w) => w.code);
 check(
   codigos.includes('bank-statement') && codigos.includes('semantic-analysis'),
   'el catálogo declara los dos workers',
   codigos.join(', '),
 );
-const extractos = (catalogo.body?.items ?? []).find((w) => w.code === 'bank-statement');
+const extractos = items(catalogo.body).find((w) => w.code === 'bank-statement');
 check(extractos?.available === true, 'el worker de extractos se declara disponible');
 
 // 2. Los escenarios de prueba se sirven.
 const fixtures = await api('/v1/workers/bank-statement/fixtures');
 check(fixtures.status === 200, 'GET fixtures responde 200', `status=${fixtures.status}`);
-const codigosFixture = (fixtures.body?.items ?? []).map((f) => f.code);
+const codigosFixture = items(fixtures.body).map((f) => f.code);
 check(codigosFixture.includes('valid-basic'), 'existe el escenario valid-basic');
 
 // 3. Se encola una conversión con un escenario.
@@ -137,7 +154,19 @@ check(
   'la ejecución termina con éxito',
   run.status,
 );
-check(resultado.vistos.length > 1, 'se observó el ciclo de vida', resultado.vistos.join(' → '));
+// El ciclo de vida sólo se puede observar en la PRIMERA corrida: a partir de la
+// segunda, la idempotencia devuelve la ejecución ya terminada y no hay nada
+// intermedio que ver. Exigirlo siempre convertiría el acierto —deduplicar— en un
+// fallo, que es justo lo contrario de lo que debe reportar un smoke.
+const deduplicada = resultado.vistos.length === 1 && terminalDesdeElPrincipio(resultado.vistos);
+if (deduplicada) {
+  console.log(
+    '  INFO  ciclo de vida no observable: la ejecución ya existía (idempotencia).' +
+      ' Borra la fila o cambia el escenario para verlo.',
+  );
+} else {
+  check(resultado.vistos.length > 1, 'se observó el ciclo de vida', resultado.vistos.join(' → '));
+}
 check(run.progress === 100, 'el progreso llega a 100', String(run.progress));
 
 // 5. El resultado es el que debe ser, y viene enmascarado.

@@ -219,6 +219,15 @@ services:
       JOB_SCHEDULER_ENABLED: ${JOB_SCHEDULER_ENABLED:-true}
       JOB_WAKE_ENABLED: ${JOB_WAKE_ENABLED:-true}
       JOB_MAX_IDLE_INTERVAL_MS: ${JOB_MAX_IDLE_INTERVAL_MS:-30000}
+      # Trazas. Apagadas por defecto: se encienden con `yarn jaeger:up` y OTEL_ENABLED=true en
+      # el .env. El nombre de servicio es DISTINTO del de la API — compartirlo dejaría el grafo
+      # de dependencias de Jaeger con un solo nodo hablando consigo mismo. El destino usa el
+      # nombre de servicio `jaeger`, no localhost: dentro del contenedor localhost es él mismo.
+      OTEL_ENABLED: ${OTEL_ENABLED:-false}
+      OTEL_SERVICE_NAME: atlas-worker
+      OTEL_SERVICE_NAMESPACE: ${OTEL_SERVICE_NAMESPACE:-atlas}
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://jaeger:4318/v1/traces}
+      OTEL_TRACES_SAMPLER_ARG: ${OTEL_TRACES_SAMPLER_ARG:-1.0}
     read_only: true
     tmpfs:
       - /tmp:size=64m,mode=1777
@@ -261,6 +270,16 @@ services:
       WORKER_ROLE: ${API_WORKER_ROLE:-API}
       # La siembra la hace el servicio `seed`; una réplica de API nunca siembra.
       STARTUP_SEED_ENABLED: "false"
+      # Workers adicionales (ADR-0026). La API tambien los necesita, y no solo el
+      # proceso worker: es ella quien publica el catalogo `/v1/workers` y quien sirve
+      # los escenarios de prueba. Declararlos unicamente en `worker` dejaba los dos
+      # workers anunciados como NO disponibles y los escenarios apagados, con el
+      # procesado funcionando por detras: un desajuste que solo se ve ejerciendo la
+      # API de verdad.
+      BANK_STATEMENT_WORKER_ENABLED: ${BANK_STATEMENT_WORKER_ENABLED:-true}
+      SEMANTIC_ANALYSIS_WORKER_ENABLED: ${SEMANTIC_ANALYSIS_WORKER_ENABLED:-false}
+      SEMANTIC_ANALYSIS_PROVIDER: ${SEMANTIC_ANALYSIS_PROVIDER:-}
+      WORKERS_FIXTURES_ENABLED: ${WORKERS_FIXTURES_ENABLED:-true}
       DATABASE_POOL_MAX: ${API_DATABASE_POOL_MAX:-15}
       # Connects as atlas_app (non-superuser), NOT the atlas/POSTGRES_USER role migrate and
       # seed use — RLS is inert for a superuser connection (see bootstrap-app-role above).
@@ -311,6 +330,13 @@ services:
       # en este compose de desarrollo es justo lo que se quiere ver.
       LIVE_EXECUTION_STREAM_ENABLED: ${LIVE_EXECUTION_STREAM_ENABLED:-true}
       LIVE_EXECUTION_STREAM_HEARTBEAT_MS: ${LIVE_EXECUTION_STREAM_HEARTBEAT_MS:-15000}
+      # Trazas. Ver el mismo bloque en el servicio `worker`: nombre de servicio propio y destino
+      # por nombre de red de Docker. Levantar Jaeger: `yarn jaeger:up`.
+      OTEL_ENABLED: ${OTEL_ENABLED:-false}
+      OTEL_SERVICE_NAME: atlas-api
+      OTEL_SERVICE_NAMESPACE: ${OTEL_SERVICE_NAMESPACE:-atlas}
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://jaeger:4318/v1/traces}
+      OTEL_TRACES_SAMPLER_ARG: ${OTEL_TRACES_SAMPLER_ARG:-1.0}
     ports:
       - "127.0.0.1:${API_PORT:-3000}:3000"
     read_only: true
@@ -364,6 +390,10 @@ services:
     working_dir: /docs
     volumes:
       - .:/docs
+    # Red explícita, aunque no hable con nadie: si un servicio del proyecto NO declara red,
+    # Compose le crea una `default` implícita. Esa red suelta es la que otro fichero podría
+    # tomar por «la red del proyecto» — y existe o no según qué perfiles se hayan activado.
+    networks: [atlas_app]
     entrypoint: ["mkdocs"]
     command: ["build", "--strict"]
 
@@ -375,6 +405,7 @@ services:
       - .:/docs
     ports:
       - "127.0.0.1:${DOCS_PORT:-8000}:8000"
+    networks: [atlas_app]
     entrypoint: ["mkdocs"]
     command: ["serve", "--dev-addr", "0.0.0.0:8000"]
 
