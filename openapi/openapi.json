@@ -6040,6 +6040,614 @@
           "Tutorials"
         ]
       }
+    },
+    "/v1/workers": {
+      "get": {
+        "operationId": "workersList",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Catálogo de workers adicionales.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WorkerDescriptorDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Workers disponibles, con sus límites y disponibilidad",
+        "tags": [
+          "Workers"
+        ]
+      }
+    },
+    "/v1/workers/bank-statement/fixtures": {
+      "get": {
+        "operationId": "bankStatementListFixtures",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Escenarios sintéticos, sin datos reales.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WorkerFixtureDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Escenarios de prueba disponibles",
+        "tags": [
+          "Workers · Extractos bancarios"
+        ]
+      }
+    },
+    "/v1/workers/bank-statement/runs": {
+      "post": {
+        "operationId": "bankStatementCreateRun",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBankStatementRunDto"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBankStatementRunDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Ejecución encolada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerRunDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Encola una conversión de extracto",
+        "tags": [
+          "Workers · Extractos bancarios"
+        ]
+      },
+      "get": {
+        "operationId": "bankStatementListRuns",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "QUEUED",
+                "RUNNING",
+                "SUCCEEDED",
+                "SUCCEEDED_WITH_WARNINGS",
+                "FAILED",
+                "CANCELLED"
+              ]
+            },
+            "description": "Filtra por estado exacto del recurso."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de ejecuciones, de la más reciente a la más antigua.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/PageMetaDto"
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "items"
+                      ],
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/WorkerRunDto"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Ejecuciones del tenant",
+        "tags": [
+          "Workers · Extractos bancarios"
+        ]
+      }
+    },
+    "/v1/workers/bank-statement/runs/{requestId}": {
+      "get": {
+        "operationId": "bankStatementGetRun",
+        "parameters": [
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Identificador de correlación de la petición; el mismo que viaja en la cabecera `x-request-id`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerRunDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Estado, progreso y resultado de una ejecución",
+        "tags": [
+          "Workers · Extractos bancarios"
+        ]
+      }
+    },
+    "/v1/workers/bank-statement/runs/{requestId}/cancel": {
+      "post": {
+        "operationId": "bankStatementCancelRun",
+        "parameters": [
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Identificador de correlación de la petición; el mismo que viaja en la cabecera `x-request-id`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerRunDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Cancela una ejecución que nadie ha reclamado todavía",
+        "tags": [
+          "Workers · Extractos bancarios"
+        ]
+      }
+    },
+    "/v1/workers/bank-statement/runs/{requestId}/download": {
+      "get": {
+        "operationId": "bankStatementDownload",
+        "parameters": [
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Identificador de correlación de la petición; el mismo que viaja en la cabecera `x-request-id`."
+          },
+          {
+            "name": "format",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "default": "csv",
+              "type": "string",
+              "enum": [
+                "csv",
+                "json",
+                "normalized"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Archivo del resultado, ya enmascarado. El nombre viaja en `Content-Disposition`.",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Descarga el resultado en CSV o JSON",
+        "tags": [
+          "Workers · Extractos bancarios"
+        ]
+      }
+    },
+    "/v1/workers/semantic-analysis/fixtures": {
+      "get": {
+        "operationId": "semanticAnalysisListFixtures",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Escenarios sintéticos, sin datos personales.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WorkerFixtureDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Escenarios de prueba disponibles",
+        "tags": [
+          "Workers · Análisis semántico"
+        ]
+      }
+    },
+    "/v1/workers/semantic-analysis/runs": {
+      "post": {
+        "operationId": "semanticAnalysisCreateRun",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSemanticAnalysisRunDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Análisis encolado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerRunDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Encola un análisis semántico",
+        "tags": [
+          "Workers · Análisis semántico"
+        ]
+      },
+      "get": {
+        "operationId": "semanticAnalysisListRuns",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "QUEUED",
+                "RUNNING",
+                "SUCCEEDED",
+                "SUCCEEDED_WITH_WARNINGS",
+                "FAILED",
+                "CANCELLED"
+              ]
+            },
+            "description": "Filtra por estado exacto del recurso."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de análisis, del más reciente al más antiguo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/PageMetaDto"
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "items"
+                      ],
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/WorkerRunDto"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Análisis del tenant",
+        "tags": [
+          "Workers · Análisis semántico"
+        ]
+      }
+    },
+    "/v1/workers/semantic-analysis/runs/{requestId}": {
+      "get": {
+        "operationId": "semanticAnalysisGetRun",
+        "parameters": [
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Identificador de correlación de la petición; el mismo que viaja en la cabecera `x-request-id`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerRunDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Estado, progreso y resultado de un análisis",
+        "tags": [
+          "Workers · Análisis semántico"
+        ]
+      }
+    },
+    "/v1/workers/semantic-analysis/runs/{requestId}/cancel": {
+      "post": {
+        "operationId": "semanticAnalysisCancelRun",
+        "parameters": [
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Identificador de correlación de la petición; el mismo que viaja en la cabecera `x-request-id`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerRunDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Cancela un análisis que nadie ha reclamado todavía",
+        "tags": [
+          "Workers · Análisis semántico"
+        ]
+      }
     }
   },
   "info": {
@@ -6136,6 +6744,15 @@
     {
       "name": "Variable Catalog",
       "description": "Catálogo global de variables y sus versiones inmutables, con contrato, restricciones y ejemplos (§1)."
+    },
+    {
+      "name": "Workers"
+    },
+    {
+      "name": "Workers · Análisis semántico"
+    },
+    {
+      "name": "Workers · Extractos bancarios"
     }
   ],
   "servers": [
@@ -16058,6 +16675,197 @@
         "required": [
           "status"
         ]
+      },
+      "WorkerDescriptorDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "semantic-analysis"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "acceptedInputs": {
+            "description": "Tipos de entrada que acepta.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "limits": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Restricciones publicadas al cliente."
+          },
+          "available": {
+            "type": "boolean",
+            "description": "Si el worker está habilitado en este despliegue. Un worker apagado acepta consultas pero no ejecuciones."
+          },
+          "fixturesEnabled": {
+            "type": "boolean",
+            "description": "Si los escenarios de prueba están habilitados."
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "description",
+          "acceptedInputs",
+          "limits",
+          "available",
+          "fixturesEnabled"
+        ]
+      },
+      "WorkerFixtureDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "valid-basic"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "description": "Qué demuestra este escenario."
+          },
+          "preview": {
+            "type": "string",
+            "description": "Vista previa segura de la entrada."
+          },
+          "expectsFailure": {
+            "type": "boolean",
+            "description": "Si se espera que el escenario termine en error controlado."
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "description",
+          "preview",
+          "expectsFailure"
+        ]
+      },
+      "CreateBankStatementRunDto": {
+        "type": "object",
+        "properties": {
+          "fixtureCode": {
+            "type": "string",
+            "maxLength": 60,
+            "description": "Escenario de prueba. Excluyente con el archivo subido."
+          }
+        }
+      },
+      "WorkerRunDto": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "QUEUED",
+              "RUNNING",
+              "SUCCEEDED",
+              "SUCCEEDED_WITH_WARNINGS",
+              "FAILED",
+              "CANCELLED"
+            ],
+            "type": "string"
+          },
+          "progress": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "inputSource": {
+            "enum": [
+              "FIXTURE",
+              "UPLOAD",
+              "INLINE"
+            ],
+            "type": "string"
+          },
+          "fixtureCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "attemptCount": {
+            "type": "number"
+          },
+          "queuedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "finishedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "requestedBy": {
+            "type": "string"
+          },
+          "correlationId": {
+            "type": "string",
+            "description": "Para correlacionar con los registros del motor."
+          },
+          "result": {
+            "type": "object",
+            "description": "Resultado, cuando la ejecución terminó bien."
+          },
+          "warnings": {
+            "type": "object",
+            "description": "Advertencias de un resultado utilizable pero revisable."
+          },
+          "errorCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "requestId",
+          "status",
+          "progress",
+          "inputSource",
+          "attemptCount",
+          "queuedAt",
+          "requestedBy",
+          "correlationId"
+        ]
+      },
+      "CreateSemanticAnalysisRunDto": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 100000,
+            "description": "Texto a analizar. Excluyente con `fixtureCode`."
+          },
+          "fixtureCode": {
+            "type": "string",
+            "maxLength": 60,
+            "description": "Escenario de prueba. Excluyente con `text`."
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "Clave de deduplicación. Si se omite se deriva del contenido, de modo que reenviar el mismo texto no crea una segunda ejecución."
+          }
+        }
       },
       "ProblemDetails": {
         "type": "object",

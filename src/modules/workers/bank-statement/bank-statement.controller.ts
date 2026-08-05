@@ -165,6 +165,20 @@ export class BankStatementController {
 
   @Get('runs/:requestId/download')
   @ApiOperation({ summary: 'Descarga el resultado en CSV o JSON' })
+  /*
+   * El cuerpo se declara aunque la respuesta se escriba con `@Res()`. Sin esto
+   * el contrato publica una operación sin forma de respuesta y un cliente
+   * generado a partir de él no sabe que recibe un archivo. Se declaran los dos
+   * tipos posibles porque el formato lo elige `?format=`.
+   */
+  @ApiOkResponse({
+    description:
+      'Archivo del resultado, ya enmascarado. El nombre viaja en `Content-Disposition`.',
+    content: {
+      'text/csv': { schema: { type: 'string', format: 'binary' } },
+      'application/json': { schema: { type: 'string', format: 'binary' } },
+    },
+  })
   @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'OPERATIONS', 'COMPLIANCE', 'AUDITOR')
   async download(
     @TenantId() tenantId: bigint,
