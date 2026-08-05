@@ -117,23 +117,60 @@ Python (`ScriptNodeRunnerService.executeInProcess`); el entorno tiene Python
 5. **El worker semántico exige `SEMANTIC_ANALYSIS_PROVIDER`.** Sin él no se
    registra y lo dice en el log, en vez de encolar trabajo condenado a fallar.
 
-## 8. Pendientes reales
+## 8. Segunda tanda — lo que se cerró después
 
-Se listan porque no están hechos, no porque sean opcionales:
+Todo esto estaba en «pendientes» y ya no lo está. Rama:
+`test/workers-integracion-postgres`.
 
-- **Pruebas de integración y smoke contra PostgreSQL real.** Las unitarias y las
-  de equivalencia funcional están; falta el ciclo completo
-  API → cola → worker → resultado consultable contra una base viva. Riesgo que
-  permanece: el reclamo atómico, la recuperación de leases y la idempotencia
-  están razonados y tipados, pero no ejercitados contra Postgres.
-- **E2E del portal** para las dos vistas nuevas (estados `queued`/`processing`,
-  carga inválida, descarga, teclado, responsive y reduced-motion).
+| Pendiente | Estado |
+| --- | --- |
+| Migraciones contra PostgreSQL real | **aplicadas** — 6 tablas, RLS y 20 índices verificados |
+| Integración contra Postgres | **10/10** (`test/worker-runs.integration.spec.ts`) |
+| Semilla del catálogo semántico | **hecha** — 5 categorías, 10 alias, idempotente |
+| OpenAPI regenerado | **hecho** — 10 rutas, gate 122/122 con esquema |
+| `yarn build` del backend | **limpio** |
+| E2E del portal | **escrito** (`e2e/workers.spec.ts`, 6 casos) |
+
+### Lo que la integración demuestra
+
+Las garantías de la cola ya no están sólo razonadas. Se comprueban donde de
+verdad viven —no en JavaScript— y por eso no se pueden probar con dobles:
+
+- reclamo atómico (`FOR UPDATE SKIP LOCKED`): nunca entrega la misma ejecución
+  dos veces, y respeta el orden de llegada con desempate por `id`;
+- idempotencia: el índice único rechaza el archivo duplicado **en la base**, y
+  lo permite en otro tenant;
+- cota de intentos: deja de reclamar lo que agotó sus reintentos;
+- recuperación de leases: lo que perdió el suyo vuelve a la cola y se reclama;
+- rango del progreso: el `CHECK` rechaza un 340 %;
+- privacidad: el documento se borra al cerrar y el resultado se conserva.
+
+Un caso falló al principio por contaminación entre pruebas —no por un defecto
+del producto— y está documentado en el propio archivo.
+
+## 9. Pendientes que siguen abiertos
+
+- **Smoke de extremo a extremo con el stack levantado**: API → cola → worker →
+  resultado consultable por HTTP. La integración cubre la cola contra Postgres,
+  no el recorrido completo por la API.
 - **Verificación de la inyección de dependencias del módulo semántico** en un
   arranque real: el typecheck no detecta un proveedor que falte.
-- **OpenAPI regenerado** (`yarn docs:openapi:generate`): los decoradores están
-  puestos, el documento no se ha vuelto a generar.
-- **Semilla del catálogo semántico**: sin categorías sembradas, el worker
-  devolverá `UNKNOWN` para todo.
+- **Ejecución del E2E del portal**: el spec está escrito y commiteado, falta
+  correrlo en verde.
 - **Modo híbrido de recuperación**: absorbido pero no activado; necesita un
   vector por categoría calculado de antemano.
-- **`yarn build` de los dos repositorios** no se ejecutó en esta sesión.
+- **`yarn build` del frontend** no se ejecutó (la imagen Docker sí se
+  reconstruyó, que lo ejercita).
+
+## 10. Aviso de coordinación
+
+Hay **otro agente trabajando en `AtlasDecisionEngine` a la vez**, en
+observabilidad. Consolidó `tracing.service.ts` y `messaging-trace.service.ts` en
+`src/common/observability/` y reescribió los imports de este módulo — es el
+refactor correcto y elimina la duplicación que la absorción había introducido.
+
+Su trabajo en curso deja hoy el `typecheck` en rojo por dos cosas suyas
+(`telemetry.instrumentations.ts` con identificador duplicado y las pruebas de
+`job-scheduler` desfasadas tras añadir un cuarto argumento al constructor).
+**Ninguna es de los workers** y no se han tocado. Detalle en
+`docs/AGENT-COORDINATION.md`.
