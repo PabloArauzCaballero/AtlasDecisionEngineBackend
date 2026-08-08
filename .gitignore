@@ -9,6 +9,9 @@ dist
 .env.*
 !.env.example
 coverage
+# Los otros dos informes: el de la batería e2e y la unión de ambos (`yarn cov:merge`).
+coverage-e2e
+coverage-merged
 *.log
 .prisma
 /smoke/last-run.json

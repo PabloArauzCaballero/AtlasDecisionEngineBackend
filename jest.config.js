@@ -8,9 +8,11 @@ module.exports = {
   setupFiles: ['<rootDir>/test/setup-env.ts'],
   collectCoverageFrom: ['src/**/*.(t|j)s'],
   coverageDirectory: './coverage',
-  // También en JSON: `coverage-summary.json` es lo que permite comparar una corrida con la
-  // anterior sin volver a parsear el lcov.
-  coverageReporters: ['text-summary', 'lcov', 'json-summary'],
+  // `json-summary` para comparar una corrida con la anterior sin reparsear el lcov, y `json`
+  // porque `coverage-final.json` es el mapa completo que `scripts/merge-coverage.mjs` une con
+  // el de la batería e2e. Sin él ese fichero no se regenera nunca y la unión acaba sumando el
+  // mapa de otra corrida —incluso de otra ruta de trabajo— sin avisar.
+  coverageReporters: ['text-summary', 'lcov', 'json-summary', 'json'],
   // Suelo, no objetivo. CI ejecutaba `test:cov` sin ninguna puerta, así que la cobertura
   // podía caer indefinidamente sin que nadie se enterara. El umbral se fija JUSTO por debajo
   // de lo medido hoy para que el pipeline entre en verde y a partir de aquí solo pueda
@@ -18,11 +20,11 @@ module.exports = {
   // Los umbrales por ruta SACAN esos archivos del cómputo global, así que el número global
   // es el del resto del código y no coincide con el resumen que imprime la corrida.
   coverageThreshold: {
-    global: { lines: 47, branches: 43, functions: 46, statements: 47 },
-    // El núcleo de la decisión se mide aparte y más alto: es donde un hueco de cobertura
-    // significa una decisión sin verificar, no una pantalla sin probar.
-    './src/modules/graph/': { lines: 70, branches: 65, functions: 70, statements: 70 },
-    './src/common/security/': { lines: 65, branches: 55, functions: 60, statements: 65 },
+    global: { lines: 49, branches: 45, functions: 49, statements: 49 },
+    // El núcleo de la decisión se mide aparte y mucho más alto: es donde un hueco de
+    // cobertura significa una decisión sin verificar, no una pantalla sin probar.
+    './src/modules/graph/': { lines: 89, branches: 77, functions: 93, statements: 88 },
+    './src/common/security/': { lines: 74, branches: 57, functions: 71, statements: 70 },
   },
   testEnvironment: 'node',
   // Integration suites talk to local Postgres and spawn child processes; on a loaded dev

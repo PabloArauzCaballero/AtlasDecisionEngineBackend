@@ -145,6 +145,82 @@ altos para `src/modules/graph/` y `src/common/security/`.
 - **C5** — `take` defensivo en la matriz de cobertura de trazabilidad y en el listado de
   dependencias de una variable, los dos `findMany` sin cota natural.
 
+## Cobertura: qué se midió mal y qué se cubrió después
+
+El 47,8 % del que partía la auditoría **no describía el repositorio: describía una de sus
+mitades**. El proyecto tiene dos configuraciones de Jest —unitaria/integración y e2e— y
+`test:cov` solo medía la primera. Por eso los controladores salían al 10,8 % y los módulos de
+Nest al 0 %: no porque nadie los ejecutara, sino porque quien los ejecuta es la batería que no
+se estaba midiendo.
+
+Tres cambios, en este orden:
+
+1. **`coverageReporters` incluye ahora `json`.** Sin él `coverage-final.json` no se regeneraba
+   nunca, y la primera unión que se intentó acabó sumando el mapa de otra corrida —de otra
+   ruta de trabajo incluso— sin avisar. `scripts/merge-coverage.mjs` falla ahora en voz alta
+   si un informe no contiene un solo fichero de `src/`.
+2. **`yarn cov:merge` une los dos mapas de Istanbul.** Una línea cubierta por un e2e y por una
+   unitaria se cuenta una vez; el recorte a `src/` evita que los ayudantes de `test/e2e/support`
+   entren en el denominador.
+3. **Diez suites nuevas** sobre lo que estaba de verdad sin probar.
+
+| Medida | Antes | Después |
+| --- | --- | --- |
+| Líneas (unitaria + e2e) | 47,8 %¹ | **77,0 %** |
+| Sentencias | — | 76,3 % |
+| Funciones | — | 66,6 % |
+| Ramas | — | 56,1 % |
+| Pruebas unitarias/integración | 947 | **1210** |
+| Pruebas e2e | 0 en verde² | **77** |
+
+¹ informe obsoleto de la batería unitaria únicamente. ² las 14 suites e2e no arrancaban.
+
+Y por categoría de fichero, que es lo que explica el número: DTOs 99,5 % · módulos de Nest
+100 % · lógica y controladores 75,4 % · semillas y fixtures 58,2 % · arranque
+(`main.ts`/`worker.ts`) 0 %.
+
+### Suites nuevas
+
+`deployment-resolver-cache` (Redis es optimización, no autoridad) · `library-registry` (una
+fila solo HABILITA un prelude existente) · `identity-session-boundary` (cookie, origen y
+límite por IP) · `views-tenant-sql` (el `WHERE tenant_id` que sustituye a la RLS en las vistas)
+· `manual-review-segregation` (nadie abre y cierra un caso en una llamada) ·
+`traceability-coverage-matrix` (COMPLETE exige artefacto **y** prueba) ·
+`audit-chain-verification` (cada forma de romper la cadena) · `governance-approval-guards`
+(las seis guardas de la puerta de aprobación) · `health-probe` · `security-review` ·
+`live-execution-stream` · `tutorial-progress` · `execution-engine-finite-numbers` ·
+`rls-guc-contamination`.
+
+### Un fallo intermitente encontrado por el camino
+
+`esm-import.ts` cacheaba a nivel de módulo la función que resuelve `import()`. Esa función
+queda ligada al contexto donde se creó, y bajo Jest cada suite corre en su propia máquina
+virtual que se destruye al terminar: la siguiente suite que leyera un PDF fallaba con
+«A dynamic import callback was invoked without --experimental-vm-modules» —un mensaje que
+señala al flag, que sí estaba puesto, en vez de al contexto muerto—. Aparecía o no según el
+orden en que Jest repartiera las suites. Construirla en cada llamada lo cierra, y con eso
+pasaron también las 14 suites e2e.
+
+### Por qué el 100 % no es el objetivo
+
+Quedan 3.409 líneas sin cubrir. La aritmética de lo que costaría llevarlas a cero:
+
+- **160 líneas son el arranque** (`main.ts`, `worker.ts`): abren puertos, registran manejadores
+  de señal y llaman a `process.exit`. Cubrirlas exige arrancar el proceso real, que es lo que
+  hace el smoke, no una prueba unitaria.
+- **1.458 están en `workers/`**, un tercio del código del repositorio, con dos motores
+  completos —extractos bancarios y análisis semántico— cuya cobertura profunda es un proyecto
+  en sí mismo.
+- El resto son en su mayoría ramas defensivas: `catch` de infraestructura, `?? valor por
+  defecto` sobre configuración que siempre viene puesta, y guardas de tipos que el compilador
+  ya garantiza.
+
+Forzar esas ramas exige pruebas que afirman que algo no explota, sin fijar ningún
+comportamiento. Cuestan mantenimiento, se rompen con cada refactor y —lo peor— dan la misma
+señal verde que una prueba que sí comprueba algo. El objetivo útil no es el 100 % global sino
+el que ya se aplica por ruta: **`src/modules/graph/` está al 91,4 %** porque ahí un hueco
+significa una decisión sin verificar.
+
 ## Dato externo que falta
 
 `yarn docs:openapi:generate` levanta la aplicación completa, y `DATABASE_READ_URL` del entorno

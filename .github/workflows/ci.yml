@@ -70,7 +70,19 @@ jobs:
       - run: yarn security:audit
       - run: yarn prisma:migrate
       - run: yarn prisma:seed
-      - run: yarn test:e2e
+      # Con cobertura: los controladores y el cableado de módulos SOLO los ejercita esta
+      # batería, así que medir únicamente la unitaria los dejaba al 10% y al 0% — no porque
+      # nadie los ejecute, sino porque quien los ejecuta no se estaba midiendo.
+      - run: yarn test:e2e:cov
+      # Une los dos mapas de Istanbul en un único informe. Es el número que describe el
+      # repositorio entero; los umbrales por batería siguen aplicándose en su propia corrida.
+      - run: yarn cov:merge
+      - name: Publicar la cobertura combinada
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ github.sha }}
+          path: coverage-merged/
+          retention-days: 14
       - name: Runtime smoke test
         shell: bash
         run: |
