@@ -49,7 +49,7 @@ export class SampleInputService {
     }
 
     const deployment = await this.deployments.resolve(tenantId, artifactCode, environmentCode);
-    const compiled = deployment.compiled as CompiledDecisionArtifact;
+    const compiled = deployment.compiled;
     const inputs = this.inputContract(compiled);
     if (!inputs.length) {
       throw new DomainException(

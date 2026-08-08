@@ -71,6 +71,37 @@ export const envSchema = z
     DATABASE_IDLE_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(600_000).default(30_000),
     DATABASE_STATEMENT_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(300_000).default(30_000),
 
+    // ---------------------------------------------------------------------
+    // Separación de rutas de datos (ADR-0029).
+    //
+    // Vacías, las tres rutas son la misma conexión y el comportamiento es idéntico al
+    // anterior: DATABASE_URL sigue siendo la única variable obligatoria. Declarar
+    // DATABASE_READ_URL con el rol lector separa lectura y escritura por credencial;
+    // apuntarla a otro host la separa por servidor (réplica). El registro reutiliza el
+    // pool cuando las huellas coinciden, así que declarar la misma URL no duplica nada.
+    // ---------------------------------------------------------------------
+    DATABASE_WRITE_URL: z.string().optional().or(z.literal('')),
+    DATABASE_READ_URL: z.string().optional().or(z.literal('')),
+    /** Pool de la ruta de lectura; sin valor hereda DATABASE_POOL_MAX. */
+    DATABASE_READ_POOL_MAX: z.coerce.number().int().min(1).max(100).optional(),
+    /**
+     * Interruptor de la separación de rutas. Apagado, toda lectura vuelve al primario y el
+     * sistema se comporta exactamente como antes: es el rollback de esta migración sin
+     * desplegar nada. Se enciende cuando la conexión de lectura está aprovisionada.
+     */
+    DATA_READ_ROUTING_ENABLED: booleanFromString.default(false),
+    /**
+     * Ante una conexión de lectura no disponible, servir desde el primario. Nunca es
+     * silencioso: cada degradación deja log estructurado y `atlas_database_fallback_total`.
+     */
+    ENABLE_PRIMARY_READ_FALLBACK: booleanFromString.default(true),
+    /**
+     * Reglas de enrutamiento por módulo, en JSON. Se fusionan sobre las reglas base de
+     * `persistence/routing/routing-rules.ts`; un JSON inválido impide arrancar.
+     * Ejemplo: {"views":{"read":"postgres-read","consistency":"eventual"}}
+     */
+    DATA_ROUTING_RULES: z.string().max(8_000).optional().or(z.literal('')),
+
     REDIS_URL: optionalUrl,
     REDIS_PREFIX: z
       .string()
@@ -115,6 +146,11 @@ export const envSchema = z
     TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(10).default(1),
     BODY_LIMIT_BYTES: z.coerce.number().int().min(1_024).max(10_485_760).default(1_048_576),
     REQUEST_TIMEOUT_MS: z.coerce.number().int().min(500).max(120_000).default(15_000),
+    // Plazo total del apagado ordenado. El 80 % acota el drenaje de lotes en vuelo del
+    // orquestador de trabajos y el resto queda para cerrar los pools y vaciar las trazas;
+    // agotado el plazo, el proceso fuerza la salida. Debe quedar POR DEBAJO del
+    // terminationGracePeriodSeconds del orquestador: si lo supera, el SIGKILL llega antes que
+    // el vigilante y se pierde el motivo del apagado, que es justo lo que se quería salvar.
     SHUTDOWN_GRACE_MS: z.coerce.number().int().min(1_000).max(120_000).default(20_000),
 
     RATE_LIMIT_ENABLED: booleanFromString.default(true),
@@ -142,7 +178,22 @@ export const envSchema = z
     // documented rather than being undeclared magic strings.
     OTEL_ENABLED: booleanFromString.default(false),
     OTEL_SERVICE_NAME: z.string().max(120).default('atlas-decision-engine'),
+    // Agrupa API y worker bajo el mismo producto en el grafo de servicios de Jaeger.
+    OTEL_SERVICE_NAMESPACE: z.string().max(120).default('atlas'),
+    // Por defecto se toma BUILD_VERSION; esta variable sólo existe para despliegues que
+    // versionan la telemetría por separado del artefacto.
+    OTEL_SERVICE_VERSION: z.string().max(60).optional(),
+    OTEL_DEPLOYMENT_ENVIRONMENT: z.string().max(60).optional(),
     OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: optionalUrl,
+    OTEL_EXPORT_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(10_000),
+    // Muestreo basado en el padre: se respeta la decisión de un servicio aguas arriba, porque
+    // media traza no sirve para nada. La proporción sólo gobierna las trazas que nacen aquí.
+    OTEL_TRACES_SAMPLER: z.string().max(60).default('parentbased_traceidratio'),
+    OTEL_TRACES_SAMPLER_ARG: z.coerce.number().min(0).max(1).default(1),
+    OTEL_PROPAGATORS: z.string().max(120).default('tracecontext,baggage'),
+    OTEL_DIAG_LOG_LEVEL: z
+      .enum(['NONE', 'ERROR', 'WARN', 'INFO', 'DEBUG', 'VERBOSE', 'ALL'])
+      .default('ERROR'),
 
     VARIABLE_BACKEND_URL: optionalUrl,
     VARIABLE_BACKEND_TIMEOUT_MS: z.coerce.number().int().min(100).max(30_000).default(1_500),
@@ -202,7 +253,7 @@ export const envSchema = z
     SEMANTIC_ANALYSIS_MAX_TEXT_LENGTH: z.coerce.number().int().min(100).max(100_000).default(8_000),
     // Vacío ⇒ el worker NO se registra, y lo dice en el log. Es preferible a
     // arrancar y fallar en cada job por falta de credenciales.
-    SEMANTIC_ANALYSIS_PROVIDER: z.enum(['', 'openai', 'ollama']).default(''),
+    SEMANTIC_ANALYSIS_PROVIDER: z.enum(['', 'openai', 'transformer']).default(''),
     SEMANTIC_ANALYSIS_BUDGET_WINDOW_SECONDS: z.coerce
       .number()
       .int()
@@ -215,6 +266,20 @@ export const envSchema = z
       .min(1)
       .max(1_000_000)
       .default(1_000),
+    // --- Retención del texto analizado ---
+    // El texto que se clasifica se persiste íntegro para poder explicar la
+    // decisión, y en el caso de un proveedor alojado ya salió del perímetro una
+    // vez. Retenerlo indefinidamente añade una segunda copia permanente que
+    // nadie pidió, así que la barrida lo minimiza (lo sustituye por su huella) y
+    // más tarde purga la fila entera.
+    SEMANTIC_ANALYSIS_MINIMIZE_AFTER_DAYS: z.coerce.number().int().min(0).max(3_650).default(30),
+    SEMANTIC_ANALYSIS_AUDIT_RETENTION_DAYS: z.coerce.number().int().min(0).max(3_650).default(90),
+    SEMANTIC_ANALYSIS_RETENTION_SWEEP_INTERVAL_MS: z.coerce
+      .number()
+      .int()
+      .min(60_000)
+      .max(86_400_000)
+      .default(3_600_000),
 
     BANK_STATEMENT_WORKER_ENABLED: booleanFromString.default(false),
     BANK_STATEMENT_WORKER_POLL_MS: z.coerce.number().int().min(50).max(10_000).default(500),
@@ -362,6 +427,26 @@ export const envSchema = z
     BOOTSTRAP_RUNTIME_ROLES: z.string().default(''),
   })
   .superRefine((value, ctx) => {
+    // El lease de idempotencia tiene que sobrevivir a la decisión más larga que la
+    // configuración permite. Si vence antes, otra petición reclama legítimamente la clave
+    // mientras el titular sigue trabajando: la respuesta del titular ya no se cachea (la
+    // guardia de propiedad de `IdempotencyService` la descarta) y el reintento vuelve a
+    // ejecutar la decisión. Cada cota se comprobaba por separado y nadie comparaba las tres,
+    // así que `NESTED_TREE_MAX_TOTAL_MS=120000` con el lease por defecto de 60 s era una
+    // combinación aceptada que rompía la idempotencia en silencio.
+    const leaseMs = value.IDEMPOTENCY_LEASE_SECONDS * 1_000;
+    const longestDecisionMs = Math.max(value.REQUEST_TIMEOUT_MS, value.NESTED_TREE_MAX_TOTAL_MS);
+    if (leaseMs <= longestDecisionMs) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['IDEMPOTENCY_LEASE_SECONDS'],
+        message:
+          `El lease (${leaseMs} ms) debe superar la decisión más larga admisible ` +
+          `(${longestDecisionMs} ms = máx. de REQUEST_TIMEOUT_MS y NESTED_TREE_MAX_TOTAL_MS); ` +
+          'si no, una petición puede reclamar una clave que su titular sigue ejecutando',
+      });
+    }
+
     if (value.AUDIT_HASH_PREVIOUS_SECRETS) {
       try {
         const retired = JSON.parse(value.AUDIT_HASH_PREVIOUS_SECRETS) as unknown;
@@ -381,6 +466,24 @@ export const envSchema = z
           code: 'custom',
           path: ['AUDIT_HASH_PREVIOUS_SECRETS'],
           message: 'Must be a JSON object of {keyId: secret}, with secrets at least 32 characters',
+        });
+      }
+    }
+
+    // Solo la sintaxis: la forma de las reglas y la existencia de cada conexión las valida
+    // el router al construirse, que es quien conoce el registro. Comprobar aquí el JSON
+    // convierte un error de tecleo en un fallo de arranque con el nombre de la variable.
+    if (value.DATA_ROUTING_RULES) {
+      try {
+        const parsed: unknown = JSON.parse(value.DATA_ROUTING_RULES);
+        if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          throw new Error('not an object');
+        }
+      } catch {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['DATA_ROUTING_RULES'],
+          message: 'Must be a JSON object mapping module names to routing rules',
         });
       }
     }

@@ -117,32 +117,42 @@ export class QaLabService {
     const summary = await this.executeBatch(tenantId, compiled, cases, dto, run.id, seed);
     const durationMs = Date.now() - started;
 
-    const finished = await this.prisma.qaGenerationRun.update({
-      where: { id: run.id },
-      data: {
-        status: QaRunStatus.COMPLETED,
-        totalCases: summary.total,
-        passedCases: summary.passed,
-        failedCases: summary.failed,
-        erroredCases: summary.errored,
-        durationMs,
-        finishedAt: new Date(),
-        summaryJson: summary.byProperty as unknown as Prisma.InputJsonValue,
-      },
+    // El cierre de la corrida y su evento de auditoría van en LA MISMA transacción
+    // (`.claude/rules/80-database.md`). Antes commiteaban por separado: si el `append`
+    // fallaba, quedaba una corrida COMPLETED sin ninguna entrada en la cadena de auditoría,
+    // que es justo la combinación que no se puede explicar después.
+    const finished = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.qaGenerationRun.update({
+        where: { id: run.id },
+        data: {
+          status: QaRunStatus.COMPLETED,
+          totalCases: summary.total,
+          passedCases: summary.passed,
+          failedCases: summary.failed,
+          erroredCases: summary.errored,
+          durationMs,
+          finishedAt: new Date(),
+          summaryJson: summary.byProperty as unknown as Prisma.InputJsonValue,
+        },
+      });
+      await this.audit.append(
+        {
+          tenantId,
+          eventType: 'QA_GENERATION_RUN_COMPLETED',
+          aggregateType: 'QaGenerationRun',
+          aggregateId: run.id.toString(),
+          actorId: principal.id,
+          requestId: principal.requestId,
+          payload: { seed, total: summary.total, failed: summary.failed, environmentCode },
+        },
+        tx,
+      );
+      return updated;
     });
 
     this.metrics.recordQaCase('PASSED', summary.passed);
     this.metrics.recordQaCase('FAILED', summary.failed);
     this.metrics.recordQaCase('ERRORED', summary.errored);
-    await this.audit.append({
-      tenantId,
-      eventType: 'QA_GENERATION_RUN_COMPLETED',
-      aggregateType: 'QaGenerationRun',
-      aggregateId: run.id.toString(),
-      actorId: principal.id,
-      requestId: principal.requestId,
-      payload: { seed, total: summary.total, failed: summary.failed, environmentCode },
-    });
 
     return this.presentRun(finished, summary.counterexamples);
   }
@@ -618,8 +628,11 @@ function sortedKeys(value: Record<string, unknown>): Record<string, unknown> {
 /** Lee la versión instalada de un paquete sin fallar si no está presente. */
 function readPackageVersion(packageName: string): string {
   try {
+    // `require` dinámico a propósito: el paquete puede no estar instalado, y un `import`
+    // estático lo convertiría en dependencia obligatoria del arranque.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    return String(require(`${packageName}/package.json`).version);
+    const manifest = require(`${packageName}/package.json`) as { version?: unknown };
+    return String(manifest.version ?? 'unknown');
   } catch {
     return 'not-installed';
   }

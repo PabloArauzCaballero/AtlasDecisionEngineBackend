@@ -5,17 +5,17 @@ import {
   assertProviderTimeoutFitsAnalysis,
   loadOpenAiProviderOptions,
 } from './openai-provider.config';
-import { loadOllamaEmbeddingOptions, loadOllamaProviderOptions } from './ollama-provider.config';
+import { loadTransformerProviderOptions } from './transformer-provider.config';
 import { OpenAiSemanticProvider } from '../infrastructure/openai/openai-semantic.provider';
 import { OpenAiEmbeddingProvider } from '../infrastructure/openai/openai-embedding.provider';
-import { OllamaSemanticProvider } from '../infrastructure/ollama/ollama-semantic.provider';
-import { OllamaEmbeddingProvider } from '../infrastructure/ollama/ollama-embedding.provider';
+import { TransformerSemanticProvider } from '../infrastructure/transformer/transformer-semantic.provider';
+import { TransformerEmbeddingProvider } from '../infrastructure/transformer/transformer-embedding.provider';
 
 const selectionSchema = z.object({
-  SEMANTIC_MODEL_PROVIDER: z.enum(['openai', 'ollama']).default('openai'),
+  SEMANTIC_MODEL_PROVIDER: z.enum(['openai', 'transformer']).default('openai'),
   // Se resuelve por separado para permitir la adopción por etapas: embeddings locales sobre un
   // clasificador alojado es una configuración deliberada, no una inconsistencia.
-  SEMANTIC_EMBEDDING_PROVIDER: z.enum(['openai', 'ollama']).optional(),
+  SEMANTIC_EMBEDDING_PROVIDER: z.enum(['openai', 'transformer']).optional(),
 });
 
 export interface ResolvedModelProviders {
@@ -29,8 +29,12 @@ export interface ResolvedModelProviders {
  * Resuelve los adaptadores de modelo declarados en el entorno.
  *
  * Concentra aquí la selección para que el árbol de módulos no conozca proveedores concretos y para
- * que la comprobación del presupuesto de tiempo se aplique al proveedor realmente elegido: es
- * precisamente al pasar a un modelo local —mucho más lento— cuando esa comprobación importa.
+ * que la comprobación del presupuesto de tiempo se aplique al proveedor realmente elegido.
+ *
+ * El adaptador de transformers no pasa por esa comprobación, y no es un olvido: no reintenta —el
+ * clasificador hace UNA llamada por nivel—, de modo que su peor caso es su propio timeout, un orden
+ * de magnitud por debajo del presupuesto de cualquier análisis. La comprobación existe para el
+ * proveedor generativo, cuyo peor caso se multiplica por los intentos.
  */
 export function loadModelProviders(
   environment: NodeJS.ProcessEnv,
@@ -41,8 +45,8 @@ export function loadModelProviders(
   const wantsEmbeddings = config.retrievalMode === 'hybrid';
 
   const modelProvider =
-    selection.SEMANTIC_MODEL_PROVIDER === 'ollama'
-      ? buildOllamaModelProvider(environment, config)
+    selection.SEMANTIC_MODEL_PROVIDER === 'transformer'
+      ? buildTransformerModelProvider(environment)
       : buildOpenAiModelProvider(environment, config);
 
   if (!wantsEmbeddings) {
@@ -51,23 +55,30 @@ export function loadModelProviders(
   return {
     modelProvider,
     embeddingProvider:
-      embeddingKind === 'ollama'
-        ? new OllamaEmbeddingProvider(loadOllamaEmbeddingOptions(environment))
+      embeddingKind === 'transformer'
+        ? buildTransformerEmbeddingProvider(environment)
         : buildOpenAiEmbeddingProvider(environment),
   };
 }
 
-function buildOllamaModelProvider(
-  environment: NodeJS.ProcessEnv,
-  config: SemanticWorkerConfig,
-): SemanticModelProvider {
-  const options = loadOllamaProviderOptions(environment);
-  assertProviderTimeoutFitsAnalysis(
-    options.timeoutMs ?? 30_000,
-    options.maxAttempts ?? 2,
-    config.analysisTimeoutSeconds,
-  );
-  return new OllamaSemanticProvider(options);
+/**
+ * El clasificador y el recuperador híbrido comparten adaptador de embeddings pero NO instancia:
+ * cada uno se construye con su propia configuración de lote y su propio cliente. Compartir la
+ * instancia acoplaría el presupuesto de tiempo de la recuperación con el de la clasificación, que
+ * son distintos y se agotan por separado.
+ */
+function buildTransformerModelProvider(environment: NodeJS.ProcessEnv): SemanticModelProvider {
+  const options = loadTransformerProviderOptions(environment);
+  return new TransformerSemanticProvider({
+    embeddings: new TransformerEmbeddingProvider(options.embedding),
+    queryPrefix: options.queryPrefix,
+    passagePrefix: options.passagePrefix,
+    ...options.thresholds,
+  });
+}
+
+function buildTransformerEmbeddingProvider(environment: NodeJS.ProcessEnv): EmbeddingProvider {
+  return new TransformerEmbeddingProvider(loadTransformerProviderOptions(environment).embedding);
 }
 
 function buildOpenAiModelProvider(

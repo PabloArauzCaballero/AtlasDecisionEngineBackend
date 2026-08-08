@@ -1,6 +1,7 @@
 import type { DeploymentResolverService } from '../src/modules/deployments/deployment-resolver.service';
 import type { ExecutionEngineService } from '../src/modules/graph/execution-engine.service';
 import type { NestedTreeExecutionService } from '../src/modules/nested-trees/nested-tree-execution.service';
+import type { WorkerServiceInvokerService } from '../src/modules/workers/worker-service-invoker.service';
 import { SimulationService } from '../src/modules/runtime/simulation.service';
 import type { AuthenticatedPrincipal } from '../src/common/security/security.types';
 import type { VariableResolutionService } from '../src/modules/variables/variable-resolution.service';
@@ -54,19 +55,39 @@ describe('SimulationService', () => {
     };
     const nestedTreeResolver = { resolve: jest.fn() };
     const nestedTrees = { bind: jest.fn().mockReturnValue(nestedTreeResolver) };
+    const workerServiceInvoker = { invoke: jest.fn() };
+    const workerServices = { bind: jest.fn().mockReturnValue(workerServiceInvoker) };
     const metrics = new MetricsService();
     const service = new SimulationService(
       deployments as unknown as DeploymentResolverService,
       variables as unknown as VariableResolutionService,
       engine as unknown as ExecutionEngineService,
       nestedTrees as unknown as NestedTreeExecutionService,
+      workerServices as unknown as WorkerServiceInvokerService,
       metrics,
     );
-    return { service, deployments, variables, engine, nestedTrees, nestedTreeResolver, metrics };
+    return {
+      service,
+      deployments,
+      variables,
+      engine,
+      nestedTrees,
+      nestedTreeResolver,
+      workerServiceInvoker,
+      metrics,
+    };
   }
 
   it('returns a deterministic trace without a persistence dependency', async () => {
-    const { service, deployments, variables, engine, nestedTrees, nestedTreeResolver } = setup();
+    const {
+      service,
+      deployments,
+      variables,
+      engine,
+      nestedTrees,
+      nestedTreeResolver,
+      workerServiceInvoker,
+    } = setup();
 
     const result = await service.simulate(
       7n,
@@ -86,7 +107,17 @@ describe('SimulationService', () => {
       expect.objectContaining({ allowExternal: false }),
     );
     expect(nestedTrees.bind).toHaveBeenCalledWith(7n, principal);
-    expect(engine.execute).toHaveBeenCalledWith(compiled, { age: 30 }, nestedTreeResolver);
+    expect(engine.execute).toHaveBeenCalledWith(
+      compiled,
+      { age: 30 },
+      nestedTreeResolver,
+      undefined,
+      undefined,
+      // El invocador de servicios de worker viaja como sexto argumento de llamada, igual
+      // que el resolutor de árboles anidados: la simulación tiene que ejercitar los nodos
+      // `WORKER` con el mismo cableado que la ejecución real.
+      workerServiceInvoker,
+    );
     expect(result).toMatchObject({
       simulation: true,
       persisted: false,

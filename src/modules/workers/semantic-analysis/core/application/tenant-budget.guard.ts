@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { SEMANTIC_WORKER_CONFIG, TENANT_BUDGET_REPOSITORY, TenantBudgetRepository } from './ports';
 import { SemanticWorkerConfig } from '../config/semantic-worker.config';
-import { TracingService } from '../observability/tracing.service';
+import { TracingService } from '../../../../../common/observability/tracing.service';
 import {
   APP_ATTRIBUTES,
   SEMANTIC_ATTRIBUTES,

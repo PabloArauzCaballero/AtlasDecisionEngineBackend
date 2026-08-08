@@ -116,6 +116,17 @@ export class MetricsService {
     registers: [this.registry],
   });
 
+  /**
+   * Reservas de idempotencia que otra petición reclamó mientras su titular seguía ejecutando.
+   * Cualquier valor distinto de cero significa que hay decisiones tardando más que
+   * `IDEMPOTENCY_LEASE_SECONDS`: la respuesta no se cachea y el reintento vuelve a ejecutar.
+   */
+  private readonly idempotencyLeasesLost = new Counter({
+    name: 'atlas_idempotency_lease_lost_total',
+    help: 'Reservas de idempotencia perdidas porque el lease venció durante la ejecución.',
+    registers: [this.registry],
+  });
+
   private readonly calculatedFields = new Counter({
     name: 'atlas_calculated_field_executions_total',
     help: 'Ejecuciones de campos calculados por resultado.',
@@ -128,6 +139,26 @@ export class MetricsService {
     help: 'Duración de la ejecución de un campo calculado, en milisegundos.',
     labelNames: ['field_code'],
     buckets: [1, 2, 5, 10, 25, 50, 100, 250, 500],
+    registers: [this.registry],
+  });
+
+  private readonly workerNodeCalls = new Counter({
+    name: 'atlas_worker_node_calls_total',
+    help: 'Llamadas a servicios de worker hechas desde un nodo del grafo, por resultado.',
+    labelNames: ['service', 'operation', 'outcome'],
+    registers: [this.registry],
+  });
+
+  /**
+   * Duración de la llamada, no de la decisión. Sus cubos llegan a un minuto porque un nodo
+   * de servicio ejecuta trabajo real —convertir un PDF, clasificar un texto— dentro de la
+   * decisión: medirlo con los cubos de un campo calculado dejaría todo en el último.
+   */
+  private readonly workerNodeCallDuration = new Histogram({
+    name: 'atlas_worker_node_call_duration_ms',
+    help: 'Duración de una llamada a un servicio de worker desde un nodo, en milisegundos.',
+    labelNames: ['service', 'operation'],
+    buckets: [25, 50, 100, 250, 500, 1_000, 2_500, 5_000, 15_000, 60_000],
     registers: [this.registry],
   });
 
@@ -234,6 +265,103 @@ export class MetricsService {
     registers: [this.registry],
   });
 
+  // --- Persistencia: rutas de lectura/escritura, pools y fallback ---
+  //
+  // Todas las etiquetas son catálogos cerrados del propio código (nombres lógicos de
+  // conexión, nombres de módulo, nombres de método de un puerto), nunca entrada del
+  // llamante: una etiqueta abierta aquí haría explotar la cardinalidad de la serie.
+
+  private readonly databaseOperations = new Counter({
+    name: 'atlas_database_operation_total',
+    help: 'Operaciones de persistencia por conexión lógica, módulo y resultado.',
+    labelNames: ['connection', 'engine', 'module', 'operation', 'outcome'],
+    registers: [this.registry],
+  });
+
+  private readonly databaseOperationDuration = new Histogram({
+    name: 'atlas_database_operation_duration_ms',
+    help: 'Duración de una operación de persistencia, en milisegundos.',
+    labelNames: ['connection', 'module', 'operation'],
+    buckets: [1, 2, 5, 10, 25, 50, 100, 250, 500, 1_000, 5_000],
+    registers: [this.registry],
+  });
+
+  /**
+   * Degradaciones de la ruta de lectura al primario. Nunca debe ser silenciosa: si esta
+   * serie sube, la réplica está caída o retrasada y el primario está absorbiendo carga
+   * que nadie planificó.
+   */
+  private readonly databaseFallbacks = new Counter({
+    name: 'atlas_database_fallback_total',
+    help: 'Lecturas servidas por el primario tras fallar la conexión de lectura.',
+    labelNames: ['from_connection', 'to_connection', 'reason'],
+    registers: [this.registry],
+  });
+
+  private readonly databaseConnectionFailures = new Counter({
+    name: 'atlas_database_connection_failures_total',
+    help: 'Fallos de conexión observados por conexión lógica.',
+    labelNames: ['connection'],
+    registers: [this.registry],
+  });
+
+  private readonly databasePool = new Gauge({
+    name: 'atlas_database_pool_connections',
+    help: 'Conexiones del pool por conexión lógica y estado (total | idle | waiting).',
+    labelNames: ['connection', 'state'],
+    registers: [this.registry],
+  });
+
+  /**
+   * Muestreadores ejecutados justo antes de exponer el registro.
+   *
+   * El tamaño de un pool es un valor que solo tiene sentido en el instante de la lectura;
+   * publicarlo desde un temporizador propio añadiría un reloj más al proceso y aun así
+   * daría un dato viejo. Quien conoce los pools se registra aquí y se le pregunta al
+   * hacer scrape.
+   */
+  private readonly collectors = new Set<() => void>();
+
+  registerCollector(collect: () => void): void {
+    this.collectors.add(collect);
+  }
+
+  /** `outcome` ∈ ok | error. */
+  recordDatabaseOperation(labels: {
+    connection: string;
+    engine: string;
+    module: string;
+    operation: string;
+    outcome: 'ok' | 'error';
+    durationMs: number;
+  }): void {
+    const { connection, engine, module, operation, outcome, durationMs } = labels;
+    this.databaseOperations.inc({ connection, engine, module, operation, outcome });
+    this.databaseOperationDuration.observe({ connection, module, operation }, durationMs);
+  }
+
+  /** `reason` es el NOMBRE del error normalizado, nunca el mensaje del driver. */
+  recordDatabaseFallback(fromConnection: string, toConnection: string, reason: string): void {
+    this.databaseFallbacks.inc({
+      from_connection: fromConnection,
+      to_connection: toConnection,
+      reason: reason || 'UNKNOWN',
+    });
+  }
+
+  recordDatabaseConnectionFailure(connection: string): void {
+    this.databaseConnectionFailures.inc({ connection });
+  }
+
+  setDatabasePool(
+    connection: string,
+    stats: { total: number; idle: number; waiting: number },
+  ): void {
+    this.databasePool.set({ connection, state: 'total' }, stats.total);
+    this.databasePool.set({ connection, state: 'idle' }, stats.idle);
+    this.databasePool.set({ connection, state: 'waiting' }, stats.waiting);
+  }
+
   /** Cuenta una violación de contrato. `constraint` es un catálogo cerrado del motor. */
   recordContractViolation(scope: string, constraint: string): void {
     this.contractViolations.inc({ scope: scope || 'UNKNOWN', constraint: constraint || 'UNKNOWN' });
@@ -248,9 +376,20 @@ export class MetricsService {
     this.missingRequiredOutputs.inc({ artifact_code: artifactCode || 'UNKNOWN' });
   }
 
+  recordIdempotencyLeaseLost(): void {
+    this.idempotencyLeasesLost.inc();
+  }
+
   recordCalculatedField(fieldCode: string, outcome: string, durationMs: number): void {
     this.calculatedFields.inc({ field_code: fieldCode || 'UNKNOWN', outcome });
     this.calculatedFieldDuration.observe({ field_code: fieldCode || 'UNKNOWN' }, durationMs);
+  }
+
+  /** `outcome` ∈ SUCCEEDED | SUCCEEDED_WITH_WARNINGS | ERROR. */
+  recordWorkerCall(service: string, operation: string, outcome: string, durationMs: number): void {
+    const labels = { service: service || 'UNKNOWN', operation: operation || 'UNKNOWN' };
+    this.workerNodeCalls.inc({ ...labels, outcome });
+    this.workerNodeCallDuration.observe(labels, durationMs);
   }
 
   recordChainDepth(depth: number): void {
@@ -345,6 +484,15 @@ export class MetricsService {
   /** Renders the registry in the Prometheus text exposition format. */
   async renderPrometheus(): Promise<string> {
     this.uptime.set(Math.floor((Date.now() - this.startedAt) / 1000));
+    for (const collect of this.collectors) {
+      // Un muestreador roto no puede impedir que se sirva el resto de las métricas: el
+      // scrape es justo lo que se consulta cuando algo va mal.
+      try {
+        collect();
+      } catch {
+        /* el fallo ya se refleja en la ausencia de esa serie */
+      }
+    }
     return this.registry.metrics();
   }
 }

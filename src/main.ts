@@ -7,7 +7,10 @@ import 'reflect-metadata';
 // ioredis as those modules are required, so starting after Nest has loaded them yields no spans.
 import { startTracing, stopTracing } from './common/observability/tracing';
 
-startTracing();
+// El nombre por defecto es POR PROCESO: si api y worker compartieran uno, el grafo de
+// dependencias de Jaeger mostraría un solo nodo hablando consigo mismo. `OTEL_SERVICE_NAME`
+// lo sobrescribe cuando el despliegue nombra sus servicios.
+startTracing('atlas-api');
 
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -36,12 +39,16 @@ function requestIdFrom(request: Request): string {
   return typeof value === 'string' && /^[A-Za-z0-9._:-]{8,120}$/.test(value) ? value : randomUUID();
 }
 
+/** App ya creada, para que el manejador de fallo de arranque pueda cerrarla. Ver worker.ts. */
+let startedApp: Awaited<ReturnType<typeof NestFactory.create>> | undefined;
+
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, {
     bufferLogs: true,
     bodyParser: false,
     forceCloseConnections: true,
   });
+  startedApp = app;
   const config = app.get(ConfigService);
   const logger = app.get(StructuredLoggerService);
   const requestContext = app.get(RequestContextService);
@@ -121,9 +128,26 @@ async function bootstrap(): Promise<void> {
   // when the process is asked to stop are dropped — exactly the shutdown window where a
   // failing request is most interesting. Nest closes the app on these signals but does not
   // force an exit, so the process stays alive until this flush resolves.
+  const graceMs = config.get<number>('SHUTDOWN_GRACE_MS') ?? 20_000;
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     process.once(signal, () => {
       void stopTracing();
+      // Mismo plazo duro que en el worker: Nest cierra la app en estas señales pero no fuerza
+      // la salida, así que una petición que no termina o un `onModuleDestroy` colgado dejan
+      // el proceso vivo hasta el SIGKILL del orquestador, que se lleva por delante el log del
+      // motivo. `unref` para no retrasar una salida que ya iba a ocurrir sola.
+      const watchdog = setTimeout(() => {
+        process.stderr.write(
+          `${JSON.stringify({
+            timestamp: new Date().toISOString(),
+            level: 'error',
+            context: 'Shutdown',
+            message: `El apagado ordenado no terminó en ${graceMs} ms; se fuerza la salida`,
+          })}\n`,
+        );
+        process.exit(1);
+      }, graceMs);
+      watchdog.unref?.();
     });
   }
 
@@ -174,7 +198,7 @@ async function bootstrap(): Promise<void> {
   );
 }
 
-void bootstrap().catch((error: unknown) => {
+void bootstrap().catch(async (error: unknown) => {
   process.stderr.write(
     `${JSON.stringify({
       timestamp: new Date().toISOString(),
@@ -183,5 +207,10 @@ void bootstrap().catch((error: unknown) => {
       stack: error instanceof Error ? error.stack : undefined,
     })}\n`,
   );
-  process.exitCode = 1;
+  // Cerrar lo que sí llegó a abrirse (pool de Postgres, Redis, exportador de trazas) antes
+  // de salir; ver la nota equivalente en worker.ts. Un puerto ya ocupado es el caso típico:
+  // `app.listen` falla con todo el contexto ya levantado.
+  await startedApp?.close().catch(() => undefined);
+  await stopTracing().catch(() => undefined);
+  process.exit(1);
 });

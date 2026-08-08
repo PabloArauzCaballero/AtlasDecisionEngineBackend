@@ -15,6 +15,9 @@ import {
   ObjectiveListQueryDto,
 } from './traceability.dto';
 
+/** Techo de filas de la matriz de cobertura; ver la nota en `coverageMatrix`. */
+const MAX_MATRIX_ROWS = 500;
+
 @Injectable()
 export class TraceabilityService {
   constructor(
@@ -142,9 +145,14 @@ export class TraceabilityService {
         policyRequirements: {
           include: { artifactLinks: true, testLinks: true },
           orderBy: { policyCode: 'asc' },
+          // Cota defensiva: la matriz se materializa entera en memoria y se serializa de una
+          // vez. El catálogo de gobierno crece despacio, así que ningún tenant real la roza;
+          // está para que un catálogo desbocado degrade la vista en vez de tumbar el proceso.
+          take: MAX_MATRIX_ROWS,
         },
       },
       orderBy: { objectiveCode: 'asc' },
+      take: MAX_MATRIX_ROWS,
     });
     const policyMap = new Map<string, { id: string; policyCode: string }>();
     for (const objective of objectives) {

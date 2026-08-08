@@ -1,6 +1,7 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 import { createHash } from 'node:crypto';
+import { RUNTIME_DECISION_ROLE } from '../../../src/common/security/platform-roles';
 
 export const TENANT_ID = '1';
 
@@ -72,7 +73,7 @@ export const E2E_CLIENTS = {
     clientKey: 'e2e-runtime',
     secret: 'e2e-runtime-secret-0123456789abcdef',
     audience: 'runtime',
-    roles: ['DECISION_RUNTIME'],
+    roles: [RUNTIME_DECISION_ROLE],
   },
 } as const;
 

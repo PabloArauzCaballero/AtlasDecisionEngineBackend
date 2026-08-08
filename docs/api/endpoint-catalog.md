@@ -3,7 +3,7 @@
 
 # Catálogo de endpoints
 
-Contrato **v1** · 98 rutas · 110 operaciones.
+Contrato **v1** · 110 rutas · 124 operaciones.
 
 La referencia interactiva completa —con esquemas, ejemplos y la posibilidad de probar cada
 llamada— está en `/docs/{API_VERSION}/reference` del propio backend. Esta página existe para
@@ -141,6 +141,7 @@ Sondas de vida y disponibilidad para el orquestador. Públicas y sin límite de 
 | Método | Ruta | Operación | Resumen |
 | --- | --- | --- | --- |
 | `GET` | `/health` | `healthLiveAlias` | Alias of /health/live kept for existing probes |
+| `GET` | `/health/data-sources` | `healthDataSources` | Report registered data connections and their effective routing |
 | `GET` | `/health/live` | `healthLive` | Report process liveness without checking dependencies |
 | `GET` | `/health/ready` | `healthReady` | Report database and cache readiness with redacted failures |
 | `GET` | `/ready` | `healthReadyAlias` | Alias of /health/ready kept for existing probes |
@@ -272,3 +273,37 @@ Catálogo global de variables y sus versiones inmutables, con contrato, restricc
 | `GET` | `/v1/variables/{definitionId}/dependencies` | `variableDependencies` | Artefactos y versiones que usan esta variable |
 | `POST` | `/v1/variables/{definitionId}/versions` | `variableCreateVersion` | Create a new immutable variable version |
 | `POST` | `/v1/variables/validate-contract` | `variableValidateContract` | Validar un contrato de variable ANTES de guardarlo |
+
+## Workers
+
+Catálogo de los workers adicionales, con sus límites y su disponibilidad en este despliegue (ADR-0026).
+
+| Método | Ruta | Operación | Resumen |
+| --- | --- | --- | --- |
+| `GET` | `/v1/workers` | `workersList` | Workers disponibles, con sus límites y disponibilidad |
+| `GET` | `/v1/workers/{code}/metrics` | `workersWorkerMetrics` | Salud, latencia, cola e incidencias de un worker |
+
+## Workers · Análisis semántico
+
+Clasificación de texto libre contra el catálogo de categorías, con entidades y evidencia. Asíncrono: se encola y se consulta.
+
+| Método | Ruta | Operación | Resumen |
+| --- | --- | --- | --- |
+| `GET` | `/v1/workers/semantic-analysis/fixtures` | `semanticAnalysisListFixtures` | Escenarios de prueba disponibles |
+| `POST` | `/v1/workers/semantic-analysis/runs` | `semanticAnalysisCreateRun` | Encola un análisis semántico |
+| `GET` | `/v1/workers/semantic-analysis/runs` | `semanticAnalysisListRuns` | Análisis del tenant |
+| `GET` | `/v1/workers/semantic-analysis/runs/{requestId}` | `semanticAnalysisGetRun` | Estado, progreso y resultado de un análisis |
+| `POST` | `/v1/workers/semantic-analysis/runs/{requestId}/cancel` | `semanticAnalysisCancelRun` | Cancela un análisis que nadie ha reclamado todavía |
+
+## Workers · Extractos bancarios
+
+Conversión de un extracto bancario en PDF a movimientos normalizados. Asíncrono; el documento no se conserva y la cuenta se publica enmascarada.
+
+| Método | Ruta | Operación | Resumen |
+| --- | --- | --- | --- |
+| `GET` | `/v1/workers/bank-statement/fixtures` | `bankStatementListFixtures` | Escenarios de prueba disponibles |
+| `POST` | `/v1/workers/bank-statement/runs` | `bankStatementCreateRun` | Encola una conversión de extracto |
+| `GET` | `/v1/workers/bank-statement/runs` | `bankStatementListRuns` | Ejecuciones del tenant |
+| `GET` | `/v1/workers/bank-statement/runs/{requestId}` | `bankStatementGetRun` | Estado, progreso y resultado de una ejecución |
+| `POST` | `/v1/workers/bank-statement/runs/{requestId}/cancel` | `bankStatementCancelRun` | Cancela una ejecución que nadie ha reclamado todavía |
+| `GET` | `/v1/workers/bank-statement/runs/{requestId}/download` | `bankStatementDownload` | Descarga el resultado en CSV o JSON |

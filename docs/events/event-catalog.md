@@ -17,6 +17,6 @@ auditoría los conserva.
 | `version.changes_requested` | `DecisionEventType.VERSION_CHANGES_REQUESTED` | `src/modules/governance/governance.service.ts` | `src/modules/notifications/notification-projector.service.ts` |
 | `version.approved` | `DecisionEventType.VERSION_APPROVED` | `src/modules/governance/governance.service.ts` | `src/modules/notifications/notification-projector.service.ts` |
 | `version.rejected` | `DecisionEventType.VERSION_REJECTED` | `src/modules/governance/governance.service.ts` | `src/modules/notifications/notification-projector.service.ts` |
-| `version.published` | `DecisionEventType.VERSION_PUBLISHED` | — | `src/modules/notifications/notification-projector.service.ts` |
-| `security.risk_detected` | `DecisionEventType.SECURITY_RISK_DETECTED` | — | `src/modules/notifications/notification-projector.service.ts` |
+| `version.published` | `DecisionEventType.VERSION_PUBLISHED` | `src/modules/deployments/deployment.service.ts` | `src/modules/notifications/notification-projector.service.ts` |
+| `security.risk_detected` | `DecisionEventType.SECURITY_RISK_DETECTED` | `src/modules/governance/governance.service.ts` | `src/modules/notifications/notification-projector.service.ts` |
 

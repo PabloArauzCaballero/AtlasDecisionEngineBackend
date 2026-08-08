@@ -82,6 +82,40 @@
         "security": []
       }
     },
+    "/health/data-sources": {
+      "get": {
+        "operationId": "healthDataSources",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Conexiones registradas, su veredicto y las reglas de enrutamiento vigentes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataSourcesResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Report registered data connections and their effective routing",
+        "tags": [
+          "Health"
+        ]
+      }
+    },
     "/ready": {
       "get": {
         "operationId": "healthReadyAlias",
@@ -3073,6 +3107,677 @@
         ]
       }
     },
+    "/v1/workers": {
+      "get": {
+        "operationId": "workersList",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Catálogo de workers adicionales.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WorkerDescriptorDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Workers disponibles, con sus límites y disponibilidad",
+        "tags": [
+          "Workers"
+        ]
+      }
+    },
+    "/v1/workers/{code}/metrics": {
+      "get": {
+        "operationId": "workersWorkerMetrics",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "windowHours",
+            "required": false,
+            "in": "query",
+            "description": "Horas hacia atrás sobre las que se calcula todo. Por omisión, 7 días.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 720,
+              "default": 168,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerMetricsDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Salud, latencia, cola e incidencias de un worker",
+        "tags": [
+          "Workers"
+        ]
+      }
+    },
+    "/v1/workers/bank-statement/fixtures": {
+      "get": {
+        "operationId": "bankStatementListFixtures",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Escenarios sintéticos, sin datos reales.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WorkerFixtureDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Escenarios de prueba disponibles",
+        "tags": [
+          "Workers · Extractos bancarios"
+        ]
+      }
+    },
+    "/v1/workers/bank-statement/runs": {
+      "post": {
+        "operationId": "bankStatementCreateRun",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBankStatementRunDto"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBankStatementRunDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Ejecución encolada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerRunDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Encola una conversión de extracto",
+        "tags": [
+          "Workers · Extractos bancarios"
+        ]
+      },
+      "get": {
+        "operationId": "bankStatementListRuns",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "QUEUED",
+                "RUNNING",
+                "SUCCEEDED",
+                "SUCCEEDED_WITH_WARNINGS",
+                "FAILED",
+                "CANCELLED"
+              ]
+            },
+            "description": "Filtra por estado exacto del recurso."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de ejecuciones, de la más reciente a la más antigua.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/PageMetaDto"
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "items"
+                      ],
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/WorkerRunDto"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Ejecuciones del tenant",
+        "tags": [
+          "Workers · Extractos bancarios"
+        ]
+      }
+    },
+    "/v1/workers/bank-statement/runs/{requestId}": {
+      "get": {
+        "operationId": "bankStatementGetRun",
+        "parameters": [
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Identificador de correlación de la petición; el mismo que viaja en la cabecera `x-request-id`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerRunDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Estado, progreso y resultado de una ejecución",
+        "tags": [
+          "Workers · Extractos bancarios"
+        ]
+      }
+    },
+    "/v1/workers/bank-statement/runs/{requestId}/cancel": {
+      "post": {
+        "operationId": "bankStatementCancelRun",
+        "parameters": [
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Identificador de correlación de la petición; el mismo que viaja en la cabecera `x-request-id`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerRunDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Cancela una ejecución que nadie ha reclamado todavía",
+        "tags": [
+          "Workers · Extractos bancarios"
+        ]
+      }
+    },
+    "/v1/workers/bank-statement/runs/{requestId}/download": {
+      "get": {
+        "operationId": "bankStatementDownload",
+        "parameters": [
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Identificador de correlación de la petición; el mismo que viaja en la cabecera `x-request-id`."
+          },
+          {
+            "name": "format",
+            "required": true,
+            "in": "query",
+            "description": "Formato del archivo. `csv`: los movimientos en tabla, con BOM para que Excel respete las tildes. `json`: solo los movimientos. `normalized`: el contrato normalizado completo, con la cuenta y los metadatos del extracto. En los tres casos la cuenta va enmascarada.",
+            "schema": {
+              "default": "csv",
+              "type": "string",
+              "enum": [
+                "csv",
+                "json",
+                "normalized"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Archivo del resultado, ya enmascarado. El nombre viaja en `Content-Disposition`.",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Descarga el resultado en CSV o JSON",
+        "tags": [
+          "Workers · Extractos bancarios"
+        ]
+      }
+    },
+    "/v1/workers/semantic-analysis/fixtures": {
+      "get": {
+        "operationId": "semanticAnalysisListFixtures",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Escenarios sintéticos, sin datos personales.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WorkerFixtureDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Escenarios de prueba disponibles",
+        "tags": [
+          "Workers · Análisis semántico"
+        ]
+      }
+    },
+    "/v1/workers/semantic-analysis/runs": {
+      "post": {
+        "operationId": "semanticAnalysisCreateRun",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSemanticAnalysisRunDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Análisis encolado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerRunDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Encola un análisis semántico",
+        "tags": [
+          "Workers · Análisis semántico"
+        ]
+      },
+      "get": {
+        "operationId": "semanticAnalysisListRuns",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "QUEUED",
+                "RUNNING",
+                "SUCCEEDED",
+                "SUCCEEDED_WITH_WARNINGS",
+                "FAILED",
+                "CANCELLED"
+              ]
+            },
+            "description": "Filtra por estado exacto del recurso."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de análisis, del más reciente al más antiguo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/PageMetaDto"
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "items"
+                      ],
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/WorkerRunDto"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Análisis del tenant",
+        "tags": [
+          "Workers · Análisis semántico"
+        ]
+      }
+    },
+    "/v1/workers/semantic-analysis/runs/{requestId}": {
+      "get": {
+        "operationId": "semanticAnalysisGetRun",
+        "parameters": [
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Identificador de correlación de la petición; el mismo que viaja en la cabecera `x-request-id`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerRunDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Estado, progreso y resultado de un análisis",
+        "tags": [
+          "Workers · Análisis semántico"
+        ]
+      }
+    },
+    "/v1/workers/semantic-analysis/runs/{requestId}/cancel": {
+      "post": {
+        "operationId": "semanticAnalysisCancelRun",
+        "parameters": [
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Identificador de correlación de la petición; el mismo que viaja en la cabecera `x-request-id`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerRunDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Cancela un análisis que nadie ha reclamado todavía",
+        "tags": [
+          "Workers · Análisis semántico"
+        ]
+      }
+    },
     "/v1/qa-lab/properties": {
       "get": {
         "operationId": "qaLabProperties",
@@ -3620,6 +4325,100 @@
         "summary": "Get one approval request and all evidence",
         "tags": [
           "Decision Governance"
+        ]
+      }
+    },
+    "/v1/security-review/versions/{versionId}": {
+      "get": {
+        "operationId": "securityReviewGet",
+        "parameters": [
+          {
+            "name": "versionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Identificador de la versión del artefacto."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Evidencia agregada de seguridad y gobierno.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecurityReviewDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Aggregate security and governance evidence for a version",
+        "tags": [
+          "Security Review"
+        ]
+      }
+    },
+    "/v1/security-review/versions/{versionId}/export": {
+      "get": {
+        "operationId": "securityReviewExport",
+        "parameters": [
+          {
+            "name": "versionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Identificador de la versión del artefacto."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Misma forma que el detalle, como archivo adjunto.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecurityReviewDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Export a reproducible security-review snapshot",
+        "tags": [
+          "Security Review"
         ]
       }
     },
@@ -5373,100 +6172,6 @@
         ]
       }
     },
-    "/v1/security-review/versions/{versionId}": {
-      "get": {
-        "operationId": "securityReviewGet",
-        "parameters": [
-          {
-            "name": "versionId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            },
-            "description": "Identificador de la versión del artefacto."
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Evidencia agregada de seguridad y gobierno.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SecurityReviewDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/Error400"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Error403"
-          },
-          "429": {
-            "$ref": "#/components/responses/Error429"
-          },
-          "500": {
-            "$ref": "#/components/responses/Error500"
-          }
-        },
-        "summary": "Aggregate security and governance evidence for a version",
-        "tags": [
-          "Security Review"
-        ]
-      }
-    },
-    "/v1/security-review/versions/{versionId}/export": {
-      "get": {
-        "operationId": "securityReviewExport",
-        "parameters": [
-          {
-            "name": "versionId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            },
-            "description": "Identificador de la versión del artefacto."
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Misma forma que el detalle, como archivo adjunto.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SecurityReviewDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/Error400"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Error403"
-          },
-          "429": {
-            "$ref": "#/components/responses/Error429"
-          },
-          "500": {
-            "$ref": "#/components/responses/Error500"
-          }
-        },
-        "summary": "Export a reproducible security-review snapshot",
-        "tags": [
-          "Security Review"
-        ]
-      }
-    },
     "/v1/views/pickers/artifacts": {
       "get": {
         "operationId": "viewsArtifacts",
@@ -6040,614 +6745,6 @@
           "Tutorials"
         ]
       }
-    },
-    "/v1/workers": {
-      "get": {
-        "operationId": "workersList",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Catálogo de workers adicionales.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/WorkerDescriptorDto"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Error403"
-          },
-          "429": {
-            "$ref": "#/components/responses/Error429"
-          },
-          "500": {
-            "$ref": "#/components/responses/Error500"
-          }
-        },
-        "summary": "Workers disponibles, con sus límites y disponibilidad",
-        "tags": [
-          "Workers"
-        ]
-      }
-    },
-    "/v1/workers/bank-statement/fixtures": {
-      "get": {
-        "operationId": "bankStatementListFixtures",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Escenarios sintéticos, sin datos reales.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/WorkerFixtureDto"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Error403"
-          },
-          "429": {
-            "$ref": "#/components/responses/Error429"
-          },
-          "500": {
-            "$ref": "#/components/responses/Error500"
-          }
-        },
-        "summary": "Escenarios de prueba disponibles",
-        "tags": [
-          "Workers · Extractos bancarios"
-        ]
-      }
-    },
-    "/v1/workers/bank-statement/runs": {
-      "post": {
-        "operationId": "bankStatementCreateRun",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateBankStatementRunDto"
-              }
-            },
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateBankStatementRunDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "202": {
-            "description": "Ejecución encolada.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkerRunDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/Error400"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Error403"
-          },
-          "429": {
-            "$ref": "#/components/responses/Error429"
-          },
-          "500": {
-            "$ref": "#/components/responses/Error500"
-          }
-        },
-        "summary": "Encola una conversión de extracto",
-        "tags": [
-          "Workers · Extractos bancarios"
-        ]
-      },
-      "get": {
-        "operationId": "bankStatementListRuns",
-        "parameters": [
-          {
-            "name": "status",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "QUEUED",
-                "RUNNING",
-                "SUCCEEDED",
-                "SUCCEEDED_WITH_WARNINGS",
-                "FAILED",
-                "CANCELLED"
-              ]
-            },
-            "description": "Filtra por estado exacto del recurso."
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Página de ejecuciones, de la más reciente a la más antigua.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/PageMetaDto"
-                    },
-                    {
-                      "type": "object",
-                      "required": [
-                        "items"
-                      ],
-                      "properties": {
-                        "items": {
-                          "type": "array",
-                          "items": {
-                            "$ref": "#/components/schemas/WorkerRunDto"
-                          }
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/Error400"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Error403"
-          },
-          "429": {
-            "$ref": "#/components/responses/Error429"
-          },
-          "500": {
-            "$ref": "#/components/responses/Error500"
-          }
-        },
-        "summary": "Ejecuciones del tenant",
-        "tags": [
-          "Workers · Extractos bancarios"
-        ]
-      }
-    },
-    "/v1/workers/bank-statement/runs/{requestId}": {
-      "get": {
-        "operationId": "bankStatementGetRun",
-        "parameters": [
-          {
-            "name": "requestId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            },
-            "description": "Identificador de correlación de la petición; el mismo que viaja en la cabecera `x-request-id`."
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkerRunDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/Error400"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Error403"
-          },
-          "429": {
-            "$ref": "#/components/responses/Error429"
-          },
-          "500": {
-            "$ref": "#/components/responses/Error500"
-          }
-        },
-        "summary": "Estado, progreso y resultado de una ejecución",
-        "tags": [
-          "Workers · Extractos bancarios"
-        ]
-      }
-    },
-    "/v1/workers/bank-statement/runs/{requestId}/cancel": {
-      "post": {
-        "operationId": "bankStatementCancelRun",
-        "parameters": [
-          {
-            "name": "requestId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            },
-            "description": "Identificador de correlación de la petición; el mismo que viaja en la cabecera `x-request-id`."
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkerRunDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/Error400"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Error403"
-          },
-          "429": {
-            "$ref": "#/components/responses/Error429"
-          },
-          "500": {
-            "$ref": "#/components/responses/Error500"
-          }
-        },
-        "summary": "Cancela una ejecución que nadie ha reclamado todavía",
-        "tags": [
-          "Workers · Extractos bancarios"
-        ]
-      }
-    },
-    "/v1/workers/bank-statement/runs/{requestId}/download": {
-      "get": {
-        "operationId": "bankStatementDownload",
-        "parameters": [
-          {
-            "name": "requestId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            },
-            "description": "Identificador de correlación de la petición; el mismo que viaja en la cabecera `x-request-id`."
-          },
-          {
-            "name": "format",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "default": "csv",
-              "type": "string",
-              "enum": [
-                "csv",
-                "json",
-                "normalized"
-              ]
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Archivo del resultado, ya enmascarado. El nombre viaja en `Content-Disposition`.",
-            "content": {
-              "text/csv": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/Error400"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Error403"
-          },
-          "429": {
-            "$ref": "#/components/responses/Error429"
-          },
-          "500": {
-            "$ref": "#/components/responses/Error500"
-          }
-        },
-        "summary": "Descarga el resultado en CSV o JSON",
-        "tags": [
-          "Workers · Extractos bancarios"
-        ]
-      }
-    },
-    "/v1/workers/semantic-analysis/fixtures": {
-      "get": {
-        "operationId": "semanticAnalysisListFixtures",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Escenarios sintéticos, sin datos personales.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/WorkerFixtureDto"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Error403"
-          },
-          "429": {
-            "$ref": "#/components/responses/Error429"
-          },
-          "500": {
-            "$ref": "#/components/responses/Error500"
-          }
-        },
-        "summary": "Escenarios de prueba disponibles",
-        "tags": [
-          "Workers · Análisis semántico"
-        ]
-      }
-    },
-    "/v1/workers/semantic-analysis/runs": {
-      "post": {
-        "operationId": "semanticAnalysisCreateRun",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateSemanticAnalysisRunDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "202": {
-            "description": "Análisis encolado.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkerRunDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/Error400"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Error403"
-          },
-          "429": {
-            "$ref": "#/components/responses/Error429"
-          },
-          "500": {
-            "$ref": "#/components/responses/Error500"
-          }
-        },
-        "summary": "Encola un análisis semántico",
-        "tags": [
-          "Workers · Análisis semántico"
-        ]
-      },
-      "get": {
-        "operationId": "semanticAnalysisListRuns",
-        "parameters": [
-          {
-            "name": "status",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "QUEUED",
-                "RUNNING",
-                "SUCCEEDED",
-                "SUCCEEDED_WITH_WARNINGS",
-                "FAILED",
-                "CANCELLED"
-              ]
-            },
-            "description": "Filtra por estado exacto del recurso."
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Página de análisis, del más reciente al más antiguo.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/PageMetaDto"
-                    },
-                    {
-                      "type": "object",
-                      "required": [
-                        "items"
-                      ],
-                      "properties": {
-                        "items": {
-                          "type": "array",
-                          "items": {
-                            "$ref": "#/components/schemas/WorkerRunDto"
-                          }
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/Error400"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Error403"
-          },
-          "429": {
-            "$ref": "#/components/responses/Error429"
-          },
-          "500": {
-            "$ref": "#/components/responses/Error500"
-          }
-        },
-        "summary": "Análisis del tenant",
-        "tags": [
-          "Workers · Análisis semántico"
-        ]
-      }
-    },
-    "/v1/workers/semantic-analysis/runs/{requestId}": {
-      "get": {
-        "operationId": "semanticAnalysisGetRun",
-        "parameters": [
-          {
-            "name": "requestId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            },
-            "description": "Identificador de correlación de la petición; el mismo que viaja en la cabecera `x-request-id`."
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkerRunDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/Error400"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Error403"
-          },
-          "429": {
-            "$ref": "#/components/responses/Error429"
-          },
-          "500": {
-            "$ref": "#/components/responses/Error500"
-          }
-        },
-        "summary": "Estado, progreso y resultado de un análisis",
-        "tags": [
-          "Workers · Análisis semántico"
-        ]
-      }
-    },
-    "/v1/workers/semantic-analysis/runs/{requestId}/cancel": {
-      "post": {
-        "operationId": "semanticAnalysisCancelRun",
-        "parameters": [
-          {
-            "name": "requestId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            },
-            "description": "Identificador de correlación de la petición; el mismo que viaja en la cabecera `x-request-id`."
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkerRunDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/Error400"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Error403"
-          },
-          "429": {
-            "$ref": "#/components/responses/Error429"
-          },
-          "500": {
-            "$ref": "#/components/responses/Error500"
-          }
-        },
-        "summary": "Cancela un análisis que nadie ha reclamado todavía",
-        "tags": [
-          "Workers · Análisis semántico"
-        ]
-      }
     }
   },
   "info": {
@@ -6746,13 +6843,16 @@
       "description": "Catálogo global de variables y sus versiones inmutables, con contrato, restricciones y ejemplos (§1)."
     },
     {
-      "name": "Workers"
+      "name": "Workers",
+      "description": "Catálogo de los workers adicionales, con sus límites y su disponibilidad en este despliegue (ADR-0026)."
     },
     {
-      "name": "Workers · Análisis semántico"
+      "name": "Workers · Análisis semántico",
+      "description": "Clasificación de texto libre contra el catálogo de categorías, con entidades y evidencia. Asíncrono: se encola y se consulta."
     },
     {
-      "name": "Workers · Extractos bancarios"
+      "name": "Workers · Extractos bancarios",
+      "description": "Conversión de un extracto bancario en PDF a movimientos normalizados. Asíncrono; el documento no se conserva y la cuenta se publica enmascarada."
     }
   ],
   "servers": [
@@ -6849,6 +6949,71 @@
         "required": [
           "status",
           "checks",
+          "timestamp"
+        ]
+      },
+      "DataSourcesResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "up",
+            "enum": [
+              "up",
+              "degraded"
+            ]
+          },
+          "connections": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Veredicto por conexión lógica.",
+            "example": {
+              "postgres-write": {
+                "status": "up",
+                "role": "write",
+                "engine": "postgresql",
+                "latencyMs": 2
+              },
+              "postgres-read": {
+                "status": "up",
+                "role": "read",
+                "engine": "postgresql",
+                "latencyMs": 1
+              },
+              "redis-cache": {
+                "status": "up",
+                "role": "read-write",
+                "engine": "redis",
+                "detail": "redis"
+              }
+            }
+          },
+          "routing": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Reglas efectivas: qué conexión sirve la lectura y la escritura de cada módulo.",
+            "example": {
+              "default": {
+                "read": "postgres-read",
+                "write": "postgres-write",
+                "consistency": "strong"
+              },
+              "audit-query": {
+                "read": "postgres-read",
+                "write": "postgres-write",
+                "consistency": "eventual"
+              }
+            }
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "status",
+          "connections",
+          "routing",
           "timestamp"
         ]
       },
@@ -9232,6 +9397,16 @@
               "edad": 33
             },
             "description": "Entradas generadas, listas para simular o para guardar como caso."
+          },
+          "unsatisfiable": {
+            "example": [
+              "correo_contacto"
+            ],
+            "description": "Variables cuyo contrato es contradictorio (p. ej. formato EMAIL con maxLength 4): ningún valor puede satisfacerlo, así que el valor entregado para ellas NO es válido. Lo que hay que corregir es el contrato.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -9259,7 +9434,7 @@
           },
           "generatorVersion": {
             "type": "string",
-            "example": "atlas-qa-generator-1.0.0"
+            "example": "atlas-qa-generator-1.2.0"
           },
           "cases": {
             "type": "array",
@@ -10854,6 +11029,7 @@
               "ACTION",
               "RESULT",
               "MANUAL_REVIEW",
+              "WORKER",
               "END"
             ]
           },
@@ -11425,6 +11601,7 @@
               "ACTION",
               "RESULT",
               "MANUAL_REVIEW",
+              "WORKER",
               "END"
             ]
           },
@@ -13375,6 +13552,400 @@
           "caseRuns"
         ]
       },
+      "WorkerDescriptorDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "semantic-analysis"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "acceptedInputs": {
+            "description": "Tipos de entrada que acepta.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "limits": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Restricciones publicadas al cliente."
+          },
+          "available": {
+            "type": "boolean",
+            "description": "Si el worker está habilitado en este despliegue. Un worker apagado acepta consultas pero no ejecuciones."
+          },
+          "fixturesEnabled": {
+            "type": "boolean",
+            "description": "Si los escenarios de prueba están habilitados."
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "description",
+          "acceptedInputs",
+          "limits",
+          "available",
+          "fixturesEnabled"
+        ]
+      },
+      "Object": {
+        "type": "object",
+        "properties": {}
+      },
+      "WorkerStatusCountDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "enum": [
+              "QUEUED",
+              "RUNNING",
+              "SUCCEEDED",
+              "SUCCEEDED_WITH_WARNINGS",
+              "FAILED",
+              "CANCELLED"
+            ],
+            "type": "string"
+          },
+          "count": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "status",
+          "count"
+        ]
+      },
+      "WorkerLatencyDto": {
+        "type": "object",
+        "properties": {
+          "p50Ms": {
+            "type": "number",
+            "nullable": true
+          },
+          "p95Ms": {
+            "type": "number",
+            "nullable": true
+          },
+          "p99Ms": {
+            "type": "number",
+            "nullable": true
+          },
+          "maxMs": {
+            "type": "number",
+            "nullable": true
+          },
+          "avgWaitMs": {
+            "type": "number",
+            "nullable": true
+          },
+          "maxWaitMs": {
+            "type": "number",
+            "nullable": true
+          },
+          "samples": {
+            "type": "number",
+            "description": "Ejecuciones terminadas de las que salieron estas cifras."
+          }
+        },
+        "required": [
+          "samples"
+        ]
+      },
+      "WorkerQueueDto": {
+        "type": "object",
+        "properties": {
+          "queued": {
+            "type": "number",
+            "description": "Encoladas, esperando a que un worker las tome."
+          },
+          "running": {
+            "type": "number",
+            "description": "En proceso ahora mismo."
+          },
+          "oldestQueuedAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "Cuándo se encoló la más antigua que sigue esperando. Es la señal de que falta capacidad."
+          }
+        },
+        "required": [
+          "queued",
+          "running"
+        ]
+      },
+      "WorkerIncidentDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "PDF_EXTRACTION_FAILED"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "count": {
+            "type": "number"
+          },
+          "lastOccurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastRequestId": {
+            "type": "string"
+          },
+          "lastCorrelationId": {
+            "type": "string"
+          },
+          "lastAttemptCount": {
+            "type": "number",
+            "description": "Intentos que consumió la última antes de rendirse."
+          }
+        },
+        "required": [
+          "code",
+          "count",
+          "lastOccurredAt",
+          "lastRequestId",
+          "lastCorrelationId",
+          "lastAttemptCount"
+        ]
+      },
+      "WorkerMetricsDto": {
+        "type": "object",
+        "properties": {
+          "worker": {
+            "type": "string",
+            "example": "bank-statement"
+          },
+          "name": {
+            "type": "string",
+            "description": "Nombre legible, el mismo que publica el catálogo."
+          },
+          "available": {
+            "type": "boolean",
+            "description": "Si el worker está encendido en este despliegue."
+          },
+          "windowFrom": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Inicio de la ventana observada."
+          },
+          "computedAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Instante en que se calculó."
+          },
+          "windowHours": {
+            "type": "number"
+          },
+          "totalRuns": {
+            "type": "number",
+            "description": "Ejecuciones encoladas dentro de la ventana."
+          },
+          "finishedRuns": {
+            "type": "number",
+            "description": "De ésas, cuántas llegaron a un final (sin contar canceladas)."
+          },
+          "successRate": {
+            "type": "number",
+            "nullable": true,
+            "description": "Porcentaje con resultado utilizable sobre las terminadas. `null` si no terminó ninguna: un 0 % afirmaría que todas fallaron."
+          },
+          "statusMix": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkerStatusCountDto"
+            }
+          },
+          "latency": {
+            "$ref": "#/components/schemas/WorkerLatencyDto"
+          },
+          "queue": {
+            "$ref": "#/components/schemas/WorkerQueueDto"
+          },
+          "incidents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkerIncidentDto"
+            }
+          },
+          "lastRunAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "Última ejecución encolada dentro de la ventana."
+          }
+        },
+        "required": [
+          "worker",
+          "name",
+          "available",
+          "windowFrom",
+          "computedAt",
+          "windowHours",
+          "totalRuns",
+          "finishedRuns",
+          "statusMix",
+          "latency",
+          "queue",
+          "incidents"
+        ]
+      },
+      "WorkerFixtureDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "gasto-claro"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "description": "Qué demuestra este escenario."
+          },
+          "preview": {
+            "type": "string",
+            "description": "Vista previa segura de la entrada."
+          },
+          "expectsFailure": {
+            "type": "boolean",
+            "description": "Si se espera que el escenario termine en error controlado."
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "description",
+          "preview",
+          "expectsFailure"
+        ]
+      },
+      "CreateBankStatementRunDto": {
+        "type": "object",
+        "properties": {
+          "fixtureCode": {
+            "type": "string",
+            "maxLength": 60,
+            "description": "Escenario de prueba. Excluyente con el archivo subido."
+          }
+        }
+      },
+      "WorkerRunDto": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "QUEUED",
+              "RUNNING",
+              "SUCCEEDED",
+              "SUCCEEDED_WITH_WARNINGS",
+              "FAILED",
+              "CANCELLED"
+            ],
+            "type": "string"
+          },
+          "progress": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "inputSource": {
+            "enum": [
+              "FIXTURE",
+              "UPLOAD",
+              "INLINE"
+            ],
+            "type": "string"
+          },
+          "fixtureCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "attemptCount": {
+            "type": "number"
+          },
+          "queuedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "finishedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "requestedBy": {
+            "type": "string"
+          },
+          "correlationId": {
+            "type": "string",
+            "description": "Para correlacionar con los registros del motor."
+          },
+          "result": {
+            "type": "object",
+            "description": "Resultado, cuando la ejecución terminó bien."
+          },
+          "warnings": {
+            "type": "object",
+            "description": "Advertencias de un resultado utilizable pero revisable."
+          },
+          "errorCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "requestId",
+          "status",
+          "progress",
+          "inputSource",
+          "attemptCount",
+          "queuedAt",
+          "requestedBy",
+          "correlationId"
+        ]
+      },
+      "CreateSemanticAnalysisRunDto": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 100000,
+            "description": "Texto a analizar. Excluyente con `fixtureCode`."
+          },
+          "fixtureCode": {
+            "type": "string",
+            "maxLength": 60,
+            "description": "Escenario de prueba. Excluyente con `text`."
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "Clave de deduplicación. Si se omite se deriva del contenido, de modo que reenviar el mismo texto no crea una segunda ejecución."
+          }
+        }
+      },
       "QaRunListItemDto": {
         "type": "object",
         "properties": {
@@ -14022,6 +14593,524 @@
           "evidence"
         ]
       },
+      "ReviewArtifactRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "4000"
+          },
+          "artifactCode": {
+            "type": "string",
+            "example": "CREDIT_LIMIT_V2"
+          },
+          "name": {
+            "type": "string",
+            "example": "Credit limit assignment"
+          },
+          "riskDomain": {
+            "type": "string",
+            "example": "CREDIT_RISK"
+          }
+        },
+        "required": [
+          "id",
+          "artifactCode",
+          "name",
+          "riskDomain"
+        ]
+      },
+      "ReviewVersionRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "4001"
+          },
+          "versionNumber": {
+            "type": "number",
+            "example": 3
+          },
+          "status": {
+            "type": "string",
+            "example": "IN_REVIEW"
+          },
+          "semanticVersion": {
+            "type": "string",
+            "example": "1.2.0"
+          },
+          "createdBy": {
+            "type": "string",
+            "example": "analyst@atlas.local"
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-07-15T09:00:00.000Z"
+          },
+          "canonicalChecksum": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "versionNumber",
+          "status",
+          "semanticVersion",
+          "createdBy",
+          "createdAt",
+          "canonicalChecksum"
+        ]
+      },
+      "SecurityFindingDto": {
+        "type": "object",
+        "properties": {
+          "severity": {
+            "type": "string",
+            "example": "HIGH",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ]
+          },
+          "code": {
+            "type": "string",
+            "example": "CONTAINS_SCRIPT_NODES"
+          },
+          "message": {
+            "type": "string",
+            "example": "This version runs 1 script node(s) (JAVASCRIPT) — verify the sandbox mode before approving."
+          }
+        },
+        "required": [
+          "severity",
+          "code",
+          "message"
+        ]
+      },
+      "ReviewCodeEntryDto": {
+        "type": "object",
+        "properties": {
+          "nodeKey": {
+            "type": "string",
+            "example": "CALC_DTI"
+          },
+          "language": {
+            "type": "string",
+            "example": "JAVASCRIPT"
+          },
+          "checksum": {
+            "type": "string",
+            "example": "a1b2c3..."
+          },
+          "sourceExcerpt": {
+            "type": "string",
+            "example": "if (income > 5000) { ...",
+            "description": "Recortada a 2000 caracteres."
+          }
+        },
+        "required": [
+          "nodeKey",
+          "language",
+          "checksum",
+          "sourceExcerpt"
+        ]
+      },
+      "ReviewVariableDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "applicant_income"
+          },
+          "usageType": {
+            "type": "string",
+            "example": "INPUT"
+          },
+          "dataClassification": {
+            "type": "string",
+            "example": "INTERNAL"
+          },
+          "isSensitive": {
+            "type": "boolean",
+            "example": false
+          }
+        },
+        "required": [
+          "code",
+          "usageType",
+          "dataClassification",
+          "isSensitive"
+        ]
+      },
+      "ReviewNestedDependsOnDto": {
+        "type": "object",
+        "properties": {
+          "nodeKey": {
+            "type": "string",
+            "example": "CHECK_BUREAU"
+          },
+          "childArtifactId": {
+            "type": "string",
+            "example": "4200"
+          },
+          "childArtifactVersionId": {
+            "type": "string",
+            "example": "4201"
+          }
+        },
+        "required": [
+          "nodeKey",
+          "childArtifactId",
+          "childArtifactVersionId"
+        ]
+      },
+      "ReviewNestedDependedOnByDto": {
+        "type": "object",
+        "properties": {
+          "parentArtifactVersionId": {
+            "type": "string",
+            "example": "3900"
+          },
+          "nodeKey": {
+            "type": "string",
+            "example": "CHECK_BUREAU"
+          }
+        },
+        "required": [
+          "parentArtifactVersionId",
+          "nodeKey"
+        ]
+      },
+      "ReviewNestedTreesDto": {
+        "type": "object",
+        "properties": {
+          "dependsOn": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewNestedDependsOnDto"
+            }
+          },
+          "dependedOnBy": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewNestedDependedOnByDto"
+            }
+          }
+        },
+        "required": [
+          "dependsOn",
+          "dependedOnBy"
+        ]
+      },
+      "ReviewStaticAnalysisDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "9001"
+          },
+          "language": {
+            "type": "string",
+            "example": "JAVASCRIPT"
+          },
+          "status": {
+            "type": "string",
+            "example": "CONFIRMED"
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "language",
+          "status",
+          "issues"
+        ]
+      },
+      "ReviewApprovalDecisionDto": {
+        "type": "object",
+        "properties": {
+          "decidedBy": {
+            "type": "string",
+            "example": "approver@atlas.local"
+          },
+          "decision": {
+            "type": "string",
+            "example": "APPROVED",
+            "enum": [
+              "APPROVED",
+              "REJECTED"
+            ]
+          },
+          "comments": {
+            "type": "string",
+            "nullable": true
+          },
+          "decidedAt": {
+            "type": "string",
+            "example": "2026-07-20T11:00:00.000Z"
+          }
+        },
+        "required": [
+          "decidedBy",
+          "decision",
+          "comments",
+          "decidedAt"
+        ]
+      },
+      "ReviewApprovalStepDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "1"
+          },
+          "stepOrder": {
+            "type": "number",
+            "example": 1
+          },
+          "requiredRole": {
+            "type": "string",
+            "example": "RISK_APPROVER"
+          },
+          "status": {
+            "type": "string",
+            "example": "PENDING",
+            "enum": [
+              "PENDING",
+              "APPROVED",
+              "REJECTED"
+            ]
+          },
+          "decisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewApprovalDecisionDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "stepOrder",
+          "requiredRole",
+          "status",
+          "decisions"
+        ]
+      },
+      "ReviewGovernanceDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "1"
+          },
+          "workflowCode": {
+            "type": "string",
+            "example": "STANDARD_APPROVAL"
+          },
+          "status": {
+            "type": "string",
+            "example": "IN_REVIEW"
+          },
+          "requestedBy": {
+            "type": "string",
+            "example": "analyst@atlas.local"
+          },
+          "requestedAt": {
+            "type": "string",
+            "example": "2026-07-20T10:30:00.000Z"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewApprovalStepDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "workflowCode",
+          "status",
+          "requestedBy",
+          "requestedAt",
+          "steps"
+        ]
+      },
+      "ReviewIncidentDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "99001"
+          },
+          "eventType": {
+            "type": "string",
+            "example": "VALIDATION_FAILED"
+          },
+          "actorId": {
+            "type": "string",
+            "example": "analyst@atlas.local"
+          },
+          "occurredAt": {
+            "type": "string",
+            "example": "2026-07-18T09:00:00.000Z"
+          },
+          "artifactId": {
+            "type": "string",
+            "example": "4000"
+          },
+          "versionId": {
+            "type": "string",
+            "example": "4001"
+          }
+        },
+        "required": [
+          "id",
+          "eventType",
+          "actorId",
+          "occurredAt",
+          "artifactId",
+          "versionId"
+        ]
+      },
+      "ReviewRecentExecutionDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "88001"
+          },
+          "status": {
+            "type": "string",
+            "example": "SUCCEEDED"
+          },
+          "executedAt": {
+            "type": "string",
+            "example": "2026-07-20T10:00:00.000Z"
+          },
+          "errorCount": {
+            "type": "number",
+            "example": 0
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "executedAt",
+          "errorCount"
+        ]
+      },
+      "ReviewExecutionsDto": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "number",
+            "example": 20
+          },
+          "withErrors": {
+            "type": "number",
+            "example": 0
+          },
+          "recent": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewRecentExecutionDto"
+            }
+          }
+        },
+        "required": [
+          "total",
+          "withErrors",
+          "recent"
+        ]
+      },
+      "SecurityReviewDto": {
+        "type": "object",
+        "properties": {
+          "artifact": {
+            "$ref": "#/components/schemas/ReviewArtifactRefDto"
+          },
+          "version": {
+            "$ref": "#/components/schemas/ReviewVersionRefDto"
+          },
+          "severity": {
+            "type": "string",
+            "example": "MEDIUM",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ]
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SecurityFindingDto"
+            }
+          },
+          "code": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewCodeEntryDto"
+            }
+          },
+          "variables": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewVariableDto"
+            }
+          },
+          "nestedTrees": {
+            "$ref": "#/components/schemas/ReviewNestedTreesDto"
+          },
+          "staticAnalysis": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewStaticAnalysisDto"
+            }
+          },
+          "governance": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewGovernanceDto"
+            }
+          },
+          "incidents": {
+            "description": "Últimos 50 eventos de auditoría de la versión.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewIncidentDto"
+            }
+          },
+          "executions": {
+            "description": "Últimas 20 ejecuciones.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReviewExecutionsDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "artifact",
+          "version",
+          "severity",
+          "findings",
+          "code",
+          "variables",
+          "nestedTrees",
+          "staticAnalysis",
+          "governance",
+          "incidents",
+          "executions"
+        ]
+      },
       "TrafficRuleDto": {
         "type": "object",
         "properties": {
@@ -14365,7 +15454,7 @@
           },
           "generatorVersion": {
             "type": "string",
-            "example": "atlas-qa-generator-1.0.0"
+            "example": "atlas-qa-generator-1.2.0"
           },
           "cases": {
             "type": "array",
@@ -15635,524 +16724,6 @@
           "testSuiteId"
         ]
       },
-      "ReviewArtifactRefDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "example": "4000"
-          },
-          "artifactCode": {
-            "type": "string",
-            "example": "CREDIT_LIMIT_V2"
-          },
-          "name": {
-            "type": "string",
-            "example": "Credit limit assignment"
-          },
-          "riskDomain": {
-            "type": "string",
-            "example": "CREDIT_RISK"
-          }
-        },
-        "required": [
-          "id",
-          "artifactCode",
-          "name",
-          "riskDomain"
-        ]
-      },
-      "ReviewVersionRefDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "example": "4001"
-          },
-          "versionNumber": {
-            "type": "number",
-            "example": 3
-          },
-          "status": {
-            "type": "string",
-            "example": "IN_REVIEW"
-          },
-          "semanticVersion": {
-            "type": "string",
-            "example": "1.2.0"
-          },
-          "createdBy": {
-            "type": "string",
-            "example": "analyst@atlas.local"
-          },
-          "createdAt": {
-            "type": "string",
-            "example": "2026-07-15T09:00:00.000Z"
-          },
-          "canonicalChecksum": {
-            "type": "string",
-            "nullable": true
-          }
-        },
-        "required": [
-          "id",
-          "versionNumber",
-          "status",
-          "semanticVersion",
-          "createdBy",
-          "createdAt",
-          "canonicalChecksum"
-        ]
-      },
-      "SecurityFindingDto": {
-        "type": "object",
-        "properties": {
-          "severity": {
-            "type": "string",
-            "example": "HIGH",
-            "enum": [
-              "LOW",
-              "MEDIUM",
-              "HIGH"
-            ]
-          },
-          "code": {
-            "type": "string",
-            "example": "CONTAINS_SCRIPT_NODES"
-          },
-          "message": {
-            "type": "string",
-            "example": "This version runs 1 script node(s) (JAVASCRIPT) — verify the sandbox mode before approving."
-          }
-        },
-        "required": [
-          "severity",
-          "code",
-          "message"
-        ]
-      },
-      "ReviewCodeEntryDto": {
-        "type": "object",
-        "properties": {
-          "nodeKey": {
-            "type": "string",
-            "example": "CALC_DTI"
-          },
-          "language": {
-            "type": "string",
-            "example": "JAVASCRIPT"
-          },
-          "checksum": {
-            "type": "string",
-            "example": "a1b2c3..."
-          },
-          "sourceExcerpt": {
-            "type": "string",
-            "example": "if (income > 5000) { ...",
-            "description": "Recortada a 2000 caracteres."
-          }
-        },
-        "required": [
-          "nodeKey",
-          "language",
-          "checksum",
-          "sourceExcerpt"
-        ]
-      },
-      "ReviewVariableDto": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "string",
-            "example": "applicant_income"
-          },
-          "usageType": {
-            "type": "string",
-            "example": "INPUT"
-          },
-          "dataClassification": {
-            "type": "string",
-            "example": "INTERNAL"
-          },
-          "isSensitive": {
-            "type": "boolean",
-            "example": false
-          }
-        },
-        "required": [
-          "code",
-          "usageType",
-          "dataClassification",
-          "isSensitive"
-        ]
-      },
-      "ReviewNestedDependsOnDto": {
-        "type": "object",
-        "properties": {
-          "nodeKey": {
-            "type": "string",
-            "example": "CHECK_BUREAU"
-          },
-          "childArtifactId": {
-            "type": "string",
-            "example": "4200"
-          },
-          "childArtifactVersionId": {
-            "type": "string",
-            "example": "4201"
-          }
-        },
-        "required": [
-          "nodeKey",
-          "childArtifactId",
-          "childArtifactVersionId"
-        ]
-      },
-      "ReviewNestedDependedOnByDto": {
-        "type": "object",
-        "properties": {
-          "parentArtifactVersionId": {
-            "type": "string",
-            "example": "3900"
-          },
-          "nodeKey": {
-            "type": "string",
-            "example": "CHECK_BUREAU"
-          }
-        },
-        "required": [
-          "parentArtifactVersionId",
-          "nodeKey"
-        ]
-      },
-      "ReviewNestedTreesDto": {
-        "type": "object",
-        "properties": {
-          "dependsOn": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ReviewNestedDependsOnDto"
-            }
-          },
-          "dependedOnBy": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ReviewNestedDependedOnByDto"
-            }
-          }
-        },
-        "required": [
-          "dependsOn",
-          "dependedOnBy"
-        ]
-      },
-      "ReviewStaticAnalysisDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "example": "9001"
-          },
-          "language": {
-            "type": "string",
-            "example": "JAVASCRIPT"
-          },
-          "status": {
-            "type": "string",
-            "example": "CONFIRMED"
-          },
-          "issues": {
-            "type": "array",
-            "items": {
-              "type": "object"
-            }
-          }
-        },
-        "required": [
-          "id",
-          "language",
-          "status",
-          "issues"
-        ]
-      },
-      "ReviewApprovalDecisionDto": {
-        "type": "object",
-        "properties": {
-          "decidedBy": {
-            "type": "string",
-            "example": "approver@atlas.local"
-          },
-          "decision": {
-            "type": "string",
-            "example": "APPROVED",
-            "enum": [
-              "APPROVED",
-              "REJECTED"
-            ]
-          },
-          "comments": {
-            "type": "string",
-            "nullable": true
-          },
-          "decidedAt": {
-            "type": "string",
-            "example": "2026-07-20T11:00:00.000Z"
-          }
-        },
-        "required": [
-          "decidedBy",
-          "decision",
-          "comments",
-          "decidedAt"
-        ]
-      },
-      "ReviewApprovalStepDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "example": "1"
-          },
-          "stepOrder": {
-            "type": "number",
-            "example": 1
-          },
-          "requiredRole": {
-            "type": "string",
-            "example": "RISK_APPROVER"
-          },
-          "status": {
-            "type": "string",
-            "example": "PENDING",
-            "enum": [
-              "PENDING",
-              "APPROVED",
-              "REJECTED"
-            ]
-          },
-          "decisions": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ReviewApprovalDecisionDto"
-            }
-          }
-        },
-        "required": [
-          "id",
-          "stepOrder",
-          "requiredRole",
-          "status",
-          "decisions"
-        ]
-      },
-      "ReviewGovernanceDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "example": "1"
-          },
-          "workflowCode": {
-            "type": "string",
-            "example": "STANDARD_APPROVAL"
-          },
-          "status": {
-            "type": "string",
-            "example": "IN_REVIEW"
-          },
-          "requestedBy": {
-            "type": "string",
-            "example": "analyst@atlas.local"
-          },
-          "requestedAt": {
-            "type": "string",
-            "example": "2026-07-20T10:30:00.000Z"
-          },
-          "steps": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ReviewApprovalStepDto"
-            }
-          }
-        },
-        "required": [
-          "id",
-          "workflowCode",
-          "status",
-          "requestedBy",
-          "requestedAt",
-          "steps"
-        ]
-      },
-      "ReviewIncidentDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "example": "99001"
-          },
-          "eventType": {
-            "type": "string",
-            "example": "VALIDATION_FAILED"
-          },
-          "actorId": {
-            "type": "string",
-            "example": "analyst@atlas.local"
-          },
-          "occurredAt": {
-            "type": "string",
-            "example": "2026-07-18T09:00:00.000Z"
-          },
-          "artifactId": {
-            "type": "string",
-            "example": "4000"
-          },
-          "versionId": {
-            "type": "string",
-            "example": "4001"
-          }
-        },
-        "required": [
-          "id",
-          "eventType",
-          "actorId",
-          "occurredAt",
-          "artifactId",
-          "versionId"
-        ]
-      },
-      "ReviewRecentExecutionDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "example": "88001"
-          },
-          "status": {
-            "type": "string",
-            "example": "SUCCEEDED"
-          },
-          "executedAt": {
-            "type": "string",
-            "example": "2026-07-20T10:00:00.000Z"
-          },
-          "errorCount": {
-            "type": "number",
-            "example": 0
-          }
-        },
-        "required": [
-          "id",
-          "status",
-          "executedAt",
-          "errorCount"
-        ]
-      },
-      "ReviewExecutionsDto": {
-        "type": "object",
-        "properties": {
-          "total": {
-            "type": "number",
-            "example": 20
-          },
-          "withErrors": {
-            "type": "number",
-            "example": 0
-          },
-          "recent": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ReviewRecentExecutionDto"
-            }
-          }
-        },
-        "required": [
-          "total",
-          "withErrors",
-          "recent"
-        ]
-      },
-      "SecurityReviewDto": {
-        "type": "object",
-        "properties": {
-          "artifact": {
-            "$ref": "#/components/schemas/ReviewArtifactRefDto"
-          },
-          "version": {
-            "$ref": "#/components/schemas/ReviewVersionRefDto"
-          },
-          "severity": {
-            "type": "string",
-            "example": "MEDIUM",
-            "enum": [
-              "LOW",
-              "MEDIUM",
-              "HIGH"
-            ]
-          },
-          "findings": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SecurityFindingDto"
-            }
-          },
-          "code": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ReviewCodeEntryDto"
-            }
-          },
-          "variables": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ReviewVariableDto"
-            }
-          },
-          "nestedTrees": {
-            "$ref": "#/components/schemas/ReviewNestedTreesDto"
-          },
-          "staticAnalysis": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ReviewStaticAnalysisDto"
-            }
-          },
-          "governance": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ReviewGovernanceDto"
-            }
-          },
-          "incidents": {
-            "description": "Últimos 50 eventos de auditoría de la versión.",
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ReviewIncidentDto"
-            }
-          },
-          "executions": {
-            "description": "Últimas 20 ejecuciones.",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ReviewExecutionsDto"
-              }
-            ]
-          }
-        },
-        "required": [
-          "artifact",
-          "version",
-          "severity",
-          "findings",
-          "code",
-          "variables",
-          "nestedTrees",
-          "staticAnalysis",
-          "governance",
-          "incidents",
-          "executions"
-        ]
-      },
       "ArtifactPickerRowDto": {
         "type": "object",
         "properties": {
@@ -16675,197 +17246,6 @@
         "required": [
           "status"
         ]
-      },
-      "WorkerDescriptorDto": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "string",
-            "example": "semantic-analysis"
-          },
-          "name": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          },
-          "acceptedInputs": {
-            "description": "Tipos de entrada que acepta.",
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "limits": {
-            "type": "object",
-            "additionalProperties": true,
-            "description": "Restricciones publicadas al cliente."
-          },
-          "available": {
-            "type": "boolean",
-            "description": "Si el worker está habilitado en este despliegue. Un worker apagado acepta consultas pero no ejecuciones."
-          },
-          "fixturesEnabled": {
-            "type": "boolean",
-            "description": "Si los escenarios de prueba están habilitados."
-          }
-        },
-        "required": [
-          "code",
-          "name",
-          "description",
-          "acceptedInputs",
-          "limits",
-          "available",
-          "fixturesEnabled"
-        ]
-      },
-      "WorkerFixtureDto": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "string",
-            "example": "valid-basic"
-          },
-          "name": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string",
-            "description": "Qué demuestra este escenario."
-          },
-          "preview": {
-            "type": "string",
-            "description": "Vista previa segura de la entrada."
-          },
-          "expectsFailure": {
-            "type": "boolean",
-            "description": "Si se espera que el escenario termine en error controlado."
-          }
-        },
-        "required": [
-          "code",
-          "name",
-          "description",
-          "preview",
-          "expectsFailure"
-        ]
-      },
-      "CreateBankStatementRunDto": {
-        "type": "object",
-        "properties": {
-          "fixtureCode": {
-            "type": "string",
-            "maxLength": 60,
-            "description": "Escenario de prueba. Excluyente con el archivo subido."
-          }
-        }
-      },
-      "WorkerRunDto": {
-        "type": "object",
-        "properties": {
-          "requestId": {
-            "type": "string"
-          },
-          "status": {
-            "enum": [
-              "QUEUED",
-              "RUNNING",
-              "SUCCEEDED",
-              "SUCCEEDED_WITH_WARNINGS",
-              "FAILED",
-              "CANCELLED"
-            ],
-            "type": "string"
-          },
-          "progress": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 100
-          },
-          "inputSource": {
-            "enum": [
-              "FIXTURE",
-              "UPLOAD",
-              "INLINE"
-            ],
-            "type": "string"
-          },
-          "fixtureCode": {
-            "type": "string",
-            "nullable": true
-          },
-          "attemptCount": {
-            "type": "number"
-          },
-          "queuedAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "startedAt": {
-            "format": "date-time",
-            "type": "string",
-            "nullable": true
-          },
-          "finishedAt": {
-            "format": "date-time",
-            "type": "string",
-            "nullable": true
-          },
-          "requestedBy": {
-            "type": "string"
-          },
-          "correlationId": {
-            "type": "string",
-            "description": "Para correlacionar con los registros del motor."
-          },
-          "result": {
-            "type": "object",
-            "description": "Resultado, cuando la ejecución terminó bien."
-          },
-          "warnings": {
-            "type": "object",
-            "description": "Advertencias de un resultado utilizable pero revisable."
-          },
-          "errorCode": {
-            "type": "string",
-            "nullable": true
-          },
-          "errorMessage": {
-            "type": "string",
-            "nullable": true
-          }
-        },
-        "required": [
-          "requestId",
-          "status",
-          "progress",
-          "inputSource",
-          "attemptCount",
-          "queuedAt",
-          "requestedBy",
-          "correlationId"
-        ]
-      },
-      "CreateSemanticAnalysisRunDto": {
-        "type": "object",
-        "properties": {
-          "text": {
-            "type": "string",
-            "maxLength": 100000,
-            "description": "Texto a analizar. Excluyente con `fixtureCode`."
-          },
-          "fixtureCode": {
-            "type": "string",
-            "maxLength": 60,
-            "description": "Escenario de prueba. Excluyente con `text`."
-          },
-          "idempotencyKey": {
-            "type": "string",
-            "maxLength": 200,
-            "description": "Clave de deduplicación. Si se omite se deriva del contenido, de modo que reenviar el mismo texto no crea una segunda ejecución."
-          }
-        }
       },
       "ProblemDetails": {
         "type": "object",

@@ -3,41 +3,46 @@
 
 # Auditoría del grafo de conocimiento (Graphify)
 
-**Commit analizado:** `50f9f7ce9dd5d37a626926f3e4f99c886b5002e9`
+**Commit analizado:** `desconocido`
 **Artefactos consultados:** `graphify-out/graph.json`, `manifest.json`, `GRAPH_REPORT.md`.
 
 ## Resumen ejecutivo
 
-El grafo contiene **2724 nodos** y **6056 relaciones** repartidos en
-**295 comunidades**. El árbol real declara
-**24 módulos de dominio** en `src/modules/`, todos registrados en
-`src/app.module.ts`.
+El grafo contiene **5003 nodos** y **10304 relaciones** repartidos en
+**439 comunidades**. El árbol real declara
+**25 módulos de dominio** en `src/modules/`, de los cuales
+todos están registrados en `src/app.module.ts` (comprobado sobre el fichero, no supuesto).
+
+El grafo cubre **250 de 361**
+ficheros TypeScript de `src/` (69 %).
+**1 módulo(s) de dominio no aparecen en absoluto**: `workers`. Consultar el grafo sobre ellos no devuelve nada, así que su documentación **no** se deriva de aquí.
 
 ## Inventario cuantitativo
 
 | Tipo de nodo | Cantidad |
 | --- | ---: |
-| code | 2141 |
-| document | 525 |
-| concept | 57 |
-| rationale | 1 |
+| code | 3197 |
+| document | 1740 |
+| concept | 64 |
+| rationale | 2 |
 
 | Relación | Cantidad | Qué significa |
 | --- | ---: | --- |
-| `references` | 1576 | Un símbolo menciona a otro |
-| `contains` | 1292 | Jerarquía de contención (fichero → símbolo) |
-| `imports` | 1042 | Import de módulo |
-| `imports_from` | 808 | Import con origen explícito |
-| `calls` | 717 | Llamada directa |
-| `method` | 525 | Método de una clase |
-| `indirect_call` | 59 | Llamada resuelta indirectamente |
-| `inherits` | 15 | Herencia |
+| `contains` | 3032 | Jerarquía de contención (fichero → símbolo) |
+| `references` | 2484 | Un símbolo menciona a otro |
+| `imports` | 1618 | Import de módulo |
+| `imports_from` | 1185 | Import con origen explícito |
+| `calls` | 1155 | Llamada directa |
+| `method` | 677 | Método de una clase |
+| `indirect_call` | 91 | Llamada resuelta indirectamente |
+| `inherits` | 34 | Herencia |
 | `extends` | 12 | Extensión de tipo o clase |
-| `defines` | 4 | Definición de símbolo |
+| `reads_from` | 4 | Lectura de un origen de datos |
 | `triggers` | 3 | Disparo de un efecto |
-| `reads_from` | 1 | Lectura de un origen de datos |
-| `rationale_for` | 1 | Justificación documental de un elemento |
-| `re_exports` | 1 | Reexportación |
+| `implements` | 3 | — |
+| `re_exports` | 3 | Reexportación |
+| `rationale_for` | 2 | Justificación documental de un elemento |
+| `cites` | 1 | — |
 
 ## Componentes de alta centralidad
 
@@ -47,34 +52,40 @@ esquema de datos y el módulo raíz, que por definición los tocan todos.
 
 | Nodo | Fichero | Entradas | Salidas | Total |
 | --- | --- | ---: | ---: | ---: |
-| `PrismaService` | `src/common/prisma/prisma.service.ts` | 144 | 8 | 152 |
-| `AuthenticatedPrincipal` | `src/common/security/security.types.ts` | 119 | 0 | 119 |
-| `TenantId` | `src/common/security/security.decorators.ts` | 98 | 0 | 98 |
+| `PrismaService` | `src/common/prisma/prisma.service.ts` | 168 | 8 | 176 |
+| `AuthenticatedPrincipal` | `src/common/security/security.types.ts` | 138 | 0 | 138 |
+| `TenantId` | `src/common/security/security.decorators.ts` | 118 | 0 | 118 |
+| `Roles()` | `src/common/security/security.decorators.ts` | 110 | 0 | 110 |
+| `parseBigIntId()` | `src/common/http/id.ts` | 101 | 0 | 101 |
 | `demo-graph.ts` | `src/modules/seeding/data/demo-graph.ts` | 3 | 84 | 87 |
-| `Roles()` | `src/common/security/security.decorators.ts` | 86 | 0 | 86 |
-| `parseBigIntId()` | `src/common/http/id.ts` | 84 | 0 | 84 |
-| `app.module.ts` | `src/app.module.ts` | 2 | 59 | 61 |
-| `prisma.service.ts` | `src/common/prisma/prisma.service.ts` | 54 | 3 | 57 |
-| `DomainException` | `src/common/errors/domain-exception.ts` | 54 | 1 | 55 |
-| `CurrentPrincipal` | `src/common/security/security.decorators.ts` | 55 | 0 | 55 |
-| `domain-exception.ts` | `src/common/errors/domain-exception.ts` | 49 | 1 | 50 |
-| `HashService` | `src/common/crypto/hash.service.ts` | 38 | 9 | 47 |
+| `MetricsService` | `src/common/observability/metrics.service.ts` | 57 | 23 | 80 |
+| `app.module.ts` | `src/app.module.ts` | 3 | 67 | 70 |
+| `prisma.service.ts` | `src/common/prisma/prisma.service.ts` | 66 | 3 | 69 |
+| `Catálogo de entidades` | `docs/data/entity-catalog.md` | 1 | 68 | 69 |
+| `DomainException` | `src/common/errors/domain-exception.ts` | 66 | 1 | 67 |
+| `graph.types.ts` | `src/modules/graph/graph.types.ts` | 41 | 26 | 67 |
+| `CurrentPrincipal` | `src/common/security/security.decorators.ts` | 63 | 0 | 63 |
+| `domain-exception.ts` | `src/common/errors/domain-exception.ts` | 61 | 1 | 62 |
+| `HashService` | `src/common/crypto/hash.service.ts` | 45 | 9 | 54 |
+| `security.types.ts` | `src/common/security/security.types.ts` | 47 | 5 | 52 |
+| `execution-engine.service.ts` | `src/modules/graph/execution-engine.service.ts` | 17 | 34 | 51 |
+| `qa-lab.service.ts` | `src/modules/qa-lab/qa-lab.service.ts` | 3 | 45 | 48 |
 | `migration.sql` | `prisma/migrations/20260712190000_init/migration.sql` | 0 | 46 | 46 |
-| `security.types.ts` | `src/common/security/security.types.ts` | 40 | 5 | 45 |
-| `code-import.service.ts` | `src/modules/code-import/code-import.service.ts` | 2 | 42 | 44 |
-| `graph.types.ts` | `src/modules/graph/graph.types.ts` | 26 | 18 | 44 |
-| `AuditService` | `src/common/audit/audit.service.ts` | 33 | 4 | 37 |
-| `id.ts` | `src/common/http/id.ts` | 33 | 4 | 37 |
-| `MetricsService` | `src/common/observability/metrics.service.ts` | 27 | 10 | 37 |
-| `security.decorators.ts` | `src/common/security/security.decorators.ts` | 25 | 11 | 36 |
+| `AuditService` | `src/common/audit/audit.service.ts` | 42 | 4 | 46 |
 
 ## Dependencias circulares entre módulos
 
-No se detectó ningún par de módulos de dominio que se referencie en ambos sentidos.
+Pares de módulos que se referencian en ambos sentidos. Cada uno merece una revisión:
+la regla del repositorio es que una colaboración opcional se pase como **argumento de
+llamada**, no como dependencia de constructor.
+
+| Módulo A | Módulo B | A→B | B→A |
+| --- | --- | ---: | ---: |
+| `calculated-fields` | `graph` | 5 | 5 |
 
 ## Componentes huérfanos
 
-15 nodos no participan en ninguna relación del grafo.
+14 nodos no participan en ninguna relación del grafo.
 La mayoría son ficheros de configuración y documentos sueltos, que por naturaleza no importan ni son importados. Se listan los primeros 20:
 
 - `docs/plantuml/compile_all.ps1`
@@ -89,19 +100,53 @@ La mayoría son ficheros de configuración y documentos sueltos, que por natural
 - `prisma/migrations/20260720030000_audit_event_tenant_keyset_index/migration.sql`
 - `scripts/smoke.ps1`
 - `scripts/validate-baseline.py`
-- `scripts/validate-migrations.py`
 - `test/setup-env.ts`
 - `test/tenant-rls-views.integration.spec.ts`
 
 ## Divergencia entre el grafo y el disco
 
-Todo fichero referenciado por el grafo existe en el árbol de trabajo. El grafo está alineado con el disco.
+### El grafo menciona ficheros que ya no existen
+
+**2 ficheros** referenciados por el grafo ya no existen en disco. El grafo está desactualizado respecto al árbol; ejecute `graphify update .`:
+
+- `scripts/generate-baseline-sql.py`
+- `scripts/validate-baseline.py`
+
+### El disco tiene código que el grafo desconoce
+
+Es la dirección que más daño hace: sobre un fichero ausente el grafo no devuelve nada, y una
+consulta vacía se lee igual que «no existe». Por eso los catálogos del portal se generan del
+código y del contrato, nunca de este grafo.
+
+**111 de 361** ficheros `.ts` de `src/` no aparecen en el grafo, incluidos **1 módulo(s) completos** (`workers`). Se listan los primeros 20:
+
+- `src/common/contracts/constraint-coherence.ts`
+- `src/common/observability/messaging-trace.service.ts`
+- `src/common/observability/telemetry.config.ts`
+- `src/common/observability/telemetry.constants.ts`
+- `src/common/observability/telemetry.instrumentations.ts`
+- `src/common/observability/telemetry.types.ts`
+- `src/common/observability/trace-context.service.ts`
+- `src/common/observability/trace-error.ts`
+- `src/common/observability/trace-response.interceptor.ts`
+- `src/common/observability/tracing.service.ts`
+- `src/modules/graph/validators/graph-input-contract.validator.ts`
+- `src/modules/graph/validators/graph-operation-inputs.validator.ts`
+- `src/modules/seeding/data/collections-demo.graph.ts`
+- `src/modules/seeding/data/collections-demo.seed.ts`
+- `src/modules/seeding/data/graph-rows.ts`
+- `src/modules/seeding/data/semantic-catalog.data.ts`
+- `src/modules/workers/bank-statement/bank-statement-input.ts`
+- `src/modules/workers/bank-statement/bank-statement-run-worker.service.ts`
+- `src/modules/workers/bank-statement/bank-statement.controller.ts`
+- `src/modules/workers/bank-statement/bank-statement.service.ts`
 
 ## Riesgos identificados
 
 | Riesgo | Naturaleza | Mitigación vigente |
 | --- | --- | --- |
-| El grafo se desactualiza tras cada cambio de código | Documental | `graphify update .` tras modificar código; esta auditoría detecta la divergencia |
+| El grafo se desactualiza tras cada cambio de código | Documental | `graphify update .` tras modificar código; esta auditoría detecta la divergencia en ambos sentidos |
+| El grafo desconoce 1 módulo(s) (workers), así que consultarlo sobre ellos devuelve vacío | Documental | Su documentación se deriva del código y del contrato; esta auditoría lo declara en vez de ocultarlo |
 | Un módulo con mucho fan-in concentra el impacto de sus cambios | Arquitectónico | Contratos explícitos y pruebas por módulo |
 | La documentación derivada del grafo hereda sus errores | Documental | Los catálogos del portal se generan del **código y del contrato**, no del grafo |
 

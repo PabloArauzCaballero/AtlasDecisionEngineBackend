@@ -3,6 +3,7 @@ import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
+  IsDefined,
   IsIn,
   IsInt,
   IsObject,
@@ -109,6 +110,10 @@ export class CreateCalculatedFieldVersionDto {
   @Type(() => CalculatedFieldInputDto)
   inputs!: CalculatedFieldInputDto[];
 
+  // `@ValidateNested()` no comprueba presencia: sobre `undefined` no hay nada que validar.
+  // El contrato de retorno es obligatorio (§5.3), así que su ausencia debe ser un 400 aquí y
+  // no un fallo del servidor más adelante.
+  @IsDefined()
   @ValidateNested()
   @Type(() => CalculatedFieldReturnDto)
   returns!: CalculatedFieldReturnDto;

@@ -1,5 +1,13 @@
 # Informe final de documentación del backend
 
+!!! info "Este documento tiene dos revisiones"
+    La revisión de **2026-07-31** (abajo) construyó el sistema documental y cerró sus cuatro
+    bloqueantes. La revisión de **2026-08-04** —[al final del documento](#revisión-2026-08-04-workers-adicionales)—
+    lo contrasta con los dos workers que entraron después y **cambia el veredicto**. Léase esa
+    primero si lo que se busca es el estado de hoy.
+
+---
+
 **Fecha:** 2026-07-31 · **Alcance:** separación de procesos de fondo, dockerización y sistema
 documental completo del backend de decisión.
 
@@ -239,3 +247,234 @@ del reloj se sustituyó por una que no puede mentir.
 Donde la forma real era incómoda, se documentó **como es**: el agregado crudo de Prisma en
 `/v1/audit/metrics`, el array desnudo de los casos de suite, el retorno sin tipo fijo de un
 campo calculado. Un contrato que reconoce una fealdad es utilizable; uno que la maquilla, no.
+
+---
+
+# Revisión 2026-08-04 — workers adicionales
+
+**Alcance:** contrastar el sistema documental con los dos workers que entraron con
+[ADR-0026](../adr/ADR-0026-additional-workers-integration.md) —análisis semántico y extractos
+bancarios— y cerrar lo que faltara.
+
+## 1. Resumen ejecutivo
+
+La revisión no encontró documentación *ausente*, sino documentación que iba a ser **falsa**. El
+código afirmaba tres cosas que no eran ciertas, y describirlas tal cual habría producido un
+portal impecable sobre un sistema que no existe. Por eso el trabajo empezó corrigiendo el
+producto:
+
+1. **El motor no arrancaba sin `OPENAI_API_KEY`.** El módulo de workers construía el proveedor
+   de OpenAI al cablearse, y su fábrica valida la credencial al construir. Cualquier proceso sin
+   esa variable moría al iniciar — incluida una réplica de API con el worker apagado. El
+   generador del contrato era una de esas víctimas: **fallaba en silencio** (código de salida 0,
+   sin una línea de salida) y dejaba publicado un contrato al que le faltaban las 12 operaciones
+   de `/v1/workers`, mientras el validador de calidad informaba «110/110, contrato conforme».
+2. **La retención del texto analizado no se ejecutaba nunca.** La política estaba completa en el
+   código y no la invocaba nadie. El texto que los usuarios envían —y que con proveedor alojado
+   ya salió del perímetro una vez— se conservaba indefinidamente.
+3. **El presupuesto de tiempo por defecto es incoherente**, así que la primera clasificación
+   siempre falla. Se deja registrada y asignada, no corregida: la decisión es de otro dueño.
+
+Además, la auditoría de Graphify informaba «alineado» porque solo miraba en una dirección.
+Mirando en la otra, el grafo desconoce **111 de 361** ficheros de `src/` y el módulo `workers`
+**entero**.
+
+## 2. Estado inicial de esta revisión
+
+| Puerta | Resultado al empezar |
+| --- | --- |
+| `yarn prisma:validate` | ✅ |
+| `yarn typecheck` | ✅ |
+| `yarn build` | ✅ |
+| `yarn test` | ✅ |
+| `generate-openapi.mjs` | ❌ **fallo silencioso** — `ZodError: OPENAI_API_KEY` |
+| `yarn docs:openapi:check` | ✅ *pero sobre un contrato obsoleto* |
+| `yarn docs:coverage` | ❌ módulo `workers` sin página; 21 variables sin documentar |
+| `yarn docs:links` | ❌ 19 páginas huérfanas |
+
+La sexta fila es la lección de la revisión: **una puerta en verde sobre un artefacto obsoleto
+no dice nada**. El validador del contrato comprobaba con rigor un fichero que llevaba días sin
+reflejar el código.
+
+## 3. Hallazgos de Graphify
+
+`node scripts/docs/analyze-graphify.mjs`, con la comprobación en las dos direcciones ya añadida:
+
+```text
+5003 nodos, 10304 relaciones, 25 módulos, 1 ciclo entre módulos, 14 huérfanos,
+2 ficheros ausentes en disco, 111/361 ficheros de src/ ausentes del grafo
+(módulos sin cubrir: workers)
+```
+
+El grafo es anterior a la fusión de los workers y el CLI `graphify` no está instalado en este
+entorno, así que **no se pudo regenerar**. La auditoría lo declara en vez de disimularlo, y los
+catálogos del portal se siguen generando del código y del contrato —nunca del grafo—, que es
+justamente lo que impide que este desfase contamine la documentación.
+
+## 4. Cambios realizados
+
+| Ruta | Cambio |
+| --- | --- |
+| `semantic-analysis/semantic-model-provider.bridge.ts` | **nuevo** — proveedor perezoso; traduce `SEMANTIC_ANALYSIS_PROVIDER` al nombre del núcleo |
+| `semantic-analysis/semantic-retention-sweeper.service.ts` | **nuevo** — trabajo `semantic-retention` |
+| `workers.module.ts` | proveedor perezoso; registro de `AuditRetentionService` y del barrendero |
+| `workers.dto.ts` | descripción del parámetro `format`, contrastada contra el serializador real |
+| `common/openapi/openapi-document.ts` | descripción de las tres etiquetas `Workers*` |
+| `common/config/env.schema.ts` | +3 variables de retención semántica, antes indeclaradas |
+| `common/jobs/job-names.ts` | +`SemanticRetention` |
+| `scripts/docs/analyze-graphify.mjs` | divergencia disco → grafo; verifica el registro en `app.module.ts` |
+| `test/semantic-model-provider-bridge.spec.ts` | **nueva** — 5 pruebas |
+| `test/semantic-retention-sweeper.spec.ts` | **nueva** — 6 pruebas |
+| `docs/security/threat-model.md` | fronteras F6/F7, amenazas I7–I10 y D7–D8, dos secciones, 4 riesgos residuales |
+| `docs/data/classification.md` | datos que no pasan por el contrato de variables |
+| `docs/data/retention.md` | retención del texto analizado; lo que todavía no vence |
+| `docs/architecture/integration-map.md` | el proveedor de modelos como salida con contenido en claro |
+| `docs/AGENT-COORDINATION.md` | bitácora y deudas asignadas por nombre |
+
+## 5. Cobertura del contrato
+
+| Métrica | Antes | Después |
+| --- | ---: | ---: |
+| Rutas | 98 | **108** |
+| Operaciones | 110 | **122** |
+| Esquemas | 222 | **227** |
+| Operaciones de `/v1/workers` | **0** | **12** |
+| Etiquetas | 22 | **25** |
+
+```text
+$ node scripts/docs/generate-openapi.mjs
+openapi/openapi.json escrito: 108 rutas, 122 operaciones, 227 esquemas.
+
+$ yarn docs:openapi:check
+operationId: 122/122 · summary: 122/122 · etiqueta: 122/122
+seguridad: 118/118 (+4 públicas) · respuesta con esquema: 122/122
+Contrato OpenAPI conforme.
+```
+
+## 6. Validaciones Redocly
+
+```text
+$ npx redocly lint openapi/openapi.json
+Woohoo! Your API description is valid. 🎉
+You have 4 warnings.
+```
+
+De **8 avisos a 4**. Los cuatro que quedan son las sondas de salud sin respuesta `4xx`, un caso
+justificado por escrito en `redocly.yaml`: son públicas y no pueden devolver un `4xx`, así que
+la regla exigiría documentar un error imposible. **Cero avisos nuevos** de los workers.
+
+## 7. Cobertura documental
+
+```text
+$ yarn docs:coverage
+Módulos documentados: 25/25
+Operaciones en el catálogo: 122/122
+Variables documentadas: 150/150
+Runbooks: 4
+Cobertura documental completa.
+```
+
+## 8. Seguridad
+
+El modelo de amenazas se revisó porque **su propia cláusula lo exigía** —«al añadir una
+integración saliente o una tabla con datos personales»— y ADR-0026 hizo ambas cosas sin que se
+revisara.
+
+- **F6 · Worker → proveedor de modelos.** La primera salida de la plataforma por la que viaja
+  contenido de negocio **en claro**. Con `openai` el texto sale íntegro del perímetro; con
+  `ollama` no sale. Vacío —el valor por defecto— deja el worker sin registrar.
+- **F7 · Analista → worker de extractos.** Un documento bancario real. Verificado en el código:
+  `file_bytes` se anula al cerrar la ejecución (éxito, fallo permanente y cancelación), la
+  cuenta solo se publica enmascarada, y el CSV neutraliza la inyección de fórmulas.
+- **I7–I10** y **D7–D8**, cada una con su riesgo residual, más cuatro riesgos residuales
+  nuevos aceptados explícitamente.
+
+Verificado y no supuesto: las seis tablas nuevas tenant-scoped llevan `ENABLE ROW LEVEL
+SECURITY` y su política `tenant_isolation` en el SQL de la migración.
+
+## 9. Datos
+
+`decision_semantic_analysis_run.input_text` y `decision_bank_statement_run.file_bytes` no pasan
+por el contrato de variables, así que no tienen `sensitivityClass` y su tratamiento se fija por
+tabla en [clasificación](../data/classification.md). La retención del texto quedó documentada
+**con su mecanismo**, no solo con su intención — precisamente porque el mecanismo faltaba.
+
+## 10. Pruebas
+
+11 pruebas nuevas, todas ejecutadas:
+
+```text
+$ node scripts/run-jest.mjs --runInBand semantic-retention-sweeper semantic-model-provider-bridge
+Test Suites: 2 passed, 2 total
+Tests:       11 passed, 11 total
+```
+
+Una de ellas no comprueba que algo funcione, sino que fija la aritmética del desajuste de G32,
+para que el día que alguien lo corrija la prueba se lo diga.
+
+## 11. Métricas finales
+
+| Métrica | Objetivo | Real |
+| --- | ---: | ---: |
+| Endpoints documentados | 100 % | **122/122** ✅ |
+| Operaciones con `operationId` | 100 % | **122/122** ✅ |
+| Operaciones con seguridad definida | 100 % | **118/118** (+4 públicas) ✅ |
+| Respuestas con esquema | 100 % | **122/122** ✅ |
+| Módulos documentados | 100 % | **25/25** ✅ |
+| Variables de entorno documentadas | 100 % | **150/150** ✅ |
+| Reglas Redocly con **error** | 0 | **0** ✅ |
+| Avisos de Redocly | — | 4, justificados por escrito |
+| Enlaces internos válidos | 100 % | **4 rotos** ❌ |
+| Páginas huérfanas | 0 | **7** ❌ |
+| MkDocs `--strict` | compila | **no compila** ❌ |
+| Brechas `BLOCKER` abiertas | 0 | **0** ✅ |
+| Brechas `HIGH` abiertas | 0 | **2** ❌ |
+
+## 12. Riesgos residuales de esta revisión
+
+| Riesgo | Naturaleza | Estado |
+| --- | --- | --- |
+| El presupuesto por defecto del proveedor no cuadra con el lease (G32) | Producto | Asignado al dueño del worker; aritmética fijada en una prueba |
+| 4 enlaces rotos y 7 huérfanas del trabajo de observabilidad (G33) | Documental | Asignado a su autor |
+| El grafo de Graphify desconoce el 31 % de `src/` | Documental | Declarado; el CLI no está instalado en este entorno |
+| Las evidencias se tomaron sobre un **árbol compartido en movimiento** | Metodológico | Declarado abajo |
+| El PDF de una ejecución que nunca se procesa no vence | Producto | Documentado en retención y en el modelo de amenazas |
+
+!!! warning "Sobre la reproducibilidad de estas evidencias"
+    Otro agente escribía en el mismo árbol de trabajo mientras se ejecutaban estas puertas, y se
+    pidió continuar aun así. Las salidas de arriba son reales y se tomaron después de cada
+    cambio, pero **no son reproducibles bit a bit** sobre un árbol que cambiaba entre comandos.
+    La forma de reproducirlas es ejecutar `yarn docs:validate` sobre un árbol quieto.
+
+## 13. Declaración de preparación para producción
+
+> ## NO APTO PARA PRODUCCIÓN
+>
+> **y lo que lo bloquea es exactamente esto:**
+
+| # | Requisito del encargo | Estado | Quién lo cierra |
+| --- | --- | --- | --- |
+| 6 | «MkDocs compila estrictamente sin enlaces rotos» | ❌ 4 enlaces rotos, 7 páginas huérfanas | Agente de observabilidad (G33) |
+| — | `yarn typecheck` en verde | ❌ `runtime-failed-audit.spec.ts:59` pasa 11 argumentos a un constructor que pide 12 | Agente de observabilidad |
+| 15 | «Toda limitación restante registrada, justificada y **aceptada**» | ❌ G32 registrada y justificada; falta la aceptación | Dueño del worker semántico |
+
+**Ninguno de los tres es de este agente**, y ninguno se ha maquillado para poder declarar el
+cierre. Los tres son concretos, tienen dueño nombrado en
+[`AGENT-COORDINATION.md`](../AGENT-COORDINATION.md) y se cierran en horas, no en semanas.
+
+### Lo que sí queda cerrado
+
+El contrato describe el 100 % de la superficie HTTP real y vuelve a generarse; el sistema
+arranca sin credenciales de terceros; el texto de los usuarios deja de retenerse para siempre;
+las dos fronteras de confianza nuevas están modeladas con su riesgo residual; y la auditoría del
+grafo dejó de afirmar una alineación que no existía.
+
+### Por qué el veredicto bajó de `APTO` a `NO APTO`
+
+No porque el sistema haya empeorado, sino porque **entró código nuevo entre una revisión y la
+siguiente** y la anterior no lo cubría. Es exactamente el comportamiento que se le pide a este
+mecanismo: que una capacidad nueva sin su contrato, su modelo de amenazas y su documentación
+**rompa el cierre** en vez de pasar desapercibida.
+
+Declararlo `APTO` con la puerta documental en rojo habría sido el fallo que el encargo prohíbe:
+cerrar por apariencia en lugar de por evidencia.

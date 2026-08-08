@@ -7,6 +7,8 @@ import { JobSignalService } from '../../../common/jobs/job-signal.service';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import type { AuthenticatedPrincipal } from '../../../common/security/security.types';
 import { newRequestId, type ValidatedStatementInput } from './bank-statement-input';
+import { persistableCarrier } from '../../../common/events/trace-carrier';
+import { MessagingTraceService } from '../../../common/observability/messaging-trace.service';
 
 /** Estados desde los que ya no puede pasar nada más. */
 const TERMINAL_STATUSES: readonly WorkerRunStatus[] = [
@@ -61,6 +63,7 @@ export class BankStatementService {
     private readonly prisma: PrismaService,
     private readonly jobSignal: JobSignalService,
     private readonly config: ConfigService,
+    private readonly messagingTrace: MessagingTraceService,
   ) {}
 
   /**
@@ -100,6 +103,10 @@ export class BankStatementService {
             fileBytes: new Uint8Array(input.bytes),
             requestedBy: principal.id,
             correlationId: principal.requestId,
+            // Contexto de traza capturado AQUÍ, en el proceso de API: tras el commit se pierde,
+            // y el worker que reclame esta fila en otro proceso ya no podría recuperarlo. Sin
+            // traza activa queda nulo y el worker abre una traza raíz.
+            traceCarrier: persistableCarrier(this.messagingTrace.inject()),
           },
           select: RUN_SELECTION,
         });

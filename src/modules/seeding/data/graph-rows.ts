@@ -13,6 +13,13 @@
  *
  * Compartido a propósito: cualquier seeder nuevo que llame aquí queda inmune al
  * mismo olvido.
+ *
+ * **Devuelve los identificadores al compilado**, y no es un detalle: el escritor de
+ * ejecuciones enlaza cada paso de la traza con `decision_rule_node` por el `id` que el
+ * compilado lleva dentro. Un compilado sembrado sin esos ids decide igual de bien, pero
+ * cada una de sus ejecuciones pierde la traza paso a paso —el escritor la descarta con un
+ * `ERROR` en el log— y con ella la evidencia de POR QUÉ se decidió lo que se decidió. Por
+ * eso esta función se llama SIEMPRE antes de persistir el compilado.
  */
 import type { Prisma, PrismaClient } from '@prisma/client';
 import type { CompiledDecisionArtifact } from '../../graph/graph.types';
@@ -30,7 +37,7 @@ export async function writeGraphRows(
         conditionCode: code,
         name: condition.name,
         expressionType: 'JSON_AST',
-        expressionJson: condition.expression as unknown as Prisma.InputJsonValue,
+        expressionJson: condition.expression as Prisma.InputJsonValue,
         severity: 'BLOCKING',
         isReusable: true,
       },
@@ -39,7 +46,7 @@ export async function writeGraphRows(
 
   const nodeByKey: Record<string, { id: bigint }> = {};
   for (const node of Object.values(compiled.nodes)) {
-    nodeByKey[node.key] = await prisma.decisionRuleNode.create({
+    const row = await prisma.decisionRuleNode.create({
       data: {
         artifactVersionId,
         nodeKey: node.key,
@@ -52,6 +59,10 @@ export async function writeGraphRows(
         isTerminal: node.terminal,
       },
     });
+    nodeByKey[node.key] = row;
+    // Se anota en el propio nodo del compilado, que es el objeto que el llamador va a
+    // persistir a continuación. Sin esto, la traza de cada ejecución se pierde entera.
+    node.id = row.id.toString();
   }
 
   let edges = 0;

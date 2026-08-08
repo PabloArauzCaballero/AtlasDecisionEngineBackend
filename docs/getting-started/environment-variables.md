@@ -3,7 +3,7 @@
 
 # Variables de entorno
 
-118 variables declaradas. El esquema se valida al arrancar: un valor ausente o
+156 variables declaradas. El esquema se valida al arrancar: un valor ausente o
 fuera de rango impide el arranque en vez de degradar el comportamiento en caliente.
 
 | Variable | Obligatoria | Valor por defecto | Para qué |
@@ -30,6 +30,12 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `DATABASE_CONNECTION_TIMEOUT_MS` | no | `5_000` | — |
 | `DATABASE_IDLE_TIMEOUT_MS` | no | `30_000` | — |
 | `DATABASE_STATEMENT_TIMEOUT_MS` | no | `30_000` | — |
+| `DATABASE_WRITE_URL` | no | — | --------------------------------------------------------------------- Separación de rutas de datos (ADR-0029).  Vacías, las tres rutas son la misma conexión y el comportamiento es idéntico al anterior: DATABASE_URL sigue siendo la única variable obligatoria. Declarar DATABASE_READ_URL con el rol lector separa lectura y escritura por credencial; apuntarla a otro host la separa por servidor (réplica). El registro reutiliza el pool cuando las huellas coinciden, así que declarar la misma URL no duplica nada. --------------------------------------------------------------------- |
+| `DATABASE_READ_URL` | no | — | — |
+| `DATABASE_READ_POOL_MAX` | no | — | — |
+| `DATA_READ_ROUTING_ENABLED` | no | `false` | — |
+| `ENABLE_PRIMARY_READ_FALLBACK` | no | `true` | — |
+| `DATA_ROUTING_RULES` | no | — | — |
 | `REDIS_URL` | no | — | — |
 | `REDIS_PREFIX` | **sí** | — | — |
 | `REQUIRE_REDIS_IN_PRODUCTION` | no | `true` | — |
@@ -56,7 +62,7 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `TRUST_PROXY_HOPS` | no | `1` | — |
 | `BODY_LIMIT_BYTES` | no | `1_048_576` | — |
 | `REQUEST_TIMEOUT_MS` | no | `15_000` | — |
-| `SHUTDOWN_GRACE_MS` | no | `20_000` | — |
+| `SHUTDOWN_GRACE_MS` | no | `20_000` | Plazo total del apagado ordenado. El 80 % acota el drenaje de lotes en vuelo del orquestador de trabajos y el resto queda para cerrar los pools y vaciar las trazas; agotado el plazo, el proceso fuerza la salida. Debe quedar POR DEBAJO del terminationGracePeriodSeconds del orquestador: si lo supera, el SIGKILL llega antes que el vigilante y se pierde el motivo del apagado, que es justo lo que se quería salvar. |
 | `RATE_LIMIT_ENABLED` | no | `true` | — |
 | `RATE_LIMIT_WINDOW_SECONDS` | no | `60` | — |
 | `RATE_LIMIT_MANAGEMENT_REQUESTS` | no | `300` | — |
@@ -73,7 +79,15 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `ACCESS_AUDIT_RETRY_SECONDS` | no | `15` | — |
 | `OTEL_ENABLED` | no | `false` | Distributed tracing. Read directly from process.env by observability/tracing.ts (it runs before the Nest container exists); declared here so the values are still validated and documented rather than being undeclared magic strings. |
 | `OTEL_SERVICE_NAME` | no | `'atlas-decision-engine'` | — |
+| `OTEL_SERVICE_NAMESPACE` | no | `'atlas'` | Agrupa API y worker bajo el mismo producto en el grafo de servicios de Jaeger. |
+| `OTEL_SERVICE_VERSION` | no | — | Por defecto se toma BUILD_VERSION; esta variable sólo existe para despliegues que versionan la telemetría por separado del artefacto. |
+| `OTEL_DEPLOYMENT_ENVIRONMENT` | no | — | — |
 | `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | no | — | — |
+| `OTEL_EXPORT_TIMEOUT_MS` | no | `10_000` | — |
+| `OTEL_TRACES_SAMPLER` | no | `'parentbased_traceidratio'` | Muestreo basado en el padre: se respeta la decisión de un servicio aguas arriba, porque media traza no sirve para nada. La proporción sólo gobierna las trazas que nacen aquí. |
+| `OTEL_TRACES_SAMPLER_ARG` | no | `1` | — |
+| `OTEL_PROPAGATORS` | no | `'tracecontext,baggage'` | — |
+| `OTEL_DIAG_LOG_LEVEL` | **sí** | — | — |
 | `VARIABLE_BACKEND_URL` | no | — | — |
 | `VARIABLE_BACKEND_TIMEOUT_MS` | no | `1_500` | — |
 | `AUDIT_HASH_SECRET` | **sí** | — | — |
@@ -88,6 +102,30 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `TEST_RUN_WORKER_CONCURRENCY` | no | `2` | — |
 | `TEST_RUN_LEASE_SECONDS` | no | `300` | — |
 | `TEST_CASE_CONCURRENCY` | no | `4` | — |
+| `SEMANTIC_ANALYSIS_WORKER_ENABLED` | no | `false` | --- Workers adicionales (ADR-0026) ------------------------------------- Los dos vienen APAGADOS por defecto, al revés que los trabajos nativos: un despliegue que se actualice no debe empezar a consumir cuota de un proveedor de modelos ni a cargar `pdfjs-dist` sin que nadie lo haya pedido. |
+| `SEMANTIC_ANALYSIS_WORKER_POLL_MS` | no | `500` | — |
+| `SEMANTIC_ANALYSIS_WORKER_MAX_POLL_MS` | **sí** | — | — |
+| `SEMANTIC_ANALYSIS_RECOVERY_INTERVAL_MS` | **sí** | — | — |
+| `SEMANTIC_ANALYSIS_WORKER_CONCURRENCY` | no | `4` | — |
+| `SEMANTIC_ANALYSIS_LEASE_SECONDS` | no | `120` | — |
+| `SEMANTIC_ANALYSIS_MAX_ATTEMPTS` | no | `3` | Agotados los intentos la ejecución queda FAILED en vez de volver a la cola: reintentar sin cota convierte un fallo permanente en gasto perpetuo. |
+| `SEMANTIC_ANALYSIS_MAX_TEXT_LENGTH` | no | `8_000` | — |
+| `SEMANTIC_ANALYSIS_PROVIDER` | no | `''` | Vacío ⇒ el worker NO se registra, y lo dice en el log. Es preferible a arrancar y fallar en cada job por falta de credenciales. |
+| `SEMANTIC_ANALYSIS_BUDGET_WINDOW_SECONDS` | **sí** | — | — |
+| `SEMANTIC_ANALYSIS_BUDGET_MAX_ANALYSES` | **sí** | — | — |
+| `SEMANTIC_ANALYSIS_MINIMIZE_AFTER_DAYS` | no | `30` | --- Retención del texto analizado --- El texto que se clasifica se persiste íntegro para poder explicar la decisión, y en el caso de un proveedor alojado ya salió del perímetro una vez. Retenerlo indefinidamente añade una segunda copia permanente que nadie pidió, así que la barrida lo minimiza (lo sustituye por su huella) y más tarde purga la fila entera. |
+| `SEMANTIC_ANALYSIS_AUDIT_RETENTION_DAYS` | no | `90` | — |
+| `SEMANTIC_ANALYSIS_RETENTION_SWEEP_INTERVAL_MS` | **sí** | — | — |
+| `BANK_STATEMENT_WORKER_ENABLED` | no | `false` | — |
+| `BANK_STATEMENT_WORKER_POLL_MS` | no | `500` | — |
+| `BANK_STATEMENT_WORKER_MAX_POLL_MS` | **sí** | — | — |
+| `BANK_STATEMENT_RECOVERY_INTERVAL_MS` | **sí** | — | — |
+| `BANK_STATEMENT_WORKER_CONCURRENCY` | no | `2` | Menor que la del semántico: cada job carga un PDF entero en memoria. |
+| `BANK_STATEMENT_LEASE_SECONDS` | no | `300` | — |
+| `BANK_STATEMENT_MAX_ATTEMPTS` | no | `3` | — |
+| `BANK_STATEMENT_MAX_UPLOAD_BYTES` | **sí** | — | 10 MiB. Acota a la vez la memoria del worker y el tamaño de la fila, porque el documento se guarda en la propia base (ADR-0026). |
+| `BANK_STATEMENT_TIMEOUT_MS` | no | `60_000` | Un PDF hostil puede hacer trabajar al lector indefinidamente. El presupuesto corta el job, no el proceso. |
+| `WORKERS_FIXTURES_ENABLED` | no | `false` | Los escenarios de prueba son sintéticos, pero crean ejecuciones reales. En producción están apagados para que no contaminen la operación. |
 | `SCRIPT_NODES_ENABLED` | no | `false` | — |
 | `SCRIPT_RUNNER_MODE` | no | `'IN_PROCESS'` | — |
 | `PYTHON_EXECUTABLE` | no | `'python'` | Interpreter used by the in-process runner and the Code->Flow Python syntax checker. The SIDECAR image ships only `python3`, so that container sets this explicitly; the default matches the usual development install where the launcher is named `python`. |

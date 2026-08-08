@@ -26,6 +26,15 @@ export class SampleCaseDto {
     description: 'Entradas generadas, listas para simular o para guardar como caso.',
   })
   input!: Record<string, unknown>;
+
+  @ApiProperty({
+    required: false,
+    type: [String],
+    example: ['correo_contacto'],
+    description:
+      'Variables cuyo contrato es contradictorio (p. ej. formato EMAIL con maxLength 4): ningún valor puede satisfacerlo, así que el valor entregado para ellas NO es válido. Lo que hay que corregir es el contrato.',
+  })
+  unsatisfiable?: string[];
 }
 
 /** Lo común a los dos caminos: qué se generó y cómo volver a generarlo igual. */
@@ -39,7 +48,7 @@ class SampleBatchDto {
   })
   seed!: string;
 
-  @ApiProperty({ example: 'atlas-qa-generator-1.0.0' })
+  @ApiProperty({ example: 'atlas-qa-generator-1.2.0' })
   generatorVersion!: string;
 
   @ApiProperty({ type: [SampleCaseDto] })

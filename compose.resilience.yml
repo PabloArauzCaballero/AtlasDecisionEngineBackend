@@ -1,0 +1,171 @@
+# Banco de pruebas de RESILIENCIA. Aislado del entorno de desarrollo a propósito.
+#
+#   ./scripts/resilience-test.sh
+#
+# Por qué es un proyecto de Compose PROPIO (`name: atlas-resilience`) y no una superposición
+# del de desarrollo: estas pruebas matan contenedores, cortan la red, saturan la cola y llenan
+# la memoria hasta provocar un OOM. Hacer eso sobre la pila compartida —que en este repositorio
+# usa más de un agente a la vez, ver `docs/AGENT-COORDINATION.md`— sería tirarle el entorno a
+# alguien en mitad de su trabajo. Con nombre propio, Compose crea su red, sus contenedores y
+# sus volúmenes, y `down -v` no se lleva nada ajeno.
+#
+# Las credenciales están escritas aquí, y es la misma excepción que en `compose.test.yml`:
+# nada persiste (todo va en `tmpfs`), no se publica ningún puerto al exterior salvo el de
+# sondas en loopback, y la pila vive lo que dura la prueba.
+name: atlas-resilience
+
+x-app-environment: &app-environment
+  NODE_ENV: development
+  DATABASE_URL: postgresql://atlas:atlas@postgres:5432/atlas_res?schema=public
+  REDIS_URL: redis://redis:6379
+  AUTH_MODE: API_KEY
+  MANAGEMENT_API_KEY: resilience-management-key-with-entropy
+  RUNTIME_API_KEY: resilience-runtime-key-with-other-entropy
+  AUDIT_HASH_SECRET: resilience-audit-secret-of-at-least-32-chars
+  METRICS_TOKEN: resilience-metrics-token-with-entropy
+  STARTUP_SEED_ENABLED: "false"
+  # El sidecar de scripts no participa en estas pruebas y exigiría gVisor; sin nodos de script
+  # habilitados, la API no lo necesita.
+  SCRIPT_NODES_ENABLED: "false"
+  # Reloj acelerado. El objetivo es observar el MECANISMO —incremento de intento, retroceso
+  # exponencial, transición a DEAD—, no esperar los tiempos de producción. Con el intervalo en
+  # 200 ms y 3 intentos, un evento irrecuperable llega a la cola muerta en unos 3 s en vez de
+  # los varios minutos que costaría con los valores por defecto (1 s y 8 intentos).
+  # La LÓGICA que se ejercita es exactamente la misma.
+  OUTBOX_RELAY_INTERVAL_MS: "200"
+  OUTBOX_RELAY_MAX_INTERVAL_MS: "1000"
+  OUTBOX_MAX_ATTEMPTS: "3"
+  OUTBOX_LEASE_MS: "5000"
+  OUTBOX_BATCH_SIZE: "50"
+  JOB_MIN_IDLE_INTERVAL_MS: "200"
+  JOB_MAX_IDLE_INTERVAL_MS: "1000"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: atlas_res
+      POSTGRES_USER: atlas
+      POSTGRES_PASSWORD: atlas
+    # Volumen REAL, no `tmpfs`, y esta es la corrección que hizo falta.
+    #
+    # La primera versión montaba el directorio de datos en memoria por velocidad. Con eso, el
+    # escenario R08 —«reiniciar PostgreSQL bajo carga»— no probaba nada: un montaje `tmpfs` se
+    # destruye al reiniciar el contenedor, así que la base entera desaparecía, el esquema con
+    # ella, y el fallo se atribuía al worker cuando en realidad lo había provocado el propio
+    # banco de pruebas. R09 y R10 caían después en cascada por la misma razón.
+    #
+    # Una prueba de durabilidad exige almacenamiento durable. La velocidad se conserva por otra
+    # vía: `fsync=off` y `synchronous_commit=off` más abajo. El volumen es efímero de todos
+    # modos —`down -v` lo borra— y pertenece a este proyecto, no al de desarrollo.
+    volumes:
+      - res_pgdata:/var/lib/postgresql/data
+    command:
+      - "postgres"
+      - "-c"
+      - "fsync=off"
+      - "-c"
+      - "synchronous_commit=off"
+      - "-c"
+      - "max_connections=200"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U atlas -d atlas_res"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    shm_size: 256mb
+    networks: [res_data]
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    networks: [res_data]
+
+  migrate:
+    build:
+      context: .
+      target: migrator
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *app-environment
+    command: ["migrate", "deploy"]
+    networks: [res_data]
+    restart: "no"
+
+  bootstrap-app-role:
+    build:
+      context: .
+      target: migrator
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      ADMIN_DATABASE_URL: postgresql://atlas:atlas@postgres:5432/atlas_res?schema=public
+      APP_DB_PASSWORD: resilience-app-db-password
+    entrypoint: ["node", "scripts/set-app-db-role.mjs"]
+    networks: [res_data]
+    restart: "no"
+
+  seed:
+    build:
+      context: .
+      target: migrator
+    depends_on:
+      bootstrap-app-role:
+        condition: service_completed_successfully
+    environment:
+      <<: *app-environment
+      BOOTSTRAP_TENANT_ID: "1"
+      SEED_INCLUDE_MOCKUP: "false"
+    command: ["db", "seed"]
+    networks: [res_data]
+    restart: "no"
+
+  # El proceso bajo prueba. Se escala con `--scale worker=N` para comprobar que N réplicas no
+  # se duplican trabajo entre sí (FOR UPDATE SKIP LOCKED + lease).
+  worker:
+    build:
+      context: .
+      target: worker
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    environment:
+      <<: *app-environment
+      WORKER_ROLE: WORKER
+      WORKER_HEALTH_PORT: "3001"
+      # Como `atlas_app`, este proceso conecta con el rol NO superusuario, igual que en
+      # producción: si la RLS estorbara al relay, aquí se vería.
+      DATABASE_URL: postgresql://atlas_app:resilience-app-db-password@postgres:5432/atlas_res?schema=public
+      DATABASE_POOL_MAX: "5"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    init: true
+    # El mismo margen que en producción: es lo que se mide en la prueba de apagado controlado.
+    stop_grace_period: 60s
+    mem_limit: ${RES_WORKER_MEMORY:-768m}
+    networks: [res_data]
+    restart: unless-stopped
+
+networks:
+  res_data:
+    driver: bridge
+
+volumes:
+  # Efímero por convención, no por implementación: `./scripts/resilience-test.sh` termina con
+  # `down -v` y se lo lleva. Existe únicamente para que un reinicio del contenedor conserve la
+  # base, que es la condición sin la cual R08 no prueba nada.
+  res_pgdata:

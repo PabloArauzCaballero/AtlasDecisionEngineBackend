@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/audit-query/`](https://github.com/) · 5 ficheros TypeScript.
+Código: [`src/modules/audit-query/`](https://github.com/) · 7 ficheros TypeScript.
 
 Etiquetas de API: **Audit and Observability**.
 
@@ -40,3 +40,4 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `OPERATIONS`, `RISK_ANALY
 - `ExecutionMetricsDto`
 - `ExecutionSearchQueryDto`
 - `InvalidAuditEventDto`
+- `PostgresDecisionAuditReadAdapter`

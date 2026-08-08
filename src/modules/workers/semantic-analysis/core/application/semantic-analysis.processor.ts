@@ -12,7 +12,7 @@ import {
   isRetryable,
   toStableErrorCode,
 } from '../domain/semantic-analysis.errors';
-import { TracingService } from '../observability/tracing.service';
+import { TracingService } from '../../../../../common/observability/tracing.service';
 import {
   APP_ATTRIBUTES,
   SEMANTIC_ATTRIBUTES,

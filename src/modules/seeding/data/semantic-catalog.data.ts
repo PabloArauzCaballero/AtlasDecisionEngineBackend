@@ -1,136 +1,23 @@
 import type { PrismaClient } from '@prisma/client';
+import { type SemanticCategorySeed, expenseCategoryTree } from './expense-category-tree.data';
 
 /**
- * Catálogo mínimo del worker semántico (ADR-0026).
+ * Siembra del catálogo del worker semántico (ADR-0026).
  *
  * Sin categorías sembradas el worker responde `UNKNOWN` a todo, y eso no es un
  * fallo sino su comportamiento correcto: se niega a clasificar contra un
  * catálogo vacío. Pero deja la pantalla sin nada que enseñar, así que un
  * despliegue nuevo necesita un punto de partida.
  *
- * Son categorías de **atención al cliente financiero**, que es el dominio del
- * motor. Cada una trae contraejemplos, y esos pesan tanto como los ejemplos
- * positivos: son los que evitan que «me cobraron de más» y «quiero cancelar mi
- * tarjeta» caigan en el mismo sitio.
- *
- * El umbral de aceptación es **por categoría** a propósito. Equivocarse en
- * `FRAUDE_SOSPECHADO` cuesta mucho más que en `CONSULTA_GENERAL`: la primera
- * dispara una revisión y la segunda sólo enruta, así que la primera exige más
- * confianza para aceptarse.
+ * El contenido —el árbol de gastos e ingresos— vive en
+ * `expense-category-tree.data.ts`. Aquí sólo está lo que hace falta para
+ * escribirlo: el orden de inserción, la comprobación de que el árbol se sostiene
+ * y los alias de entidades.
  */
 
 const TENANT_ID = 1n;
 
-interface SemanticCategorySeed {
-  readonly code: string;
-  readonly name: string;
-  readonly description: string;
-  readonly positiveExamples: readonly string[];
-  readonly counterExamples: readonly string[];
-  readonly restrictions: readonly string[];
-  readonly relatedCategoryCodes: readonly string[];
-  readonly acceptanceThreshold: number;
-}
-
-export const semanticCategoryCatalog: readonly SemanticCategorySeed[] = [
-  {
-    code: 'COBRO_NO_RECONOCIDO',
-    name: 'Cobro no reconocido',
-    description:
-      'La persona no reconoce un cargo aplicado a su cuenta o tarjeta y pide explicación o devolución.',
-    positiveExamples: [
-      'Hay un cargo en mi tarjeta que yo no hice.',
-      'Me debitaron un monto que no reconozco del mes pasado.',
-      'Aparece un consumo en mi extracto que nunca autoricé.',
-    ],
-    counterExamples: [
-      // Reconoce el cargo: discute el importe, no su existencia.
-      'El cobro es correcto pero me parece caro.',
-      // Es una consulta de saldo, no una disputa.
-      'Quiero saber cuánto debo este mes.',
-    ],
-    restrictions: ['Debe referirse a un cargo ya aplicado, no a uno futuro o previsto.'],
-    relatedCategoryCodes: ['FRAUDE_SOSPECHADO', 'DEVOLUCION_SOLICITADA'],
-    acceptanceThreshold: 0.7,
-  },
-  {
-    code: 'FRAUDE_SOSPECHADO',
-    name: 'Fraude sospechado',
-    description:
-      'La persona afirma o sugiere que un tercero usó sus medios de pago o sus datos sin autorización.',
-    positiveExamples: [
-      'Creo que alguien clonó mi tarjeta y está comprando con ella.',
-      'Me robaron el celular y vi transferencias que no hice.',
-      'Recibí un mensaje pidiéndome mis claves y creo que entraron a mi cuenta.',
-    ],
-    counterExamples: [
-      // Un cargo propio olvidado no es fraude.
-      'Olvidé que había hecho esa compra, ya la reconocí.',
-      'Mi hijo usó la tarjeta con mi permiso.',
-    ],
-    restrictions: [
-      'Requiere indicio de intervención de un tercero no autorizado, no sólo desconocimiento del cargo.',
-    ],
-    relatedCategoryCodes: ['COBRO_NO_RECONOCIDO', 'BLOQUEO_SOLICITADO'],
-    // El umbral más alto del catálogo: activa una revisión antifraude, y un
-    // falso positivo bloquea a un cliente que no hizo nada.
-    acceptanceThreshold: 0.82,
-  },
-  {
-    code: 'DEVOLUCION_SOLICITADA',
-    name: 'Devolución solicitada',
-    description: 'La persona pide que se le reintegre un importe ya cobrado.',
-    positiveExamples: [
-      'Solicito la devolución del importe cobrado por un servicio que cancelé.',
-      'Quiero que me reintegren lo que pagué de más.',
-      'Pido reembolso porque el producto nunca llegó.',
-    ],
-    counterExamples: [
-      'Sólo quiero saber por qué me cobraron eso.',
-      'Quiero reclamar pero todavía no pido nada concreto.',
-    ],
-    restrictions: ['Debe haber una petición explícita de reintegro.'],
-    relatedCategoryCodes: ['COBRO_NO_RECONOCIDO'],
-    acceptanceThreshold: 0.72,
-  },
-  {
-    code: 'BLOQUEO_SOLICITADO',
-    name: 'Bloqueo solicitado',
-    description: 'La persona pide bloquear, suspender o dar de baja una tarjeta o una cuenta.',
-    positiveExamples: [
-      'Por favor bloqueen mi tarjeta, la perdí.',
-      'Quiero suspender mi cuenta hasta nuevo aviso.',
-      'Necesito dar de baja la tarjeta adicional.',
-    ],
-    counterExamples: [
-      // Es lo contrario: pide reactivar.
-      'Mi tarjeta está bloqueada y quiero volver a usarla.',
-    ],
-    restrictions: ['Debe pedir una acción sobre el instrumento, no sólo informar de una pérdida.'],
-    relatedCategoryCodes: ['FRAUDE_SOSPECHADO'],
-    acceptanceThreshold: 0.75,
-  },
-  {
-    code: 'CONSULTA_GENERAL',
-    name: 'Consulta general',
-    description:
-      'La persona pide información sin reclamar nada: saldos, condiciones, plazos o cómo hacer una gestión.',
-    positiveExamples: [
-      '¿Cuál es mi saldo disponible?',
-      '¿Qué documentos necesito para abrir una cuenta?',
-      '¿Hasta qué día puedo pagar sin recargo?',
-    ],
-    counterExamples: [
-      'Me cobraron mal y quiero que lo corrijan.',
-      'Alguien usó mi tarjeta sin permiso.',
-    ],
-    restrictions: [],
-    relatedCategoryCodes: [],
-    // El umbral más bajo: es la categoría de destino cuando no hay reclamo, y
-    // enrutar una consulta al sitio equivocado apenas cuesta nada.
-    acceptanceThreshold: 0.6,
-  },
-];
+export { expenseCategoryTree as semanticCategoryCatalog };
 
 /** Alias de entidades bolivianas que el resolutor debe reconocer. */
 export const semanticEntityAliasCatalog: readonly {
@@ -152,7 +39,57 @@ export const semanticEntityAliasCatalog: readonly {
   { alias: 'Bs', canonicalName: 'Boliviano', entityType: 'MONEDA' },
   { alias: 'bolivianos', canonicalName: 'Boliviano', entityType: 'MONEDA' },
   { alias: 'USD', canonicalName: 'Dólar estadounidense', entityType: 'MONEDA' },
+  {
+    alias: 'SOAT',
+    canonicalName: 'Seguro Obligatorio de Accidentes de Tránsito',
+    entityType: 'SERVICIO',
+  },
+  { alias: 'IVA', canonicalName: 'Impuesto al Valor Agregado', entityType: 'IMPUESTO' },
+  { alias: 'RC-IVA', canonicalName: 'Régimen Complementario al IVA', entityType: 'IMPUESTO' },
 ];
+
+/**
+ * Ordena el árbol de modo que todo padre se inserte antes que sus hijos.
+ *
+ * La clave foránea `(tenant_id, parent_code)` lo exige, y el orden de
+ * declaración del catálogo no tiene por qué respetarlo: quien añade una rama
+ * la escribe donde le resulta legible, no al principio del archivo.
+ *
+ * Un ciclo —o un padre inexistente— deja categorías fuera del recorrido, y se
+ * denuncia en vez de sembrar a medias: un catálogo parcial es peor que ninguno,
+ * porque el worker clasifica contra él sin saber que le falta la mitad.
+ */
+export function sortByDepth(
+  categories: readonly SemanticCategorySeed[],
+): readonly SemanticCategorySeed[] {
+  const pending = new Map(categories.map((category) => [category.code, category]));
+  const placed = new Set<string>();
+  const ordered: SemanticCategorySeed[] = [];
+
+  let progressed = true;
+  while (progressed && placed.size < categories.length) {
+    progressed = false;
+    for (const category of pending.values()) {
+      if (placed.has(category.code)) continue;
+      const parent = category.parentCode;
+      if (parent !== null && !placed.has(parent)) continue;
+      ordered.push(category);
+      placed.add(category.code);
+      progressed = true;
+    }
+  }
+
+  if (ordered.length !== categories.length) {
+    const huerfanas = categories
+      .filter((category) => !placed.has(category.code))
+      .map((category) => `${category.code} → ${String(category.parentCode)}`);
+    throw new Error(
+      `El árbol de categorías no se sostiene: hay un ciclo o un padre inexistente en ${huerfanas.join(', ')}.`,
+    );
+  }
+
+  return ordered;
+}
 
 /**
  * Siembra el catálogo. Idempotente por `(tenant, code)`: reejecutar actualiza en
@@ -161,10 +98,11 @@ export const semanticEntityAliasCatalog: readonly {
 export async function seedSemanticCatalog(
   prisma: PrismaClient,
 ): Promise<{ categories: number; aliases: number }> {
-  for (const seed of semanticCategoryCatalog) {
+  for (const seed of sortByDepth(expenseCategoryTree)) {
     const data = {
       name: seed.name,
       description: seed.description,
+      parentCode: seed.parentCode,
       positiveExamples: [...seed.positiveExamples],
       counterExamples: [...seed.counterExamples],
       restrictions: [...seed.restrictions],
@@ -197,7 +135,7 @@ export async function seedSemanticCatalog(
   }
 
   return {
-    categories: semanticCategoryCatalog.length,
+    categories: expenseCategoryTree.length,
     aliases: semanticEntityAliasCatalog.length,
   };
 }

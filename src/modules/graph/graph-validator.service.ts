@@ -11,6 +11,7 @@ import { validateInputContract } from './validators/graph-input-contract.validat
 import { validateOutputContract } from './validators/graph-output-contract.validator';
 import { validateGraphCalculatedFields } from './validators/graph-calculated-field.validator';
 import { validateOperationInputs } from './validators/graph-operation-inputs.validator';
+import { validateGraphWorkerCalls } from './validators/graph-worker.validator';
 
 @Injectable()
 export class GraphValidatorService {
@@ -29,6 +30,7 @@ export class GraphValidatorService {
     const outputContract = validateOutputContract(snapshot, lookups);
     const calculatedFields = validateGraphCalculatedFields(snapshot, lookups);
     const operationInputs = validateOperationInputs(snapshot, lookups);
+    const workerCalls = validateGraphWorkerCalls(snapshot, lookups);
 
     const errors = [
       ...structure.errors,
@@ -39,6 +41,7 @@ export class GraphValidatorService {
       ...outputContract.errors,
       ...calculatedFields.errors,
       ...operationInputs.errors,
+      ...workerCalls.errors,
     ];
     const canonicalAst = this.canonicalSnapshot(snapshot);
     const checksum = this.hashes.sha256(canonicalAst);
@@ -53,6 +56,7 @@ export class GraphValidatorService {
         ...outputContract.warnings,
         ...calculatedFields.warnings,
         ...operationInputs.warnings,
+        ...workerCalls.warnings,
       ],
       metrics: {
         nodeCount: snapshot.nodes.length,

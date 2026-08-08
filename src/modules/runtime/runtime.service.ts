@@ -4,6 +4,12 @@ import { AuditService } from '../../common/audit/audit.service';
 import { HashService } from '../../common/crypto/hash.service';
 import { DomainException } from '../../common/errors/domain-exception';
 import { MetricsService } from '../../common/observability/metrics.service';
+import {
+  APP_ATTRIBUTES,
+  DECISION_ATTRIBUTES,
+  SPAN_NAMES,
+} from '../../common/observability/telemetry.constants';
+import { TracingService } from '../../common/observability/tracing.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
 import { DeploymentResolverService } from '../deployments/deployment-resolver.service';
@@ -11,6 +17,7 @@ import type { ResolvedDeployment } from '../deployments/deployment-resolver.serv
 import { ExecutionEngineService } from '../graph/execution-engine.service';
 import type { EngineExecutionResult } from '../graph/graph.types';
 import { NestedTreeExecutionService } from '../nested-trees/nested-tree-execution.service';
+import { WorkerServiceInvokerService } from '../workers/worker-service-invoker.service';
 import { VariableResolutionService } from '../variables/variable-resolution.service';
 import { ExecuteDecisionDto } from './runtime.dto';
 import { IdempotencyService } from './idempotency.service';
@@ -44,6 +51,12 @@ export class RuntimeService {
     private readonly audit: AuditService,
     private readonly metrics: MetricsService,
     private readonly nestedTrees: NestedTreeExecutionService,
+    /**
+     * Puente hacia los servicios de los workers (nodos `WORKER`). Se ata al tenant y al
+     * principal de la petición y se entrega al motor como argumento de llamada.
+     */
+    private readonly workerServices: WorkerServiceInvokerService,
+    private readonly tracing: TracingService,
   ) {}
 
   /**
@@ -58,8 +71,40 @@ export class RuntimeService {
     dto: ExecuteDecisionDto,
     principal: AuthenticatedPrincipal,
   ): Promise<RuntimeHttpResult> {
+    return this.tracing.runInSpan(
+      SPAN_NAMES.decisionExecute,
+      {
+        [APP_ATTRIBUTES.module]: 'runtime',
+        [APP_ATTRIBUTES.operation]: 'execute',
+        [APP_ATTRIBUTES.tenantId]: tenantId.toString(),
+        [APP_ATTRIBUTES.entityType]: 'DecisionExecution',
+        // El CÓDIGO del artefacto, que es un catálogo acotado. Ni las variables de entrada ni
+        // la referencia del solicitante entran aquí: son exactamente los datos financieros
+        // personales que el sistema de trazas no debe custodiar.
+        [DECISION_ATTRIBUTES.artifactCode]: artifactCode,
+      },
+      async (span) => {
+        const result = await this.runDecision(tenantId, artifactCode, dto, principal);
+        // Un único punto de salida para el resultado: `runDecision` retorna por media docena
+        // de caminos (réplica idempotente, variables inválidas, decisión, fallo de negocio) y
+        // anotar cada uno habría dejado alguno sin atributo a la primera modificación.
+        const outcome = (result.body as { outcome?: unknown }).outcome;
+        if (typeof outcome === 'string') span.setAttribute(DECISION_ATTRIBUTES.outcome, outcome);
+        span.setAttribute('http.response.status_code', result.httpStatus);
+        return result;
+      },
+    );
+  }
+
+  private async runDecision(
+    tenantId: bigint,
+    artifactCode: string,
+    dto: ExecuteDecisionDto,
+    principal: AuthenticatedPrincipal,
+  ): Promise<RuntimeHttpResult> {
     const environmentCode =
       dto.environmentCode ?? this.config.get<string>('DEFAULT_ENVIRONMENT') ?? 'PROD';
+    this.tracing.setAttribute(DECISION_ATTRIBUTES.environment, environmentCode);
     const requestHash = this.hashes.sha256({
       tenantId: tenantId.toString(),
       artifactCode,
@@ -146,7 +191,12 @@ export class RuntimeService {
               checksum: deployment.compiledChecksum,
             },
           };
-          await this.idempotency.fail(reservation.id, { httpStatus: 422, body: responseBody }, tx);
+          await this.idempotency.fail(
+            reservation.id,
+            reservation.lease,
+            { httpStatus: 422, body: responseBody },
+            tx,
+          );
           await this.audit.append(
             {
               tenantId,
@@ -165,11 +215,23 @@ export class RuntimeService {
         return { httpStatus: 422, body };
       }
 
+      // Hitos dentro del span de la decisión, no spans propios: la resolución de variables y
+      // el recorrido del grafo son fases de UNA operación, y partirlas en spans hermanos sólo
+      // añadiría profundidad a la traza sin decir nada que estos dos eventos no digan ya.
+      this.tracing.addEvent('variables.resolved', {
+        'decision.variables.count': resolution.snapshots.length,
+      });
       const result = await this.engine.execute(
         deployment.compiled,
         resolution.values,
         this.nestedTrees.bind(tenantId, principal),
+        undefined,
+        undefined,
+        this.workerServices.bind(tenantId, principal),
       );
+      this.tracing.addEvent('engine.completed', {
+        [DECISION_ATTRIBUTES.steps]: result.trace.length,
+      });
       const durationMs = Math.max(0, Math.round(performance.now() - started));
 
       // The execution and its evidence, the idempotency outcome and the audit event commit
@@ -195,6 +257,7 @@ export class RuntimeService {
         const responseBody = this.buildBody(dto, artifactCode, deployment, execution, result);
         await this.idempotency.complete(
           reservation.id,
+          reservation.lease,
           { httpStatus: 200, body: responseBody },
           tx,
         );
@@ -227,7 +290,7 @@ export class RuntimeService {
       // force the caller to invent a new one to retry. Release the reservation so an
       // identical retry can re-claim it. Only deterministic business failures are cached.
       if (this.isRetryable(error)) {
-        await this.idempotency.release(reservation.id);
+        await this.idempotency.release(reservation.id, reservation.lease);
         this.metrics.recordDecision('FAILED', 'FAILED');
         throw error;
       }
@@ -246,6 +309,7 @@ export class RuntimeService {
         dto,
         principal,
         reservation.id,
+        reservation.lease,
         {
           httpStatus: this.statusForError(error),
           body,
@@ -273,12 +337,14 @@ export class RuntimeService {
     dto: ExecuteDecisionDto,
     principal: AuthenticatedPrincipal,
     reservationId: bigint,
+    reservationLease: Date,
     outcome: { httpStatus: number; body: Record<string, unknown>; errorCode: string },
   ): Promise<void> {
     try {
       await this.prisma.$transaction(async (tx) => {
         await this.idempotency.fail(
           reservationId,
+          reservationLease,
           { httpStatus: outcome.httpStatus, body: outcome.body },
           tx,
         );

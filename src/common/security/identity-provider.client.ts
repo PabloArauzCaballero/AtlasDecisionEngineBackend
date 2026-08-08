@@ -193,7 +193,27 @@ export class IdentityProviderClient {
           'Invalid identity request',
           HttpStatus.BAD_REQUEST,
         );
-      if (response.status === 401 || response.status === 403) throw this.unauthorized();
+      /*
+       * 404 and 409 are the provider saying "no such account here", not "I am broken".
+       *
+       * A 404 is an unknown user; a 409 is a tenant that does not exist or does not match
+       * the credential (measured: the provider answers 409 for an unknown `x-tenant-id`).
+       * Both are definitive answers from a HEALTHY provider, so they belong with 401/403.
+       *
+       * They used to fall through to BAD_GATEWAY, and that was wrong twice over. Operationally
+       * a 502 means "the identity provider is down": it fires retries, alerts and an on-call
+       * page for what is really a typo in the tenant box. And for the caller it is an
+       * enumeration oracle — a wrong password answered 401 while a wrong tenant answered 502,
+       * so the pair of responses told an attacker which tenants exist. Mapping both to the
+       * same opaque 401 removes the signal.
+       */
+      if (
+        response.status === 401 ||
+        response.status === 403 ||
+        response.status === 404 ||
+        response.status === 409
+      )
+        throw this.unauthorized();
       if (response.status === 429)
         throw new DomainException(
           'IDENTITY_RATE_LIMITED',

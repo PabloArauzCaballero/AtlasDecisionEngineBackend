@@ -6,6 +6,7 @@ import {
   IsArray,
   IsBoolean,
   IsDateString,
+  IsDefined,
   IsIn,
   IsInt,
   IsNotEmpty,
@@ -82,7 +83,13 @@ export class CreateVariableDefinitionDto {
   @IsString() @IsNotEmpty() @MaxLength(50) dataClassification!: string;
   @IsString() @IsNotEmpty() @MaxLength(100) ownerTeam!: string;
   @IsBoolean() isSensitive!: boolean;
-  @ValidateNested() @Type(() => VariableVersionDto) initialVersion!: VariableVersionDto;
+  // `@ValidateNested()` no comprueba presencia: sobre `undefined` no hay nada que validar y
+  // lo deja pasar. Sin `@IsDefined()` la petición llegaba al servicio sin contrato y
+  // reventaba leyendo `dataType`, devolviendo un 500 donde toca un 400.
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => VariableVersionDto)
+  initialVersion!: VariableVersionDto;
 }
 
 export class CreateVariableVersionDto extends VariableVersionDto {}

@@ -28,7 +28,14 @@ export interface SampleBatch {
   /** Devolverla es lo que hace reproducible el botón: repetirla da los mismos valores. */
   seed: string;
   generatorVersion: string;
-  cases: { index: number; kind: string; mutation?: string; input: Record<string, unknown> }[];
+  cases: {
+    index: number;
+    kind: string;
+    mutation?: string;
+    input: Record<string, unknown>;
+    /** Códigos cuyo contrato no admite ningún valor válido; ver `GeneratedCase`. */
+    unsatisfiable?: string[];
+  }[];
 }
 
 export interface SampleRequest {

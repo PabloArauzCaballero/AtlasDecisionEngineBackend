@@ -18,6 +18,8 @@ export const JobName = {
   RuntimeRetention: 'runtime-retention',
   /** Clasifica semánticamente los textos encolados (ADR-0026). */
   SemanticAnalysis: 'semantic-analysis',
+  /** Minimiza y purga el texto analizado una vez vencido su plazo (ADR-0026). */
+  SemanticRetention: 'semantic-retention',
   /** Convierte los extractos bancarios encolados (ADR-0026). */
   BankStatement: 'bank-statement',
 } as const;

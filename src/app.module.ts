@@ -7,6 +7,8 @@ import { CacheModule } from './common/cache/cache.module';
 import { EventsModule } from './common/events/events.module';
 import { JobsModule } from './common/jobs/jobs.module';
 import { CryptoModule } from './common/crypto/crypto.module';
+import { PersistenceCoreModule } from './common/persistence/persistence-core.module';
+import { PersistenceModule } from './common/persistence/persistence.module';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { SecurityModule } from './common/security/security.module';
 import { ObservabilityModule } from './common/observability/observability.module';
@@ -44,7 +46,12 @@ import { IdentitySessionModule } from './modules/identity-session/identity-sessi
       validate: validateEnvironment,
     }),
     ObservabilityModule,
+    // El registro de conexiones y el router van antes que los clientes: son quienes
+    // deciden qué pool usa cada ruta y quienes abortan el arranque si la configuración de
+    // datos es imposible.
+    PersistenceCoreModule,
     PrismaModule,
+    PersistenceModule,
     // Antes que cualquier módulo de dominio: los trabajos de fondo se registran contra el
     // orquestador en su propio onModuleInit, y los productores publican su señal de
     // despertar en la misma transacción que el cambio que la origina.

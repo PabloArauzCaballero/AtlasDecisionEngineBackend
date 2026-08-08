@@ -1,0 +1,58 @@
+# Jaeger para DESARROLLO. Un solo contenedor, almacenamiento en memoria.
+#
+# Va en un archivo aparte y no dentro de docker-compose.yml a propósito: las trazas son opt-in
+# (`OTEL_ENABLED=false` por defecto) y quien no las mira no debería pagar un contenedor más en
+# cada `docker compose up`. Se levanta con `yarn jaeger:up`.
+#
+# **Esta topología no vale para producción.** El modo all-in-one guarda las trazas en memoria:
+# se pierden en cada reinicio y la memoria crece sin cota hasta el límite del contenedor. La
+# topología de producción —Collector, Jaeger Collector/Query y almacenamiento persistente— está
+# en docs/observability/03-production-topology.md.
+name: atlas-decision-engine-observability
+
+services:
+  jaeger:
+    # Versión explícita, nunca `latest`: la etiqueta móvil convierte cada `docker pull` en un
+    # cambio de versión no solicitado, y una UI que cambia sola es un incidente de operación.
+    image: jaegertracing/all-in-one:1.62.0
+    environment:
+      # Recibe OTLP nativo. No se usa ningún cliente ni protocolo propietario de Jaeger.
+      COLLECTOR_OTLP_ENABLED: "true"
+      # Cota superior de la memoria: sin ella, el contenedor crece hasta que el demonio lo mata
+      # a mitad de una sesión de depuración. Con ella, se descartan las trazas más antiguas.
+      MEMORY_MAX_TRACES: ${JAEGER_MAX_TRACES:-20000}
+    ports:
+      # Sólo en loopback, igual que el resto de servicios de este repositorio: un Jaeger
+      # publicado en todas las interfaces es una consola sin autenticación abierta a la red.
+      - "127.0.0.1:${JAEGER_UI_PORT:-16686}:16686"   # UI
+      - "127.0.0.1:${JAEGER_OTLP_HTTP_PORT:-4318}:4318" # OTLP/HTTP — el que usa este backend
+      - "127.0.0.1:${JAEGER_OTLP_GRPC_PORT:-4317}:4317" # OTLP/gRPC — para un Collector local
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:16686/"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: ${JAEGER_MEMORY:-1g}
+    restart: unless-stopped
+    networks:
+      - default
+      # La red del proyecto principal, para que `api` y `worker` en contenedor puedan exportar
+      # a `http://jaeger:4318/v1/traces` por nombre de servicio. Fuera de Docker se usa
+      # `http://localhost:4318/v1/traces`.
+      - atlas
+
+networks:
+  atlas:
+    # El plano de aplicación del proyecto principal, NO su red `default`.
+    #
+    # `docker-compose.yml` declaraba antes sus servicios sin ninguna red, así que Compose creaba
+    # `atlas-decision-engine_default` y todos compartían ese dominio. Al segmentar la topología
+    # en `atlas_app` (procesos que hablan HTTP y salen a Internet) y `atlas_data` (Postgres,
+    # Redis y quien los consulta), esa red dejó de existir y este `external` habría fallado con
+    # «network not found» al levantar Jaeger.
+    #
+    # `atlas_app` es la red correcta: es donde viven `api` y `worker`, los dos únicos que
+    # exportan trazas. Jaeger no entra en `atlas_data`, y por tanto no alcanza a la base de
+    # datos — que es justo lo que se busca con la segmentación.
+    name: atlas-decision-engine_atlas_app
+    external: true

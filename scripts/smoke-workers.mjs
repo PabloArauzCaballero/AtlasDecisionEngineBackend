@@ -75,6 +75,16 @@ async function api(path, init = {}) {
   return { status: response.status, body, text };
 }
 
+const TERMINALES = ['SUCCEEDED', 'SUCCEEDED_WITH_WARNINGS', 'FAILED', 'CANCELLED'];
+
+/**
+ * Cierto cuando el único estado observado ya era terminal: la ejecución estaba
+ * hecha antes de la primera consulta, así que no había ciclo de vida que ver.
+ */
+function terminalDesdeElPrincipio(vistos) {
+  return vistos.length > 0 && vistos.every((estado) => TERMINALES.includes(estado));
+}
+
 /**
  * Espera a que la ejecución alcance un estado terminal.
  *
@@ -83,7 +93,7 @@ async function api(path, init = {}) {
  * señalar el defecto.
  */
 async function esperarTerminal(requestId, maxSegundos = 90) {
-  const terminales = ['SUCCEEDED', 'SUCCEEDED_WITH_WARNINGS', 'FAILED', 'CANCELLED'];
+  const terminales = TERMINALES;
   const vistos = new Set();
   for (let i = 0; i < maxSegundos; i += 1) {
     const { status, body } = await api(`/v1/workers/bank-statement/runs/${requestId}`);

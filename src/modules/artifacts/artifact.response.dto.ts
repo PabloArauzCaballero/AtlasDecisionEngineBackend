@@ -355,6 +355,7 @@ class GraphNodeDto {
       'ACTION',
       'RESULT',
       'MANUAL_REVIEW',
+      'WORKER',
       'END',
     ],
   })

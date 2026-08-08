@@ -5,6 +5,7 @@ import { MetricsService } from '../../common/observability/metrics.service';
 import { DeploymentResolverService } from '../deployments/deployment-resolver.service';
 import { ExecutionEngineService } from '../graph/execution-engine.service';
 import { NestedTreeExecutionService } from '../nested-trees/nested-tree-execution.service';
+import { WorkerServiceInvokerService } from '../workers/worker-service-invoker.service';
 import { VariableResolutionService } from '../variables/variable-resolution.service';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
 import { SimulateDecisionDto } from './simulation.dto';
@@ -17,6 +18,11 @@ export class SimulationService {
     private readonly variables: VariableResolutionService,
     private readonly engine: ExecutionEngineService,
     private readonly nestedTrees: NestedTreeExecutionService,
+    /**
+     * Puente hacia los servicios de los workers (nodos `WORKER`). Se ata al tenant y al
+     * principal de la petición y se entrega al motor como argumento de llamada.
+     */
+    private readonly workerServices: WorkerServiceInvokerService,
     private readonly metrics: MetricsService,
   ) {}
 
@@ -84,6 +90,9 @@ export class SimulationService {
       deployment.compiled,
       resolution.values,
       this.nestedTrees.bind(tenantId, principal),
+      undefined,
+      undefined,
+      this.workerServices.bind(tenantId, principal),
     );
     const productionComparison = dto.compareWithProduction
       ? await this.compareWithProduction(tenantId, artifactCode, principal, resolution.values, {
@@ -179,6 +188,9 @@ export class SimulationService {
       production.compiled,
       values,
       this.nestedTrees.bind(tenantId, principal),
+      undefined,
+      undefined,
+      this.workerServices.bind(tenantId, principal),
     );
     const productionReasonCodes = productionResult.reasons.map((reason) => reason.code);
     const differences: string[] = [];

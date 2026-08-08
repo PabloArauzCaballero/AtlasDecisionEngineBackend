@@ -24,14 +24,22 @@ export class PrismaSemanticAuditRepository implements SemanticAuditRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Reclama la solicitud para este intento, o informa de que ya está resuelta.
+   * Reclama la solicitud para este intento, o devuelve el resultado que ya tiene.
    *
    * En el diseño original esto protegía contra una entrega repetida de la cola.
-   * Aquí el reclamo por `FOR UPDATE SKIP LOCKED` ya garantiza que sólo un
-   * worker toma cada fila, pero la comprobación se conserva y sigue teniendo
-   * sentido: cubre el reenvío de una solicitud con la misma clave de
-   * idempotencia cuya ejecución anterior ya terminó, y devolver el resultado
-   * existente es justo lo que la idempotencia promete.
+   * Aquí el reclamo por `FOR UPDATE SKIP LOCKED` más el lease ya garantizan que
+   * sólo un worker toma cada fila; lo que queda con sentido es reconocer una
+   * ejecución ya terminada y devolver su resultado, que es lo que la
+   * idempotencia promete.
+   *
+   * **`RUNNING` no significa «otro la está haciendo», significa «la estoy
+   * haciendo yo».** `identity()` busca por `requestId`, es decir, por la fila
+   * exacta que este intento acaba de reclamar, y el worker la pone en `RUNNING`
+   * al tomarla —`claimNextRun()` en `semantic-run-worker.service.ts`— antes de
+   * llamar aquí. Tratar ese estado como ajeno hacía que el procesador se saltara
+   * su propio trabajo: la fila volvía a `RUNNING` con progreso 20, el lease
+   * vencía, se recuperaba y el ciclo se repetía. Ninguna solicitud llegaba nunca
+   * a analizarse.
    */
   async claim(request: SemanticAnalysisRequest): Promise<AuditClaim> {
     const row = await this.findRow(request);
@@ -47,7 +55,6 @@ export class PrismaSemanticAuditRepository implements SemanticAuditRepository {
       // inventado.
       if (result) return { state: 'COMPLETED', result };
     }
-    if (row.status === WorkerRunStatus.RUNNING) return { state: 'IN_PROGRESS' };
     return { state: 'ACQUIRED' };
   }
 

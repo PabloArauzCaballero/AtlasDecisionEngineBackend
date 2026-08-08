@@ -3,6 +3,7 @@ import { atlasBackendCatalog } from './data/atlas-backend-catalog.data';
 import { seedCalculatedFields } from './data/calculated-field-catalog.data';
 import { seedCollectionsDemoArtifact } from './data/collections-demo.seed';
 import { seedContractDemoArtifact } from './data/contract-demo.seed';
+import { seedStatementWorkerDemoArtifact } from './data/statement-worker-demo.seed';
 import { seedGovernanceScenarios } from './data/governance-scenarios.seed';
 import { seedApprovedLibraries } from './data/library-catalog.data';
 import { seedDemoArtifact } from './data/demo-artifact';
@@ -214,6 +215,9 @@ export async function runMockupSeeds(prisma: PrismaClient, context: BootstrapCon
   // Segundo algoritmo: el único que ejercita nodos de CONDICIÓN y SWITCH, que el
   // demo BNPL no usa en ninguna parte (allí las bifurcaciones viven en aristas).
   await seedCollectionsDemoArtifact(prisma);
+  // Tercer algoritmo: el único con un nodo WORKER, que llama al servicio de extractos
+  // bancarios durante la decisión y proyecta su respuesta a variables intermedias.
+  await seedStatementWorkerDemoArtifact(prisma);
   // Escenarios negativos de gobierno (§11): ciclo, versión no disponible, contrato
   // incompatible y una corrida de QA con su contraejemplo.
   await seedGovernanceScenarios(prisma);

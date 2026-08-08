@@ -1,12 +1,19 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, HttpStatus, Param, Query } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { DomainException } from '../../common/errors/domain-exception';
 import { ApiArrayResponse } from '../../common/http/pagination.dto';
-import { Roles } from '../../common/security/security.decorators';
-import { WorkerDescriptorDto } from './workers.dto';
+import { Roles, TenantId } from '../../common/security/security.decorators';
+import { WorkerMetricsService } from './worker-metrics.service';
+import {
+  isWorkerCode,
+  WorkerDescriptorDto,
+  WorkerMetricsDto,
+  WorkerMetricsQueryDto,
+} from './workers.dto';
 
 /**
- * Catálogo de workers adicionales.
+ * Catálogo y salud de los workers adicionales.
  *
  * Existe para que la interfaz no lleve cableados los límites ni la
  * disponibilidad. Un portal que codifica «máximo 10 MiB» en su formulario
@@ -16,17 +23,70 @@ import { WorkerDescriptorDto } from './workers.dto';
  * Lo que **no** publica: `processingTimeoutMs`, la concurrencia y el número de
  * intentos. Son el presupuesto de recursos del servidor; no ayudan a quien
  * llama de buena fe y sí a quien busca dónde apretar.
+ *
+ * Aquí vive lo que los dos workers COMPARTEN —el catálogo y la forma de sus
+ * ejecuciones—; lo que no comparten (entrada, resultado, descargas) vive en el
+ * controlador de cada uno.
  */
 @ApiTags('Workers')
 @Controller('v1/workers')
 export class WorkersController {
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly metrics: WorkerMetricsService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Workers disponibles, con sus límites y disponibilidad' })
   @ApiArrayResponse('Catálogo de workers adicionales.', WorkerDescriptorDto)
   @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST', 'OPERATIONS', 'COMPLIANCE', 'AUDITOR')
   list(): WorkerDescriptorDto[] {
+    return this.catalog();
+  }
+
+  /**
+   * Salud de un worker: reparto por estado, latencia, cola e incidencias.
+   *
+   * Los mismos roles que el catálogo y que el listado de ejecuciones: estas
+   * cifras se derivan de filas que esos roles ya pueden leer una a una, así que
+   * exigir más aquí sólo empujaría a reconstruirlas a mano desde el listado.
+   *
+   * No incluye ningún dato de la entrada procesada —ni texto, ni nombre de
+   * archivo, ni resultado—: son contadores y tiempos. Es lo que permite que un
+   * rol de auditoría vea la salud del worker sin ver lo que analizó.
+   */
+  @Get(':code/metrics')
+  @ApiOperation({ summary: 'Salud, latencia, cola e incidencias de un worker' })
+  @ApiOkResponse({ type: WorkerMetricsDto })
+  @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST', 'OPERATIONS', 'COMPLIANCE', 'AUDITOR')
+  async workerMetrics(
+    @TenantId() tenantId: bigint,
+    @Param('code') code: string,
+    @Query() query: WorkerMetricsQueryDto,
+  ): Promise<WorkerMetricsDto> {
+    if (!isWorkerCode(code)) {
+      throw new DomainException(
+        'WORKER_NOT_FOUND',
+        'Este motor no publica ningún worker con ese código.',
+        HttpStatus.NOT_FOUND,
+        { code },
+      );
+    }
+    const descriptor = this.catalog().find((worker) => worker.code === code)!;
+    const collected = await this.metrics.collect(tenantId, code, query.windowHours);
+
+    return {
+      worker: descriptor.code,
+      name: descriptor.name,
+      available: descriptor.available,
+      windowHours: query.windowHours,
+      computedAt: new Date(),
+      ...collected,
+    };
+  }
+
+  /** Los descriptores, resueltos contra la configuración de este despliegue. */
+  private catalog(): WorkerDescriptorDto[] {
     const fixturesEnabled = this.config.get<boolean>('WORKERS_FIXTURES_ENABLED') ?? false;
 
     return [

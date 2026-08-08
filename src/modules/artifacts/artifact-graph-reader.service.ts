@@ -101,7 +101,14 @@ export class ArtifactGraphReaderService {
         dataType: dependency.variableVersion.dataType,
         unitCode: dependency.variableVersion.unitCode,
         nullable: dependency.variableVersion.nullable,
-        defaultValue: dependency.variableVersion.defaultValueJson,
+        // `?? undefined`: una columna JSON sin valor vuelve de Prisma como `null`, y eso
+        // NO significa "el defecto declarado es nulo" sino "no se declaró ninguno". Sin
+        // normalizarlo, el validador del contrato de entrada leía lo segundo como lo
+        // primero y rechazaba con `INPUT_NULL_DEFAULT_ON_NON_NULLABLE` toda variable no
+        // anulable que no declarara defecto — es decir, la mayoría del catálogo sembrado,
+        // que quedaba inservible como entrada de un grafo. El resto de lectores del mismo
+        // campo (enlace de campos calculados, detalle de versión) ya normalizaban así.
+        defaultValue: dependency.variableVersion.defaultValueJson ?? undefined,
         validationSchema: dependency.variableVersion.validationSchemaJson,
         constraints: dependency.variableVersion.constraintsJson,
         displayName: dependency.variableVersion.displayName,

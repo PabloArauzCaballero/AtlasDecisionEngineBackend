@@ -18,6 +18,10 @@
  * cualquier otro adaptador que necesite cargar ESM la reutilice en vez de
  * repetir el truco.
  */
+// El constructor `Function` es aquí el mecanismo, no un descuido: es lo único que TypeScript
+// no reescribe a `require()` al compilar a CommonJS, que es justo lo que hay que evitar para
+// poder cargar un módulo ESM. El cuerpo es una constante literal, no entra nada de fuera.
+// eslint-disable-next-line @typescript-eslint/no-implied-eval
 const dynamicImport = new Function('specifier', 'return import(specifier)') as (
   specifier: string,
 ) => Promise<unknown>;

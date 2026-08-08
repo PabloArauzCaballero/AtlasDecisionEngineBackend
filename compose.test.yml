@@ -1,0 +1,138 @@
+# Entorno de PRUEBAS, aislado del de desarrollo.
+#
+#   docker compose -f compose.test.yml run --rm integration   # *.integration.spec.ts + unit
+#   docker compose -f compose.test.yml run --rm e2e           # test/e2e/*.e2e-spec.ts
+#   docker compose -f compose.test.yml down -v
+#
+# Es un fichero COMPLETO y no una superposición de `docker-compose.yml` a propósito. Una
+# superposición habría compartido el `name:` del proyecto, y con él los volúmenes: correr la
+# batería habría escrito sobre la base de datos de desarrollo de quien la lanza. Con su propio
+# `name`, Compose crea una red, unos contenedores y unos volúmenes distintos, y `down -v` no
+# se lleva por delante el trabajo en curso de nadie.
+#
+# Las credenciales sí están escritas aquí, y es la única excepción del repositorio: estos
+# servicios no persisten nada (ver `tmpfs` más abajo), no publican ningún puerto y viven lo
+# que dura la orden. No hay secreto que proteger porque no hay dato que sobreviva.
+name: atlas-decision-test
+
+x-test-environment: &test-environment
+  NODE_ENV: test
+  DATABASE_URL: postgresql://atlas:atlas@postgres-test:5432/atlas_test?schema=public
+  REDIS_URL: redis://redis-test:6379
+  AUTH_MODE: API_KEY
+  # Longitudes reales: el esquema de entorno (src/common/config/env.schema.ts) exige mínimos
+  # y rechaza los valores de ejemplo. Una clave corta aquí falla al arrancar, no en la prueba.
+  MANAGEMENT_API_KEY: test-management-key-with-enough-entropy
+  RUNTIME_API_KEY: test-runtime-key-with-different-entropy
+  AUDIT_HASH_SECRET: test-audit-secret-with-at-least-32-characters
+  METRICS_TOKEN: test-metrics-token-with-enough-entropy
+  # La siembra la hace el servicio `migrate-test`; ningún proceso de prueba siembra al arrancar.
+  STARTUP_SEED_ENABLED: "false"
+  # Los trabajos de fondo se arrancan explícitamente en las pruebas que los ejercitan. Un
+  # orquestador vivo durante una prueba de otra cosa reclama filas por debajo y convierte un
+  # fallo determinista en uno intermitente.
+  JOB_SCHEDULER_ENABLED: "false"
+  # Debian instala `python3` y NO crea el alias `python`. Sin esto, las pruebas del sandbox de
+  # Python fallan con `SCRIPT_EXECUTION_FAILED` / «exited with status unknown», que parece un
+  # fallo del motor de ejecución y en realidad es un intérprete que no existe. Es el mismo
+  # motivo por el que la imagen de la API fija esta variable.
+  PYTHON_EXECUTABLE: python3
+
+services:
+  postgres-test:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: atlas_test
+      POSTGRES_USER: atlas
+      POSTGRES_PASSWORD: atlas
+    # Sin volumen: el directorio de datos vive en memoria. Una batería de pruebas no debe
+    # dejar estado detrás, y en tmpfs el fsync de cada transacción deja de tocar el disco —
+    # que es lo que domina el tiempo de una suite con muchas escrituras pequeñas.
+    tmpfs:
+      - /var/lib/postgresql/data:size=1g
+    # Mismo motivo: durabilidad apagada a propósito. Estos datos NO deben sobrevivir a un
+    # corte, así que pagar por garantizarlo solo alarga la suite.
+    command:
+      - "postgres"
+      - "-c"
+      - "fsync=off"
+      - "-c"
+      - "full_page_writes=off"
+      - "-c"
+      - "synchronous_commit=off"
+      # Varias pruebas de integración abren su propio pool además del de la aplicación.
+      - "-c"
+      - "max_connections=200"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U atlas -d atlas_test"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    shm_size: 256mb
+    networks: [atlas_test]
+
+  redis-test:
+    image: redis:7-alpine
+    # Sin `appendonly`: nada que persistir entre corridas.
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    networks: [atlas_test]
+
+  # Esquema y catálogo de arranque, una sola vez, antes de cualquier prueba.
+  migrate-test:
+    build:
+      context: .
+      target: migrator
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+    environment:
+      <<: *test-environment
+    # `migrate deploy` aplica las migraciones versionadas tal cual llegarán a producción; no
+    # `db push`, que inventaría un esquema a partir del modelo y dejaría de probar las
+    # migraciones que son justo lo que se despliega.
+    command: ["migrate", "deploy"]
+    networks: [atlas_test]
+    restart: "no"
+
+  # Unitarias + integración (*.integration.spec.ts). Necesitan Postgres y Redis reales: las
+  # pruebas de RLS, de bloqueos consultivos y de la cadena de auditoría no significan nada
+  # contra un doble.
+  integration:
+    build:
+      context: .
+      target: tester
+    depends_on:
+      migrate-test:
+        condition: service_completed_successfully
+      redis-test:
+        condition: service_healthy
+    environment:
+      <<: *test-environment
+    command: ["yarn", "test"]
+    networks: [atlas_test]
+    restart: "no"
+
+  e2e:
+    build:
+      context: .
+      target: tester
+    depends_on:
+      migrate-test:
+        condition: service_completed_successfully
+      redis-test:
+        condition: service_healthy
+    environment:
+      <<: *test-environment
+      SWAGGER_ENABLED: "true"
+    command: ["yarn", "test:e2e"]
+    networks: [atlas_test]
+    restart: "no"
+
+networks:
+  atlas_test:
+    driver: bridge

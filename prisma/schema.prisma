@@ -725,6 +725,10 @@ model DecisionTestRun {
   finishedAt         DateTime?     @map("finished_at") @db.Timestamptz(6)
   leaseExpiresAt     DateTime?     @map("lease_expires_at") @db.Timestamptz(6)
   attemptCount       Int           @default(0) @map("attempt_count")
+  /// Portador de traza W3C (`traceparent`/`tracestate`/`baggage`) capturado al encolar.
+  /// Anulable a propósito: toda fila anterior a esta columna no lo trae, y el worker que
+  /// la reclama debe poder abrir una traza raíz igualmente en vez de rechazar el trabajo.
+  traceCarrier       Json?         @map("trace_carrier")
 
   testSuite        DecisionTestSuite        @relation(fields: [testSuiteId], references: [id], onDelete: Cascade)
   compiledArtifact DecisionCompiledArtifact @relation(fields: [compiledArtifactId], references: [id], onDelete: Restrict)
@@ -1362,6 +1366,10 @@ model DecisionOutboxEvent {
   lastError      String?      @map("last_error") @db.Text
   occurredAt     DateTime     @default(now()) @map("occurred_at") @db.Timestamptz(6)
   dispatchedAt   DateTime?    @map("dispatched_at") @db.Timestamptz(6)
+  /// Portador de traza W3C capturado en el momento del `publish`. Anulable: una fila
+  /// anterior a esta columna, o publicada con la telemetría apagada, no lo trae, y el
+  /// relay abre una traza raíz para ella en vez de descartar el evento.
+  traceCarrier   Json?        @map("trace_carrier")
 
   @@index([status, availableAt])
   @@index([tenantId, occurredAt])
@@ -1795,6 +1803,11 @@ model SemanticAnalysisRun {
   requestedBy   String @map("requested_by") @db.VarChar(160)
   correlationId String @map("correlation_id") @db.VarChar(64)
 
+  /// Portador de traza W3C capturado al encolar. Anulable: una solicitud encolada antes
+  /// de esta columna, o con la telemetría apagada, no lo trae y el worker abre una traza
+  /// raíz para ella en vez de rechazar el trabajo.
+  traceCarrier Json? @map("trace_carrier")
+
   /// Reenviar la misma solicitud devuelve la ejecución existente en vez de
   /// crear una segunda. Es la idempotencia, y es un índice único porque
   /// confiarla al código deja la puerta abierta a dos peticiones simultáneas.
@@ -1852,6 +1865,10 @@ model BankStatementRun {
   requestedBy   String @map("requested_by") @db.VarChar(160)
   correlationId String @map("correlation_id") @db.VarChar(64)
 
+  /// Portador de traza W3C capturado al encolar. Anulable por el mismo motivo que en
+  /// `SemanticAnalysisRun`: compatibilidad con filas y telemetría anteriores a esta columna.
+  traceCarrier Json? @map("trace_carrier")
+
   @@unique([tenantId, fileHash])
   @@unique([tenantId, requestId])
   @@index([status, queuedAt])
@@ -1880,6 +1897,15 @@ model SemanticCategory {
   name        String @db.VarChar(200)
   description String @db.Text
 
+  /// Código de la categoría que la contiene; `null` en las raíces del árbol.
+  ///
+  /// Se guarda el CÓDIGO y no el `id` a propósito: el catálogo son datos que se
+  /// siembran e importan por código, y una clave foránea contra `id` obligaría a
+  /// ordenar la inserción de padres antes que la de hijos en cada carga. El
+  /// árbol se cierra por `(tenant_id, parent_code)` contra `(tenant_id, code)`,
+  /// que es único, así que la integridad se conserva sin ese acoplamiento.
+  parentCode String? @map("parent_code") @db.VarChar(120)
+
   /// Ejemplos que SÍ son la categoría, y ejemplos que se le parecen pero NO lo
   /// son. Los contraejemplos son los que evitan el falso positivo, así que
   /// pesan tanto como los positivos.
@@ -1898,8 +1924,14 @@ model SemanticCategory {
 
   embeddings SemanticCategoryEmbedding[]
 
+  /// El árbol se cierra dentro del tenant: `tenantId` entra en la clave para que
+  /// una categoría no pueda colgar de la rama de otro cliente.
+  parent   SemanticCategory?  @relation("SemanticCategoryTree", fields: [tenantId, parentCode], references: [tenantId, code], onDelete: Restrict, onUpdate: Cascade)
+  children SemanticCategory[] @relation("SemanticCategoryTree")
+
   @@unique([tenantId, code])
   @@index([tenantId, isActive])
+  @@index([tenantId, parentCode])
   @@map("decision_semantic_category")
 }
 

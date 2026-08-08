@@ -1,0 +1,79 @@
+# Alertas. Cada una se define sobre una métrica que el código PUBLICA de verdad (ver
+# src/common/observability/metrics.service.ts); una regla sobre una métrica inexistente no
+# dispara nunca y da una sensación de cobertura que no existe.
+#
+# Cada alerta enlaza su runbook por nombre de fichero, no por descripción: durante una
+# incidencia lo que hace falta es el procedimiento, no un adjetivo.
+groups:
+  - name: atlas-messaging
+    rules:
+      # El outbox es el bus de este sistema (ADR-0027). Que el pendiente CREZCA de forma
+      # sostenida significa que el relay no da abasto o está caído; el valor absoluto por sí
+      # solo no dice nada, porque una ráfaga legítima también lo sube.
+      - alert: AtlasOutboxBacklogGrowing
+        expr: min_over_time(atlas_outbox_pending[10m]) > 500
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "El outbox acumula más de 500 eventos pendientes desde hace 10 minutos"
+          runbook: docs/runbooks/OPERATIONS.md#cola-acumulada
+
+      # Un evento en DEAD ya agotó sus reintentos: nadie lo va a repartir solo. Se alerta al
+      # PRIMERO, no a partir de un umbral — un mensaje de dominio perdido en silencio es
+      # exactamente el fallo que el patrón outbox existe para impedir.
+      - alert: AtlasOutboxDeadLetter
+        expr: increase(atlas_outbox_dead_total[15m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Eventos del outbox movidos a DEAD en los últimos 15 minutos"
+          runbook: docs/runbooks/OPERATIONS.md#dlq-creciendo
+
+      # Sonda de latido del orquestador: si un trabajo registrado no completa una pasada con
+      # éxito en 15 minutos, el proceso puede estar vivo y verde sin procesar nada. Es el fallo
+      # que un health check de proceso NO detecta.
+      - alert: AtlasBackgroundJobStalled
+        expr: time() - atlas_job_last_success_timestamp_seconds > 900
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "El trabajo {{ $labels.job_name }} no termina con éxito desde hace 15 minutos"
+          runbook: docs/runbooks/OPERATIONS.md#worker-detenido
+
+  - name: atlas-api
+    rules:
+      - alert: AtlasApiErrorRateHigh
+        expr: |
+          sum(rate(atlas_http_requests_total{status=~"5.."}[5m]))
+            / clamp_min(sum(rate(atlas_http_requests_total[5m])), 0.001) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Más del 5 % de las respuestas de la API son 5xx"
+          runbook: docs/runbooks/OPERATIONS.md#api-caida
+
+      - alert: AtlasApiLatencyP95High
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(atlas_http_request_duration_ms_bucket[5m]))) > 1000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "La latencia P95 de la API supera 1000 ms"
+          runbook: docs/runbooks/OPERATIONS.md#api-caida
+
+      # `up` lo genera Prometheus, no la aplicación: cubre el caso en que el proceso ni
+      # siquiera acepta el raspado, que es cuando las métricas de la aplicación desaparecen y
+      # el resto de alertas dejan de poder dispararse.
+      - alert: AtlasTargetDown
+        expr: up{job=~"atlas-.*"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "El destino {{ $labels.job }} ({{ $labels.instance }}) no responde al raspado"
+          runbook: docs/runbooks/OPERATIONS.md#api-caida

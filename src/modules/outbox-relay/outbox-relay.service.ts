@@ -9,6 +9,12 @@ import { JobSchedulerService } from '../../common/jobs/job-scheduler.service';
 import { DispatchedEvent } from '../../common/events/event-envelope';
 import { EventBus } from '../../common/events/event-bus';
 import { MetricsService } from '../../common/observability/metrics.service';
+import { MessagingTraceService } from '../../common/observability/messaging-trace.service';
+import {
+  APP_ATTRIBUTES,
+  MESSAGING_SYSTEM,
+  SPAN_NAMES,
+} from '../../common/observability/telemetry.constants';
 import { PrismaService } from '../../common/prisma/prisma.service';
 
 /** An outbox row as returned by the raw claim query (snake_case, post-increment attempt). */
@@ -25,6 +31,7 @@ interface ClaimedRow {
   payload_json: unknown;
   attempt_count: number;
   occurred_at: Date;
+  trace_carrier: unknown;
 }
 
 /**
@@ -64,6 +71,7 @@ export class OutboxRelayService implements OnModuleInit, BackgroundJob {
     private readonly config: ConfigService,
     private readonly metrics: MetricsService,
     private readonly scheduler: JobSchedulerService,
+    private readonly messagingTrace: MessagingTraceService,
   ) {
     this.minIdleIntervalMs = config.get<number>('OUTBOX_RELAY_INTERVAL_MS') ?? 1_000;
     this.maxIdleIntervalMs = Math.max(
@@ -123,7 +131,16 @@ export class OutboxRelayService implements OnModuleInit, BackgroundJob {
   async dispatchBatch(): Promise<number> {
     const batchSize = this.config.get<number>('OUTBOX_BATCH_SIZE') ?? 25;
     const leaseMs = this.config.get<number>('OUTBOX_LEASE_MS') ?? 30_000;
-    const rows = await this.prisma.$queryRaw<ClaimedRow[]>(Prisma.sql`
+    // La reclamación va DENTRO de `$transaction` aunque sea una sola sentencia, y esto no
+    // es estilo: `decision_outbox_event` tiene RLS FORZADA, y `$queryRaw` suelto cae al
+    // cliente base sin fijar `app.tenant_id` (ver `tenant-rls.ts` y la misma nota en
+    // `worker-metrics.service.ts`). Con `WORKER_ROLE=ALL` el relay comparte pool con el
+    // tráfico de peticiones, así que le toca una conexión que ya sirvió a un tenant: ahí el
+    // GUC quedó DEFINIDO con cadena vacía, la política deja de ver NULL y evalúa
+    // `''::bigint`, que aborta con 22P02. Fallaba o no según la conexión, y el orquestador
+    // lo escondía detrás de un backoff exponencial: eventos sin repartir, sin causa visible.
+    const [rows] = await this.prisma.$transaction([
+      this.prisma.$queryRaw<ClaimedRow[]>(Prisma.sql`
       UPDATE decision_outbox_event
       SET lease_expires_at = ${new Date(Date.now() + leaseMs)},
           locked_by = ${this.workerId},
@@ -139,8 +156,10 @@ export class OutboxRelayService implements OnModuleInit, BackgroundJob {
         LIMIT ${batchSize}
       )
       RETURNING id, tenant_id, event_type, schema_version, aggregate_type, aggregate_id,
-                actor_id, correlation_id, causation_id, payload_json, attempt_count, occurred_at
-    `);
+                actor_id, correlation_id, causation_id, payload_json, attempt_count, occurred_at,
+                trace_carrier
+    `),
+    ]);
 
     let delivered = 0;
     for (const row of rows) {
@@ -149,7 +168,36 @@ export class OutboxRelayService implements OnModuleInit, BackgroundJob {
     return delivered;
   }
 
-  private async dispatchOne(row: ClaimedRow): Promise<boolean> {
+  /**
+   * Entrega un evento dentro de un span CONSUMIDOR enlazado con quien lo publicó.
+   *
+   * Aquí es donde la traza vuelve a unirse: el productor corre en el proceso de API y el
+   * commit lo separa de este, así que sin el portador persistido en la fila el reparto
+   * aparecería en Jaeger como una traza huérfana sin relación con la petición que lo originó.
+   * Una fila sin portador —anterior a la columna, o publicada con la telemetría apagada— abre
+   * una traza raíz y se procesa igual.
+   */
+  private dispatchOne(row: ClaimedRow): Promise<boolean> {
+    return this.messagingTrace.runAsConsumer(
+      SPAN_NAMES.outboxDispatch,
+      row.trace_carrier,
+      {
+        'messaging.system': MESSAGING_SYSTEM,
+        'messaging.destination.name': 'decision_outbox_event',
+        'messaging.operation.type': 'process',
+        'messaging.message.id': row.id.toString(),
+        [APP_ATTRIBUTES.module]: 'outbox-relay',
+        [APP_ATTRIBUTES.operation]: 'dispatch',
+        [APP_ATTRIBUTES.eventType]: row.event_type,
+        [APP_ATTRIBUTES.entityType]: row.aggregate_type,
+        [APP_ATTRIBUTES.tenantId]: row.tenant_id.toString(),
+        [APP_ATTRIBUTES.jobAttempt]: row.attempt_count,
+      },
+      () => this.deliver(row),
+    );
+  }
+
+  private async deliver(row: ClaimedRow): Promise<boolean> {
     const event: DispatchedEvent = {
       outboxEventId: row.id,
       eventType: row.event_type,

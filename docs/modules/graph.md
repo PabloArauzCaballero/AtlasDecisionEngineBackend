@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/graph/`](https://github.com/) · 19 ficheros TypeScript.
+Código: [`src/modules/graph/`](https://github.com/) · 21 ficheros TypeScript.
 
 No expone endpoints HTTP.
 
@@ -47,6 +47,7 @@ Este módulo no declara roles: o no expone rutas, o son públicas por diseño.
 - `UNDECLARED_OUTPUT`
 - `UNSUPPORTED_ACTION_TYPE`
 - `UNSUPPORTED_EXPRESSION_OPERATOR`
+- `WORKER_SERVICE_NOT_CONFIGURED`
 
 ## Clases exportadas
 

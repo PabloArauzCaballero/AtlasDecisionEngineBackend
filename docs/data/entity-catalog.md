@@ -3,13 +3,14 @@
 
 # Catálogo de entidades
 
-69 modelos persistentes. El nombre técnico es el de la tabla; el nombre del
+75 modelos persistentes. El nombre técnico es el de la tabla; el nombre del
 modelo es el que usa el código. Las restricciones e índices son los declarados en el
 esquema, que es la fuente que las migraciones aplican.
 
 | Modelo | Tabla | Campos | Índices | Relaciones |
 | --- | --- | ---: | ---: | ---: |
 | [`ApprovedLibrary`](#approvedlibrary) | `decision_approved_library` | 21 | 2 | 0 |
+| [`BankStatementRun`](#bankstatementrun) | `decision_bank_statement_run` | 26 | 4 | 0 |
 | [`BusinessObjective`](#businessobjective) | `decision_business_objective` | 10 | 1 | 0 |
 | [`CalculatedField`](#calculatedfield) | `decision_calculated_field` | 12 | 2 | 0 |
 | [`CalculatedFieldLibrary`](#calculatedfieldlibrary) | `decision_calculated_field_library` | 5 | 1 | 2 |
@@ -45,7 +46,7 @@ esquema, que es la fuente que las migraciones aplican.
 | [`DecisionNodeAction`](#decisionnodeaction) | `decision_node_action` | 6 | 1 | 2 |
 | [`DecisionNodeCondition`](#decisionnodecondition) | `decision_node_condition` | 7 | 1 | 2 |
 | [`DecisionNodeScript`](#decisionnodescript) | `decision_node_script` | 13 | 2 | 1 |
-| [`DecisionOutboxEvent`](#decisionoutboxevent) | `decision_outbox_event` | 18 | 3 | 0 |
+| [`DecisionOutboxEvent`](#decisionoutboxevent) | `decision_outbox_event` | 19 | 3 | 0 |
 | [`DecisionOutputContractField`](#decisionoutputcontractfield) | `decision_output_contract_field` | 18 | 2 | 1 |
 | [`DecisionOutputFieldReasonMap`](#decisionoutputfieldreasonmap) | `decision_output_field_reason_map` | 6 | 1 | 2 |
 | [`DecisionReasonCode`](#decisionreasoncode) | `decision_reason_code` | 12 | 2 | 0 |
@@ -58,7 +59,7 @@ esquema, que es la fuente que las migraciones aplican.
 | [`DecisionTestCase`](#decisiontestcase) | `decision_test_case` | 10 | 1 | 1 |
 | [`DecisionTestCaseRun`](#decisiontestcaserun) | `decision_test_case_run` | 10 | 1 | 2 |
 | [`DecisionTestCoverage`](#decisiontestcoverage) | `decision_test_coverage` | 8 | 1 | 1 |
-| [`DecisionTestRun`](#decisiontestrun) | `decision_test_run` | 15 | 2 | 2 |
+| [`DecisionTestRun`](#decisiontestrun) | `decision_test_run` | 16 | 2 | 2 |
 | [`DecisionTestSuite`](#decisiontestsuite) | `decision_test_suite` | 10 | 1 | 1 |
 | [`DecisionVariableDefinition`](#decisionvariabledefinition) | `decision_variable_definition` | 14 | 3 | 0 |
 | [`DecisionVariableSource`](#decisionvariablesource) | `decision_variable_source` | 9 | 1 | 1 |
@@ -77,6 +78,11 @@ esquema, que es la fuente que las migraciones aplican.
 | [`QaCounterexample`](#qacounterexample) | `decision_qa_counterexample` | 14 | 2 | 1 |
 | [`QaGenerationRun`](#qagenerationrun) | `decision_qa_generation_run` | 21 | 1 | 1 |
 | [`RuntimeIdempotency`](#runtimeidempotency) | `decision_runtime_idempotency` | 12 | 2 | 0 |
+| [`SemanticAnalysisRun`](#semanticanalysisrun) | `decision_semantic_analysis_run` | 22 | 4 | 0 |
+| [`SemanticCategory`](#semanticcategory) | `decision_semantic_category` | 13 | 2 | 0 |
+| [`SemanticCategoryEmbedding`](#semanticcategoryembedding) | `decision_semantic_category_embedding` | 6 | 1 | 1 |
+| [`SemanticEntityAlias`](#semanticentityalias) | `decision_semantic_entity_alias` | 6 | 2 | 0 |
+| [`SemanticTenantBudget`](#semantictenantbudget) | `decision_semantic_tenant_budget` | 5 | 1 | 0 |
 | [`UserTutorialProgress`](#usertutorialprogress) | `user_tutorial_progress` | 11 | 2 | 0 |
 
 ## ApprovedLibrary
@@ -111,6 +117,46 @@ Tabla `decision_approved_library`.
 
 - `unique([tenantId, logicalName, language, version])`
 - `index([tenantId, status])`
+
+## BankStatementRun
+
+Tabla `decision_bank_statement_run`.
+
+| Campo | Tipo | Atributos |
+| --- | --- | --- |
+| `id` | `BigInt` | @id @default(autoincrement()) |
+| `tenantId` | `BigInt` | @map("tenant_id") |
+| `requestId` | `String` | @map("request_id") @db.VarChar(64) |
+| `status` | `WorkerRunStatus` | @default(QUEUED) |
+| `progress` | `Int` | @default(0) |
+| `inputSource` | `WorkerInputSource` | @map("input_source") |
+| `fixtureCode` | `String?` | @map("fixture_code") @db.VarChar(60) |
+| `fileName` | `String` | @map("file_name") @db.VarChar(255) |
+| `fileHash` | `String` | @map("file_hash") @db.Char(64) |
+| `fileSizeBytes` | `Int` | @map("file_size_bytes") |
+| `fileBytes` | `Bytes?` | @map("file_bytes") |
+| `resultJson` | `Json?` | @map("result_json") |
+| `warningsJson` | `Json?` | @map("warnings_json") |
+| `confidence` | `Decimal?` | @db.Decimal(4, 3) |
+| `institutionId` | `String?` | @map("institution_id") @db.VarChar(16) |
+| `transactionCount` | `Int?` | @map("transaction_count") |
+| `errorCode` | `String?` | @map("error_code") @db.VarChar(120) |
+| `errorMessage` | `String?` | @map("error_message") @db.Text |
+| `attemptCount` | `Int` | @default(0) @map("attempt_count") |
+| `leaseExpiresAt` | `DateTime?` | @map("lease_expires_at") @db.Timestamptz(6) |
+| `queuedAt` | `DateTime` | @default(now()) @map("queued_at") @db.Timestamptz(6) |
+| `startedAt` | `DateTime?` | @map("started_at") @db.Timestamptz(6) |
+| `finishedAt` | `DateTime?` | @map("finished_at") @db.Timestamptz(6) |
+| `requestedBy` | `String` | @map("requested_by") @db.VarChar(160) |
+| `correlationId` | `String` | @map("correlation_id") @db.VarChar(64) |
+| `traceCarrier` | `Json?` | @map("trace_carrier") |
+
+Índices y restricciones:
+
+- `unique([tenantId, fileHash])`
+- `unique([tenantId, requestId])`
+- `index([status, queuedAt])`
+- `index([tenantId, queuedAt])`
 
 ## BusinessObjective
 
@@ -957,6 +1003,7 @@ Tabla `decision_outbox_event`.
 | `lastError` | `String?` | @map("last_error") @db.Text |
 | `occurredAt` | `DateTime` | @default(now()) @map("occurred_at") @db.Timestamptz(6) |
 | `dispatchedAt` | `DateTime?` | @map("dispatched_at") @db.Timestamptz(6) |
+| `traceCarrier` | `Json?` | @map("trace_carrier") |
 
 Índices y restricciones:
 
@@ -1245,6 +1292,7 @@ Tabla `decision_test_run`.
 | `finishedAt` | `DateTime?` | @map("finished_at") @db.Timestamptz(6) |
 | `leaseExpiresAt` | `DateTime?` | @map("lease_expires_at") @db.Timestamptz(6) |
 | `attemptCount` | `Int` | @default(0) @map("attempt_count") |
+| `traceCarrier` | `Json?` | @map("trace_carrier") |
 | `testSuite` | `DecisionTestSuite` | @relation(fields: [testSuiteId], references: [id], onDelete: Cascade) |
 | `compiledArtifact` | `DecisionCompiledArtifact` | @relation(fields: [compiledArtifactId], references: [id], onDelete: Restrict) |
 | `caseRuns` | `DecisionTestCaseRun[]` | — |
@@ -1643,6 +1691,118 @@ Tabla `decision_runtime_idempotency`.
 
 - `unique([tenantId, artifactCode, idempotencyKey])`
 - `index([expiresAt])`
+
+## SemanticAnalysisRun
+
+Tabla `decision_semantic_analysis_run`.
+
+| Campo | Tipo | Atributos |
+| --- | --- | --- |
+| `id` | `BigInt` | @id @default(autoincrement()) |
+| `tenantId` | `BigInt` | @map("tenant_id") |
+| `requestId` | `String` | @map("request_id") @db.VarChar(64) |
+| `idempotencyKey` | `String` | @map("idempotency_key") @db.VarChar(200) |
+| `status` | `WorkerRunStatus` | @default(QUEUED) |
+| `progress` | `Int` | @default(0) |
+| `inputSource` | `WorkerInputSource` | @map("input_source") |
+| `inputText` | `String` | @map("input_text") @db.Text |
+| `inputMetadata` | `Json?` | @map("input_metadata") |
+| `fixtureCode` | `String?` | @map("fixture_code") @db.VarChar(60) |
+| `resultJson` | `Json?` | @map("result_json") |
+| `warningsJson` | `Json?` | @map("warnings_json") |
+| `errorCode` | `String?` | @map("error_code") @db.VarChar(120) |
+| `errorMessage` | `String?` | @map("error_message") @db.Text |
+| `attemptCount` | `Int` | @default(0) @map("attempt_count") |
+| `leaseExpiresAt` | `DateTime?` | @map("lease_expires_at") @db.Timestamptz(6) |
+| `queuedAt` | `DateTime` | @default(now()) @map("queued_at") @db.Timestamptz(6) |
+| `startedAt` | `DateTime?` | @map("started_at") @db.Timestamptz(6) |
+| `finishedAt` | `DateTime?` | @map("finished_at") @db.Timestamptz(6) |
+| `requestedBy` | `String` | @map("requested_by") @db.VarChar(160) |
+| `correlationId` | `String` | @map("correlation_id") @db.VarChar(64) |
+| `traceCarrier` | `Json?` | @map("trace_carrier") |
+
+Índices y restricciones:
+
+- `unique([tenantId, idempotencyKey])`
+- `unique([tenantId, requestId])`
+- `index([status, queuedAt])`
+- `index([tenantId, queuedAt])`
+
+## SemanticCategory
+
+Tabla `decision_semantic_category`.
+
+| Campo | Tipo | Atributos |
+| --- | --- | --- |
+| `id` | `BigInt` | @id @default(autoincrement()) |
+| `tenantId` | `BigInt` | @map("tenant_id") |
+| `code` | `String` | @db.VarChar(120) |
+| `name` | `String` | @db.VarChar(200) |
+| `description` | `String` | @db.Text |
+| `positiveExamples` | `Json` | @map("positive_examples") |
+| `counterExamples` | `Json` | @map("counter_examples") |
+| `restrictions` | `Json` | — |
+| `relatedCategoryCodes` | `Json` | @map("related_category_codes") |
+| `acceptanceThreshold` | `Decimal` | @map("acceptance_threshold") @db.Decimal(4, 3) |
+| `version` | `Int` | @default(1) |
+| `isActive` | `Boolean` | @default(true) @map("is_active") |
+| `embeddings` | `SemanticCategoryEmbedding[]` | — |
+
+Índices y restricciones:
+
+- `unique([tenantId, code])`
+- `index([tenantId, isActive])`
+
+## SemanticCategoryEmbedding
+
+Tabla `decision_semantic_category_embedding`.
+
+| Campo | Tipo | Atributos |
+| --- | --- | --- |
+| `id` | `BigInt` | @id @default(autoincrement()) |
+| `categoryId` | `BigInt` | @map("category_id") |
+| `model` | `String` | @db.VarChar(120) |
+| `version` | `Int` | @default(1) |
+| `vector` | `Json` | — |
+| `category` | `SemanticCategory` | @relation(fields: [categoryId], references: [id], onDelete: Cascade) |
+
+Índices y restricciones:
+
+- `unique([categoryId, model])`
+
+## SemanticEntityAlias
+
+Tabla `decision_semantic_entity_alias`.
+
+| Campo | Tipo | Atributos |
+| --- | --- | --- |
+| `id` | `BigInt` | @id @default(autoincrement()) |
+| `tenantId` | `BigInt` | @map("tenant_id") |
+| `alias` | `String` | @db.VarChar(200) |
+| `canonicalName` | `String` | @map("canonical_name") @db.VarChar(200) |
+| `entityType` | `String` | @map("entity_type") @db.VarChar(60) |
+| `isActive` | `Boolean` | @default(true) @map("is_active") |
+
+Índices y restricciones:
+
+- `unique([tenantId, entityType, alias])`
+- `index([tenantId, isActive])`
+
+## SemanticTenantBudget
+
+Tabla `decision_semantic_tenant_budget`.
+
+| Campo | Tipo | Atributos |
+| --- | --- | --- |
+| `id` | `BigInt` | @id @default(autoincrement()) |
+| `tenantId` | `BigInt` | @map("tenant_id") |
+| `windowStart` | `DateTime` | @map("window_start") @db.Timestamptz(6) |
+| `analyses` | `Int` | @default(0) |
+| `providerCalls` | `Int` | @default(0) @map("provider_calls") |
+
+Índices y restricciones:
+
+- `unique([tenantId, windowStart])`
 
 ## UserTutorialProgress
 

@@ -66,6 +66,17 @@ export async function cleanTestArtifacts(
   const bindings = await prisma.decisionRuntimeBinding.deleteMany({
     where: { tenantId, artifactCode: { in: codes } },
   });
+  // Las ejecuciones van ANTES que los despliegues a los que apuntan.
+  //
+  // El smoke integral ejecuta decisiones de verdad contra el artefacto que crea, así que
+  // sus despliegues quedan referenciados por filas de ejecución. Borrar el despliegue
+  // primero violaba `decision_execution_deployment_id_fkey` y abortaba la limpieza entera:
+  // la basura se acumulaba en la base compartida y hacía fallar corridas posteriores por
+  // motivos que no tenían nada que ver con el cambio que se estaba probando.
+  //
+  // La evidencia, los pasos y los casos de revisión manual cuelgan de la ejecución en
+  // cascada, así que se van con ella.
+  await prisma.decisionExecution.deleteMany({ where: { artifactVersionId: { in: versionIds } } });
   await prisma.decisionDeployment.deleteMany({ where: { artifactVersionId: { in: versionIds } } });
 
   const suites = await prisma.decisionTestSuite.findMany({

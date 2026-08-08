@@ -59,6 +59,10 @@ jobs:
       # Formatting is enforced now that the one-time global reformat has landed. Runs before
       # typecheck so a style-only failure is reported without waiting for the slower stages.
       - run: yarn format:check
+      # Análisis estático con tipos. Cubre lo que `tsc` no ve: promesas sin esperar,
+      # `any` implícitos y `console` fuera del logger estructurado. Va junto al resto de
+      # comprobaciones baratas, antes de compilar.
+      - run: yarn lint
       - run: yarn typecheck
       - run: yarn build
       - run: yarn test:cov
@@ -81,11 +85,45 @@ jobs:
           done
           curl -fsS http://localhost:3000/health/ready
           yarn smoke:sh
+      # Los ficheros de Compose se validan ANTES de construir nada: cuestan segundos y detectan
+      # una anulación mal escrita o una red inexistente, que de otro modo solo aparece cuando
+      # alguien intenta levantar el entorno.
+      - name: Validar los ficheros de Compose
+        env:
+          # Valores de relleno únicamente para que la interpolación `${VAR:?}` resuelva. No
+          # arrancan nada: `config` solo resuelve y comprueba el modelo.
+          POSTGRES_PASSWORD: ci-compose-validation
+          APP_DB_PASSWORD: ci-compose-validation
+          MANAGEMENT_API_KEY: ci-management-key-with-enough-entropy
+          RUNTIME_API_KEY: ci-runtime-key-with-different-entropy
+          AUDIT_HASH_SECRET: ci-audit-secret-with-at-least-32-characters-total
+          METRICS_TOKEN: ci-metrics-token-with-enough-entropy
+          GRAFANA_ADMIN_PASSWORD: ci-grafana-password
+          AUTH_MODE: IDENTITY_HYBRID
+        run: |
+          docker compose -f docker-compose.yml config --quiet
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet
+          docker compose -f docker-compose.yml -f docker-compose.no-gvisor.yml config --quiet
+          docker compose -f docker-compose.yml -f compose.observability.yml config --quiet
+          docker compose -f compose.test.yml config --quiet
+
+      # La construcción es la única puerta que ejecuta una instalación LIMPIA desde el
+      # lockfile. Esa diferencia no es teórica: un `node_modules` construido de forma
+      # incremental en una máquina de desarrollo llegó a compilar código que fallaba aquí.
       - name: Build runtime, worker and migrator images
         run: |
           docker build --target runtime -t atlas-decision-engine:${{ github.sha }} .
           docker build --target worker -t atlas-decision-worker:${{ github.sha }} .
           docker build --target migrator -t atlas-decision-migrator:${{ github.sha }} .
+
+      # La batería dentro de contenedores, contra Postgres y Redis efímeros. Cubre el hueco que
+      # dejaban los servicios de GitHub Actions: aquí se ejercita la MISMA imagen que se
+      # despliega y la misma red por nombres de servicio, no un Node del runner contra
+      # `localhost`.
+      - name: Pruebas en contenedor (integración)
+        run: |
+          docker compose -f compose.test.yml run --rm integration
+          docker compose -f compose.test.yml down -v
 
   # Puerta documental. Corre aparte de `verify` para que un fallo de documentación se
   # distinga de un fallo de código, pero bloquea igual: una documentación desactualizada es

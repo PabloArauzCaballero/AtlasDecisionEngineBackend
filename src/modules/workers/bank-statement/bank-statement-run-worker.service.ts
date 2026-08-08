@@ -8,6 +8,11 @@ import { JobSchedulerService } from '../../../common/jobs/job-scheduler.service'
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { StatementProcessingError } from './core/domain/errors';
 import { createStatementEngine, type StatementEngine } from './core/statement-engine';
+import { MessagingTraceService } from '../../../common/observability/messaging-trace.service';
+import {
+  APP_ATTRIBUTES,
+  MESSAGING_SYSTEM,
+} from '../../../common/observability/telemetry.constants';
 
 /**
  * Worker de conversión de extractos bancarios.
@@ -47,6 +52,7 @@ export class BankStatementRunWorkerService implements OnModuleInit, OnModuleDest
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly scheduler: JobSchedulerService,
+    private readonly messagingTrace: MessagingTraceService,
   ) {
     this.minIdleIntervalMs = config.get<number>('BANK_STATEMENT_WORKER_POLL_MS') ?? 500;
     this.maxIdleIntervalMs = Math.max(
@@ -79,10 +85,10 @@ export class BankStatementRunWorkerService implements OnModuleInit, OnModuleDest
     const concurrency = this.config.get<number>('BANK_STATEMENT_WORKER_CONCURRENCY') ?? 2;
     let started = 0;
     while (!this.stopped && this.activeJobs.size < concurrency) {
-      const runId = await this.claimNextRun();
-      if (!runId) break;
+      const claimed = await this.claimNextRun();
+      if (!claimed) break;
       started += 1;
-      const job = this.execute(runId);
+      const job = this.executeTraced(claimed);
       this.activeJobs.add(job);
       void job
         .finally(() => {
@@ -106,9 +112,13 @@ export class BankStatementRunWorkerService implements OnModuleInit, OnModuleDest
    * bloquearse. La cota de intentos va en el `WHERE`: una ejecución que agotó
    * sus reintentos no debe volver a reclamarse nunca.
    */
-  private async claimNextRun(): Promise<bigint | null> {
+  private async claimNextRun(): Promise<ClaimedRun | null> {
     const maxAttempts = this.config.get<number>('BANK_STATEMENT_MAX_ATTEMPTS') ?? 3;
-    const rows = await this.prisma.$queryRaw<Array<{ id: bigint }>>(Prisma.sql`
+    // `$transaction` obligatorio: `decision_bank_statement_run` tiene RLS FORZADA y una
+    // sentencia cruda suelta no fija `app.tenant_id`, así que sobre una conexión del pool
+    // que ya sirvió a un tenant la política aborta con 22P02. Ver `outbox-relay.service.ts`.
+    const [rows] = await this.prisma.$transaction([
+      this.prisma.$queryRaw<Array<{ id: bigint; trace_carrier: unknown }>>(Prisma.sql`
       UPDATE decision_bank_statement_run
       SET status = 'RUNNING',
           started_at = now(),
@@ -124,9 +134,34 @@ export class BankStatementRunWorkerService implements OnModuleInit, OnModuleDest
         FOR UPDATE SKIP LOCKED
         LIMIT 1
       )
-      RETURNING id
-    `);
-    return rows[0]?.id ?? null;
+      RETURNING id, trace_carrier
+    `),
+    ]);
+    return rows[0] ?? null;
+  }
+
+  /**
+   * Continúa la traza de quien subió el extracto.
+   *
+   * El portador se guardó al encolar, en el proceso de API; sin él este trabajo aparecería en
+   * Jaeger como una traza suelta, sin relación con la petición que lo pidió. Una fila sin
+   * portador abre una traza raíz y se procesa igual.
+   */
+  private executeTraced(claimed: ClaimedRun): Promise<void> {
+    return this.messagingTrace.runAsConsumer(
+      'bank-statement.process',
+      claimed.trace_carrier,
+      {
+        'messaging.system': MESSAGING_SYSTEM,
+        'messaging.destination.name': 'decision_bank_statement_run',
+        'messaging.operation.type': 'process',
+        'messaging.message.id': claimed.id.toString(),
+        [APP_ATTRIBUTES.module]: 'bank-statement',
+        [APP_ATTRIBUTES.operation]: 'process',
+        [APP_ATTRIBUTES.jobName]: this.name,
+      },
+      () => this.execute(claimed.id),
+    );
   }
 
   private async execute(runId: bigint): Promise<void> {
@@ -263,11 +298,14 @@ export class BankStatementRunWorkerService implements OnModuleInit, OnModuleDest
     if (Date.now() - this.lastRecoveryAt < intervalMs) return;
     this.lastRecoveryAt = Date.now();
 
+    const maxAttempts = this.config.get<number>('BANK_STATEMENT_MAX_ATTEMPTS') ?? 3;
+    const leaseVencido = {
+      status: WorkerRunStatus.RUNNING,
+      OR: [{ leaseExpiresAt: null }, { leaseExpiresAt: { lt: new Date() } }],
+    };
+
     const recovered = await this.prisma.bankStatementRun.updateMany({
-      where: {
-        status: WorkerRunStatus.RUNNING,
-        OR: [{ leaseExpiresAt: null }, { leaseExpiresAt: { lt: new Date() } }],
-      },
+      where: { ...leaseVencido, attemptCount: { lt: maxAttempts } },
       data: {
         status: WorkerRunStatus.QUEUED,
         startedAt: null,
@@ -279,6 +317,37 @@ export class BankStatementRunWorkerService implements OnModuleInit, OnModuleDest
       this.logger.warn(
         `Recuperadas ${recovered.count} ejecución(es) de extracto con lease vencido`,
       );
+    }
+
+    /*
+     * Lo que ya agotó sus intentos se CIERRA, no vuelve a la cola.
+     *
+     * `claimNextRun` filtra por `attempt_count < maxAttempts`: devolver a QUEUED
+     * una ejecución agotada la deja ahí para siempre, enseñando «En cola» sobre
+     * un trabajo que nadie va a hacer. Se barre también lo que ya estaba en
+     * QUEUED con los intentos agotados, que es el residuo de recuperaciones
+     * anteriores; reclamarlo es imposible, así que cerrarlo no compite con nadie.
+     *
+     * El documento se borra al cerrar, igual que en cualquier otro final: una
+     * ejecución que no va a procesarse no tiene por qué seguir guardando el PDF
+     * de nadie.
+     */
+    const agotadas = await this.prisma.bankStatementRun.updateMany({
+      where: {
+        attemptCount: { gte: maxAttempts },
+        OR: [leaseVencido, { status: WorkerRunStatus.QUEUED }],
+      },
+      data: {
+        status: WorkerRunStatus.FAILED,
+        errorCode: 'BANK_STATEMENT_RETRIES_EXHAUSTED',
+        errorMessage: 'La conversión se interrumpió y ya no quedaban reintentos.',
+        finishedAt: new Date(),
+        leaseExpiresAt: null,
+        fileBytes: null,
+      },
+    });
+    if (agotadas.count > 0) {
+      this.logger.warn(`Cerradas ${agotadas.count} conversión(es) sin reintentos disponibles`);
     }
   }
 
@@ -333,4 +402,10 @@ export class BankStatementRunWorkerService implements OnModuleInit, OnModuleDest
 
 function describeError(error: unknown): string {
   return error instanceof Error ? (error.stack ?? error.message) : String(error);
+}
+
+/** Fila reclamada por el worker, con el portador de traza que viajó con ella. */
+interface ClaimedRun {
+  readonly id: bigint;
+  readonly trace_carrier: unknown;
 }

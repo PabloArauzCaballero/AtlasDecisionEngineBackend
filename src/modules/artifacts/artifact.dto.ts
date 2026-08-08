@@ -108,6 +108,7 @@ export class NodeDto {
     'ACTION',
     'RESULT',
     'MANUAL_REVIEW',
+    'WORKER',
     'END',
   ])
   type!:
@@ -120,6 +121,7 @@ export class NodeDto {
     | 'ACTION'
     | 'RESULT'
     | 'MANUAL_REVIEW'
+    | 'WORKER'
     | 'END';
   @IsString() @MaxLength(200) label!: string;
   @IsObject() config!: Record<string, unknown>;

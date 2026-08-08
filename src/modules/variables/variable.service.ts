@@ -15,6 +15,9 @@ import {
 } from './variable.dto';
 import { pageResult, paginationArgs } from '../../common/http/pagination';
 
+/** Techo de filas del listado de dependencias; ver la nota en `dependencies`. */
+const MAX_DEPENDENCY_ROWS = 1_000;
+
 @Injectable()
 export class VariableService {
   constructor(
@@ -354,6 +357,10 @@ export class VariableService {
         },
       },
       orderBy: { id: 'asc' },
+      // Una variable muy reutilizada la referencian todas las versiones de todos los
+      // artefactos que la usan, y aquí se materializa la lista entera. La cota convierte el
+      // peor caso en una respuesta truncada en vez de una respuesta que no termina.
+      take: MAX_DEPENDENCY_ROWS,
     });
     const items = uses.map((use) => ({
       artifactCode: use.artifactVersion.artifact.artifactCode,

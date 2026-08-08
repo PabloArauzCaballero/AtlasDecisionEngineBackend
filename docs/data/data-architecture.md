@@ -1,10 +1,21 @@
 # Arquitectura de datos
 
+Esta página describe **el modelo de datos**: qué tablas hay, cómo se relacionan y cómo
+crecen. La capa que separa el dominio del motor —puertos, registro de conexiones,
+enrutamiento de lectura y escritura, roles separados y persistencia políglota— vive en
+[superficie de persistencia](persistence/architecture.md) y se decidió en
+[ADR-0029](../adr/ADR-0029-polyglot-persistence-read-write.md).
+
 ## Motor y acceso
 
 PostgreSQL 16 con Prisma 6 sobre el adaptador `@prisma/adapter-pg`. El adaptador importa: el
-proxy de `PrismaService` fija el GUC `app.tenant_id` en la conexión antes de cada consulta, y
-es lo que activa las políticas RLS.
+proxy de tenancy (`common/prisma/tenant-rls.ts`, compartido por los clientes de escritura y
+de lectura) fija el GUC `app.tenant_id` en la conexión antes de cada consulta, y es lo que
+activa las políticas RLS.
+
+El pool ya no lo abre el cliente: lo gobierna el registro de conexiones, que decide si
+lectura y escritura comparten uno o usan dos
+([enrutamiento](persistence/read-write-routing.md)).
 
 | Parámetro | Variable | Para qué |
 | --- | --- | --- |
@@ -26,7 +37,8 @@ es lo que activa las políticas RLS.
 | Mensajería | outbox y `decision_processed_event` | Entrega al menos una vez con deduplicación |
 
 El catálogo completo, generado del esquema, está en
-[catálogo de entidades](entity-catalog.md) — 68 modelos.
+[catálogo de entidades](entity-catalog.md); las relaciones entre esos modelos, agrupadas por
+dominio, en [relaciones entre entidades](relationships.md).
 
 ## Invariantes de datos
 

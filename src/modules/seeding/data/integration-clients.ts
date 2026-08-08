@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 // A plain constant array, not a Nest provider, so importing it keeps the seed's
 // no-framework boundary intact while pinning the roles to the same source of truth the
 // guard and mapper use.
-import { PLATFORM_ROLES } from '../../../common/security/platform-roles';
+import { PLATFORM_ROLES, RUNTIME_DECISION_ROLE } from '../../../common/security/platform-roles';
 
 export interface BootstrapClientSummary {
   clientKey: string;
@@ -54,7 +54,7 @@ export async function seedIntegrationClients(
       displayName: 'Bootstrap runtime client',
       audience: 'runtime',
       secret: process.env.RUNTIME_API_KEY,
-      roles: parseList(process.env.BOOTSTRAP_RUNTIME_ROLES, ['DECISION_RUNTIME']),
+      roles: parseList(process.env.BOOTSTRAP_RUNTIME_ROLES, [RUNTIME_DECISION_ROLE]),
     },
   ];
 

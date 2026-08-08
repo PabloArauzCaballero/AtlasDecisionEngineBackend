@@ -14,6 +14,7 @@ import {
   PrismaEntityAliasRepository,
   PrismaSemanticCategoryRepository,
 } from './semantic-analysis/adapters/prisma-catalog.repository';
+import { AuditRetentionService } from './semantic-analysis/core/application/audit-retention.service';
 import { CatalogCache } from './semantic-analysis/core/application/catalog-cache';
 import { DecisionEngine } from './semantic-analysis/core/application/decision-engine';
 import { EntityResolver } from './semantic-analysis/core/application/entity-resolver';
@@ -35,14 +36,15 @@ import { SemanticAnalysisProcessor } from './semantic-analysis/core/application/
 import { SemanticAnalysisResultBuilder } from './semantic-analysis/core/application/semantic-analysis.result-builder';
 import { TenantBudgetGuard } from './semantic-analysis/core/application/tenant-budget.guard';
 import { TextNormalizer } from './semantic-analysis/core/application/text-normalizer';
-import { loadModelProviders } from './semantic-analysis/core/config/model-provider.factory';
-import type { SemanticWorkerConfig } from './semantic-analysis/core/config/semantic-worker.config';
-import { TracingService } from './semantic-analysis/core/observability/tracing.service';
 import { SemanticAnalysisController } from './semantic-analysis/semantic-analysis.controller';
 import { SemanticAnalysisService } from './semantic-analysis/semantic-analysis.service';
 import { buildSemanticWorkerConfig } from './semantic-analysis/semantic-config.bridge';
+import { buildSemanticModelProvider } from './semantic-analysis/semantic-model-provider.bridge';
+import { SemanticRetentionSweeperService } from './semantic-analysis/semantic-retention-sweeper.service';
 import { SemanticRunWorkerService } from './semantic-analysis/semantic-run-worker.service';
 import { WorkersController } from './workers.controller';
+import { WorkerMetricsService } from './worker-metrics.service';
+import { WorkerServiceInvokerService } from './worker-service-invoker.service';
 
 /**
  * Workers adicionales (ADR-0026): análisis semántico y extractos bancarios.
@@ -67,6 +69,21 @@ import { WorkersController } from './workers.controller';
 @Module({
   controllers: [WorkersController, BankStatementController, SemanticAnalysisController],
   providers: [
+    /**
+     * Puente con el motor de decisión: un nodo `WORKER` del grafo llama a los servicios de
+     * estos dos workers y proyecta su respuesta a variables intermedias. Vive aquí, y no
+     * en `GraphModule`, porque quien conoce a los workers es este módulo; el motor solo
+     * conoce la interfaz `WorkerServiceInvoker`, que recibe como argumento de llamada.
+     */
+    WorkerServiceInvokerService,
+
+    /**
+     * Salud de los dos workers. Vive en la parte COMPARTIDA del módulo, junto al
+     * catálogo, porque mide lo único que ambos comparten: el ciclo de vida de
+     * sus ejecuciones. Cada worker conserva su tabla y su cola.
+     */
+    WorkerMetricsService,
+
     // --- Worker B: extractos bancarios -------------------------------------
     BankStatementService,
     BankStatementRunWorkerService,
@@ -74,6 +91,11 @@ import { WorkersController } from './workers.controller';
     // --- Worker A: análisis semántico --------------------------------------
     SemanticAnalysisService,
     SemanticRunWorkerService,
+    // La política de retención venía en el núcleo absorbido, pero sin nada que
+    // la ejecutase: la disparaba el planificador del paquete original. El
+    // barrendero la devuelve al calendario del motor.
+    AuditRetentionService,
+    SemanticRetentionSweeperService,
 
     // Núcleo absorbido, sin una línea modificada.
     TextNormalizer,
@@ -84,7 +106,10 @@ import { WorkersController } from './workers.controller';
     SemanticAnalysisResultBuilder,
     SemanticAnalysisPipeline,
     SemanticAnalysisProcessor,
-    TracingService,
+    // `TracingService` ya no se declara aquí: la capa de trazado se promovió a
+    // `common/observability` y el `ObservabilityModule` es global, así que este
+    // worker recibe la MISMA instancia que el resto del motor. Declararla de
+    // nuevo crearía un segundo emisor de trazas dentro del mismo proceso.
 
     // Adaptadores que sustituyen la infraestructura propia del paquete.
     PrismaSemanticCategoryRepository,
@@ -115,17 +140,20 @@ import { WorkersController } from './workers.controller';
     { provide: CANDIDATE_RETRIEVER, useClass: LexicalCandidateRetriever },
 
     /**
-     * Proveedor de modelo. La fábrica absorbida elige entre OpenAI y Ollama por
-     * entorno. Sin `SEMANTIC_ANALYSIS_PROVIDER` el worker no se registra, así
-     * que en ese caso este proveedor se construye pero nunca se invoca.
+     * Proveedor de modelo. La fábrica absorbida elige entre OpenAI y el
+     * clasificador de transformers por entorno, pero valida credenciales y URLs
+     * al construir: hacerlo aquí impedía
+     * arrancar cualquier proceso sin `OPENAI_API_KEY`, incluso una réplica de
+     * API con el worker apagado. El puente lo construye en la primera
+     * clasificación y traduce `SEMANTIC_ANALYSIS_PROVIDER` — la variable que
+     * decide si el worker se registra — al nombre que espera el núcleo.
      */
     {
       provide: SEMANTIC_MODEL_PROVIDER,
-      useFactory: (config: SemanticWorkerConfig) =>
-        loadModelProviders(process.env, config).modelProvider,
-      inject: [SEMANTIC_WORKER_CONFIG],
+      useFactory: buildSemanticModelProvider,
+      inject: [ConfigService, SEMANTIC_WORKER_CONFIG],
     },
   ],
-  exports: [BankStatementService, SemanticAnalysisService],
+  exports: [BankStatementService, SemanticAnalysisService, WorkerServiceInvokerService],
 })
 export class WorkersModule {}

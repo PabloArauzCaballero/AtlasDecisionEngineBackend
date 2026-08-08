@@ -320,4 +320,59 @@ describe('external identity integration', () => {
     expect(serialized).not.toContain('refresh/with special chars');
     expect(cookies.read(serialized)).toBe('refresh/with special chars');
   });
+
+  /**
+   * Un tenant o un usuario que no existen NO son una avería del proveedor.
+   *
+   * El proveedor responde 409 a un `x-tenant-id` desconocido y 404 a un usuario
+   * que no está, y el cliente los mandaba a `502 IDENTITY_PROVIDER_ERROR`. Dos
+   * cosas iban mal a la vez: operativamente un 502 significa «el proveedor está
+   * caído» y dispara reintentos, alertas y guardia por lo que en realidad es un
+   * dedazo en la casilla del tenant; y hacia fuera era un oráculo de
+   * enumeración, porque una contraseña mala respondía 401 y un tenant malo 502,
+   * de modo que comparando las dos respuestas se averiguaba qué tenants existen.
+   *
+   * Se prueban los cuatro códigos juntos para fijar la propiedad que importa:
+   * **todos producen la MISMA respuesta opaca**.
+   */
+  it.each([401, 403, 404, 409])(
+    'trata el %i del proveedor como credencial rechazada, no como avería',
+    async (status) => {
+      jest
+        .spyOn(globalThis, 'fetch')
+        .mockResolvedValue(new Response('{"error":{"code":"WHATEVER"}}', { status }));
+      const client = new IdentityProviderClient(
+        new ConfigService({
+          IDENTITY_PROVIDER_URL: 'http://localhost:3005/api/v1',
+          IDENTITY_PROVIDER_TIMEOUT_MS: 3_000,
+          IDENTITY_PROVIDER_RETRY_ATTEMPTS: 0,
+        }),
+      );
+
+      const fallo = await client
+        .login({ tenantId: '999999', email: 'analyst@example.com', password: 'valid-password' })
+        .catch((error: unknown) => error as DomainException);
+
+      expect(fallo).toBeInstanceOf(DomainException);
+      expect((fallo as DomainException).status).toBe(401);
+    },
+  );
+
+  /** Un 500 del proveedor SÍ es una avería suya, y debe seguir diciéndolo. */
+  it('conserva el 502 cuando el proveedor falla de verdad', async () => {
+    jest.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('boom', { status: 500 }));
+    const client = new IdentityProviderClient(
+      new ConfigService({
+        IDENTITY_PROVIDER_URL: 'http://localhost:3005/api/v1',
+        IDENTITY_PROVIDER_TIMEOUT_MS: 3_000,
+        IDENTITY_PROVIDER_RETRY_ATTEMPTS: 0,
+      }),
+    );
+
+    const fallo = await client
+      .login({ tenantId: '7', email: 'analyst@example.com', password: 'valid-password' })
+      .catch((error: unknown) => error as DomainException);
+
+    expect((fallo as DomainException).status).toBe(502);
+  });
 });

@@ -1,41 +1,42 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DomainException } from '../../common/errors/domain-exception';
-import { PrismaService } from '../../common/prisma/prisma.service';
 import { HashService } from '../../common/crypto/hash.service';
-import { keysetArgs, keysetPage, pageResult, paginationArgs } from '../../common/http/pagination';
+import { decodeCursor, keysetPage, pageResult, paginationArgs } from '../../common/http/pagination';
 import {
   AuditEventKeysetQueryDto,
   AuditEventSearchQueryDto,
   ExecutionSearchQueryDto,
 } from './audit-query.dto';
+import {
+  DECISION_AUDIT_READ_PORT,
+  type AuditEventCriteria,
+  type DecisionAuditReadPort,
+} from './ports/decision-audit-read.port';
 
+/**
+ * Consultas de auditoría: el módulo piloto de la separación read/write.
+ *
+ * Ya no conoce Prisma. Habla con `DecisionAuditReadPort` y arma la forma de respuesta
+ * (páginas por desplazamiento y por cursor) a partir de las filas que el puerto devuelve.
+ * Qué conexión sirve cada consulta —el mismo pool que la escritura, un pool aparte con el
+ * rol lector o una réplica— lo decide el router, y este archivo no cambia por ello.
+ */
 @Injectable()
 export class AuditQueryService {
   constructor(
-    private readonly prisma: PrismaService,
+    @Inject(DECISION_AUDIT_READ_PORT)
+    private readonly reads: DecisionAuditReadPort,
     private readonly hashes: HashService,
     private readonly config: ConfigService,
   ) {}
 
+  private get maxPageSize(): number {
+    return this.config.get<number>('MAX_PAGE_SIZE') ?? 100;
+  }
+
   async getExecution(tenantId: bigint, executionId: bigint) {
-    const execution = await this.prisma.decisionExecution.findFirst({
-      where: { id: executionId, tenantId },
-      include: {
-        deployment: { include: { environment: true, compiledArtifact: true } },
-        artifactVersion: { include: { artifact: true } },
-        variables: {
-          include: { variableVersion: { include: { definition: true } } },
-        },
-        steps: { include: { node: true }, orderBy: { stepOrder: 'asc' } },
-        reasons: {
-          include: { reasonCode: true, sourceAction: true },
-          orderBy: { priority: 'asc' },
-        },
-        errors: true,
-        manualReview: true,
-      },
-    });
+    const execution = await this.reads.findExecutionById(tenantId, executionId);
     if (!execution) {
       throw new DomainException(
         'EXECUTION_NOT_FOUND',
@@ -47,104 +48,65 @@ export class AuditQueryService {
   }
 
   async searchExecutions(tenantId: bigint, filters: ExecutionSearchQueryDto) {
-    const { skip, take, page, pageSize } = paginationArgs(
-      filters,
-      this.config.get<number>('MAX_PAGE_SIZE') ?? 100,
-    );
-    const where = {
+    const { skip, take, page, pageSize } = paginationArgs(filters, this.maxPageSize);
+    const { items, total } = await this.reads.searchExecutions({
       tenantId,
-      ...(filters.outcome ? { businessOutcome: filters.outcome } : {}),
-      ...(filters.requestId ? { requestId: filters.requestId } : {}),
-      ...(filters.artifactCode
-        ? { artifactVersion: { artifact: { artifactCode: filters.artifactCode } } }
-        : {}),
-      ...(filters.from || filters.to
-        ? {
-            executedAt: {
-              ...(filters.from ? { gte: new Date(filters.from) } : {}),
-              ...(filters.to ? { lte: new Date(filters.to) } : {}),
-            },
-          }
-        : {}),
-    };
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.decisionExecution.findMany({
-        where,
-        include: {
-          artifactVersion: { include: { artifact: true } },
-          deployment: { include: { environment: true } },
-          reasons: { include: { reasonCode: true }, orderBy: { priority: 'asc' } },
-        },
-        orderBy: { executedAt: 'desc' },
-        skip,
-        take,
-      }),
-      this.prisma.decisionExecution.count({ where }),
-    ]);
+      outcome: filters.outcome,
+      requestId: filters.requestId,
+      artifactCode: filters.artifactCode,
+      ...dateRange(filters),
+      skip,
+      take,
+    });
     return pageResult(items, total, page, pageSize);
   }
 
-  /** Shared filter for both the offset and cursor views of the audit log. */
-  private auditEventWhere(
+  /** Filtro compartido por las dos vistas del registro de auditoría. */
+  private auditEventCriteria(
     tenantId: bigint,
     filters: AuditEventSearchQueryDto | AuditEventKeysetQueryDto,
-  ) {
+  ): AuditEventCriteria {
     return {
       tenantId,
-      ...(filters.eventType ? { eventType: filters.eventType } : {}),
-      ...(filters.aggregateType ? { aggregateType: filters.aggregateType } : {}),
-      ...(filters.actorId ? { actorId: filters.actorId } : {}),
-      ...(filters.from || filters.to
-        ? {
-            // DecisionAuditEvent timestamps its rows with occurredAt; there is no
-            // createdAt column, so filtering by from/to used to throw at query time.
-            occurredAt: {
-              ...(filters.from ? { gte: new Date(filters.from) } : {}),
-              ...(filters.to ? { lte: new Date(filters.to) } : {}),
-            },
-          }
-        : {}),
+      eventType: filters.eventType,
+      aggregateType: filters.aggregateType,
+      actorId: filters.actorId,
+      ...dateRange(filters),
     };
   }
 
   async listAuditEvents(tenantId: bigint, filters: AuditEventSearchQueryDto) {
-    const { skip, take, page, pageSize } = paginationArgs(
-      filters,
-      this.config.get<number>('MAX_PAGE_SIZE') ?? 100,
-    );
-    const where = this.auditEventWhere(tenantId, filters);
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.decisionAuditEvent.findMany({ where, orderBy: { id: 'desc' }, skip, take }),
-      this.prisma.decisionAuditEvent.count({ where }),
-    ]);
+    const { skip, take, page, pageSize } = paginationArgs(filters, this.maxPageSize);
+    const { items, total } = await this.reads.listAuditEvents({
+      ...this.auditEventCriteria(tenantId, filters),
+      skip,
+      take,
+    });
     return pageResult(items, total, page, pageSize);
   }
 
   /**
-   * Cursor-paginated view of the same audit log. Seeks by primary key instead of counting
-   * and discarding rows, so latency stays flat however deep the caller walks — and it skips
-   * the `count(*)` that offset paging pays on every page of an ever-growing table.
+   * Vista por cursor del mismo registro. Busca por clave primaria en vez de contar y
+   * descartar filas, así la latencia se mantiene plana por hondo que vaya el llamante —y
+   * se ahorra el `count(*)` que la paginación por desplazamiento paga en cada página de
+   * una tabla que crece sin cota.
    */
   async listAuditEventsByCursor(tenantId: bigint, filters: AuditEventKeysetQueryDto) {
-    const {
-      take,
-      pageSize,
-      orderBy,
-      where: cursorWhere,
-    } = keysetArgs(filters, this.config.get<number>('MAX_PAGE_SIZE') ?? 100);
-    const rows = await this.prisma.decisionAuditEvent.findMany({
-      where: { ...this.auditEventWhere(tenantId, filters), ...cursorWhere },
-      orderBy,
-      take,
+    const pageSize = Math.min(Math.max(1, filters.pageSize || 25), this.maxPageSize);
+    const rows = await this.reads.listAuditEventsByCursor({
+      ...this.auditEventCriteria(tenantId, filters),
+      ...(filters.cursor ? { beforeId: decodeCursor(filters.cursor) } : {}),
+      // Una fila de más es lo que permite saber si existe página siguiente sin contar.
+      take: pageSize + 1,
     });
     return keysetPage(rows, pageSize);
   }
 
   async verifyAuditChain(tenantId: bigint) {
-    // Walk the chain in id-ordered batches with a cursor instead of loading every event into
-    // memory at once. An audit chain grows unbounded, so `findMany` over the whole tenant
-    // would exhaust memory on a large chain (and hands a caller a cheap DoS). Only the
-    // running previousHash and the counters cross a batch boundary.
+    // La cadena se recorre en lotes ordenados por id con un cursor, en vez de cargar cada
+    // evento en memoria. Una cadena de auditoría crece sin cota, así que leerla entera
+    // agotaría la memoria en un tenant grande (y regalaría un DoS barato). Solo el
+    // previousHash en curso y los contadores cruzan el límite de un lote.
     const batchSize = this.config.get<number>('AUDIT_VERIFY_BATCH_SIZE') ?? 500;
     let cursorId = 0n;
     let previousHash: string | null = null;
@@ -152,10 +114,10 @@ export class AuditQueryService {
     const invalid: Array<{ id: string; reason: string }> = [];
 
     for (;;) {
-      const events = await this.prisma.decisionAuditEvent.findMany({
-        where: { tenantId, id: { gt: cursorId } },
-        orderBy: { id: 'asc' },
-        take: batchSize,
+      const events = await this.reads.readAuditChainBatch({
+        tenantId,
+        afterId: cursorId,
+        batchSize,
       });
       if (!events.length) break;
 
@@ -163,9 +125,9 @@ export class AuditQueryService {
         if ((event.previousHash ?? null) !== previousHash) {
           invalid.push({ id: event.id.toString(), reason: 'PREVIOUS_HASH_MISMATCH' });
         }
-        // Prefer the exact canonical string frozen at write time; hashing it is immune to
-        // JSONB number normalization (D-9). Only events written before canonicalPayload
-        // existed fall back to rebuilding the material from columns.
+        // Se prefiere la cadena canónica exacta congelada al escribir; hashearla es inmune
+        // a la normalización de números de JSONB (D-9). Solo los eventos escritos antes de
+        // que existiera canonicalPayload reconstruyen el material desde las columnas.
         const material: string | Record<string, unknown> = event.canonicalPayload ?? {
           tenantId: event.tenantId.toString(),
           eventType: event.eventType,
@@ -177,14 +139,14 @@ export class AuditQueryService {
           previousHash: event.previousHash ?? null,
         };
         try {
-          // Re-sign with the key that produced this event, not the active one: rotating
-          // AUDIT_HASH_SECRET must not invalidate the historical chain.
+          // Se refirma con la clave que produjo este evento, no con la activa: rotar
+          // AUDIT_HASH_SECRET no puede invalidar la cadena histórica.
           if (this.hashes.hmacWithKey(material, event.hashKeyId) !== event.eventHash) {
             invalid.push({ id: event.id.toString(), reason: 'EVENT_HASH_MISMATCH' });
           }
         } catch {
-          // A retired secret that is no longer configured means the event cannot be
-          // verified at all — never report that as valid.
+          // Un secreto retirado que ya no está configurado significa que el evento no se
+          // puede verificar en absoluto — eso jamás se reporta como válido.
           invalid.push({ id: event.id.toString(), reason: 'HASH_KEY_UNAVAILABLE' });
         }
         previousHash = event.eventHash;
@@ -195,46 +157,18 @@ export class AuditQueryService {
       if (events.length < batchSize) break;
     }
 
-    return {
-      valid: invalid.length === 0,
-      eventCount,
-      headHash: previousHash,
-      invalid,
-    };
+    return { valid: invalid.length === 0, eventCount, headHash: previousHash, invalid };
   }
 
   async metrics(tenantId: bigint, artifactCode?: string) {
-    const where = {
-      tenantId,
-      ...(artifactCode ? { artifactVersion: { artifact: { artifactCode } } } : {}),
-    };
-    const [outcomes, statuses, latency, total] = await Promise.all([
-      this.prisma.decisionExecution.groupBy({
-        by: ['businessOutcome'],
-        where,
-        _count: { _all: true },
-      }),
-      this.prisma.decisionExecution.groupBy({
-        by: ['decisionStatus'],
-        where,
-        _count: { _all: true },
-      }),
-      this.prisma.decisionExecution.aggregate({
-        where,
-        _avg: { durationMs: true },
-        _max: { durationMs: true },
-        _min: { durationMs: true },
-      }),
-      this.prisma.decisionExecution.count({ where }),
-    ]);
-    return {
-      total,
-      outcomes: outcomes.map((item) => ({
-        outcome: item.businessOutcome,
-        count: item._count._all,
-      })),
-      statuses: statuses.map((item) => ({ status: item.decisionStatus, count: item._count._all })),
-      latencyMs: latency,
-    };
+    return this.reads.executionMetrics(tenantId, artifactCode);
   }
+}
+
+/** Convierte el rango ISO del DTO en fechas, omitiendo lo que no venga. */
+function dateRange(filters: { from?: string; to?: string }): { from?: Date; to?: Date } {
+  return {
+    ...(filters.from ? { from: new Date(filters.from) } : {}),
+    ...(filters.to ? { to: new Date(filters.to) } : {}),
+  };
 }

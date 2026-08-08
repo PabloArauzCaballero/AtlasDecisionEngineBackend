@@ -3,7 +3,7 @@
 
 # Catálogo de códigos de error
 
-166 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
+191 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
 el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 
 | Código | Mensaje de referencia | Origen |
@@ -18,6 +18,14 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `ARTIFACT_HAS_NO_INPUTS` | La versión no declara variables de entrada, así que no hay valores que generar | `src/modules/qa-lab/qa-lab.service.ts` |
 | `ARTIFACT_NOT_FOUND` | Artifact not found | `src/modules/artifacts/artifact.service.ts` |
 | `AUTH_RATE_LIMIT_EXCEEDED` | Too many failed authentication attempts | `src/common/security/authentication.guard.ts` |
+| `BANK_STATEMENT_FILE_EMPTY` | El archivo recibido está vacío. | `src/modules/workers/bank-statement/bank-statement-input.ts` |
+| `BANK_STATEMENT_FILE_NAME_INVALID` | El nombre del archivo contiene caracteres no permitidos. | `src/modules/workers/bank-statement/bank-statement-input.ts` |
+| `BANK_STATEMENT_FILE_NOT_PDF` | El archivo no es un PDF. Se comprueba su contenido, no su extensión. | `src/modules/workers/bank-statement/bank-statement-input.ts` |
+| `BANK_STATEMENT_FILE_REQUIRED` | Se requiere un archivo PDF del extracto. | `src/modules/workers/bank-statement/bank-statement-input.ts` |
+| `BANK_STATEMENT_FILE_TOO_LARGE` | El archivo supera el máximo permitido de ${Math.floor(maxBytes / 1_048_576)} MiB. | `src/modules/workers/bank-statement/bank-statement-input.ts` |
+| `BANK_STATEMENT_RESULT_NOT_READY` | — | `src/modules/workers/bank-statement/bank-statement.controller.ts` |
+| `BANK_STATEMENT_RUN_NOT_CANCELLABLE` | — | `src/modules/workers/bank-statement/bank-statement.service.ts` |
+| `BANK_STATEMENT_RUN_NOT_FOUND` | No existe esa ejecución. | `src/modules/workers/bank-statement/bank-statement.service.ts` |
 | `BASELINE_COMPARISON_NOT_SUPPORTED` | Baseline comparison is not available; omit baselineCompiledArtifactId and use explicit expected results | `src/modules/testing/test-execution.service.ts` |
 | `BLOCKING_TESTS_NOT_PASSED` | Blocking tests and minimum coverage must pass before review | `src/modules/governance/governance.service.ts` |
 | `CALCULATED_FIELD_ARGUMENT_INVALID` | ${operation} espera un número y recibió ${describe(value)} | `src/modules/calculated-fields/operation-evaluator.ts` |
@@ -139,6 +147,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `REFERENCE_VERSION_POLICY_FORBIDDEN` | En PROD la referencia debe fijar una versión exacta: resolver la activa del ambiente haría la decisión irreproducible | `src/modules/nested-trees/nested-tree.service.ts` |
 | `REQUEST_TIMEOUT` | Request exceeded ${this.timeoutMs} ms | `src/common/observability/request-timeout.interceptor.ts` |
 | `REQUIRED_OUTPUT_MISSING` | Execution finished without required output ${contract.code} | `src/modules/graph/execution-engine.service.ts` |
+| `RESOURCE_ALREADY_EXISTS` | Ya existe un registro con ese identificador único | `src/common/errors/domain-exception.filter.ts` |
 | `RESULT_MODE_INVALID` | Unsupported RESULT mode ${mode} | `src/modules/graph/execution-engine.service.ts` |
 | `RESULT_SCRIPT_LANGUAGE_INVALID` | Unsupported RESULT script language ${language} | `src/modules/graph/execution-engine.service.ts` |
 | `ROLLBACK_TARGET_NOT_FOUND` | No previous deployment is available | `src/modules/deployments/deployment.service.ts` |
@@ -152,6 +161,11 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `SCRIPT_RUNNER_UNAVAILABLE` | Could not reach the isolated script runner: ${error.message} | `src/modules/graph/script-node-runner.service.ts` |
 | `SCRIPT_SOURCE_TOO_LARGE` | Script exceeds ${this.maxSourceBytes} bytes | `src/modules/graph/script-node-runner.service.ts` |
 | `SELF_REFERENCE_FORBIDDEN` | An artifact cannot directly reference itself | `src/modules/nested-trees/nested-tree.service.ts` |
+| `SEMANTIC_INPUT_AMBIGUOUS` | Indica un texto o un escenario de prueba, no ambos. | `src/modules/workers/semantic-analysis/semantic-analysis.controller.ts` |
+| `SEMANTIC_RUN_NOT_CANCELLABLE` | — | `src/modules/workers/semantic-analysis/semantic-analysis.service.ts` |
+| `SEMANTIC_RUN_NOT_FOUND` | No existe ese análisis. | `src/modules/workers/semantic-analysis/semantic-analysis.service.ts` |
+| `SEMANTIC_TEXT_EMPTY` | El texto a analizar está vacío. | `src/modules/workers/semantic-analysis/semantic-analysis.service.ts` |
+| `SEMANTIC_TEXT_TOO_LONG` | El texto supera el máximo de ${maxLength} caracteres. | `src/modules/workers/semantic-analysis/semantic-analysis.service.ts` |
 | `SEPARATION_OF_DUTIES_VIOLATION` | The version author cannot deploy the same version alone | `src/modules/deployments/deployment.service.ts` |
 | `SERVICE_NOT_READY` | One or more required dependencies are unavailable | `src/modules/health/health.controller.ts` |
 | `SIMULATION_PROD_FORBIDDEN` | El simulador no opera sobre PROD, tampoco para generar valores de prueba | `src/modules/runtime/sample-input.service.ts` |
@@ -174,4 +188,15 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `VERSION_NOT_FOUND` | Artifact version not found | `src/modules/artifacts/artifact-graph-reader.service.ts` |
 | `VERSION_NOT_REVIEWABLE` | Version must be COMPILED before review | `src/modules/governance/governance.service.ts` |
 | `VERSION_NOT_VALIDATABLE` | Version in state ${version.status} cannot be validated | `src/modules/artifacts/artifact-lifecycle.service.ts` |
+| `WORKER_ARGUMENT_INVALID` | El documento que el nodo ${request.nodeKey} envía no es base64 válido | `src/modules/workers/worker-service-invoker.service.ts` |
+| `WORKER_ARGUMENT_MISSING` | El nodo ${request.nodeKey} llama a semantic-analysis.classify sin el argumento text | `src/modules/workers/worker-service-invoker.service.ts` |
+| `WORKER_ARGUMENT_TOO_LONG` | El texto que el nodo ${request.nodeKey} envía a clasificar supera los ${maxLength} caracteres | `src/modules/workers/worker-service-invoker.service.ts` |
+| `WORKER_FIXTURES_DISABLED` | Los escenarios de prueba están deshabilitados en este entorno. | `src/modules/workers/bank-statement/bank-statement.controller.ts` |
+| `WORKER_FIXTURE_NOT_FOUND` | No existe ese escenario de prueba. | `src/modules/workers/bank-statement/bank-statement.controller.ts` |
+| `WORKER_NOT_FOUND` | Este motor no publica ningún worker con ese código. | `src/modules/workers/workers.controller.ts` |
+| `WORKER_SERVICE_FAILED` | La llamada del nodo ${request.nodeKey} a ${request.service}.${request.operation} falló: | `src/modules/workers/worker-service-invoker.service.ts` |
+| `WORKER_SERVICE_NOT_CONFIGURED` | El nodo ${node.key} llama al servicio ${call.service}, pero esta ejecución no recibió un invocador de servicios | `src/modules/graph/execution-engine.service.ts` |
+| `WORKER_SERVICE_TIMEOUT` | La llamada del nodo ${request.nodeKey} a ${request.service}.${request.operation} superó ${timeoutMs} ms | `src/modules/workers/worker-service-invoker.service.ts` |
+| `WORKER_SERVICE_UNAVAILABLE` | El nodo ${nodeKey} llama al servicio ${service}, que no está habilitado en este despliegue | `src/modules/workers/worker-service-invoker.service.ts` |
+| `WORKER_SERVICE_UNKNOWN` | El nodo ${request.nodeKey} invoca ${key}, que este motor no sabe ejecutar | `src/modules/workers/worker-service-invoker.service.ts` |
 

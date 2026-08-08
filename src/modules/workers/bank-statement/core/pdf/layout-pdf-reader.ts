@@ -60,6 +60,29 @@ export function applyTransform(
   return [a * x + c * y + e, b * x + d * y + f];
 }
 
+/**
+ * Mensaje de un fallo que puede no ser un `Error` de ESTE realm.
+ *
+ * `instanceof Error` es falso para lo que cruza una frontera de contexto: la
+ * máquina virtual de Jest, un worker thread, el cargador ESM. `pdfjs` se carga
+ * precisamente con un `import()` dinámico, así que sus errores llegan por ahí y
+ * la comprobación fallaba, dejando `reason: 'Error desconocido'`.
+ *
+ * Eso no es un detalle cosmético: el motivo real —«falta --experimental-vm-modules»,
+ * «PDF cifrado», «memoria agotada»— es lo único que distingue un documento malo
+ * de un entorno mal montado, y sin él `PDF_EXTRACTION_FAILED` culpa siempre al
+ * documento. Se lee el `message` por forma, no por linaje.
+ */
+function errorMessage(error: unknown): string {
+  if (typeof error === 'string') return error;
+  const message = (error as { message?: unknown } | null)?.message;
+  if (typeof message === 'string' && message.trim()) {
+    const name = (error as { name?: unknown }).name;
+    return typeof name === 'string' && name.trim() ? `${name}: ${message}` : message;
+  }
+  return 'Error desconocido';
+}
+
 function toPdfTextItem(value: unknown): PdfTextItem | undefined {
   if (!value || typeof value !== 'object') return undefined;
   const candidate = value as {
@@ -118,7 +141,7 @@ export class LayoutPdfReader {
           422,
         );
       }
-      const message = error instanceof Error ? error.message : 'Error desconocido';
+      const message = errorMessage(error);
       if (/password|encrypted/i.test(message)) {
         throw new StatementProcessingError(
           'ENCRYPTED_PDF',

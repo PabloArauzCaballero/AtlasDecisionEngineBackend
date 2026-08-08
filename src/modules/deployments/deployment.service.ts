@@ -3,6 +3,8 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DeploymentStatus, Prisma, VersionStatus } from '@prisma/client';
 import { AuditService } from '../../common/audit/audit.service';
+import { OutboxPublisherService } from '../../common/events/outbox-publisher.service';
+import { DecisionEventType, type VersionPublishedPayload } from '../../common/events/event-types';
 import { DomainException } from '../../common/errors/domain-exception';
 import { parseBigIntId } from '../../common/http/id';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -27,6 +29,7 @@ export class DeploymentService {
     private readonly states: VersionStateService,
     private readonly resolver: DeploymentResolverService,
     private readonly audit: AuditService,
+    private readonly outbox: OutboxPublisherService,
     private readonly config: ConfigService,
   ) {}
 
@@ -184,6 +187,30 @@ export class DeploymentService {
         },
         tx,
       );
+      // `version.published` es el evento de DOMINIO de la publicación, distinto del apunte
+      // de auditoría de arriba: aquél describe la fila de despliegue creada, éste describe
+      // que una versión pasó a atender tráfico.
+      //
+      // Va al OUTBOX, no al registro de auditoría, porque su destinatario es el relay: el
+      // proyector de notificaciones escucha ahí para avisar a operaciones. Su rama existía
+      // y nunca se ejecutaba —nadie emitía el evento—, así que el aviso "versión publicada"
+      // no llegaba a nadie. En la misma transacción que el despliegue: no puede haber
+      // publicación sin evento ni evento sin publicación.
+      await this.outbox.publish(tx, {
+        eventType: DecisionEventType.VERSION_PUBLISHED,
+        tenantId,
+        aggregateType: 'DecisionArtifactVersion',
+        aggregateId: version.id.toString(),
+        actorId: principal.id,
+        correlationId: principal.requestId,
+        payload: {
+          versionId: version.id.toString(),
+          artifactCode: version.artifact.artifactCode,
+          versionNumber: version.versionNumber,
+          deploymentId: created.id.toString(),
+          environmentCode: environment.code,
+        } satisfies VersionPublishedPayload,
+      });
       return created;
     });
     // Cache invalidation stays outside the transaction: it is not rollback-able, so it must

@@ -2,6 +2,7 @@ import { Injectable, LoggerService, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import pino, { type Logger as PinoLogger } from 'pino';
 import { RequestContextService } from '../context/request-context.service';
+import { readActiveTraceIds } from './trace-context.service';
 
 const LEVEL_WEIGHT: Record<string, number> = {
   error: 0,
@@ -168,9 +169,18 @@ export class StructuredLoggerService implements LoggerService, OnModuleDestroy {
     if (LEVEL_WEIGHT[level] > LEVEL_WEIGHT[this.configuredLevel]) return;
     const store = this.context.get();
     const contextName = [...optionalParams].reverse().find((value) => typeof value === 'string');
-    const error = optionalParams.find((value) => value instanceof Error) as Error | undefined;
+    const error = optionalParams.find((value) => value instanceof Error);
+    // Los identificadores salen del contexto ACTIVO de OpenTelemetry, nunca de una cabecera
+    // del cliente: sólo así el trace_id de un log es el mismo que existe en Jaeger. Sin span
+    // activo los campos se omiten en vez de escribirse vacíos — un identificador inventado
+    // manda a soporte a buscar una traza que nunca estuvo. Esto NO duplica ninguna línea:
+    // es el mismo registro, con tres campos más.
+    const { traceId, spanId, traceFlags } = readActiveTraceIds();
     const record = {
       requestId: store?.requestId,
+      trace_id: traceId,
+      span_id: spanId,
+      trace_flags: traceFlags,
       tenantId: store?.tenantId,
       principalId: store?.principalId,
       audience: store?.audience,

@@ -158,7 +158,11 @@ export class CacheService implements OnModuleDestroy {
       try {
         await this.ensureConnected();
         const response = await this.redis.ping();
-        if (response !== 'PONG') throw new Error(`Unexpected Redis PING response: ${response}`);
+        // `String(...)`: el tipo declara `'PONG'`, así que aquí el compilador ya cree que
+        // `response` es `never`. La comprobación existe precisamente porque el tipo es una
+        // promesa del driver, no una garantía del servidor que hay al otro lado.
+        if (response !== 'PONG')
+          throw new Error(`Unexpected Redis PING response: ${String(response)}`);
         return 'redis';
       } catch (error) {
         this.handleRedisFailure(error);

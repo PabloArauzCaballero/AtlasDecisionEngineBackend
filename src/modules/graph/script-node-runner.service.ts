@@ -140,8 +140,7 @@ export class ScriptNodeRunnerService {
 
   constructor(config: ConfigService) {
     this.enabled = config.get<boolean>('SCRIPT_NODES_ENABLED') ?? false;
-    this.mode = (config.get<ScriptRunnerMode>('SCRIPT_RUNNER_MODE') ??
-      'IN_PROCESS') as ScriptRunnerMode;
+    this.mode = config.get<ScriptRunnerMode>('SCRIPT_RUNNER_MODE') ?? 'IN_PROCESS';
     this.isProduction = config.get<string>('NODE_ENV') === 'production';
     this.socketPath =
       config.get<string>('SCRIPT_RUNNER_SOCKET_PATH') ?? '/var/run/atlas-runner/runner.sock';
