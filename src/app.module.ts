@@ -24,6 +24,7 @@ import { HealthModule } from './modules/health/health.module';
 import { LibraryModule } from './modules/libraries/library.module';
 import { LiveExecutionModule } from './modules/live-execution/live-execution.module';
 import { ManualReviewModule } from './modules/manual-review/manual-review.module';
+import { ModelMonitoringModule } from './modules/model-monitoring/model-monitoring.module';
 import { NestedTreesModule } from './modules/nested-trees/nested-trees.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { OutboxRelayModule } from './modules/outbox-relay/outbox-relay.module';
@@ -80,6 +81,7 @@ import { IdentitySessionModule } from './modules/identity-session/identity-sessi
     LiveExecutionModule,
     ManualReviewModule,
     DataSubjectModule,
+    ModelMonitoringModule,
     NotificationsModule,
     OutboxRelayModule,
     AuditQueryModule,

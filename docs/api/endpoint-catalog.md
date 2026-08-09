@@ -3,7 +3,7 @@
 
 # Catálogo de endpoints
 
-Contrato **v1** · 113 rutas · 127 operaciones.
+Contrato **v1** · 118 rutas · 132 operaciones.
 
 La referencia interactiva completa —con esquemas, ejemplos y la posibilidad de probar cada
 llamada— está en `/docs/{API_VERSION}/reference` del propio backend. Esta página existe para
@@ -172,6 +172,16 @@ Cola de casos derivados a revisión humana y su resolución.
 | `GET` | `/v1/manual-reviews/{caseId}` | `manualReviewGet` | Get one manual-review case and decision context |
 | `POST` | `/v1/manual-reviews/{caseId}/assign` | `manualReviewAssign` | Assign an open case to an analyst |
 | `POST` | `/v1/manual-reviews/{caseId}/resolve` | `manualReviewResolve` | Resolve a case as its assigned analyst |
+
+## Model Monitoring
+
+| Método | Ruta | Operación | Resumen |
+| --- | --- | --- | --- |
+| `POST` | `/v1/model-monitoring/adverse-impact` | `modelMonitoringAdverseImpact` | Adverse impact ratio per group (four-fifths rule) |
+| `POST` | `/v1/model-monitoring/attributes` | `modelMonitoringRecordAttributes` | Record monitoring-only demographic attributes for bias testing |
+| `POST` | `/v1/model-monitoring/outcomes` | `modelMonitoringRecordOutcomes` | Record the realized outcome of decisions already taken |
+| `POST` | `/v1/model-monitoring/performance` | `modelMonitoringPerformance` | Outcome analysis: realized rates against the decisions taken |
+| `POST` | `/v1/model-monitoring/stability` | `modelMonitoringStability` | Population stability index between a reference and current window |
 
 ## Nested Decision Trees
 

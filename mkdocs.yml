@@ -138,6 +138,7 @@ nav:
       - Orquestación de trabajos de fondo: worker-orchestration.md
       - Workers adicionales: workers/additional-workers-architecture.md
       - Nodos que llaman a un worker: workers/worker-service-nodes.md
+      - Monitoreo continuo del modelo: model-monitoring.md
       - Mapa de integraciones: architecture/integration-map.md
   - Módulos:
       - Índice: modules/index.md

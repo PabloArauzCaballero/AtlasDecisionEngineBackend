@@ -145,6 +145,25 @@ enum ProcessingLegalBasis {
   HEALTH_PROTECTION
 }
 
+/// Etiqueta del resultado REAL de una decisión, observado tiempo después de tomarla.
+///
+/// Es la pieza sin la cual no existe *outcome analysis* (SR 11-7 §V; CMN 4.557 art. 40): el
+/// motor sabe qué decidió, y hasta ahora nadie le contaba nunca si acertó.
+enum ObservedOutcomeLabel {
+  /// El crédito se comportó como se esperaba de una aprobación.
+  GOOD
+  /// Incumplimiento, fraude confirmado o pérdida: la aprobación fue un error.
+  BAD
+  /// Rechazado y, por evidencia posterior, se habría comportado bien. Alimenta el coste de
+  /// oportunidad, que es la mitad del análisis que casi nadie mide.
+  REJECTED_WOULD_HAVE_BEEN_GOOD
+  /// Rechazado y la evidencia posterior confirma que fue correcto.
+  REJECTED_CONFIRMED_BAD
+  /// Sin desenlace todavía, o no observable. Se registra igual para distinguir «no se sabe»
+  /// de «nadie lo miró».
+  INDETERMINATE
+}
+
 /// Tipo de solicitud de un titular de datos (LGPD art. 18; CCPA/CPRA §1798.100 y ss.).
 enum DataSubjectRequestType {
   /// Confirmación y acceso a las decisiones tomadas sobre el titular (art. 18 I y II).
@@ -946,6 +965,8 @@ model DecisionExecution {
   reasons         DecisionExecutionReason[]
   errors          DecisionExecutionError[]
   manualReview    DecisionManualReviewCase?
+  outcomeObservations  DecisionOutcomeObservation[]
+  monitoringAttributes DecisionMonitoringAttribute[]
 
   @@unique([tenantId, requestId])
   @@index([tenantId, executedAt])
@@ -954,6 +975,71 @@ model DecisionExecution {
   /// recorrer la tabla entera. La columna se escribía desde el principio y no la leía nadie.
   @@index([tenantId, subjectReferenceHash])
   @@map("decision_execution")
+}
+
+/// Resultado REAL de una decisión, observado meses después de tomarla.
+///
+/// Sin esta tabla el sistema no podía responder a la única pregunta que valida un modelo:
+/// ¿acertó? Se registra por separado y no como columna de la ejecución porque llega mucho
+/// más tarde, puede corregirse cuando la evidencia cambia, y la ejecución es evidencia
+/// regulatoria que no conviene reescribir.
+///
+/// `@@unique` por ejecución y ventana: se admite observar el mismo caso a 30, 90 y 180 días
+/// —el comportamiento de un crédito depende del plazo— pero no dos veces la misma ventana.
+model DecisionOutcomeObservation {
+  id          BigInt               @id @default(autoincrement())
+  tenantId    BigInt               @map("tenant_id")
+  executionId BigInt               @map("execution_id")
+  /// Días transcurridos desde la decisión. Es parte de la identidad de la observación.
+  windowDays  Int                  @map("window_days")
+  label       ObservedOutcomeLabel
+  /// Magnitud asociada, cuando la hay: importe perdido, días de mora. Sin unidad impuesta.
+  amount      Decimal?             @db.Decimal(18, 4)
+  /// De dónde salió: sistema de cobranza, confirmación de fraude, carga manual.
+  source      String               @db.VarChar(120)
+  notes       String?              @db.Text
+  observedAt  DateTime             @default(now()) @map("observed_at") @db.Timestamptz(6)
+  recordedBy  String               @map("recorded_by") @db.VarChar(160)
+
+  execution DecisionExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@unique([executionId, windowDays])
+  @@index([tenantId, observedAt])
+  @@map("decision_outcome_observation")
+}
+
+/// Atributo de un solicitante conservado **solo para medir sesgo**, nunca para decidir.
+///
+/// Aquí vive una tensión real y conocida: para comprobar que un modelo no discrimina hay que
+/// saber a qué grupo pertenece cada solicitante, y ese es justamente el dato que ECOA prohíbe
+/// usar al decidir. La respuesta no es renunciar a medir —un modelo que nadie audita por
+/// sesgo es peor— sino separar los dos caminos de forma que no puedan tocarse:
+///
+///  - se escribe por su propio endpoint, DESPUÉS de la decisión;
+///  - no cuelga del catálogo de variables, así que no puede aparecer en un contrato de
+///    entrada ni resolverse en una ejecución;
+///  - el motor nunca lee esta tabla: no hay relación desde el contexto de ejecución hacia
+///    aquí, solo desde el análisis de sesgo.
+///
+/// Es el mismo criterio con el que Regulation B admite el autoexamen: recoger el dato para
+/// comprobarse a uno mismo no es usarlo para decidir.
+model DecisionMonitoringAttribute {
+  id          BigInt   @id @default(autoincrement())
+  tenantId    BigInt   @map("tenant_id")
+  executionId BigInt   @map("execution_id")
+  /// Grupo bajo examen: `AGE_BAND`, `GENDER`, `REGION`. Lo define quien audita, no el motor.
+  attribute   String   @db.VarChar(80)
+  /// Valor del grupo, ya agrupado. Bandas, no valores exactos: para medir sesgo basta el
+  /// grupo, y guardar el dato exacto sería retener más de lo necesario.
+  groupValue  String   @map("group_value") @db.VarChar(80)
+  recordedAt  DateTime @default(now()) @map("recorded_at") @db.Timestamptz(6)
+  recordedBy  String   @map("recorded_by") @db.VarChar(160)
+
+  execution DecisionExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@unique([executionId, attribute])
+  @@index([tenantId, attribute, recordedAt])
+  @@map("decision_monitoring_attribute")
 }
 
 /// Constancia de una solicitud de titular de datos.

@@ -3,7 +3,7 @@
 
 # Catálogo de códigos de error
 
-192 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
+194 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
 el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 
 | Código | Mensaje de referencia | Origen |
@@ -115,6 +115,8 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `MANUAL_REVIEW_NOT_FOUND` | Manual review case not found | `src/modules/manual-review/manual-review.service.ts` |
 | `MAX_EXECUTION_STEPS_EXCEEDED` | Execution exceeded ${this.maxSteps} steps | `src/modules/graph/execution-engine.service.ts` |
 | `METRICS_DISABLED` | Metrics endpoint is disabled | `src/common/observability/metrics.controller.ts` |
+| `MONITORING_BATCH_EMPTY` | El lote de ${field} está vacío | `src/modules/model-monitoring/model-monitoring.service.ts` |
+| `MONITORING_BATCH_TOO_LARGE` | Un lote admite como máximo ${MAX_BATCH} ${field}; divídalo | `src/modules/model-monitoring/model-monitoring.service.ts` |
 | `NESTED_EXECUTION_FAILED` | — | `src/modules/nested-trees/nested-tree-execution.service.ts` |
 | `NESTED_EXECUTION_TIMEOUT` | Nested artifact execution exceeded ${timeoutMs}ms | `src/modules/nested-trees/nested-tree-execution.service.ts` |
 | `NESTED_REFERENCE_NOT_CONFIGURED` | RESULT node ${node.key} invokes a nested artifact reference, but no reference resolver was supplied to this execution | `src/modules/graph/execution-engine.service.ts` |

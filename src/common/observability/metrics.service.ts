@@ -117,6 +117,44 @@ export class MetricsService {
   });
 
   /**
+   * Desenlaces reales registrados, por etiqueta.
+   *
+   * Es la única métrica que dice si el lazo de retroalimentación está VIVO: un contador que
+   * deja de crecer significa que nadie está observando resultados, y entonces todo lo demás
+   * —tasa de malos, discriminación— describe una foto cada vez más vieja.
+   */
+  private readonly observedOutcomes = new Counter({
+    name: 'atlas_model_observed_outcomes_total',
+    help: 'Desenlaces reales de decisiones registrados, por etiqueta.',
+    labelNames: ['label'],
+    registers: [this.registry],
+  });
+
+  /** Tasa de malos sobre los aprobados con desenlace conocido, por versión de artefacto. */
+  private readonly modelBadRate = new Gauge({
+    name: 'atlas_model_bad_rate',
+    help: 'Proporción de aprobaciones que salieron mal, por versión.',
+    labelNames: ['artifact_version_id'],
+    registers: [this.registry],
+  });
+
+  /** Estabilidad poblacional por versión y variable; ≥ 0.25 es el corte de «inestable». */
+  private readonly modelPsi = new Gauge({
+    name: 'atlas_model_population_stability_index',
+    help: 'Índice de estabilidad poblacional entre la ventana de referencia y la actual.',
+    labelNames: ['artifact_version_id', 'variable_code'],
+    registers: [this.registry],
+  });
+
+  /** Razón de impacto adverso por grupo; por debajo de 0.8 exige explicación (regla de 4/5). */
+  private readonly adverseImpactRatio = new Gauge({
+    name: 'atlas_model_adverse_impact_ratio',
+    help: 'Tasa de aprobación de un grupo dividida por la del grupo de referencia.',
+    labelNames: ['artifact_version_id', 'attribute', 'group_value'],
+    registers: [this.registry],
+  });
+
+  /**
    * Reservas de idempotencia que otra petición reclamó mientras su titular seguía ejecutando.
    * Cualquier valor distinto de cero significa que hay decisiones tardando más que
    * `IDEMPOTENCY_LEASE_SECONDS`: la respuesta no se cachea y el reintento vuelve a ejecutar.
@@ -374,6 +412,30 @@ export class MetricsService {
 
   recordMissingRequiredOutput(artifactCode: string): void {
     this.missingRequiredOutputs.inc({ artifact_code: artifactCode || 'UNKNOWN' });
+  }
+
+  recordObservedOutcome(label: string): void {
+    this.observedOutcomes.inc({ label: label || 'UNKNOWN' });
+  }
+
+  setModelBadRate(artifactVersionId: string, rate: number): void {
+    this.modelBadRate.set({ artifact_version_id: artifactVersionId }, rate);
+  }
+
+  setModelPsi(artifactVersionId: string, variableCode: string, psi: number): void {
+    this.modelPsi.set({ artifact_version_id: artifactVersionId, variable_code: variableCode }, psi);
+  }
+
+  setAdverseImpactRatio(
+    artifactVersionId: string,
+    attribute: string,
+    groupValue: string,
+    ratio: number,
+  ): void {
+    this.adverseImpactRatio.set(
+      { artifact_version_id: artifactVersionId, attribute, group_value: groupValue },
+      ratio,
+    );
   }
 
   recordIdempotencyLeaseLost(): void {

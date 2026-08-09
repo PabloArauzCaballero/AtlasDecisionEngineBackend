@@ -70,12 +70,28 @@ una prueba desaparece, la fila queda sin respaldo y eso se ve.
 | Solo se despliega lo aprobado | SR 11-7; CMN 4.557 | `GovernanceService.assertApproved` antes de cualquier despliegue | `test/governance-approval-guards.spec.ts` |
 | Reversión a la versión anterior | CMN 4.557 art. 40 | `DeploymentService.rollback` con bloqueo por artefacto y ambiente | `test/deployment-invariants.integration.spec.ts` |
 
-!!! danger "Hueco conocido: monitoreo continuo del modelo"
-    SR 11-7 exige *ongoing monitoring* y *outcome analysis*, y CMN 4.557 lo equivalente. Hoy
-    existe el conteo de resultados (`atlas_decisions_total`) pero **no** backtesting contra
-    resultados reales, deriva poblacional, champion/challenger ni pruebas de impacto dispar
-    —estas últimas, esperables bajo ECOA—. Está identificado y sin implementar; no lo dé por
-    cubierto.
+## Monitoreo continuo del modelo
+
+| Control | Marco | Implementación | Prueba |
+| --- | --- | --- | --- |
+| Captura del resultado real de cada decisión | SR 11-7 §V; CMN 4.557 art. 40 | `decision_outcome_observation`, por (ejecución, ventana); ver [monitoreo](../model-monitoring.md) | `test/model-monitoring.spec.ts` |
+| Análisis de desenlace: tasas reales contra lo decidido | SR 11-7 §V | `summarizePerformance` — `INDETERMINATE` no entra en ningún denominador | `test/monitoring-analytics.spec.ts` |
+| Rechazos que se habrían comportado bien | SR 11-7 (coste de oportunidad) | `falseDeclineRate` | `test/monitoring-analytics.spec.ts` |
+| Deriva poblacional entre ventanas | SR 11-7 §V; CMN 4.557 | `populationStabilityIndex`, con piso mínimo para no divergir en `ln(0)` | `test/monitoring-analytics.spec.ts` |
+| Prueba de impacto dispar (regla de 4/5) | ECOA / Reg B (autoexamen) | `adverseImpactRatios`, con muestra mínima de 30 por grupo | `test/monitoring-analytics.spec.ts` |
+| El atributo demográfico no puede llegar a la decisión | ECOA §1002.6(b)(9) | Tabla propia, escrita **después** de decidir y solo por `COMPLIANCE`; el motor no la lee | `test/model-monitoring.spec.ts` |
+| Comparación entre versiones desplegadas | SR 11-7 §V | `performance` es por versión; el reparto de tráfico ya existe en el despliegue | `test/deployment-invariants.integration.spec.ts` |
+
+!!! warning "Qué NO afirma este bloque"
+    La razón de impacto adverso es un **tamiz**, no una conclusión de discriminación: una razón
+    baja puede tener explicación legítima de negocio, y lo que obliga es a buscarla y
+    documentarla. Y `discrimination` no es KS ni AUC — sirve para ver una tendencia, no para
+    publicarse como poder discriminante.
+
+    Sigue sin cubrirse, a conciencia: el **reentrenamiento automático**, porque en un motor
+    gobernado un modelo nuevo pasa por la puerta de aprobación como cualquier cambio; y las
+    **reglas de alerta** sobre estos umbrales, que viven en el sistema de observabilidad y no
+    en este repositorio.
 
 ## Evidencia e integridad
 

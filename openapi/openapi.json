@@ -5383,6 +5383,241 @@
         ]
       }
     },
+    "/v1/model-monitoring/outcomes": {
+      "post": {
+        "operationId": "modelMonitoringRecordOutcomes",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordOutcomeBatchDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Desenlaces registrados.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonitoringWriteResultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Record the realized outcome of decisions already taken",
+        "tags": [
+          "Model Monitoring"
+        ]
+      }
+    },
+    "/v1/model-monitoring/attributes": {
+      "post": {
+        "operationId": "modelMonitoringRecordAttributes",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordMonitoringAttributeBatchDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Atributos registrados.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonitoringWriteResultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Record monitoring-only demographic attributes for bias testing",
+        "tags": [
+          "Model Monitoring"
+        ]
+      }
+    },
+    "/v1/model-monitoring/performance": {
+      "post": {
+        "operationId": "modelMonitoringPerformance",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MonitoringWindowQueryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Desempeño observado de la versión.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerformanceReportDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Outcome analysis: realized rates against the decisions taken",
+        "tags": [
+          "Model Monitoring"
+        ]
+      }
+    },
+    "/v1/model-monitoring/stability": {
+      "post": {
+        "operationId": "modelMonitoringStability",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StabilityQueryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Estabilidad poblacional.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StabilityReportDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Population stability index between a reference and current window",
+        "tags": [
+          "Model Monitoring"
+        ]
+      }
+    },
+    "/v1/model-monitoring/adverse-impact": {
+      "post": {
+        "operationId": "modelMonitoringAdverseImpact",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdverseImpactQueryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Razones de impacto adverso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdverseImpactReportDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Adverse impact ratio per group (four-fifths rule)",
+        "tags": [
+          "Model Monitoring"
+        ]
+      }
+    },
     "/v1/notifications": {
       "get": {
         "operationId": "notificationList",
@@ -6949,6 +7184,9 @@
     {
       "name": "Manual Review",
       "description": "Cola de casos derivados a revisión humana y su resolución."
+    },
+    {
+      "name": "Model Monitoring"
     },
     {
       "name": "Nested Decision Trees",
@@ -16433,6 +16671,429 @@
         "required": [
           "total",
           "items"
+        ]
+      },
+      "RecordOutcomeDto": {
+        "type": "object",
+        "properties": {
+          "executionId": {
+            "type": "string",
+            "example": "88001"
+          },
+          "windowDays": {
+            "type": "number",
+            "minimum": 1,
+            "example": 90,
+            "description": "Días desde la decisión. Forma parte de la identidad de la observación."
+          },
+          "label": {
+            "enum": [
+              "GOOD",
+              "BAD",
+              "REJECTED_WOULD_HAVE_BEEN_GOOD",
+              "REJECTED_CONFIRMED_BAD",
+              "INDETERMINATE"
+            ],
+            "type": "string"
+          },
+          "amount": {
+            "type": "number",
+            "example": 12500.5,
+            "description": "Importe perdido o días de mora."
+          },
+          "source": {
+            "type": "string",
+            "maxLength": 120,
+            "example": "COLLECTIONS_SYSTEM"
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 4000
+          }
+        },
+        "required": [
+          "executionId",
+          "windowDays",
+          "label",
+          "source"
+        ]
+      },
+      "RecordOutcomeBatchDto": {
+        "type": "object",
+        "properties": {
+          "observations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecordOutcomeDto"
+            }
+          }
+        },
+        "required": [
+          "observations"
+        ]
+      },
+      "MonitoringWriteResultDto": {
+        "type": "object",
+        "properties": {
+          "recorded": {
+            "type": "number",
+            "example": 250
+          }
+        },
+        "required": [
+          "recorded"
+        ]
+      },
+      "RecordMonitoringAttributeDto": {
+        "type": "object",
+        "properties": {
+          "executionId": {
+            "type": "string",
+            "example": "88001"
+          },
+          "attribute": {
+            "type": "string",
+            "maxLength": 80,
+            "example": "AGE_BAND",
+            "description": "Grupo bajo examen. Lo define quien audita."
+          },
+          "groupValue": {
+            "type": "string",
+            "maxLength": 80,
+            "example": "60+",
+            "description": "Valor YA AGRUPADO. Bandas, no valores exactos: para medir sesgo basta el grupo."
+          }
+        },
+        "required": [
+          "executionId",
+          "attribute",
+          "groupValue"
+        ]
+      },
+      "RecordMonitoringAttributeBatchDto": {
+        "type": "object",
+        "properties": {
+          "attributes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecordMonitoringAttributeDto"
+            }
+          }
+        },
+        "required": [
+          "attributes"
+        ]
+      },
+      "MonitoringWindowQueryDto": {
+        "type": "object",
+        "properties": {
+          "artifactVersionId": {
+            "type": "string",
+            "example": "4001"
+          },
+          "from": {
+            "type": "string",
+            "example": "2026-01-01T00:00:00.000Z"
+          },
+          "to": {
+            "type": "string",
+            "example": "2026-06-30T23:59:59.000Z"
+          }
+        },
+        "required": [
+          "artifactVersionId"
+        ]
+      },
+      "PerformanceReportDto": {
+        "type": "object",
+        "properties": {
+          "artifactVersionId": {
+            "type": "string",
+            "example": "4001"
+          },
+          "observed": {
+            "type": "number",
+            "example": 1200
+          },
+          "conclusive": {
+            "type": "number",
+            "example": 940,
+            "description": "Con desenlace conocido. Es el denominador de todo lo demás."
+          },
+          "approved": {
+            "type": "number",
+            "example": 700
+          },
+          "declined": {
+            "type": "number",
+            "example": 240
+          },
+          "badRate": {
+            "type": "number",
+            "nullable": true,
+            "example": 0.042,
+            "description": "Aprobados que salieron mal."
+          },
+          "goodRate": {
+            "type": "number",
+            "nullable": true,
+            "example": 0.958
+          },
+          "falseDeclineRate": {
+            "type": "number",
+            "nullable": true,
+            "example": 0.11,
+            "description": "Rechazados que se habrían comportado bien. Detecta el modelo que se volvió demasiado restrictivo, cuyos malos no aparecen porque nunca entraron."
+          },
+          "discrimination": {
+            "type": "number",
+            "nullable": true,
+            "example": 0.62,
+            "description": "Separación normalizada entre la puntuación media de buenos y malos (0 a 1). Sirve para ver una tendencia, no como poder discriminante publicable."
+          }
+        },
+        "required": [
+          "artifactVersionId",
+          "observed",
+          "conclusive",
+          "approved",
+          "declined",
+          "badRate",
+          "goodRate",
+          "falseDeclineRate",
+          "discrimination"
+        ]
+      },
+      "StabilityQueryDto": {
+        "type": "object",
+        "properties": {
+          "artifactVersionId": {
+            "type": "string",
+            "example": "4001"
+          },
+          "from": {
+            "type": "string",
+            "example": "2026-01-01T00:00:00.000Z"
+          },
+          "to": {
+            "type": "string",
+            "example": "2026-06-30T23:59:59.000Z"
+          },
+          "variableCode": {
+            "type": "string",
+            "maxLength": 120,
+            "example": "ingresos_mensuales",
+            "description": "Variable de entrada cuya distribución se compara entre las dos ventanas."
+          },
+          "referenceFrom": {
+            "type": "string",
+            "example": "2025-07-01T00:00:00.000Z",
+            "description": "Inicio de la ventana de REFERENCIA, contra la que se compara la actual."
+          },
+          "referenceTo": {
+            "type": "string",
+            "example": "2025-12-31T23:59:59.000Z"
+          }
+        },
+        "required": [
+          "artifactVersionId",
+          "variableCode",
+          "referenceFrom",
+          "referenceTo"
+        ]
+      },
+      "StabilityBucketDto": {
+        "type": "object",
+        "properties": {
+          "bucket": {
+            "type": "string",
+            "example": "n:9"
+          },
+          "referenceShare": {
+            "type": "number",
+            "example": 0.32
+          },
+          "currentShare": {
+            "type": "number",
+            "example": 0.11
+          },
+          "contribution": {
+            "type": "number",
+            "example": 0.23
+          }
+        },
+        "required": [
+          "bucket",
+          "referenceShare",
+          "currentShare",
+          "contribution"
+        ]
+      },
+      "StabilityReportDto": {
+        "type": "object",
+        "properties": {
+          "artifactVersionId": {
+            "type": "string",
+            "example": "4001"
+          },
+          "variableCode": {
+            "type": "string",
+            "example": "ingresos_mensuales"
+          },
+          "psi": {
+            "type": "number",
+            "example": 0.31
+          },
+          "verdict": {
+            "type": "string",
+            "enum": [
+              "STABLE",
+              "SHIFTED",
+              "UNSTABLE"
+            ],
+            "description": "Cortes de uso corriente: < 0.10 estable, < 0.25 desplazada, resto inestable."
+          },
+          "referenceCount": {
+            "type": "number",
+            "example": 5000
+          },
+          "currentCount": {
+            "type": "number",
+            "example": 4800
+          },
+          "buckets": {
+            "description": "Ordenadas por aportación: la primera explica el desplazamiento.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StabilityBucketDto"
+            }
+          }
+        },
+        "required": [
+          "artifactVersionId",
+          "variableCode",
+          "psi",
+          "verdict",
+          "referenceCount",
+          "currentCount",
+          "buckets"
+        ]
+      },
+      "AdverseImpactQueryDto": {
+        "type": "object",
+        "properties": {
+          "artifactVersionId": {
+            "type": "string",
+            "example": "4001"
+          },
+          "from": {
+            "type": "string",
+            "example": "2026-01-01T00:00:00.000Z"
+          },
+          "to": {
+            "type": "string",
+            "example": "2026-06-30T23:59:59.000Z"
+          },
+          "attribute": {
+            "type": "string",
+            "maxLength": 80,
+            "example": "AGE_BAND"
+          }
+        },
+        "required": [
+          "artifactVersionId",
+          "attribute"
+        ]
+      },
+      "AdverseImpactGroupDto": {
+        "type": "object",
+        "properties": {
+          "group": {
+            "type": "string",
+            "example": "60+"
+          },
+          "total": {
+            "type": "number",
+            "example": 420
+          },
+          "approved": {
+            "type": "number",
+            "example": 210
+          },
+          "approvalRate": {
+            "type": "number",
+            "example": 0.5
+          },
+          "impactRatio": {
+            "type": "number",
+            "example": 0.625
+          },
+          "belowThreshold": {
+            "type": "boolean",
+            "example": true,
+            "description": "Por debajo de 0.8: exige explicación."
+          }
+        },
+        "required": [
+          "group",
+          "total",
+          "approved",
+          "approvalRate",
+          "impactRatio",
+          "belowThreshold"
+        ]
+      },
+      "AdverseImpactReportDto": {
+        "type": "object",
+        "properties": {
+          "artifactVersionId": {
+            "type": "string",
+            "example": "4001"
+          },
+          "attribute": {
+            "type": "string",
+            "example": "AGE_BAND"
+          },
+          "analyzed": {
+            "type": "number",
+            "example": 1500
+          },
+          "referenceGroup": {
+            "type": "string",
+            "nullable": true,
+            "example": "26-40",
+            "description": "Grupo de mayor tasa de aprobación; es el denominador de la razón."
+          },
+          "ignoredForSmallSample": {
+            "example": [
+              "18-25"
+            ],
+            "description": "Grupos por debajo de 30 casos: excluidos porque su razón sería ruido.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdverseImpactGroupDto"
+            }
+          },
+          "flagged": {
+            "type": "boolean",
+            "example": true,
+            "description": "Algún grupo con muestra suficiente cae por debajo de 0.8. NO es una conclusión de discriminación: obliga a buscar y documentar la explicación de negocio."
+          }
+        },
+        "required": [
+          "artifactVersionId",
+          "attribute",
+          "analyzed",
+          "referenceGroup",
+          "ignoredForSmallSample",
+          "groups",
+          "flagged"
         ]
       },
       "KeysetMetaDto": {

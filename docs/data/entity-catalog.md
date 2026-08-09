@@ -3,7 +3,7 @@
 
 # Catálogo de entidades
 
-76 modelos persistentes. El nombre técnico es el de la tabla; el nombre del
+78 modelos persistentes. El nombre técnico es el de la tabla; el nombre del
 modelo es el que usa el código. Las restricciones e índices son los declarados en el
 esquema, que es la fuente que las migraciones aplican.
 
@@ -36,7 +36,7 @@ esquema, que es la fuente que las migraciones aplican.
 | [`DecisionDeploymentTraffic`](#decisiondeploymenttraffic) | `decision_deployment_traffic` | 7 | 1 | 1 |
 | [`DecisionEdgeCondition`](#decisionedgecondition) | `decision_edge_condition` | 6 | 1 | 2 |
 | [`DecisionEnvironment`](#decisionenvironment) | `decision_environment` | 10 | 0 | 0 |
-| [`DecisionExecution`](#decisionexecution) | `decision_execution` | 23 | 4 | 3 |
+| [`DecisionExecution`](#decisionexecution) | `decision_execution` | 25 | 4 | 3 |
 | [`DecisionExecutionError`](#decisionexecutionerror) | `decision_execution_error` | 8 | 0 | 1 |
 | [`DecisionExecutionReason`](#decisionexecutionreason) | `decision_execution_reason` | 9 | 0 | 3 |
 | [`DecisionExecutionStep`](#decisionexecutionstep) | `decision_execution_step` | 9 | 1 | 2 |
@@ -44,10 +44,12 @@ esquema, que es la fuente que las migraciones aplican.
 | [`DecisionExecutionVariable`](#decisionexecutionvariable) | `decision_execution_variable` | 10 | 1 | 2 |
 | [`DecisionIntermediateVariable`](#decisionintermediatevariable) | `decision_intermediate_variable` | 19 | 2 | 1 |
 | [`DecisionManualReviewCase`](#decisionmanualreviewcase) | `decision_manual_review_case` | 14 | 1 | 1 |
+| [`DecisionMonitoringAttribute`](#decisionmonitoringattribute) | `decision_monitoring_attribute` | 8 | 2 | 1 |
 | [`DecisionNodeAction`](#decisionnodeaction) | `decision_node_action` | 6 | 1 | 2 |
 | [`DecisionNodeCondition`](#decisionnodecondition) | `decision_node_condition` | 7 | 1 | 2 |
 | [`DecisionNodeScript`](#decisionnodescript) | `decision_node_script` | 13 | 2 | 1 |
 | [`DecisionOutboxEvent`](#decisionoutboxevent) | `decision_outbox_event` | 19 | 3 | 0 |
+| [`DecisionOutcomeObservation`](#decisionoutcomeobservation) | `decision_outcome_observation` | 11 | 2 | 1 |
 | [`DecisionOutputContractField`](#decisionoutputcontractfield) | `decision_output_contract_field` | 18 | 2 | 1 |
 | [`DecisionOutputFieldReasonMap`](#decisionoutputfieldreasonmap) | `decision_output_field_reason_map` | 6 | 1 | 2 |
 | [`DecisionReasonCode`](#decisionreasoncode) | `decision_reason_code` | 12 | 2 | 0 |
@@ -781,6 +783,8 @@ Tabla `decision_execution`.
 | `reasons` | `DecisionExecutionReason[]` | — |
 | `errors` | `DecisionExecutionError[]` | — |
 | `manualReview` | `DecisionManualReviewCase?` | — |
+| `outcomeObservations` | `DecisionOutcomeObservation[]` | — |
+| `monitoringAttributes` | `DecisionMonitoringAttribute[]` | — |
 
 Índices y restricciones:
 
@@ -945,6 +949,26 @@ Tabla `decision_manual_review_case`.
 
 - `index([tenantId, status, priority])`
 
+## DecisionMonitoringAttribute
+
+Tabla `decision_monitoring_attribute`.
+
+| Campo | Tipo | Atributos |
+| --- | --- | --- |
+| `id` | `BigInt` | @id @default(autoincrement()) |
+| `tenantId` | `BigInt` | @map("tenant_id") |
+| `executionId` | `BigInt` | @map("execution_id") |
+| `attribute` | `String` | @db.VarChar(80) |
+| `groupValue` | `String` | @map("group_value") @db.VarChar(80) |
+| `recordedAt` | `DateTime` | @default(now()) @map("recorded_at") @db.Timestamptz(6) |
+| `recordedBy` | `String` | @map("recorded_by") @db.VarChar(160) |
+| `execution` | `DecisionExecution` | @relation(fields: [executionId], references: [id], onDelete: Cascade) |
+
+Índices y restricciones:
+
+- `unique([executionId, attribute])`
+- `index([tenantId, attribute, recordedAt])`
+
 ## DecisionNodeAction
 
 Tabla `decision_node_action`.
@@ -1036,6 +1060,29 @@ Tabla `decision_outbox_event`.
 - `index([status, availableAt])`
 - `index([tenantId, occurredAt])`
 - `index([aggregateType, aggregateId])`
+
+## DecisionOutcomeObservation
+
+Tabla `decision_outcome_observation`.
+
+| Campo | Tipo | Atributos |
+| --- | --- | --- |
+| `id` | `BigInt` | @id @default(autoincrement()) |
+| `tenantId` | `BigInt` | @map("tenant_id") |
+| `executionId` | `BigInt` | @map("execution_id") |
+| `windowDays` | `Int` | @map("window_days") |
+| `label` | `ObservedOutcomeLabel` | — |
+| `amount` | `Decimal?` | @db.Decimal(18, 4) |
+| `source` | `String` | @db.VarChar(120) |
+| `notes` | `String?` | @db.Text |
+| `observedAt` | `DateTime` | @default(now()) @map("observed_at") @db.Timestamptz(6) |
+| `recordedBy` | `String` | @map("recorded_by") @db.VarChar(160) |
+| `execution` | `DecisionExecution` | @relation(fields: [executionId], references: [id], onDelete: Cascade) |
+
+Índices y restricciones:
+
+- `unique([executionId, windowDays])`
+- `index([tenantId, observedAt])`
 
 ## DecisionOutputContractField
 

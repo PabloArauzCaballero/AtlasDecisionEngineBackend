@@ -1,16 +1,16 @@
 {
-  "generatedAt": "2026-08-09T01:19:00.724Z",
+  "generatedAt": "2026-08-09T01:59:58.338Z",
   "modules": {
-    "total": 26,
-    "documented": 26
+    "total": 27,
+    "documented": 27
   },
   "apiTags": {
-    "total": 26,
-    "documented": 26
+    "total": 27,
+    "documented": 27
   },
   "operations": {
-    "total": 127,
-    "documented": 127
+    "total": 132,
+    "documented": 132
   },
   "environmentVariables": {
     "total": 159,
