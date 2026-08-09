@@ -129,7 +129,7 @@ prueba la identidad, no quién puede hacer qué.
 | --- | --- | --- |
 | `SMOKE_BASE_URL` | `BASE_URL` o `http://127.0.0.1:$PORT` | Instancia destino |
 | `SMOKE_TENANT_ID` | `BOOTSTRAP_TENANT_ID` | Tenant sobre el que se trabaja |
-| `SMOKE_ENVIRONMENT_CODE` | `SANDBOX` | Ambiente de despliegue y simulación. **Nunca PROD** |
+| `SMOKE_ENVIRONMENT_CODE` | `DEV` | Ambiente de despliegue y simulación. **Nunca PROD** |
 | `SMOKE_POLL_TIMEOUT_MS` | `90000` | Tope de espera de lo asíncrono (corridas, workers) |
 | `SMOKE_RUN_TAG` | marca de tiempo | Sufijo de los datos que crea la tanda |
 | `SMOKE_<TIPO>_EMAIL` / `_PASSWORD` | — | Activan el camino JWT para ese tipo de usuario |

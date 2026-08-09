@@ -1,5 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
 import { type SemanticCategorySeed, expenseCategoryTree } from './expense-category-tree.data';
+import { TENANT_ID } from './helpers';
 
 /**
  * Siembra del catálogo del worker semántico (ADR-0026).
@@ -14,8 +15,6 @@ import { type SemanticCategorySeed, expenseCategoryTree } from './expense-catego
  * escribirlo: el orden de inserción, la comprobación de que el árbol se sostiene
  * y los alias de entidades.
  */
-
-const TENANT_ID = 1n;
 
 export { expenseCategoryTree as semanticCategoryCatalog };
 

@@ -189,6 +189,7 @@ nav:
       - Auditabilidad: security/auditability.md
       - Seguridad de dependencias: security/dependency-security.md
       - Respuesta a incidentes: security/incident-response.md
+      - Controles regulatorios: security/regulatory-controls.md
   - Observabilidad:
       - Guía de trazabilidad: observability/README.md
       - Registros: observability/logging.md

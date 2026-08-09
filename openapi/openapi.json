@@ -1821,7 +1821,8 @@
                 "IN_REVIEW",
                 "CHANGES_REQUESTED",
                 "APPROVED",
-                "DEPLOYED_TO_SANDBOX",
+                "DEPLOYED_TO_DEV",
+                "DEPLOYED_TO_STAGING",
                 "DEPLOYED_TO_TEST",
                 "DEPLOYED_TO_PROD",
                 "SUSPENDED",
@@ -2198,6 +2199,63 @@
           }
         },
         "summary": "Update non-executable authoring notes on an editable version",
+        "tags": [
+          "Decision Artifacts"
+        ]
+      }
+    },
+    "/v1/artifact-versions/{versionId}/processing-basis": {
+      "patch": {
+        "operationId": "artifactUpdateProcessingBasis",
+        "parameters": [
+          {
+            "name": "versionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Identificador de la versión del artefacto."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProcessingBasisDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Finalidad y base legal actualizadas.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessingBasisResultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Declare the processing purpose and legal basis of a version",
         "tags": [
           "Decision Artifacts"
         ]
@@ -4652,7 +4710,7 @@
               "maxLength": 40,
               "type": "string"
             },
-            "description": "Ambiente de decisión (`SANDBOX`, `TEST`, `PROD`…)."
+            "description": "Ambiente de decisión (`DEV`, `STAGING`, `TEST`, `PROD`)."
           },
           {
             "name": "status",
@@ -4890,7 +4948,7 @@
             "$ref": "#/components/responses/Error500"
           }
         },
-        "summary": "Simulate a SANDBOX or TEST decision without persistence",
+        "summary": "Simulate a non-production decision (DEV, STAGING or TEST) without persistence",
         "tags": [
           "Decision Simulation"
         ]
@@ -4917,12 +4975,14 @@
             "schema": {
               "type": "string",
               "enum": [
-                "SANDBOX",
+                "DEV",
+                "STAGING",
                 "TEST",
-                "PROD"
+                "PROD",
+                "SANDBOX"
               ]
             },
-            "description": "Ambiente de decisión (`SANDBOX`, `TEST`, `PROD`…)."
+            "description": "Ambiente de decisión (`DEV`, `STAGING`, `TEST`, `PROD`)."
           },
           {
             "name": "requestId",
@@ -5239,6 +5299,87 @@
         "summary": "Resolve a case as its assigned analyst",
         "tags": [
           "Manual Review"
+        ]
+      }
+    },
+    "/v1/data-subject-requests": {
+      "post": {
+        "operationId": "dataSubjectSubmit",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDataSubjectRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Solicitud registrada con su resolución y alcance.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataSubjectRequestResultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Register a data subject request and resolve it against the decision history",
+        "tags": [
+          "Data Subject Rights"
+        ]
+      }
+    },
+    "/v1/data-subject-requests/history": {
+      "post": {
+        "operationId": "dataSubjectHistory",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Historial de solicitudes del titular.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataSubjectRequestHistoryDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "List the requests already handled for a data subject",
+        "tags": [
+          "Data Subject Rights"
         ]
       }
     },
@@ -6771,6 +6912,9 @@
       "description": "Importación de código existente y su conversión asistida a un grafo (§5)."
     },
     {
+      "name": "Data Subject Rights"
+    },
+    {
       "name": "Decision Artifacts",
       "description": "Algoritmos de decisión, sus versiones y el grafo que las define. Solo un borrador es editable."
     },
@@ -7895,6 +8039,15 @@
           },
           "isSensitive": {
             "type": "boolean"
+          },
+          "decisionUseRestriction": {
+            "type": "string",
+            "description": "Por defecto `NONE`: marcar una variable no puede ser un requisito para darla de alta.",
+            "enum": [
+              "NONE",
+              "PROHIBITED_BASIS",
+              "SPECIAL_CATEGORY"
+            ]
           },
           "initialVersion": {
             "$ref": "#/components/schemas/VariableVersionDto"
@@ -12012,6 +12165,62 @@
           }
         }
       },
+      "ProcessingBasisDto": {
+        "type": "object",
+        "properties": {
+          "processingPurpose": {
+            "type": "string",
+            "maxLength": 8000
+          },
+          "legalBasis": {
+            "type": "string",
+            "enum": [
+              "CONSENT",
+              "CONTRACT",
+              "LEGAL_OBLIGATION",
+              "REGULATORY_EXERCISE",
+              "CREDIT_PROTECTION",
+              "LEGITIMATE_INTEREST",
+              "VITAL_INTEREST",
+              "HEALTH_PROTECTION"
+            ]
+          }
+        }
+      },
+      "ProcessingBasisResultDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "4001"
+          },
+          "processingPurpose": {
+            "type": "string",
+            "nullable": true,
+            "example": "Evaluación de riesgo para originación de crédito al consumo"
+          },
+          "legalBasis": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "CONSENT",
+              "CONTRACT",
+              "LEGAL_OBLIGATION",
+              "REGULATORY_EXERCISE",
+              "CREDIT_PROTECTION",
+              "LEGITIMATE_INTEREST",
+              "VITAL_INTEREST",
+              "HEALTH_PROTECTION"
+            ],
+            "example": "CREDIT_PROTECTION"
+          }
+        },
+        "required": [
+          "id",
+          "processingPurpose",
+          "legalBasis"
+        ]
+      },
       "ValidationIssueDto": {
         "type": "object",
         "properties": {
@@ -15468,7 +15677,7 @@
           },
           "environmentCode": {
             "type": "string",
-            "example": "SANDBOX",
+            "example": "DEV",
             "description": "Ambiente resuelto. PROD nunca."
           },
           "versionId": {
@@ -15985,6 +16194,245 @@
         "required": [
           "decision",
           "reason"
+        ]
+      },
+      "CreateDataSubjectRequestDto": {
+        "type": "object",
+        "properties": {
+          "subjectReference": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "La misma referencia con la que se ejecutaron las decisiones (`subjectReference`). Se convierte a HMAC antes de tocar la base: en claro no se persiste nunca.",
+            "example": "CPF-12345678901"
+          },
+          "requestType": {
+            "enum": [
+              "ACCESS",
+              "PORTABILITY",
+              "ERASURE",
+              "REVIEW"
+            ],
+            "type": "string"
+          },
+          "reference": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "Expediente o ticket del canal de atención. Nunca un dato del titular."
+          }
+        },
+        "required": [
+          "subjectReference",
+          "requestType"
+        ]
+      },
+      "DecisionReasonRefDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "INSUFFICIENT_INCOME"
+          },
+          "message": {
+            "type": "string",
+            "description": "El mensaje PÚBLICO. El interno nunca sale hacia el titular.",
+            "example": "Ingresos insuficientes para el importe solicitado"
+          },
+          "adverseAction": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "adverseAction"
+        ]
+      },
+      "DataSubjectDecisionDto": {
+        "type": "object",
+        "properties": {
+          "executionId": {
+            "type": "string",
+            "example": "88001"
+          },
+          "requestId": {
+            "type": "string",
+            "example": "req-8f2a"
+          },
+          "status": {
+            "type": "string",
+            "example": "SUCCEEDED"
+          },
+          "outcome": {
+            "type": "string",
+            "nullable": true,
+            "example": "DECLINED"
+          },
+          "executedAt": {
+            "type": "string",
+            "example": "2026-03-01T00:00:00.000Z"
+          },
+          "artifactCode": {
+            "type": "string",
+            "example": "CREDIT_ORIGINATION"
+          },
+          "artifactName": {
+            "type": "string",
+            "example": "Originación de crédito al consumo"
+          },
+          "versionNumber": {
+            "type": "number",
+            "example": 3
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DecisionReasonRefDto"
+            }
+          }
+        },
+        "required": [
+          "executionId",
+          "requestId",
+          "status",
+          "outcome",
+          "executedAt",
+          "artifactCode",
+          "artifactName",
+          "versionNumber",
+          "reasons"
+        ]
+      },
+      "DataSubjectRequestResultDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "1"
+          },
+          "requestType": {
+            "type": "string",
+            "enum": [
+              "ACCESS",
+              "PORTABILITY",
+              "ERASURE",
+              "REVIEW"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "RECEIVED",
+              "FULFILLED",
+              "REJECTED"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-08-08T10:00:00.000Z"
+          },
+          "matchedDecisions": {
+            "type": "number",
+            "example": 4,
+            "description": "Decisiones encontradas sobre este titular."
+          },
+          "decisions": {
+            "description": "Solo en ACCESS y PORTABILITY. Una eliminación responde con su alcance, no con el contenido que no va a borrar.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataSubjectDecisionDto"
+            }
+          },
+          "resolution": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Alcance de lo entregado o motivo del rechazo. `truncated: true` avisa de que la entrega llegó al techo por respuesta.",
+            "example": {
+              "matchedDecisions": 4,
+              "truncated": false,
+              "scope": "Decisiones y motivos públicos"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "requestType",
+          "status",
+          "createdAt",
+          "matchedDecisions",
+          "resolution"
+        ]
+      },
+      "DataSubjectRequestHistoryItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "1"
+          },
+          "requestType": {
+            "type": "string",
+            "enum": [
+              "ACCESS",
+              "PORTABILITY",
+              "ERASURE",
+              "REVIEW"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "RECEIVED",
+              "FULFILLED",
+              "REJECTED"
+            ]
+          },
+          "receivedBy": {
+            "type": "string",
+            "example": "compliance@atlas.local"
+          },
+          "reference": {
+            "type": "string",
+            "nullable": true,
+            "example": "TICKET-9912"
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-08-08T10:00:00.000Z"
+          },
+          "resolvedAt": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "requestType",
+          "status",
+          "receivedBy",
+          "reference",
+          "createdAt",
+          "resolvedAt"
+        ]
+      },
+      "DataSubjectRequestHistoryDto": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "number",
+            "example": 3
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataSubjectRequestHistoryItemDto"
+            }
+          }
+        },
+        "required": [
+          "total",
+          "items"
         ]
       },
       "KeysetMetaDto": {

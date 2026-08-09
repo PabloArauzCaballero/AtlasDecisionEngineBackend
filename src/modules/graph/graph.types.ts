@@ -35,6 +35,13 @@ export interface VariableContractSnapshot {
   contractVersion?: string;
   /** Clasificación formal; `sensitive` se conserva como bandera derivada. */
   sensitivityClass?: string;
+  /**
+   * Licitud de USO en una decisión: `NONE` | `PROHIBITED_BASIS` | `SPECIAL_CATEGORY`.
+   *
+   * Eje independiente de `sensitivityClass`, que sólo habla de cuánto hay que proteger el
+   * dato. Lo aplica `graph-decision-use.validator.ts` al publicar.
+   */
+  decisionUseRestriction?: string;
   validationRules: Array<{
     ruleType: string;
     config: unknown;
@@ -323,6 +330,10 @@ export interface ArtifactGraphSnapshot {
     status: string;
     checksum?: string | null;
     authoringNotes?: string | null;
+    /** Finalidad declarada del tratamiento (LGPD art. 6 I). */
+    processingPurpose?: string | null;
+    /** Base legal declarada (LGPD arts. 7 y 11); exigida para consumir categorías especiales. */
+    legalBasis?: string | null;
   };
   variables: VariableContractSnapshot[];
   /** Variables intermedias declaradas por este grafo (§2). */

@@ -10,7 +10,7 @@
  * motor como variables sobre las que el algoritmo razona.
  *
  * Uso:
- *   npx ts-node --transpile-only prisma/seed-statement-worker-decision.ts [--pdf <ruta>] [--cuota <monto>] [--reseed]
+ *   npx ts-node --transpile-only prisma/dev-seeds/seed-statement-worker-decision.ts [--pdf <ruta>] [--cuota <monto>] [--reseed]
  *
  * Sin `--pdf` usa el extracto de QA Bank que genera `qa-bank-statement.fixture.ts`: 42
  * movimientos, Bs 25.665,64 en abonos y Bs 4.639,33 en cargos sobre un saldo inicial de
@@ -21,21 +21,21 @@
 import { NestFactory } from '@nestjs/core';
 import { readFileSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
-import { AppModule } from '../src/app.module';
-import { PrismaService } from '../src/common/prisma/prisma.service';
-import type { AuthenticatedPrincipal } from '../src/common/security/security.types';
-import { RuntimeService } from '../src/modules/runtime/runtime.service';
-import {
-  buildQaBankStatementPdf,
-  QA_BANK_STATEMENT_FILE_NAME,
-} from '../src/modules/seeding/data/qa-bank-statement.fixture';
+import { AppModule } from '../../src/app.module';
+import { PrismaService } from '../../src/common/prisma/prisma.service';
+import type { AuthenticatedPrincipal } from '../../src/common/security/security.types';
+import { RuntimeService } from '../../src/modules/runtime/runtime.service';
+import { buildQaBankStatementPdf, QA_BANK_STATEMENT_FILE_NAME } from './qa-bank-statement.fixture';
 import {
   STATEMENT_WORKER_DEMO_CODE,
   STATEMENT_WORKER_DEMO_VARIABLES as V,
-} from '../src/modules/seeding/data/statement-worker-demo.graph';
-import { seedStatementWorkerDemoArtifact } from '../src/modules/seeding/data/statement-worker-demo.seed';
+} from '../../src/modules/seeding/data/statement-worker-demo.graph';
+import { seedStatementWorkerDemoArtifact } from '../../src/modules/seeding/data/statement-worker-demo.seed';
+import { resolveBootstrapTenantId } from '../../src/modules/seeding/data/helpers';
 
-const TENANT = BigInt(process.env.SEED_TENANT_ID ?? '1');
+// Misma resolución que la siembra (`BOOTSTRAP_TENANT_ID`, con `SEED_TENANT_ID` de sinónimo):
+// este script ejecuta el demo que sembró aquélla, así que ha de mirar el mismo tenant.
+const TENANT = resolveBootstrapTenantId();
 
 async function main(): Promise<void> {
   const options = parseArguments(process.argv.slice(2));
@@ -66,7 +66,7 @@ async function main(): Promise<void> {
       {
         requestId,
         idempotencyKey: requestId,
-        environmentCode: 'SANDBOX',
+        environmentCode: 'DEV',
         variables: {
           [V.documento]: pdf.base64,
           [V.nombreArchivo]: pdf.fileName,

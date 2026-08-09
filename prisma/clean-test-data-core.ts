@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
+import { resolveBootstrapTenantId } from '../src/modules/seeding/data/helpers';
 
 /** Codes that must NEVER be removed (the real demo + the documented logic algos). */
 export const KEEP_ARTIFACT_CODES = new Set([
@@ -28,7 +29,9 @@ export async function cleanTestArtifacts(
   prisma: PrismaClient,
   options: { tenantId?: bigint; dryRun?: boolean } = {},
 ): Promise<CleanupResult> {
-  const tenantId = options.tenantId ?? BigInt(process.env.SEED_TENANT_ID ?? '1');
+  // El mismo tenant que sembró los datos. Una limpieza que mira otro tenant no borra nada
+  // y lo informa como éxito, que es peor que fallar.
+  const tenantId = options.tenantId ?? resolveBootstrapTenantId();
   const candidates = await prisma.decisionArtifact.findMany({
     where: {
       tenantId,

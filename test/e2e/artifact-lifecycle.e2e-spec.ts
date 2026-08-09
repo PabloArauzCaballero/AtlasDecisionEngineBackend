@@ -314,12 +314,12 @@ describe('Artifact lifecycle (e2e)', () => {
     expect(version.body.status).toBe('APPROVED');
   });
 
-  it('deploys the approved version to SANDBOX', async () => {
+  it('deploys the approved version to DEV', async () => {
     const response = await request(server())
       .post(`/v1/artifact-versions/${versionId}/deployments`)
       .set(deployer)
       .send({
-        environmentCode: 'SANDBOX',
+        environmentCode: 'DEV',
         deploymentMode: 'DIRECT',
         traffic: [],
       })

@@ -135,7 +135,12 @@ function dedupeByCode(seeds: VariableSeed[]): VariableSeed[] {
 }
 
 export interface BootstrapContext {
-  environments: { sandbox: { id: bigint }; test: { id: bigint }; prod: { id: bigint } };
+  environments: {
+    dev: { id: bigint };
+    staging: { id: bigint };
+    test: { id: bigint };
+    prod: { id: bigint };
+  };
   variableByCode: Record<string, Awaited<ReturnType<typeof ensureVariable>>>;
   reasonByCode: Record<string, Awaited<ReturnType<typeof ensureReason>>>;
   counts: {
@@ -156,8 +161,12 @@ export interface BootstrapContext {
  * and the reusable calculated fields. Fully idempotent (upserts).
  */
 export async function runBootstrapSeeds(prisma: PrismaClient): Promise<BootstrapContext> {
-  const [sandbox, test, prod] = await Promise.all([
-    ensureEnvironment(prisma, 'SANDBOX', 'Sandbox', false),
+  // Los cuatro ambientes de decisión, en el orden en que se promueve una versión:
+  // se diseña en DEV, se prueba en TEST (donde el QA Lab mete miles de ejecuciones
+  // sintéticas), se ensaya en STAGING —espejo de producción— y se decide en PROD.
+  const [dev, staging, test, prod] = await Promise.all([
+    ensureEnvironment(prisma, 'DEV', 'Development', false),
+    ensureEnvironment(prisma, 'STAGING', 'Staging', false),
     ensureEnvironment(prisma, 'TEST', 'Testing', false),
     ensureEnvironment(prisma, 'PROD', 'Production', true),
   ]);
@@ -185,7 +194,7 @@ export async function runBootstrapSeeds(prisma: PrismaClient): Promise<Bootstrap
   const semanticCatalog = await seedSemanticCatalog(prisma);
 
   return {
-    environments: { sandbox, test, prod },
+    environments: { dev, staging, test, prod },
     variableByCode,
     reasonByCode,
     counts: {
@@ -233,7 +242,7 @@ export async function runMockupSeeds(prisma: PrismaClient, context: BootstrapCon
 
 export interface SeedSummary {
   bootstrap: BootstrapContext['counts'];
-  environments: { sandboxId: string; testId: string; prodId: string };
+  environments: { devId: string; stagingId: string; testId: string; prodId: string };
   mockup?: Awaited<ReturnType<typeof seedDemoArtifact>>;
   mockupSkipped: boolean;
 }
@@ -250,7 +259,8 @@ export async function runSeeds(
   const summary: SeedSummary = {
     bootstrap: bootstrap.counts,
     environments: {
-      sandboxId: bootstrap.environments.sandbox.id.toString(),
+      devId: bootstrap.environments.dev.id.toString(),
+      stagingId: bootstrap.environments.staging.id.toString(),
       testId: bootstrap.environments.test.id.toString(),
       prodId: bootstrap.environments.prod.id.toString(),
     },

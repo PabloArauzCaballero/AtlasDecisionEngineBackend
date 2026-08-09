@@ -38,7 +38,7 @@ describe('Live execution (e2e)', () => {
     await app.close();
   });
 
-  it('deploys an age-eligibility artifact to SANDBOX', async () => {
+  it('deploys an age-eligibility artifact to DEV', async () => {
     const ageVariableVersionId = await seededVariableVersionId(app, author, 'age');
 
     artifactCode = `E2E_LIVE_EXECUTION_${runId}`;
@@ -245,7 +245,7 @@ describe('Live execution (e2e)', () => {
     await request(server())
       .post(`/v1/artifact-versions/${versionId}/deployments`)
       .set(deployer)
-      .send({ environmentCode: 'SANDBOX', deploymentMode: 'DIRECT', traffic: [] })
+      .send({ environmentCode: 'DEV', deploymentMode: 'DIRECT', traffic: [] })
       .expect(201);
   }, 20_000);
 
@@ -255,7 +255,7 @@ describe('Live execution (e2e)', () => {
       .set(author)
       .query({
         artifactCode,
-        environmentCode: 'SANDBOX',
+        environmentCode: 'DEV',
         requestId: `live-exec-${runId}`,
         variables: JSON.stringify({ age: 30 }),
       })
@@ -309,7 +309,7 @@ describe('Live execution (e2e)', () => {
       .set(author)
       .query({
         artifactCode,
-        environmentCode: 'SANDBOX',
+        environmentCode: 'DEV',
         requestId: `live-exec-array-${runId}`,
         variables: JSON.stringify([30]),
       })

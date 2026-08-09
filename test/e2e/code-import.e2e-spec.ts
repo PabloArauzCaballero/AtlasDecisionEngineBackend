@@ -266,7 +266,7 @@ const x = ;
     await request(server())
       .post(`/v1/artifact-versions/${versionId}/deployments`)
       .set(deployer)
-      .send({ environmentCode: 'SANDBOX', deploymentMode: 'DIRECT', traffic: [] })
+      .send({ environmentCode: 'DEV', deploymentMode: 'DIRECT', traffic: [] })
       .expect(201);
 
     const simulated = await request(server())
@@ -274,7 +274,7 @@ const x = ;
       .set(author)
       .send({
         requestId: `code-import-sim-${runId}`,
-        environmentCode: 'SANDBOX',
+        environmentCode: 'DEV',
         variables: { age: 30 },
       })
       .expect(201);

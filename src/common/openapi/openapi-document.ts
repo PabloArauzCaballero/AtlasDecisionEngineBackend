@@ -257,7 +257,7 @@ const COMMON_PARAMETER_DESCRIPTIONS: Record<string, string> = {
   search: 'Coincidencia parcial sobre el código o el nombre del recurso.',
   status: 'Filtra por estado exacto del recurso.',
   category: 'Filtra por categoría del catálogo.',
-  environmentCode: 'Ambiente de decisión (`SANDBOX`, `TEST`, `PROD`…).',
+  environmentCode: 'Ambiente de decisión (`DEV`, `STAGING`, `TEST`, `PROD`).',
   eventType: 'Filtra por tipo de evento.',
   from: 'Límite inferior del rango temporal, inclusive (ISO 8601).',
   to: 'Límite superior del rango temporal, inclusive (ISO 8601).',

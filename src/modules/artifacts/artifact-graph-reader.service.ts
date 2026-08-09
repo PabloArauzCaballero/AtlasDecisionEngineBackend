@@ -91,6 +91,11 @@ export class ArtifactGraphReaderService {
         status: version.status,
         checksum: version.canonicalChecksum,
         authoringNotes: version.authoringNotes,
+        // Finalidad y base legal viajan con la versión porque son propiedades del
+        // TRATAMIENTO, no de una ejecución concreta: el validador de publicación las exige
+        // cuando el grafo consume una variable de categoría especial.
+        processingPurpose: version.processingPurpose,
+        legalBasis: version.legalBasis,
       },
       variables: version.variableDependencies.map((dependency) => ({
         variableVersionId: dependency.variableVersion.id.toString(),
@@ -119,6 +124,7 @@ export class ArtifactGraphReaderService {
         expectedOrigin: dependency.variableVersion.expectedOrigin,
         contractVersion: dependency.variableVersion.contractVersion,
         sensitivityClass: dependency.variableVersion.definition.sensitivityClass,
+        decisionUseRestriction: dependency.variableVersion.definition.decisionUseRestriction,
         validationRules: dependency.variableVersion.validationRules.map((rule) => ({
           ruleType: rule.ruleType,
           config: rule.ruleConfigJson,

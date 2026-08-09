@@ -53,11 +53,48 @@ verificación que **no** es una manipulación.
 
 ## Comunicación
 
+### Interna
+
 | Destinatario | Cuándo | Qué |
 | --- | --- | --- |
 | Responsable del producto | Crítico y alto, de inmediato | Impacto en decisiones y clientes |
 | Cumplimiento | Cualquier incidente que toque evidencia o datos personales | Alcance y trazabilidad |
 | Equipos consumidores | Si hay degradación o rotación de credenciales | Qué cambia y cuándo |
+
+### Regulatoria
+
+!!! danger "El reloj empieza al CONOCER el incidente, no al terminar de investigarlo"
+    Los plazos de abajo corren desde que la organización tiene conocimiento del hecho. Esperar
+    a cerrar la investigación para notificar es la forma más habitual de incumplir un plazo que
+    se creía holgado. Si al vencer el plazo no se conoce el alcance completo, se notifica lo
+    que se sabe y se complementa después: todos estos regímenes lo admiten.
+
+Qué aplica depende de la jurisdicción y de la licencia de la entidad, así que **la lista es un
+punto de partida que cada despliegue debe confirmar con su área legal**, no una afirmación de
+que estas obligaciones son las suyas.
+
+| Régimen | Se dispara con | Plazo | Destinatario |
+| --- | --- | --- | --- |
+| **LGPD art. 48** | Incidente con datos personales que pueda acarrear riesgo o daño relevante | Res. ANPD 15/2024: **3 días hábiles** desde el conocimiento | ANPD y los titulares afectados |
+| **Res. BACEN 4.658 / BCB 85** | Incidente relevante en institución financiera brasileña | Según el plan de acción y respuesta declarado por la institución | BACEN, por los canales de la entidad |
+| **FTC Safeguards Rule** (16 CFR 314.4(j)) | Acceso no autorizado a información de ≥ 500 consumidores | **30 días** desde el descubrimiento | FTC, por su formulario |
+| **Leyes estatales de EE. UU.** | Brecha de información personal de residentes | Varía por estado; varios exigen «sin demora indebida» | Fiscalía estatal y afectados |
+| **NYDFS Part 500** | Si la entidad tiene licencia de Nueva York | **72 horas** | Superintendente del NYDFS |
+
+Antes de notificar, tres cosas que el propio sistema responde y conviene tener a mano:
+
+1. **A quién alcanzó.** `decision_access_audit` filtrando por cliente y ventana; para los
+   titulares, la búsqueda por `subject_reference_hash` de
+   [derechos del titular](../modules/data-subject.md).
+2. **Qué datos.** La clase de cada variable implicada la declara el contrato
+   (`sensitivityClass`); ver [clasificación](../data/classification.md).
+3. **Si la evidencia está íntegra.** `GET /v1/audit/chain/verify` responde por la cadena
+   completa del tenant.
+
+!!! warning "Un fallo de verificación no es siempre una manipulación"
+    Un `hashKeyId` cuyo secreto ya no está configurado produce `HASH_KEY_UNAVAILABLE`, que no
+    es evidencia alterada sino evidencia no verificable. Descártelo antes de declarar una
+    brecha de integridad: la diferencia entre las dos cosas cambia a quién hay que notificar.
 
 ## Después
 

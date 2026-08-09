@@ -10,16 +10,20 @@
  * pasa validación/compilación (ya no falla con REFERENCE_ASSIGNMENTS_EMPTY).
  *
  * Re-ejecutable: si el ejemplo ya existe lo borra y lo vuelve a crear.
- * Uso: npx ts-node --transpile-only prisma/seed-chain-example.ts
+ * Uso: npx ts-node --transpile-only prisma/dev-seeds/seed-chain-example.ts
  */
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { Pool } from 'pg';
+import { resolveBootstrapTenantId } from '../../src/modules/seeding/data/helpers';
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg(new Pool({ connectionString: process.env.DATABASE_URL })),
 });
-const TENANT = BigInt(process.env.SEED_TENANT_ID ?? '1');
+// Misma resolución que la siembra de verdad (`BOOTSTRAP_TENANT_ID`, con `SEED_TENANT_ID`
+// como sinónimo). Este script se apoya en el catálogo sembrado: si lo lee de otra variable,
+// escribe en un tenant cuyas variables están en otro y el ejemplo no compila.
+const TENANT = resolveBootstrapTenantId();
 const PARENT = 'CREDITO_CON_SUBCHEQUEO';
 const CHILD = 'SUBCHECK_FRAUD';
 

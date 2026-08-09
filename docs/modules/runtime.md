@@ -15,7 +15,7 @@ Etiquetas de API: **Decision Runtime**, **Decision Simulation**.
 | Método | Ruta | Operación | Resumen |
 | --- | --- | --- | --- |
 | `POST` | `/v1/decisions/{artifactCode}` | `runtimeExecute` | Execute an idempotent decision against the active deployment |
-| `POST` | `/v1/simulations/{artifactCode}` | `simulationSimulate` | Simulate a SANDBOX or TEST decision without persistence |
+| `POST` | `/v1/simulations/{artifactCode}` | `simulationSimulate` | Simulate a non-production decision (DEV, STAGING or TEST) without persistence |
 | `POST` | `/v1/simulations/{artifactCode}/sample-inputs` | `simulationGenerateSampleInputs` | Generar valores de prueba a partir del contrato de entrada |
 
 ## Autorización

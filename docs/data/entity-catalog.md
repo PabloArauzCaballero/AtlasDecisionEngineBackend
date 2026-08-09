@@ -3,7 +3,7 @@
 
 # Catálogo de entidades
 
-75 modelos persistentes. El nombre técnico es el de la tabla; el nombre del
+76 modelos persistentes. El nombre técnico es el de la tabla; el nombre del
 modelo es el que usa el código. Las restricciones e índices son los declarados en el
 esquema, que es la fuente que las migraciones aplican.
 
@@ -26,16 +26,17 @@ esquema, que es la fuente que las migraciones aplican.
 | [`DecisionArtifactCalculatedFieldUse`](#decisionartifactcalculatedfielduse) | `decision_artifact_calculated_field_use` | 13 | 2 | 2 |
 | [`DecisionArtifactReference`](#decisionartifactreference) | `decision_artifact_reference` | 22 | 3 | 0 |
 | [`DecisionArtifactVariableDependency`](#decisionartifactvariabledependency) | `decision_artifact_variable_dependency` | 9 | 1 | 2 |
-| [`DecisionArtifactVersion`](#decisionartifactversion) | `decision_artifact_version` | 36 | 2 | 3 |
+| [`DecisionArtifactVersion`](#decisionartifactversion) | `decision_artifact_version` | 38 | 2 | 3 |
 | [`DecisionAuditEvent`](#decisionauditevent) | `decision_audit_event` | 13 | 3 | 0 |
 | [`DecisionChangeLog`](#decisionchangelog) | `decision_change_log` | 11 | 1 | 1 |
 | [`DecisionCodeImport`](#decisioncodeimport) | `decision_code_import` | 15 | 2 | 0 |
 | [`DecisionCompiledArtifact`](#decisioncompiledartifact) | `decision_compiled_artifact` | 11 | 2 | 1 |
+| [`DecisionDataSubjectRequest`](#decisiondatasubjectrequest) | `decision_data_subject_request` | 10 | 2 | 0 |
 | [`DecisionDeployment`](#decisiondeployment) | `decision_deployment` | 23 | 2 | 7 |
 | [`DecisionDeploymentTraffic`](#decisiondeploymenttraffic) | `decision_deployment_traffic` | 7 | 1 | 1 |
 | [`DecisionEdgeCondition`](#decisionedgecondition) | `decision_edge_condition` | 6 | 1 | 2 |
 | [`DecisionEnvironment`](#decisionenvironment) | `decision_environment` | 10 | 0 | 0 |
-| [`DecisionExecution`](#decisionexecution) | `decision_execution` | 23 | 3 | 3 |
+| [`DecisionExecution`](#decisionexecution) | `decision_execution` | 23 | 4 | 3 |
 | [`DecisionExecutionError`](#decisionexecutionerror) | `decision_execution_error` | 8 | 0 | 1 |
 | [`DecisionExecutionReason`](#decisionexecutionreason) | `decision_execution_reason` | 9 | 0 | 3 |
 | [`DecisionExecutionStep`](#decisionexecutionstep) | `decision_execution_step` | 9 | 1 | 2 |
@@ -61,7 +62,7 @@ esquema, que es la fuente que las migraciones aplican.
 | [`DecisionTestCoverage`](#decisiontestcoverage) | `decision_test_coverage` | 8 | 1 | 1 |
 | [`DecisionTestRun`](#decisiontestrun) | `decision_test_run` | 16 | 2 | 2 |
 | [`DecisionTestSuite`](#decisiontestsuite) | `decision_test_suite` | 10 | 1 | 1 |
-| [`DecisionVariableDefinition`](#decisionvariabledefinition) | `decision_variable_definition` | 14 | 3 | 0 |
+| [`DecisionVariableDefinition`](#decisionvariabledefinition) | `decision_variable_definition` | 15 | 3 | 0 |
 | [`DecisionVariableSource`](#decisionvariablesource) | `decision_variable_source` | 9 | 1 | 1 |
 | [`DecisionVariableValidationRule`](#decisionvariablevalidationrule) | `decision_variable_validation_rule` | 7 | 0 | 1 |
 | [`DecisionVariableVersion`](#decisionvariableversion) | `decision_variable_version` | 24 | 2 | 1 |
@@ -79,7 +80,7 @@ esquema, que es la fuente que las migraciones aplican.
 | [`QaGenerationRun`](#qagenerationrun) | `decision_qa_generation_run` | 21 | 1 | 1 |
 | [`RuntimeIdempotency`](#runtimeidempotency) | `decision_runtime_idempotency` | 12 | 2 | 0 |
 | [`SemanticAnalysisRun`](#semanticanalysisrun) | `decision_semantic_analysis_run` | 22 | 4 | 0 |
-| [`SemanticCategory`](#semanticcategory) | `decision_semantic_category` | 13 | 2 | 0 |
+| [`SemanticCategory`](#semanticcategory) | `decision_semantic_category` | 16 | 3 | 2 |
 | [`SemanticCategoryEmbedding`](#semanticcategoryembedding) | `decision_semantic_category_embedding` | 6 | 1 | 1 |
 | [`SemanticEntityAlias`](#semanticentityalias) | `decision_semantic_entity_alias` | 6 | 2 | 0 |
 | [`SemanticTenantBudget`](#semantictenantbudget) | `decision_semantic_tenant_budget` | 5 | 1 | 0 |
@@ -510,6 +511,8 @@ Tabla `decision_artifact_version`.
 | `authoringNotes` | `String?` | @map("authoring_notes") @db.Text |
 | `canonicalChecksum` | `String?` | @map("canonical_checksum") @db.VarChar(128) |
 | `lockVersion` | `Int` | @default(1) @map("lock_version") |
+| `processingPurpose` | `String?` | @map("processing_purpose") @db.Text |
+| `legalBasis` | `ProcessingLegalBasis?` | @map("legal_basis") |
 | `createdBy` | `String` | @map("created_by") @db.VarChar(160) |
 | `createdAt` | `DateTime` | @default(now()) @map("created_at") @db.Timestamptz(6) |
 | `submittedAt` | `DateTime?` | @map("submitted_at") @db.Timestamptz(6) |
@@ -640,6 +643,28 @@ Tabla `decision_compiled_artifact`.
 - `unique([artifactVersionId, compiledChecksum])`
 - `index([artifactVersionId, compiledAt])`
 
+## DecisionDataSubjectRequest
+
+Tabla `decision_data_subject_request`.
+
+| Campo | Tipo | Atributos |
+| --- | --- | --- |
+| `id` | `BigInt` | @id @default(autoincrement()) |
+| `tenantId` | `BigInt` | @map("tenant_id") |
+| `subjectReferenceHash` | `String` | @map("subject_reference_hash") @db.VarChar(128) |
+| `requestType` | `DataSubjectRequestType` | @map("request_type") |
+| `status` | `DataSubjectRequestStatus` | @default(RECEIVED) |
+| `receivedBy` | `String` | @map("received_by") @db.VarChar(160) |
+| `reference` | `String?` | @db.VarChar(200) |
+| `resolutionJson` | `Json?` | @map("resolution_json") |
+| `createdAt` | `DateTime` | @default(now()) @map("created_at") @db.Timestamptz(6) |
+| `resolvedAt` | `DateTime?` | @map("resolved_at") @db.Timestamptz(6) |
+
+Índices y restricciones:
+
+- `index([tenantId, subjectReferenceHash, createdAt])`
+- `index([tenantId, status, createdAt])`
+
 ## DecisionDeployment
 
 Tabla `decision_deployment`.
@@ -762,6 +787,7 @@ Tabla `decision_execution`.
 - `unique([tenantId, requestId])`
 - `index([tenantId, executedAt])`
 - `index([artifactVersionId, executedAt])`
+- `index([tenantId, subjectReferenceHash])`
 
 ## DecisionExecutionError
 
@@ -1343,6 +1369,7 @@ Tabla `decision_variable_definition`.
 | `lifecycleState` | `VariableLifecycleState` | @default(ACTIVE) @map("lifecycle_state") |
 | `contractVersion` | `String` | @default("1") @map("contract_version") @db.VarChar(20) |
 | `metadataJson` | `Json?` | @map("metadata_json") |
+| `decisionUseRestriction` | `DecisionUseRestriction` | @default(NONE) @map("decision_use_restriction") |
 | `versions` | `DecisionVariableVersion[]` | — |
 
 Índices y restricciones:
@@ -1739,6 +1766,7 @@ Tabla `decision_semantic_category`.
 | `code` | `String` | @db.VarChar(120) |
 | `name` | `String` | @db.VarChar(200) |
 | `description` | `String` | @db.Text |
+| `parentCode` | `String?` | @map("parent_code") @db.VarChar(120) |
 | `positiveExamples` | `Json` | @map("positive_examples") |
 | `counterExamples` | `Json` | @map("counter_examples") |
 | `restrictions` | `Json` | — |
@@ -1747,11 +1775,14 @@ Tabla `decision_semantic_category`.
 | `version` | `Int` | @default(1) |
 | `isActive` | `Boolean` | @default(true) @map("is_active") |
 | `embeddings` | `SemanticCategoryEmbedding[]` | — |
+| `parent` | `SemanticCategory?` | @relation("SemanticCategoryTree", fields: [tenantId, parentCode], references: [tenantId, code], onDelete: Restrict, onUpdate: Cascade) |
+| `children` | `SemanticCategory[]` | @relation("SemanticCategoryTree") |
 
 Índices y restricciones:
 
 - `unique([tenantId, code])`
 - `index([tenantId, isActive])`
+- `index([tenantId, parentCode])`
 
 ## SemanticCategoryEmbedding
 

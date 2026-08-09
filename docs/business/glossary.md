@@ -16,7 +16,7 @@ se señala.
 | **Contrato de salida** | Declaración explícita de qué campos publica el artefacto y de dónde sale cada uno. La salida no se infiere del último nodo |
 | **Código de razón** | Explicación estructurada de una decisión, con mensaje público (cliente) e interno (analista) |
 | **Adverse action** | Código de razón que, por normativa, debe comunicarse al cliente |
-| **Ambiente** | `SANDBOX`, `TEST`, `PROD`… Determina qué versión está activa y qué restricciones acotadas aplican |
+| **Ambiente** | `DEV`, `STAGING`, `TEST`, `PROD`. Determina qué versión está activa y qué restricciones acotadas aplican |
 | **Despliegue** | Vínculo vigente entre una versión aprobada y un ambiente |
 | **Ejecución** | Una decisión tomada, con su evidencia persistida |
 | **Traza** | Secuencia de pasos de una ejecución: nodo, rama tomada, duración y estado de los valores |

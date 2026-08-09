@@ -136,7 +136,7 @@ contemplan el caso.
 ## Demo ejecutable
 
 `EXTRACTO_CAPACIDAD_PAGO` — «Capacidad de pago verificada por extracto bancario». Se siembra
-con el resto de datos de demostración y queda activo en SANDBOX.
+con el resto de datos de demostración y queda activo en DEV.
 
 ```txt
 START → ANALIZAR_EXTRACTO (WORKER) → DERIVAR_CAPACIDAD → EVALUAR → 4 resultados
@@ -177,7 +177,7 @@ Para tomar una decisión de verdad con un extracto en PDF:
 
 ```bash
 BANK_STATEMENT_WORKER_ENABLED=true \
-npx ts-node --transpile-only prisma/seed-statement-worker-decision.ts \
+npx ts-node --transpile-only prisma/dev-seeds/seed-statement-worker-decision.ts \
   --pdf prisma/fixtures/extracto-qa-bank.pdf --cuota 3500
 ```
 

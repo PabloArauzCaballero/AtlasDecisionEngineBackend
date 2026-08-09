@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/seeding/`](https://github.com/) · 27 ficheros TypeScript.
+Código: [`src/modules/seeding/`](https://github.com/) · 28 ficheros TypeScript.
 
 No expone endpoints HTTP.
 

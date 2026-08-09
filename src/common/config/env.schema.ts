@@ -254,6 +254,21 @@ export const envSchema = z
     // Vacío ⇒ el worker NO se registra, y lo dice en el log. Es preferible a
     // arrancar y fallar en cada job por falta de credenciales.
     SEMANTIC_ANALYSIS_PROVIDER: z.enum(['', 'openai', 'transformer']).default(''),
+    /**
+     * Reconocimiento explícito de que el texto analizado SALE del país.
+     *
+     * El proveedor `openai` envía a `api.openai.com` el texto que se le pide clasificar, y ese
+     * texto viene de extractos y descripciones de movimientos: dato personal. Eso es una
+     * transferencia internacional, con obligaciones propias —LGPD art. 33 y las cláusulas
+     * estándar de la Res. CD/ANPD 19/2024; y, para una institución financiera brasileña, la
+     * notificación previa a BACEN que exige la Res. 4.658 arts. 11-15 para procesar datos en
+     * el exterior—.
+     *
+     * Se exige el reconocimiento en producción por el mismo motivo que `SCRIPT_RUNNER_MODE`
+     * no admite el runner en proceso: es una decisión con consecuencia legal que nadie debe
+     * tomar por omisión, heredando un valor por defecto. Fuera de producción no estorba.
+     */
+    SEMANTIC_ALLOW_INTERNATIONAL_TRANSFER: booleanFromString.default(false),
     SEMANTIC_ANALYSIS_BUDGET_WINDOW_SECONDS: z.coerce
       .number()
       .int()
@@ -416,13 +431,32 @@ export const envSchema = z
     // Solo surte efecto donde corren los trabajos de fondo (WORKER_ROLE ∈ ALL, WORKER): una
     // réplica de API nunca siembra, aunque esto esté en `true`.
     STARTUP_SEED_ENABLED: booleanFromString.optional(),
+    // Decide si la corrida incluye los datos de DEMOSTRACIÓN (artefactos de ejemplo con
+    // despliegues ACTIVOS). Lo resuelve `seeding/mockup-policy.ts`, compartido con
+    // `prisma db seed`; se declara aquí para que exista en la documentación del entorno y
+    // no como una variable mágica. Sin declarar, se deduce de NODE_ENV.
+    // OJO: `NODE_ENV` NO basta como guarda de producción —la imagen del migrador lo fija en
+    // `production` también en un portátil—, por eso `docker-compose.prod.yml` la pone en
+    // `false` de forma explícita.
+    SEED_INCLUDE_MOCKUP: booleanFromString.optional(),
     // Bootstrap integration clients. Read straight from process.env by the seed helpers
     // (they stay framework-free so `prisma db seed` can run them without Nest); declared
     // here so the values are validated and documented instead of being magic strings.
+    //
+    // El tenant de TODO lo que siembra el módulo, no sólo de estos clientes: lo resuelve
+    // `seeding/data/helpers.ts`. `[1-9][0-9]*` y no `[0-9]+` para que las dos validaciones
+    // digan lo mismo — el `0` pasaba aquí y el resolutor lo rechaza, así que un despliegue
+    // arrancaba y la siembra moría después, que es el peor sitio para enterarse.
     BOOTSTRAP_TENANT_ID: z
       .string()
-      .regex(/^[0-9]+$/)
+      .regex(/^[1-9][0-9]*$/)
       .default('1'),
+    // Sinónimo histórico, el que usan los guiones de `prisma/dev-seeds/`. Se declara para
+    // que valide igual; si están las dos, manda BOOTSTRAP_TENANT_ID.
+    SEED_TENANT_ID: z
+      .string()
+      .regex(/^[1-9][0-9]*$/)
+      .optional(),
     BOOTSTRAP_MANAGEMENT_ROLES: z.string().default(''),
     BOOTSTRAP_RUNTIME_ROLES: z.string().default(''),
   })
@@ -550,6 +584,31 @@ export const envSchema = z
     }
 
     if (value.NODE_ENV === 'production') {
+      // Transferencia internacional de datos personales.
+      //
+      // El proveedor `openai` manda a `api.openai.com` el texto que clasifica, y ese texto
+      // sale de extractos y descripciones de movimientos. Es un dato personal cruzando la
+      // frontera, con obligaciones propias (LGPD art. 33 + Res. CD/ANPD 19/2024; y para una
+      // institución financiera brasileña, la notificación previa a BACEN de la Res. 4.658
+      // arts. 11-15). El proveedor por defecto de la fábrica es `openai`, así que sin esta
+      // guarda un despliegue que solo encendiera el worker transferiría datos al exterior
+      // sin que nadie hubiera decidido hacerlo. `transformer` corre dentro del perímetro y
+      // no la necesita.
+      if (
+        value.SEMANTIC_ANALYSIS_WORKER_ENABLED &&
+        value.SEMANTIC_ANALYSIS_PROVIDER !== 'transformer' &&
+        !value.SEMANTIC_ALLOW_INTERNATIONAL_TRANSFER
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['SEMANTIC_ALLOW_INTERNATIONAL_TRANSFER'],
+          message:
+            'El worker semántico con un proveedor alojado envía el texto analizado fuera del ' +
+            'país. Declara SEMANTIC_ALLOW_INTERNATIONAL_TRANSFER=true una vez cubiertas las ' +
+            'obligaciones de transferencia internacional, o usa SEMANTIC_ANALYSIS_PROVIDER=' +
+            'transformer, que se ejecuta dentro del perímetro.',
+        });
+      }
       if (value.SCRIPT_NODES_ENABLED && value.SCRIPT_RUNNER_MODE !== 'SIDECAR') {
         ctx.addIssue({
           code: 'custom',

@@ -511,7 +511,8 @@ export class GovernanceService {
     });
     const approvedStatuses: VersionStatus[] = [
       VersionStatus.APPROVED,
-      VersionStatus.DEPLOYED_TO_SANDBOX,
+      VersionStatus.DEPLOYED_TO_DEV,
+      VersionStatus.DEPLOYED_TO_STAGING,
       VersionStatus.DEPLOYED_TO_TEST,
       VersionStatus.DEPLOYED_TO_PROD,
     ];

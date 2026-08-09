@@ -21,6 +21,7 @@ Etiquetas de API: **Decision Artifacts**.
 | `GET` | `/v1/artifact-versions/{versionId}/graph` | `artifactGetGraph` | Load the complete authoring graph snapshot |
 | `PUT` | `/v1/artifact-versions/{versionId}/graph` | `artifactReplaceGraph` | Atomically replace a draft graph using optimistic locking |
 | `PATCH` | `/v1/artifact-versions/{versionId}/notes` | `artifactUpdateNotes` | Update non-executable authoring notes on an editable version |
+| `PATCH` | `/v1/artifact-versions/{versionId}/processing-basis` | `artifactUpdateProcessingBasis` | Declare the processing purpose and legal basis of a version |
 | `POST` | `/v1/artifact-versions/{versionId}/validate` | `artifactValidate` | Validate graph structure, expressions and determinism |
 | `POST` | `/v1/artifact-versions/{versionId}/validate-and-compile` | `artifactValidateAndCompile` | Validate and compile a version in one command |
 | `POST` | `/v1/artifacts` | `artifactCreate` | Create an artifact with its first editable version |
@@ -89,6 +90,8 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `NodeConditionBindingDto`
 - `NodeDto`
 - `OutputContractFieldDto`
+- `ProcessingBasisDto`
+- `ProcessingBasisResultDto`
 - `ReplaceGraphDto`
 - `UpdateVersionNotesDto`
 - `ValidateAndCompileResultDto`

@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/graph/`](https://github.com/) · 21 ficheros TypeScript.
+Código: [`src/modules/graph/`](https://github.com/) · 22 ficheros TypeScript.
 
 No expone endpoints HTTP.
 
@@ -30,6 +30,7 @@ Este módulo no declara roles: o no expone rutas, o son públicas por diseño.
 - `INTERMEDIATE_WRITE_UNAUTHORIZED`
 - `MAX_EXECUTION_STEPS_EXCEEDED`
 - `NESTED_REFERENCE_NOT_CONFIGURED`
+- `NON_NUMERIC_DECISION_VALUE`
 - `NO_MATCHING_EDGE`
 - `OUTPUT_TYPE_INVALID`
 - `PRIMARY_OUTPUT_TOO_LONG`

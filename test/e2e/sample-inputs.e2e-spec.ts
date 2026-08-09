@@ -16,7 +16,7 @@ describe('Valores de prueba del simulador (e2e)', () => {
   let app: INestApplication;
   const server = () => app.getHttpServer();
   const runId = Date.now();
-  // El artefacto de la demo está desplegado en SANDBOX, TEST y PROD por el seeder.
+  // El artefacto de la demo está desplegado en DEV, STAGING, TEST y PROD por el seeder.
   const ARTIFACT_CODE = 'BNPL_CREDIT_DECISION';
   const analyst = managementHeaders('e2e.sample-inputs', ['RISK_ANALYST']);
 
@@ -32,7 +32,7 @@ describe('Valores de prueba del simulador (e2e)', () => {
     const generated = await request(server())
       .post(`/v1/simulations/${ARTIFACT_CODE}/sample-inputs`)
       .set(analyst)
-      .send({ environmentCode: 'SANDBOX', kind: 'VALID', count: 3 })
+      .send({ environmentCode: 'DEV', kind: 'VALID', count: 3 })
       .expect(201);
 
     expect(generated.body.cases).toHaveLength(3);
@@ -44,7 +44,7 @@ describe('Valores de prueba del simulador (e2e)', () => {
         .set(analyst)
         .send({
           requestId: `e2e-sample-${runId}-${index}`,
-          environmentCode: 'SANDBOX',
+          environmentCode: 'DEV',
           variables: sample.input,
         })
         .expect(201);
@@ -61,13 +61,13 @@ describe('Valores de prueba del simulador (e2e)', () => {
     const first = await request(server())
       .post(`/v1/simulations/${ARTIFACT_CODE}/sample-inputs`)
       .set(analyst)
-      .send({ environmentCode: 'SANDBOX', count: 2 })
+      .send({ environmentCode: 'DEV', count: 2 })
       .expect(201);
 
     const replay = await request(server())
       .post(`/v1/simulations/${ARTIFACT_CODE}/sample-inputs`)
       .set(analyst)
-      .send({ environmentCode: 'SANDBOX', count: 2, seed: first.body.seed })
+      .send({ environmentCode: 'DEV', count: 2, seed: first.body.seed })
       .expect(201);
 
     expect(replay.body.cases).toEqual(first.body.cases);
@@ -85,7 +85,7 @@ describe('Valores de prueba del simulador (e2e)', () => {
     await request(server())
       .post(`/v1/simulations/${ARTIFACT_CODE}/sample-inputs`)
       .set(analyst)
-      .send({ environmentCode: 'SANDBOX', kind: 'CUALQUIERA' })
+      .send({ environmentCode: 'DEV', kind: 'CUALQUIERA' })
       .expect(400);
   });
 });

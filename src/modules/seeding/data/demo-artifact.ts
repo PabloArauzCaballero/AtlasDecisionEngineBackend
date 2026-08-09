@@ -56,7 +56,12 @@ export interface DemoArtifactSummary {
 export async function seedDemoArtifact(
   prisma: PrismaClient,
   tenantId: bigint,
-  environments: { sandbox: { id: bigint }; test: { id: bigint }; prod: { id: bigint } },
+  environments: {
+    dev: { id: bigint };
+    staging: { id: bigint };
+    test: { id: bigint };
+    prod: { id: bigint };
+  },
   inputVariables: DemoVariable[],
   outputVariables: DemoVariable[],
   reasonByCode: Record<string, DemoReason>,

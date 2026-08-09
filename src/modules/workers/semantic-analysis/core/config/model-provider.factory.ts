@@ -16,7 +16,41 @@ const selectionSchema = z.object({
   // Se resuelve por separado para permitir la adopción por etapas: embeddings locales sobre un
   // clasificador alojado es una configuración deliberada, no una inconsistencia.
   SEMANTIC_EMBEDDING_PROVIDER: z.enum(['openai', 'transformer']).optional(),
+  NODE_ENV: z.string().optional(),
+  SEMANTIC_ALLOW_INTERNATIONAL_TRANSFER: z
+    .string()
+    .optional()
+    .transform((value) => value === 'true' || value === '1' || value === 'yes'),
 });
+
+/**
+ * Comprueba, ya con el proveedor elegido en la mano, que nadie transfiere datos al exterior
+ * sin haberlo decidido.
+ *
+ * Duplica la validación del env schema a propósito, igual que `ScriptNodeRunnerService`
+ * duplica la del runner: el schema protege el arranque del proceso, y esto protege el punto
+ * donde de verdad se construye el cliente que va a salir a internet. Si alguien monta este
+ * módulo por otra vía —una prueba, un script, un arranque que se saltó la validación—, la
+ * decisión sigue siendo explícita.
+ *
+ * `openai` envía a `api.openai.com` el texto que clasifica, que procede de extractos y
+ * descripciones de movimientos: dato personal cruzando la frontera. LGPD art. 33 y, para una
+ * institución financiera brasileña, Res. BACEN 4.658 arts. 11-15.
+ */
+function assertTransferAllowed(
+  kind: 'openai' | 'transformer',
+  selection: { NODE_ENV?: string; SEMANTIC_ALLOW_INTERNATIONAL_TRANSFER: boolean },
+): void {
+  if (kind !== 'openai') return;
+  if (selection.NODE_ENV !== 'production') return;
+  if (selection.SEMANTIC_ALLOW_INTERNATIONAL_TRANSFER) return;
+  throw new Error(
+    'El proveedor semántico alojado transfiere el texto analizado fuera del país y esta ' +
+      'instalación no lo ha declarado. Configura SEMANTIC_ALLOW_INTERNATIONAL_TRANSFER=true ' +
+      'una vez cubiertas las obligaciones de transferencia internacional, o usa el proveedor ' +
+      '`transformer`, que se ejecuta dentro del perímetro.',
+  );
+}
 
 export interface ResolvedModelProviders {
   readonly modelProvider: SemanticModelProvider;
@@ -43,6 +77,11 @@ export function loadModelProviders(
   const selection = selectionSchema.parse(environment);
   const embeddingKind = selection.SEMANTIC_EMBEDDING_PROVIDER ?? selection.SEMANTIC_MODEL_PROVIDER;
   const wantsEmbeddings = config.retrievalMode === 'hybrid';
+
+  // Los dos adaptadores se comprueban por separado: la configuración por etapas permite un
+  // clasificador local con embeddings alojados, y ese también transfiere el texto.
+  assertTransferAllowed(selection.SEMANTIC_MODEL_PROVIDER, selection);
+  if (wantsEmbeddings) assertTransferAllowed(embeddingKind, selection);
 
   const modelProvider =
     selection.SEMANTIC_MODEL_PROVIDER === 'transformer'

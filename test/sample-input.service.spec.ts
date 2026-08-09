@@ -30,7 +30,7 @@ describe('SampleInputService', () => {
     const deployments = {
       resolve: jest.fn().mockResolvedValue({
         compiled: { variables: rows },
-        environmentCode: 'SANDBOX',
+        environmentCode: 'DEV',
         artifactVersionId: 42n,
       }),
     } as unknown as DeploymentResolverService;
@@ -52,9 +52,9 @@ describe('SampleInputService', () => {
 
   it('la misma semilla devuelve exactamente los mismos valores', async () => {
     const { service } = serviceFor();
-    const first = await service.generate(1n, 'RIESGO', { environmentCode: 'SANDBOX', count: 3 });
+    const first = await service.generate(1n, 'RIESGO', { environmentCode: 'DEV', count: 3 });
     const repeat = await service.generate(1n, 'RIESGO', {
-      environmentCode: 'SANDBOX',
+      environmentCode: 'DEV',
       count: 3,
       seed: first.seed,
     });
@@ -63,15 +63,15 @@ describe('SampleInputService', () => {
 
   it('sin semilla, dos pulsaciones exploran entradas distintas', async () => {
     const { service } = serviceFor();
-    const first = await service.generate(1n, 'RIESGO', { environmentCode: 'SANDBOX', count: 4 });
-    const second = await service.generate(1n, 'RIESGO', { environmentCode: 'SANDBOX', count: 4 });
+    const first = await service.generate(1n, 'RIESGO', { environmentCode: 'DEV', count: 4 });
+    const second = await service.generate(1n, 'RIESGO', { environmentCode: 'DEV', count: 4 });
     expect(second.seed).not.toBe(first.seed);
   });
 
   it('INVALID produce valores que el contrato debe rechazar', async () => {
     const { service } = serviceFor();
     const result = await service.generate(1n, 'RIESGO', {
-      environmentCode: 'SANDBOX',
+      environmentCode: 'DEV',
       kind: 'INVALID',
       count: 6,
     });
@@ -89,8 +89,8 @@ describe('SampleInputService', () => {
 
   it('un artefacto sin entradas lo dice, en vez de devolver casos vacíos', async () => {
     const { service } = serviceFor([variables[2]]);
-    await expect(
-      service.generate(1n, 'RIESGO', { environmentCode: 'SANDBOX' }),
-    ).rejects.toMatchObject({ code: 'ARTIFACT_HAS_NO_INPUTS' });
+    await expect(service.generate(1n, 'RIESGO', { environmentCode: 'DEV' })).rejects.toMatchObject({
+      code: 'ARTIFACT_HAS_NO_INPUTS',
+    });
   });
 });

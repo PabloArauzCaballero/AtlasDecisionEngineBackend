@@ -221,14 +221,17 @@ describe('GovernanceService.assertApproved — la puerta que mira el despliegue'
     );
   };
 
-  it.each(['APPROVED', 'DEPLOYED_TO_SANDBOX', 'DEPLOYED_TO_TEST', 'DEPLOYED_TO_PROD'])(
-    'deja pasar una versión en estado %s',
-    async (status) => {
-      await expect(
-        service({ status, approvedAt: new Date() }).assertApproved(TENANT, 1n),
-      ).resolves.toBeUndefined();
-    },
-  );
+  it.each([
+    'APPROVED',
+    'DEPLOYED_TO_DEV',
+    'DEPLOYED_TO_STAGING',
+    'DEPLOYED_TO_TEST',
+    'DEPLOYED_TO_PROD',
+  ])('deja pasar una versión en estado %s', async (status) => {
+    await expect(
+      service({ status, approvedAt: new Date() }).assertApproved(TENANT, 1n),
+    ).resolves.toBeUndefined();
+  });
 
   it.each(['DRAFT', 'IN_REVIEW', 'REJECTED', 'SUSPENDED', 'ARCHIVED'])(
     'bloquea una versión en estado %s',

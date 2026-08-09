@@ -254,7 +254,7 @@ describe('Nodos que llaman a un servicio de worker (e2e)', () => {
     expect(run.body.status).toBe('PASSED');
   }, 60_000);
 
-  it('gobierna y despliega la versión a SANDBOX', async () => {
+  it('gobierna y despliega la versión a DEV', async () => {
     const submitted = await request(server())
       .post(`/v1/artifact-versions/${versionId}/submit-for-review`)
       .set(author)
@@ -277,7 +277,7 @@ describe('Nodos que llaman a un servicio de worker (e2e)', () => {
     const deployed = await request(server())
       .post(`/v1/artifact-versions/${versionId}/deployments`)
       .set(deployer)
-      .send({ environmentCode: 'SANDBOX', deploymentMode: 'DIRECT', traffic: [] })
+      .send({ environmentCode: 'DEV', deploymentMode: 'DIRECT', traffic: [] })
       .expect(201);
     expect(deployed.body.deploymentStatus).toBe('ACTIVE');
   });
@@ -288,7 +288,7 @@ describe('Nodos que llaman a un servicio de worker (e2e)', () => {
       .set(author)
       .send({
         requestId: `worker-node-sim-${runId}`,
-        environmentCode: 'SANDBOX',
+        environmentCode: 'DEV',
         variables: { [documentVariable]: statementBase64 },
       })
       .expect(201);
@@ -303,7 +303,7 @@ describe('Nodos que llaman a un servicio de worker (e2e)', () => {
       .set(author)
       .send({
         requestId: `worker-node-sim-invalid-${runId}`,
-        environmentCode: 'SANDBOX',
+        environmentCode: 'DEV',
         // Base64 de `no soy un pdf`: el nodo declara `onError: FAIL`, así que el fallo del
         // servicio tiene que llegar al cliente con su propio código, no con uno genérico.
         variables: { [documentVariable]: Buffer.from('no soy un pdf').toString('base64') },

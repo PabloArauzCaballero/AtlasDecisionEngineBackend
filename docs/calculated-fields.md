@@ -166,7 +166,7 @@ no exponga de verdad.
 | `dates` | Fechas | `dates.daysBetween`, `.yearsBetween` | `dates_days_between`… | APPROVED |
 | `finance` | Finanzas | `finance.dti`, `.ltv`, `.monthlyPayment` | `finance_dti`… | **RESTRICTED** |
 
-`finance` nace restringida a SANDBOX/TEST: §7 exige aprobación explícita antes de que una
+`finance` nace restringida a los ambientes no productivos (DEV/STAGING/TEST): §7 exige aprobación explícita antes de que una
 fórmula financiera influya en una decisión real.
 
 En Python las funciones se exponen con nombre plano y prefijo (`math_abs`) en vez de como

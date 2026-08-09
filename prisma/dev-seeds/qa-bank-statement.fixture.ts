@@ -18,7 +18,7 @@ import {
   buildSyntheticPdf,
   lineY,
   type PdfCell,
-} from '../../workers/bank-statement/fixtures/synthetic-pdf';
+} from '../../src/modules/workers/bank-statement/fixtures/synthetic-pdf';
 
 /** Un renglón del detalle. `debit` y `credit` son excluyentes, como en el documento. */
 interface Movement {

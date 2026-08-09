@@ -59,7 +59,7 @@ class SampleBatchDto {
 export class SimulatorSampleInputsDto extends SampleBatchDto {
   @ApiProperty({ example: 'BNPL_CREDIT_DECISION' }) artifactCode!: string;
 
-  @ApiProperty({ example: 'SANDBOX', description: 'Ambiente resuelto. PROD nunca.' })
+  @ApiProperty({ example: 'DEV', description: 'Ambiente resuelto. PROD nunca.' })
   environmentCode!: string;
 
   @ApiProperty({ example: '4001', description: 'Versión desplegada de la que salió el contrato.' })

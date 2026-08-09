@@ -1,6 +1,6 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Prisma } from '@prisma/client';
+import { DecisionUseRestriction, Prisma } from '@prisma/client';
 import { AuditService } from '../../common/audit/audit.service';
 import { DomainException } from '../../common/errors/domain-exception';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -51,6 +51,10 @@ export class VariableService {
           dataClassification: dto.dataClassification,
           ownerTeam: dto.ownerTeam,
           isSensitive: dto.isSensitive,
+          // Eje de licitud de uso, independiente de `isSensitive`/`dataClassification`.
+          ...(dto.decisionUseRestriction
+            ? { decisionUseRestriction: dto.decisionUseRestriction as DecisionUseRestriction }
+            : {}),
           versions: {
             create: this.versionCreateData(1, dto.initialVersion),
           },

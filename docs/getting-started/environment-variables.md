@@ -3,7 +3,7 @@
 
 # Variables de entorno
 
-156 variables declaradas. El esquema se valida al arrancar: un valor ausente o
+159 variables declaradas. El esquema se valida al arrancar: un valor ausente o
 fuera de rango impide el arranque en vez de degradar el comportamiento en caliente.
 
 | Variable | Obligatoria | Valor por defecto | Para qué |
@@ -111,6 +111,7 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `SEMANTIC_ANALYSIS_MAX_ATTEMPTS` | no | `3` | Agotados los intentos la ejecución queda FAILED en vez de volver a la cola: reintentar sin cota convierte un fallo permanente en gasto perpetuo. |
 | `SEMANTIC_ANALYSIS_MAX_TEXT_LENGTH` | no | `8_000` | — |
 | `SEMANTIC_ANALYSIS_PROVIDER` | no | `''` | Vacío ⇒ el worker NO se registra, y lo dice en el log. Es preferible a arrancar y fallar en cada job por falta de credenciales. |
+| `SEMANTIC_ALLOW_INTERNATIONAL_TRANSFER` | no | `false` | — |
 | `SEMANTIC_ANALYSIS_BUDGET_WINDOW_SECONDS` | **sí** | — | — |
 | `SEMANTIC_ANALYSIS_BUDGET_MAX_ANALYSES` | **sí** | — | — |
 | `SEMANTIC_ANALYSIS_MINIMIZE_AFTER_DAYS` | no | `30` | --- Retención del texto analizado --- El texto que se clasifica se persiste íntegro para poder explicar la decisión, y en el caso de un proveedor alojado ya salió del perímetro una vez. Retenerlo indefinidamente añade una segunda copia permanente que nadie pidió, así que la barrida lo minimiza (lo sustituye por su huella) y más tarde purga la fila entera. |
@@ -161,7 +162,9 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `OUTBOX_MAX_ATTEMPTS` | no | `8` | Failed dispatches back off exponentially via available_at; after this many attempts the event is dead-lettered (status DEAD) for operator attention. |
 | `OUTBOX_LEASE_MS` | no | `30_000` | Claim lease: a relay replica that dies mid-batch frees its rows after this lapse. |
 | `STARTUP_SEED_ENABLED` | no | — | Idempotently injects bootstrap seeds (every environment) and mockup/demo seeds (development only) at application startup. Left unset it is on everywhere except `test`, where suites provision their own fixtures. Set explicitly to force either way. Solo surte efecto donde corren los trabajos de fondo (WORKER_ROLE ∈ ALL, WORKER): una réplica de API nunca siembra, aunque esto esté en `true`. |
-| `BOOTSTRAP_TENANT_ID` | **sí** | — | Bootstrap integration clients. Read straight from process.env by the seed helpers (they stay framework-free so `prisma db seed` can run them without Nest); declared here so the values are validated and documented instead of being magic strings. |
+| `SEED_INCLUDE_MOCKUP` | no | — | Decide si la corrida incluye los datos de DEMOSTRACIÓN (artefactos de ejemplo con despliegues ACTIVOS). Lo resuelve `seeding/mockup-policy.ts`, compartido con `prisma db seed`; se declara aquí para que exista en la documentación del entorno y no como una variable mágica. Sin declarar, se deduce de NODE_ENV. OJO: `NODE_ENV` NO basta como guarda de producción —la imagen del migrador lo fija en `production` también en un portátil—, por eso `docker-compose.prod.yml` la pone en `false` de forma explícita. |
+| `BOOTSTRAP_TENANT_ID` | **sí** | — | Bootstrap integration clients. Read straight from process.env by the seed helpers (they stay framework-free so `prisma db seed` can run them without Nest); declared here so the values are validated and documented instead of being magic strings.  El tenant de TODO lo que siembra el módulo, no sólo de estos clientes: lo resuelve `seeding/data/helpers.ts`. `[1-9][0-9]*` y no `[0-9]+` para que las dos validaciones digan lo mismo — el `0` pasaba aquí y el resolutor lo rechaza, así que un despliegue arrancaba y la siembra moría después, que es el peor sitio para enterarse. |
+| `SEED_TENANT_ID` | **sí** | — | Sinónimo histórico, el que usan los guiones de `prisma/dev-seeds/`. Se declara para que valide igual; si están las dos, manda BOOTSTRAP_TENANT_ID. |
 | `BOOTSTRAP_MANAGEMENT_ROLES` | no | `''` | — |
 | `BOOTSTRAP_RUNTIME_ROLES` | no | `''` | — |
 

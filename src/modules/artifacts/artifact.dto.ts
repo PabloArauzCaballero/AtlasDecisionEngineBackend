@@ -37,6 +37,30 @@ export class CreateArtifactDto {
   @IsOptional() @IsString() @MaxLength(40) semanticVersion?: string;
 }
 
+/** Bases legales del tratamiento (LGPD arts. 7 y 11). */
+export const LEGAL_BASIS = [
+  'CONSENT',
+  'CONTRACT',
+  'LEGAL_OBLIGATION',
+  'REGULATORY_EXERCISE',
+  'CREDIT_PROTECTION',
+  'LEGITIMATE_INTEREST',
+  'VITAL_INTEREST',
+  'HEALTH_PROTECTION',
+] as const;
+
+/**
+ * Finalidad y base legal del TRATAMIENTO que hace una versión.
+ *
+ * Van en la versión y no en la ejecución porque describen la operación de tratamiento
+ * (LGPD art. 37), no cada uso concreto: registrarlas por decisión sería repetir el mismo
+ * dato millones de veces y perderlo de vista en el sitio donde se aprueba.
+ */
+export class ProcessingBasisDto {
+  @IsOptional() @IsString() @MaxLength(8_000) processingPurpose?: string;
+  @IsOptional() @IsIn([...LEGAL_BASIS]) legalBasis?: string;
+}
+
 export class CloneVersionDto {
   @IsString() @IsNotEmpty() @MaxLength(8_000) changeSummary!: string;
   @IsOptional() @IsString() @MaxLength(40) semanticVersion?: string;

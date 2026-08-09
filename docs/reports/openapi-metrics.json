@@ -1,14 +1,14 @@
 {
-  "generatedAt": "2026-08-08T03:02:23.589Z",
+  "generatedAt": "2026-08-09T01:15:05.639Z",
   "apiVersion": "v1",
-  "paths": 110,
-  "operations": 124,
-  "withOperationId": 124,
-  "withSummary": 124,
-  "withTag": 124,
-  "withSecurity": 120,
-  "withSuccessSchema": 124,
-  "schemas": 234,
+  "paths": 113,
+  "operations": 127,
+  "withOperationId": 127,
+  "withSummary": 127,
+  "withTag": 127,
+  "withSecurity": 123,
+  "withSuccessSchema": 127,
+  "schemas": 242,
   "publicOperations": 4,
   "successSchemaDebt": 0
 }

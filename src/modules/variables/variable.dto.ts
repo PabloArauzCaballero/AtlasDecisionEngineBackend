@@ -44,6 +44,14 @@ const SENSITIVITY = [
   'SECRET',
 ] as const;
 const ORIGINS = ['REQUEST', 'PROVIDER', 'DERIVED', 'CALCULATED_FIELD', 'GRAPH_NODE'] as const;
+/**
+ * Licitud de USO en una decisión, distinta de la sensibilidad de arriba.
+ *
+ * `SENSITIVITY` dice cuánto hay que proteger el dato; esto dice si puede influir en el
+ * resultado. Un ingreso es `CONFIDENTIAL` y utilizable; la etnia puede estar bien protegida
+ * y aun así no poder tocar una decisión de crédito.
+ */
+const DECISION_USE = ['NONE', 'PROHIBITED_BASIS', 'SPECIAL_CATEGORY'] as const;
 
 export class VariableVersionDto {
   @IsIn([...DATA_TYPES]) dataType!: string;
@@ -83,6 +91,8 @@ export class CreateVariableDefinitionDto {
   @IsString() @IsNotEmpty() @MaxLength(50) dataClassification!: string;
   @IsString() @IsNotEmpty() @MaxLength(100) ownerTeam!: string;
   @IsBoolean() isSensitive!: boolean;
+  /** Por defecto `NONE`: marcar una variable no puede ser un requisito para darla de alta. */
+  @IsOptional() @IsIn([...DECISION_USE]) decisionUseRestriction?: string;
   // `@ValidateNested()` no comprueba presencia: sobre `undefined` no hay nada que validar y
   // lo deja pasar. Sin `@IsDefined()` la petición llegaba al servicio sin contrato y
   // reventaba leyendo `dataType`, devolviendo un 500 donde toca un 400.

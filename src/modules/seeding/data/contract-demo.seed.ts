@@ -77,7 +77,7 @@ const OUTPUT_CODES = new Set(['decision_afordabilidad', 'motivo_afordabilidad', 
 
 export async function seedContractDemoArtifact(
   prisma: PrismaClient,
-  environments: { sandbox: { id: bigint }; test: { id: bigint } },
+  environments: { dev: { id: bigint }; test: { id: bigint } },
 ) {
   const existing = await prisma.decisionArtifact.findUnique({
     where: { tenantId_artifactCode: { tenantId: TENANT_ID, artifactCode: CONTRACT_DEMO_CODE } },
@@ -236,7 +236,7 @@ export async function seedContractDemoArtifact(
   });
 
   await seedRegressionSuite(prisma, version.id);
-  logger.log(`Sembrado ${CONTRACT_DEMO_CODE} ${CONTRACT_DEMO_VERSION} en SANDBOX/TEST`);
+  logger.log(`Sembrado ${CONTRACT_DEMO_CODE} ${CONTRACT_DEMO_VERSION} en DEV/TEST`);
   void environments;
 
   return {

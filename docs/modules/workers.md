@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/workers/`](https://github.com/) · 98 ficheros TypeScript.
+Código: [`src/modules/workers/`](https://github.com/) · 100 ficheros TypeScript.
 
 Etiquetas de API: **Workers · Extractos bancarios**, **Workers · Análisis semántico**, **Workers**.
 
@@ -88,8 +88,6 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `MercantilStatementParser`
 - `OpenAiEmbeddingProvider`
 - `OpenAiSemanticProvider`
-- `TransformerEmbeddingProvider`
-- `TransformerSemanticProvider`
 - `PrismaAuditRetentionRepository`
 - `PrismaCategoryEmbeddingRepository`
 - `PrismaEntityAliasRepository`
@@ -118,6 +116,8 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `TenantBudgetGuard`
 - `TextNormalizer`
 - `TimeoutExceededError`
+- `TransformerEmbeddingProvider`
+- `TransformerSemanticProvider`
 - `UnionStatementParser`
 - `WorkerDescriptorDto`
 - `WorkerFixtureDto`

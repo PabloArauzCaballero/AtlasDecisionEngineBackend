@@ -16,7 +16,8 @@ enum VersionStatus {
   IN_REVIEW
   CHANGES_REQUESTED
   APPROVED
-  DEPLOYED_TO_SANDBOX
+  DEPLOYED_TO_DEV
+  DEPLOYED_TO_STAGING
   DEPLOYED_TO_TEST
   DEPLOYED_TO_PROD
   SUSPENDED
@@ -102,6 +103,66 @@ enum SensitivityClass {
   PII
   SENSITIVE_PII
   SECRET
+}
+
+/// Licitud de USO de un dato en una decisión automatizada.
+///
+/// Es un eje distinto de `SensitivityClass`, y confundirlos fue el hueco que cerró esta
+/// enumeración: la sensibilidad dice cuánto hay que proteger un dato, esto dice si puede
+/// influir en la decisión. Un ingreso mensual es `CONFIDENTIAL` y perfectamente utilizable;
+/// la etnia puede estar bien protegida y aun así no poder tocar el resultado.
+enum DecisionUseRestriction {
+  /// Sin restricción de uso.
+  NONE
+  /// Base prohibida. ECOA §1002.6(b)(9) y Reg B prohíben que influya en una decisión
+  /// crediticia: raza, color, religión, origen nacional, sexo, estado civil, edad y
+  /// recepción de asistencia pública. No se admite excepción por configuración.
+  PROHIBITED_BASIS
+  /// Categoría especial: LGPD art. 11 (origen racial o étnico, convicción religiosa, salud,
+  /// biometría, genética). Su tratamiento exige una base legal declarada, así que se admite
+  /// solo cuando la versión que la consume declara la suya.
+  SPECIAL_CATEGORY
+}
+
+/// Base legal del tratamiento que realiza una versión de artefacto (LGPD arts. 7 y 11).
+enum ProcessingLegalBasis {
+  /// Consentimiento del titular (LGPD art. 7 I).
+  CONSENT
+  /// Ejecución de contrato o diligencias preliminares (art. 7 V).
+  CONTRACT
+  /// Cumplimiento de obligación legal o regulatoria (art. 7 II).
+  LEGAL_OBLIGATION
+  /// Ejercicio regular de derechos (art. 7 VI).
+  REGULATORY_EXERCISE
+  /// Protección del crédito (art. 7 X) — la hipótesis propia de un motor de decisión
+  /// crediticia, y por eso la que se espera en la mayoría de artefactos de originación.
+  CREDIT_PROTECTION
+  /// Interés legítimo del controlador (art. 7 IX), que exige prueba de proporcionalidad.
+  LEGITIMATE_INTEREST
+  /// Protección de la vida o la incolumidad física (art. 7 VII).
+  VITAL_INTEREST
+  /// Tutela de la salud (art. 11 II f), sólo por profesionales o autoridad sanitaria.
+  HEALTH_PROTECTION
+}
+
+/// Tipo de solicitud de un titular de datos (LGPD art. 18; CCPA/CPRA §1798.100 y ss.).
+enum DataSubjectRequestType {
+  /// Confirmación y acceso a las decisiones tomadas sobre el titular (art. 18 I y II).
+  ACCESS
+  /// Portabilidad de esos datos (art. 18 V).
+  PORTABILITY
+  /// Eliminación (art. 18 VI). No alcanza la cadena de auditoría, que es append-only y se
+  /// conserva por obligación legal (art. 16 I).
+  ERASURE
+  /// Revisión humana de una decisión automatizada (art. 20).
+  REVIEW
+}
+
+/// Estado de una solicitud de titular.
+enum DataSubjectRequestStatus {
+  RECEIVED
+  FULFILLED
+  REJECTED
 }
 
 /// Estado del ciclo de vida de una variable del catálogo (§1.1).
@@ -263,6 +324,14 @@ model DecisionArtifactVersion {
   authoringNotes    String?       @map("authoring_notes") @db.Text
   canonicalChecksum String?       @map("canonical_checksum") @db.VarChar(128)
   lockVersion       Int           @default(1) @map("lock_version")
+
+  /// Finalidad declarada del tratamiento (LGPD art. 6 I: finalidades legítimas, específicas
+  /// y explícitas). En texto libre a propósito: la finalidad es una afirmación de negocio,
+  /// no un código, y tiene que poder leerse tal cual en un informe.
+  processingPurpose String?               @map("processing_purpose") @db.Text
+  /// Base legal del tratamiento. Opcional para no invalidar las versiones ya publicadas,
+  /// pero OBLIGATORIA para publicar una versión que consuma una variable `SPECIAL_CATEGORY`.
+  legalBasis        ProcessingLegalBasis? @map("legal_basis")
   createdBy         String        @map("created_by") @db.VarChar(160)
   createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   submittedAt       DateTime?     @map("submitted_at") @db.Timestamptz(6)
@@ -370,6 +439,10 @@ model DecisionVariableDefinition {
   /// Versión del contrato en la que se introdujo la variable (§1.1).
   contractVersion  String                 @default("1") @map("contract_version") @db.VarChar(20)
   metadataJson     Json?                  @map("metadata_json")
+
+  /// Licitud de uso en una decisión. Eje independiente de `sensitivityClass`; lo aplica
+  /// `graph-decision-use.validator.ts` al publicar, no en ejecución.
+  decisionUseRestriction DecisionUseRestriction @default(NONE) @map("decision_use_restriction")
 
   versions DecisionVariableVersion[]
 
@@ -877,7 +950,39 @@ model DecisionExecution {
   @@unique([tenantId, requestId])
   @@index([tenantId, executedAt])
   @@index([artifactVersionId, executedAt])
+  /// Sin este índice, atender una solicitud de titular (LGPD art. 18, CCPA §1798.110) exigía
+  /// recorrer la tabla entera. La columna se escribía desde el principio y no la leía nadie.
+  @@index([tenantId, subjectReferenceHash])
   @@map("decision_execution")
+}
+
+/// Constancia de una solicitud de titular de datos.
+///
+/// Existe por accountability: LGPD art. 18 §1 obliga a responder, y la prueba de que se
+/// respondió —qué se pidió, quién lo atendió, cuándo y con qué alcance— no puede vivir solo
+/// en el registro de auditoría, porque ahí no se puede consultar «todas las solicitudes de
+/// este titular» sin recorrer la cadena entera.
+///
+/// El titular se identifica por el MISMO HMAC que usa `decision_execution`, así que la
+/// referencia en claro nunca se persiste.
+model DecisionDataSubjectRequest {
+  id                   BigInt                   @id @default(autoincrement())
+  tenantId             BigInt                   @map("tenant_id")
+  subjectReferenceHash String                   @map("subject_reference_hash") @db.VarChar(128)
+  requestType          DataSubjectRequestType   @map("request_type")
+  status               DataSubjectRequestStatus @default(RECEIVED)
+  /// Quién registró la solicitud en nombre del titular (operador, canal de atención).
+  receivedBy           String                   @map("received_by") @db.VarChar(160)
+  /// Contexto del canal: número de ticket, expediente. Nunca el dato del titular.
+  reference            String?                  @db.VarChar(200)
+  /// Qué se entregó o por qué se rechazó. Sin datos personales: solo el alcance.
+  resolutionJson       Json?                    @map("resolution_json")
+  createdAt            DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  resolvedAt           DateTime?                @map("resolved_at") @db.Timestamptz(6)
+
+  @@index([tenantId, subjectReferenceHash, createdAt])
+  @@index([tenantId, status, createdAt])
+  @@map("decision_data_subject_request")
 }
 
 model DecisionExecutionVariable {

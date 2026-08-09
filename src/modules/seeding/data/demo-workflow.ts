@@ -300,7 +300,7 @@ const STATUS_HISTORY = [
 
 /**
  * Seeds a passing regression suite, a completed governance approval, and an ACTIVE
- * deployment in every environment (sandbox, test and prod) so the demo can be
+ * deployment in every environment (dev, staging, test and prod) so the demo can be
  * simulated/run in the non-production environments the Simulator offers — not only
  * in production.
  */
@@ -309,7 +309,12 @@ export async function seedDemoWorkflow(
   tenantId: bigint,
   version: { id: bigint },
   compiledArtifact: { id: bigint },
-  environments: { sandbox: { id: bigint }; test: { id: bigint }; prod: { id: bigint } },
+  environments: {
+    dev: { id: bigint };
+    staging: { id: bigint };
+    test: { id: bigint };
+    prod: { id: bigint };
+  },
   canonicalChecksum: string,
   graphTotals: { nodes: number; edges: number; terminals: number },
 ) {
@@ -418,10 +423,15 @@ export async function seedDemoWorkflow(
     });
   }
 
-  // Deploy to sandbox, test AND prod so the demo is runnable everywhere. Each
+  // Deploy to dev, staging, test AND prod so the demo is runnable everywhere. Each
   // environment gets its own ACTIVE deployment and runtime binding; the prod one is
   // returned as the canonical deployment for the summary.
-  const orderedEnvironments = [environments.sandbox, environments.test, environments.prod];
+  const orderedEnvironments = [
+    environments.dev,
+    environments.test,
+    environments.staging,
+    environments.prod,
+  ];
   let deployment!: Awaited<ReturnType<typeof prisma.decisionDeployment.create>>;
   for (const environment of orderedEnvironments) {
     const created = await prisma.decisionDeployment.create({

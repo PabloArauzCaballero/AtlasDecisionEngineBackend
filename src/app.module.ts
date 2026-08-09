@@ -16,6 +16,7 @@ import { ArtifactModule } from './modules/artifacts/artifact.module';
 import { AuditQueryModule } from './modules/audit-query/audit-query.module';
 import { CalculatedFieldsModule } from './modules/calculated-fields/calculated-fields.module';
 import { CodeImportModule } from './modules/code-import/code-import.module';
+import { DataSubjectModule } from './modules/data-subject/data-subject.module';
 import { DeploymentModule } from './modules/deployments/deployment.module';
 import { GovernanceModule } from './modules/governance/governance.module';
 import { GraphModule } from './modules/graph/graph.module';
@@ -78,6 +79,7 @@ import { IdentitySessionModule } from './modules/identity-session/identity-sessi
     RuntimeModule,
     LiveExecutionModule,
     ManualReviewModule,
+    DataSubjectModule,
     NotificationsModule,
     OutboxRelayModule,
     AuditQueryModule,

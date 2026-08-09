@@ -29,7 +29,7 @@ describe('SimulationService', () => {
     deploymentId: 21n,
     artifactVersionId: 11n,
     environmentId: 3n,
-    environmentCode: 'SANDBOX',
+    environmentCode: 'DEV',
     compiledArtifactId: 31n,
     compiledChecksum: 'checksum-123',
     compiled,
@@ -94,13 +94,13 @@ describe('SimulationService', () => {
       'CREDIT_POLICY',
       {
         requestId: 'simulation-request-1',
-        environmentCode: 'sandbox',
+        environmentCode: 'dev',
         variables: { age: 30 },
       },
       principal,
     );
 
-    expect(deployments.resolve).toHaveBeenCalledWith(7n, 'CREDIT_POLICY', 'SANDBOX');
+    expect(deployments.resolve).toHaveBeenCalledWith(7n, 'CREDIT_POLICY', 'DEV');
     expect(variables.resolve).toHaveBeenCalledWith(
       [compiled.variables[0]],
       { age: 30 },
@@ -163,7 +163,7 @@ describe('SimulationService', () => {
         'CREDIT_POLICY',
         {
           requestId: 'simulation-request-3',
-          environmentCode: 'SANDBOX',
+          environmentCode: 'DEV',
           variables: {},
         },
         principal,
@@ -189,7 +189,7 @@ describe('SimulationService', () => {
   describe('comparación con producción (§12)', () => {
     const simulate = (compareWithProduction?: boolean) => ({
       requestId: 'simulation-request-cmp',
-      environmentCode: 'SANDBOX',
+      environmentCode: 'DEV',
       variables: { age: 30 },
       ...(compareWithProduction === undefined ? {} : { compareWithProduction }),
     });

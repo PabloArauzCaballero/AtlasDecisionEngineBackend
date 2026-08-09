@@ -242,29 +242,29 @@ export async function seedStatementWorkerDemoArtifact(
     data: { canonicalChecksum: compiledChecksum },
   });
 
-  await deployToSandbox(prisma, version.id, compiledRow.id);
+  await deployToDev(prisma, version.id, compiledRow.id);
 
   logger.log(
-    `Sembrado ${STATEMENT_WORKER_DEMO_CODE} ${STATEMENT_WORKER_DEMO_VERSION} (activo en SANDBOX)`,
+    `Sembrado ${STATEMENT_WORKER_DEMO_CODE} ${STATEMENT_WORKER_DEMO_VERSION} (activo en DEV)`,
   );
   return { artifactId: artifact.id, versionId: version.id, compiledChecksum };
 }
 
 /**
- * Deja el demo ejecutable en SANDBOX.
+ * Deja el demo ejecutable en DEV.
  *
  * Hacen falta las DOS filas: el despliegue y el binding de runtime. El motor resuelve por
  * `decision_runtime_binding` (artefacto + ambiente → despliegue activo), así que un
- * despliegue sin binding es invisible para él. SANDBOX y no PROD porque el demo llama a un
+ * despliegue sin binding es invisible para él. DEV y no PROD porque el demo llama a un
  * servicio externo de verdad y no tiene por qué estar disponible en producción.
  */
-async function deployToSandbox(
+async function deployToDev(
   prisma: PrismaClient,
   versionId: bigint,
   compiledArtifactId: bigint,
 ): Promise<void> {
   const environment = await prisma.decisionEnvironment.findFirstOrThrow({
-    where: { environmentType: 'SANDBOX' },
+    where: { environmentType: 'DEV' },
     select: { id: true },
   });
   const deployment = await prisma.decisionDeployment.create({

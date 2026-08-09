@@ -3,7 +3,7 @@
 
 # Catálogo de códigos de error
 
-191 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
+192 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
 el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 
 | Código | Mensaje de referencia | Origen |
@@ -125,6 +125,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `NESTED_TREE_TOTAL_TIMEOUT_EXCEEDED` | La cadena superó el tiempo total de ${this.limits.maxTotalMs} ms | `src/modules/nested-trees/chain-budget.ts` |
 | `NODE_ACTION_NOT_FOUND` | Node ${node.key} references unknown action ${binding.actionCode} | `src/modules/artifacts/artifact-graph-writer.service.ts` |
 | `NODE_CONDITION_NOT_FOUND` | Node ${node.key} references unknown condition ${binding.conditionCode} | `src/modules/artifacts/artifact-graph-writer.service.ts` |
+| `NON_NUMERIC_DECISION_VALUE` | ${what} de ${code} no produjo un número finito | `src/modules/graph/execution-engine.service.ts` |
 | `NOTIFICATION_NOT_FOUND` | Notification not found | `src/modules/notifications/notification.service.ts` |
 | `NO_MATCHING_EDGE` | No outgoing edge matched node ${node.key} | `src/modules/graph/execution-engine.service.ts` |
 | `OBJECTIVE_NOT_FOUND` | Business objective not found | `src/modules/traceability/traceability.service.ts` |
@@ -149,7 +150,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `REQUIRED_OUTPUT_MISSING` | Execution finished without required output ${contract.code} | `src/modules/graph/execution-engine.service.ts` |
 | `RESOURCE_ALREADY_EXISTS` | Ya existe un registro con ese identificador único | `src/common/errors/domain-exception.filter.ts` |
 | `RESULT_MODE_INVALID` | Unsupported RESULT mode ${mode} | `src/modules/graph/execution-engine.service.ts` |
-| `RESULT_SCRIPT_LANGUAGE_INVALID` | Unsupported RESULT script language ${language} | `src/modules/graph/execution-engine.service.ts` |
+| `RESULT_SCRIPT_LANGUAGE_INVALID` | — | `src/modules/graph/execution-engine.service.ts` |
 | `ROLLBACK_TARGET_NOT_FOUND` | No previous deployment is available | `src/modules/deployments/deployment.service.ts` |
 | `RUNTIME_ACTION_NOT_FOUND` | Action ${reference.code} not found | `src/modules/graph/execution-engine.service.ts` |
 | `RUNTIME_CREDENTIAL_REQUIRED` | Runtime routes require a credential with a verifiable runtime audience | `src/common/security/authentication.guard.ts` |

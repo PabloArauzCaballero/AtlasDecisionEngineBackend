@@ -3,7 +3,7 @@
 
 # Catálogo de endpoints
 
-Contrato **v1** · 110 rutas · 124 operaciones.
+Contrato **v1** · 113 rutas · 127 operaciones.
 
 La referencia interactiva completa —con esquemas, ejemplos y la posibilidad de probar cada
 llamada— está en `/docs/{API_VERSION}/reference` del propio backend. Esta página existe para
@@ -61,6 +61,13 @@ Importación de código existente y su conversión asistida a un grafo (§5).
 | `POST` | `/v1/code-imports/{id}/confirm` | `codeImportConfirm` | Write, validate and compile an analyzed import |
 | `POST` | `/v1/code-imports/{id}/save-draft` | `codeImportSaveDraft` | Write the generated graph into an editable artifact version |
 
+## Data Subject Rights
+
+| Método | Ruta | Operación | Resumen |
+| --- | --- | --- | --- |
+| `POST` | `/v1/data-subject-requests` | `dataSubjectSubmit` | Register a data subject request and resolve it against the decision history |
+| `POST` | `/v1/data-subject-requests/history` | `dataSubjectHistory` | List the requests already handled for a data subject |
+
 ## Decision Artifacts
 
 Algoritmos de decisión, sus versiones y el grafo que las define. Solo un borrador es editable.
@@ -74,6 +81,7 @@ Algoritmos de decisión, sus versiones y el grafo que las define. Solo un borrad
 | `GET` | `/v1/artifact-versions/{versionId}/graph` | `artifactGetGraph` | Load the complete authoring graph snapshot |
 | `PUT` | `/v1/artifact-versions/{versionId}/graph` | `artifactReplaceGraph` | Atomically replace a draft graph using optimistic locking |
 | `PATCH` | `/v1/artifact-versions/{versionId}/notes` | `artifactUpdateNotes` | Update non-executable authoring notes on an editable version |
+| `PATCH` | `/v1/artifact-versions/{versionId}/processing-basis` | `artifactUpdateProcessingBasis` | Declare the processing purpose and legal basis of a version |
 | `POST` | `/v1/artifact-versions/{versionId}/validate` | `artifactValidate` | Validate graph structure, expressions and determinism |
 | `POST` | `/v1/artifact-versions/{versionId}/validate-and-compile` | `artifactValidateAndCompile` | Validate and compile a version in one command |
 | `POST` | `/v1/artifacts` | `artifactCreate` | Create an artifact with its first editable version |
@@ -117,7 +125,7 @@ Ejecución de prueba sin persistir nada, con comparación opcional contra PROD (
 
 | Método | Ruta | Operación | Resumen |
 | --- | --- | --- | --- |
-| `POST` | `/v1/simulations/{artifactCode}` | `simulationSimulate` | Simulate a SANDBOX or TEST decision without persistence |
+| `POST` | `/v1/simulations/{artifactCode}` | `simulationSimulate` | Simulate a non-production decision (DEV, STAGING or TEST) without persistence |
 | `POST` | `/v1/simulations/{artifactCode}/sample-inputs` | `simulationGenerateSampleInputs` | Generar valores de prueba a partir del contrato de entrada |
 
 ## Decision Testing
