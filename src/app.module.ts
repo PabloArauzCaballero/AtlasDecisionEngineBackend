@@ -34,6 +34,7 @@ import { QaLabModule } from './modules/qa-lab/qa-lab.module';
 import { RuntimeModule } from './modules/runtime/runtime.module';
 import { SecurityReviewModule } from './modules/security-review/security-review.module';
 import { SeedingModule } from './modules/seeding/seeding.module';
+import { SqlConsoleModule } from './modules/sql-console/sql-console.module';
 import { TestingModule } from './modules/testing/testing.module';
 import { TraceabilityModule } from './modules/traceability/traceability.module';
 import { TutorialModule } from './modules/tutorials/tutorial.module';
@@ -96,6 +97,7 @@ import { PdfWorkerModule } from './pdf-worker/pdf-worker.module';
     SecurityReviewModule,
     ViewsModule,
     TutorialModule,
+    SqlConsoleModule,
     WorkersModule,
     /**
      * Generador documental. Va AL FINAL y nada del motor lo mira: no exporta un servicio que

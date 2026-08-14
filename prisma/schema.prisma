@@ -3049,3 +3049,48 @@ model UnresolvedClassification {
   @@index([tenantId, status, lastSeenAt])
   @@map("decision_unresolved_classification")
 }
+
+/// Bitácora de la consola SQL: quién consultó qué, cuándo y con qué resultado (ADR-0031).
+///
+/// Es la única ESCRITURA de todo el módulo, y existe por una razón que no es de producto:
+/// una superficie donde una persona puede cruzar libremente datos de decisiones sobre
+/// personas no es defendible ante un auditor si no queda registro de lo que se preguntó.
+/// La consola es de sólo lectura para el analista; para el sistema no puede serlo, porque
+/// «nadie escribió nada» y «nadie sabe qué se leyó» son la misma frase vista desde fuera.
+///
+/// Se guarda el TEXTO de la consulta y no sus resultados. La distinción importa: el texto
+/// dice qué se quiso saber —que es lo que se audita— mientras que guardar las filas
+/// devueltas crearía una segunda copia de los datos, con su propio ciclo de vida y su
+/// propio riesgo, justo lo que el módulo evita al no publicar PII.
+model SqlConsoleQueryLog {
+  id        BigInt  @id @default(autoincrement())
+  tenantId  BigInt  @map("tenant_id")
+  /// Sujeto de la sesión que lanzó la consulta, tal como lo emite el proveedor de identidad.
+  actorId   String  @map("actor_id") @db.VarChar(160)
+  /// Petición HTTP que la originó. Es lo que une esta fila con la traza y el registro de acceso.
+  requestId String? @map("request_id") @db.VarChar(120)
+
+  /// El SQL tal cual se envió, sin normalizar. Normalizarlo perdería justo lo que se audita.
+  statement String   @db.Text
+  /// Relaciones que el PLAN recorrió. Responde «¿alguien consultó la cartera?» sin leer el SQL.
+  relations String[]
+
+  /// VALIDATED (sólo se planificó) | SUCCEEDED | REJECTED (guardia) | FAILED (error del motor)
+  outcome   String  @db.VarChar(20)
+  /// Código del rechazo o del fallo. Nulo cuando salió bien.
+  errorCode String? @map("error_code") @db.VarChar(60)
+
+  rowCount      Int?    @map("row_count")
+  durationMs    Int?    @map("duration_ms")
+  /// Filas que el planificador estimó. Comparada con `rowCount` delata una estadística vieja.
+  estimatedRows BigInt? @map("estimated_rows")
+  /// El resultado se cortó en el tope de filas.
+  truncated     Boolean @default(false)
+
+  executedAt DateTime @default(now()) @map("executed_at") @db.Timestamptz(6)
+
+  @@index([tenantId, executedAt])
+  /// El historial de la consola se pide SIEMPRE por actor: cada quien ve lo suyo.
+  @@index([tenantId, actorId, executedAt])
+  @@map("sql_console_query_log")
+}
