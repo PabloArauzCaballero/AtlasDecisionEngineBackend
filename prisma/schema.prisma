@@ -164,6 +164,108 @@ enum ObservedOutcomeLabel {
   INDETERMINATE
 }
 
+/// Exigencia de identificar al sujeto de la decisión, por ambiente y por versión.
+///
+/// `subject_reference` nació OPCIONAL, y de él cuelgan el historial del solicitante, el
+/// desenlace observado, la exposición acumulada y el derecho de acceso del titular. Un campo
+/// opcional del que depende todo eso es, en la práctica, un campo vacío: las consultas
+/// devuelven cero filas y «cero filas» es indistinguible de «no hubo». Peor todavía, la
+/// referencia se guarda como HMAC de una vía, así que una ejecución escrita sin sujeto NO SE
+/// PUEDE REPARAR después: no hay forma de reconstruir a quién pertenecía.
+///
+/// Por eso la exigencia es una política y no un interruptor global: poner `REQUIRED` de golpe
+/// rompería a todo integrador vivo el día del despliegue, y una migración de contrato se hace
+/// midiendo primero cuánto falta.
+enum SubjectReferencePolicy {
+  /// Sin sujeto no hay decisión: 400 `SUBJECT_REFERENCE_REQUIRED`. El destino de producción.
+  REQUIRED
+  /// Ejecuta, pero la ausencia cuenta en la métrica de cobertura. El estado de migración.
+  WARN
+  /// Decisiones que legítimamente no tienen sujeto (reglas de sistema, enrutado interno).
+  /// Exige justificación escrita en la versión: si nadie la escribe, es que no era el caso.
+  NOT_APPLICABLE
+}
+
+/// Qué hacer cuando un dato llega más viejo que su SLA de frescura (§Ola 3).
+///
+/// `freshnessSlaSeconds` se declaraba en `decision_variable_source` desde el principio y NO SE
+/// IMPONÍA en ninguna parte: una variable con SLA de 60 s se aceptaba con un valor de hace tres
+/// días y nadie se enteraba. Para microcrédito eso es grave, porque la señal buena —comportamiento
+/// de pago, saldos, extracto— cambia todos los días, y un dato viejo no es un dato menos preciso:
+/// es la respuesta a otra pregunta.
+enum FreshnessPolicy {
+  /// 400 `VARIABLE_STALE`. Para las variables sin las que la decisión no significa nada.
+  REJECT
+  /// Ejecuta con el valor viejo, marca la ejecución como degradada y lo deja en la traza.
+  /// Por omisión en la migración: subir todo a `REJECT` de golpe rompería decisiones vivas.
+  DEGRADE
+  /// Ni marca. Sólo para variables que no entran en la decisión (etiquetas, referencias).
+  IGNORE
+}
+
+/// Qué significa económicamente una salida del contrato (§Ola 4).
+///
+/// Que sea un rol declarado y no una convención de nombre importa por tres cosas: el motor puede
+/// validar el rango (una probabilidad fuera de [0,1] es un defecto, no un valor), la calibración
+/// sabe qué columna mirar sin que nadie se la diga, y la pantalla puede pintarla como lo que es.
+enum OutputSemanticRole {
+  /// Ninguno declarado. Es lo que tienen todos los contratos anteriores a esta migración.
+  NONE
+  /// Probabilidad de incumplimiento, en [0,1].
+  PROBABILITY_OF_DEFAULT
+  /// Pérdida dado el incumplimiento, en [0,1].
+  LOSS_GIVEN_DEFAULT
+  /// Exposición en el momento del incumplimiento, importe.
+  EXPOSURE_AT_DEFAULT
+  /// Pérdida esperada, importe.
+  EXPECTED_LOSS
+  /// Grado o banda de riesgo. Categórico y ordenado.
+  RISK_GRADE
+  /// Tasa ofrecida, en tanto por uno.
+  PRICED_RATE
+  /// Límite aprobado, importe.
+  APPROVED_LIMIT
+  /// Plazo aprobado, en meses.
+  APPROVED_TERM
+}
+
+/// Qué clase de decisión toma un artefacto (§Ola 5).
+///
+/// No es una etiqueta decorativa: determina qué contexto es OBLIGATORIO —una decisión de cobranza
+/// sin comportamiento de pago es un error de diseño, no una decisión pobre—, qué ventanas de
+/// desenlace aplican y contra qué línea base se mide. El motor sólo modelaba la originación, y en
+/// un negocio de microcrédito la mayoría de las decisiones —y casi todo el margen— están después.
+enum DecisionKind {
+  ORIGINATION
+  /// Aumento o reducción de línea sobre un cliente que ya está dentro.
+  LIMIT_MANAGEMENT
+  RENEWAL
+  RESTRUCTURE
+  COLLECTIONS
+  EARLY_WARNING
+  FRAUD_SCREENING
+  /// Reglas de sistema, enrutado interno: no deciden sobre una persona.
+  OPERATIONAL
+}
+
+/// Estado de una solicitud de reidentificación de un sujeto seudónimo (§Ola 6).
+enum ReidentificationStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  /// Aprobada y ya usada. Una autorización gastada no vale para la siguiente consulta.
+  CONSUMED
+}
+
+/// Veredicto de una métrica de vigilancia frente a su umbral.
+enum MonitoringVerdict {
+  OK
+  /// Merece mirada humana; todavía no obliga a nada.
+  WATCH
+  /// Fuera de umbral. Un `BREACH` abierto sobre una versión en producción se avisa.
+  BREACH
+}
+
 /// Tipo de solicitud de un titular de datos (LGPD art. 18; CCPA/CPRA §1798.100 y ss.).
 enum DataSubjectRequestType {
   /// Confirmación y acceso a las decisiones tomadas sobre el titular (art. 18 I y II).
@@ -304,6 +406,10 @@ model DecisionEnvironment {
   isProduction    Boolean  @default(false) @map("is_production")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
+  /// Exigencia de sujeto en este ambiente. `WARN` en la migración para no romper a los
+  /// integradores vivos; producción sube a `REQUIRED` cuando la cobertura medida lo permite.
+  subjectReferencePolicy SubjectReferencePolicy @default(WARN) @map("subject_reference_policy")
+
   deployments DecisionDeployment[]
   bindings    DecisionRuntimeBinding[]
   executions  DecisionExecution[]
@@ -321,6 +427,10 @@ model DecisionArtifact {
   ownerTeam       String   @map("owner_team") @db.VarChar(100)
   businessPurpose String   @map("business_purpose") @db.Text
   riskDomain      String   @map("risk_domain") @db.VarChar(50)
+  /// Qué clase de decisión toma. Determina qué contexto es obligatorio, qué ventanas de
+  /// desenlace aplican y contra qué línea base se mide. `ORIGINATION` por omisión porque es
+  /// lo único que el motor modelaba antes de esta migración.
+  decisionKind    DecisionKind @default(ORIGINATION) @map("decision_kind")
   isActive        Boolean  @default(true) @map("is_active")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -351,11 +461,32 @@ model DecisionArtifactVersion {
   /// Base legal del tratamiento. Opcional para no invalidar las versiones ya publicadas,
   /// pero OBLIGATORIA para publicar una versión que consuma una variable `SPECIAL_CATEGORY`.
   legalBasis        ProcessingLegalBasis? @map("legal_basis")
-  createdBy         String        @map("created_by") @db.VarChar(160)
-  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  submittedAt       DateTime?     @map("submitted_at") @db.Timestamptz(6)
-  approvedAt        DateTime?     @map("approved_at") @db.Timestamptz(6)
-  retiredAt         DateTime?     @map("retired_at") @db.Timestamptz(6)
+
+  /// Excepción a la política del ambiente para ESTE artefacto. Nula = manda el ambiente.
+  /// Sólo tiene sentido endurecerla o declarar `NOT_APPLICABLE`; relajar una exigencia de
+  /// producción desde el artefacto sería una puerta trasera al control, y por eso
+  /// `subject-policy.ts` sólo deja que la versión sea igual o más estricta que su ambiente.
+  subjectReferencePolicy      SubjectReferencePolicy? @map("subject_reference_policy")
+  /// Por qué esta decisión no tiene sujeto. Obligatoria con `NOT_APPLICABLE`: una exención
+  /// sin motivo escrito no es una decisión, es un descuido que nadie puede revisar.
+  subjectPolicyJustification  String?                 @map("subject_policy_justification") @db.Text
+
+  /// Expediente del modelo (SR 11-7 §V; CMN 4.557 art. 40). El material estaba disperso entre
+  /// `DecisionApprovalEvidence`, `BusinessObjective` y `PolicyRequirement`; lo que faltaba era
+  /// reunirlo y ponerle VENCIMIENTO. Una validación sin fecha de caducidad se convierte en un
+  /// papel de hace tres años que nadie vuelve a mirar.
+  validatedBy        String?   @map("validated_by") @db.VarChar(160)
+  validatedAt        DateTime? @map("validated_at") @db.Timestamptz(6)
+  /// Cuándo toca revalidar. Vencido NO bloquea la ejecución —cortar el crédito de una financiera
+  /// por un papel vencido es peor que el papel vencido— pero se marca y no se puede ignorar.
+  revalidationDueAt  DateTime? @map("revalidation_due_at") @db.Timestamptz(6)
+  /// Limitaciones declaradas: población para la que NO sirve, supuestos, datos que no vio.
+  limitationsNotes   String?   @map("limitations_notes") @db.Text
+  createdBy         String                @map("created_by") @db.VarChar(160)
+  createdAt         DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  submittedAt       DateTime?             @map("submitted_at") @db.Timestamptz(6)
+  approvedAt        DateTime?             @map("approved_at") @db.Timestamptz(6)
+  retiredAt         DateTime?             @map("retired_at") @db.Timestamptz(6)
 
   artifact              DecisionArtifact                     @relation(fields: [artifactId], references: [id], onDelete: Cascade)
   sourceVersion         DecisionArtifactVersion?             @relation("VersionSource", fields: [sourceVersionId], references: [id], onDelete: SetNull)
@@ -378,6 +509,9 @@ model DecisionArtifactVersion {
   outputContractFields  DecisionOutputContractField[]
   calculatedFieldUses   DecisionArtifactCalculatedFieldUse[]
   qaGenerationRuns      QaGenerationRun[]
+  monitoringBaselines   MonitoringBaseline[]
+  monitoringEvaluations MonitoringEvaluation[]
+  calibrationBuckets    CalibrationBucket[]
 
   @@unique([artifactId, versionNumber])
   @@index([artifactId, status])
@@ -547,6 +681,9 @@ model DecisionArtifactVariableDependency {
   isRequired        Boolean @default(true) @map("is_required")
   fallbackPolicy    String  @map("fallback_policy") @db.VarChar(50)
   dependencyPath    String  @map("dependency_path") @db.VarChar(500)
+  /// Qué hacer si el dato llega más viejo que su SLA. `DEGRADE` en la migración porque subir
+  /// todo a `REJECT` de golpe rompería decisiones vivas; se endurece variable por variable.
+  freshnessPolicy   FreshnessPolicy @default(DEGRADE) @map("freshness_policy")
 
   artifactVersion DecisionArtifactVersion @relation(fields: [artifactVersionId], references: [id], onDelete: Cascade)
   variableVersion DecisionVariableVersion @relation(fields: [variableVersionId], references: [id], onDelete: Restrict)
@@ -950,6 +1087,17 @@ model DecisionExecution {
   correlationId        String?         @map("correlation_id") @db.VarChar(120)
   idempotencyKey       String          @map("idempotency_key") @db.VarChar(160)
   subjectReferenceHash String?         @map("subject_reference_hash") @db.VarChar(128)
+  /// El mismo sujeto, ya resuelto a fila. La columna HMAC se conserva: es la que responde a
+  /// una solicitud de titular sin necesidad de tocar `decision_subject`, y las ejecuciones
+  /// anteriores a esta migración sólo tienen esa.
+  subjectId            BigInt?         @map("subject_id")
+  /// Por qué esta ejecución no lleva sujeto. `WARN` (el integrador no lo mandó) o
+  /// `NOT_APPLICABLE` (la versión declara que no lo tiene). Nulo cuando sí lo lleva.
+  /// Sin esta columna, «faltó» y «no aplica» se confundían y la cobertura mentía.
+  subjectAbsenceReason SubjectReferencePolicy? @map("subject_absence_reason")
+  /// Alguna variable entró más vieja que su SLA y su política era `DEGRADE`. La decisión es
+  /// válida; lo que no vale es que no se pueda distinguir de una tomada con datos frescos.
+  degradedInputs       Boolean                 @default(false) @map("degraded_inputs")
   inputSnapshotJson    Json            @map("input_snapshot_json")
   outputJson           Json?           @map("output_json")
   decisionStatus       ExecutionStatus @map("decision_status")
@@ -957,24 +1105,118 @@ model DecisionExecution {
   durationMs           Int             @map("duration_ms")
   executedAt           DateTime        @default(now()) @map("executed_at") @db.Timestamptz(6)
 
-  deployment      DecisionDeployment          @relation(fields: [deploymentId], references: [id], onDelete: Restrict)
-  artifactVersion DecisionArtifactVersion     @relation(fields: [artifactVersionId], references: [id], onDelete: Restrict)
-  environment     DecisionEnvironment         @relation(fields: [environmentId], references: [id], onDelete: Restrict)
-  variables       DecisionExecutionVariable[]
-  steps           DecisionExecutionStep[]
-  reasons         DecisionExecutionReason[]
-  errors          DecisionExecutionError[]
-  manualReview    DecisionManualReviewCase?
+  deployment           DecisionDeployment            @relation(fields: [deploymentId], references: [id], onDelete: Restrict)
+  artifactVersion      DecisionArtifactVersion       @relation(fields: [artifactVersionId], references: [id], onDelete: Restrict)
+  environment          DecisionEnvironment           @relation(fields: [environmentId], references: [id], onDelete: Restrict)
+  subject              DecisionSubject?              @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  variables            DecisionExecutionVariable[]
+  steps                DecisionExecutionStep[]
+  reasons              DecisionExecutionReason[]
+  errors               DecisionExecutionError[]
+  manualReview         DecisionManualReviewCase?
   outcomeObservations  DecisionOutcomeObservation[]
   monitoringAttributes DecisionMonitoringAttribute[]
+  outcomeWindows       OutcomeWindowSchedule[]
 
   @@unique([tenantId, requestId])
   @@index([tenantId, executedAt])
   @@index([artifactVersionId, executedAt])
+  /// El historial de un solicitante y su exposición se piden por sujeto, no por hash.
+  @@index([tenantId, subjectId, executedAt])
   /// Sin este índice, atender una solicitud de titular (LGPD art. 18, CCPA §1798.110) exigía
   /// recorrer la tabla entera. La columna se escribía desde el principio y no la leía nadie.
   @@index([tenantId, subjectReferenceHash])
   @@map("decision_execution")
+}
+
+/// El solicitante, en seudónimo, como entidad de primera clase.
+///
+/// Antes el sujeto sólo existía como una columna HMAC repetida en cada ejecución. Con eso se
+/// puede agrupar («dame las decisiones de ESTE», si traes la referencia en claro) pero no se
+/// puede enumerar, ni contar, ni colgar nada encima: ni exposición acumulada, ni comportamiento
+/// de pago, ni límites por cliente. Un negocio de microcrédito vive de la segunda decisión
+/// sobre la misma persona, y esa decisión necesita una fila que persista entre ejecuciones.
+///
+/// Sigue sin guardarse la referencia en claro: la clave es el mismo HMAC que usa
+/// `decision_execution`, así que esta tabla no reidentifica a nadie por sí sola.
+model DecisionSubject {
+  id                   BigInt   @id @default(autoincrement())
+  tenantId             BigInt   @map("tenant_id")
+  subjectReferenceHash String   @map("subject_reference_hash") @db.VarChar(128)
+  firstSeenAt          DateTime @default(now()) @map("first_seen_at") @db.Timestamptz(6)
+  lastSeenAt           DateTime @default(now()) @updatedAt @map("last_seen_at") @db.Timestamptz(6)
+  /// Contador denormalizado. Existe para ordenar y filtrar sin recorrer las ejecuciones;
+  /// la verdad sigue siendo `decision_execution`.
+  decisionCount        Int      @default(0) @map("decision_count")
+
+  executions      DecisionExecution[]
+  facilities      CreditFacility[]
+  consents        SubjectConsent[]
+  reidentifications ReidentificationRequest[]
+
+  @@unique([tenantId, subjectReferenceHash])
+  @@index([tenantId, lastSeenAt])
+  @@map("decision_subject")
+}
+
+/// El crédito concedido, que es a lo que de verdad pertenece un desenlace.
+///
+/// Un préstamo genera muchas decisiones a lo largo de su vida —originación, aumento de línea,
+/// refinanciación, priorización de cobranza— y el análisis de cosecha necesita agrupar por el
+/// préstamo, no por cada una de ellas. Sin esta tabla, «tasa de malos de la cosecha de marzo»
+/// contaba decisiones en vez de créditos y sobrerrepresentaba a quien más veces fue evaluado.
+///
+/// `externalReference` es el identificador en el sistema de cartera: es la costura por la que
+/// entra el desenlace desde el core, y por eso es única por tenant.
+model CreditFacility {
+  id                     BigInt    @id @default(autoincrement())
+  tenantId               BigInt    @map("tenant_id")
+  subjectId              BigInt    @map("subject_id")
+  externalReference      String    @map("external_reference") @db.VarChar(160)
+  /// La decisión que lo originó, cuando se conoce. Nula si el crédito entró por carga masiva
+  /// desde el core sin haber pasado por el motor.
+  originationExecutionId BigInt?   @map("origination_execution_id")
+  principalAmount        Decimal   @map("principal_amount") @db.Decimal(18, 4)
+  currencyCode           String    @map("currency_code") @db.VarChar(3)
+  termMonths             Int       @map("term_months")
+  annualRate             Decimal   @map("annual_rate") @db.Decimal(9, 6)
+  disbursedAt            DateTime? @map("disbursed_at") @db.Timestamptz(6)
+  closedAt               DateTime? @map("closed_at") @db.Timestamptz(6)
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  subject      DecisionSubject              @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  observations DecisionOutcomeObservation[]
+  windows      OutcomeWindowSchedule[]
+
+  @@unique([tenantId, externalReference])
+  @@index([tenantId, subjectId])
+  @@index([tenantId, disbursedAt])
+  @@map("credit_facility")
+}
+
+/// Cada ventana de observación que TOCA mirar, materializada al decidir.
+///
+/// Es la pieza que convierte «no hay desenlaces» en una cifra. Sin ella, el numerador de la
+/// cobertura existía y el denominador no: nadie podía distinguir «este mes no falló ningún
+/// crédito» de «este mes nadie cargó los desenlaces». Con la ventana programada por
+/// adelantado, una que vence y nadie observa se VE.
+model OutcomeWindowSchedule {
+  id          BigInt    @id @default(autoincrement())
+  tenantId    BigInt    @map("tenant_id")
+  executionId BigInt    @map("execution_id")
+  facilityId  BigInt?   @map("facility_id")
+  windowDays  Int       @map("window_days")
+  dueAt       DateTime  @map("due_at") @db.Timestamptz(6)
+  /// Sello de cuándo se cerró. Nulo con `dueAt` pasado = ventana vencida sin observar, que es
+  /// exactamente la cola de trabajo que la pantalla enseña.
+  observedAt  DateTime? @map("observed_at") @db.Timestamptz(6)
+
+  execution DecisionExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  facility  CreditFacility?   @relation(fields: [facilityId], references: [id], onDelete: SetNull)
+
+  @@unique([executionId, windowDays])
+  @@index([tenantId, dueAt, observedAt])
+  @@map("outcome_window_schedule")
 }
 
 /// Resultado REAL de una decisión, observado meses después de tomarla.
@@ -990,6 +1232,9 @@ model DecisionOutcomeObservation {
   id          BigInt               @id @default(autoincrement())
   tenantId    BigInt               @map("tenant_id")
   executionId BigInt               @map("execution_id")
+  /// El crédito al que pertenece, cuando lo hay. Un rechazo no tiene préstamo y sigue siendo
+  /// una observación válida —de hecho la mitad del análisis que casi nadie mide.
+  facilityId  BigInt?              @map("facility_id")
   /// Días transcurridos desde la decisión. Es parte de la identidad de la observación.
   windowDays  Int                  @map("window_days")
   label       ObservedOutcomeLabel
@@ -997,14 +1242,23 @@ model DecisionOutcomeObservation {
   amount      Decimal?             @db.Decimal(18, 4)
   /// De dónde salió: sistema de cobranza, confirmación de fraude, carga manual.
   source      String               @db.VarChar(120)
+  /// Cómo se supo, cuando NO se observó directamente: `BUREAU_LOOKUP`, `PROXY_MODEL`…
+  ///
+  /// Nulo significa observado. La distinción no es un detalle: un desenlace inferido sobre un
+  /// rechazado (`reject inference`) mezclado con los observados calibra el modelo contra la
+  /// población que ya aprobó y lo hace parecer perfecto. Se guardan juntos y se cuentan
+  /// aparte.
+  inferenceMethod String?          @map("inference_method") @db.VarChar(60)
   notes       String?              @db.Text
   observedAt  DateTime             @default(now()) @map("observed_at") @db.Timestamptz(6)
   recordedBy  String               @map("recorded_by") @db.VarChar(160)
 
   execution DecisionExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  facility  CreditFacility?   @relation(fields: [facilityId], references: [id], onDelete: SetNull)
 
   @@unique([executionId, windowDays])
   @@index([tenantId, observedAt])
+  @@index([tenantId, facilityId])
   @@map("decision_outcome_observation")
 }
 
@@ -1040,6 +1294,198 @@ model DecisionMonitoringAttribute {
   @@unique([executionId, attribute])
   @@index([tenantId, attribute, recordedAt])
   @@map("decision_monitoring_attribute")
+}
+
+/// Distribución de referencia de una variable, congelada al promover la versión.
+///
+/// La estabilidad de población (PSI) compara la población de hoy contra una de referencia, y
+/// la elección de esa referencia decide si el gate sirve para algo. Tomarla «del mes pasado»
+/// —lo natural, y lo que casi todo el mundo hace— hace que la deriva LENTA no se detecte
+/// nunca: la referencia deriva junto con la población y el índice se queda plano mientras el
+/// modelo se aleja del mundo. Se congela, entonces, en el momento de la promoción: la
+/// población contra la que se validó el modelo es la única referencia que significa algo.
+model MonitoringBaseline {
+  id                BigInt   @id @default(autoincrement())
+  tenantId          BigInt   @map("tenant_id")
+  artifactVersionId BigInt   @map("artifact_version_id")
+  variableCode      String   @map("variable_code") @db.VarChar(120)
+  /// Bordes de los cubos y su frecuencia relativa. Se guarda el histograma y no la muestra:
+  /// para el índice basta, y una muestra de valores sería retener datos personales sin
+  /// necesidad.
+  bucketsJson       Json     @map("buckets_json")
+  sampleSize        Int      @map("sample_size")
+  capturedAt        DateTime @default(now()) @map("captured_at") @db.Timestamptz(6)
+  capturedBy        String   @map("captured_by") @db.VarChar(160)
+
+  artifactVersion DecisionArtifactVersion @relation(fields: [artifactVersionId], references: [id], onDelete: Cascade)
+
+  @@unique([artifactVersionId, variableCode])
+  @@index([tenantId, capturedAt])
+  @@map("monitoring_baseline")
+}
+
+/// Una medición de vigilancia con su umbral y su veredicto, guardada.
+///
+/// El motor ya sabía CALCULAR estabilidad, desempeño e impacto adverso; lo hacía cuando
+/// alguien mandaba un POST, y nadie lo mandaba nunca. Un cálculo bajo demanda que nadie pide
+/// es un cálculo que no ocurre. Persistir cada evaluación con su umbral convierte eso en una
+/// serie: se puede ver cuándo empezó a torcerse, y se puede detectar que la vigilancia MISMA
+/// se detuvo —una evaluación que no llega es un `BREACH` por sí sola—.
+model MonitoringEvaluation {
+  id                BigInt            @id @default(autoincrement())
+  tenantId          BigInt            @map("tenant_id")
+  artifactVersionId BigInt            @map("artifact_version_id")
+  /// `PSI`, `BAD_RATE`, `APPROVAL_RATE`, `ADVERSE_IMPACT_RATIO`, `OUTCOME_COVERAGE`…
+  metricCode        String            @map("metric_code") @db.VarChar(60)
+  /// Sobre qué se midió: el código de la variable, el grupo del atributo, o `-` si es global.
+  scope             String            @db.VarChar(120)
+  value             Decimal           @db.Decimal(18, 8)
+  threshold         Decimal           @db.Decimal(18, 8)
+  verdict           MonitoringVerdict
+  /// Tamaño de la muestra. Un veredicto sobre doce casos no es el mismo que sobre doce mil, y
+  /// sin este número la pantalla enseñaría los dos igual.
+  sampleSize        Int               @map("sample_size")
+  detailsJson       Json?             @map("details_json")
+  evaluatedAt       DateTime          @default(now()) @map("evaluated_at") @db.Timestamptz(6)
+
+  artifactVersion DecisionArtifactVersion @relation(fields: [artifactVersionId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, artifactVersionId, metricCode, evaluatedAt])
+  @@index([tenantId, verdict, evaluatedAt])
+  @@map("monitoring_evaluation")
+}
+
+/// Un decil de la curva de calibración: PD predicha contra tasa de malos observada (§Ola 4).
+///
+/// Una PD sin calibrar es peor que ninguna PD. Ordena igual de bien —el decil 10 sigue siendo
+/// peor que el 1— pero su NIVEL no significa nada, y en cuanto alguien la usa para poner precio o
+/// para calcular pérdida esperada, el error se convierte en dinero. Por eso el gate del contrato
+/// económico exige cosecha observada antes de dejar que una PD alimente el precio.
+model CalibrationBucket {
+  id                BigInt   @id @default(autoincrement())
+  tenantId          BigInt   @map("tenant_id")
+  artifactVersionId BigInt   @map("artifact_version_id")
+  /// Ventana de observación sobre la que se calibró. La calibración a 30 días y a 360 no son
+  /// la misma curva, y mezclarlas es el error clásico.
+  windowDays        Int      @map("window_days")
+  /// 1..10. Decil de PD predicha, del más seguro al más arriesgado.
+  decile            Int
+  predictedRate     Decimal  @map("predicted_rate") @db.Decimal(9, 8)
+  observedRate      Decimal  @map("observed_rate") @db.Decimal(9, 8)
+  sampleSize        Int      @map("sample_size")
+  computedAt        DateTime @default(now()) @map("computed_at") @db.Timestamptz(6)
+
+  artifactVersion DecisionArtifactVersion @relation(fields: [artifactVersionId], references: [id], onDelete: Cascade)
+
+  @@unique([artifactVersionId, windowDays, decile])
+  @@index([tenantId, computedAt])
+  @@map("calibration_bucket")
+}
+
+/// Estado del negocio en un instante: el contexto que la decisión no tenía (§Ola 5).
+///
+/// Aprobar depende de en qué punto del mes y con qué liquidez está la operación, no sólo de quién
+/// pide. Ninguna entrada representaba eso, así que un límite de concentración sólo podía vivir
+/// dentro de una regla de un grafo — donde se olvida al clonar el grafo.
+model PortfolioState {
+  id         BigInt   @id @default(autoincrement())
+  tenantId   BigInt   @map("tenant_id")
+  asOf       DateTime @map("as_of") @db.Timestamptz(6)
+  /// `TOTAL_EXPOSURE`, `PAR30`, `ORIGINATION_BUDGET`, `LIQUIDITY`… Lo define quien gobierna el
+  /// apetito de riesgo, no el motor.
+  metricCode String   @map("metric_code") @db.VarChar(60)
+  /// Segmento al que aplica: producto, región, canal. Cadena vacía = toda la cartera.
+  ///
+  /// Centinela explícito y no `NULL`: en SQL `segment = NULL` no es cierto nunca, así que con
+  /// nulos cualquier lectura por clave del límite GLOBAL no encontraba la fila que sí existía.
+  segment    String   @default("") @db.VarChar(120)
+  value      Decimal  @db.Decimal(18, 4)
+  recordedBy String   @map("recorded_by") @db.VarChar(160)
+
+  @@unique([tenantId, asOf, metricCode, segment])
+  @@index([tenantId, metricCode, asOf])
+  @@map("portfolio_state")
+}
+
+/// Un límite duro que el motor comprueba al decidir (§Ola 5).
+///
+/// Vive aquí y no en una regla del grafo por una razón que se ve la primera vez que alguien clona
+/// un artefacto: la regla se copia, se edita y el límite desaparece sin que nadie lo decida. Como
+/// restricción del motor, un artefacto nuevo lo hereda por existir.
+model ExposureLimit {
+  id         BigInt   @id @default(autoincrement())
+  tenantId   BigInt   @map("tenant_id")
+  /// `SUBJECT_TOTAL`, `SEGMENT_CONCENTRATION`, `PERIOD_ORIGINATION_BUDGET`.
+  limitCode  String   @map("limit_code") @db.VarChar(60)
+  /// Cadena vacía = toda la cartera. Mismo criterio que `PortfolioState.segment`.
+  segment    String   @default("") @db.VarChar(120)
+  maxValue   Decimal  @map("max_value") @db.Decimal(18, 4)
+  currencyCode String @map("currency_code") @db.VarChar(3)
+  /// Si es falso, se mide y se avisa pero no se rechaza. La forma de estrenar un límite sin
+  /// romper la originación el primer día.
+  enforced   Boolean  @default(false)
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy  String   @map("created_by") @db.VarChar(160)
+
+  @@unique([tenantId, limitCode, segment])
+  @@index([tenantId, isActive])
+  @@map("exposure_limit")
+}
+
+/// Vigencia de la base legal para tratar los datos de un titular, por finalidad (§Ola 6).
+///
+/// `ProcessingLegalBasis` ya existía POR VERSIÓN DE ARTEFACTO: dice con qué amparo se diseñó la
+/// decisión. Faltaba lo otro: leer el extracto bancario de una persona concreta tiene un permiso
+/// con fecha, y decidir con un dato cuyo permiso venció es una infracción aunque el dato siga en
+/// la caché. Las dos cosas son necesarias y ninguna sustituye a la otra.
+model SubjectConsent {
+  id          BigInt               @id @default(autoincrement())
+  tenantId    BigInt               @map("tenant_id")
+  subjectId   BigInt               @map("subject_id")
+  /// Para qué: `BANK_STATEMENT_ANALYSIS`, `BUREAU_QUERY`, `BIOMETRIC_VERIFICATION`.
+  purpose     String               @db.VarChar(120)
+  basis       ProcessingLegalBasis
+  grantedAt   DateTime             @map("granted_at") @db.Timestamptz(6)
+  /// Nulo = sin caducidad declarada. No es lo mismo que «para siempre»: es una decisión que
+  /// alguien tiene que haber tomado, y la pantalla lo distingue.
+  expiresAt   DateTime?            @map("expires_at") @db.Timestamptz(6)
+  revokedAt   DateTime?            @map("revoked_at") @db.Timestamptz(6)
+  /// Dónde está la prueba: expediente, grabación, formulario firmado. Nunca el dato en claro.
+  evidenceRef String?              @map("evidence_ref") @db.VarChar(200)
+  recordedBy  String               @map("recorded_by") @db.VarChar(160)
+
+  subject DecisionSubject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, subjectId, purpose])
+  @@index([tenantId, expiresAt])
+  @@map("subject_consent")
+}
+
+/// Constancia de una reidentificación: ir del caso seudónimo a la persona (§Ola 6).
+///
+/// El HMAC protege bien y estorba para operar: atender un reclamo exige poder llegar a la persona.
+/// La salida no es aflojar el hash —eso lo aflojaría para todo— sino hacer que el camino exista,
+/// cueste dos autorizaciones y quede escrito. Una consulta libre sería lo mismo que no cifrar.
+model ReidentificationRequest {
+  id          BigInt                 @id @default(autoincrement())
+  tenantId    BigInt                 @map("tenant_id")
+  subjectId   BigInt                 @map("subject_id")
+  /// Por qué se necesita, en prosa. Es lo que otra persona va a leer para aprobar o negar.
+  purpose     String                 @db.Text
+  status      ReidentificationStatus @default(REQUESTED)
+  requestedBy String                 @map("requested_by") @db.VarChar(160)
+  requestedAt DateTime               @default(now()) @map("requested_at") @db.Timestamptz(6)
+  /// Quien aprueba NO puede ser quien pide: lo comprueba el servicio, no la base.
+  decidedBy   String?                @map("decided_by") @db.VarChar(160)
+  decidedAt   DateTime?              @map("decided_at") @db.Timestamptz(6)
+  consumedAt  DateTime?              @map("consumed_at") @db.Timestamptz(6)
+
+  subject DecisionSubject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status, requestedAt])
+  @@index([tenantId, subjectId])
+  @@map("reidentification_request")
 }
 
 /// Constancia de una solicitud de titular de datos.
@@ -1080,6 +1526,25 @@ model DecisionExecutionVariable {
   sourceCode        String  @map("source_code") @db.VarChar(100)
   resolutionStatus  String  @map("resolution_status") @db.VarChar(50)
   wasDefaulted      Boolean @default(false) @map("was_defaulted")
+
+  /// CUÁNDO ERA CIERTO el valor, según quien lo entregó. Distinto de `fetchedAt`.
+  ///
+  /// Sin este sello, la traza guardaba el valor y callaba de cuándo era. Dos consecuencias
+  /// concretas: reentrenar sobre esa traza mete información del futuro (un saldo leído hoy
+  /// atribuido a una decisión de marzo), y defender la decisión ante un supervisor dos años
+  /// después es reconstruir de memoria qué sabía el buró ese día.
+  observedAt    DateTime? @map("observed_at") @db.Timestamptz(6)
+  /// Cuándo se obtuvo. Con `observedAt` da la antigüedad real del dato en el momento de decidir.
+  fetchedAt     DateTime? @map("fetched_at") @db.Timestamptz(6)
+  /// Versión de la fuente que lo entregó. Sin ella, dos valores del mismo proveedor con
+  /// semánticas distintas parecen el mismo dato.
+  sourceVersion String?   @map("source_version") @db.VarChar(60)
+  /// Antigüedad en segundos, derivada. Se persiste para poder filtrar por ella sin recalcular
+  /// sobre millones de filas.
+  ageSeconds    Int?      @map("age_seconds")
+  /// El valor llegó más viejo que su SLA y la política era `DEGRADE`. Marca la fila, no la
+  /// esconde: una decisión tomada con datos viejos sigue siendo válida y hay que poder verla.
+  staleAccepted Boolean   @default(false) @map("stale_accepted")
 
   execution       DecisionExecution       @relation(fields: [executionId], references: [id], onDelete: Cascade)
   variableVersion DecisionVariableVersion @relation(fields: [variableVersionId], references: [id], onDelete: Restrict)
@@ -1666,6 +2131,9 @@ model DecisionOutputContractField {
   /// artefacto referenciado. `sourceRef` se interpreta segÃºn el tipo.
   sourceKind       OutputSourceKind @map("source_kind")
   sourceRef        String           @map("source_ref") @db.VarChar(500)
+  /// Qué significa económicamente este campo. Lo valida el motor: una probabilidad fuera de
+  /// [0,1] es un defecto, no un valor, y sin el rol declarado nadie podía comprobarlo.
+  semanticRole     OutputSemanticRole @default(NONE) @map("semantic_role")
   /// Mapeo desde valores internos: { [valorInterno]: valorPublicado }.
   valueMappingJson Json?            @map("value_mapping_json")
 
@@ -2067,6 +2535,357 @@ model BankStatementRun {
   @@map("decision_bank_statement_run")
 }
 
+/// Ejecución del worker de verificación de identidad.
+///
+/// Tabla propia por lo mismo que las otras dos: su entrada son IMÁGENES y su
+/// resultado una decisión con la evidencia que la sostiene, que no se parece ni
+/// a un texto clasificado ni a un extracto normalizado.
+model IdentityVerificationRun {
+  id       BigInt @id @default(autoincrement())
+  tenantId BigInt @map("tenant_id")
+
+  requestId String @map("request_id") @db.VarChar(64)
+
+  status   WorkerRunStatus @default(QUEUED)
+  progress Int             @default(0)
+
+  inputSource WorkerInputSource @map("input_source")
+  fixtureCode String?           @map("fixture_code") @db.VarChar(60)
+
+  /// SHA-256 de las imágenes juntas (más la clave de deduplicación, si viene).
+  /// Es la identidad de la solicitud: el nombre del archivo no identifica nada.
+  inputHash        String @map("input_hash") @db.Char(64)
+  documentCountry  String @map("document_country") @db.VarChar(2)
+  documentFileName String @map("document_file_name") @db.VarChar(255)
+  selfieFileName   String @map("selfie_file_name") @db.VarChar(255)
+  imageSizeBytes   Int    @map("image_size_bytes")
+
+  /// Las imágenes, mientras hacen falta. **Se borran en la misma actualización
+  /// que cierra la ejecución**, igual que el PDF del worker de extractos: lo que
+  /// se conserva es la decisión y su evidencia, no la cara ni la cédula de
+  /// nadie. Es a la vez la decisión de privacidad y la razón de que esta tabla
+  /// no crezca sin cota.
+  documentBytes     Bytes? @map("document_bytes")
+  documentBackBytes Bytes? @map("document_back_bytes")
+  selfieBytes       Bytes? @map("selfie_bytes")
+
+  /// `IdentityVerificationOutcome`. El número de documento viaja enmascarado.
+  resultJson   Json? @map("result_json")
+  warningsJson Json? @map("warnings_json")
+
+  /// Proyecciones del resultado que se consultan sin abrir el JSON.
+  decision        String?  @db.VarChar(30)
+  documentType    String?  @map("document_type") @db.VarChar(30)
+  similarityScore Decimal? @map("similarity_score") @db.Decimal(4, 3)
+
+  errorCode    String? @map("error_code") @db.VarChar(120)
+  errorMessage String? @map("error_message") @db.Text
+
+  attemptCount   Int       @default(0) @map("attempt_count")
+  leaseExpiresAt DateTime? @map("lease_expires_at") @db.Timestamptz(6)
+  queuedAt       DateTime  @default(now()) @map("queued_at") @db.Timestamptz(6)
+  startedAt      DateTime? @map("started_at") @db.Timestamptz(6)
+  finishedAt     DateTime? @map("finished_at") @db.Timestamptz(6)
+
+  requestedBy   String @map("requested_by") @db.VarChar(160)
+  correlationId String @map("correlation_id") @db.VarChar(64)
+
+  traceCarrier Json? @map("trace_carrier")
+
+  @@unique([tenantId, inputHash])
+  @@unique([tenantId, requestId])
+  @@index([status, queuedAt])
+  @@index([tenantId, queuedAt])
+  @@map("decision_identity_verification_run")
+}
+
+/// Ejecución del worker de locución (audio TTS).
+///
+/// Tabla propia, como los otros tres. Lo que la distingue es que su resultado
+/// **no siempre se genera**: el worker es cache-first, así que una ejecución
+/// puede terminar sirviendo un audio que ya existía. Por eso `assetId` y
+/// `cacheHit` son columnas y no sólo campos del JSON: son lo que permite medir
+/// cuántas locuciones costaron dinero de verdad sin abrir el resultado.
+///
+/// No guarda el audio: el audio vive en `AudioAsset`, que es la caché
+/// compartida. Guardarlo aquí duplicaría cada byte por cada vez que alguien
+/// pide la misma frase, que es exactamente lo que la caché existe para evitar.
+model AudioTtsRun {
+  id       BigInt @id @default(autoincrement())
+  tenantId BigInt @map("tenant_id")
+
+  requestId      String @map("request_id") @db.VarChar(64)
+  /// Clave de deduplicación acotada al tenant. Sin una explícita se deriva de
+  /// la plantilla, las variables y el idioma: reenviar la misma locución
+  /// devuelve la ejecución que ya existe.
+  idempotencyKey String @map("idempotency_key") @db.VarChar(200)
+
+  status   WorkerRunStatus @default(QUEUED)
+  progress Int             @default(0)
+
+  inputSource WorkerInputSource @map("input_source")
+  fixtureCode String?           @map("fixture_code") @db.VarChar(60)
+
+  /// Qué se pidió locutar. La plantilla y sus variables, no el texto ya
+  /// compuesto: el texto compuesto vive cifrado en el asset, y escribirlo
+  /// también aquí en claro anularía ese cifrado.
+  templateCode  String  @map("template_code") @db.VarChar(160)
+  variablesJson Json?   @map("variables_json")
+  /// Idioma solicitado. Vacío significa «el de la plantilla o el del despliegue».
+  language      String? @db.VarChar(20)
+
+  /// Proyecciones del desenlace que se consultan sin abrir el JSON.
+  outcome  String? @db.VarChar(20)
+  assetId  String? @map("asset_id") @db.Uuid
+  cacheHit Boolean @default(false) @map("cache_hit")
+
+  resultJson   Json?   @map("result_json")
+  warningsJson Json?   @map("warnings_json")
+  errorCode    String? @map("error_code") @db.VarChar(120)
+  errorMessage String? @map("error_message") @db.Text
+
+  attemptCount   Int       @default(0) @map("attempt_count")
+  leaseExpiresAt DateTime? @map("lease_expires_at") @db.Timestamptz(6)
+  queuedAt       DateTime  @default(now()) @map("queued_at") @db.Timestamptz(6)
+  startedAt      DateTime? @map("started_at") @db.Timestamptz(6)
+  finishedAt     DateTime? @map("finished_at") @db.Timestamptz(6)
+
+  requestedBy   String @map("requested_by") @db.VarChar(160)
+  correlationId String @map("correlation_id") @db.VarChar(64)
+
+  traceCarrier Json? @map("trace_carrier")
+
+  @@unique([tenantId, idempotencyKey])
+  @@unique([tenantId, requestId])
+  @@index([status, queuedAt])
+  @@index([tenantId, queuedAt])
+  @@map("decision_audio_tts_run")
+}
+
+// ---------------------------------------------------------------------------
+// Catálogo y caché del worker de locución.
+//
+// El paquete original vivía en su propio esquema `audio_tts` con Sequelize y
+// siete migraciones propias. Aquí vive en el mismo esquema y el mismo ORM que
+// el resto del motor, por el mismo motivo que el catálogo semántico: dos ORM
+// contra la misma base parten las transacciones en dos.
+//
+// Las tres tablas llevan `tenant_id` y el paquete no lo tenía. No es un adorno:
+// una plantilla es texto que una organización decidió poner en boca de su
+// marca, y la caché guarda el audio ya compuesto CON las variables dentro. Sin
+// esa columna, dos organizaciones que locutan la misma frase comparten fila, y
+// acertar el texto exacto se convierte en una forma de averiguar qué locutó la
+// otra.
+// ---------------------------------------------------------------------------
+
+/// Estado de un audio en la caché.
+///
+/// Se distingue el fallo que se puede reintentar del que no. Un 429 del
+/// proveedor se cura solo; un texto que su política rechaza va a fallar igual
+/// las tres veces, y reintentarlo sólo gasta cuota.
+enum AudioAssetStatus {
+  PENDING
+  GENERATING
+  READY
+  FAILED_RETRYABLE
+  FAILED_PERMANENT
+}
+
+/// Para qué sirve una plantilla.
+///
+/// `FALLBACK` no es una variante de `STATIC`: es el audio que se sirve cuando
+/// NO se puede generar el que se pidió, y el resolutor se niega a degradar
+/// hacia una plantilla que no lo declare. Sin esa distinción, un despliegue
+/// podría acabar sirviendo como respaldo una frase que menciona un nombre.
+enum AudioTemplateStrategy {
+  STATIC
+  DYNAMIC
+  FALLBACK
+}
+
+/// Lo que se puede locutar, y con qué texto.
+model AudioTemplate {
+  id       BigInt @id @default(autoincrement())
+  tenantId BigInt @map("tenant_id")
+
+  code    String @db.VarChar(160)
+  version Int    @default(1)
+
+  strategy             AudioTemplateStrategy
+  templateText         String                @map("template_text") @db.Text
+  /// Idioma de la plantilla. Vacío ⇒ el del despliegue.
+  language             String?               @db.VarChar(20)
+  /// A qué respaldo degradar cuando ésta no se puede generar.
+  fallbackTemplateCode String?               @map("fallback_template_code") @db.VarChar(160)
+  isActive             Boolean               @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, code])
+  @@map("decision_audio_template")
+}
+
+/// Un audio ya compuesto, o el compromiso de componerlo.
+///
+/// La identidad es `assetKey`: la huella de la plantilla, su versión, el texto
+/// ya compuesto, el idioma, el proveedor, el modelo, la voz, su versión, el
+/// formato y la frecuencia de muestreo. Cambiar cualquiera de esas cosas
+/// produce un asset DISTINTO y nunca sobrescribe uno que ya está `READY`, que
+/// es lo que impide servir con la voz nueva un audio calculado con la vieja.
+model AudioAsset {
+  id       String @id @db.Uuid
+  tenantId BigInt @map("tenant_id")
+
+  assetKey        String           @map("asset_key") @db.Char(64)
+  templateCode    String           @map("template_code") @db.VarChar(160)
+  templateVersion Int              @map("template_version")
+  status          AudioAssetStatus @default(PENDING)
+
+  /// El texto ya compuesto, CIFRADO (AES-256-GCM, con el `assetKey` como dato
+  /// autenticado). Es la única copia y es la que lee el proveedor: una locución
+  /// dinámica lleva dentro el nombre de una persona.
+  renderedTextEncrypted String @map("rendered_text_encrypted") @db.Text
+
+  /// Las variables con que se compuso, CIFRADAS igual que el texto. Existen
+  /// para la generación por segmentos: sin ellas no se sabe qué tramos son
+  /// fijos de la plantilla y cuáles llevan el dato de una persona.
+  variablesEncrypted String? @map("variables_encrypted") @db.Text
+
+  /// Cuántos tramos se ensamblaron y cuántos salieron de la caché de
+  /// segmentos. `null` en audio generado de una pieza.
+  segmentsSummary Json? @map("segments_summary")
+
+  language         String @db.VarChar(20)
+  provider         String @db.VarChar(40)
+  providerModel    String @map("provider_model") @db.VarChar(128)
+  providerVoiceRef String @map("provider_voice_ref") @db.VarChar(255)
+  voiceProfile     String @map("voice_profile") @db.VarChar(100)
+  voiceVersion     Int    @map("voice_version")
+  outputFormat     String @map("output_format") @db.VarChar(64)
+  sampleRate       Int    @map("sample_rate")
+
+  /// Unidades reservadas al presupuesto por esta generación. Se liquidan al
+  /// terminar y se devuelven si nunca llegó a gastarse.
+  reservedUnits Int     @default(0) @map("reserved_units")
+  attempts      Int     @default(0)
+  correlationId String? @map("correlation_id") @db.VarChar(64)
+
+  /// Arrendamiento de la generación: quién la tomó y hasta cuándo. Es lo que
+  /// impide que dos réplicas paguen dos veces por el mismo audio.
+  claimedAt DateTime? @map("claimed_at") @db.Timestamptz(6)
+  claimedBy String?   @map("claimed_by") @db.VarChar(120)
+
+  /// Dónde están los bytes. `db://audio/<id>` con el controlador de base —el
+  /// del motor—, `file://…` con el de disco del paquete.
+  storageUri     String? @map("storage_uri") @db.Text
+  /// El audio, cuando el controlador es la propia base. A diferencia del PDF
+  /// del extracto o de las imágenes de la verificación, **esto no se borra al
+  /// terminar**: es la caché, y borrarla obligaría a pagar otra vez por la
+  /// misma frase. Lo que la acota es que una frase repetida no crea una fila
+  /// nueva.
+  audioBytes     Bytes?  @map("audio_bytes")
+  mimeType       String? @map("mime_type") @db.VarChar(120)
+  checksumSha256 String? @map("checksum_sha256") @db.Char(64)
+  bytes          BigInt?
+  lastErrorCode  String? @map("last_error_code") @db.VarChar(120)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, assetKey])
+  @@index([tenantId, status])
+  @@index([tenantId, templateCode, templateVersion])
+  @@map("decision_audio_asset")
+}
+
+/// Caché de SEGMENTOS de locución: los tramos fijos de una plantilla y los
+/// valores de sus variables, cada uno con su propio audio. Existe para que
+/// cambiar una variable no vuelva a pagar la frase entera: el proveedor cobra
+/// por carácter y el tramo fijo —casi todo el texto— ya está dicho. Como la
+/// caché de frases, no se borra al terminar; lo acota que un segmento repetido
+/// no crea fila nueva. Los bytes viven en la fila a propósito: un segmento
+/// pesa poco y así la caché no depende del controlador de almacenamiento.
+model AudioSegment {
+  id       String @id @db.Uuid
+  tenantId BigInt @map("tenant_id")
+
+  /// Huella de identidad del tramo: texto + voz + versión + modelo + formato +
+  /// ajustes. Sin plantilla: el mismo tramo dicho por la misma voz es el mismo
+  /// audio, lo pida la plantilla que lo pida.
+  segmentKey String @map("segment_key") @db.Char(64)
+
+  /// El texto del tramo, CIFRADO como el de la frase: un tramo variable lleva
+  /// dentro el nombre de una persona.
+  textEncrypted String @map("text_encrypted") @db.Text
+
+  audioBytes     Bytes  @map("audio_bytes")
+  mimeType       String @map("mime_type") @db.VarChar(120)
+  checksumSha256 String @map("checksum_sha256") @db.Char(64)
+  bytes          BigInt
+  usageUnits     Int    @map("usage_units")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, segmentKey])
+  @@map("decision_audio_segment")
+}
+
+/// Consumo real por audio generado. Una fila por asset: es idempotente porque
+/// liquidar dos veces la misma generación falsearía el presupuesto del mes.
+model AudioGenerationUsage {
+  id       BigInt @id @default(autoincrement())
+  tenantId BigInt @map("tenant_id")
+
+  assetId    String @map("asset_id") @db.Uuid
+  provider   String @db.VarChar(40)
+  usageUnits Int    @map("usage_units")
+  monthKey   String @map("month_key") @db.VarChar(7)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, assetId])
+  @@index([tenantId, provider, monthKey])
+  @@map("decision_audio_generation_usage")
+}
+
+/// Presupuesto del mes, por proveedor.
+///
+/// Reservado y liquidado van SEPARADOS a propósito: la autorización reserva
+/// antes de gastar, así que N peticiones simultáneas no pueden pasarse del
+/// límite. Con un solo contador incrementado al terminar, todas verían el
+/// presupuesto libre a la vez.
+model AudioBudgetWindow {
+  id       BigInt @id @default(autoincrement())
+  tenantId BigInt @map("tenant_id")
+
+  provider String @db.VarChar(40)
+  monthKey String @map("month_key") @db.VarChar(7)
+
+  reservedUnits Int @default(0) @map("reserved_units")
+  settledUnits  Int @default(0) @map("settled_units")
+
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, provider, monthKey])
+  @@map("decision_audio_budget_window")
+}
+
+/// Generaciones que un actor gastó hoy. El techo por actor y día es lo que
+/// impide que una sola cuenta agote el presupuesto de la organización.
+model AudioActorGenerationDaily {
+  id       BigInt @id @default(autoincrement())
+  tenantId BigInt @map("tenant_id")
+
+  actorId         String @map("actor_id") @db.VarChar(160)
+  dayKey          String @map("day_key") @db.VarChar(10)
+  generationCount Int    @default(0) @map("generation_count")
+
+  @@unique([tenantId, actorId, dayKey])
+  @@index([tenantId, dayKey])
+  @@map("decision_audio_actor_generation_daily")
+}
+
 // ---------------------------------------------------------------------------
 // Catálogo del worker semántico (ADR-0026).
 //
@@ -2175,4 +2994,58 @@ model SemanticTenantBudget {
 
   @@unique([tenantId, windowStart])
   @@map("decision_semantic_tenant_budget")
+}
+
+/// Un valor que debía pertenecer a un catálogo y no se pudo resolver con confianza.
+///
+/// Existe para que el motor nunca invente una categoría ni pierda el dato. Cuando
+/// el clasificador se abstiene —o duda— la glosa no se descarta: se guarda TAL
+/// COMO LLEGÓ, con su mejor recomendación y su contexto, y se escala a quien
+/// pueda decidir.
+///
+/// La unicidad por `(tenant, source, normalizedValue)` es lo que hace que el
+/// mismo término repetido sume apariciones en vez de crear pendientes y avisos
+/// duplicados; el valor crudo se conserva aparte porque normalizar es una
+/// conveniencia de búsqueda, no la verdad de lo que se recibió.
+model UnresolvedClassification {
+  id       BigInt @id @default(autoincrement())
+  tenantId BigInt @map("tenant_id")
+
+  /// El valor exactamente como se recibió. Nunca se sobrescribe.
+  rawValue        String @map("raw_value") @db.Text
+  /// Forma comparable: sirve para deduplicar, no para decidir.
+  normalizedValue String @map("normalized_value") @db.VarChar(500)
+
+  /// Quién produjo el valor: worker, importación, ejecución de un algoritmo…
+  source  String @db.VarChar(120)
+  /// Dónde apareció: identificadores de la ejecución, la variable o el artefacto.
+  context Json   @default("{}")
+
+  suggestedCategoryCode String?  @map("suggested_category_code") @db.VarChar(120)
+  /// Confianza de la recomendación, en [0,1].
+  confidence            Decimal? @db.Decimal(4, 3)
+  /// Otras candidatas con su confianza, de mayor a menor.
+  alternatives          Json     @default("[]")
+
+  occurrenceCount Int      @default(1) @map("occurrence_count")
+  firstSeenAt     DateTime @default(now()) @map("first_seen_at") @db.Timestamptz(6)
+  lastSeenAt      DateTime @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+
+  /// PENDING | RESOLVED | IGNORED | REJECTED | AUTO_RESOLVED
+  status String @default("PENDING") @db.VarChar(20)
+
+  resolvedCategoryCode String?   @map("resolved_category_code") @db.VarChar(120)
+  resolvedBy           String?   @map("resolved_by") @db.VarChar(160)
+  resolvedAt           DateTime? @map("resolved_at") @db.Timestamptz(6)
+  /// USE_SUGGESTED | ASSIGN_EXISTING | CREATE_CATEGORY | CREATE_ALIAS | DISCARD | NOT_CATEGORIZED
+  resolutionType       String?   @map("resolution_type") @db.VarChar(30)
+  metadata             Json      @default("{}")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, source, normalizedValue])
+  @@index([tenantId, status, occurrenceCount])
+  @@index([tenantId, status, lastSeenAt])
+  @@map("decision_unresolved_classification")
 }
