@@ -25,6 +25,8 @@ import { LibraryModule } from './modules/libraries/library.module';
 import { LiveExecutionModule } from './modules/live-execution/live-execution.module';
 import { ManualReviewModule } from './modules/manual-review/manual-review.module';
 import { ModelMonitoringModule } from './modules/model-monitoring/model-monitoring.module';
+import { OutcomeIngestionModule } from './modules/outcome-ingestion/outcome-ingestion.module';
+import { RiskGovernanceModule } from './modules/risk-governance/risk-governance.module';
 import { NestedTreesModule } from './modules/nested-trees/nested-trees.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { OutboxRelayModule } from './modules/outbox-relay/outbox-relay.module';
@@ -39,6 +41,9 @@ import { VariableModule } from './modules/variables/variable.module';
 import { ViewsModule } from './modules/views/views.module';
 import { WorkersModule } from './modules/workers/workers.module';
 import { IdentitySessionModule } from './modules/identity-session/identity-session.module';
+import { ARTIFACT_CONTRACT_PORT } from './pdf-worker/application/ports/artifact-contract.port';
+import { PdfArtifactContractAdapter } from './modules/artifacts/pdf-artifact-contract.adapter';
+import { PdfWorkerModule } from './pdf-worker/pdf-worker.module';
 
 @Module({
   imports: [
@@ -82,6 +87,8 @@ import { IdentitySessionModule } from './modules/identity-session/identity-sessi
     ManualReviewModule,
     DataSubjectModule,
     ModelMonitoringModule,
+    OutcomeIngestionModule,
+    RiskGovernanceModule,
     NotificationsModule,
     OutboxRelayModule,
     AuditQueryModule,
@@ -90,6 +97,25 @@ import { IdentitySessionModule } from './modules/identity-session/identity-sessi
     ViewsModule,
     TutorialModule,
     WorkersModule,
+    /**
+     * Generador documental. Va AL FINAL y nada del motor lo mira: no exporta un servicio que
+     * otro módulo importe, sólo publica `/pdf/*` y el `PdfGeneratorPort` para quien quiera
+     * pedirle un documento.
+     *
+     * Esta línea es la ÚNICA dependencia entre el motor y el worker, y va en este sentido a
+     * propósito: `src/pdf-worker/` no importa nada de `common/` ni de `modules/`, así que
+     * sacarlo a su propio despliegue —`src/pdf-worker.ts` ya lo arranca solo— es borrarla.
+     *
+     * Sus interruptores viven en su propio esquema de entorno
+     * (`pdf-worker/infrastructure/config/pdf-worker.env.ts`), que se valida al arrancar y NO
+     * pasa por `validateEnvironment`: un `z.object` descarta las claves que no declara, y las
+     * `PDF_*` desaparecerían del `ConfigService` sin que nada lo dijera.
+     */
+    PdfWorkerModule.register({
+      // El motor SÍ sabe qué publica cada artefacto, así que aquí el generador gana
+      // la función de casar documentos con artefactos. Suelto no la tiene, y lo dice.
+      artifactContract: { provide: ARTIFACT_CONTRACT_PORT, useClass: PdfArtifactContractAdapter },
+    }),
   ],
 })
 export class AppModule {}

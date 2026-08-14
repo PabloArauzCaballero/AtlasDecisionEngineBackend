@@ -24,7 +24,23 @@ export const semanticEntityAliasCatalog: readonly {
   canonicalName: string;
   entityType: string;
 }[] = [
+  /*
+   * La lista de instituciones no es decorativa: `TextNormalizer.forClassification`
+   * usa el TIPO para decidir qué se quita del texto antes de clasificar, y el
+   * banco de la contraparte es ruido —`BANCO DE CREDITO DE BOLIVIA S.A.` son
+   * seis palabras que no dicen nada del rubro—. Cada banco que falte aquí es
+   * ruido que sí llega al clasificador, así que están los siete que aparecen en
+   * los extractos reales verificados y los que comparten plaza con ellos.
+   */
   { alias: 'BNB', canonicalName: 'Banco Nacional de Bolivia', entityType: 'INSTITUCION' },
+  { alias: 'BEC', canonicalName: 'Banco Económico', entityType: 'INSTITUCION' },
+  { alias: 'Banco Economico', canonicalName: 'Banco Económico', entityType: 'INSTITUCION' },
+  { alias: 'BISA', canonicalName: 'Banco BISA', entityType: 'INSTITUCION' },
+  { alias: 'FIE', canonicalName: 'Banco FIE', entityType: 'INSTITUCION' },
+  { alias: 'Banco Fassil', canonicalName: 'Banco Fassil', entityType: 'INSTITUCION' },
+  { alias: 'Tigo Money', canonicalName: 'Tigo Money', entityType: 'INSTITUCION' },
+  { alias: 'Banco Prodem', canonicalName: 'Banco Prodem', entityType: 'INSTITUCION' },
+  { alias: 'Banco Fortaleza', canonicalName: 'Banco Fortaleza', entityType: 'INSTITUCION' },
   {
     alias: 'Banco Nacional',
     canonicalName: 'Banco Nacional de Bolivia',

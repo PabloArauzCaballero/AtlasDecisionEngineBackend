@@ -51,6 +51,10 @@
  * mejor.
  */
 
+import { bankDialectExamples } from './bank-dialect.data';
+import { bolivianMerchantExamples } from './bolivian-merchants.data';
+import { statementCategories, statementVocabularyExamples } from './statement-vocabulary.data';
+
 export interface SemanticCategorySeed {
   readonly code: string;
   readonly name: string;
@@ -105,7 +109,7 @@ function rama(
   };
 }
 
-export const expenseCategoryTree: readonly SemanticCategorySeed[] = [
+const curatedTree: readonly SemanticCategorySeed[] = [
   rama('INGRESOS', 'Ingresos', 'Dinero que entra en la cuenta.', null),
   rama('GASTOS', 'Gastos', 'Dinero que sale de la cuenta.', null),
 
@@ -284,7 +288,20 @@ export const expenseCategoryTree: readonly SemanticCategorySeed[] = [
       'AJUSTE A FAVOR DEL CLIENTE',
       'REINTEGRO POR RECLAMO',
     ],
-    counterExamples: ['ABONO TRANSFERENCIA RECIBIDA', 'ABONO INTERESES'],
+    counterExamples: [
+      'ABONO TRANSFERENCIA RECIBIDA',
+      'ABONO INTERESES',
+      /*
+       * Un asiento interno del banco no es una devolución al cliente, y hay que
+       * decirlo porque se parecen mucho una vez que el normalizador retira el
+       * número de referencia: `AJUSTE CONTABLE INTERNO 99213` se queda en
+       * `AJUSTE CONTABLE INTERNO`, que sin este contraejemplo casaba al 100 %
+       * con `AJUSTE A FAVOR DEL CLIENTE`. La línea no dice a favor de quién es,
+       * así que lo correcto es abstenerse.
+       */
+      'AJUSTE CONTABLE INTERNO',
+      'ASIENTO CONTABLE DE REGULARIZACION',
+    ],
     restrictions: [
       'Corrige un movimiento anterior de la propia cuenta; no es dinero nuevo que entra.',
     ],
@@ -313,14 +330,32 @@ export const expenseCategoryTree: readonly SemanticCategorySeed[] = [
     name: 'Alquiler cobrado',
     description: 'Renta que el titular cobra por ceder el uso de un inmueble propio.',
     parentCode: 'INGRESOS',
+    /*
+     * Ninguno lleva la palabra PAGO, y no es estilo: es la corrección de un
+     * defecto medido.
+     *
+     * Había aquí un `ABONO PAGO ALQUILER DEPARTAMENTO` que contiene, letra por
+     * letra, el contraejemplo de dos líneas más abajo. La hoja se contradecía a
+     * sí misma: «PAGO ALQUILER DEPARTAMENTO AGOSTO» —un gasto evidente— sacaba
+     * 0,9219 contra este ingreso y 0,9271 contra el alquiler pagado, cinco
+     * milésimas de diferencia. Ni el margen de contradicción (0,02) llegaba a
+     * descartarlo ni el reparto de confianza dejaba al ganador por encima de su
+     * umbral, así que el movimiento salía SIN DETERMINAR con la categoría
+     * correcta delante.
+     */
     positiveExamples: [
       'ABONO ALQUILER INQUILINO',
       'COBRO DE RENTA MENSUAL',
       'DEPOSITO ARRIENDO LOCAL',
-      'ABONO PAGO ALQUILER DEPARTAMENTO',
+      'ABONO POR ALQUILER DE DEPARTAMENTO',
+      'ABONO RENTA DEPARTAMENTO INQUILINO',
     ],
     // El mismo concepto en el otro sentido: aquí se cobra, allí se paga.
-    counterExamples: ['PAGO ALQUILER DEPARTAMENTO', 'PAGO DE RENTA MENSUAL AL PROPIETARIO'],
+    counterExamples: [
+      'PAGO ALQUILER DEPARTAMENTO',
+      'PAGO DE RENTA MENSUAL AL PROPIETARIO',
+      'PAGO ALQUILER DEPARTAMENTO AGOSTO',
+    ],
     restrictions: ['Debe ser un abono a favor del titular como arrendador.'],
     relatedCategoryCodes: ['GASTOS.VIVIENDA.ALQUILER'],
     acceptanceThreshold: CORRIENTE,
@@ -367,11 +402,25 @@ export const expenseCategoryTree: readonly SemanticCategorySeed[] = [
     name: 'Alquiler',
     description: 'Pago periódico por el uso de una vivienda o un local que no es propiedad propia.',
     parentCode: 'GASTOS.VIVIENDA',
+    /*
+     * Los dos últimos llevan el mes escrito, y hacen falta por una razón que no
+     * se ve leyendo el catálogo: el normalizador despliega los alias antes de
+     * medir, y `BS` es uno de ellos. «PAGO ALQUILER DEPARTAMENTO MES DE JULIO
+     * BS 2.800,00» llega al clasificador como «… MES DE JULIO Boliviano
+     * 2.800,00», y esa palabra de más baja el parecido de 0,9137 a 0,8946 —lo
+     * suficiente para quedarse en 0,651 de confianza contra el umbral 0,68 de
+     * esta hoja, que es alta a propósito—. Con la línea larga sembrada, el
+     * importe deja de ser ruido. Es el mismo remedio que el catálogo prescribe
+     * en su cabecera: ejemplos cortos como la glosa Y alguno largo como los
+     * extractos que sí describen.
+     */
     positiveExamples: [
       'PAGO ALQUILER',
       'PAGO ALQUILER DEPARTAMENTO',
       'PAGO ARRIENDO LOCAL COMERCIAL',
       'PAGO DE RENTA MENSUAL AL PROPIETARIO',
+      'PAGO ALQUILER DEPARTAMENTO MES DE JULIO',
+      'PAGO ALQUILER MENSUAL VIVIENDA',
     ],
     counterExamples: [
       // Vivienda propia financiada: es deuda, no alquiler.
@@ -388,7 +437,18 @@ export const expenseCategoryTree: readonly SemanticCategorySeed[] = [
     name: 'Servicios básicos',
     description: 'Luz, agua y gas domiciliarios facturados por la empresa proveedora.',
     parentCode: 'GASTOS.VIVIENDA',
+    /*
+     * `PAGO SERVICIOS`, a secas, vive aquí por una razón del dominio, no por
+     * descarte: es la etiqueta con la que la banca boliviana imprime el pago
+     * hecho en su ventanilla o app de «pago de servicios», que es luz, agua,
+     * gas y teléfono. Sin ella, `PAGO SERVICIOS (CUOTA 3)` repartía su parecido
+     * entre ocho hojas separadas por tres centésimas —expensas, profesionales,
+     * proveedores, suscripciones, mantenimiento…— y ninguna alcanzaba su umbral,
+     * de modo que un movimiento con rubro identificable salía SIN DETERMINAR.
+     */
     positiveExamples: [
+      'PAGO SERVICIOS',
+      'PAGO DE SERVICIOS',
       'PAGO SERVICIO ELECTRICO',
       'PAGO LUZ',
       'PAGO ENERGIA ELECTRICA',
@@ -401,8 +461,14 @@ export const expenseCategoryTree: readonly SemanticCategorySeed[] = [
       // También es «servicio», pero de telecomunicaciones.
       'PAGO SERVICIO INTERNET',
       'PAGO EXPENSAS EDIFICIO',
+      // «Servicios» de un profesional o de un proveedor: la palabra es la misma
+      // y el rubro no, así que la frontera se escribe en las dos direcciones.
+      'PAGO SERVICIO DE CONTABILIDAD',
+      'PAGO PROVEEDOR SERVICIOS GENERALES',
     ],
-    restrictions: ['Excluye telefonía e internet, que tienen categoría propia.'],
+    restrictions: [
+      'Excluye telefonía e internet, que tienen categoría propia, y los servicios de un profesional o un proveedor.',
+    ],
     relatedCategoryCodes: ['GASTOS.VIVIENDA.TELECOMUNICACIONES'],
     acceptanceThreshold: CORRIENTE,
   },
@@ -494,12 +560,44 @@ export const expenseCategoryTree: readonly SemanticCategorySeed[] = [
       'CONSUMO EN RESTAURANTE',
       'CONSUMO RESTAURANTE ALMUERZO',
       'PEDIDO DELIVERY DE COMIDA',
-      'CONSUMO EN CAFETERIA',
       'PAGO EN PIZZERIA',
+      'CONSUMO EN CHURRASQUERIA',
+      'PEDIDO DE COMIDA RAPIDA',
     ],
-    counterExamples: ['COMPRA SUPERMERCADO', 'COMPRA DE VIVERES EN MERCADO'],
+    counterExamples: [
+      'COMPRA SUPERMERCADO',
+      'COMPRA DE VIVERES EN MERCADO',
+      // Un café o una panadería tienen hoja propia: el ticket medio y la
+      // frecuencia no se parecen a los de una comida, y separarlos es lo que
+      // hace útil un informe de gasto en alimentación.
+      'CONSUMO EN CAFETERIA',
+      'COMPRA EN PANADERIA',
+    ],
     restrictions: [],
-    relatedCategoryCodes: ['GASTOS.ALIMENTACION.SUPERMERCADO'],
+    relatedCategoryCodes: ['GASTOS.ALIMENTACION.SUPERMERCADO', 'GASTOS.ALIMENTACION.CAFETERIA'],
+    acceptanceThreshold: CORRIENTE,
+  },
+  {
+    code: 'GASTOS.ALIMENTACION.CAFETERIA',
+    name: 'Cafeterías y panaderías',
+    description:
+      'Café, panadería, heladería y repostería: consumo pequeño y frecuente, distinto de una comida.',
+    parentCode: 'GASTOS.ALIMENTACION',
+    positiveExamples: [
+      'CONSUMO EN CAFETERIA',
+      'COMPRA EN PANADERIA',
+      'COMPRA EN HELADERIA',
+      'CONSUMO CAFE',
+      'COMPRA DE REPOSTERIA',
+    ],
+    /*
+     * Separada de Restaurantes por una razón de informe, no de gusto: son
+     * decenas de cargos pequeños al mes frente a unos pocos grandes, y mezclarlos
+     * hace que «Restaurantes» deje de decir nada sobre cuánto se sale a comer.
+     */
+    counterExamples: ['CONSUMO EN RESTAURANTE', 'PEDIDO DELIVERY DE COMIDA', 'COMPRA SUPERMERCADO'],
+    restrictions: [],
+    relatedCategoryCodes: ['GASTOS.ALIMENTACION.RESTAURANTES'],
     acceptanceThreshold: CORRIENTE,
   },
 
@@ -517,12 +615,24 @@ export const expenseCategoryTree: readonly SemanticCategorySeed[] = [
     name: 'Combustible y vehículo',
     description: 'Carburante, mantenimiento, seguro y trámites del vehículo propio.',
     parentCode: 'GASTOS.TRANSPORTE',
+    /*
+     * El SOAT aparece dos veces, con sigla y desplegado, y hace falta.
+     *
+     * El normalizador SUSTITUYE los alias del catálogo de entidades antes de
+     * medir, así que «PAGO SEGURO OBLIGATORIO SOAT» llega aquí como «PAGO SEGURO
+     * OBLIGATORIO Seguro Obligatorio de Accidentes de Tránsito»: la sigla, que
+     * era la única palabra que ataba la línea a un vehículo, desaparece, y lo
+     * que queda se parece a cualquier prima de seguro. Medido: contra la forma
+     * desplegada el seguro genérico ganaba y el movimiento salía SIN DETERMINAR.
+     * El ejemplo desplegado es lo que el clasificador ve de verdad.
+     */
     positiveExamples: [
       'COMPRA GASOLINA SURTIDOR',
       'CARGA DE COMBUSTIBLE',
       'PAGO MANTENIMIENTO VEHICULO',
       'PAGO CAMBIO DE ACEITE',
       'PAGO SEGURO OBLIGATORIO SOAT',
+      'PAGO SEGURO OBLIGATORIO DE ACCIDENTES DE TRANSITO',
       'PAGO INSPECCION TECNICA VEHICULAR',
     ],
     counterExamples: ['PAGO VIAJE EN TAXI', 'RECARGA TARJETA TRANSPORTE PUBLICO'],
@@ -769,6 +879,24 @@ export const expenseCategoryTree: readonly SemanticCategorySeed[] = [
     acceptanceThreshold: CORRIENTE,
   },
   {
+    code: 'GASTOS.COMPRAS.LIBRERIA',
+    name: 'Librería y papelería',
+    description: 'Libros, material de escritorio, impresión y artículos de papelería.',
+    parentCode: 'GASTOS.COMPRAS',
+    positiveExamples: [
+      'COMPRA EN LIBRERIA',
+      'COMPRA EN PAPELERIA',
+      'COMPRA MATERIAL DE ESCRITORIO',
+      'PAGO IMPRENTA',
+    ],
+    // El material ESCOLAR es educación: lo compra la misma tienda pero responde
+    // a otra pregunta —cuánto cuesta el colegio— y así lo dice el informe.
+    counterExamples: ['COMPRA MATERIAL ESCOLAR', 'COMPRA COMPUTADORA'],
+    restrictions: [],
+    relatedCategoryCodes: ['GASTOS.EDUCACION', 'GASTOS.COMPRAS.TECNOLOGIA'],
+    acceptanceThreshold: CORRIENTE,
+  },
+  {
     code: 'GASTOS.COMPRAS.TECNOLOGIA',
     name: 'Tecnología',
     description: 'Equipos y accesorios electrónicos: computadoras, teléfonos, periféricos.',
@@ -959,7 +1087,13 @@ export const expenseCategoryTree: readonly SemanticCategorySeed[] = [
       'PAGO SEGURO DEL HOGAR',
       'DEBITO PRIMA SEGURO ACCIDENTES',
     ],
-    counterExamples: ['PAGO SEGURO OBLIGATORIO SOAT', 'PAGO SEGURO DE SALUD'],
+    counterExamples: [
+      'PAGO SEGURO OBLIGATORIO SOAT',
+      // La forma que el normalizador entrega tras desplegar el alias: sin ella,
+      // el contraejemplo no cubría el texto que el clasificador ve de verdad.
+      'PAGO SEGURO OBLIGATORIO DE ACCIDENTES DE TRANSITO',
+      'PAGO SEGURO DE SALUD',
+    ],
     restrictions: ['El SOAT va con el vehículo y el seguro médico con salud.'],
     relatedCategoryCodes: ['GASTOS.TRANSPORTE.COMBUSTIBLE', 'GASTOS.SALUD.ATENCION'],
     acceptanceThreshold: CORRIENTE,
@@ -1009,9 +1143,22 @@ export const expenseCategoryTree: readonly SemanticCategorySeed[] = [
     name: 'Servicios profesionales',
     description: 'Honorarios de abogados, contadores, notarios y otros profesionales contratados.',
     parentCode: 'GASTOS',
+    /*
+     * Se dice «contabilidad» y no «servicios contables», y es deliberado.
+     *
+     * `PAGO SERVICIOS CONTABLES` contiene el bigrama `PAGO SERVICIOS`, que es la
+     * etiqueta con la que la banca imprime el pago de luz, agua y gas. Con él
+     * aquí, `PAGO SERVICIOS (CUOTA 3)` sacaba 0,9167 contra esta hoja y 0,9140
+     * contra Servicios básicos —tres milésimas— y el reparto de confianza dejaba
+     * a las dos por debajo de su umbral: un movimiento con rubro identificable
+     * salía SIN DETERMINAR porque dos hojas se disputaban una frase que sólo es
+     * de una. Nombrar la profesión en vez del genérico deshace el empate sin
+     * quitarle a esta hoja ningún caso que le pertenezca.
+     */
     positiveExamples: [
       'PAGO HONORARIOS ABOGADO',
-      'PAGO SERVICIOS CONTABLES',
+      'PAGO HONORARIOS CONTADOR',
+      'PAGO SERVICIO DE CONTABILIDAD',
       'PAGO NOTARIA TRAMITE',
       'PAGO ASESORIA PROFESIONAL',
     ],
@@ -1057,3 +1204,38 @@ export const expenseCategoryTree: readonly SemanticCategorySeed[] = [
     acceptanceThreshold: CORRIENTE,
   },
 ];
+
+/**
+ * El árbol que se siembra: el catálogo curado más el dialecto real de los bancos.
+ *
+ * Un código del dialecto que no exista aquí se DENUNCIA en vez de ignorarse. Una
+ * errata en `bank-dialect.data.ts` no tiene ninguna señal visible —los ejemplos
+ * simplemente no llegarían a ninguna hoja y la categoría clasificaría peor sin
+ * que nadie supiera por qué—, así que se rompe el arranque, que es la única
+ * forma de que se corrija.
+ */
+export const expenseCategoryTree: readonly SemanticCategorySeed[] = (() => {
+  /*
+   * El árbol curado describe el gasto de una PERSONA. `statementCategories` añade
+   * lo que mueve un extracto empresarial —adquirencia, nómina pagada, insumos
+   * agrícolas, fondos en custodia—, que no tenía dónde caer: medido sobre 1.464
+   * movimientos reales, esas familias eran el grueso del 41 % sin clasificar.
+   */
+  const arbol = [...curatedTree, ...statementCategories];
+  const codigos = new Set(arbol.map((categoria) => categoria.code));
+  const aportes = [bankDialectExamples, bolivianMerchantExamples, statementVocabularyExamples];
+  const huerfanos = aportes
+    .flatMap((aporte) => Object.keys(aporte))
+    .filter((codigo) => !codigos.has(codigo));
+  if (huerfanos.length > 0) {
+    throw new Error(
+      `El dialecto bancario menciona categorías que no existen en el árbol: ${huerfanos.join(', ')}.`,
+    );
+  }
+  return arbol.map((categoria) => {
+    const extra = aportes.flatMap((aporte) => aporte[categoria.code] ?? []);
+    return extra.length === 0
+      ? categoria
+      : { ...categoria, positiveExamples: [...categoria.positiveExamples, ...extra] };
+  });
+})();

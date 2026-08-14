@@ -27,6 +27,11 @@ export interface GraphWorkerResult {
 export const WORKER_SERVICE_OPERATIONS: Readonly<Record<string, readonly string[]>> = {
   'bank-statement': ['normalize'],
   'semantic-analysis': ['classify'],
+  // `speak` y no `synthesize`: lo que el nodo pide es que ALGO se diga en voz
+  // alta, y la mayoría de las veces no se sintetiza nada porque ya estaba
+  // locutado. Nombrar la operación por el mecanismo prometería una llamada al
+  // proveedor en cada decisión.
+  'audio-tts': ['speak'],
 };
 
 export function validateGraphWorkerCalls(

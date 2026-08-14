@@ -111,6 +111,20 @@ export async function writeGraphRows(
  * `decision_test_run` apunta al compilado por clave foránea, así que rehacer un
  * demo que ya se ejecutó alguna vez fallaba con P2003 y dejaba la siembra a
  * medias. Se limpian primero las corridas, luego el artefacto.
+ *
+ * Lo mismo pasaba —y peor— con las EJECUCIONES: `decision_execution` apunta al
+ * despliegue con `onDelete: Restrict`, así que en cuanto alguien simulaba el
+ * demo una sola vez desde el portal, rehacerlo moría con
+ * `decision_execution_deployment_id_fkey`. El efecto es traicionero: la
+ * corrección del grafo se publica en el repositorio, la siembra dice «se
+ * rehace», y en la única máquina donde el demo se había usado de verdad el
+ * motor sigue ejecutando el grafo viejo. Por eso se borran aquí.
+ *
+ * **Se borran ejecuciones, que en cualquier otro artefacto serían evidencia que
+ * no se toca.** Alcance: sólo lo que cuelga de un artefacto de DEMOSTRACIÓN que
+ * se está rehaciendo a propósito, en la misma llamada que ya borraba sus
+ * corridas de prueba y su despliegue. Sus hijas —variables, pasos, motivos,
+ * errores— caen por cascada declarada en el esquema.
  */
 export async function deleteDemoArtifact(prisma: PrismaClient, artifactId: bigint): Promise<void> {
   const versions = await prisma.decisionArtifactVersion.findMany({
@@ -131,6 +145,11 @@ export async function deleteDemoArtifact(prisma: PrismaClient, artifactId: bigin
     }
     await prisma.decisionRuntimeBinding.deleteMany({
       where: { activeDeployment: { artifactVersionId: { in: versionIds } } },
+    });
+    // Antes que el despliegue: la ejecución lo retiene con `Restrict`, y también
+    // retiene la versión, así que se filtra por versión —que cubre las dos—.
+    await prisma.decisionExecution.deleteMany({
+      where: { artifactVersionId: { in: versionIds } },
     });
     await prisma.decisionDeployment.deleteMany({
       where: { artifactVersionId: { in: versionIds } },

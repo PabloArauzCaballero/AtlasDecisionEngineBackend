@@ -88,6 +88,42 @@ services:
     entrypoint: ["node", "scripts/set-app-db-role.mjs"]
     restart: "no"
 
+  # One-shot: aprovisiona los roles separados de lectura y escritura (atlas_writer /
+  # atlas_reader) con mínimo privilegio y verifica el resultado contra el motor.
+  #
+  # Es un servicio explícito y no un script montado en `docker-entrypoint-initdb.d` porque
+  # aquello solo corre al CREAR el volumen: una base que ya existe —lo normal en
+  # desarrollo— no lo volvería a ver nunca. Aquí es reejecutable y se ve fallar.
+  #
+  # Corre después de `migrate` para que los GRANT alcancen a las tablas ya creadas; los
+  # privilegios predeterminados cubren las que traigan las migraciones siguientes.
+  provision-db-roles:
+    # Bajo perfil: `docker compose up` no lo arranca ni exige sus secretos. Se pide a mano:
+    #   docker compose --profile provision run --rm provision-db-roles
+    profiles: ["provision"]
+    build:
+      context: .
+      target: migrator
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      # La etapa `migrator` fija NODE_ENV=production; aquí se declara el entorno real,
+      # porque el script se niega a aprovisionar roles en producción por diseño.
+      NODE_ENV: development
+      POSTGRES_ADMIN_URL: postgresql://${POSTGRES_USER:-atlas}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-atlas_decision}?schema=public
+      POSTGRES_WRITER_ROLE: ${POSTGRES_WRITER_ROLE:-atlas_writer}
+      POSTGRES_READER_ROLE: ${POSTGRES_READER_ROLE:-atlas_reader}
+      # Sin `:?`: el script valida y explica qué falta. Un `:?` aquí haría fallar la
+      # interpolación de TODO el fichero, incluso para quien no use este perfil.
+      POSTGRES_WRITER_PASSWORD: ${POSTGRES_WRITER_PASSWORD:-}
+      POSTGRES_READER_PASSWORD: ${POSTGRES_READER_PASSWORD:-}
+      POSTGRES_MANAGED_SCHEMAS: ${POSTGRES_MANAGED_SCHEMAS:-public}
+      POSTGRES_OBJECT_OWNER_ROLE: ${POSTGRES_USER:-atlas}
+    networks: [atlas_data]
+    entrypoint: ["node", "scripts/postgres/provision-development-roles.mjs"]
+    restart: "no"
+
   # Siembra idempotente del catálogo de arranque. Es un servicio de un solo disparo y NO un
   # perfil opcional a propósito: al pasar la siembra de arranque al rol de fondo, dejar que
   # cada proceso la intentara al bootear significaba que api y worker compitieran por el
@@ -160,6 +196,43 @@ services:
       - atlas_runner_socket:/var/run/atlas-runner
     restart: unless-stopped
 
+  # Clasificador de transformers para el worker semántico (ADR-0026).
+  #
+  # Sirve UN modelo codificador —no generativo— por HTTP. El worker le pide los
+  # vectores del texto y de las sondas del catálogo en una sola llamada y decide
+  # con aritmética; aquí no se genera una sola palabra.
+  #
+  # Va en un perfil y NO arranca con `docker compose up`: quien no usa el worker
+  # semántico no tiene por qué pagar la descarga del modelo. Se enciende a
+  # propósito:
+  #
+  #   docker compose --profile transformer up -d transformer
+  #
+  # Vive SOLO en el plano de datos y sin publicar puerto al anfitrión: es un
+  # servicio interno al que sólo llaman la API y el worker. Su volumen se declara
+  # con nombre fijo para que recrear la topología no obligue a volver a descargar
+  # el modelo.
+  transformer:
+    profiles: ["transformer"]
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.8
+    command:
+      - --model-id=${SEMANTIC_TRANSFORMER_MODEL:-intfloat/multilingual-e5-small}
+      # Debe ser MAYOR O IGUAL que SEMANTIC_TRANSFORMER_BATCH_SIZE del motor: el
+      # servidor rechaza el lote entero al superarlo, y el fallo llega como un
+      # 413 que parece un texto demasiado largo.
+      - --max-client-batch-size=${SEMANTIC_TRANSFORMER_BATCH_SIZE:-32}
+    volumes:
+      - atlas_transformer:/data
+    environment:
+      HF_HOME: /data
+    networks: [atlas_data]
+    # Un codificador pequeño sobre CPU resuelve un lote en cientos de
+    # milisegundos, pero sin techo compite con Postgres por la máquina y lo que
+    # se degrada es el resto del stack, no el análisis.
+    mem_limit: ${TRANSFORMER_MEMORY:-2g}
+    cpus: ${TRANSFORMER_CPUS:-2}
+    restart: unless-stopped
+
   # Trabajos de fondo en su propio proceso: relay del outbox, worker de corridas de prueba
   # y purga de idempotencia, todos bajo el orquestador central (src/common/jobs). Se escala
   # con `--scale worker=N` sin tocar la API — los tres reclaman su trabajo con
@@ -170,6 +243,12 @@ services:
       context: .
       target: worker
     depends_on:
+      # El worker EJECUTA grafos (corridas de suites), así que necesita el mismo sidecar de
+      # scripts que la API. Sin él, cualquier artefacto con un nodo de script fallaba su
+      # suite bloqueante y no podía entrar en gobierno: es justo lo que produce «Importar
+      # código», así que esa función entera quedaba sin poder desplegarse.
+      script-runner:
+        condition: service_started
       migrate:
         condition: service_completed_successfully
       bootstrap-app-role:
@@ -188,6 +267,12 @@ services:
       BUILD_VERSION: ${BUILD_VERSION:-2.0.0}
       COMMIT_SHA: ${COMMIT_SHA:-local-compose}
       DATABASE_URL: postgresql://atlas_app:${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-atlas_decision}?schema=public
+      # Separación de rutas de datos (ADR-0029). Vacía, la lectura comparte el pool de
+      # escritura y nada cambia; apuntándola al rol lector se separan por credencial.
+      #   DATABASE_READ_URL=postgresql://atlas_reader:<secreto>@postgres:5432/atlas_decision?schema=public
+      DATABASE_READ_URL: ${DATABASE_READ_URL:-}
+      DATA_READ_ROUTING_ENABLED: ${DATA_READ_ROUTING_ENABLED:-false}
+      ENABLE_PRIMARY_READ_FALLBACK: ${ENABLE_PRIMARY_READ_FALLBACK:-true}
       # Un pool pequeño: la concurrencia del worker la fijan sus trabajos, no el tráfico.
       DATABASE_POOL_MAX: ${WORKER_DATABASE_POOL_MAX:-5}
       REDIS_URL: redis://redis:6379
@@ -209,8 +294,114 @@ services:
       # semántico NO: necesita credenciales de un proveedor de modelos, y
       # encenderlo sin ellas sólo encola trabajo condenado a fallar.
       BANK_STATEMENT_WORKER_ENABLED: ${BANK_STATEMENT_WORKER_ENABLED:-true}
+      # El de identidad también se enciende aquí: sus proveedores son
+      # SINTÉTICOS y no dependen de nada externo. El catálogo publica
+      # `ocrProvider: mock` para que la pantalla no lo presente como una
+      # verificación contra un proveedor real.
+      IDENTITY_VERIFICATION_WORKER_ENABLED: ${IDENTITY_VERIFICATION_WORKER_ENABLED:-true}
+      # Umbrales de la comparación biométrica. El esquema NO les da valor por
+      # omisión a propósito: sin ellos, toda verificación termina en revisión
+      # manual con `THRESHOLD_PROFILE_MISSING`. Los de aquí son de LABORATORIO
+      # —calibrados contra el proveedor sintético, no contra un corpus
+      # etiquetado— y el nombre del perfil lo dice, que es justo lo que un
+      # despliegue real tiene que sustituir por su propia medición.
+      IDENTITY_MATCH_THRESHOLD: ${IDENTITY_MATCH_THRESHOLD:-0.8824}
+      IDENTITY_REVIEW_THRESHOLD: ${IDENTITY_REVIEW_THRESHOLD:-0.7789}
+      IDENTITY_THRESHOLD_PROFILE_VERSION: ${IDENTITY_THRESHOLD_PROFILE_VERSION:-sintetico-60x3-fmr1e-3-fnmr1e-2}
+      # El de locución se enciende con el proveedor `fake`, que sintetiza un
+      # MP3 determinista sin salir a la red y sin coste. El catálogo publica
+      # `provider: fake` para que la pantalla no lo presente como una voz real:
+      # un audio de prueba servido creyendo que es la marca es peor que ninguno.
+      # El esquema lo PROHÍBE en producción.
+      AUDIO_TTS_WORKER_ENABLED: ${AUDIO_TTS_WORKER_ENABLED:-true}
+      AUDIO_TTS_PROVIDER: ${AUDIO_TTS_PROVIDER:-fake}
+      # Permiso aparte para generar audio nuevo: sin él el worker sólo serviría
+      # caché, y en un entorno recién levantado la caché está vacía.
+      AUDIO_TTS_ALLOW_RUNTIME_GENERATION: ${AUDIO_TTS_ALLOW_RUNTIME_GENERATION:-true}
+      # Clave de desarrollo, publicada a propósito y sólo válida aquí: el
+      # esquema exige 32 caracteres con el worker encendido fuera de las
+      # pruebas, porque el texto locutado lleva dentro las variables.
+      AUDIO_TTS_DATA_KEY: ${AUDIO_TTS_DATA_KEY:-desarrollo-local-audio-tts-clave-32c}
+      AUDIO_STORAGE_DRIVER: ${AUDIO_STORAGE_DRIVER:-database}
+      # Los tramos fijos de una plantilla se pagan una vez; una frase nueva solo
+      # paga sus variables. Ver env.schema.ts para el precio de calidad que acepta.
+      AUDIO_SEGMENT_CACHE_ENABLED: ${AUDIO_SEGMENT_CACHE_ENABLED:-false}
+      # Credenciales del proveedor de voz. Van SIN valor por omisión a
+      # propósito: si alguien pone AUDIO_TTS_PROVIDER=elevenlabs sin clave, el
+      # esquema de entorno lo rechaza al arrancar en vez de fallar en cada
+      # locución. La voz tampoco se hereda: elegirla es una decisión de marca.
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      ELEVENLABS_VOICE_ID: ${ELEVENLABS_VOICE_ID:-}
+      # El modelo y el formato se dejan vacíos para caer en AUDIO_TTS_MODEL y
+      # AUDIO_TTS_DEFAULT_FORMAT; declararlos aquí los sobreescribe.
+      ELEVENLABS_MODEL_ID: ${ELEVENLABS_MODEL_ID:-}
+      ELEVENLABS_OUTPUT_FORMAT: ${ELEVENLABS_OUTPUT_FORMAT:-}
+      # Con valor por omisión REAL, no vacío: el esquema exige que sea una URL
+      # válida, y una cadena vacía no lo es — el motor no arrancaría.
+      ELEVENLABS_BASE_URL: ${ELEVENLABS_BASE_URL:-https://api.elevenlabs.io}
+      # CÓMO habla la voz. Los valores por omisión son los DOCUMENTADOS por el
+      # proveedor: quien no toque nada sigue oyendo lo mismo que oía cuando el
+      # cuerpo no llevaba `voice_settings`. Bajar STABILITY es lo que quita la
+      # lectura plana; los cuatro entran en la clave de caché, así que cambiarlos
+      # regenera el audio afectado en vez de seguir sirviendo el anterior.
+      ELEVENLABS_VOICE_STABILITY: ${ELEVENLABS_VOICE_STABILITY:-0.5}
+      ELEVENLABS_VOICE_SIMILARITY_BOOST: ${ELEVENLABS_VOICE_SIMILARITY_BOOST:-0.75}
+      ELEVENLABS_VOICE_STYLE: ${ELEVENLABS_VOICE_STYLE:-0}
+      ELEVENLABS_VOICE_SPEAKER_BOOST: ${ELEVENLABS_VOICE_SPEAKER_BOOST:-true}
+      # Identidad de la voz: cambiar cualquiera de estos produce audios
+      # DISTINTOS y la caché deja de servir los anteriores.
+      AUDIO_TTS_MODEL: ${AUDIO_TTS_MODEL:-eleven_v3}
+      AUDIO_TTS_VOICE_PROFILE: ${AUDIO_TTS_VOICE_PROFILE:-brand_es_latam_v1}
+      AUDIO_TTS_VOICE_VERSION: ${AUDIO_TTS_VOICE_VERSION:-1}
+      AUDIO_TTS_DEFAULT_LANGUAGE: ${AUDIO_TTS_DEFAULT_LANGUAGE:-es-419}
+      AUDIO_TTS_DEFAULT_FORMAT: ${AUDIO_TTS_DEFAULT_FORMAT:-mp3_44100_128}
+      # El techo por actor y día es lo que impide que una cuenta —o un botón
+      # pulsado en bucle— agote el presupuesto del mes. Un 0 aquí BLOQUEA.
+      AUDIO_TTS_RUNTIME_GENERATIONS_PER_ACTOR_DAY: ${AUDIO_TTS_RUNTIME_GENERATIONS_PER_ACTOR_DAY:-3}
+      AUDIO_TTS_MONTHLY_BUDGET_UNITS: ${AUDIO_TTS_MONTHLY_BUDGET_UNITS:-10000}
       SEMANTIC_ANALYSIS_WORKER_ENABLED: ${SEMANTIC_ANALYSIS_WORKER_ENABLED:-false}
       SEMANTIC_ANALYSIS_PROVIDER: ${SEMANTIC_ANALYSIS_PROVIDER:-}
+      # Configuración del proveedor elegido. Sin estas variables, declarar
+      # `SEMANTIC_ANALYSIS_PROVIDER=transformer` no basta: el adaptador cae en su
+      # valor por omisión y busca el servidor en `127.0.0.1:8080`, que dentro del
+      # contenedor es el contenedor mismo.
+      #
+      # Van SIN valor por defecto a propósito. Compose omite la variable cuando
+      # no está definida, y omitirla es lo correcto: cada adaptador tiene sus
+      # propios valores por omisión —un modelo de OpenAI y un codificador de
+      # Hugging Face no son intercambiables— y una cadena vacía no los activa,
+      # los rompe (el esquema exige longitud mínima). Definirlas en `.env` es lo
+      # que las enciende.
+      #
+      # Clasificador de transformers:
+      TRANSFORMER_BASE_URL:
+      TRANSFORMER_API_KEY:
+      SEMANTIC_TRANSFORMER_MODEL:
+      SEMANTIC_TRANSFORMER_TIMEOUT_MS:
+      SEMANTIC_TRANSFORMER_BATCH_SIZE:
+      # Prefijos y umbrales son propiedades DEL MODELO servido, no de este
+      # despliegue: al cambiar de modelo hay que volver a medirlos.
+      SEMANTIC_TRANSFORMER_QUERY_PREFIX:
+      SEMANTIC_TRANSFORMER_PASSAGE_PREFIX:
+      SEMANTIC_TRANSFORMER_SIMILARITY_FLOOR:
+      SEMANTIC_TRANSFORMER_TEMPERATURE:
+      SEMANTIC_TRANSFORMER_CONTRADICTION_MARGIN:
+      SEMANTIC_ANALYSIS_WORKER_CONCURRENCY:
+      # Cuántas categorías se le proponen al clasificador. Cada candidato añade
+      # sus sondas al lote de embeddings; con un codificador el coste es lineal y
+      # barato, así que aquí cabe más recall que con un modelo generativo.
+      SEMANTIC_ANALYSIS_CANDIDATE_LIMIT:
+      #
+      # Proveedor generativo alternativo (SEMANTIC_ANALYSIS_PROVIDER=openai). El
+      # presupuesto y el lease se derivan de estos: el puente exige
+      # `timeout × intentos × 2 tiers ≤ presupuesto` y los eleva solo.
+      SEMANTIC_FAST_MODEL:
+      SEMANTIC_DEEP_MODEL:
+      SEMANTIC_PROVIDER_TIMEOUT_MS:
+      SEMANTIC_PROVIDER_MAX_ATTEMPTS:
+      SEMANTIC_PROVIDER_MAX_OUTPUT_TOKENS:
+      OPENAI_BASE_URL:
+      OPENAI_API_KEY:
       WORKERS_FIXTURES_ENABLED: ${WORKERS_FIXTURES_ENABLED:-true}
       # Orquestación de trabajos. El despertar por LISTEN/NOTIFY llega directo a Postgres
       # (sin pgbouncer de por medio en esta topología), así que el techo de sondeo puede ser
@@ -224,6 +415,19 @@ services:
       # de dependencias de Jaeger con un solo nodo hablando consigo mismo. El destino usa el
       # nombre de servicio `jaeger`, no localhost: dentro del contenedor localhost es él mismo.
       OTEL_ENABLED: ${OTEL_ENABLED:-false}
+      # Ejecución de scripts: los MISMOS valores que la API, porque ejecuta los mismos
+      # grafos. Que sólo los tuviera la API era la asimetría que rompía las corridas.
+      SCRIPT_NODES_ENABLED: ${SCRIPT_NODES_ENABLED:-false}
+      SCRIPT_RUNNER_MODE: SIDECAR
+      SCRIPT_RUNNER_SOCKET_PATH: /var/run/atlas-runner/runner.sock
+      SCRIPT_NODE_MAX_MEMORY_MB: ${SCRIPT_NODE_MAX_MEMORY_MB:-64}
+      # Tope por ejecución de script. El valor del producto (250 ms) mide bien un script ya
+      # en marcha, pero NO cubre el arranque en frío del intérprete a través del socket del
+      # sidecar: la primera ejecución tras levantar un contenedor lo excedía y devolvía
+      # `SCRIPT_EXECUTION_FAILED` en una corrida que a la segunda pasaba. Aquí se afloja
+      # sólo para la topología en contenedor; el motor conserva su cota, muy por debajo del
+      # máximo que admite el esquema de entorno.
+      SCRIPT_NODE_TIMEOUT_MS: ${SCRIPT_NODE_TIMEOUT_MS:-1500}
       OTEL_SERVICE_NAME: atlas-worker
       OTEL_SERVICE_NAMESPACE: ${OTEL_SERVICE_NAMESPACE:-atlas}
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://jaeger:4318/v1/traces}
@@ -242,6 +446,8 @@ services:
     cpus: ${WORKER_CPUS:-1}
     mem_limit: ${WORKER_MEMORY:-768m}
     restart: unless-stopped
+    volumes:
+      - atlas_runner_socket:/var/run/atlas-runner:ro
 
   api:
     build:
@@ -259,6 +465,19 @@ services:
       script-runner:
         condition: service_started
     environment:
+      # ── Administración de templates por API ──────────────────────────────
+      # Apagada de serie porque es la ÚNICA superficie que acepta plantillas del
+      # exterior. Aquí se enciende para desarrollo, con clave propia: sin clave
+      # el arranque aborta a propósito, para que nadie la deje abierta sin querer.
+      PDF_TEMPLATE_ADMIN_ENABLED: '${PDF_TEMPLATE_ADMIN_ENABLED:-true}'
+      PDF_TEMPLATE_ADMIN_KEY: '${PDF_TEMPLATE_ADMIN_KEY:-clave-de-administracion-de-desarrollo-0001}'
+      # `/tmp` porque en la imagen de la API el proceso corre sin privilegios y
+      # `/app` pertenece a root: escribir ahí da ENOENT/EACCES. Es EFÍMERO —un
+      # reinicio se lleva lo publicado por API—, y es aceptable sólo en
+      # desarrollo. El sitio durable es el volumen del servicio `pdf-worker`,
+      # que sí lo tiene montado; publicar contra él es lo que corresponde en un
+      # despliegue de verdad.
+      PDF_CUSTOM_TEMPLATE_PATH: ${PDF_CUSTOM_TEMPLATE_PATH:-/tmp/pdf-templates}
       NODE_ENV: development
       BUILD_VERSION: ${BUILD_VERSION:-2.0.0}
       COMMIT_SHA: ${COMMIT_SHA:-local-compose}
@@ -277,13 +496,125 @@ services:
       # procesado funcionando por detras: un desajuste que solo se ve ejerciendo la
       # API de verdad.
       BANK_STATEMENT_WORKER_ENABLED: ${BANK_STATEMENT_WORKER_ENABLED:-true}
+      # El de identidad también se enciende aquí: sus proveedores son
+      # SINTÉTICOS y no dependen de nada externo. El catálogo publica
+      # `ocrProvider: mock` para que la pantalla no lo presente como una
+      # verificación contra un proveedor real.
+      IDENTITY_VERIFICATION_WORKER_ENABLED: ${IDENTITY_VERIFICATION_WORKER_ENABLED:-true}
+      # Umbrales de la comparación biométrica. El esquema NO les da valor por
+      # omisión a propósito: sin ellos, toda verificación termina en revisión
+      # manual con `THRESHOLD_PROFILE_MISSING`. Los de aquí son de LABORATORIO
+      # —calibrados contra el proveedor sintético, no contra un corpus
+      # etiquetado— y el nombre del perfil lo dice, que es justo lo que un
+      # despliegue real tiene que sustituir por su propia medición.
+      IDENTITY_MATCH_THRESHOLD: ${IDENTITY_MATCH_THRESHOLD:-0.8824}
+      IDENTITY_REVIEW_THRESHOLD: ${IDENTITY_REVIEW_THRESHOLD:-0.7789}
+      IDENTITY_THRESHOLD_PROFILE_VERSION: ${IDENTITY_THRESHOLD_PROFILE_VERSION:-sintetico-60x3-fmr1e-3-fnmr1e-2}
+      # El de locución se enciende con el proveedor `fake`, que sintetiza un
+      # MP3 determinista sin salir a la red y sin coste. El catálogo publica
+      # `provider: fake` para que la pantalla no lo presente como una voz real:
+      # un audio de prueba servido creyendo que es la marca es peor que ninguno.
+      # El esquema lo PROHÍBE en producción.
+      AUDIO_TTS_WORKER_ENABLED: ${AUDIO_TTS_WORKER_ENABLED:-true}
+      AUDIO_TTS_PROVIDER: ${AUDIO_TTS_PROVIDER:-fake}
+      # Permiso aparte para generar audio nuevo: sin él el worker sólo serviría
+      # caché, y en un entorno recién levantado la caché está vacía.
+      AUDIO_TTS_ALLOW_RUNTIME_GENERATION: ${AUDIO_TTS_ALLOW_RUNTIME_GENERATION:-true}
+      # Clave de desarrollo, publicada a propósito y sólo válida aquí: el
+      # esquema exige 32 caracteres con el worker encendido fuera de las
+      # pruebas, porque el texto locutado lleva dentro las variables.
+      AUDIO_TTS_DATA_KEY: ${AUDIO_TTS_DATA_KEY:-desarrollo-local-audio-tts-clave-32c}
+      AUDIO_STORAGE_DRIVER: ${AUDIO_STORAGE_DRIVER:-database}
+      # Los tramos fijos de una plantilla se pagan una vez; una frase nueva solo
+      # paga sus variables. Ver env.schema.ts para el precio de calidad que acepta.
+      AUDIO_SEGMENT_CACHE_ENABLED: ${AUDIO_SEGMENT_CACHE_ENABLED:-false}
+      # Credenciales del proveedor de voz. Van SIN valor por omisión a
+      # propósito: si alguien pone AUDIO_TTS_PROVIDER=elevenlabs sin clave, el
+      # esquema de entorno lo rechaza al arrancar en vez de fallar en cada
+      # locución. La voz tampoco se hereda: elegirla es una decisión de marca.
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      ELEVENLABS_VOICE_ID: ${ELEVENLABS_VOICE_ID:-}
+      # El modelo y el formato se dejan vacíos para caer en AUDIO_TTS_MODEL y
+      # AUDIO_TTS_DEFAULT_FORMAT; declararlos aquí los sobreescribe.
+      ELEVENLABS_MODEL_ID: ${ELEVENLABS_MODEL_ID:-}
+      ELEVENLABS_OUTPUT_FORMAT: ${ELEVENLABS_OUTPUT_FORMAT:-}
+      # Con valor por omisión REAL, no vacío: el esquema exige que sea una URL
+      # válida, y una cadena vacía no lo es — el motor no arrancaría.
+      ELEVENLABS_BASE_URL: ${ELEVENLABS_BASE_URL:-https://api.elevenlabs.io}
+      # CÓMO habla la voz. Los valores por omisión son los DOCUMENTADOS por el
+      # proveedor: quien no toque nada sigue oyendo lo mismo que oía cuando el
+      # cuerpo no llevaba `voice_settings`. Bajar STABILITY es lo que quita la
+      # lectura plana; los cuatro entran en la clave de caché, así que cambiarlos
+      # regenera el audio afectado en vez de seguir sirviendo el anterior.
+      ELEVENLABS_VOICE_STABILITY: ${ELEVENLABS_VOICE_STABILITY:-0.5}
+      ELEVENLABS_VOICE_SIMILARITY_BOOST: ${ELEVENLABS_VOICE_SIMILARITY_BOOST:-0.75}
+      ELEVENLABS_VOICE_STYLE: ${ELEVENLABS_VOICE_STYLE:-0}
+      ELEVENLABS_VOICE_SPEAKER_BOOST: ${ELEVENLABS_VOICE_SPEAKER_BOOST:-true}
+      # Identidad de la voz: cambiar cualquiera de estos produce audios
+      # DISTINTOS y la caché deja de servir los anteriores.
+      AUDIO_TTS_MODEL: ${AUDIO_TTS_MODEL:-eleven_v3}
+      AUDIO_TTS_VOICE_PROFILE: ${AUDIO_TTS_VOICE_PROFILE:-brand_es_latam_v1}
+      AUDIO_TTS_VOICE_VERSION: ${AUDIO_TTS_VOICE_VERSION:-1}
+      AUDIO_TTS_DEFAULT_LANGUAGE: ${AUDIO_TTS_DEFAULT_LANGUAGE:-es-419}
+      AUDIO_TTS_DEFAULT_FORMAT: ${AUDIO_TTS_DEFAULT_FORMAT:-mp3_44100_128}
+      # El techo por actor y día es lo que impide que una cuenta —o un botón
+      # pulsado en bucle— agote el presupuesto del mes. Un 0 aquí BLOQUEA.
+      AUDIO_TTS_RUNTIME_GENERATIONS_PER_ACTOR_DAY: ${AUDIO_TTS_RUNTIME_GENERATIONS_PER_ACTOR_DAY:-3}
+      AUDIO_TTS_MONTHLY_BUDGET_UNITS: ${AUDIO_TTS_MONTHLY_BUDGET_UNITS:-10000}
       SEMANTIC_ANALYSIS_WORKER_ENABLED: ${SEMANTIC_ANALYSIS_WORKER_ENABLED:-false}
       SEMANTIC_ANALYSIS_PROVIDER: ${SEMANTIC_ANALYSIS_PROVIDER:-}
+      # Configuración del proveedor elegido. Sin estas variables, declarar
+      # `SEMANTIC_ANALYSIS_PROVIDER=transformer` no basta: el adaptador cae en su
+      # valor por omisión y busca el servidor en `127.0.0.1:8080`, que dentro del
+      # contenedor es el contenedor mismo.
+      #
+      # Van SIN valor por defecto a propósito. Compose omite la variable cuando
+      # no está definida, y omitirla es lo correcto: cada adaptador tiene sus
+      # propios valores por omisión —un modelo de OpenAI y un codificador de
+      # Hugging Face no son intercambiables— y una cadena vacía no los activa,
+      # los rompe (el esquema exige longitud mínima). Definirlas en `.env` es lo
+      # que las enciende.
+      #
+      # Clasificador de transformers:
+      TRANSFORMER_BASE_URL:
+      TRANSFORMER_API_KEY:
+      SEMANTIC_TRANSFORMER_MODEL:
+      SEMANTIC_TRANSFORMER_TIMEOUT_MS:
+      SEMANTIC_TRANSFORMER_BATCH_SIZE:
+      # Prefijos y umbrales son propiedades DEL MODELO servido, no de este
+      # despliegue: al cambiar de modelo hay que volver a medirlos.
+      SEMANTIC_TRANSFORMER_QUERY_PREFIX:
+      SEMANTIC_TRANSFORMER_PASSAGE_PREFIX:
+      SEMANTIC_TRANSFORMER_SIMILARITY_FLOOR:
+      SEMANTIC_TRANSFORMER_TEMPERATURE:
+      SEMANTIC_TRANSFORMER_CONTRADICTION_MARGIN:
+      SEMANTIC_ANALYSIS_WORKER_CONCURRENCY:
+      # Cuántas categorías se le proponen al clasificador. Cada candidato añade
+      # sus sondas al lote de embeddings; con un codificador el coste es lineal y
+      # barato, así que aquí cabe más recall que con un modelo generativo.
+      SEMANTIC_ANALYSIS_CANDIDATE_LIMIT:
+      #
+      # Proveedor generativo alternativo (SEMANTIC_ANALYSIS_PROVIDER=openai). El
+      # presupuesto y el lease se derivan de estos: el puente exige
+      # `timeout × intentos × 2 tiers ≤ presupuesto` y los eleva solo.
+      SEMANTIC_FAST_MODEL:
+      SEMANTIC_DEEP_MODEL:
+      SEMANTIC_PROVIDER_TIMEOUT_MS:
+      SEMANTIC_PROVIDER_MAX_ATTEMPTS:
+      SEMANTIC_PROVIDER_MAX_OUTPUT_TOKENS:
+      OPENAI_BASE_URL:
+      OPENAI_API_KEY:
       WORKERS_FIXTURES_ENABLED: ${WORKERS_FIXTURES_ENABLED:-true}
       DATABASE_POOL_MAX: ${API_DATABASE_POOL_MAX:-15}
       # Connects as atlas_app (non-superuser), NOT the atlas/POSTGRES_USER role migrate and
       # seed use — RLS is inert for a superuser connection (see bootstrap-app-role above).
       DATABASE_URL: postgresql://atlas_app:${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-atlas_decision}?schema=public
+      # Separación de rutas de datos (ADR-0029). Vacía, la lectura comparte el pool de
+      # escritura y nada cambia; apuntándola al rol lector se separan por credencial.
+      #   DATABASE_READ_URL=postgresql://atlas_reader:<secreto>@postgres:5432/atlas_decision?schema=public
+      DATABASE_READ_URL: ${DATABASE_READ_URL:-}
+      DATA_READ_ROUTING_ENABLED: ${DATA_READ_ROUTING_ENABLED:-false}
+      ENABLE_PRIMARY_READ_FALLBACK: ${ENABLE_PRIMARY_READ_FALLBACK:-true}
       REDIS_URL: redis://redis:6379
       # IDENTITY_HYBRID (not API_KEY): the browser portal signs in through the identity
       # provider (AtlasBackend), while runtime/management clients keep using API keys — both
@@ -318,6 +649,13 @@ services:
       # peor caso son 4 x 64 MiB, que cabe holgado en el mem_limit del sidecar. A 32 MiB
       # un intérprete Node se quedaba corto y moría a mitad de ejecución.
       SCRIPT_NODE_MAX_MEMORY_MB: ${SCRIPT_NODE_MAX_MEMORY_MB:-64}
+      # Tope por ejecución de script. El valor del producto (250 ms) mide bien un script ya
+      # en marcha, pero NO cubre el arranque en frío del intérprete a través del socket del
+      # sidecar: la primera ejecución tras levantar un contenedor lo excedía y devolvía
+      # `SCRIPT_EXECUTION_FAILED` en una corrida que a la segunda pasaba. Aquí se afloja
+      # sólo para la topología en contenedor; el motor conserva su cota, muy por debajo del
+      # máximo que admite el esquema de entorno.
+      SCRIPT_NODE_TIMEOUT_MS: ${SCRIPT_NODE_TIMEOUT_MS:-1500}
       NESTED_TREE_MAX_DEPTH: ${NESTED_TREE_MAX_DEPTH:-5}
       NESTED_TREE_DEFAULT_TIMEOUT_MS: ${NESTED_TREE_DEFAULT_TIMEOUT_MS:-2000}
       NESTED_TREE_GRAPH_MAX_EDGES: ${NESTED_TREE_GRAPH_MAX_EDGES:-2000}
@@ -413,6 +751,10 @@ volumes:
   atlas_decision_pg:
   atlas_decision_redis:
   atlas_runner_socket:
+  # Nombre fijo y no derivado del proyecto: aquí viven gigas de pesos de modelo y
+  # no deben volver a descargarse porque el proyecto cambie de nombre.
+  atlas_transformer:
+    name: atlas-transformer
 
 # Segmentación de red. Antes todos los servicios compartían la red `default` que Compose crea
 # sola, de modo que cualquier contenedor del proyecto podía abrir una conexión a Postgres o a

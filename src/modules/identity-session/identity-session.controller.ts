@@ -12,9 +12,9 @@ import {
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { Public } from '../../common/security/security.decorators';
-import { IdentityLoginDto, IdentityLogoutDto } from './identity-session.dto';
+import { IdentityLoginDto, IdentityLoginPinDto, IdentityLogoutDto } from './identity-session.dto';
 import { LogoutResultDto } from './identity-session.response.dto';
-import { IdentitySessionService } from './identity-session.service';
+import { IdentitySessionService, isChallengeResult } from './identity-session.service';
 import { SessionCookieService } from './session-cookie.service';
 import { SessionOriginService } from './session-origin.service';
 import { SessionRateLimitGuard } from './session-rate-limit.guard';
@@ -40,6 +40,23 @@ export class IdentitySessionController {
   ) {
     this.origins.assertAllowed(origin);
     const result = await this.sessions.login(body);
+    // A challenge is not a session: there is no refresh token yet, so no cookie is issued. The
+    // caller gets the challenge token and must come back through `login/pin`.
+    if (isChallengeResult(result)) return result.challenge;
+    response.setHeader('set-cookie', this.cookies.serialize(result.refreshToken));
+    return result.session;
+  }
+
+  @Post('login/pin')
+  @ApiOperation({ summary: 'Complete a second-factor sign-in with the mailed PIN' })
+  @HttpCode(HttpStatus.OK)
+  async verifyLoginPin(
+    @Headers('origin') origin: string | undefined,
+    @Body() body: IdentityLoginPinDto,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    this.origins.assertAllowed(origin);
+    const result = await this.sessions.verifyLoginPin(body);
     response.setHeader('set-cookie', this.cookies.serialize(result.refreshToken));
     return result.session;
   }

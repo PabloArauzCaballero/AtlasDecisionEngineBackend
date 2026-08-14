@@ -5,11 +5,13 @@ import {
   identityPinChallengeSchema,
   identityProfileSchema,
   identityProviderSessionSchema,
+  type IdentityLoginOutcome,
   type IdentityProfile,
   type IdentitySession,
 } from './identity-provider.contract';
 
 type LoginInput = { tenantId: string; email: string; password: string };
+type PinInput = { challengeToken: string; pin: string };
 
 /**
  * Cookie names issued by the identity provider's internal auth endpoints. They are the only
@@ -22,10 +24,38 @@ const REFRESH_TOKEN_COOKIE = 'atlas_internal_refresh';
 export class IdentityProviderClient {
   constructor(private readonly config: ConfigService) {}
 
-  login(input: LoginInput): Promise<IdentitySession> {
-    return this.requestSession('/internal/auth/login', {
+  /**
+   * A password check yields a session or a PIN challenge, and both are successful outcomes.
+   *
+   * The challenge used to be turned into a 501 here, which inverted the security incentive: a
+   * deployment that configured a mail channel — and therefore actually enforced the second factor
+   * on internal actors — locked every operator out of the portal, while a deployment with no
+   * channel let everyone in with a password alone and worked fine.
+   */
+  async login(input: LoginInput): Promise<IdentityLoginOutcome> {
+    const { payload, response } = await this.send('/internal/auth/login', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-tenant-id': input.tenantId },
+      body: JSON.stringify(input),
+    });
+
+    const challenge = identityPinChallengeSchema.safeParse(payload);
+    if (challenge.success) return challenge.data;
+
+    return this.toSession(payload, response);
+  }
+
+  /**
+   * Second step: the challenge token plus the mailed PIN, exchanged for the session.
+   *
+   * No tenant header: the challenge already names the actor it was issued for, and the provider
+   * resolves the tenant from it. Sending one would let the caller assert a tenant it has not
+   * authenticated against.
+   */
+  verifyLoginPin(input: PinInput): Promise<IdentitySession> {
+    return this.requestSession('/internal/auth/login/pin', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify(input),
     });
   }
@@ -72,15 +102,10 @@ export class IdentityProviderClient {
    */
   private async requestSession(path: string, init: RequestInit): Promise<IdentitySession> {
     const { payload, response } = await this.send(path, init);
+    return this.toSession(payload, response);
+  }
 
-    if (identityPinChallengeSchema.safeParse(payload).success) {
-      throw new DomainException(
-        'IDENTITY_PIN_CHALLENGE_REQUIRED',
-        'This account completes sign-in with an emailed PIN, which this portal does not support yet',
-        HttpStatus.NOT_IMPLEMENTED,
-      );
-    }
-
+  private toSession(payload: unknown, response: Response): IdentitySession {
     const parsed = identityProviderSessionSchema.safeParse(payload);
     // Only a rejected credential is an authentication failure. A session that cannot be read
     // is a contract problem, and reporting it as "invalid credentials" is what previously hid
@@ -149,7 +174,15 @@ export class IdentityProviderClient {
         HttpStatus.SERVICE_UNAVAILABLE,
       );
     }
-    const timeoutMs = this.config.get<number>('IDENTITY_PROVIDER_TIMEOUT_MS') ?? 3_000;
+    /*
+     * El login tiene su propio presupuesto: firma la contraseña y, con segundo factor, emite el
+     * PIN y se lo entrega al canal de correo. Medido, ~4,7 s contra el proveedor local, por
+     * encima de los 3 s que le sobran a cualquier lectura.
+     */
+    const esLogin = path.startsWith('/internal/auth/login');
+    const timeoutMs = esLogin
+      ? (this.config.get<number>('IDENTITY_PROVIDER_LOGIN_TIMEOUT_MS') ?? 12_000)
+      : (this.config.get<number>('IDENTITY_PROVIDER_TIMEOUT_MS') ?? 3_000);
     const maxAttempts = (this.config.get<number>('IDENTITY_PROVIDER_RETRY_ATTEMPTS') ?? 2) + 1;
     const backoffMs = this.config.get<number>('IDENTITY_PROVIDER_RETRY_BACKOFF_MS') ?? 300;
 
@@ -162,10 +195,24 @@ export class IdentityProviderClient {
           ...init,
           signal: AbortSignal.timeout(timeoutMs),
         });
-      } catch {
-        // Connection refused / timeout: the provider never answered, so a retry cannot double any
-        // side effect. This is the exact failure a dev server produces while it is restarting.
-        if (attempt < maxAttempts) {
+      } catch (error) {
+        /*
+         * Retry only when the request PROVABLY never reached the provider.
+         *
+         * This used to retry on any thrown error, on the premise that "the provider never
+         * answered, so a retry cannot double any side effect". That premise is false for a
+         * timeout, and it produced a real defect: `/internal/auth/login` mails a PIN, and
+         * mailing takes longer than the 3 s default, so the first attempt aborted AFTER the
+         * provider had already issued and sent the code. The retry issued a second one — and
+         * because issuing a PIN invalidates the previous, the operator received two mails of
+         * which the FIRST one no longer worked. Measured: one POST /v1/session/login, two rows
+         * in `auth_one_time_codes` 1,6 s apart.
+         *
+         * A refused connection is different in kind: nothing was written to the socket, so
+         * nothing on the other side happened. That is the failure a dev server produces while
+         * it restarts, which is what the retry was for.
+         */
+        if (attempt < maxAttempts && this.neverArrived(error)) {
           await this.backoff(backoffMs * attempt);
           continue;
         }
@@ -246,6 +293,29 @@ export class IdentityProviderClient {
       'UNAUTHORIZED',
       'Invalid or expired session',
       HttpStatus.UNAUTHORIZED,
+    );
+  }
+
+  /**
+   * Whether the request demonstrably never reached the provider.
+   *
+   * `AbortSignal.timeout` rejects with a `TimeoutError`, and that only says WE stopped waiting:
+   * the provider may have finished the work — issued a PIN, mailed it, rotated a token — and be
+   * writing the response. A refused or reset connection is the opposite: the socket never
+   * carried the request, so repeating it is free.
+   *
+   * Anything unrecognised is treated as "it may have arrived". Guessing the other way is what
+   * duplicates side effects, and a login the operator has to repeat is a far smaller cost than
+   * a second PIN that silently kills the first.
+   */
+  private neverArrived(error: unknown): boolean {
+    if (error instanceof DOMException && error.name === 'TimeoutError') return false;
+    const causa = (error as { cause?: { code?: string } })?.cause?.code;
+    return (
+      causa === 'ECONNREFUSED' ||
+      causa === 'ENOTFOUND' ||
+      causa === 'EAI_AGAIN' ||
+      causa === 'ECONNRESET'
     );
   }
 

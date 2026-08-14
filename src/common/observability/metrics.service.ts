@@ -138,6 +138,33 @@ export class MetricsService {
     registers: [this.registry],
   });
 
+  /**
+   * Proporción de decisiones que llevan solicitante identificado, sobre las que deberían.
+   *
+   * Es el indicador del que cuelga todo lo demás. Una decisión sin sujeto no puede recibir
+   * desenlace ni atender un derecho de acceso, y como la referencia se guarda en HMAC de una
+   * vía, no se puede reparar después. Cuando esta métrica cae, lo que se está perdiendo es
+   * irrecuperable, y por eso se vigila aquí y no en un informe mensual.
+   */
+  private readonly subjectCoverage = new Gauge({
+    name: 'atlas_subject_coverage_ratio',
+    help: 'Decisiones con solicitante identificado sobre las que deberían llevarlo.',
+    registers: [this.registry],
+  });
+
+  /**
+   * Ventanas de observación ya vencidas que alguien cerró, sobre el total de vencidas.
+   *
+   * El denominador es la aportación: antes existía el contador de desenlaces registrados y
+   * nada contra qué dividirlo, así que un sistema de ingesta caído producía exactamente la
+   * misma lectura que un mes sin incidencias.
+   */
+  private readonly outcomeCoverage = new Gauge({
+    name: 'atlas_outcome_coverage_ratio',
+    help: 'Ventanas de observación vencidas que fueron observadas.',
+    registers: [this.registry],
+  });
+
   /** Estabilidad poblacional por versión y variable; ≥ 0.25 es el corte de «inestable». */
   private readonly modelPsi = new Gauge({
     name: 'atlas_model_population_stability_index',
@@ -416,6 +443,14 @@ export class MetricsService {
 
   recordObservedOutcome(label: string): void {
     this.observedOutcomes.inc({ label: label || 'UNKNOWN' });
+  }
+
+  setSubjectCoverage(ratio: number): void {
+    this.subjectCoverage.set(ratio);
+  }
+
+  setOutcomeCoverage(ratio: number): void {
+    this.outcomeCoverage.set(ratio);
   }
 
   setModelBadRate(artifactVersionId: string, rate: number): void {

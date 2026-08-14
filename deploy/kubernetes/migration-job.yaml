@@ -1,3 +1,15 @@
+# Migración y siembra del catálogo BASE, en ese orden y en un solo Job.
+#
+# Antes este Job sólo corría `migrate deploy`, aunque `.env.example` y `docs/data/seeds.md`
+# lo nombran como la fuente de verdad de la siembra en despliegues orquestados. En la
+# práctica, en Kubernetes el catálogo mínimo —ambientes, variables, motivos, librerías,
+# clientes de integración— dependía de la red de seguridad del worker (`SeedingService`),
+# que es un respaldo: si el worker arranca con `WORKER_ROLE` de API, o con
+# `STARTUP_SEED_ENABLED=false`, nadie siembra y la instalación no opera.
+#
+# `initContainers` y no dos entradas en `containers`: los containers de un Pod arrancan a la
+# vez, así que sembrar en paralelo a la migración correría contra un esquema a medio migrar.
+# Los initContainers se ejecutan EN ORDEN y hasta terminar; sólo entonces empieza `seed`.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -9,13 +21,36 @@ spec:
     spec:
       restartPolicy: Never
       automountServiceAccountToken: false
-      containers:
+      initContainers:
         - name: migrate
           image: REGISTRY/atlas-decision-migrator:2.0.0
           args: ["migrate", "deploy"]
           envFrom:
             - secretRef:
                 name: atlas-decision-secrets
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+      containers:
+        - name: seed
+          image: REGISTRY/atlas-decision-migrator:2.0.0
+          args: ["db", "seed"]
+          envFrom:
+            - secretRef:
+                name: atlas-decision-secrets
+          env:
+            # Producción siembra el catálogo BASE y nada más. Los datos de demostración
+            # traen despliegues ACTIVOS —uno en PROD— y en una base real son basura con
+            # aspecto de política aprobada.
+            #
+            # Se declara aquí y no se deduce de `NODE_ENV`: la imagen del migrador lo fija
+            # en `production` también en un portátil, así que como guarda no distingue nada.
+            # Además, `envFrom` puede traer un `SEED_INCLUDE_MOCKUP` heredado del Secret;
+            # `env` gana sobre `envFrom`, de modo que esta línea es la que manda.
+            - name: SEED_INCLUDE_MOCKUP
+              value: "false"
           securityContext:
             allowPrivilegeEscalation: false
             runAsNonRoot: true

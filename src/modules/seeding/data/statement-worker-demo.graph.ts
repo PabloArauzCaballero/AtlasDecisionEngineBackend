@@ -21,7 +21,13 @@ import type {
 } from '../../graph/graph.types';
 
 export const STATEMENT_WORKER_DEMO_CODE = 'EXTRACTO_CAPACIDAD_PAGO';
-export const STATEMENT_WORKER_DEMO_VERSION = '1.0.0';
+/**
+ * 1.1.0 — el ingreso se deriva de los abonos SUMADOS (`totals.creditExtracted`) y no del
+ * total impreso (`totals.credit`), que ningún formato especializado publica. La versión
+ * sube porque es lo que hace que el seeder rehaga el artefacto sembrado: con la misma
+ * versión se saltaría el cambio en silencio y el motor seguiría ejecutando el grafo viejo.
+ */
+export const STATEMENT_WORKER_DEMO_VERSION = '1.1.0';
 
 /** Nodo que hace la llamada. Se nombra aquí porque lo referencian las intermedias. */
 const CALL_NODE = 'ANALIZAR_EXTRACTO';
@@ -117,8 +123,29 @@ export function buildStatementWorkerDemoCompiled(
             path: 'result.quality.overallConfidence',
             defaultValue: 0,
           },
-          { intermediateCode: 'ext_total_creditos', path: 'result.totals.credit', defaultValue: 0 },
-          { intermediateCode: 'ext_total_debitos', path: 'result.totals.debit', defaultValue: 0 },
+          /*
+           * `…Extracted` y no `totals.credit`: los abonos que se SUMAN de los
+           * movimientos leídos, no el total que el banco imprime.
+           *
+           * Estaba leyendo el impreso, y el impreso llega `null` en todos los
+           * formatos bolivianos especializados —sólo el generalista lo lee—.
+           * Con `defaultValue: 0` esa ausencia se convertía en «ingreso cero» y
+           * el algoritmo rechazaba por COBERTURA_INSUFICIENTE extractos de los
+           * que había leído bien cada movimiento: decía del solicitante lo que
+           * era cierto del papel. Los fixtures de prueba SÍ traen totales
+           * impresos, así que el demo pasaba en verde y fallaba con documentos
+           * reales.
+           */
+          {
+            intermediateCode: 'ext_total_creditos',
+            path: 'result.totals.creditExtracted',
+            defaultValue: 0,
+          },
+          {
+            intermediateCode: 'ext_total_debitos',
+            path: 'result.totals.debitExtracted',
+            defaultValue: 0,
+          },
           { intermediateCode: 'ext_saldo_final', path: 'result.balances.closing', defaultValue: 0 },
           // `.length` sobre el array de movimientos: la ruta se resuelve como cualquier
           // otra propiedad, así que no hace falta una operación especial para contarlos.

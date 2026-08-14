@@ -18,25 +18,44 @@ coverage
 .claude
 .nvmrc
 
-# Pruebas, documentación y sitios generados: ninguna etapa los usa
-test
+# Documentación y sitios generados: ninguna etapa los usa
 docs
+# ...salvo estos dos guiones de ejemplo, que la etapa `tester` copia porque las pruebas del
+# runner de scripts los leen del disco por ruta. La negación va DESPUÉS de excluir `docs`,
+# que es el único orden en el que surte efecto.
+!docs/script-prueba.js
+!docs/script-prueba.py
 site
 mkdocs.yml
 graphify-out
 structurizr
 openapi
 asyncapi
-smoke
 logs
 *.md
 !README.md
+
+# `smoke/` entra en el contexto: la etapa `tester` necesita `demo-applicant.json`, que fija el
+# contrato del solicitante sembrado. Lo que NO debe viajar es la evidencia de una ejecución
+# concreta, que además está en .gitignore.
+smoke/last-run.json
+
+# `test/` y `jest.config.js` SÍ entran en el contexto: los copia la etapa `tester`, que es la
+# que ejecuta integración y e2e dentro de la red de Compose (compose.test.yml). Ninguna imagen
+# de runtime los hereda —`tester` es una hoja del grafo de etapas—, así que lo que se despliega
+# sigue sin contener el arnés de pruebas.
+
+# Semillas de DESARROLLO: escenarios sueltos y datos de prueba que se invocan a mano contra
+# una base local. Ninguna etapa los usa —`prisma db seed` entra sólo por `prisma/seed.ts`, y
+# `tsconfig.build.json` excluye `prisma/` entero—, así que no tienen por qué viajar en la
+# imagen del migrador. El extracto bancario sintético que hay ahí vivía dentro de
+# `src/modules/seeding/data/`, o sea que se compilaba en lo que se despliega.
+prisma/dev-seeds
 
 # Configuración de herramientas de desarrollo
 .prettierrc.json
 .prettierignore
 redocly.yaml
-jest.config.js
 
 # Secretos y artefactos locales. `.env` NUNCA entra en una imagen: la configuración llega
 # por variables de entorno del orquestador, no horneada en una capa que se puede leer.

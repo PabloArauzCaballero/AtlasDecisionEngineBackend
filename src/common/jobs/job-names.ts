@@ -22,6 +22,17 @@ export const JobName = {
   SemanticRetention: 'semantic-retention',
   /** Convierte los extractos bancarios encolados (ADR-0026). */
   BankStatement: 'bank-statement',
+  /** Verifica las identidades encoladas: documento, selfie y decisión (ADR-0026). */
+  IdentityVerification: 'identity-verification',
+  /** Sintetiza el audio de los textos encolados (ADR-0026). */
+  AudioTts: 'audio-tts',
+  /**
+   * Mide la degradación de las versiones desplegadas y guarda su veredicto.
+   *
+   * Existe porque el motor sabía calcular esas medidas bajo demanda y nadie las pedía: un
+   * cálculo que sólo ocurre cuando alguien pregunta es un cálculo que no ocurre.
+   */
+  MonitoringEvaluation: 'monitoring-evaluation',
 } as const;
 
 export type JobNameValue = (typeof JobName)[keyof typeof JobName];

@@ -170,7 +170,7 @@ regla: ningún secreto tiene valor por defecto ahí, todos vienen del `.env`
 (véase `.env.example`).
 
 `LIVE_EXECUTION_STREAM_ENABLED` está desactivado por defecto: el stream ejecuta
-un grafo real de SANDBOX/TEST pero no crea una `DecisionExecution`, por lo que
+un grafo real de un ambiente no productivo pero no crea una `DecisionExecution`, por lo que
 debe habilitarse conscientemente sólo donde el portal use esa previsualización.
 
 Cada carpeta mantenida contiene un `README.md` que explica su propósito de

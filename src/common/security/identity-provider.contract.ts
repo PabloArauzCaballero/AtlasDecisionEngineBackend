@@ -40,8 +40,11 @@ export const identityProviderSessionSchema = identityProfileSchema.extend({
 });
 
 /**
- * A super admin's password check succeeds but yields a mailed PIN challenge instead of a
- * session. It is a distinct outcome, not a failure, so it must not be read as a session.
+ * An internal actor's password check succeeds but yields a mailed PIN challenge instead of a
+ * session. It is a distinct outcome, not a failure, so it must not be read as a session — nor as
+ * an error, which is how it used to surface: the challenge became a 501 and the account could not
+ * sign in at all, so the deployments that had a second factor were the ones locked out of the
+ * portal.
  */
 export const identityPinChallengeSchema = z.object({
   pinChallengeRequired: z.literal(true),
@@ -59,5 +62,13 @@ export const identitySessionSchema = identityProfileSchema.extend({
 
 export type IdentityProfile = z.infer<typeof identityProfileSchema>;
 export type IdentitySession = z.infer<typeof identitySessionSchema>;
+export type IdentityPinChallenge = z.infer<typeof identityPinChallengeSchema>;
 
 export type PublicIdentitySession = Omit<IdentitySession, 'refreshToken'>;
+
+/** What a password check can yield: a session, or the demand for a second factor. */
+export type IdentityLoginOutcome = IdentitySession | IdentityPinChallenge;
+
+export function isPinChallenge(outcome: IdentityLoginOutcome): outcome is IdentityPinChallenge {
+  return 'pinChallengeRequired' in outcome;
+}

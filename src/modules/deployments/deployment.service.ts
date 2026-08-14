@@ -1,7 +1,7 @@
 /** Enforces approval, separation of duties and atomic environment-binding invariants. */
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { DeploymentStatus, Prisma, VersionStatus } from '@prisma/client';
+import { DecisionKind, DeploymentStatus, Prisma, VersionStatus } from '@prisma/client';
 import { AuditService } from '../../common/audit/audit.service';
 import { OutboxPublisherService } from '../../common/events/outbox-publisher.service';
 import { DecisionEventType, type VersionPublishedPayload } from '../../common/events/event-types';
@@ -19,6 +19,8 @@ import {
   SuspendDeploymentDto,
 } from './deployment.dto';
 import { pageResult, paginationArgs } from '../../common/http/pagination';
+import { BaselineCaptureService } from '../model-monitoring/baseline-capture.service';
+import { reviewEconomicContract } from '../risk-governance/semantic-outputs';
 import { DeploymentResolverService } from './deployment-resolver.service';
 
 @Injectable()
@@ -31,6 +33,7 @@ export class DeploymentService {
     private readonly audit: AuditService,
     private readonly outbox: OutboxPublisherService,
     private readonly config: ConfigService,
+    private readonly baselines: BaselineCaptureService,
   ) {}
 
   listEnvironments() {
@@ -74,6 +77,7 @@ export class DeploymentService {
         HttpStatus.NOT_FOUND,
       );
     }
+    await this.assertEconomicContract(tenantId, version, environment.isProduction);
     const requestedCompiledArtifactId = dto.compiledArtifactId
       ? parseBigIntId(dto.compiledArtifactId, 'compiledArtifactId')
       : undefined;
@@ -216,7 +220,61 @@ export class DeploymentService {
     // Cache invalidation stays outside the transaction: it is not rollback-able, so it must
     // only run once the deployment is durably committed.
     await this.resolver.invalidate(tenantId, version.artifact.artifactCode, environment.code);
+    /*
+     * Congelar la población de referencia justo aquí, y no antes ni después.
+     *
+     * Antes sería dentro de la transacción, y un histograma sobre veinte mil filas no puede
+     * retener el bloqueo de un despliegue. Después —un trabajo periódico— tomaría la muestra ya
+     * contaminada con las primeras ejecuciones de la versión NUEVA, que es medir la deriva
+     * contra sí misma.
+     *
+     * Es best-effort: perder la línea base se arregla recapturándola; abortar un despliegue
+     * porque falló un histograma sería un intercambio absurdo.
+     */
+    await this.baselines.capture(
+      tenantId,
+      version.id,
+      version.artifact.artifactCode,
+      environment.id,
+      principal.id,
+    );
     return deployment;
+  }
+
+  /**
+   * Un artefacto que ORIGINA crédito no llega a producción sin declarar su riesgo.
+   *
+   * Es el gate económico del plan, y sólo actúa en producción a propósito: en sandbox se
+   * experimenta, y exigir el contrato completo para probar una idea sólo conseguiría que la
+   * gente probara en producción.
+   *
+   * La salida legítima no es una exención escondida: es declarar `decisionKind` de verdad. Un
+   * artefacto que no origina crédito no tiene por qué publicar una probabilidad de
+   * incumplimiento, y decirlo así queda en el esquema, en la auditoría y en la pantalla — al
+   * contrario que una casilla «saltar comprobación», que nadie vuelve a mirar.
+   */
+  private async assertEconomicContract(
+    tenantId: bigint,
+    version: { id: bigint; artifact: { decisionKind: DecisionKind } },
+    isProduction: boolean,
+  ): Promise<void> {
+    if (!isProduction) return;
+    const fields = await this.prisma.decisionOutputContractField.findMany({
+      where: { tenantId, artifactVersionId: version.id },
+      select: { fieldCode: true, semanticRole: true },
+    });
+    const problems = reviewEconomicContract(
+      fields,
+      version.artifact.decisionKind === DecisionKind.ORIGINATION,
+    );
+    if (!problems.length) return;
+    throw new DomainException(
+      'ECONOMIC_CONTRACT_INCOMPLETE',
+      `${problems.join(' ')} Si esta decisión no origina crédito, decláralo en su ` +
+        `\`decisionKind\` en vez de publicar un contrato económico incompleto.`,
+      HttpStatus.CONFLICT,
+      { problems },
+    );
   }
 
   async rollback(
