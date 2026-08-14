@@ -394,6 +394,38 @@ El **resultado esperado** no se genera. Deducirlo ejecutando el algoritmo conver
 prueba en una tautología: el caso pasaría siempre, incluso con el algoritmo mal. Comparar
 contra la ejecución real es lo que hacen las corridas del QA Lab, que es otra cosa.
 
+### Ensayar antes de crear
+
+`try` y `sample-inputs` piden un `versionId`, así que sólo saben probar lo ya guardado:
+para ver qué calcula una fórmula había que crear el campo, crear su versión y descubrir
+ENTONCES que la política de error no era la que se quería. Los cuatro caminos `preview/*`
+reciben el borrador entero en el cuerpo y **no persisten nada** —ni campo, ni versión, ni
+caso de prueba—.
+
+No son una simulación: comparten el validador de contrato, el resolutor de librerías, el
+ejecutor aislado y el generador del QA Lab con el camino que guarda. Un ensayo que se
+pareciera al motor en vez de SER el motor daría luz verde a versiones que después el
+guardado rechaza. Por eso `preview/try` responde 400 con la MISMA lista de incumplimientos
+que devolvería `POST /{fieldId}/versions`.
+
+Dos detalles que no son casuales:
+
+- **Los tres que ejecutan piden los roles de CREAR una versión**, no los de probar una.
+  Ejecutar una versión guardada corre código que un autor escribió y el gobierno revisó;
+  ensayar corre el código que venga en el cuerpo. Dárselo a quien sólo puede probar sería
+  regalarle un intérprete.
+- **El ensayo se etiqueta en las métricas como `__preview__`**, no con el código que el
+  autor esté tecleando: ese código es una etiqueta de Prometheus, y dejar entrar texto
+  libre abriría su cardinalidad a quien pulse el botón.
+
+`outcomes` responde la pregunta que las tres clases de entrada no contestan: **qué
+desenlaces del contrato de retorno se alcanzan de verdad**. Genera casos válidos, de
+frontera e inválidos, los ejecuta y agrupa por desenlace (`VALID`, `NULL_BY_POLICY`,
+`DEFAULTED`, `ERROR:<código>`). Informa además de los declarados que ningún caso alcanzó y
+de los que el contrato **no puede producir nunca** —`RETURN_DEFAULT` sin valor por defecto
+sobre un retorno nulable pasa la validación y en ejecución propaga el error—. Una cobertura
+que sólo enseñara lo cubierto se leería como «probado todo».
+
 ---
 
 ## 7. API
@@ -408,7 +440,13 @@ contra la ejecución real es lo que hacen las corridas del QA Lab, que es otra c
 | Crear versión | `POST /v1/calculated-fields/{fieldId}/versions` |
 | Promover versión | `POST /v1/calculated-fields/versions/{id}/promote` |
 | Probar con ejemplo | `POST /v1/calculated-fields/versions/{id}/try` |
+| Valores de ejemplo de una versión | `POST /v1/calculated-fields/versions/{id}/sample-inputs` |
 | Ejecutar casos declarados | `POST /v1/calculated-fields/versions/{id}/test` |
+| Desenlaces que alcanza una versión | `POST /v1/calculated-fields/versions/{id}/outcomes` |
+| **Ensayar un borrador** (no persiste nada) | `POST /v1/calculated-fields/preview/try` |
+| Valores de ejemplo de un borrador | `POST /v1/calculated-fields/preview/sample-inputs` |
+| Casos declarados de un borrador | `POST /v1/calculated-fields/preview/test` |
+| Desenlaces que alcanza un borrador | `POST /v1/calculated-fields/preview/outcomes` |
 | Catálogo de librerías | `GET /v1/libraries` |
 | Preludes implementados | `GET /v1/libraries/preludes` |
 | Aprobar librería | `POST /v1/libraries` |

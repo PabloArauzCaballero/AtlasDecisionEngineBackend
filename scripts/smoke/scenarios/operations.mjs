@@ -25,7 +25,7 @@ export async function run({ probe, reporter, state }) {
   reporter.startPhase('operación · despliegues');
 
   const versionId = state.lifecycle?.versionId;
-  const environmentCode = state.environmentCode ?? 'SANDBOX';
+  const environmentCode = state.environmentCode ?? 'DEV';
 
   await probe.ok({
     id: 'deployments-list',

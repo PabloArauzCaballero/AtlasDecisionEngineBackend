@@ -42,7 +42,7 @@ export const config = {
   tenantId: env('SMOKE_TENANT_ID') ?? env('BOOTSTRAP_TENANT_ID', '1'),
   databaseUrl: env('DATABASE_URL'),
   /** Ambiente no productivo donde el smoke despliega y simula. PROD queda fuera a propósito. */
-  environmentCode: env('SMOKE_ENVIRONMENT_CODE', 'SANDBOX'),
+  environmentCode: env('SMOKE_ENVIRONMENT_CODE', 'DEV'),
   /** El origen que `SessionOriginService` acepta; sólo lo usa el camino JWT. */
   sessionOrigin: env('SMOKE_SESSION_ORIGIN') ?? env('CORS_ALLOWED_ORIGINS', '').split(',')[0]?.trim(),
   /** Etiqueta única por corrida: evita chocar con datos de corridas anteriores. */

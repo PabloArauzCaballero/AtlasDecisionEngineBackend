@@ -1,0 +1,44 @@
+[
+  {
+    "template": "credit-analysis-report@1.0.0",
+    "documentId": "DOC-A6B5EAC2D8D8",
+    "paginas": 1,
+    "bytes": 108708,
+    "checksum": "bfc114afb0bff2bf1c8aa344e1a80fc7c5b49aef96e965be3de21dbf46662c95",
+    "renderMs": 1151,
+    "archivos": [
+      "credit-analysis-report-1.0.0.pdf",
+      "credit-analysis-report-1.0.0-visor.png",
+      "credit-analysis-report-1.0.0-pagina-1.png"
+    ]
+  },
+  {
+    "template": "credit-analysis-report@1.1.0",
+    "documentId": "DOC-4F038C5627C7",
+    "paginas": 2,
+    "bytes": 113729,
+    "checksum": "808727824e8ab61535045113ab806fa6a0e68e1f3fa4ed18a1624a0c21a82d81",
+    "renderMs": 716,
+    "archivos": [
+      "credit-analysis-report-1.1.0.pdf",
+      "credit-analysis-report-1.1.0-visor.png",
+      "credit-analysis-report-1.1.0-pagina-1.png",
+      "credit-analysis-report-1.1.0-pagina-2.png"
+    ]
+  },
+  {
+    "template": "generic-result-report@1.0.0",
+    "documentId": "DOC-45DBA0074FD1",
+    "paginas": 3,
+    "bytes": 109597,
+    "checksum": "0876f36e6d9f36cd328646728fe81d29e06eb78eabb4e6981cf8d2ee9e51ea1b",
+    "renderMs": 908,
+    "archivos": [
+      "generic-result-report-1.0.0.pdf",
+      "generic-result-report-1.0.0-visor.png",
+      "generic-result-report-1.0.0-pagina-1.png",
+      "generic-result-report-1.0.0-pagina-2.png",
+      "generic-result-report-1.0.0-pagina-3.png"
+    ]
+  }
+]

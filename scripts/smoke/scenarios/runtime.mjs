@@ -16,7 +16,7 @@ export async function run({ probe, reporter, state }) {
   reporter.startPhase('ejecución · simulación');
 
   const artifactCode = state.lifecycle?.artifactCode;
-  const environmentCode = state.lifecycle?.deployedEnvironment ?? state.environmentCode ?? 'SANDBOX';
+  const environmentCode = state.lifecycle?.deployedEnvironment ?? state.environmentCode ?? 'DEV';
   // La misma variable que el grafo declara: una entrada con otro nombre no ejercita el
   // algoritmo, sólo comprueba que falta un dato.
   const inputCode = state.inputVariableCode ?? fixture.inputVariableCode();
@@ -265,7 +265,7 @@ export async function runRuntimeAudience({ probe, reporter, state }) {
   reporter.startPhase('ejecución · decisiones en línea (audiencia runtime)');
 
   const artifactCode = state.lifecycle?.artifactCode;
-  const environmentCode = state.lifecycle?.deployedEnvironment ?? state.environmentCode ?? 'SANDBOX';
+  const environmentCode = state.lifecycle?.deployedEnvironment ?? state.environmentCode ?? 'DEV';
   const inputCode = state.inputVariableCode ?? fixture.inputVariableCode();
   const vars = (age) => fixture.decisionVariables(age, inputCode);
 

@@ -125,10 +125,28 @@ async function main() {
 
   // Un secreto en el contrato publicado es un secreto filtrado: el fichero acaba en el
   // portal, en el repositorio y en cualquier cliente generado.
-  const serialized = JSON.stringify(document);
-  for (const pattern of [/"[A-Za-z0-9+/]{40,}={0,2}"/, /BEGIN [A-Z ]*PRIVATE KEY/]) {
-    if (pattern.test(serialized))
-      failures.push(`El contrato contiene un valor con forma de secreto`);
+  //
+  // Se recorre el documento y se miran los VALORES, saltando los campos que por definición
+  // son identificadores (`operationId`, `$ref`, `operationRef`). Antes se probaba el
+  // patrón contra el JSON serializado entero, y un operationId largo en camelCase
+  // —`unresolvedClassificationReevaluationStatus`, 41 caracteres— casaba la forma base64 y
+  // hacía fallar el gate por un secreto que no existe. Un falso positivo en una regla de
+  // seguridad es caro: enseña a ignorarla.
+  const IDENTIFIER_FIELDS = new Set(['operationId', '$ref', 'operationRef']);
+  const SECRET_SHAPES = [/^[A-Za-z0-9+/]{40,}={0,2}$/, /BEGIN [A-Z ]*PRIVATE KEY/];
+  const walkForSecrets = (value, field) => {
+    if (typeof value === 'string') {
+      if (IDENTIFIER_FIELDS.has(field)) return false;
+      return SECRET_SHAPES.some((pattern) => pattern.test(value));
+    }
+    if (Array.isArray(value)) return value.some((item) => walkForSecrets(item, field));
+    if (value && typeof value === 'object') {
+      return Object.entries(value).some(([key, item]) => walkForSecrets(item, key));
+    }
+    return false;
+  };
+  if (walkForSecrets(document, '')) {
+    failures.push(`El contrato contiene un valor con forma de secreto`);
   }
 
   // --- Trinquete de la deuda de esquemas de respuesta ---

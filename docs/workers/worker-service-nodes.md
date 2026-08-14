@@ -17,6 +17,7 @@ siempre, un campo del contrato de salida que lo mapee explícitamente.
 | ------------------- | ----------- | -------------------------------- | --------------------------------------------------------------------- |
 | `bank-statement`    | `normalize` | `documentBase64`, `fileName`     | Contrato normalizado del extracto (`NormalizedBankStatement`)          |
 | `semantic-analysis` | `classify`  | `text`                           | `status`, `categoryCode`, `confidence`, `entities`, `matches`, …       |
+| `audio-tts`         | `speak`     | `templateCode`, `variables`, `language` | `outcome`, `cacheHit`, `audioAvailable`, voz, formato y huella del audio |
 
 El catálogo es cerrado y se comprueba **al validar el grafo**: un nodo que nombra un
 servicio u operación inexistente impide aprobar el artefacto, en vez de abortar la primera
@@ -27,10 +28,33 @@ decisión que lo alcance. El catálogo vive en
 
 Un servicio sólo se puede invocar si el despliegue lo declara disponible, con la **misma
 bandera** que publica el catálogo `GET /v1/workers` (`BANK_STATEMENT_WORKER_ENABLED`,
-`SEMANTIC_ANALYSIS_WORKER_ENABLED` + `SEMANTIC_ANALYSIS_PROVIDER`). Si la interfaz dice que
+`SEMANTIC_ANALYSIS_WORKER_ENABLED` + `SEMANTIC_ANALYSIS_PROVIDER`, `AUDIO_TTS_WORKER_ENABLED`
++ `AUDIO_TTS_PROVIDER`). Si la interfaz dice que
 la capacidad no está, un algoritmo tampoco puede usarla por detrás. La bandera gobierna la
 capacidad, no el proceso: una réplica de API con el trabajo de fondo apagado
 (`WORKER_ROLE=api`) sigue atendiendo estas llamadas.
+
+### `audio-tts.speak` no siempre sintetiza
+
+La operación se llama `speak` y no `synthesize` a propósito: lo que el nodo pide es que algo
+se diga en voz alta, y la mayoría de las veces no se genera nada porque la frase ya estaba
+locutada con esa misma voz. Eso es lo que hace aceptable la llamada dentro de una decisión.
+
+Cuando sí toca generar, se genera **en la propia llamada** y no se encola: una decisión
+necesita la respuesta en el instante en que la pide. Por eso el nodo puede tardar lo que
+tarde el proveedor, y por eso conviene acotarlo con `timeoutMs`.
+
+Lo que la decisión recibe es la **identidad** del audio —voz, modelo, formato, huella—, no
+sus bytes: un algoritmo enruta por «hay locución o no la hay», y meter un MP3 en una
+variable intermedia lo metería también en la traza de la ejecución.
+
+Quedarse sin audio **no es un fallo**: el contrato del worker es que la falta de audio nunca
+rompe a quien lo pide. Pero tampoco es un éxito limpio, así que `FALLBACK` y `UNAVAILABLE`
+llegan como `SUCCEEDED_WITH_WARNINGS` y el algoritmo puede desviarse leyendo `call.status`.
+
+El techo diario de generaciones se aplica sobre **quien pidió la decisión**, igual que
+cuando locuta desde el portal: un algoritmo no es una vía para saltarse el presupuesto de
+nadie.
 
 ## Configuración del nodo
 
@@ -46,11 +70,19 @@ capacidad, no el proceso: una réplica de API con el trabajo de fondo apagado
   "timeoutMs": 30000,
   "outputs": [
     { "intermediateCode": "ext_estado_llamada", "path": "call.status", "defaultValue": "FAILED" },
-    { "intermediateCode": "ext_total_creditos", "path": "result.totals.credit", "defaultValue": 0 },
+    { "intermediateCode": "ext_total_creditos", "path": "result.totals.creditExtracted", "defaultValue": 0 },
     { "intermediateCode": "ext_movimientos", "path": "result.transactions.length", "defaultValue": 0 }
   ]
 }
 ```
+
+> **`creditExtracted` y no `credit`.** En el extracto normalizado, `totals.debit` y
+> `totals.credit` son los totales que **imprime el banco**, y valen `null` cuando el
+> documento no los publica —que es lo normal: ninguno de los formatos bolivianos
+> especializados los imprime—. `totals.debitExtracted` y `totals.creditExtracted` son la
+> suma de los movimientos leídos y están siempre. Proyectar el impreso con
+> `defaultValue: 0` convierte «el documento no trae totales» en «no entró dinero», y una
+> decisión tomada sobre eso culpa al solicitante de una laguna del papel.
 
 ### `arguments`
 
