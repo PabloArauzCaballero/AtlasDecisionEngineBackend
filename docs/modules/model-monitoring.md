@@ -36,11 +36,15 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `OPERATIONS`, `RISK_ANALY
 
 ## Clases exportadas
 
+- `AbBranchDto`
+- `AbComparisonDto`
 - `AdverseImpactQueryDto`
 - `AdverseImpactReportDto`
 - `BaselineCaptureService`
 - `CoverageQueryDto`
+- `CutoffAnalysisDto`
 - `CutoffAnalysisService`
+- `CutoffPointDto`
 - `DecisionCoverageDto`
 - `DecisionCoverageService`
 - `ModelMonitoringController`

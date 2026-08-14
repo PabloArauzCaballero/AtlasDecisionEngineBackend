@@ -6505,7 +6505,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Curva del punto de corte."
+            "description": "Curva del punto de corte.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CutoffAnalysisDto"
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/Error400"
@@ -6545,7 +6552,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Comparacion entre ramas de trafico."
+            "description": "Comparacion entre ramas de trafico.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AbComparisonDto"
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/Error400"
@@ -10337,6 +10351,220 @@
         ]
       }
     },
+    "/pdf/artifacts": {
+      "get": {
+        "description": "Sólo los que declaran contrato de salida: sin él no hay nada con lo que casar. Responde 503 si este despliegue no puede consultarlos (generador suelto).",
+        "operationId": "pdfCatalogArtifactsForBinding",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Artefactos que pueden alimentar un documento, con cuántos campos publica cada uno.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "artifacts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "artifactId": {
+                            "type": "string"
+                          },
+                          "artifactVersion": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "outputFieldCount": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "artifactId",
+                          "artifactVersion",
+                          "title",
+                          "outputFieldCount"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "artifacts"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Artefactos publicados que pueden alimentar un documento",
+        "tags": [
+          "pdf"
+        ]
+      }
+    },
+    "/pdf/templates/{templateId}/compatibility": {
+      "get": {
+        "description": "Compara campo a campo el contrato de salida del artefacto con el contrato de datos del documento. Un campo obligatorio que el artefacto no publica es un error; uno del artefacto que el documento no usa NO lo es —un artefacto alimenta varios documentos y cada uno cuenta una parte—.",
+        "operationId": "pdfCatalogCompatibility",
+        "parameters": [
+          {
+            "name": "templateId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "credit-analysis-report",
+              "type": "string"
+            }
+          },
+          {
+            "name": "artifact",
+            "required": true,
+            "in": "query",
+            "description": "Código del artefacto",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "required": false,
+            "in": "query",
+            "description": "Versión del template",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "artifactVersion",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "¿Lo que responde este artefacto lo acepta este documento?",
+        "tags": [
+          "pdf"
+        ]
+      }
+    },
+    "/pdf/templates/{templateId}/sample": {
+      "get": {
+        "description": "Sustituye al ejemplo escrito a mano: un fixture inventado demuestra que la plantilla maqueta, no que sirva para el artefacto que la va a usar. Los campos que el artefacto no puede rellenar se listan en «missing» en vez de rellenarse con un valor plausible.",
+        "operationId": "pdfCatalogSampleFromArtifact",
+        "parameters": [
+          {
+            "name": "templateId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "credit-analysis-report",
+              "type": "string"
+            }
+          },
+          {
+            "name": "artifact",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "artifactVersion",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Dato de prueba construido con la salida REAL de un artefacto",
+        "tags": [
+          "pdf"
+        ]
+      }
+    },
     "/pdf/health": {
       "get": {
         "description": "Comprueba el motor de impresión, el catálogo de templates, los recursos, las fuentes y el almacenamiento. Responde 200 siempre: el veredicto está en `status`, y un 503 aquí escondería el cuerpo que se viene a leer.",
@@ -10379,7 +10607,16 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "Paquete de ejemplo, completo y listo para publicar tal cual.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {},
+                  "additionalProperties": {}
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error401"
@@ -10407,7 +10644,25 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "Contrato del FORMATO de paquete, no el de un template concreto.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "format": {
+                      "type": "string"
+                    },
+                    "jsonSchema": {}
+                  },
+                  "required": [
+                    "format",
+                    "jsonSchema"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error401"
@@ -10435,7 +10690,68 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "Todos los códigos que este worker puede devolver, explicados.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "httpStatus": {
+                            "type": "number"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "meaning": {
+                            "type": "string"
+                          },
+                          "cause": {
+                            "type": "string"
+                          },
+                          "remedy": {
+                            "type": "string"
+                          },
+                          "retryable": {
+                            "type": "boolean"
+                          },
+                          "audience": {
+                            "type": "string",
+                            "enum": [
+                              "consumidor",
+                              "operador",
+                              "ambos"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "code",
+                          "httpStatus",
+                          "title",
+                          "meaning",
+                          "cause",
+                          "remedy",
+                          "retryable",
+                          "audience"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "errors"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Error401"
@@ -10463,7 +10779,65 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "Inventario completo, con el origen y el estado de cada versión.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "templates": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "templateId": {
+                            "type": "string"
+                          },
+                          "version": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "createdBy": {
+                            "type": "string"
+                          },
+                          "checksum": {
+                            "type": "string"
+                          },
+                          "origin": {
+                            "type": "string",
+                            "enum": [
+                              "builtin",
+                              "api"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "templateId",
+                          "version",
+                          "title",
+                          "status",
+                          "createdAt",
+                          "origin"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "templates"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           },
           "401": {
             "description": "Credencial de administración ausente o inválida."
@@ -10503,7 +10877,45 @@
         },
         "responses": {
           "201": {
-            "description": "Template publicado y registrado."
+            "description": "Template publicado y registrado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "templateId": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "checksum": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "templateId",
+                    "version",
+                    "title",
+                    "status",
+                    "createdAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/Error400"
@@ -10559,7 +10971,16 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "El paquete tal cual se subió: punto de partida para la versión siguiente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {},
+                  "additionalProperties": {}
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/Error400"
@@ -10607,11 +11028,42 @@
         ],
         "responses": {
           "200": {
-            "description": "",
+            "description": "Versión marcada como obsoleta. Sigue generando: lo emitido se reproduce.",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "object",
+                  "properties": {
+                    "templateId": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "checksum": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "templateId",
+                    "version",
+                    "title",
+                    "status",
+                    "createdAt"
+                  ],
+                  "additionalProperties": false
                 }
               }
             }
@@ -20697,6 +21149,153 @@
         },
         "required": [
           "recorded"
+        ]
+      },
+      "CutoffPointDto": {
+        "type": "object",
+        "properties": {
+          "cutoff": {
+            "type": "number",
+            "example": 612.5,
+            "description": "Puntaje umbral de este punto de la curva."
+          },
+          "approvalRate": {
+            "type": "number",
+            "example": 0.73,
+            "description": "Proporción de solicitudes que se aprobarían."
+          },
+          "approved": {
+            "type": "number",
+            "example": 730,
+            "description": "Cuántas. El denominador siempre a la vista."
+          },
+          "badRate": {
+            "type": "number",
+            "nullable": true,
+            "example": 0.041,
+            "description": "Tasa de malos entre los aprobados. NULO si no se aprobaría a nadie."
+          },
+          "expectedLoss": {
+            "type": "number",
+            "example": 128400.75,
+            "description": "Pérdida esperada acumulada de los aprobados."
+          },
+          "confidenceHalfWidth": {
+            "type": "number",
+            "nullable": true,
+            "example": 0.012,
+            "description": "Semiancho del intervalo de confianza de `badRate`. Sin él, dos puntos sostenidos por seis casos parecen tan firmes como uno sostenido por seis mil."
+          }
+        },
+        "required": [
+          "cutoff",
+          "approvalRate",
+          "approved",
+          "badRate",
+          "expectedLoss",
+          "confidenceHalfWidth"
+        ]
+      },
+      "CutoffAnalysisDto": {
+        "type": "object",
+        "properties": {
+          "artifactVersionId": {
+            "type": "string",
+            "example": "4001"
+          },
+          "scoreField": {
+            "type": "string",
+            "example": "credit_score"
+          },
+          "windowDays": {
+            "type": "number",
+            "example": 90
+          },
+          "analyzed": {
+            "type": "number",
+            "example": 1840,
+            "description": "Casos con desenlace observado sobre los que se construyó la curva."
+          },
+          "points": {
+            "description": "Vacío cuando no hay muestra suficiente: es un «no se pudo medir», no un cero.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CutoffPointDto"
+            }
+          }
+        },
+        "required": [
+          "artifactVersionId",
+          "scoreField",
+          "windowDays",
+          "analyzed",
+          "points"
+        ]
+      },
+      "AbBranchDto": {
+        "type": "object",
+        "properties": {
+          "deploymentId": {
+            "type": "string",
+            "example": "77"
+          },
+          "artifactVersionId": {
+            "type": "string",
+            "example": "4001"
+          },
+          "decisions": {
+            "type": "number",
+            "example": 9000
+          },
+          "observed": {
+            "type": "number",
+            "example": 6200,
+            "description": "Con desenlace conocido. Comparar por volumen y no por esto es el error que esta operación existe para impedir."
+          },
+          "approvalRate": {
+            "type": "number",
+            "nullable": true,
+            "example": 0.71
+          },
+          "badRate": {
+            "type": "number",
+            "nullable": true,
+            "example": 0.038,
+            "description": "NULO sin observaciones: una rama sin desenlaces no ha ganado, no ha jugado."
+          },
+          "confidenceHalfWidth": {
+            "type": "number",
+            "nullable": true,
+            "example": 0.009
+          }
+        },
+        "required": [
+          "deploymentId",
+          "artifactVersionId",
+          "decisions",
+          "observed",
+          "approvalRate",
+          "badRate",
+          "confidenceHalfWidth"
+        ]
+      },
+      "AbComparisonDto": {
+        "type": "object",
+        "properties": {
+          "deploymentId": {
+            "type": "string",
+            "example": "77"
+          },
+          "branches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AbBranchDto"
+            }
+          }
+        },
+        "required": [
+          "deploymentId",
+          "branches"
         ]
       },
       "RecordMonitoringAttributeDto": {

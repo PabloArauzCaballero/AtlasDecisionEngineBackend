@@ -1,15 +1,6 @@
 {
   "description": "Operaciones cuyo cuerpo de respuesta no está descrito en el contrato. El límite llegó a 0 el 2026-07-31: describir la respuesta de un endpoint nuevo es un requisito, no una aspiración. Este fichero solo puede bajar.",
   "maxOperationsWithoutSuccessSchema": 0,
-  "current": 8,
-  "operations": [
-    "GET /pdf/admin/templates",
-    "GET /pdf/admin/templates/{templateId}/{version}/source",
-    "GET /pdf/errors",
-    "GET /pdf/template-format/example",
-    "GET /pdf/template-format/schema",
-    "GET /v1/model-monitoring/ab",
-    "GET /v1/model-monitoring/cutoff-analysis",
-    "POST /pdf/admin/templates"
-  ]
+  "current": 0,
+  "operations": []
 }

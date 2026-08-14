@@ -3,7 +3,7 @@
 
 # Catálogo de endpoints
 
-Contrato **v1** · 175 rutas · 197 operaciones.
+Contrato **v1** · 178 rutas · 200 operaciones.
 
 La referencia interactiva completa —con esquemas, ejemplos y la posibilidad de probar cada
 llamada— está en `/docs/{API_VERSION}/reference` del propio backend. Esta página existe para
@@ -227,12 +227,15 @@ Bandeja persistente alimentada por el outbox transaccional.
 
 | Método | Ruta | Operación | Resumen |
 | --- | --- | --- | --- |
+| `GET` | `/pdf/artifacts` | `pdfCatalogArtifactsForBinding` | Artefactos publicados que pueden alimentar un documento |
 | `POST` | `/pdf/generate` | `pdfGenerationGeneratePdf` | Genera un documento PDF a partir de un template y su payload |
 | `POST` | `/pdf/generate/async` | `pdfGenerationGenerateAsync` | Encola la generación y responde de inmediato |
 | `GET` | `/pdf/health` | `pdfCatalogHealthReport` | Sonda del generador documental |
 | `POST` | `/pdf/preview` | `pdfGenerationPreviewTemplate` | Previsualiza un template con sus datos ficticios |
 | `GET` | `/pdf/templates` | `pdfCatalogListTemplates` | Lista los templates publicados, en su última versión |
 | `GET` | `/pdf/templates/{templateId}` | `pdfCatalogDefinition` | Definición completa de un template |
+| `GET` | `/pdf/templates/{templateId}/compatibility` | `pdfCatalogCompatibility` | ¿Lo que responde este artefacto lo acepta este documento? |
+| `GET` | `/pdf/templates/{templateId}/sample` | `pdfCatalogSampleFromArtifact` | Dato de prueba construido con la salida REAL de un artefacto |
 | `GET` | `/pdf/templates/{templateId}/schema` | `pdfCatalogSchema` | Contrato de datos que exige el template |
 | `POST` | `/pdf/templates/{templateId}/validate` | `pdfCatalogValidatePayload` | Comprueba un payload sin generar nada |
 | `GET` | `/pdf/templates/{templateId}/versions` | `pdfCatalogVersions` | Versiones publicadas, en orden semántico ascendente |

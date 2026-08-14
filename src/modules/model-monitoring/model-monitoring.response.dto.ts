@@ -152,3 +152,96 @@ export class AdverseImpactReportDto {
   })
   flagged!: boolean;
 }
+
+/*
+ * ─── Curva del punto de corte y comparación de ramas ─────────────────────────
+ *
+ * Las dos operaciones respondían con `@ApiOkResponse({ description })` y sin `type`, así que el
+ * contrato publicado decía que devolvían «algo». `docs:openapi:check` lo trata como fallo duro
+ * y no admite deuda: quien integra contra un endpoint sin cuerpo declarado tiene que leerse el
+ * código del servidor, y en un motor de decisión eso significa leerse la lógica de riesgo para
+ * averiguar cómo se llama un campo.
+ *
+ * Los campos que pueden ser `null` van declarados `nullable` uno a uno, y no es ceremonia: es la
+ * misma regla que gobierna las tres pantallas de medición. Un `badRate` nulo significa «esta
+ * rama no ha jugado», no «esta rama va perfecta», y un consumidor que lea el contrato como
+ * `number` lo pintará como 0 % — que es la lectura exactamente contraria.
+ */
+
+export class CutoffPointDto {
+  @ApiProperty({ example: 612.5, description: 'Puntaje umbral de este punto de la curva.' })
+  cutoff!: number;
+
+  @ApiProperty({ example: 0.73, description: 'Proporción de solicitudes que se aprobarían.' })
+  approvalRate!: number;
+
+  @ApiProperty({ example: 730, description: 'Cuántas. El denominador siempre a la vista.' })
+  approved!: number;
+
+  @ApiProperty({
+    nullable: true,
+    example: 0.041,
+    description: 'Tasa de malos entre los aprobados. NULO si no se aprobaría a nadie.',
+  })
+  badRate!: number | null;
+
+  @ApiProperty({ example: 128400.75, description: 'Pérdida esperada acumulada de los aprobados.' })
+  expectedLoss!: number;
+
+  @ApiProperty({
+    nullable: true,
+    example: 0.012,
+    description:
+      'Semiancho del intervalo de confianza de `badRate`. Sin él, dos puntos sostenidos por ' +
+      'seis casos parecen tan firmes como uno sostenido por seis mil.',
+  })
+  confidenceHalfWidth!: number | null;
+}
+
+export class CutoffAnalysisDto {
+  @ApiProperty({ example: '4001' }) artifactVersionId!: string;
+  @ApiProperty({ example: 'credit_score' }) scoreField!: string;
+  @ApiProperty({ example: 90 }) windowDays!: number;
+
+  @ApiProperty({
+    example: 1840,
+    description: 'Casos con desenlace observado sobre los que se construyó la curva.',
+  })
+  analyzed!: number;
+
+  @ApiProperty({
+    type: [CutoffPointDto],
+    description: 'Vacío cuando no hay muestra suficiente: es un «no se pudo medir», no un cero.',
+  })
+  points!: CutoffPointDto[];
+}
+
+export class AbBranchDto {
+  @ApiProperty({ example: '77' }) deploymentId!: string;
+  @ApiProperty({ example: '4001' }) artifactVersionId!: string;
+  @ApiProperty({ example: 9000 }) decisions!: number;
+
+  @ApiProperty({
+    example: 6200,
+    description:
+      'Con desenlace conocido. Comparar por volumen y no por esto es el error que ' +
+      'esta operación existe para impedir.',
+  })
+  observed!: number;
+
+  @ApiProperty({ nullable: true, example: 0.71 }) approvalRate!: number | null;
+
+  @ApiProperty({
+    nullable: true,
+    example: 0.038,
+    description: 'NULO sin observaciones: una rama sin desenlaces no ha ganado, no ha jugado.',
+  })
+  badRate!: number | null;
+
+  @ApiProperty({ nullable: true, example: 0.009 }) confidenceHalfWidth!: number | null;
+}
+
+export class AbComparisonDto {
+  @ApiProperty({ example: '77' }) deploymentId!: string;
+  @ApiProperty({ type: [AbBranchDto] }) branches!: AbBranchDto[];
+}

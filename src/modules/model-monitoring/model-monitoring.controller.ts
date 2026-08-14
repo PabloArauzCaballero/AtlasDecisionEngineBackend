@@ -12,7 +12,9 @@ import {
   StabilityQueryDto,
 } from './model-monitoring.dto';
 import {
+  AbComparisonDto,
   AdverseImpactReportDto,
+  CutoffAnalysisDto,
   DecisionCoverageDto,
   MonitoringWriteResultDto,
   PerformanceReportDto,
@@ -81,7 +83,7 @@ export class ModelMonitoringController {
    */
   @Get('cutoff-analysis')
   @ApiOperation({ summary: 'Approval and loss trade-off at every possible score cutoff' })
-  @ApiOkResponse({ description: 'Curva del punto de corte.' })
+  @ApiOkResponse({ description: 'Curva del punto de corte.', type: CutoffAnalysisDto })
   @Roles('RISK_ANALYST', 'COMPLIANCE', 'AUDITOR', 'RISK_APPROVER')
   cutoffAnalysis(
     @TenantId() tenantId: bigint,
@@ -106,7 +108,7 @@ export class ModelMonitoringController {
    */
   @Get('ab')
   @ApiOperation({ summary: 'Champion vs challenger compared by observed outcome' })
-  @ApiOkResponse({ description: 'Comparacion entre ramas de trafico.' })
+  @ApiOkResponse({ description: 'Comparacion entre ramas de trafico.', type: AbComparisonDto })
   @Roles('RISK_ANALYST', 'COMPLIANCE', 'AUDITOR', 'RISK_APPROVER')
   abComparison(@TenantId() tenantId: bigint, @Query('deploymentId') deploymentId: string) {
     return this.cutoffs.compareBranches(tenantId, deploymentId);

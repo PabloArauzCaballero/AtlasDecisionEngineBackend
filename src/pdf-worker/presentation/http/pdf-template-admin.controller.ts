@@ -39,6 +39,14 @@ import {
   TEMPLATE_BUNDLE_COMPILER_PORT,
   type TemplateBundleCompilerPort,
 } from '../../application/ports/template-bundle-compiler.port';
+import {
+  ErrorCatalogResponseSchema,
+  jsonBody,
+  StoredTemplateResponseSchema,
+  TemplateBundleResponseSchema,
+  TemplateFormatSchemaResponseSchema,
+  TemplateInventoryResponseSchema,
+} from './pdf-response.schemas';
 import { Inject } from '@nestjs/common';
 import { Roles } from '../../../common/security/security.decorators';
 import { PdfWorkerExceptionFilter } from './pdf-worker-exception.filter';
@@ -69,6 +77,11 @@ export class PdfTemplateAdminController {
   })
   @Header('content-type', 'application/json; charset=utf-8')
   @Header('content-disposition', 'attachment; filename="template-de-ejemplo.json"')
+  @ApiResponse({
+    status: 200,
+    description: 'Paquete de ejemplo, completo y listo para publicar tal cual.',
+    content: jsonBody(TemplateBundleResponseSchema),
+  })
   exampleBundle(@Res() response: Response): void {
     // Se sirve con `content-disposition` para que el navegador lo DESCARGUE en vez de pintarlo:
     // el uso previsto es guardarlo, editarlo y volver a subirlo.
@@ -82,6 +95,11 @@ export class PdfTemplateAdminController {
       'El contrato del FORMATO, no el de un template concreto. Permite validar un paquete en ' +
       'el lado del cliente antes de intentar publicarlo.',
   })
+  @ApiResponse({
+    status: 200,
+    description: 'Contrato del FORMATO de paquete, no el de un template concreto.',
+    content: jsonBody(TemplateFormatSchemaResponseSchema),
+  })
   formatSchema(): { format: string; jsonSchema: unknown } {
     return { format: 'atlas-pdf-template-bundle/1', jsonSchema: this.compiler.jsonSchema() };
   }
@@ -93,6 +111,11 @@ export class PdfTemplateAdminController {
       'Todos los códigos que este worker puede devolver, con su estado HTTP, qué significan, ' +
       'por qué ocurren, cómo se resuelven, si reintentar sirve de algo y quién puede ' +
       'arreglarlos. Una prueba impide que este catálogo y el código se desincronicen.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Todos los códigos que este worker puede devolver, explicados.',
+    content: jsonBody(ErrorCatalogResponseSchema),
   })
   errorCatalog(): { errors: readonly ErrorCatalogEntry[] } {
     return { errors: errorCatalogEntries() };
@@ -107,6 +130,11 @@ export class PdfTemplateAdminController {
     description:
       '`origin` distingue los templates incorporados (viajan con el código) de los publicados ' +
       'por la API. Sólo estos últimos se pueden modificar o retirar.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Inventario completo, con el origen y el estado de cada versión.',
+    content: jsonBody(TemplateInventoryResponseSchema),
   })
   @ApiResponse({ status: 401, description: 'Credencial de administración ausente o inválida.' })
   @ApiResponse({ status: 404, description: 'La administración está desactivada.' })
@@ -126,7 +154,11 @@ export class PdfTemplateAdminController {
       'salió. Actualizar un template es publicar otra versión.',
   })
   @ApiBody({ description: 'Paquete de template. Vea GET /pdf/template-format/example.' })
-  @ApiResponse({ status: 201, description: 'Template publicado y registrado.' })
+  @ApiResponse({
+    status: 201,
+    description: 'Template publicado y registrado.',
+    content: jsonBody(StoredTemplateResponseSchema),
+  })
   @ApiResponse({ status: 409, description: 'Esa versión ya está publicada.' })
   @ApiResponse({ status: 422, description: 'El paquete no cumple el formato.' })
   async publish(@Body() bundle: unknown, @Req() request: Request): Promise<StoredTemplate> {
@@ -144,6 +176,11 @@ export class PdfTemplateAdminController {
   })
   @ApiParam({ name: 'templateId', example: 'certificado-de-cuenta' })
   @ApiParam({ name: 'version', example: '1.0.0' })
+  @ApiResponse({
+    status: 200,
+    description: 'El paquete tal cual se subió: punto de partida para la versión siguiente.',
+    content: jsonBody(TemplateBundleResponseSchema),
+  })
   async source(
     @Param('templateId') templateId: string,
     @Param('version') version: string,
@@ -165,6 +202,11 @@ export class PdfTemplateAdminController {
     description:
       'Es la forma recomendada de «borrar»: deja de recomendarse pero SIGUE generando, así que ' +
       'lo ya emitido con ella se puede reproducir.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Versión marcada como obsoleta. Sigue generando: lo emitido se reproduce.',
+    content: jsonBody(StoredTemplateResponseSchema),
   })
   async deprecate(
     @Param('templateId') templateId: string,

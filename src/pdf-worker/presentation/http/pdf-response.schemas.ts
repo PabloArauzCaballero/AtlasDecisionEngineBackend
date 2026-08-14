@@ -20,6 +20,7 @@ import {
 } from '../../domain/enums/document.enums';
 import type { GeneratedDocument } from '../../domain/entities/generated-document';
 import type { TemplateSummary } from '../../domain/contracts/template-contract';
+import type { ArtifactSummary } from '../../application/ports/artifact-contract.port';
 
 const classification = z.enum(DOCUMENT_CLASSIFICATIONS);
 
@@ -86,6 +87,66 @@ export const QueuedGenerationResponseSchema = z.object({
   status: z.literal('QUEUED'),
 });
 
+/*
+ * ─── Administración y documentación del formato ──────────────────────────────
+ *
+ * Siete operaciones respondían sin declarar el cuerpo. `docs:openapi:check` lo trata como fallo
+ * duro y sin deuda admitida, y con razón: un endpoint cuyo contrato no dice qué devuelve obliga
+ * a quien integra a leerse el código del servidor, que es exactamente lo que un contrato
+ * publicado existe para evitar. La parte cara no es escribir esto — es descubrir a mitad de una
+ * integración que el campo que esperabas se llama de otra forma.
+ */
+
+/** El JSON Schema del formato de paquete. `unknown` porque su forma la fija JSON Schema. */
+export const TemplateFormatSchemaResponseSchema = z.object({
+  format: z.string(),
+  jsonSchema: z.unknown(),
+});
+
+const errorCatalogEntry = z.object({
+  code: z.string(),
+  httpStatus: z.number(),
+  title: z.string(),
+  meaning: z.string(),
+  cause: z.string(),
+  remedy: z.string(),
+  retryable: z.boolean(),
+  audience: z.enum(['consumidor', 'operador', 'ambos']),
+});
+
+export const ErrorCatalogResponseSchema = z.object({ errors: z.array(errorCatalogEntry) });
+
+const storedTemplate = z.object({
+  templateId: z.string(),
+  version: z.string(),
+  title: z.string(),
+  status: z.string(),
+  createdAt: z.string(),
+  createdBy: z.string().optional(),
+  checksum: z.string().optional(),
+});
+
+/** Una entrada del inventario: un template guardado, más de dónde vino. */
+const inventoryEntry = storedTemplate.extend({
+  // `origin` decide si algo se puede tocar por la API, así que va declarado y CERRADO: un
+  // consumidor que lo leyera como texto libre acabaría intentando borrar un incorporado y
+  // recibiendo un 403 que su código no espera.
+  origin: z.enum(['builtin', 'api']),
+});
+
+export const TemplateInventoryResponseSchema = z.object({ templates: z.array(inventoryEntry) });
+
+export const StoredTemplateResponseSchema = storedTemplate;
+
+/**
+ * El paquete de template, tal cual se subió.
+ *
+ * Objeto abierto a propósito: su forma la gobierna el JSON Schema que publica
+ * `GET /pdf/template-format/schema`, y duplicarla aquí crearía una segunda descripción del
+ * mismo formato que envejecería por su cuenta. Lo que se promete es que es un objeto JSON.
+ */
+export const TemplateBundleResponseSchema = z.looseObject({});
+
 /**
  * El tipo de `content` se DERIVA del propio decorador.
  *
@@ -124,3 +185,21 @@ export function jsonBody(schema: z.ZodType): ApiContent {
 export const pdfBody: ApiContent = {
   [PDF_MIME_TYPE]: { schema: { type: 'string', format: 'binary' } },
 };
+
+/**
+ * Artefactos disponibles para casar con un documento.
+ *
+ * `outputFieldCount` es lo que hace utilizable la lista: un artefacto que publica tres campos y
+ * otro que publica cuarenta se eligen distinto, y sin el número hay que abrir cada uno para
+ * saberlo.
+ */
+const artifactSummary = z.object({
+  artifactId: z.string(),
+  artifactVersion: z.string(),
+  title: z.string(),
+  outputFieldCount: z.number(),
+}) satisfies z.ZodType<ArtifactSummary>;
+
+export const ArtifactBindingListResponseSchema = z.object({
+  artifacts: z.array(artifactSummary),
+});

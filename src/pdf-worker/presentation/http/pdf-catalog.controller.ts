@@ -29,6 +29,7 @@ import {
 import {
   TemplateListResponseSchema,
   TemplateVersionsResponseSchema,
+  ArtifactBindingListResponseSchema,
   jsonBody,
 } from './pdf-response.schemas';
 import { ZodBodyPipe } from './zod-validation.pipe';
@@ -144,6 +145,12 @@ export class PdfCatalogController {
     description:
       'Sólo los que declaran contrato de salida: sin él no hay nada con lo que casar. ' +
       'Responde 503 si este despliegue no puede consultarlos (generador suelto).',
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Artefactos que pueden alimentar un documento, con cuántos campos publica cada uno.',
+    content: jsonBody(ArtifactBindingListResponseSchema),
   })
   async artifactsForBinding() {
     return { artifacts: await this.artifacts.listArtifacts() };
