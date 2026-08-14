@@ -315,9 +315,7 @@ function toRecord(row: AssetRow): AudioAssetRecord {
     status: row.status,
     renderedTextEncrypted: row.renderedTextEncrypted,
     ...(row.variablesEncrypted ? { variablesEncrypted: row.variablesEncrypted } : {}),
-    ...(esResumenDeSegmentos(row.segmentsSummary)
-      ? { segmentsSummary: row.segmentsSummary }
-      : {}),
+    ...(esResumenDeSegmentos(row.segmentsSummary) ? { segmentsSummary: row.segmentsSummary } : {}),
     providerModel: row.providerModel,
     model: row.providerModel,
     reservedUnits: row.reservedUnits,

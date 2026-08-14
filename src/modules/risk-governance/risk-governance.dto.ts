@@ -112,7 +112,10 @@ export class RecordConsentDto {
   @IsISO8601()
   expiresAt?: string;
 
-  @ApiPropertyOptional({ example: 'EXP-2026-0091', description: 'Dónde está la prueba. Nunca el dato.' })
+  @ApiPropertyOptional({
+    example: 'EXP-2026-0091',
+    description: 'Dónde está la prueba. Nunca el dato.',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(200)
@@ -163,7 +166,10 @@ export class CalibrationRequestDto {
   @Matches(DATABASE_ID_PATTERN)
   artifactVersionId!: string;
 
-  @ApiProperty({ example: 90, description: 'Plazo de la observación. A 30 y a 360 no son la misma curva.' })
+  @ApiProperty({
+    example: 90,
+    description: 'Plazo de la observación. A 30 y a 360 no son la misma curva.',
+  })
   @Type(() => Number)
   @IsInt()
   @Min(1)

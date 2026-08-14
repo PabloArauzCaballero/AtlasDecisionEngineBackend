@@ -265,7 +265,12 @@ describe('UnresolvedResolution', () => {
    * preguntarse. Sin esto el administrador resolvería el mismo caso cada mes.
    */
   it('tras aprender el alias, el mismo valor se resuelve solo y no abre pendiente', async () => {
-    const { resolucion, deteccion, filas, notificaciones: _notificaciones } = armar() as never as {
+    const {
+      resolucion,
+      deteccion,
+      filas,
+      notificaciones: _notificaciones,
+    } = armar() as never as {
       resolucion: UnresolvedResolutionService;
       deteccion: UnresolvedClassificationService;
       filas: FilaFalsa[];

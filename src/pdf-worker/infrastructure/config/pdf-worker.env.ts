@@ -76,6 +76,36 @@ export const pdfWorkerEnvSchema = z
     PDF_QUEUE_CAPACITY: z.coerce.number().int().min(1).max(10_000).default(200),
 
     // ---------------------------------------------------------------------
+    // Autenticación del servicio, sólo cuando el worker corre SUELTO.
+    //
+    // ENCENDIDA por omisión, al revés que la administración de templates de más abajo. La
+    // diferencia no es un descuido: aquélla es una capacidad que la mayoría de los despliegues
+    // no usa, y ésta es el suelo. Un valor por omisión inseguro sólo protege a quien lee la
+    // documentación entera, y un `docker-compose` no es documentación.
+    //
+    // Montado DENTRO del motor esto no se registra: allí autentica su `APP_GUARD`, y exigir
+    // además una clave de servicio obligaría al motor a mandarse una credencial a sí mismo.
+    // ---------------------------------------------------------------------
+    PDF_SERVICE_AUTH_ENABLED: boolean.default(true),
+    /**
+     * Clave de servicio. Se compara en tiempo constante.
+     *
+     * Mínimo 32 caracteres —más que la de administración, porque ésta protege TODA la
+     * superficie— y sin valor por omisión: una clave por omisión es una clave pública.
+     */
+    PDF_SERVICE_API_KEY: z
+      .string()
+      .trim()
+      .max(200)
+      .optional()
+      .transform((value) => (value === '' ? undefined : value)),
+    PDF_SERVICE_HEADER: z
+      .string()
+      .trim()
+      .regex(/^[a-z][a-z0-9-]{2,40}$/)
+      .default('x-pdf-service-key'),
+
+    // ---------------------------------------------------------------------
     // Administración de templates por API.
     //
     // APAGADA por omisión, y no por prudencia genérica: es la ÚNICA superficie del worker que
@@ -135,6 +165,12 @@ export const pdfWorkerEnvSchema = z
       .default('#1d4ed8'),
   })
   .superRefine((value, ctx) => {
+    // Nótese que la clave de SERVICIO no se exige aquí, y no por descuido: este esquema lo
+    // carga también `PdfWorkerModule.register()` cuando el módulo va DENTRO del motor, donde no
+    // hay clave de servicio ninguna porque autentica el anfitrión. Exigirla aquí impediría
+    // arrancar el motor entero por una credencial que nunca iba a usar. La exigencia vive en
+    // `assertServiceAuthConfigured()`, que sólo se invoca en modo suelto.
+    //
     // Encender la administración sin clave dejaría abierta la única ruta que acepta plantillas
     // del exterior. Se aborta el ARRANQUE: descubrirlo con la primera publicación anónima sería
     // descubrirlo tarde.

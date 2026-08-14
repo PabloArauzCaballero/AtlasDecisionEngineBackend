@@ -18,15 +18,55 @@ import 'reflect-metadata';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import helmet from 'helmet';
 import { PdfWorkerModule } from './pdf-worker/pdf-worker.module';
 import { PdfWorkerExceptionFilter } from './pdf-worker/presentation/http/pdf-worker-exception.filter';
 
 const PORT = Number.parseInt(process.env.PDF_WORKER_PORT ?? '3100', 10);
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(PdfWorkerModule.register(), {
+  // `standalone: true` es lo que enciende `ServiceAuthGuard`. Este archivo es el ÚNICO sitio
+  // del repositorio donde el módulo se monta sin un anfitrión que autentique delante.
+  const app = await NestFactory.create(PdfWorkerModule.register({ standalone: true }), {
     bufferLogs: true,
     forceCloseConnections: true,
+  });
+
+  /*
+   * Las mismas cabeceras que `main.ts`, y por el mismo motivo.
+   *
+   * Faltaban enteras. Un proceso hermano que atiende HTTP en la misma red no puede tener una
+   * postura de seguridad más débil que su gemelo sólo porque su arranque se escribió en otro
+   * archivo: esa diferencia no la decide nadie, se hereda del descuido.
+   *
+   * `contentSecurityPolicy: false` porque esto sirve JSON y PDF, no HTML navegable.
+   */
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginResourcePolicy: { policy: 'same-site' },
+    }),
+  );
+
+  /*
+   * CORS cerrado salvo lista explícita.
+   *
+   * Sin `PDF_CORS_ALLOWED_ORIGINS` el valor es `false`: ningún origen de navegador. Es el
+   * criterio que corresponde a un servicio interno al que llama un servidor y no una pestaña,
+   * y es el mismo que ya aplicaba el motor.
+   */
+  const corsOrigins = (process.env.PDF_CORS_ALLOWED_ORIGINS ?? '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  app.enableCors({
+    origin: corsOrigins.length
+      ? (origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) =>
+          callback(null, !origin || corsOrigins.includes(origin))
+      : false,
+    methods: ['GET', 'POST', 'DELETE'],
+    allowedHeaders: ['content-type', 'x-request-id', 'x-pdf-service-key', 'x-pdf-admin-key'],
+    maxAge: 600,
   });
 
   // El generador no acepta ningún DTO de `class-validator`; la validación la hace Zod en la
@@ -40,7 +80,15 @@ async function bootstrap(): Promise<void> {
   const { json } = await import('express');
   app.use(json({ limit: process.env.PDF_MAX_REQUEST_SIZE ?? '8mb' }));
 
-  if (process.env.PDF_SWAGGER_ENABLED !== 'false') {
+  /*
+   * Swagger APAGADO por omisión.
+   *
+   * Antes la condición era `!== 'false'`, o sea encendido salvo que alguien lo apagara. Hoy
+   * está apagado únicamente porque `docker-compose.pdf-worker.yml` fija la variable, así que un
+   * `node dist/pdf-worker.js` a pelo publicaba `/docs` y `/openapi.json` con la superficie
+   * entera del servicio. Un valor por omisión sólo protege si es el seguro.
+   */
+  if (process.env.PDF_SWAGGER_ENABLED === 'true') {
     const document = SwaggerModule.createDocument(
       app,
       new DocumentBuilder()

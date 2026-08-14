@@ -105,7 +105,11 @@ export class DecisionGuardService {
         `${verdict.limitCode} de ${verdict.maxValue}. No es una negativa de riesgo sobre el ` +
         `solicitante: es apetito de cartera agotado, y así hay que explicárselo.`,
       HttpStatus.CONFLICT,
-      { limitCode: verdict.limitCode, projectedValue: verdict.projectedValue, maxValue: verdict.maxValue },
+      {
+        limitCode: verdict.limitCode,
+        projectedValue: verdict.projectedValue,
+        maxValue: verdict.maxValue,
+      },
     );
   }
 
@@ -135,7 +139,9 @@ export class DecisionGuardService {
       `El titular tiene permisos que ya no amparan el tratamiento: ` +
         invalid.map((verdict) => `${verdict.purpose} (${verdict.reason})`).join(', '),
       HttpStatus.FORBIDDEN,
-      { purposes: invalid.map((verdict) => ({ purpose: verdict.purpose, reason: verdict.reason })) },
+      {
+        purposes: invalid.map((verdict) => ({ purpose: verdict.purpose, reason: verdict.reason })),
+      },
     );
   }
 
@@ -164,7 +170,9 @@ export class DecisionGuardService {
     if (!fields.length) return [];
 
     const violations = fields
-      .map((field) => validateSemanticOutput(field.fieldCode, field.semanticRole, output[field.fieldCode]))
+      .map((field) =>
+        validateSemanticOutput(field.fieldCode, field.semanticRole, output[field.fieldCode]),
+      )
       .filter((violation): violation is RoleViolation => violation !== null);
 
     for (const violation of violations) {

@@ -232,7 +232,9 @@ export function psiAgainstBaseline(
 
   const currentCounts = new Map<string, number>();
   for (const value of current) currentCounts.set(value, (currentCounts.get(value) ?? 0) + 1);
-  const allBuckets = [...new Set([...Object.keys(referenceShares), ...currentCounts.keys()])].sort();
+  const allBuckets = [
+    ...new Set([...Object.keys(referenceShares), ...currentCounts.keys()]),
+  ].sort();
 
   let psi = 0;
   const buckets: StabilityBucket[] = allBuckets.map((bucket) => {

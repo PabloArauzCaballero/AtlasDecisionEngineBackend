@@ -65,7 +65,9 @@ export function evaluateFreshness(
     observedAt,
     fetchedAt,
     sourceVersion: input?.sourceVersion?.trim() || null,
-    ageSeconds: reference ? Math.max(0, Math.floor((now.getTime() - reference.getTime()) / 1_000)) : null,
+    ageSeconds: reference
+      ? Math.max(0, Math.floor((now.getTime() - reference.getTime()) / 1_000))
+      : null,
     stale: false,
     reject: false,
     degraded: false,

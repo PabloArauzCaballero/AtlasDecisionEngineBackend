@@ -267,6 +267,20 @@ export const PDF_ERROR_CATALOG: Readonly<Record<PdfErrorCode, ErrorCatalogEntry>
     retryable: false,
     audience: 'operador',
   },
+  SERVICE_UNAUTHORIZED: {
+    code: 'SERVICE_UNAUTHORIZED',
+    httpStatus: 401,
+    title: 'Credencial de servicio ausente o inválida',
+    meaning: 'La petición no acreditó permiso para hablar con el generador documental.',
+    cause:
+      'El worker corre como proceso suelto y exige clave de servicio. Falta la cabecera ' +
+      'configurada en PDF_SERVICE_HEADER, o su valor no coincide con PDF_SERVICE_API_KEY.',
+    remedy:
+      'Envíe la clave de servicio. Montado DENTRO del motor no aplica: allí autentica el ' +
+      'guardia global del anfitrión y esta puerta se desactiva sola.',
+    retryable: false,
+    audience: 'operador',
+  },
   TEMPLATE_BUILTIN_PROTECTED: {
     code: 'TEMPLATE_BUILTIN_PROTECTED',
     httpStatus: 403,

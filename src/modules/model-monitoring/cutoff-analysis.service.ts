@@ -49,7 +49,12 @@ export class CutoffAnalysisService {
    * inmediato — preferible a una normalización automática que adivine la convención y acierte
    * casi siempre.
    */
-  async cutoffCurve(tenantId: bigint, artifactVersionId: string, scoreField: string, windowDays: number) {
+  async cutoffCurve(
+    tenantId: bigint,
+    artifactVersionId: string,
+    scoreField: string,
+    windowDays: number,
+  ) {
     const versionId = parseBigIntId(artifactVersionId, 'artifactVersionId');
     await this.assertVersion(tenantId, versionId);
 
@@ -162,7 +167,11 @@ export class CutoffAnalysisService {
       select: { id: true },
     });
     if (!version) {
-      throw new DomainException('VERSION_NOT_FOUND', 'Artifact version not found', HttpStatus.NOT_FOUND);
+      throw new DomainException(
+        'VERSION_NOT_FOUND',
+        'Artifact version not found',
+        HttpStatus.NOT_FOUND,
+      );
     }
   }
 }

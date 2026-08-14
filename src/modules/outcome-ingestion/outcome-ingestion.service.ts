@@ -96,7 +96,11 @@ export class OutcomeIngestionService {
       select: { id: true, subjectId: true, executedAt: true },
     });
     if (!execution) {
-      return this.reject(facility.externalReference, 'EXECUTION_NOT_FOUND', 'La decisión que se cita no existe en este tenant.');
+      return this.reject(
+        facility.externalReference,
+        'EXECUTION_NOT_FOUND',
+        'La decisión que se cita no existe en este tenant.',
+      );
     }
     if (!execution.subjectId) {
       return this.reject(
@@ -110,7 +114,9 @@ export class OutcomeIngestionService {
 
     await this.prisma.$transaction(async (tx) => {
       const created = await tx.creditFacility.upsert({
-        where: { tenantId_externalReference: { tenantId, externalReference: facility.externalReference } },
+        where: {
+          tenantId_externalReference: { tenantId, externalReference: facility.externalReference },
+        },
         create: {
           tenantId,
           subjectId: execution.subjectId as bigint,
@@ -176,14 +182,27 @@ export class OutcomeIngestionService {
       where: { tenantId, externalReference: { in: references } },
       select: { id: true, externalReference: true, originationExecutionId: true },
     });
-    const byReference = new Map(facilities.map((facility) => [facility.externalReference, facility]));
+    const byReference = new Map(
+      facilities.map((facility) => [facility.externalReference, facility]),
+    );
 
     const rows: RowResult[] = [];
-    const writable: Array<{ facilityId: bigint; executionId: bigint; entry: (typeof dto.outcomes)[number] }> = [];
+    const writable: Array<{
+      facilityId: bigint;
+      executionId: bigint;
+      entry: (typeof dto.outcomes)[number];
+    }> = [];
     for (const entry of dto.outcomes) {
       const facility = byReference.get(entry.externalReference);
       if (!facility) {
-        rows.push(this.reject(entry.externalReference, 'FACILITY_NOT_FOUND', 'El crédito no está dado de alta.', entry.windowDays));
+        rows.push(
+          this.reject(
+            entry.externalReference,
+            'FACILITY_NOT_FOUND',
+            'El crédito no está dado de alta.',
+            entry.windowDays,
+          ),
+        );
         continue;
       }
       if (!facility.originationExecutionId) {
@@ -198,12 +217,25 @@ export class OutcomeIngestionService {
         );
         continue;
       }
-      rows.push({ externalReference: entry.externalReference, windowDays: entry.windowDays, accepted: true });
-      writable.push({ facilityId: facility.id, executionId: facility.originationExecutionId, entry });
+      rows.push({
+        externalReference: entry.externalReference,
+        windowDays: entry.windowDays,
+        accepted: true,
+      });
+      writable.push({
+        facilityId: facility.id,
+        executionId: facility.originationExecutionId,
+        entry,
+      });
     }
 
     if (dto.dryRun) {
-      return { accepted: writable.length, rejected: rows.length - writable.length, dryRun: true, rows };
+      return {
+        accepted: writable.length,
+        rejected: rows.length - writable.length,
+        dryRun: true,
+        rows,
+      };
     }
 
     await this.prisma.$transaction(async (tx) => {
@@ -252,16 +284,30 @@ export class OutcomeIngestionService {
     });
 
     for (const { entry } of writable) this.metrics.recordObservedOutcome(entry.label);
-    return { accepted: writable.length, rejected: rows.length - writable.length, dryRun: false, rows };
+    return {
+      accepted: writable.length,
+      rejected: rows.length - writable.length,
+      dryRun: false,
+      rows,
+    };
   }
 
-  private reject(externalReference: string, code: string, message: string, windowDays?: number): RowResult {
+  private reject(
+    externalReference: string,
+    code: string,
+    message: string,
+    windowDays?: number,
+  ): RowResult {
     return { externalReference, windowDays, accepted: false, code, message };
   }
 
   private assertBatchSize(size: number, field: string): void {
     if (size === 0) {
-      throw new DomainException('OUTCOME_BATCH_EMPTY', `El lote de ${field} está vacío`, HttpStatus.BAD_REQUEST);
+      throw new DomainException(
+        'OUTCOME_BATCH_EMPTY',
+        `El lote de ${field} está vacío`,
+        HttpStatus.BAD_REQUEST,
+      );
     }
     if (size > MAX_BATCH) {
       throw new DomainException(

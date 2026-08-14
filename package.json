@@ -22,7 +22,7 @@
     "test:e2e:cov": "node scripts/run-jest.mjs --config test/jest-e2e.json --runInBand --coverage --coverageDirectory=coverage-e2e --coverageReporters=json --coverageReporters=json-summary",
     "cov:merge": "node scripts/merge-coverage.mjs coverage/coverage-final.json coverage-e2e/coverage-final.json",
     "test:cov:all": "yarn test:cov && yarn test:e2e:cov && yarn cov:merge",
-    "verify": "yarn lint && yarn typecheck && yarn build && yarn test",
+    "verify": "yarn format:check && yarn lint && yarn typecheck && yarn build && yarn test",
     "prisma:validate": "prisma validate",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
@@ -61,7 +61,7 @@
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" \"prisma/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\" \"prisma/**/*.ts\"",
     "security:audit": "yarn audit --level high --groups dependencies",
-    "verify:release": "yarn lint && yarn typecheck && yarn build && yarn test && yarn migration:validate && yarn security:audit",
+    "verify:release": "yarn verify && yarn migration:validate && yarn security:audit && yarn docs:validate",
     "production:config:check": "node -e \"require('./dist/common/config/env.schema.js').validateEnvironment(process.env); console.log('Production configuration OK')\"",
     "calibrar:identidad": "node scripts/calibrar-identidad.mjs",
     "identidad:pareja-ambigua": "node scripts/buscar-pareja-ambigua.mjs",
@@ -105,14 +105,14 @@
     "handlebars": "^4.7.8",
     "helmet": "^8.1.0",
     "ioredis": "^5.6.1",
-    "pdfjs-dist": "^5.4.54",
+    "pdfjs-dist": "^6.2.108",
     "pg": "^8.16.3",
     "pino": "^10.3.1",
     "playwright": "1.61.1",
     "prom-client": "^15.1.3",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
-    "sharp": "^0.34.0",
+    "sharp": "^0.35.0",
     "tesseract.js": "^7.0.0",
     "zod": "^4.0.5"
   },
@@ -145,5 +145,8 @@
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3",
     "typescript-eslint": "8.46.4"
+  },
+  "resolutions": {
+    "js-yaml": "^4.3.1"
   }
 }

@@ -115,7 +115,12 @@ export class CalibrationService {
     tenantId: bigint,
     artifactVersionId: bigint,
     windowDays: number,
-    buckets: Array<{ decile: number; predictedRate: number; observedRate: number; sampleSize: number }>,
+    buckets: Array<{
+      decile: number;
+      predictedRate: number;
+      observedRate: number;
+      sampleSize: number;
+    }>,
   ): Promise<void> {
     await this.prisma.$transaction(
       buckets.map((bucket) =>
@@ -193,7 +198,11 @@ export class CalibrationService {
       select: { id: true },
     });
     if (!version) {
-      throw new DomainException('VERSION_NOT_FOUND', 'Artifact version not found', HttpStatus.NOT_FOUND);
+      throw new DomainException(
+        'VERSION_NOT_FOUND',
+        'Artifact version not found',
+        HttpStatus.NOT_FOUND,
+      );
     }
   }
 }

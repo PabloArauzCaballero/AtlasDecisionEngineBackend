@@ -12,9 +12,21 @@ import { TimeoutExceededError, withTimeout } from './timeout';
  * sólo para tipar una llamada.
  */
 interface PdfjsModuleLike {
-  getDocument(params: { data: Uint8Array; useSystemFonts: boolean }): {
-    promise: Promise<PdfDocumentLike>;
-  };
+  getDocument(params: { data: Uint8Array; useSystemFonts: boolean }): PdfLoadingTaskLike;
+}
+
+/**
+ * La tarea de carga: lo que se libera al terminar.
+ *
+ * Se declara aquí, con lo MÍNIMO que este lector usa, por la misma razón que el resto de las
+ * formas de este archivo: pdfjs-dist no publica tipos que se puedan importar desde CommonJS sin
+ * arrastrar el paquete entero, y una forma escrita a mano deja explícito qué parte de esa API
+ * sostiene el motor de extractos. Cuando pdfjs quitó `PDFDocumentProxy.destroy()` en la v6, la
+ * forma escrita a mano fue justamente lo que dejó el cambio a la vista en un solo sitio.
+ */
+interface PdfLoadingTaskLike {
+  promise: Promise<PdfDocumentLike>;
+  destroy(): Promise<void> | void;
 }
 
 interface PdfTextItem {
@@ -26,7 +38,6 @@ interface PdfTextItem {
 interface PdfDocumentLike {
   numPages: number;
   getPage(pageNumber: number): Promise<PdfPageLike>;
-  destroy(): Promise<void>;
 }
 
 interface PdfViewportLike {
@@ -113,7 +124,21 @@ export class LayoutPdfReader {
   ) {}
 
   async extract(buffer: Buffer): Promise<ExtractedPdf> {
-    const loadPromise = this.loadDocument(buffer);
+    /*
+     * Se libera la TAREA DE CARGA, no el documento.
+     *
+     * `PDFDocumentProxy.destroy()` desapareció en pdfjs-dist 6 (era un alias en desuse de la v5)
+     * y el `finally` de abajo empezó a lanzar `TypeError: document.destroy is not a function`
+     * DESDE EL BLOQUE DE LIMPIEZA — que es el peor sitio donde puede fallar algo, porque
+     * sustituye el resultado, y también el error real si lo hubo, por un fallo de la limpieza.
+     * Cinco pruebas de extractos pasaron a decir «no se pudo leer la estructura del PDF» sobre
+     * PDF que se habían leído enteros y bien.
+     *
+     * La tarea es además el asidero correcto: destruirla cierra el worker de pdfjs, mientras que
+     * el documento sólo soltaba su parte.
+     */
+    const loadingTask = this.startLoad(buffer);
+    const loadPromise = loadingTask.promise;
     let document: PdfDocumentLike | undefined;
     try {
       const work = (async (): Promise<ExtractedPdf> => {
@@ -156,25 +181,49 @@ export class LayoutPdfReader {
         { reason: message },
       );
     } finally {
-      if (document) {
-        void document.destroy();
-      } else {
-        // Loading may still finish after we already gave up on it (timeout);
-        // destroy it whenever it does so pdfjs doesn't keep it resident.
-        void loadPromise.then((loaded) => loaded.destroy()).catch(() => undefined);
-      }
+      /*
+       * Una sola vía de liberación, pase lo que pase.
+       *
+       * Antes había dos ramas —una para el documento ya resuelto y otra para la carga que aún
+       * podía terminar después de rendirse por reloj—, y las dos llamaban a un método que ya no
+       * existe. Destruir la tarea cubre los dos casos: si la carga sigue en vuelo, `destroy()`
+       * la aborta; si terminó, cierra el documento y su worker.
+       *
+       * `catch` vacío y `void` porque esto es limpieza: un fallo aquí no puede tapar ni el
+       * resultado ni el error de verdad. Ésa fue exactamente la avería que se está corrigiendo.
+       */
+      void Promise.resolve(loadingTask.destroy()).catch(() => undefined);
+      // `document` se sigue leyendo arriba; esta referencia deja constancia de que su ciclo de
+      // vida lo gobierna ahora la tarea, no él mismo.
+      document = undefined;
     }
   }
 
-  private async loadDocument(buffer: Buffer): Promise<PdfDocumentLike> {
+  /**
+   * Arranca la carga y devuelve la TAREA, no la promesa del documento.
+   *
+   * Devolver la tarea es lo que permite liberarla en el `finally` aunque la carga todavía no
+   * haya terminado. Con sólo la promesa, rendirse por reloj dejaba el worker de pdfjs residente
+   * hasta que la carga acabara sola.
+   */
+  private startLoad(buffer: Buffer): PdfLoadingTaskLike {
     // `importEsm` y no `await import(...)`: este archivo se compila a CommonJS
     // y `pdf.mjs` es ESM puro. Ver `./esm-import.ts`.
-    const pdfjs = await importEsm<PdfjsModuleLike>('pdfjs-dist/legacy/build/pdf.mjs');
-    const loadingTask = pdfjs.getDocument({
-      data: new Uint8Array(buffer),
-      useSystemFonts: true,
+    const modulo = importEsm<PdfjsModuleLike>('pdfjs-dist/legacy/build/pdf.mjs');
+    let destruir: (() => void) | undefined;
+    const promise = modulo.then((pdfjs) => {
+      const task = pdfjs.getDocument({ data: new Uint8Array(buffer), useSystemFonts: true });
+      destruir = () => void Promise.resolve(task.destroy()).catch(() => undefined);
+      return task.promise;
     });
-    return await loadingTask.promise;
+    return {
+      promise,
+      // Si aún no se ha resuelto el módulo no hay nada que destruir todavía; se encadena para
+      // que la destrucción ocurra en cuanto exista la tarea.
+      destroy: () => {
+        void modulo.then(() => destruir?.()).catch(() => undefined);
+      },
+    };
   }
 
   private async readAllPages(document: PdfDocumentLike): Promise<ExtractedPdf> {

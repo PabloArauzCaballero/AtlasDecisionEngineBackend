@@ -74,10 +74,11 @@ describe('psiAgainstBaseline', () => {
   it('publica los cubos ordenados por cuánto aportan a la deriva', () => {
     // Quien lo mira necesita saber QUÉ se movió, no sólo cuánto: el primer cubo es por dónde
     // empezar a buscar.
-    const resultado = psiAgainstBaseline(
-      { 'n:1': 0.4, 'n:2': 0.4, 'n:3': 0.2 },
-      [...Array(80).fill('n:3'), ...Array(10).fill('n:1'), ...Array(10).fill('n:2')],
-    );
+    const resultado = psiAgainstBaseline({ 'n:1': 0.4, 'n:2': 0.4, 'n:3': 0.2 }, [
+      ...Array(80).fill('n:3'),
+      ...Array(10).fill('n:1'),
+      ...Array(10).fill('n:2'),
+    ]);
     expect(resultado.buckets[0].bucket).toBe('n:3');
   });
 });

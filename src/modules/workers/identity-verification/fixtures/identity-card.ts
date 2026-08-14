@@ -1,4 +1,4 @@
-import sharp from 'sharp';
+import sharp, { type OverlayOptions } from 'sharp';
 import { retrato } from './identity-faces';
 
 /**
@@ -170,7 +170,7 @@ const FANTASMA = { x: ANCHO - 380, y: 580, w: 116, h: 144 };
  * mal dimensionada cada cédula auténtica se iría a revisión manual por
  * «MULTIPLE_FACES» — que fue justamente el riesgo que obligó a escribirla.
  */
-async function retratosDe(datos: CedulaSintetica): Promise<sharp.OverlayOptions[]> {
+async function retratosDe(datos: CedulaSintetica): Promise<OverlayOptions[]> {
   // Sin retrato no se compone nada: el recuadro gris del SVG queda a la vista, y
   // es exactamente lo que se ve en una fotocopia de una cédula.
   if (datos.sinRetrato) return [];

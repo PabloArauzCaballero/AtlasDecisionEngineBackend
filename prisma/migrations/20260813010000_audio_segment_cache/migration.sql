@@ -30,15 +30,29 @@ CREATE UNIQUE INDEX "decision_audio_segment_tenant_id_segment_key_key"
 
 -- El mismo aislamiento por tenant que el resto de tablas de audio: segunda
 -- línea de defensa detrás del repositorio construido por tenant.
-DO $$
-BEGIN
-  EXECUTE 'ALTER TABLE decision_audio_segment ENABLE ROW LEVEL SECURITY';
-  EXECUTE 'ALTER TABLE decision_audio_segment FORCE ROW LEVEL SECURITY';
-  EXECUTE 'DROP POLICY IF EXISTS tenant_isolation ON decision_audio_segment';
-  EXECUTE
-    'CREATE POLICY tenant_isolation ON decision_audio_segment '
-    'USING (current_setting(''app.tenant_id'', true) IS NULL '
-    '       OR tenant_id = current_setting(''app.tenant_id'', true)::bigint) '
-    'WITH CHECK (current_setting(''app.tenant_id'', true) IS NULL '
-    '       OR tenant_id = current_setting(''app.tenant_id'', true)::bigint)';
-END $$;
+--
+-- Escrito en SQL ESTÁTICO a propósito. La primera versión envolvía estas mismas
+-- sentencias en un `DO $$ ... EXECUTE '...'`, y aunque la RLS quedaba igual de
+-- activa, `scripts/validate-migrations.py` no reconocía ese tercer idioma —sólo
+-- el estático entrecomillado y el dinámico con `%I`— y reportaba la tabla como
+-- SIN aislamiento. La puerta que vigila la separación entre inquilinos se
+-- quedaba en rojo señalando al sitio equivocado.
+--
+-- La salida fácil habría sido aflojar la expresión regular del validador para
+-- que admitiera cualquier literal. No se hizo: una regla así aceptaría también
+-- SQL comentado, y entonces la puerta dejaría de proteger nada. Se ajusta la
+-- migración al idioma de las otras cuarenta y cuatro.
+ALTER TABLE "decision_audio_segment" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "decision_audio_segment" FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation ON "decision_audio_segment";
+
+CREATE POLICY tenant_isolation ON "decision_audio_segment"
+  USING (
+    current_setting('app.tenant_id', true) IS NULL
+    OR tenant_id = current_setting('app.tenant_id', true)::bigint
+  )
+  WITH CHECK (
+    current_setting('app.tenant_id', true) IS NULL
+    OR tenant_id = current_setting('app.tenant_id', true)::bigint
+  );

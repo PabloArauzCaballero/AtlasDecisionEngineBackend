@@ -27,10 +27,12 @@ import type {
 
 describe('partir la plantilla en tramos', () => {
   it('separa lo fijo de lo variable, en orden de locución', () => {
-    expect(splitTemplate('Hola {{nombre}}, tu clave es {{clave}}', {
-      nombre: 'Ana',
-      clave: '1234',
-    })).toEqual([
+    expect(
+      splitTemplate('Hola {{nombre}}, tu clave es {{clave}}', {
+        nombre: 'Ana',
+        clave: '1234',
+      }),
+    ).toEqual([
       { kind: 'FIXED', text: 'Hola' },
       { kind: 'VARIABLE', text: 'Ana' },
       { kind: 'FIXED', text: ', tu clave es' },
@@ -144,7 +146,10 @@ const PLANTILLA: AudioTemplateRecord = {
   isActive: true,
 };
 
-function assetCon(variables: Record<string, string>, extra: Partial<AudioAssetRecord> = {}): AudioAssetRecord {
+function assetCon(
+  variables: Record<string, string>,
+  extra: Partial<AudioAssetRecord> = {},
+): AudioAssetRecord {
   const assetKey = 'f'.repeat(64);
   return {
     id: 'asset-1',
@@ -218,7 +223,9 @@ describe('ensamblar un audio por segmentos', () => {
       cipher,
     );
     const otraVersion = { ...PLANTILLA, version: 4 };
-    expect(await ensamblador.assemble(assetCon({ nombre: 'Ana', clave: '1' }), otraVersion)).toBeNull();
+    expect(
+      await ensamblador.assemble(assetCon({ nombre: 'Ana', clave: '1' }), otraVersion),
+    ).toBeNull();
   });
 
   it('renuncia con un formato que no admite costura', async () => {

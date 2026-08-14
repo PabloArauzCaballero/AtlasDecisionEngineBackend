@@ -273,9 +273,7 @@ function candidateLines(rawText: string): string[] {
     .map((linea) => {
       const relleno = (linea.match(/</g) ?? []).length;
       const ruido = (linea.match(/[^A-Z0-9<]/g) ?? []).length;
-      return relleno >= 2 && ruido > 0 && ruido <= 3
-        ? linea.replace(/[^A-Z0-9<]/g, '<')
-        : linea;
+      return relleno >= 2 && ruido > 0 && ruido <= 3 ? linea.replace(/[^A-Z0-9<]/g, '<') : linea;
     })
     /*
      * El mínimo es 20 y no 28, y esto NO es laxitud: el reconocedor se come los

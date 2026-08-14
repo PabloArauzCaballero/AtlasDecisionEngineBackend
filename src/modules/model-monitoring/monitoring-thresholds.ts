@@ -104,7 +104,11 @@ export const THRESHOLDS: Readonly<Record<string, ThresholdSpec>> = {
  * gate no sirve para nada. La muestra viaja en la fila (`sample_size`), así que la pantalla puede
  * enseñar «sin datos suficientes» sin que eso sea una alarma.
  */
-export function verdictFor(metricCode: string, value: number, sampleSize: number): MonitoringVerdict {
+export function verdictFor(
+  metricCode: string,
+  value: number,
+  sampleSize: number,
+): MonitoringVerdict {
   const spec = THRESHOLDS[metricCode];
   if (!spec) return MonitoringVerdict.OK;
   if (sampleSize < spec.minimumSample) return MonitoringVerdict.OK;

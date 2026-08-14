@@ -77,7 +77,10 @@ export function discrimination(samples: ScoredOutcome[]): DiscriminationResult {
  * debe puntuar 0,5 en ese par, no 1.
  */
 function mannWhitneyAuc(bads: number[], goods: number[]): number {
-  const all = [...bads.map((score) => ({ score, bad: true })), ...goods.map((score) => ({ score, bad: false }))];
+  const all = [
+    ...bads.map((score) => ({ score, bad: true })),
+    ...goods.map((score) => ({ score, bad: false })),
+  ];
   all.sort((left, right) => left.score - right.score);
 
   const ranks = new Array<number>(all.length);
@@ -139,9 +142,14 @@ export interface CalibrationResult {
  * fijo los nueve primeros saldrían vacíos y el décimo tendría el 90 % de la muestra — una curva
  * de un punto, dibujada como si tuviera diez.
  */
-export function calibration(samples: Array<{ predicted: number; bad: boolean }>): CalibrationResult {
+export function calibration(
+  samples: Array<{ predicted: number; bad: boolean }>,
+): CalibrationResult {
   const usable = samples
-    .filter((sample) => Number.isFinite(sample.predicted) && sample.predicted >= 0 && sample.predicted <= 1)
+    .filter(
+      (sample) =>
+        Number.isFinite(sample.predicted) && sample.predicted >= 0 && sample.predicted <= 1,
+    )
     .sort((left, right) => left.predicted - right.predicted);
   if (usable.length < 10) return { buckets: [], hosmerLemeshow: null, meanBias: null };
 
@@ -152,7 +160,9 @@ export function calibration(samples: Array<{ predicted: number; bad: boolean }>)
     if (!slice.length) continue;
     buckets.push({
       decile,
-      predictedRate: round(slice.reduce((total, sample) => total + sample.predicted, 0) / slice.length),
+      predictedRate: round(
+        slice.reduce((total, sample) => total + sample.predicted, 0) / slice.length,
+      ),
       observedRate: round(slice.filter((sample) => sample.bad).length / slice.length),
       sampleSize: slice.length,
     });
@@ -170,7 +180,8 @@ export function calibration(samples: Array<{ predicted: number; bad: boolean }>)
     statistic += (observed - expected) ** 2 / variance;
   }
 
-  const predictedMean = usable.reduce((total, sample) => total + sample.predicted, 0) / usable.length;
+  const predictedMean =
+    usable.reduce((total, sample) => total + sample.predicted, 0) / usable.length;
   const observedMean = usable.filter((sample) => sample.bad).length / usable.length;
   return {
     buckets,

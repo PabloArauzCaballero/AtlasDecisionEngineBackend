@@ -32,8 +32,13 @@ export class OutcomeIngestionController {
    */
   @Post('facilities')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Register disbursed credit facilities and schedule their outcome windows' })
-  @ApiOkResponse({ description: 'Créditos registrados, fila a fila.', type: FacilityRegistrationResultDto })
+  @ApiOperation({
+    summary: 'Register disbursed credit facilities and schedule their outcome windows',
+  })
+  @ApiOkResponse({
+    description: 'Créditos registrados, fila a fila.',
+    type: FacilityRegistrationResultDto,
+  })
   @Roles('OPERATIONS', 'RISK_ANALYST')
   registerFacilities(
     @TenantId() tenantId: bigint,

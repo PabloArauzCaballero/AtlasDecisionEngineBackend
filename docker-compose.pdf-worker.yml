@@ -13,12 +13,22 @@ services:
       target: pdf-worker
     image: atlas-pdf-worker:local
     restart: unless-stopped
+    # Atado al bucle local, como el resto del stack del motor (api, postgres, redis).
+    #
+    # Estaba publicado como '3100:3100', o sea 0.0.0.0, y era el ÚNICO servicio que salía a
+    # todas las interfaces. Quien llama de verdad es el portal, y lo hace por el nombre de
+    # servicio dentro de `atlas_app`; el puerto del anfitrión sólo sirve para depurar desde
+    # esta máquina. Publicarlo en la LAN no habilitaba ningún caso de uso, sólo lectores.
     ports:
-      - '${PDF_WORKER_PORT:-3100}:3100'
+      - '127.0.0.1:${PDF_WORKER_PORT:-3100}:3100'
     environment:
       NODE_ENV: production
       PDF_WORKER_PORT: '3100'
       PDF_SWAGGER_ENABLED: '${PDF_SWAGGER_ENABLED:-false}'
+      # Clave de servicio. Sin ella el worker NO arranca: la puerta viene encendida por
+      # omisión y el esquema de entorno aborta antes que degradar a modo abierto.
+      PDF_SERVICE_AUTH_ENABLED: '${PDF_SERVICE_AUTH_ENABLED:-true}'
+      PDF_SERVICE_API_KEY: '${PDF_SERVICE_API_KEY:?define PDF_SERVICE_API_KEY (32+ caracteres) en el .env}'
       PDF_ORG_NAME: '${PDF_ORG_NAME:-ATLAS Decision Engine}'
       PDF_ORG_LEGAL_NAME: '${PDF_ORG_LEGAL_NAME:-}'
       PDF_ORG_TAX_ID: '${PDF_ORG_TAX_ID:-}'

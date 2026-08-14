@@ -41,7 +41,11 @@ export class RiskGovernanceService {
 
   // --- Apetito de cartera -------------------------------------------------
 
-  async upsertLimit(tenantId: bigint, dto: UpsertExposureLimitDto, principal: AuthenticatedPrincipal) {
+  async upsertLimit(
+    tenantId: bigint,
+    dto: UpsertExposureLimitDto,
+    principal: AuthenticatedPrincipal,
+  ) {
     const segment = dto.segment?.trim() ?? '';
     const limit = await this.prisma.exposureLimit.upsert({
       where: { tenantId_limitCode_segment: { tenantId, limitCode: dto.limitCode, segment } },
@@ -67,7 +71,12 @@ export class RiskGovernanceService {
       aggregateId: limit.id.toString(),
       actorId: principal.id,
       requestId: principal.requestId,
-      payload: { limitCode: dto.limitCode, segment, maxValue: dto.maxValue, enforced: limit.enforced },
+      payload: {
+        limitCode: dto.limitCode,
+        segment,
+        maxValue: dto.maxValue,
+        enforced: limit.enforced,
+      },
     });
     return this.serializeLimit(limit);
   }
@@ -97,7 +106,11 @@ export class RiskGovernanceService {
     };
   }
 
-  async recordPortfolioState(tenantId: bigint, dto: RecordPortfolioStateDto, principal: AuthenticatedPrincipal) {
+  async recordPortfolioState(
+    tenantId: bigint,
+    dto: RecordPortfolioStateDto,
+    principal: AuthenticatedPrincipal,
+  ) {
     const segment = dto.segment?.trim() ?? '';
     const asOf = new Date(dto.asOf);
     const state = await this.prisma.portfolioState.upsert({
@@ -128,7 +141,9 @@ export class RiskGovernanceService {
       WHERE "tenant_id" = ${tenantId}
       ORDER BY "metric_code", "segment", "as_of" DESC
     `;
-    return new Map(rows.map((row) => [this.stateKey(row.metric_code, row.segment), Number(row.value)]));
+    return new Map(
+      rows.map((row) => [this.stateKey(row.metric_code, row.segment), Number(row.value)]),
+    );
   }
 
   private stateKey(code: string, segment: string): string {
@@ -281,9 +296,15 @@ export class RiskGovernanceService {
     principal: AuthenticatedPrincipal,
   ) {
     const id = parseBigIntId(dto.requestId, 'requestId');
-    const request = await this.prisma.reidentificationRequest.findFirst({ where: { tenantId, id } });
+    const request = await this.prisma.reidentificationRequest.findFirst({
+      where: { tenantId, id },
+    });
     if (!request) {
-      throw new DomainException('REIDENTIFICATION_NOT_FOUND', 'La solicitud no existe', HttpStatus.NOT_FOUND);
+      throw new DomainException(
+        'REIDENTIFICATION_NOT_FOUND',
+        'La solicitud no existe',
+        HttpStatus.NOT_FOUND,
+      );
     }
     if (request.status !== ReidentificationStatus.REQUESTED) {
       throw new DomainException(
@@ -342,14 +363,22 @@ export class RiskGovernanceService {
 
   // --- Expediente del modelo ---------------------------------------------
 
-  async recordDossier(tenantId: bigint, dto: RecordModelDossierDto, principal: AuthenticatedPrincipal) {
+  async recordDossier(
+    tenantId: bigint,
+    dto: RecordModelDossierDto,
+    principal: AuthenticatedPrincipal,
+  ) {
     const artifactVersionId = parseBigIntId(dto.artifactVersionId, 'artifactVersionId');
     const version = await this.prisma.decisionArtifactVersion.findFirst({
       where: { id: artifactVersionId, artifact: { tenantId } },
       select: { id: true, createdBy: true },
     });
     if (!version) {
-      throw new DomainException('VERSION_NOT_FOUND', 'Artifact version not found', HttpStatus.NOT_FOUND);
+      throw new DomainException(
+        'VERSION_NOT_FOUND',
+        'Artifact version not found',
+        HttpStatus.NOT_FOUND,
+      );
     }
     if (version.createdBy.trim().toLowerCase() === dto.validatedBy.trim().toLowerCase()) {
       // La validación INDEPENDIENTE es lo que pide SR 11-7 §IV; que la firme quien escribió el

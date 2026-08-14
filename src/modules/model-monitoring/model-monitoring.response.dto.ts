@@ -15,7 +15,8 @@ class SubjectCoverageDto {
   @ApiProperty({ example: 17994 }) withSubject!: number;
   @ApiProperty({
     example: 116,
-    description: 'Decisiones irreparables: el HMAC es de una vía y el sujeto ya no se puede añadir.',
+    description:
+      'Decisiones irreparables: el HMAC es de una vía y el sujeto ya no se puede añadir.',
   })
   missing!: number;
   @ApiProperty({

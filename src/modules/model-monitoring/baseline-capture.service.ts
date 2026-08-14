@@ -53,7 +53,12 @@ export class BaselineCaptureService {
     capturedBy: string,
   ): Promise<number> {
     try {
-      const rows = await this.previousPopulation(tenantId, artifactCode, environmentId, artifactVersionId);
+      const rows = await this.previousPopulation(
+        tenantId,
+        artifactCode,
+        environmentId,
+        artifactVersionId,
+      );
       if (rows.length < MIN_SAMPLE) {
         this.logger.log(
           `Sin línea base para la versión ${artifactVersionId}: ${rows.length} ejecuciones previas, ` +
@@ -142,7 +147,9 @@ export class BaselineCaptureService {
       if (total === 0) continue;
       histograms.set(
         code,
-        Object.fromEntries([...forCode].map(([bucket, count]) => [bucket, Number((count / total).toFixed(6))])),
+        Object.fromEntries(
+          [...forCode].map(([bucket, count]) => [bucket, Number((count / total).toFixed(6))]),
+        ),
       );
     }
     return histograms;

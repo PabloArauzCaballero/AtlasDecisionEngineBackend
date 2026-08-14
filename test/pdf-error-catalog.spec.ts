@@ -23,6 +23,7 @@ import {
   PdfWorkerError,
   ProtectedOptionOverrideError,
   RenderCapacityExceededError,
+  ServiceUnauthorizedError,
   TemplateAdminDisabledError,
   TemplateAdminUnauthorizedError,
   TemplateAlreadyRegisteredError,
@@ -67,6 +68,7 @@ const INSTANCIAS: readonly PdfWorkerError[] = [
   new TemplateBuiltinProtectedError('x', '1.0.0'),
   new ArtifactContractUnavailableError(),
   new ArtifactNotFoundError('x'),
+  new ServiceUnauthorizedError(),
 ];
 
 describe('Catálogo de errores', () => {

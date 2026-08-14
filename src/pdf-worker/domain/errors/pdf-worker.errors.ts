@@ -36,6 +36,8 @@ export const PDF_ERROR_CODES = [
   'TEMPLATE_BUILTIN_PROTECTED',
   'ARTIFACT_CONTRACT_UNAVAILABLE',
   'ARTIFACT_NOT_FOUND',
+  // --- Acceso al servicio, sólo cuando corre como proceso suelto ---
+  'SERVICE_UNAUTHORIZED',
 ] as const;
 
 export type PdfErrorCode = (typeof PDF_ERROR_CODES)[number];
@@ -362,6 +364,25 @@ export class TemplateAdminUnauthorizedError extends PdfWorkerError {
     // Sin detalles: un mensaje que distinga «falta la clave» de «la clave no vale» convierte
     // el endpoint en un oráculo para quien la está adivinando.
     super('Credencial de administración ausente o inválida.', {});
+  }
+}
+
+/**
+ * Nadie acreditó permiso para hablar con el generador.
+ *
+ * Sólo existe cuando el worker corre SUELTO. Montado dentro del motor, quien autentica es el
+ * `APP_GUARD` del anfitrión y este error no llega a construirse nunca — la alternativa, exigir
+ * además una clave de servicio dentro del proceso que ya autenticó, obligaría a que el motor se
+ * mandase una credencial a sí mismo.
+ */
+export class ServiceUnauthorizedError extends PdfWorkerError {
+  readonly code = 'SERVICE_UNAUTHORIZED' as const;
+  readonly httpStatus = 401;
+
+  constructor() {
+    // Mismo criterio que la administración: no se distingue «falta» de «no vale». Un mensaje
+    // que las separe convierte el endpoint en un oráculo para quien adivina la clave.
+    super('Credencial de servicio ausente o inválida.', {});
   }
 }
 

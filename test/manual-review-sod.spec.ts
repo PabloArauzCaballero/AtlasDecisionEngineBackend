@@ -32,11 +32,7 @@ describe('ManualReviewService.resolve — segregation of duties', () => {
         }),
     };
     const audit = { append: async () => ({}) };
-    const service = new ManualReviewService(
-      prisma as any,
-      audit as any,
-      new ConfigService({}),
-    );
+    const service = new ManualReviewService(prisma as any, audit as any, new ConfigService({}));
     return { service, updateCalls };
   }
 

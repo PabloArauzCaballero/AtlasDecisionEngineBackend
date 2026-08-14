@@ -5,7 +5,11 @@
  * avisar —o avisa siempre, que acaba siendo lo mismo cuando quien lo lee aprende a ignorarlo.
  */
 import { MonitoringVerdict } from '@prisma/client';
-import { METRIC, thresholdOf, verdictFor } from '../src/modules/model-monitoring/monitoring-thresholds';
+import {
+  METRIC,
+  thresholdOf,
+  verdictFor,
+} from '../src/modules/model-monitoring/monitoring-thresholds';
 
 const { OK, WATCH, BREACH } = MonitoringVerdict;
 

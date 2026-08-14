@@ -157,7 +157,10 @@ export class VintageQueryDto {
 }
 
 export class PendingWindowsQueryDto {
-  @ApiPropertyOptional({ example: 50, description: 'Máximo 200: es una cola de trabajo, no un volcado.' })
+  @ApiPropertyOptional({
+    example: 50,
+    description: 'Máximo 200: es una cola de trabajo, no un volcado.',
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()

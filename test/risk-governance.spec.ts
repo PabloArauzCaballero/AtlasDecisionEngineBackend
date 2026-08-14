@@ -17,7 +17,9 @@ import {
 
 describe('validateSemanticOutput', () => {
   it('acepta una probabilidad dentro de [0,1]', () => {
-    expect(validateSemanticOutput('pd', OutputSemanticRole.PROBABILITY_OF_DEFAULT, 0.042)).toBeNull();
+    expect(
+      validateSemanticOutput('pd', OutputSemanticRole.PROBABILITY_OF_DEFAULT, 0.042),
+    ).toBeNull();
   });
 
   it('rechaza una probabilidad fuera de rango', () => {
@@ -39,7 +41,9 @@ describe('validateSemanticOutput', () => {
   it('una salida ausente no es un problema de este control', () => {
     // De la ausencia se ocupa el contrato de salida (`absenceReasons`); aquí sólo se juzga lo
     // que sí se produjo.
-    expect(validateSemanticOutput('pd', OutputSemanticRole.PROBABILITY_OF_DEFAULT, null)).toBeNull();
+    expect(
+      validateSemanticOutput('pd', OutputSemanticRole.PROBABILITY_OF_DEFAULT, null),
+    ).toBeNull();
   });
 
   it('un grado de riesgo no se valida como número', () => {
@@ -49,13 +53,18 @@ describe('validateSemanticOutput', () => {
 
 describe('reviewEconomicContract', () => {
   it('exige PD a un artefacto de originación', () => {
-    expect(reviewEconomicContract([{ fieldCode: 'limit', semanticRole: OutputSemanticRole.APPROVED_LIMIT }], true)).toEqual([
-      expect.stringContaining('ECONOMIC_CONTRACT_NO_PD'),
-    ]);
+    expect(
+      reviewEconomicContract(
+        [{ fieldCode: 'limit', semanticRole: OutputSemanticRole.APPROVED_LIMIT }],
+        true,
+      ),
+    ).toEqual([expect.stringContaining('ECONOMIC_CONTRACT_NO_PD')]);
   });
 
   it('no se la exige a una decisión que no origina', () => {
-    expect(reviewEconomicContract([{ fieldCode: 'x', semanticRole: OutputSemanticRole.NONE }], false)).toEqual([]);
+    expect(
+      reviewEconomicContract([{ fieldCode: 'x', semanticRole: OutputSemanticRole.NONE }], false),
+    ).toEqual([]);
   });
 
   it('señala una pérdida esperada sin sus componentes', () => {
@@ -94,12 +103,19 @@ describe('checkLimit', () => {
 
   it('sin `enforced` mide y avisa pero no bloquea', () => {
     // Es la forma de estrenar un límite sin parar la originación el primer día.
-    const verdict = checkLimit({ ...base, enforced: false, currentValue: 9_500, requestedValue: 1_000 });
+    const verdict = checkLimit({
+      ...base,
+      enforced: false,
+      currentValue: 9_500,
+      requestedValue: 1_000,
+    });
     expect(verdict).toMatchObject({ exceeded: true, blocking: false });
   });
 
   it('publica la utilización para poder avisar antes de topar', () => {
-    expect(checkLimit({ ...base, currentValue: 7_000, requestedValue: 1_000 }).utilization).toBe(0.8);
+    expect(checkLimit({ ...base, currentValue: 7_000, requestedValue: 1_000 }).utilization).toBe(
+      0.8,
+    );
   });
 });
 
@@ -113,11 +129,17 @@ describe('checkConsent', () => {
   };
 
   it('vigente', () => {
-    expect(checkConsent(consent, consent.purpose, AHORA)).toMatchObject({ valid: true, reason: 'VALID' });
+    expect(checkConsent(consent, consent.purpose, AHORA)).toMatchObject({
+      valid: true,
+      reason: 'VALID',
+    });
   });
 
   it('la ausencia de constancia no es una autorización', () => {
-    expect(checkConsent(null, 'BUREAU_QUERY', AHORA)).toMatchObject({ valid: false, reason: 'MISSING' });
+    expect(checkConsent(null, 'BUREAU_QUERY', AHORA)).toMatchObject({
+      valid: false,
+      reason: 'MISSING',
+    });
   });
 
   it('distingue caducado de revocado', () => {
@@ -140,7 +162,11 @@ describe('checkConsent', () => {
   });
 
   it('cuenta los días que quedan, para poder avisar antes', () => {
-    const verdict = checkConsent({ ...consent, expiresAt: new Date('2026-08-22T00:00:00.000Z') }, consent.purpose, AHORA);
+    const verdict = checkConsent(
+      { ...consent, expiresAt: new Date('2026-08-22T00:00:00.000Z') },
+      consent.purpose,
+      AHORA,
+    );
     expect(verdict.daysRemaining).toBe(10);
   });
 });

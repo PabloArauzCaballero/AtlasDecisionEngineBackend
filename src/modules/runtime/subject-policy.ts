@@ -52,9 +52,7 @@ export function effectiveSubjectPolicy(
   if (!versionPolicy) return environmentPolicy;
   if (versionPolicy === SubjectReferencePolicy.REQUIRED) return SubjectReferencePolicy.REQUIRED;
   if (versionPolicy === SubjectReferencePolicy.NOT_APPLICABLE) {
-    return versionJustification?.trim()
-      ? SubjectReferencePolicy.NOT_APPLICABLE
-      : environmentPolicy;
+    return versionJustification?.trim() ? SubjectReferencePolicy.NOT_APPLICABLE : environmentPolicy;
   }
   // versionPolicy === WARN: sólo vale donde el ambiente no exige más.
   return environmentPolicy === SubjectReferencePolicy.REQUIRED

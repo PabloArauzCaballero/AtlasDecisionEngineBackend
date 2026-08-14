@@ -16,7 +16,14 @@ import { SimulationController } from './simulation.controller';
 import { SimulationService } from './simulation.service';
 
 @Module({
-  imports: [RiskGovernanceModule, DeploymentModule, GraphModule, VariableModule, NestedTreesModule, WorkersModule],
+  imports: [
+    RiskGovernanceModule,
+    DeploymentModule,
+    GraphModule,
+    VariableModule,
+    NestedTreesModule,
+    WorkersModule,
+  ],
   controllers: [RuntimeController, SimulationController],
   providers: [
     RuntimeService,

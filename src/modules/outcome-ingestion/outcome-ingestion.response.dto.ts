@@ -58,7 +58,10 @@ class VintageCellDto {
   @ApiProperty({ example: 398, description: 'De ellos, cuántos tienen desenlace. El denominador.' })
   observed!: number;
   @ApiProperty({ example: 21 }) bad!: number;
-  @ApiProperty({ example: 4, description: 'Observaciones inferidas, no observadas. Se cuentan aparte.' })
+  @ApiProperty({
+    example: 4,
+    description: 'Observaciones inferidas, no observadas. Se cuentan aparte.',
+  })
   inferred!: number;
   @ApiProperty({
     nullable: true,

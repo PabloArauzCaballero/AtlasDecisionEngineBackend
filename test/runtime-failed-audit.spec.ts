@@ -102,7 +102,10 @@ describe('RuntimeService: evidencia de una decisión fallida', () => {
        * prueba afirma: aquí el despliegue falla ANTES de llegar a él. Un doble inerte deja el
        * caso exactamente donde estaba y evita que la prueba dependa de una base de datos.
        */
-      { assertCanDecide: () => Promise.resolve(), reviewOutputs: () => Promise.resolve([]) } as unknown as DecisionGuardService,
+      {
+        assertCanDecide: () => Promise.resolve(),
+        reviewOutputs: () => Promise.resolve([]),
+      } as unknown as DecisionGuardService,
     );
 
     return { service, audited, failed, released, transactionToken, releasedCount: () => released };

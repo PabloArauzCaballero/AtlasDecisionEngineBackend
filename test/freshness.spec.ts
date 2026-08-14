@@ -29,7 +29,12 @@ describe('evaluateFreshness', () => {
       FreshnessPolicy.REJECT,
       AHORA,
     );
-    expect(verdict).toMatchObject({ ageSeconds: 3_600, stale: true, reject: true, degraded: false });
+    expect(verdict).toMatchObject({
+      ageSeconds: 3_600,
+      stale: true,
+      reject: true,
+      degraded: false,
+    });
   });
 
   it('DEGRADE lo acepta y lo marca', () => {
@@ -51,7 +56,12 @@ describe('evaluateFreshness', () => {
       FreshnessPolicy.IGNORE,
       AHORA,
     );
-    expect(verdict).toMatchObject({ ageSeconds: 3_600, stale: true, reject: false, degraded: false });
+    expect(verdict).toMatchObject({
+      ageSeconds: 3_600,
+      stale: true,
+      reject: false,
+      degraded: false,
+    });
   });
 
   it('sin fecha declarada NO se considera viejo', () => {
@@ -78,7 +88,12 @@ describe('evaluateFreshness', () => {
   });
 
   it('usa fetchedAt cuando no hay observedAt, pero prefiere observedAt', () => {
-    const soloFetch = evaluateFreshness({ fetchedAt: haceSegundos(100) }, 60, FreshnessPolicy.DEGRADE, AHORA);
+    const soloFetch = evaluateFreshness(
+      { fetchedAt: haceSegundos(100) },
+      60,
+      FreshnessPolicy.DEGRADE,
+      AHORA,
+    );
     expect(soloFetch.ageSeconds).toBe(100);
 
     const ambos = evaluateFreshness(
@@ -98,10 +113,14 @@ describe('evaluateFreshness', () => {
      * eternamente fresco: justo el fallo que este control existe para impedir, y silencioso.
      */
     const futuro = new Date(Date.now() + 86_400_000).toISOString();
-    expect(evaluateFreshness({ observedAt: futuro }, 60, FreshnessPolicy.REJECT).ageSeconds).toBeNull();
+    expect(
+      evaluateFreshness({ observedAt: futuro }, 60, FreshnessPolicy.REJECT).ageSeconds,
+    ).toBeNull();
   });
 
   it('una fecha ilegible se descarta sin romper la decisión', () => {
-    expect(evaluateFreshness({ observedAt: 'ayer por la tarde' }, 60, FreshnessPolicy.REJECT).ageSeconds).toBeNull();
+    expect(
+      evaluateFreshness({ observedAt: 'ayer por la tarde' }, 60, FreshnessPolicy.REJECT).ageSeconds,
+    ).toBeNull();
   });
 });

@@ -27,7 +27,12 @@ interface RoleSpec {
 
 export const ROLE_SPECS: Readonly<Record<OutputSemanticRole, RoleSpec>> = {
   NONE: { numeric: false, label: 'Sin rol declarado' },
-  PROBABILITY_OF_DEFAULT: { numeric: true, min: 0, max: 1, label: 'Probabilidad de incumplimiento' },
+  PROBABILITY_OF_DEFAULT: {
+    numeric: true,
+    min: 0,
+    max: 1,
+    label: 'Probabilidad de incumplimiento',
+  },
   LOSS_GIVEN_DEFAULT: { numeric: true, min: 0, max: 1, label: 'Pérdida dado el incumplimiento' },
   EXPOSURE_AT_DEFAULT: { numeric: true, min: 0, label: 'Exposición al incumplir' },
   EXPECTED_LOSS: { numeric: true, min: 0, label: 'Pérdida esperada' },
@@ -121,14 +126,20 @@ export function reviewEconomicContract(
   }
   if (
     roles.has(OutputSemanticRole.EXPECTED_LOSS) &&
-    !(roles.has(OutputSemanticRole.PROBABILITY_OF_DEFAULT) && roles.has(OutputSemanticRole.LOSS_GIVEN_DEFAULT))
+    !(
+      roles.has(OutputSemanticRole.PROBABILITY_OF_DEFAULT) &&
+      roles.has(OutputSemanticRole.LOSS_GIVEN_DEFAULT)
+    )
   ) {
     problems.push(
       'ECONOMIC_CONTRACT_EL_WITHOUT_COMPONENTS: publica pérdida esperada sin declarar PD y LGD. ' +
         'Es un número con nombre de dinero que nadie puede comprobar ni descomponer.',
     );
   }
-  if (roles.has(OutputSemanticRole.PRICED_RATE) && !roles.has(OutputSemanticRole.PROBABILITY_OF_DEFAULT)) {
+  if (
+    roles.has(OutputSemanticRole.PRICED_RATE) &&
+    !roles.has(OutputSemanticRole.PROBABILITY_OF_DEFAULT)
+  ) {
     problems.push(
       'ECONOMIC_CONTRACT_PRICE_WITHOUT_PD: pone precio sin declarar el riesgo con el que lo ' +
         'calcula. El precio deja de ser auditable y la calibración no puede alcanzarlo.',

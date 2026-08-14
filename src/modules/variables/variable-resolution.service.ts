@@ -13,7 +13,6 @@ import type { ConstraintScope } from '../../common/contracts/constraints.types';
 import type { VariableContractSnapshot } from '../graph/graph.types';
 import { evaluateFreshness, type FreshnessVerdict } from './freshness';
 
-
 /** Persistable evidence describing how one variable was resolved. */
 export interface ResolvedVariableSnapshot {
   variableVersionId: string;

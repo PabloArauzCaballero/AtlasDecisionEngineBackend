@@ -13,12 +13,16 @@ class ExposureLimitDto {
   @ApiProperty({ example: 'BOB' }) currencyCode!: string;
   @ApiProperty({
     example: false,
-    description: 'Falso mide y avisa sin rechazar: así se estrena un límite sin parar la originación.',
+    description:
+      'Falso mide y avisa sin rechazar: así se estrena un límite sin parar la originación.',
   })
   enforced!: boolean;
   @ApiProperty({ example: 9600, description: 'Lo consumido según el último estado reportado.' })
   currentValue!: number;
-  @ApiProperty({ example: 0.8, description: 'Proporción consumida. Sirve para avisar antes de topar.' })
+  @ApiProperty({
+    example: 0.8,
+    description: 'Proporción consumida. Sirve para avisar antes de topar.',
+  })
   utilization!: number;
   @ApiProperty({ example: false }) exceeded!: boolean;
   @ApiProperty({ example: false }) blocking!: boolean;
@@ -82,7 +86,10 @@ class CalibrationBucketDto {
 export class CalibrationReportDto {
   @ApiProperty({ example: '4001' }) artifactVersionId!: string;
   @ApiProperty({ example: 90 }) windowDays!: number;
-  @ApiProperty({ example: 4120, description: 'Casos con predicción y desenlace OBSERVADO (no inferido).' })
+  @ApiProperty({
+    example: 4120,
+    description: 'Casos con predicción y desenlace OBSERVADO (no inferido).',
+  })
   analyzed!: number;
   @ApiProperty({ type: [CalibrationBucketDto] }) buckets!: CalibrationBucketDto[];
   @ApiProperty({
