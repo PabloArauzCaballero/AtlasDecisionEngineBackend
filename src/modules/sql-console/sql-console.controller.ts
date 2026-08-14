@@ -54,7 +54,10 @@ export class SqlConsoleController {
   @ApiOperation({
     summary: 'List the governed datasets, tables and columns the console can query',
   })
-  @ApiOkResponse({ description: 'Catálogo de datasets con sus tablas y columnas.', type: SqlCatalogDto })
+  @ApiOkResponse({
+    description: 'Catálogo de datasets con sus tablas y columnas.',
+    type: SqlCatalogDto,
+  })
   catalog(): SqlCatalogDto {
     return this.console.catalog();
   }
@@ -71,7 +74,10 @@ export class SqlConsoleController {
   @Post('validate')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Validate and estimate a query without executing it' })
-  @ApiOkResponse({ description: 'Resultado de la validación, con estimación si es válida.', type: QueryValidationDto })
+  @ApiOkResponse({
+    description: 'Resultado de la validación, con estimación si es válida.',
+    type: QueryValidationDto,
+  })
   validate(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -83,7 +89,10 @@ export class SqlConsoleController {
   @Post('query')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Execute a read-only query against the governed datasets' })
-  @ApiOkResponse({ description: 'Filas, columnas y coste real de la consulta.', type: QueryResultDto })
+  @ApiOkResponse({
+    description: 'Filas, columnas y coste real de la consulta.',
+    type: QueryResultDto,
+  })
   async query(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -98,7 +107,10 @@ export class SqlConsoleController {
 
   @Get('history')
   @ApiOperation({ summary: 'List the caller´s own recent queries' })
-  @ApiOkResponse({ description: 'Historial de consultas de quien pregunta.', type: QueryHistoryPageDto })
+  @ApiOkResponse({
+    description: 'Historial de consultas de quien pregunta.',
+    type: QueryHistoryPageDto,
+  })
   history(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,

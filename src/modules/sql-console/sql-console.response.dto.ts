@@ -88,7 +88,8 @@ class ResultColumnDto {
 export class QueryResultDto {
   @ApiProperty({ type: [ResultColumnDto] }) columns!: ResultColumnDto[];
   @ApiProperty({
-    description: 'Filas como matriz, no como objetos: una consulta puede repetir el nombre de una columna.',
+    description:
+      'Filas como matriz, no como objetos: una consulta puede repetir el nombre de una columna.',
     example: [['APPROVED', '18420']],
   })
   rows!: (string | number | boolean | null)[][];

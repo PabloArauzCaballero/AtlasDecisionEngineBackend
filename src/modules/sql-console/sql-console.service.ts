@@ -77,13 +77,27 @@ export class SqlConsoleService {
 
     try {
       const estimate = await this.executor.estimate(statement);
+      /*
+       * Se informan los nombres PUBLICADOS, no los que aparecen en el plan.
+       *
+       * El planificador expande las vistas, así que su plan habla de
+       * `public.decision_execution`; enseñar eso en «Detalles de ejecución» rompería
+       * justamente lo que el catálogo promete —que los nombres son un contrato y no un
+       * espejo del esquema— y enseñaría la estructura interna a quien no la necesita. El
+       * plan sigue mirándose, pero para bloquear, no para contarlo.
+       */
+      const relations = [...guard.relations];
       await this.log(tenantId, principal, {
         outcome: 'VALIDATED',
         statement,
-        relations: estimate.scannedRelations,
+        relations,
         estimatedRows: estimate.estimatedRows,
       });
-      return { valid: true, violations: [], estimate: { ...estimate, scannedRelations: [...estimate.scannedRelations] } };
+      return {
+        valid: true,
+        violations: [],
+        estimate: { ...estimate, scannedRelations: relations },
+      };
     } catch (error) {
       return { valid: false, violations: [this.asViolation(error)] };
     }
@@ -109,10 +123,12 @@ export class SqlConsoleService {
 
     try {
       const outcome = await this.executor.execute(statement);
+      // Los nombres publicados, no los del plan. El porqué está en `validate`.
+      const relations = [...guard.relations];
       await this.log(tenantId, principal, {
         outcome: 'SUCCEEDED',
         statement,
-        relations: outcome.estimate.scannedRelations,
+        relations,
         rowCount: outcome.rows.length,
         durationMs: outcome.durationMs,
         estimatedRows: outcome.estimate.estimatedRows,
@@ -124,7 +140,7 @@ export class SqlConsoleService {
         rowCount: outcome.rows.length,
         durationMs: outcome.durationMs,
         truncated: outcome.truncated,
-        estimate: { ...outcome.estimate, scannedRelations: [...outcome.estimate.scannedRelations] },
+        estimate: { ...outcome.estimate, scannedRelations: relations },
       };
     } catch (error) {
       const violation = this.asViolation(error);
@@ -165,7 +181,10 @@ export class SqlConsoleService {
 
   private asViolation(error: unknown): GuardViolation {
     if (error instanceof SqlConsoleQueryError) {
-      return { code: error.code, message: error.detail ? `${error.message} ${error.detail}` : error.message };
+      return {
+        code: error.code,
+        message: error.detail ? `${error.message} ${error.detail}` : error.message,
+      };
     }
     return { code: 'SQL_FAILED', message: 'La consulta no se pudo completar.' };
   }

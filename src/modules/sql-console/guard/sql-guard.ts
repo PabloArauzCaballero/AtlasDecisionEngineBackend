@@ -53,12 +53,53 @@ export const MAX_SQL_BYTES = 64 * 1024;
  * Es la única forma de escribir que se disfraza de lectura, y es la que se olvida.
  */
 const FORBIDDEN_KEYWORDS = [
-  'INSERT', 'UPDATE', 'DELETE', 'MERGE', 'UPSERT', 'TRUNCATE', 'DROP', 'CREATE', 'ALTER',
-  'GRANT', 'REVOKE', 'COMMENT', 'COPY', 'VACUUM', 'REINDEX', 'CLUSTER', 'LOCK', 'SET',
-  'RESET', 'DECLARE', 'FETCH', 'MOVE', 'CLOSE', 'PREPARE', 'EXECUTE', 'DEALLOCATE', 'DO',
-  'CALL', 'LISTEN', 'NOTIFY', 'UNLISTEN', 'BEGIN', 'START', 'COMMIT', 'ROLLBACK',
-  'SAVEPOINT', 'REFRESH', 'IMPORT', 'INTO', 'RETURNING', 'SECURITY', 'ANALYZE', 'EXPLAIN',
-  'CHECKPOINT', 'DISCARD', 'LOAD', 'SHOW',
+  'INSERT',
+  'UPDATE',
+  'DELETE',
+  'MERGE',
+  'UPSERT',
+  'TRUNCATE',
+  'DROP',
+  'CREATE',
+  'ALTER',
+  'GRANT',
+  'REVOKE',
+  'COMMENT',
+  'COPY',
+  'VACUUM',
+  'REINDEX',
+  'CLUSTER',
+  'LOCK',
+  'SET',
+  'RESET',
+  'DECLARE',
+  'FETCH',
+  'MOVE',
+  'CLOSE',
+  'PREPARE',
+  'EXECUTE',
+  'DEALLOCATE',
+  'DO',
+  'CALL',
+  'LISTEN',
+  'NOTIFY',
+  'UNLISTEN',
+  'BEGIN',
+  'START',
+  'COMMIT',
+  'ROLLBACK',
+  'SAVEPOINT',
+  'REFRESH',
+  'IMPORT',
+  'INTO',
+  'RETURNING',
+  'SECURITY',
+  'ANALYZE',
+  'EXPLAIN',
+  'CHECKPOINT',
+  'DISCARD',
+  'LOAD',
+  'SHOW',
 ] as const;
 
 /**
@@ -70,13 +111,39 @@ const FORBIDDEN_KEYWORDS = [
  * descansa en ese GUC— sería falsificable desde el propio cuadro de texto.
  */
 const FORBIDDEN_FUNCTIONS = [
-  'current_setting', 'set_config', 'pg_sleep', 'pg_sleep_for', 'pg_sleep_until',
-  'pg_read_file', 'pg_read_binary_file', 'pg_ls_dir', 'pg_stat_file', 'pg_logdir_ls',
-  'lo_import', 'lo_export', 'lo_get', 'lo_put', 'dblink', 'dblink_exec', 'dblink_connect',
-  'pg_terminate_backend', 'pg_cancel_backend', 'pg_reload_conf', 'pg_rotate_logfile',
-  'query_to_xml', 'database_to_xml', 'schema_to_xml', 'table_to_xml',
-  'pg_get_viewdef', 'pg_get_functiondef', 'pg_get_expr', 'pg_get_userbyid',
-  'atlas_current_tenant', 'pg_backend_pid', 'has_table_privilege', 'to_regclass',
+  'current_setting',
+  'set_config',
+  'pg_sleep',
+  'pg_sleep_for',
+  'pg_sleep_until',
+  'pg_read_file',
+  'pg_read_binary_file',
+  'pg_ls_dir',
+  'pg_stat_file',
+  'pg_logdir_ls',
+  'lo_import',
+  'lo_export',
+  'lo_get',
+  'lo_put',
+  'dblink',
+  'dblink_exec',
+  'dblink_connect',
+  'pg_terminate_backend',
+  'pg_cancel_backend',
+  'pg_reload_conf',
+  'pg_rotate_logfile',
+  'query_to_xml',
+  'database_to_xml',
+  'schema_to_xml',
+  'table_to_xml',
+  'pg_get_viewdef',
+  'pg_get_functiondef',
+  'pg_get_expr',
+  'pg_get_userbyid',
+  'atlas_current_tenant',
+  'pg_backend_pid',
+  'has_table_privilege',
+  'to_regclass',
 ] as const;
 
 /**
@@ -87,7 +154,11 @@ const FORBIDDEN_FUNCTIONS = [
  * con el que corre la consola, que es topología y no negocio.
  */
 const FORBIDDEN_BARE_WORDS = [
-  'current_user', 'session_user', 'current_catalog', 'current_schema', 'current_database',
+  'current_user',
+  'session_user',
+  'current_catalog',
+  'current_schema',
+  'current_database',
 ] as const;
 
 /**
@@ -256,7 +327,10 @@ export function guardSql(sql: string): GuardResult {
   for (const quoted of scan.quotedIdentifiers) {
     const bare = quoted.includes('.') ? quoted.split('.')[0] : quoted;
     if (FORBIDDEN_NAME_PATTERNS.some((pattern) => pattern.test(bare))) {
-      push('SQL_FORBIDDEN_NAME', `El identificador "${quoted}" no es consultable desde la consola.`);
+      push(
+        'SQL_FORBIDDEN_NAME',
+        `El identificador "${quoted}" no es consultable desde la consola.`,
+      );
     }
   }
 

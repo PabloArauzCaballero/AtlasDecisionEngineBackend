@@ -16,7 +16,7 @@ import { MAX_SQL_BYTES } from './guard/sql-guard';
 export class RunQueryDto {
   @ApiProperty({
     description: 'La consulta SQL. Sólo SELECT o WITH, una sola sentencia.',
-    example: "SELECT estado, count(*) FROM decisiones.ejecuciones WHERE es_produccion GROUP BY 1",
+    example: 'SELECT estado, count(*) FROM decisiones.ejecuciones WHERE es_produccion GROUP BY 1',
     maxLength: MAX_SQL_BYTES,
   })
   @IsString()

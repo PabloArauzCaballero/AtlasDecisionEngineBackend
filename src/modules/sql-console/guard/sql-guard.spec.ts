@@ -92,7 +92,10 @@ describe('guardSql — escritura disfrazada', () => {
   });
 
   it('rechaza el DML escondido tras un comentario de línea', () => {
-    rechaza('SELECT 1 -- \nUNION SELECT 1; DELETE FROM catalogo.motivos', 'SQL_MULTIPLE_STATEMENTS');
+    rechaza(
+      'SELECT 1 -- \nUNION SELECT 1; DELETE FROM catalogo.motivos',
+      'SQL_MULTIPLE_STATEMENTS',
+    );
   });
 });
 

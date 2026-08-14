@@ -98,6 +98,65 @@ export class QueryExecutorService {
     return { maxRows: this.maxRows, timeoutMs: this.timeoutMs };
   }
 
+  /**
+   * Qué relaciones puede recorrer legítimamente un plan, preguntándoselo a PostgreSQL.
+   *
+   * Aquí estuvo el error de diseño que sólo apareció al ejecutar contra la base real: el
+   * planificador EXPANDE las vistas, así que en el plan no aparece nunca
+   * `decisiones.ejecuciones` sino `public.decision_execution` y sus cinco tablas
+   * acompañantes. Comprobar que el esquema del plan fuera uno de los cinco datasets
+   * rechazaba, por tanto, TODAS las consultas —también las buenas— con un mensaje que
+   * además señalaba a la tabla equivocada. Una barrera que bloquea el 100 % del tráfico no
+   * es una barrera estricta: es una barrera rota, y se distingue de una correcta sólo
+   * ejecutándola.
+   *
+   * La lista no se escribe a mano. Se deriva de `pg_depend`, que es el registro de qué lee
+   * cada vista: publicar una vista nueva amplía el conjunto sola, y —lo que importa— quitar
+   * una columna de una vista puede reducirlo. Una lista escrita a mano se quedaría vieja en
+   * la dirección peligrosa, que es la de más.
+   */
+  private allowed: Promise<ReadonlySet<string>> | null = null;
+
+  private allowedRelations(tx: Prisma.TransactionClient): Promise<ReadonlySet<string>> {
+    this.allowed ??= (async () => {
+      // Los nombres de dataset son constantes del código, nunca entrada de nadie; aun así
+      // van como parámetro y no interpolados, que es la regla que no conviene relajar «sólo
+      // aquí» — la próxima vez la lista vendrá de otro sitio.
+      const rows = await this.run(
+        tx,
+        `SELECT DISTINCT tn.nspname || '.' || t.relname AS relation
+         FROM pg_depend d
+         JOIN pg_rewrite r ON r.oid = d.objid AND d.classid = 'pg_rewrite'::regclass
+         JOIN pg_class v ON v.oid = r.ev_class
+         JOIN pg_namespace vn ON vn.oid = v.relnamespace
+         JOIN pg_class t ON t.oid = d.refobjid
+         JOIN pg_namespace tn ON tn.oid = t.relnamespace
+         WHERE vn.nspname = ANY(string_to_array($1, ','))
+           AND t.relkind IN ('r', 'v', 'm', 'p') AND t.oid <> v.oid`,
+        // Una cadena separada por comas y no un arreglo de JavaScript: `$queryRawUnsafe`
+        // reparte cada elemento como un parámetro distinto, así que un arreglo de cinco
+        // nombres llegaba como cinco parámetros a una consulta que declara uno
+        // (`bind message supplies 5 parameters, but prepared statement requires 1`).
+        [DATASET_NAMES.join(',')],
+      );
+      const set = new Set(rows.map((row) => String(row.relation)));
+      // Las vistas mismas: un plan puede nombrarlas si alguna no llega a expandirse.
+      for (const dataset of DATASET_NAMES) set.add(dataset);
+      if (set.size === DATASET_NAMES.length) {
+        // Ninguna dependencia: o la migración no corrió, o el rol no ve `pg_depend`. En
+        // los dos casos hay que fallar en vez de seguir con un conjunto vacío, que
+        // convertiría esta barrera en un `if` que nunca se cumple.
+        this.allowed = null;
+        throw new SqlConsoleQueryError(
+          'SQL_CATALOG_UNAVAILABLE',
+          'La consola no puede resolver qué datos publica. Avisa a plataforma.',
+        );
+      }
+      return set;
+    })();
+    return this.allowed;
+  }
+
   /** Sólo planifica. Es el «dry run»: dice qué costaría sin llegar a leer una fila. */
   async estimate(sql: string): Promise<QueryEstimate> {
     return this.withSession(async (tx) => this.explain(tx, sql));
@@ -169,27 +228,32 @@ export class QueryExecutorService {
   private async run(
     tx: Prisma.TransactionClient,
     sql: string,
+    parameters: unknown[] = [],
   ): Promise<Record<string, unknown>[]> {
-    return (await tx.$queryRawUnsafe(sql)) as Record<string, unknown>[];
+    return await tx.$queryRawUnsafe<Record<string, unknown>[]>(sql, ...parameters);
   }
 
   private async explain(tx: Prisma.TransactionClient, sql: string): Promise<QueryEstimate> {
+    const allowed = await this.allowedRelations(tx);
     const wrapped = this.wrap(sql, this.maxRows + 1);
-    const explained = (await this.run(tx, `EXPLAIN (FORMAT JSON) ${wrapped}`)) as unknown as {
+    // `VERBOSE` y no `EXPLAIN (FORMAT JSON)` a secas: sin él el plan no trae el campo
+    // `Schema`, así que la comprobación comparaba contra `undefined` y el mensaje de error
+    // señalaba `?.decision_execution`, que no ayuda a nadie.
+    const explained = (await this.run(
+      tx,
+      `EXPLAIN (FORMAT JSON, VERBOSE) ${wrapped}`,
+    )) as unknown as {
       'QUERY PLAN': PlanNode[] | string;
     }[];
     const raw = explained[0]?.['QUERY PLAN'];
     const parsed = (typeof raw === 'string' ? JSON.parse(raw) : raw) as { Plan: PlanNode }[];
     const root = parsed?.[0]?.Plan;
     if (!root) {
-      throw new SqlConsoleQueryError(
-        'SQL_PLAN_UNAVAILABLE',
-        'No se pudo planificar la consulta.',
-      );
+      throw new SqlConsoleQueryError('SQL_PLAN_UNAVAILABLE', 'No se pudo planificar la consulta.');
     }
 
     const scanned = new Set<string>();
-    this.walkPlan(root, scanned);
+    this.walkPlan(root, scanned, allowed);
 
     const rows = Math.max(0, Math.round(root['Plan Rows'] ?? 0));
     const width = Math.max(0, Math.round(root['Plan Width'] ?? 0));
@@ -209,18 +273,18 @@ export class QueryExecutorService {
    * publicada seguiría llamándose `decisiones.algo` en el texto, y aquí aparecería con el
    * esquema real de la tabla que de verdad recorre.
    */
-  private walkPlan(node: PlanNode, scanned: Set<string>): void {
+  private walkPlan(node: PlanNode, scanned: Set<string>, allowed: ReadonlySet<string>): void {
     const relation = node['Relation Name'];
     if (relation) {
       const schema = node.Schema ?? '';
-      if (!DATASET_NAMES.includes(schema)) {
+      const qualified = `${schema}.${relation}`;
+      if (!allowed.has(qualified) && !allowed.has(schema)) {
         throw new SqlConsoleQueryError(
           'SQL_RELATION_NOT_PUBLISHED',
-          `La consulta intenta leer \`${schema || '?'}.${relation}\`, que no forma parte de ` +
-            'los datasets publicados en la consola.',
+          `La consulta intenta leer \`${qualified}\`, que ninguna vista de la consola publica.`,
         );
       }
-      scanned.add(`${schema}.${relation}`);
+      scanned.add(qualified);
     }
 
     const fn = node['Function Name'];
@@ -231,7 +295,7 @@ export class QueryExecutorService {
       );
     }
 
-    for (const child of node.Plans ?? []) this.walkPlan(child, scanned);
+    for (const child of node.Plans ?? []) this.walkPlan(child, scanned, allowed);
   }
 
   /**

@@ -98,7 +98,8 @@ export function scanSql(sql: string): ScannedSql {
     // 'literal' — `''` escapa una comilla. La forma `E'\''` de escapar con contrabarra sólo
     // aplica dentro de una cadena con prefijo E, así que se mira el carácter anterior.
     if (char === "'") {
-      const escapeString = /[eE]$/.test(masked.slice(-1)) && !/[A-Za-z0-9_]/.test(masked.slice(-2, -1));
+      const escapeString =
+        /[eE]$/.test(masked.slice(-1)) && !/[A-Za-z0-9_]/.test(masked.slice(-2, -1));
       let j = i + 1;
       let closed = false;
       while (j < sql.length) {
