@@ -3,30 +3,39 @@
 
 # Catálogo de entidades
 
-78 modelos persistentes. El nombre técnico es el de la tabla; el nombre del
+97 modelos persistentes. El nombre técnico es el de la tabla; el nombre del
 modelo es el que usa el código. Las restricciones e índices son los declarados en el
 esquema, que es la fuente que las migraciones aplican.
 
 | Modelo | Tabla | Campos | Índices | Relaciones |
 | --- | --- | ---: | ---: | ---: |
 | [`ApprovedLibrary`](#approvedlibrary) | `decision_approved_library` | 21 | 2 | 0 |
+| [`AudioActorGenerationDaily`](#audioactorgenerationdaily) | `decision_audio_actor_generation_daily` | 5 | 2 | 0 |
+| [`AudioAsset`](#audioasset) | `decision_audio_asset` | 30 | 3 | 0 |
+| [`AudioBudgetWindow`](#audiobudgetwindow) | `decision_audio_budget_window` | 7 | 1 | 0 |
+| [`AudioGenerationUsage`](#audiogenerationusage) | `decision_audio_generation_usage` | 7 | 2 | 0 |
+| [`AudioSegment`](#audiosegment) | `decision_audio_segment` | 10 | 1 | 0 |
+| [`AudioTemplate`](#audiotemplate) | `decision_audio_template` | 11 | 1 | 0 |
+| [`AudioTtsRun`](#audiottsrun) | `decision_audio_tts_run` | 26 | 4 | 0 |
 | [`BankStatementRun`](#bankstatementrun) | `decision_bank_statement_run` | 26 | 4 | 0 |
 | [`BusinessObjective`](#businessobjective) | `decision_business_objective` | 10 | 1 | 0 |
 | [`CalculatedField`](#calculatedfield) | `decision_calculated_field` | 12 | 2 | 0 |
 | [`CalculatedFieldLibrary`](#calculatedfieldlibrary) | `decision_calculated_field_library` | 5 | 1 | 2 |
 | [`CalculatedFieldTestCase`](#calculatedfieldtestcase) | `decision_calculated_field_test_case` | 8 | 1 | 1 |
 | [`CalculatedFieldVersion`](#calculatedfieldversion) | `decision_calculated_field_version` | 25 | 2 | 1 |
+| [`CalibrationBucket`](#calibrationbucket) | `calibration_bucket` | 10 | 2 | 1 |
+| [`CreditFacility`](#creditfacility) | `credit_facility` | 15 | 3 | 1 |
 | [`DecisionAccessAudit`](#decisionaccessaudit) | `decision_access_audit` | 11 | 2 | 0 |
 | [`DecisionActionReasonMapping`](#decisionactionreasonmapping) | `decision_action_reason_mapping` | 7 | 1 | 2 |
 | [`DecisionApprovalDecision`](#decisionapprovaldecision) | `decision_approval_decision` | 8 | 1 | 1 |
 | [`DecisionApprovalEvidence`](#decisionapprovalevidence) | `decision_approval_evidence` | 7 | 0 | 1 |
 | [`DecisionApprovalRequest`](#decisionapprovalrequest) | `decision_approval_request` | 9 | 1 | 1 |
 | [`DecisionApprovalStep`](#decisionapprovalstep) | `decision_approval_step` | 9 | 1 | 1 |
-| [`DecisionArtifact`](#decisionartifact) | `decision_artifact` | 13 | 2 | 0 |
+| [`DecisionArtifact`](#decisionartifact) | `decision_artifact` | 14 | 2 | 0 |
 | [`DecisionArtifactCalculatedFieldUse`](#decisionartifactcalculatedfielduse) | `decision_artifact_calculated_field_use` | 13 | 2 | 2 |
 | [`DecisionArtifactReference`](#decisionartifactreference) | `decision_artifact_reference` | 22 | 3 | 0 |
-| [`DecisionArtifactVariableDependency`](#decisionartifactvariabledependency) | `decision_artifact_variable_dependency` | 9 | 1 | 2 |
-| [`DecisionArtifactVersion`](#decisionartifactversion) | `decision_artifact_version` | 38 | 2 | 3 |
+| [`DecisionArtifactVariableDependency`](#decisionartifactvariabledependency) | `decision_artifact_variable_dependency` | 10 | 1 | 2 |
+| [`DecisionArtifactVersion`](#decisionartifactversion) | `decision_artifact_version` | 47 | 2 | 3 |
 | [`DecisionAuditEvent`](#decisionauditevent) | `decision_audit_event` | 13 | 3 | 0 |
 | [`DecisionChangeLog`](#decisionchangelog) | `decision_change_log` | 11 | 1 | 1 |
 | [`DecisionCodeImport`](#decisioncodeimport) | `decision_code_import` | 15 | 2 | 0 |
@@ -35,13 +44,13 @@ esquema, que es la fuente que las migraciones aplican.
 | [`DecisionDeployment`](#decisiondeployment) | `decision_deployment` | 23 | 2 | 7 |
 | [`DecisionDeploymentTraffic`](#decisiondeploymenttraffic) | `decision_deployment_traffic` | 7 | 1 | 1 |
 | [`DecisionEdgeCondition`](#decisionedgecondition) | `decision_edge_condition` | 6 | 1 | 2 |
-| [`DecisionEnvironment`](#decisionenvironment) | `decision_environment` | 10 | 0 | 0 |
-| [`DecisionExecution`](#decisionexecution) | `decision_execution` | 25 | 4 | 3 |
+| [`DecisionEnvironment`](#decisionenvironment) | `decision_environment` | 11 | 0 | 0 |
+| [`DecisionExecution`](#decisionexecution) | `decision_execution` | 30 | 5 | 4 |
 | [`DecisionExecutionError`](#decisionexecutionerror) | `decision_execution_error` | 8 | 0 | 1 |
 | [`DecisionExecutionReason`](#decisionexecutionreason) | `decision_execution_reason` | 9 | 0 | 3 |
 | [`DecisionExecutionStep`](#decisionexecutionstep) | `decision_execution_step` | 9 | 1 | 2 |
 | [`DecisionExecutionTreeLink`](#decisionexecutiontreelink) | `decision_execution_tree_link` | 15 | 3 | 0 |
-| [`DecisionExecutionVariable`](#decisionexecutionvariable) | `decision_execution_variable` | 10 | 1 | 2 |
+| [`DecisionExecutionVariable`](#decisionexecutionvariable) | `decision_execution_variable` | 15 | 1 | 2 |
 | [`DecisionIntermediateVariable`](#decisionintermediatevariable) | `decision_intermediate_variable` | 19 | 2 | 1 |
 | [`DecisionManualReviewCase`](#decisionmanualreviewcase) | `decision_manual_review_case` | 14 | 1 | 1 |
 | [`DecisionMonitoringAttribute`](#decisionmonitoringattribute) | `decision_monitoring_attribute` | 8 | 2 | 1 |
@@ -49,8 +58,8 @@ esquema, que es la fuente que las migraciones aplican.
 | [`DecisionNodeCondition`](#decisionnodecondition) | `decision_node_condition` | 7 | 1 | 2 |
 | [`DecisionNodeScript`](#decisionnodescript) | `decision_node_script` | 13 | 2 | 1 |
 | [`DecisionOutboxEvent`](#decisionoutboxevent) | `decision_outbox_event` | 19 | 3 | 0 |
-| [`DecisionOutcomeObservation`](#decisionoutcomeobservation) | `decision_outcome_observation` | 11 | 2 | 1 |
-| [`DecisionOutputContractField`](#decisionoutputcontractfield) | `decision_output_contract_field` | 18 | 2 | 1 |
+| [`DecisionOutcomeObservation`](#decisionoutcomeobservation) | `decision_outcome_observation` | 14 | 3 | 2 |
+| [`DecisionOutputContractField`](#decisionoutputcontractfield) | `decision_output_contract_field` | 19 | 2 | 1 |
 | [`DecisionOutputFieldReasonMap`](#decisionoutputfieldreasonmap) | `decision_output_field_reason_map` | 6 | 1 | 2 |
 | [`DecisionReasonCode`](#decisionreasoncode) | `decision_reason_code` | 12 | 2 | 0 |
 | [`DecisionRuleAction`](#decisionruleaction) | `decision_rule_action` | 11 | 1 | 1 |
@@ -58,6 +67,7 @@ esquema, que es la fuente que las migraciones aplican.
 | [`DecisionRuleEdge`](#decisionruleedge) | `decision_rule_edge` | 12 | 2 | 3 |
 | [`DecisionRuleNode`](#decisionrulenode) | `decision_rule_node` | 16 | 2 | 3 |
 | [`DecisionRuntimeBinding`](#decisionruntimebinding) | `decision_runtime_binding` | 9 | 2 | 2 |
+| [`DecisionSubject`](#decisionsubject) | `decision_subject` | 10 | 2 | 0 |
 | [`DecisionTestAssertion`](#decisiontestassertion) | `decision_test_assertion` | 8 | 0 | 1 |
 | [`DecisionTestCase`](#decisiontestcase) | `decision_test_case` | 10 | 1 | 1 |
 | [`DecisionTestCaseRun`](#decisiontestcaserun) | `decision_test_case_run` | 10 | 1 | 2 |
@@ -69,23 +79,32 @@ esquema, que es la fuente que las migraciones aplican.
 | [`DecisionVariableValidationRule`](#decisionvariablevalidationrule) | `decision_variable_validation_rule` | 7 | 0 | 1 |
 | [`DecisionVariableVersion`](#decisionvariableversion) | `decision_variable_version` | 24 | 2 | 1 |
 | [`DecisionVersionStatusHistory`](#decisionversionstatushistory) | `decision_version_status_history` | 8 | 1 | 1 |
+| [`ExposureLimit`](#exposurelimit) | `exposure_limit` | 10 | 2 | 0 |
+| [`IdentityVerificationRun`](#identityverificationrun) | `decision_identity_verification_run` | 30 | 4 | 0 |
 | [`IntegrationClient`](#integrationclient) | `integration_client` | 10 | 1 | 0 |
 | [`IntegrationCredential`](#integrationcredential) | `integration_credential` | 11 | 2 | 1 |
 | [`IntegrationScope`](#integrationscope) | `integration_scope` | 4 | 1 | 1 |
 | [`IntegrationTenantAccess`](#integrationtenantaccess) | `integration_tenant_access` | 4 | 2 | 1 |
+| [`MonitoringBaseline`](#monitoringbaseline) | `monitoring_baseline` | 9 | 2 | 1 |
+| [`MonitoringEvaluation`](#monitoringevaluation) | `monitoring_evaluation` | 12 | 2 | 1 |
 | [`Notification`](#notification) | `decision_notification` | 15 | 2 | 0 |
+| [`OutcomeWindowSchedule`](#outcomewindowschedule) | `outcome_window_schedule` | 9 | 2 | 2 |
 | [`PolicyArtifactLink`](#policyartifactlink) | `decision_policy_artifact_link` | 5 | 1 | 2 |
 | [`PolicyRequirement`](#policyrequirement) | `decision_policy_requirement` | 10 | 1 | 1 |
 | [`PolicyTestLink`](#policytestlink) | `decision_policy_test_link` | 5 | 1 | 2 |
+| [`PortfolioState`](#portfoliostate) | `portfolio_state` | 7 | 2 | 0 |
 | [`ProcessedEvent`](#processedevent) | `decision_processed_event` | 4 | 1 | 0 |
 | [`QaCounterexample`](#qacounterexample) | `decision_qa_counterexample` | 14 | 2 | 1 |
 | [`QaGenerationRun`](#qagenerationrun) | `decision_qa_generation_run` | 21 | 1 | 1 |
+| [`ReidentificationRequest`](#reidentificationrequest) | `reidentification_request` | 11 | 2 | 1 |
 | [`RuntimeIdempotency`](#runtimeidempotency) | `decision_runtime_idempotency` | 12 | 2 | 0 |
 | [`SemanticAnalysisRun`](#semanticanalysisrun) | `decision_semantic_analysis_run` | 22 | 4 | 0 |
 | [`SemanticCategory`](#semanticcategory) | `decision_semantic_category` | 16 | 3 | 2 |
 | [`SemanticCategoryEmbedding`](#semanticcategoryembedding) | `decision_semantic_category_embedding` | 6 | 1 | 1 |
 | [`SemanticEntityAlias`](#semanticentityalias) | `decision_semantic_entity_alias` | 6 | 2 | 0 |
 | [`SemanticTenantBudget`](#semantictenantbudget) | `decision_semantic_tenant_budget` | 5 | 1 | 0 |
+| [`SubjectConsent`](#subjectconsent) | `subject_consent` | 11 | 2 | 1 |
+| [`UnresolvedClassification`](#unresolvedclassification) | `decision_unresolved_classification` | 20 | 3 | 0 |
 | [`UserTutorialProgress`](#usertutorialprogress) | `user_tutorial_progress` | 11 | 2 | 0 |
 
 ## ApprovedLibrary
@@ -120,6 +139,186 @@ Tabla `decision_approved_library`.
 
 - `unique([tenantId, logicalName, language, version])`
 - `index([tenantId, status])`
+
+## AudioActorGenerationDaily
+
+Tabla `decision_audio_actor_generation_daily`.
+
+| Campo | Tipo | Atributos |
+| --- | --- | --- |
+| `id` | `BigInt` | @id @default(autoincrement()) |
+| `tenantId` | `BigInt` | @map("tenant_id") |
+| `actorId` | `String` | @map("actor_id") @db.VarChar(160) |
+| `dayKey` | `String` | @map("day_key") @db.VarChar(10) |
+| `generationCount` | `Int` | @default(0) @map("generation_count") |
+
+Índices y restricciones:
+
+- `unique([tenantId, actorId, dayKey])`
+- `index([tenantId, dayKey])`
+
+## AudioAsset
+
+Tabla `decision_audio_asset`.
+
+| Campo | Tipo | Atributos |
+| --- | --- | --- |
+| `id` | `String` | @id @db.Uuid |
+| `tenantId` | `BigInt` | @map("tenant_id") |
+| `assetKey` | `String` | @map("asset_key") @db.Char(64) |
+| `templateCode` | `String` | @map("template_code") @db.VarChar(160) |
+| `templateVersion` | `Int` | @map("template_version") |
+| `status` | `AudioAssetStatus` | @default(PENDING) |
+| `renderedTextEncrypted` | `String` | @map("rendered_text_encrypted") @db.Text |
+| `variablesEncrypted` | `String?` | @map("variables_encrypted") @db.Text |
+| `segmentsSummary` | `Json?` | @map("segments_summary") |
+| `language` | `String` | @db.VarChar(20) |
+| `provider` | `String` | @db.VarChar(40) |
+| `providerModel` | `String` | @map("provider_model") @db.VarChar(128) |
+| `providerVoiceRef` | `String` | @map("provider_voice_ref") @db.VarChar(255) |
+| `voiceProfile` | `String` | @map("voice_profile") @db.VarChar(100) |
+| `voiceVersion` | `Int` | @map("voice_version") |
+| `outputFormat` | `String` | @map("output_format") @db.VarChar(64) |
+| `sampleRate` | `Int` | @map("sample_rate") |
+| `reservedUnits` | `Int` | @default(0) @map("reserved_units") |
+| `attempts` | `Int` | @default(0) |
+| `correlationId` | `String?` | @map("correlation_id") @db.VarChar(64) |
+| `claimedAt` | `DateTime?` | @map("claimed_at") @db.Timestamptz(6) |
+| `claimedBy` | `String?` | @map("claimed_by") @db.VarChar(120) |
+| `storageUri` | `String?` | @map("storage_uri") @db.Text |
+| `audioBytes` | `Bytes?` | @map("audio_bytes") |
+| `mimeType` | `String?` | @map("mime_type") @db.VarChar(120) |
+| `checksumSha256` | `String?` | @map("checksum_sha256") @db.Char(64) |
+| `bytes` | `BigInt?` | — |
+| `lastErrorCode` | `String?` | @map("last_error_code") @db.VarChar(120) |
+| `createdAt` | `DateTime` | @default(now()) @map("created_at") @db.Timestamptz(6) |
+| `updatedAt` | `DateTime` | @updatedAt @map("updated_at") @db.Timestamptz(6) |
+
+Índices y restricciones:
+
+- `unique([tenantId, assetKey])`
+- `index([tenantId, status])`
+- `index([tenantId, templateCode, templateVersion])`
+
+## AudioBudgetWindow
+
+Tabla `decision_audio_budget_window`.
+
+| Campo | Tipo | Atributos |
+| --- | --- | --- |
+| `id` | `BigInt` | @id @default(autoincrement()) |
+| `tenantId` | `BigInt` | @map("tenant_id") |
+| `provider` | `String` | @db.VarChar(40) |
+| `monthKey` | `String` | @map("month_key") @db.VarChar(7) |
+| `reservedUnits` | `Int` | @default(0) @map("reserved_units") |
+| `settledUnits` | `Int` | @default(0) @map("settled_units") |
+| `updatedAt` | `DateTime` | @updatedAt @map("updated_at") @db.Timestamptz(6) |
+
+Índices y restricciones:
+
+- `unique([tenantId, provider, monthKey])`
+
+## AudioGenerationUsage
+
+Tabla `decision_audio_generation_usage`.
+
+| Campo | Tipo | Atributos |
+| --- | --- | --- |
+| `id` | `BigInt` | @id @default(autoincrement()) |
+| `tenantId` | `BigInt` | @map("tenant_id") |
+| `assetId` | `String` | @map("asset_id") @db.Uuid |
+| `provider` | `String` | @db.VarChar(40) |
+| `usageUnits` | `Int` | @map("usage_units") |
+| `monthKey` | `String` | @map("month_key") @db.VarChar(7) |
+| `createdAt` | `DateTime` | @default(now()) @map("created_at") @db.Timestamptz(6) |
+
+Índices y restricciones:
+
+- `unique([tenantId, assetId])`
+- `index([tenantId, provider, monthKey])`
+
+## AudioSegment
+
+Tabla `decision_audio_segment`.
+
+| Campo | Tipo | Atributos |
+| --- | --- | --- |
+| `id` | `String` | @id @db.Uuid |
+| `tenantId` | `BigInt` | @map("tenant_id") |
+| `segmentKey` | `String` | @map("segment_key") @db.Char(64) |
+| `textEncrypted` | `String` | @map("text_encrypted") @db.Text |
+| `audioBytes` | `Bytes` | @map("audio_bytes") |
+| `mimeType` | `String` | @map("mime_type") @db.VarChar(120) |
+| `checksumSha256` | `String` | @map("checksum_sha256") @db.Char(64) |
+| `bytes` | `BigInt` | — |
+| `usageUnits` | `Int` | @map("usage_units") |
+| `createdAt` | `DateTime` | @default(now()) @map("created_at") @db.Timestamptz(6) |
+
+Índices y restricciones:
+
+- `unique([tenantId, segmentKey])`
+
+## AudioTemplate
+
+Tabla `decision_audio_template`.
+
+| Campo | Tipo | Atributos |
+| --- | --- | --- |
+| `id` | `BigInt` | @id @default(autoincrement()) |
+| `tenantId` | `BigInt` | @map("tenant_id") |
+| `code` | `String` | @db.VarChar(160) |
+| `version` | `Int` | @default(1) |
+| `strategy` | `AudioTemplateStrategy` | — |
+| `templateText` | `String` | @map("template_text") @db.Text |
+| `language` | `String?` | @db.VarChar(20) |
+| `fallbackTemplateCode` | `String?` | @map("fallback_template_code") @db.VarChar(160) |
+| `isActive` | `Boolean` | @default(true) @map("is_active") |
+| `createdAt` | `DateTime` | @default(now()) @map("created_at") @db.Timestamptz(6) |
+| `updatedAt` | `DateTime` | @updatedAt @map("updated_at") @db.Timestamptz(6) |
+
+Índices y restricciones:
+
+- `unique([tenantId, code])`
+
+## AudioTtsRun
+
+Tabla `decision_audio_tts_run`.
+
+| Campo | Tipo | Atributos |
+| --- | --- | --- |
+| `id` | `BigInt` | @id @default(autoincrement()) |
+| `tenantId` | `BigInt` | @map("tenant_id") |
+| `requestId` | `String` | @map("request_id") @db.VarChar(64) |
+| `idempotencyKey` | `String` | @map("idempotency_key") @db.VarChar(200) |
+| `status` | `WorkerRunStatus` | @default(QUEUED) |
+| `progress` | `Int` | @default(0) |
+| `inputSource` | `WorkerInputSource` | @map("input_source") |
+| `fixtureCode` | `String?` | @map("fixture_code") @db.VarChar(60) |
+| `templateCode` | `String` | @map("template_code") @db.VarChar(160) |
+| `variablesJson` | `Json?` | @map("variables_json") |
+| `language` | `String?` | @db.VarChar(20) |
+| `outcome` | `String?` | @db.VarChar(20) |
+| `assetId` | `String?` | @map("asset_id") @db.Uuid |
+| `cacheHit` | `Boolean` | @default(false) @map("cache_hit") |
+| `resultJson` | `Json?` | @map("result_json") |
+| `warningsJson` | `Json?` | @map("warnings_json") |
+| `errorCode` | `String?` | @map("error_code") @db.VarChar(120) |
+| `errorMessage` | `String?` | @map("error_message") @db.Text |
+| `attemptCount` | `Int` | @default(0) @map("attempt_count") |
+| `leaseExpiresAt` | `DateTime?` | @map("lease_expires_at") @db.Timestamptz(6) |
+| `queuedAt` | `DateTime` | @default(now()) @map("queued_at") @db.Timestamptz(6) |
+| `startedAt` | `DateTime?` | @map("started_at") @db.Timestamptz(6) |
+| `finishedAt` | `DateTime?` | @map("finished_at") @db.Timestamptz(6) |
+| `requestedBy` | `String` | @map("requested_by") @db.VarChar(160) |
+| `correlationId` | `String` | @map("correlation_id") @db.VarChar(64) |
+| `traceCarrier` | `Json?` | @map("trace_carrier") |
+
+Índices y restricciones:
+
+- `unique([tenantId, idempotencyKey])`
+- `unique([tenantId, requestId])`
+- `index([status, queuedAt])`
+- `index([tenantId, queuedAt])`
 
 ## BankStatementRun
 
@@ -278,6 +477,56 @@ Tabla `decision_calculated_field_version`.
 - `unique([calculatedFieldId, versionNumber])`
 - `index([calculatedFieldId, status])`
 
+## CalibrationBucket
+
+Tabla `calibration_bucket`.
+
+| Campo | Tipo | Atributos |
+| --- | --- | --- |
+| `id` | `BigInt` | @id @default(autoincrement()) |
+| `tenantId` | `BigInt` | @map("tenant_id") |
+| `artifactVersionId` | `BigInt` | @map("artifact_version_id") |
+| `windowDays` | `Int` | @map("window_days") |
+| `decile` | `Int` | — |
+| `predictedRate` | `Decimal` | @map("predicted_rate") @db.Decimal(9, 8) |
+| `observedRate` | `Decimal` | @map("observed_rate") @db.Decimal(9, 8) |
+| `sampleSize` | `Int` | @map("sample_size") |
+| `computedAt` | `DateTime` | @default(now()) @map("computed_at") @db.Timestamptz(6) |
+| `artifactVersion` | `DecisionArtifactVersion` | @relation(fields: [artifactVersionId], references: [id], onDelete: Cascade) |
+
+Índices y restricciones:
+
+- `unique([artifactVersionId, windowDays, decile])`
+- `index([tenantId, computedAt])`
+
+## CreditFacility
+
+Tabla `credit_facility`.
+
+| Campo | Tipo | Atributos |
+| --- | --- | --- |
+| `id` | `BigInt` | @id @default(autoincrement()) |
+| `tenantId` | `BigInt` | @map("tenant_id") |
+| `subjectId` | `BigInt` | @map("subject_id") |
+| `externalReference` | `String` | @map("external_reference") @db.VarChar(160) |
+| `originationExecutionId` | `BigInt?` | @map("origination_execution_id") |
+| `principalAmount` | `Decimal` | @map("principal_amount") @db.Decimal(18, 4) |
+| `currencyCode` | `String` | @map("currency_code") @db.VarChar(3) |
+| `termMonths` | `Int` | @map("term_months") |
+| `annualRate` | `Decimal` | @map("annual_rate") @db.Decimal(9, 6) |
+| `disbursedAt` | `DateTime?` | @map("disbursed_at") @db.Timestamptz(6) |
+| `closedAt` | `DateTime?` | @map("closed_at") @db.Timestamptz(6) |
+| `createdAt` | `DateTime` | @default(now()) @map("created_at") @db.Timestamptz(6) |
+| `subject` | `DecisionSubject` | @relation(fields: [subjectId], references: [id], onDelete: Restrict) |
+| `observations` | `DecisionOutcomeObservation[]` | — |
+| `windows` | `OutcomeWindowSchedule[]` | — |
+
+Índices y restricciones:
+
+- `unique([tenantId, externalReference])`
+- `index([tenantId, subjectId])`
+- `index([tenantId, disbursedAt])`
+
 ## DecisionAccessAudit
 
 Tabla `decision_access_audit`.
@@ -407,6 +656,7 @@ Tabla `decision_artifact`.
 | `ownerTeam` | `String` | @map("owner_team") @db.VarChar(100) |
 | `businessPurpose` | `String` | @map("business_purpose") @db.Text |
 | `riskDomain` | `String` | @map("risk_domain") @db.VarChar(50) |
+| `decisionKind` | `DecisionKind` | @default(ORIGINATION) @map("decision_kind") |
 | `isActive` | `Boolean` | @default(true) @map("is_active") |
 | `createdAt` | `DateTime` | @default(now()) @map("created_at") @db.Timestamptz(6) |
 | `updatedAt` | `DateTime` | @updatedAt @map("updated_at") @db.Timestamptz(6) |
@@ -490,6 +740,7 @@ Tabla `decision_artifact_variable_dependency`.
 | `isRequired` | `Boolean` | @default(true) @map("is_required") |
 | `fallbackPolicy` | `String` | @map("fallback_policy") @db.VarChar(50) |
 | `dependencyPath` | `String` | @map("dependency_path") @db.VarChar(500) |
+| `freshnessPolicy` | `FreshnessPolicy` | @default(DEGRADE) @map("freshness_policy") |
 | `artifactVersion` | `DecisionArtifactVersion` | @relation(fields: [artifactVersionId], references: [id], onDelete: Cascade) |
 | `variableVersion` | `DecisionVariableVersion` | @relation(fields: [variableVersionId], references: [id], onDelete: Restrict) |
 
@@ -515,6 +766,12 @@ Tabla `decision_artifact_version`.
 | `lockVersion` | `Int` | @default(1) @map("lock_version") |
 | `processingPurpose` | `String?` | @map("processing_purpose") @db.Text |
 | `legalBasis` | `ProcessingLegalBasis?` | @map("legal_basis") |
+| `subjectReferencePolicy` | `SubjectReferencePolicy?` | @map("subject_reference_policy") |
+| `subjectPolicyJustification` | `String?` | @map("subject_policy_justification") @db.Text |
+| `validatedBy` | `String?` | @map("validated_by") @db.VarChar(160) |
+| `validatedAt` | `DateTime?` | @map("validated_at") @db.Timestamptz(6) |
+| `revalidationDueAt` | `DateTime?` | @map("revalidation_due_at") @db.Timestamptz(6) |
+| `limitationsNotes` | `String?` | @map("limitations_notes") @db.Text |
 | `createdBy` | `String` | @map("created_by") @db.VarChar(160) |
 | `createdAt` | `DateTime` | @default(now()) @map("created_at") @db.Timestamptz(6) |
 | `submittedAt` | `DateTime?` | @map("submitted_at") @db.Timestamptz(6) |
@@ -541,6 +798,9 @@ Tabla `decision_artifact_version`.
 | `outputContractFields` | `DecisionOutputContractField[]` | — |
 | `calculatedFieldUses` | `DecisionArtifactCalculatedFieldUse[]` | — |
 | `qaGenerationRuns` | `QaGenerationRun[]` | — |
+| `monitoringBaselines` | `MonitoringBaseline[]` | — |
+| `monitoringEvaluations` | `MonitoringEvaluation[]` | — |
+| `calibrationBuckets` | `CalibrationBucket[]` | — |
 
 Índices y restricciones:
 
@@ -750,6 +1010,7 @@ Tabla `decision_environment`.
 | `status` | `String` | @default("ACTIVE") @db.VarChar(30) |
 | `isProduction` | `Boolean` | @default(false) @map("is_production") |
 | `createdAt` | `DateTime` | @default(now()) @map("created_at") @db.Timestamptz(6) |
+| `subjectReferencePolicy` | `SubjectReferencePolicy` | @default(WARN) @map("subject_reference_policy") |
 | `deployments` | `DecisionDeployment[]` | — |
 | `bindings` | `DecisionRuntimeBinding[]` | — |
 | `executions` | `DecisionExecution[]` | — |
@@ -769,6 +1030,9 @@ Tabla `decision_execution`.
 | `correlationId` | `String?` | @map("correlation_id") @db.VarChar(120) |
 | `idempotencyKey` | `String` | @map("idempotency_key") @db.VarChar(160) |
 | `subjectReferenceHash` | `String?` | @map("subject_reference_hash") @db.VarChar(128) |
+| `subjectId` | `BigInt?` | @map("subject_id") |
+| `subjectAbsenceReason` | `SubjectReferencePolicy?` | @map("subject_absence_reason") |
+| `degradedInputs` | `Boolean` | @default(false) @map("degraded_inputs") |
 | `inputSnapshotJson` | `Json` | @map("input_snapshot_json") |
 | `outputJson` | `Json?` | @map("output_json") |
 | `decisionStatus` | `ExecutionStatus` | @map("decision_status") |
@@ -778,6 +1042,7 @@ Tabla `decision_execution`.
 | `deployment` | `DecisionDeployment` | @relation(fields: [deploymentId], references: [id], onDelete: Restrict) |
 | `artifactVersion` | `DecisionArtifactVersion` | @relation(fields: [artifactVersionId], references: [id], onDelete: Restrict) |
 | `environment` | `DecisionEnvironment` | @relation(fields: [environmentId], references: [id], onDelete: Restrict) |
+| `subject` | `DecisionSubject?` | @relation(fields: [subjectId], references: [id], onDelete: SetNull) |
 | `variables` | `DecisionExecutionVariable[]` | — |
 | `steps` | `DecisionExecutionStep[]` | — |
 | `reasons` | `DecisionExecutionReason[]` | — |
@@ -785,12 +1050,14 @@ Tabla `decision_execution`.
 | `manualReview` | `DecisionManualReviewCase?` | — |
 | `outcomeObservations` | `DecisionOutcomeObservation[]` | — |
 | `monitoringAttributes` | `DecisionMonitoringAttribute[]` | — |
+| `outcomeWindows` | `OutcomeWindowSchedule[]` | — |
 
 Índices y restricciones:
 
 - `unique([tenantId, requestId])`
 - `index([tenantId, executedAt])`
 - `index([artifactVersionId, executedAt])`
+- `index([tenantId, subjectId, executedAt])`
 - `index([tenantId, subjectReferenceHash])`
 
 ## DecisionExecutionError
@@ -886,6 +1153,11 @@ Tabla `decision_execution_variable`.
 | `sourceCode` | `String` | @map("source_code") @db.VarChar(100) |
 | `resolutionStatus` | `String` | @map("resolution_status") @db.VarChar(50) |
 | `wasDefaulted` | `Boolean` | @default(false) @map("was_defaulted") |
+| `observedAt` | `DateTime?` | @map("observed_at") @db.Timestamptz(6) |
+| `fetchedAt` | `DateTime?` | @map("fetched_at") @db.Timestamptz(6) |
+| `sourceVersion` | `String?` | @map("source_version") @db.VarChar(60) |
+| `ageSeconds` | `Int?` | @map("age_seconds") |
+| `staleAccepted` | `Boolean` | @default(false) @map("stale_accepted") |
 | `execution` | `DecisionExecution` | @relation(fields: [executionId], references: [id], onDelete: Cascade) |
 | `variableVersion` | `DecisionVariableVersion` | @relation(fields: [variableVersionId], references: [id], onDelete: Restrict) |
 
@@ -1070,19 +1342,23 @@ Tabla `decision_outcome_observation`.
 | `id` | `BigInt` | @id @default(autoincrement()) |
 | `tenantId` | `BigInt` | @map("tenant_id") |
 | `executionId` | `BigInt` | @map("execution_id") |
+| `facilityId` | `BigInt?` | @map("facility_id") |
 | `windowDays` | `Int` | @map("window_days") |
 | `label` | `ObservedOutcomeLabel` | — |
 | `amount` | `Decimal?` | @db.Decimal(18, 4) |
 | `source` | `String` | @db.VarChar(120) |
+| `inferenceMethod` | `String?` | @map("inference_method") @db.VarChar(60) |
 | `notes` | `String?` | @db.Text |
 | `observedAt` | `DateTime` | @default(now()) @map("observed_at") @db.Timestamptz(6) |
 | `recordedBy` | `String` | @map("recorded_by") @db.VarChar(160) |
 | `execution` | `DecisionExecution` | @relation(fields: [executionId], references: [id], onDelete: Cascade) |
+| `facility` | `CreditFacility?` | @relation(fields: [facilityId], references: [id], onDelete: SetNull) |
 
 Índices y restricciones:
 
 - `unique([executionId, windowDays])`
 - `index([tenantId, observedAt])`
+- `index([tenantId, facilityId])`
 
 ## DecisionOutputContractField
 
@@ -1098,6 +1374,7 @@ Tabla `decision_output_contract_field`.
 | `description` | `String?` | @db.Text |
 | `sourceKind` | `OutputSourceKind` | @map("source_kind") |
 | `sourceRef` | `String` | @map("source_ref") @db.VarChar(500) |
+| `semanticRole` | `OutputSemanticRole` | @default(NONE) @map("semantic_role") |
 | `valueMappingJson` | `Json?` | @map("value_mapping_json") |
 | `absenceReasons` | `String[]` | @map("absence_reasons") |
 | `exampleJson` | `Json?` | @map("example_json") |
@@ -1271,6 +1548,28 @@ Tabla `decision_runtime_binding`.
 
 - `unique([tenantId, artifactCode, environmentId, bindingKey])`
 - `index([tenantId, artifactCode, environmentId])`
+
+## DecisionSubject
+
+Tabla `decision_subject`.
+
+| Campo | Tipo | Atributos |
+| --- | --- | --- |
+| `id` | `BigInt` | @id @default(autoincrement()) |
+| `tenantId` | `BigInt` | @map("tenant_id") |
+| `subjectReferenceHash` | `String` | @map("subject_reference_hash") @db.VarChar(128) |
+| `firstSeenAt` | `DateTime` | @default(now()) @map("first_seen_at") @db.Timestamptz(6) |
+| `lastSeenAt` | `DateTime` | @default(now()) @updatedAt @map("last_seen_at") @db.Timestamptz(6) |
+| `decisionCount` | `Int` | @default(0) @map("decision_count") |
+| `executions` | `DecisionExecution[]` | — |
+| `facilities` | `CreditFacility[]` | — |
+| `consents` | `SubjectConsent[]` | — |
+| `reidentifications` | `ReidentificationRequest[]` | — |
+
+Índices y restricciones:
+
+- `unique([tenantId, subjectReferenceHash])`
+- `index([tenantId, lastSeenAt])`
 
 ## DecisionTestAssertion
 
@@ -1514,6 +1813,72 @@ Tabla `decision_version_status_history`.
 
 - `index([artifactVersionId, changedAt])`
 
+## ExposureLimit
+
+Tabla `exposure_limit`.
+
+| Campo | Tipo | Atributos |
+| --- | --- | --- |
+| `id` | `BigInt` | @id @default(autoincrement()) |
+| `tenantId` | `BigInt` | @map("tenant_id") |
+| `limitCode` | `String` | @map("limit_code") @db.VarChar(60) |
+| `segment` | `String` | @default("") @db.VarChar(120) |
+| `maxValue` | `Decimal` | @map("max_value") @db.Decimal(18, 4) |
+| `currencyCode` | `String` | @map("currency_code") @db.VarChar(3) |
+| `enforced` | `Boolean` | @default(false) |
+| `isActive` | `Boolean` | @default(true) @map("is_active") |
+| `createdAt` | `DateTime` | @default(now()) @map("created_at") @db.Timestamptz(6) |
+| `createdBy` | `String` | @map("created_by") @db.VarChar(160) |
+
+Índices y restricciones:
+
+- `unique([tenantId, limitCode, segment])`
+- `index([tenantId, isActive])`
+
+## IdentityVerificationRun
+
+Tabla `decision_identity_verification_run`.
+
+| Campo | Tipo | Atributos |
+| --- | --- | --- |
+| `id` | `BigInt` | @id @default(autoincrement()) |
+| `tenantId` | `BigInt` | @map("tenant_id") |
+| `requestId` | `String` | @map("request_id") @db.VarChar(64) |
+| `status` | `WorkerRunStatus` | @default(QUEUED) |
+| `progress` | `Int` | @default(0) |
+| `inputSource` | `WorkerInputSource` | @map("input_source") |
+| `fixtureCode` | `String?` | @map("fixture_code") @db.VarChar(60) |
+| `inputHash` | `String` | @map("input_hash") @db.Char(64) |
+| `documentCountry` | `String` | @map("document_country") @db.VarChar(2) |
+| `documentFileName` | `String` | @map("document_file_name") @db.VarChar(255) |
+| `selfieFileName` | `String` | @map("selfie_file_name") @db.VarChar(255) |
+| `imageSizeBytes` | `Int` | @map("image_size_bytes") |
+| `documentBytes` | `Bytes?` | @map("document_bytes") |
+| `documentBackBytes` | `Bytes?` | @map("document_back_bytes") |
+| `selfieBytes` | `Bytes?` | @map("selfie_bytes") |
+| `resultJson` | `Json?` | @map("result_json") |
+| `warningsJson` | `Json?` | @map("warnings_json") |
+| `decision` | `String?` | @db.VarChar(30) |
+| `documentType` | `String?` | @map("document_type") @db.VarChar(30) |
+| `similarityScore` | `Decimal?` | @map("similarity_score") @db.Decimal(4, 3) |
+| `errorCode` | `String?` | @map("error_code") @db.VarChar(120) |
+| `errorMessage` | `String?` | @map("error_message") @db.Text |
+| `attemptCount` | `Int` | @default(0) @map("attempt_count") |
+| `leaseExpiresAt` | `DateTime?` | @map("lease_expires_at") @db.Timestamptz(6) |
+| `queuedAt` | `DateTime` | @default(now()) @map("queued_at") @db.Timestamptz(6) |
+| `startedAt` | `DateTime?` | @map("started_at") @db.Timestamptz(6) |
+| `finishedAt` | `DateTime?` | @map("finished_at") @db.Timestamptz(6) |
+| `requestedBy` | `String` | @map("requested_by") @db.VarChar(160) |
+| `correlationId` | `String` | @map("correlation_id") @db.VarChar(64) |
+| `traceCarrier` | `Json?` | @map("trace_carrier") |
+
+Índices y restricciones:
+
+- `unique([tenantId, inputHash])`
+- `unique([tenantId, requestId])`
+- `index([status, queuedAt])`
+- `index([tenantId, queuedAt])`
+
 ## IntegrationClient
 
 Tabla `integration_client`.
@@ -1589,6 +1954,51 @@ Tabla `integration_tenant_access`.
 - `unique([clientId, tenantId])`
 - `index([tenantId])`
 
+## MonitoringBaseline
+
+Tabla `monitoring_baseline`.
+
+| Campo | Tipo | Atributos |
+| --- | --- | --- |
+| `id` | `BigInt` | @id @default(autoincrement()) |
+| `tenantId` | `BigInt` | @map("tenant_id") |
+| `artifactVersionId` | `BigInt` | @map("artifact_version_id") |
+| `variableCode` | `String` | @map("variable_code") @db.VarChar(120) |
+| `bucketsJson` | `Json` | @map("buckets_json") |
+| `sampleSize` | `Int` | @map("sample_size") |
+| `capturedAt` | `DateTime` | @default(now()) @map("captured_at") @db.Timestamptz(6) |
+| `capturedBy` | `String` | @map("captured_by") @db.VarChar(160) |
+| `artifactVersion` | `DecisionArtifactVersion` | @relation(fields: [artifactVersionId], references: [id], onDelete: Cascade) |
+
+Índices y restricciones:
+
+- `unique([artifactVersionId, variableCode])`
+- `index([tenantId, capturedAt])`
+
+## MonitoringEvaluation
+
+Tabla `monitoring_evaluation`.
+
+| Campo | Tipo | Atributos |
+| --- | --- | --- |
+| `id` | `BigInt` | @id @default(autoincrement()) |
+| `tenantId` | `BigInt` | @map("tenant_id") |
+| `artifactVersionId` | `BigInt` | @map("artifact_version_id") |
+| `metricCode` | `String` | @map("metric_code") @db.VarChar(60) |
+| `scope` | `String` | @db.VarChar(120) |
+| `value` | `Decimal` | @db.Decimal(18, 8) |
+| `threshold` | `Decimal` | @db.Decimal(18, 8) |
+| `verdict` | `MonitoringVerdict` | — |
+| `sampleSize` | `Int` | @map("sample_size") |
+| `detailsJson` | `Json?` | @map("details_json") |
+| `evaluatedAt` | `DateTime` | @default(now()) @map("evaluated_at") @db.Timestamptz(6) |
+| `artifactVersion` | `DecisionArtifactVersion` | @relation(fields: [artifactVersionId], references: [id], onDelete: Cascade) |
+
+Índices y restricciones:
+
+- `index([tenantId, artifactVersionId, metricCode, evaluatedAt])`
+- `index([tenantId, verdict, evaluatedAt])`
+
 ## Notification
 
 Tabla `decision_notification`.
@@ -1615,6 +2025,27 @@ Tabla `decision_notification`.
 
 - `index([tenantId, recipientRole, readAt, id])`
 - `index([tenantId, recipientId, readAt, id])`
+
+## OutcomeWindowSchedule
+
+Tabla `outcome_window_schedule`.
+
+| Campo | Tipo | Atributos |
+| --- | --- | --- |
+| `id` | `BigInt` | @id @default(autoincrement()) |
+| `tenantId` | `BigInt` | @map("tenant_id") |
+| `executionId` | `BigInt` | @map("execution_id") |
+| `facilityId` | `BigInt?` | @map("facility_id") |
+| `windowDays` | `Int` | @map("window_days") |
+| `dueAt` | `DateTime` | @map("due_at") @db.Timestamptz(6) |
+| `observedAt` | `DateTime?` | @map("observed_at") @db.Timestamptz(6) |
+| `execution` | `DecisionExecution` | @relation(fields: [executionId], references: [id], onDelete: Cascade) |
+| `facility` | `CreditFacility?` | @relation(fields: [facilityId], references: [id], onDelete: SetNull) |
+
+Índices y restricciones:
+
+- `unique([executionId, windowDays])`
+- `index([tenantId, dueAt, observedAt])`
 
 ## PolicyArtifactLink
 
@@ -1668,6 +2099,25 @@ Tabla `decision_policy_test_link`.
 Índices y restricciones:
 
 - `unique([policyRequirementId, testSuiteId])`
+
+## PortfolioState
+
+Tabla `portfolio_state`.
+
+| Campo | Tipo | Atributos |
+| --- | --- | --- |
+| `id` | `BigInt` | @id @default(autoincrement()) |
+| `tenantId` | `BigInt` | @map("tenant_id") |
+| `asOf` | `DateTime` | @map("as_of") @db.Timestamptz(6) |
+| `metricCode` | `String` | @map("metric_code") @db.VarChar(60) |
+| `segment` | `String` | @default("") @db.VarChar(120) |
+| `value` | `Decimal` | @db.Decimal(18, 4) |
+| `recordedBy` | `String` | @map("recorded_by") @db.VarChar(160) |
+
+Índices y restricciones:
+
+- `unique([tenantId, asOf, metricCode, segment])`
+- `index([tenantId, metricCode, asOf])`
 
 ## ProcessedEvent
 
@@ -1741,6 +2191,29 @@ Tabla `decision_qa_generation_run`.
 Índices y restricciones:
 
 - `index([tenantId, artifactVersionId, startedAt])`
+
+## ReidentificationRequest
+
+Tabla `reidentification_request`.
+
+| Campo | Tipo | Atributos |
+| --- | --- | --- |
+| `id` | `BigInt` | @id @default(autoincrement()) |
+| `tenantId` | `BigInt` | @map("tenant_id") |
+| `subjectId` | `BigInt` | @map("subject_id") |
+| `purpose` | `String` | @db.Text |
+| `status` | `ReidentificationStatus` | @default(REQUESTED) |
+| `requestedBy` | `String` | @map("requested_by") @db.VarChar(160) |
+| `requestedAt` | `DateTime` | @default(now()) @map("requested_at") @db.Timestamptz(6) |
+| `decidedBy` | `String?` | @map("decided_by") @db.VarChar(160) |
+| `decidedAt` | `DateTime?` | @map("decided_at") @db.Timestamptz(6) |
+| `consumedAt` | `DateTime?` | @map("consumed_at") @db.Timestamptz(6) |
+| `subject` | `DecisionSubject` | @relation(fields: [subjectId], references: [id], onDelete: Cascade) |
+
+Índices y restricciones:
+
+- `index([tenantId, status, requestedAt])`
+- `index([tenantId, subjectId])`
 
 ## RuntimeIdempotency
 
@@ -1881,6 +2354,62 @@ Tabla `decision_semantic_tenant_budget`.
 Índices y restricciones:
 
 - `unique([tenantId, windowStart])`
+
+## SubjectConsent
+
+Tabla `subject_consent`.
+
+| Campo | Tipo | Atributos |
+| --- | --- | --- |
+| `id` | `BigInt` | @id @default(autoincrement()) |
+| `tenantId` | `BigInt` | @map("tenant_id") |
+| `subjectId` | `BigInt` | @map("subject_id") |
+| `purpose` | `String` | @db.VarChar(120) |
+| `basis` | `ProcessingLegalBasis` | — |
+| `grantedAt` | `DateTime` | @map("granted_at") @db.Timestamptz(6) |
+| `expiresAt` | `DateTime?` | @map("expires_at") @db.Timestamptz(6) |
+| `revokedAt` | `DateTime?` | @map("revoked_at") @db.Timestamptz(6) |
+| `evidenceRef` | `String?` | @map("evidence_ref") @db.VarChar(200) |
+| `recordedBy` | `String` | @map("recorded_by") @db.VarChar(160) |
+| `subject` | `DecisionSubject` | @relation(fields: [subjectId], references: [id], onDelete: Cascade) |
+
+Índices y restricciones:
+
+- `unique([tenantId, subjectId, purpose])`
+- `index([tenantId, expiresAt])`
+
+## UnresolvedClassification
+
+Tabla `decision_unresolved_classification`.
+
+| Campo | Tipo | Atributos |
+| --- | --- | --- |
+| `id` | `BigInt` | @id @default(autoincrement()) |
+| `tenantId` | `BigInt` | @map("tenant_id") |
+| `rawValue` | `String` | @map("raw_value") @db.Text |
+| `normalizedValue` | `String` | @map("normalized_value") @db.VarChar(500) |
+| `source` | `String` | @db.VarChar(120) |
+| `context` | `Json` | @default("{}") |
+| `suggestedCategoryCode` | `String?` | @map("suggested_category_code") @db.VarChar(120) |
+| `confidence` | `Decimal?` | @db.Decimal(4, 3) |
+| `alternatives` | `Json` | @default("[]") |
+| `occurrenceCount` | `Int` | @default(1) @map("occurrence_count") |
+| `firstSeenAt` | `DateTime` | @default(now()) @map("first_seen_at") @db.Timestamptz(6) |
+| `lastSeenAt` | `DateTime` | @default(now()) @map("last_seen_at") @db.Timestamptz(6) |
+| `status` | `String` | @default("PENDING") @db.VarChar(20) |
+| `resolvedCategoryCode` | `String?` | @map("resolved_category_code") @db.VarChar(120) |
+| `resolvedBy` | `String?` | @map("resolved_by") @db.VarChar(160) |
+| `resolvedAt` | `DateTime?` | @map("resolved_at") @db.Timestamptz(6) |
+| `resolutionType` | `String?` | @map("resolution_type") @db.VarChar(30) |
+| `metadata` | `Json` | @default("{}") |
+| `createdAt` | `DateTime` | @default(now()) @map("created_at") @db.Timestamptz(6) |
+| `updatedAt` | `DateTime` | @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6) |
+
+Índices y restricciones:
+
+- `unique([tenantId, source, normalizedValue])`
+- `index([tenantId, status, occurrenceCount])`
+- `index([tenantId, status, lastSeenAt])`
 
 ## UserTutorialProgress
 

@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/calculated-fields/`](https://github.com/) · 12 ficheros TypeScript.
+Código: [`src/modules/calculated-fields/`](https://github.com/) · 14 ficheros TypeScript.
 
 Etiquetas de API: **Calculated Fields**.
 
@@ -19,6 +19,11 @@ Etiquetas de API: **Calculated Fields**.
 | `GET` | `/v1/calculated-fields/{fieldId}` | `calculatedFieldGet` | Detalle de un campo calculado con todas sus versiones |
 | `POST` | `/v1/calculated-fields/{fieldId}/versions` | `calculatedFieldCreateVersion` | Crear una versión con su contrato de retorno e implementación |
 | `GET` | `/v1/calculated-fields/operations` | `calculatedFieldOperations` | Catálogo de operaciones del constructor visual |
+| `POST` | `/v1/calculated-fields/preview/outcomes` | `calculatedFieldPreviewOutcomes` | Qué desenlaces del contrato alcanza un borrador |
+| `POST` | `/v1/calculated-fields/preview/sample-inputs` | `calculatedFieldPreviewSampleInputs` | Generar entradas de ejemplo de un borrador, sin ejecutarlas |
+| `POST` | `/v1/calculated-fields/preview/test` | `calculatedFieldPreviewTest` | Ejecutar los casos de prueba declarados en el borrador |
+| `POST` | `/v1/calculated-fields/preview/try` | `calculatedFieldPreviewTry` | Ejecutar un borrador de versión sin crearlo |
+| `POST` | `/v1/calculated-fields/versions/{versionId}/outcomes` | `calculatedFieldOutcomes` | Qué desenlaces del contrato alcanza una versión guardada |
 | `POST` | `/v1/calculated-fields/versions/{versionId}/promote` | `calculatedFieldPromote` | Promover una versión en su ciclo de gobierno |
 | `POST` | `/v1/calculated-fields/versions/{versionId}/sample-inputs` | `calculatedFieldSampleInputs` | Generar entradas de ejemplo del contrato de la versión, sin ejecutarlas |
 | `POST` | `/v1/calculated-fields/versions/{versionId}/test` | `calculatedFieldTest` | Ejecutar los casos de prueba declarados de la versión |
@@ -58,6 +63,10 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `PLATFOR
 - `CalculatedFieldExecutorService`
 - `CalculatedFieldInputDto`
 - `CalculatedFieldListItemDto`
+- `CalculatedFieldOutcomeCoverageDto`
+- `CalculatedFieldOutcomeCoverageReportDto`
+- `CalculatedFieldPreviewService`
+- `CalculatedFieldPreviewTryRunDto`
 - `CalculatedFieldPromotedDto`
 - `CalculatedFieldQueryDto`
 - `CalculatedFieldReturnDto`
@@ -70,6 +79,10 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `PLATFOR
 - `CreateCalculatedFieldDto`
 - `CreateCalculatedFieldVersionDto`
 - `OperationCatalogDto`
+- `PreviewCalculatedFieldDto`
+- `PreviewOutcomeCoverageDto`
+- `PreviewSampleCalculatedFieldInputsDto`
+- `PreviewTryCalculatedFieldDto`
 - `PromoteCalculatedFieldVersionDto`
 - `SampleCalculatedFieldInputsDto`
 - `TryCalculatedFieldDto`

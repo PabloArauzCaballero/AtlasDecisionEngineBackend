@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/artifacts/`](https://github.com/) · 11 ficheros TypeScript.
+Código: [`src/modules/artifacts/`](https://github.com/) · 12 ficheros TypeScript.
 
 Etiquetas de API: **Decision Artifacts**.
 
@@ -90,6 +90,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `NodeConditionBindingDto`
 - `NodeDto`
 - `OutputContractFieldDto`
+- `PdfArtifactContractAdapter`
 - `ProcessingBasisDto`
 - `ProcessingBasisResultDto`
 - `ReplaceGraphDto`

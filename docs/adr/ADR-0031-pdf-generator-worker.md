@@ -82,3 +82,58 @@ marca, imprimir, opcionalmente almacenar y publicar el hecho.
   membrete y el pie se pintaran encima del texto**: el HTML era correcto y el PDF tenía su firma,
   su tamaño y sus páginas. Queda registrado porque es la clase de defecto que ninguna aserción
   sobre bytes puede ver.
+
+## Autenticación (añadido tras la auditoría del 13/08/2026)
+
+Este ADR no decía nada sobre autenticación, y esa omisión no era neutral: se materializó en el
+código como «ninguna».
+
+Auditando el contenedor en marcha se midió esto:
+
+```
+GET  :3000/pdf/templates  → 200 sólo con credencial (401 sin ella)
+GET  :3100/pdf/templates  → 200 SIN credencial, con el catálogo entero
+POST :3100/pdf/generate   → 422, no 401 — o sea, un cuerpo vacío llegó al validador
+```
+
+El mismo `PdfWorkerModule` tenía **dos posturas de seguridad opuestas según cómo se arrancara**.
+Dentro del motor lo cubría el `APP_GUARD` del anfitrión; suelto no lo cubría nada, porque
+`src/pdf-worker.ts` monta el módulo y ninguno de sus controladores lleva `@UseGuards`. El único
+guardia del árbol, `TemplateAdminGuard`, sólo protege `/pdf/admin/*`.
+
+Agravado por tres cosas del mismo arranque: el puerto se publicaba en `0.0.0.0` (el resto del
+stack se ata a `127.0.0.1`), faltaban `helmet` y `enableCors` —presentes en `main.ts`—, y Swagger
+estaba encendido por omisión en el código, apagado sólo porque el compose fijaba la variable.
+
+### Decisión
+
+1. **`ServiceAuthGuard` como `APP_GUARD`, únicamente en modo suelto**
+   (`PdfWorkerModule.register({ standalone: true })`). Global y no colgado de cada controlador:
+   así uno nuevo nace protegido en vez de nacer abierto y esperar a que alguien recuerde el
+   decorador, que es exactamente cómo se llegó aquí.
+2. **Encendido por omisión**, al revés que la administración de templates. Aquélla es una
+   capacidad que la mayoría de despliegues no usa; ésta es el suelo.
+3. **Sin clave, el arranque aborta.** No degrada a modo abierto: un servicio que se abre solo
+   cuando le falta la clave es un servicio sin autenticación con pasos extra.
+4. **La exigencia NO vive en el esquema de entorno** sino en `assertServiceAuthConfigured()`.
+   `loadPdfWorkerEnv()` también corre cuando el módulo va dentro del motor, donde no hay clave
+   porque autentica el anfitrión; exigirla allí habría impedido arrancar el motor entero por una
+   credencial que nunca iba a usar. Un endurecimiento que rompe el caso bueno no es
+   endurecimiento.
+5. **`GET /pdf/health` queda fuera de la puerta**, por ruta completa y no por prefijo: es la
+   sonda del contenedor —el `HEALTHCHECK` la llama sin cabeceras— y publica estado de vida, no
+   datos. Con `startsWith`, un futuro `/pdf/healthcheck-dump` entraría solo por parecerse.
+
+### Lo que esta decisión NO resuelve
+
+Cuando el portal desvía `pdf/generate` y `pdf/preview` al worker (`PDF_WORKER_URL`), esas dos
+operaciones **no pasan por el interceptor de auditoría de acceso del motor**. Un documento
+generado por esa vía no deja la traza que sí deja el resto. Queda anotado como deuda: la
+alternativa —que el motor haga de intermediario— reintroduce el acoplamiento que este ADR
+existe para evitar, así que la salida probable es que el worker emita su propio evento de
+auditoría.
+
+### Verificación
+
+`test/pdf-service-auth.spec.ts` fija las cuatro afirmaciones: sin clave se rechaza, con la clave
+correcta se pasa, la sonda sigue abierta, y declararse suelto sin clave aborta el arranque.

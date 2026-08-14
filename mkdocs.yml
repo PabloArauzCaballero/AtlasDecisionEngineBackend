@@ -245,8 +245,17 @@ nav:
       - ADR-0027 Selección de tecnología de mensajería: adr/ADR-0027-messaging-technology-selection.md
       - ADR-0028 Nodos que llaman a un worker: adr/ADR-0028-worker-service-nodes.md
       - ADR-0029 Persistencia desacoplada y rutas read/write: adr/ADR-0029-polyglot-persistence-read-write.md
+      - ADR-0030 Worker de verificación de identidad: adr/ADR-0030-identity-verification-worker.md
+      - ADR-0031 Worker generador de PDF: adr/ADR-0031-pdf-generator-worker.md
   # Espejo generado de `.claude/rules/`, que es la fuente canónica porque la herramienta de
   # asistencia las carga desde ahí por ruta de archivo. Se regenera con `yarn docs:vault`.
+  # El generador documental se despliega como servicio aparte y tiene su propia superficie,
+  # su propio contrato y su propia evidencia visual. Sin estas tres entradas los documentos
+  # existían y no había forma de llegar a ellos desde la navegación.
+  - Generador documental:
+      - Visión general: pdf-worker/README.md
+      - Integración: pdf-worker/integracion.md
+      - Evidencia visual: pdf-worker/evidencia/README.md
   - Reglas de diseño:
       - Índice: design-rules/index.md
       - Gobernanza y precedencia: design-rules/00-governance.md

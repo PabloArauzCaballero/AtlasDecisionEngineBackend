@@ -3,7 +3,7 @@
 
 # Variables de entorno
 
-159 variables declaradas. El esquema se valida al arrancar: un valor ausente o
+246 variables declaradas. El esquema se valida al arrancar: un valor ausente o
 fuera de rango impide el arranque en vez de degradar el comportamiento en caliente.
 
 | Variable | Obligatoria | Valor por defecto | Para qué |
@@ -53,8 +53,14 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `JWT_CLOCK_SKEW_SECONDS` | no | `30` | — |
 | `IDENTITY_PROVIDER_URL` | no | — | — |
 | `IDENTITY_PROVIDER_TIMEOUT_MS` | no | `3_000` | — |
-| `IDENTITY_PROVIDER_RETRY_ATTEMPTS` | no | `2` | Retries only for transient failures (network error / timeout / 502-503-504), never for a rejected credential. Shields login from the brief window where the provider dev server is restarting (build-and-watch). 0 disables retries. |
+| `IDENTITY_PROVIDER_LOGIN_TIMEOUT_MS` | **sí** | — | — |
+| `IDENTITY_PROVIDER_RETRY_ATTEMPTS` | no | `2` | Retries only for transient failures (connection refused / 502-503-504), never for a rejected credential and never for a timeout, which does not prove the request failed to arrive. Shields login from the brief window where the provider dev server is restarting (build-and-watch). 0 disables retries. |
 | `IDENTITY_PROVIDER_RETRY_BACKOFF_MS` | no | `300` | — |
+| `UNRESOLVED_HIGH_CONFIDENCE` | no | `0.9` | — |
+| `UNRESOLVED_MEDIUM_CONFIDENCE` | no | `0.6` | — |
+| `UNRESOLVED_AUTO_CLOSE_FLOOR` | no | `0.75` | — |
+| `UNRESOLVED_AUTO_RESOLVE_ENABLED` | no | `false` | — |
+| `IDENTITY_PROVIDER_CACHE_TTL_SECONDS` | no | `10` | — |
 | `IDENTITY_REFRESH_COOKIE_NAME` | **sí** | — | — |
 | `IDENTITY_REFRESH_COOKIE_MAX_AGE_SECONDS` | **sí** | — | — |
 | `IDENTITY_SESSION_RATE_LIMIT` | no | `20` | — |
@@ -126,6 +132,87 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `BANK_STATEMENT_MAX_ATTEMPTS` | no | `3` | — |
 | `BANK_STATEMENT_MAX_UPLOAD_BYTES` | **sí** | — | 10 MiB. Acota a la vez la memoria del worker y el tamaño de la fila, porque el documento se guarda en la propia base (ADR-0026). |
 | `BANK_STATEMENT_TIMEOUT_MS` | no | `60_000` | Un PDF hostil puede hacer trabajar al lector indefinidamente. El presupuesto corta el job, no el proceso. |
+| `IDENTITY_VERIFICATION_WORKER_ENABLED` | no | `false` | --- Worker C: verificación de identidad (ADR-0026) --------------------- |
+| `IDENTITY_WORKER_POLL_MS` | no | `500` | — |
+| `IDENTITY_WORKER_MAX_POLL_MS` | no | `30_000` | — |
+| `IDENTITY_RECOVERY_INTERVAL_MS` | no | `30_000` | — |
+| `IDENTITY_WORKER_CONCURRENCY` | no | `2` | Cada job carga tres imágenes en memoria y las remuestrea con `sharp`, que reserva su propio búfer: la misma cota que el worker de extractos. |
+| `IDENTITY_LEASE_SECONDS` | no | `300` | — |
+| `IDENTITY_MAX_ATTEMPTS` | no | `3` | — |
+| `IDENTITY_MAX_UPLOAD_BYTES` | **sí** | — | Por IMAGEN, no por petición: 10 MiB es lo que pesa una foto de un móvil moderno sin recortar. |
+| `IDENTITY_DEFAULT_DOCUMENT_COUNTRY` | no | `'BO'` | — |
+| `IDENTITY_MATCH_THRESHOLD` | no | — | — |
+| `IDENTITY_REVIEW_THRESHOLD` | no | — | — |
+| `IDENTITY_THRESHOLD_PROFILE_VERSION` | no | `'unconfigured'` | — |
+| `IDENTITY_MIN_DOCUMENT_QUALITY` | no | `0.5` | — |
+| `IDENTITY_MIN_SELFIE_QUALITY` | no | `0.5` | — |
+| `IDENTITY_MIN_FACE_AREA_RATIO` | no | `0.012` | — |
+| `IDENTITY_DOCUMENT_EXPIRY_GRACE_DAYS` | no | `0` | — |
+| `IDENTITY_MAX_IMAGE_PIXELS` | **sí** | — | — |
+| `IDENTITY_MIN_IMAGE_WIDTH` | no | `480` | — |
+| `IDENTITY_MIN_IMAGE_HEIGHT` | no | `480` | — |
+| `IDENTITY_MIN_IMAGE_PIXELS` | no | `230_400` | — |
+| `IDENTITY_MIN_READABLE_LONG_EDGE` | no | `240` | — |
+| `IDENTITY_MIN_READABLE_SHORT_EDGE` | no | `150` | — |
+| `IDENTITY_FACE_CROP_PADDING_RATIO` | no | `0.25` | — |
+| `IDENTITY_MIN_DOCUMENT_FACE_PX` | no | `80` | — |
+| `IDENTITY_LIVENESS_ENABLED` | no | `true` | — |
+| `IDENTITY_LIVENESS_PASS_SCORE` | no | `0.55` | — |
+| `IDENTITY_LIVENESS_FAIL_SCORE` | no | `0.35` | — |
+| `IDENTITY_ACCEPT_NO_LIVENESS_RISK` | no | `false` | — |
+| `IDENTITY_DOCUMENT_CLASSIFICATION_ENABLED` | no | `true` | — |
+| `IDENTITY_OCR_PROVIDER` | no | `'tesseract'` | — |
+| `IDENTITY_FACE_PROVIDER` | no | `'human'` | — |
+| `IDENTITY_LIVENESS_PROVIDER` | no | `'human'` | — |
+| `AUDIO_TTS_WORKER_ENABLED` | no | `false` | --- Worker D: locución (ADR-0026) --------------------------------------  El único de los cuatro que puede COSTAR DINERO por ejecución, y eso marca casi todas las variables que siguen: hay un presupuesto mensual, un techo por persona y día, y una puerta aparte para permitir generar bajo demanda. |
+| `AUDIO_TTS_PROVIDER` | no | `'disabled'` | — |
+| `AUDIO_TTS_ALLOW_RUNTIME_GENERATION` | no | `false` | — |
+| `AUDIO_TTS_PROD_LICENSE_CONFIRMED` | no | `false` | — |
+| `AUDIO_TTS_DEFAULT_LANGUAGE` | no | `'es-419'` | — |
+| `AUDIO_TTS_DEFAULT_FORMAT` | no | `'mp3_44100_128'` | — |
+| `AUDIO_TTS_SAMPLE_RATE` | no | `44_100` | — |
+| `AUDIO_TTS_VOICE_PROFILE` | no | `'brand_es_latam_v1'` | — |
+| `AUDIO_TTS_VOICE_VERSION` | no | `1` | — |
+| `AUDIO_TTS_MODEL` | no | `'eleven_v3'` | — |
+| `AUDIO_TTS_GLOBAL_FALLBACK_TEMPLATE` | **sí** | — | — |
+| `AUDIO_TTS_MAX_TEXT_LENGTH` | no | `5_000` | — |
+| `AUDIO_TTS_MONTHLY_BUDGET_UNITS` | **sí** | — | Presupuesto. Un 0 en el límite por actor significa BLOQUEADO, no ilimitado: un valor por omisión inseguro nunca debe abrir la puerta. |
+| `AUDIO_TTS_SAFETY_RESERVE_UNITS` | **sí** | — | — |
+| `AUDIO_TTS_RUNTIME_GENERATIONS_PER_ACTOR_DAY` | **sí** | — | — |
+| `AUDIO_TTS_ACTOR_LIMIT_UNLIMITED` | no | `false` | — |
+| `AUDIO_TTS_REQUEST_TIMEOUT_MS` | no | `10_000` | Red y resiliencia frente al proveedor. |
+| `AUDIO_TTS_MAX_RESPONSE_BYTES` | **sí** | — | — |
+| `AUDIO_TTS_MIN_RESPONSE_BYTES` | no | `256` | — |
+| `AUDIO_TTS_HTTP_MAX_RETRIES` | no | `0` | — |
+| `AUDIO_TTS_RETRY_BASE_MS` | no | `500` | — |
+| `AUDIO_TTS_MAX_CONCURRENCY` | no | `2` | — |
+| `AUDIO_TTS_MAX_REQUESTS_PER_SECOND` | no | `2` | — |
+| `AUDIO_TTS_REPLICA_COUNT` | no | `1` | — |
+| `AUDIO_TTS_BULKHEAD_QUEUE_SIZE` | no | `16` | — |
+| `AUDIO_TTS_BULKHEAD_WAIT_MS` | no | `15_000` | — |
+| `AUDIO_TTS_CB_FAILURE_THRESHOLD` | no | `5` | — |
+| `AUDIO_TTS_CB_OPEN_MS` | no | `30_000` | — |
+| `AUDIO_TTS_DATA_KEY` | no | `''` | — |
+| `AUDIO_TTS_DATA_KEY_ID` | **sí** | — | — |
+| `AUDIO_TTS_DATA_KEYS_PREVIOUS` | no | `''` | — |
+| `ELEVENLABS_API_KEY` | no | `''` | — |
+| `ELEVENLABS_BASE_URL` | no | `'https://api.elevenlabs.io'` | — |
+| `ELEVENLABS_VOICE_ID` | no | `''` | — |
+| `ELEVENLABS_MODEL_ID` | no | `''` | — |
+| `ELEVENLABS_OUTPUT_FORMAT` | no | `''` | — |
+| `ELEVENLABS_VOICE_STABILITY` | no | `0.5` | — |
+| `ELEVENLABS_VOICE_SIMILARITY_BOOST` | no | `0.75` | — |
+| `ELEVENLABS_VOICE_STYLE` | no | `0` | — |
+| `ELEVENLABS_VOICE_SPEAKER_BOOST` | no | `true` | — |
+| `AUDIO_TTS_WORKER_POLL_MS` | no | `500` | Ciclo de vida del trabajo, con la misma forma que los otros tres workers. |
+| `AUDIO_TTS_WORKER_MAX_POLL_MS` | no | `30_000` | — |
+| `AUDIO_TTS_RECOVERY_INTERVAL_MS` | no | `30_000` | — |
+| `AUDIO_TTS_WORKER_CONCURRENCY` | no | `2` | Más baja que la de los otros workers: lo que limita aquí no es la memoria del motor sino las peticiones por segundo que admite el proveedor. |
+| `AUDIO_TTS_LEASE_SECONDS` | no | `300` | — |
+| `AUDIO_TTS_MAX_ATTEMPTS` | no | `3` | — |
+| `AUDIO_STORAGE_DRIVER` | no | `'database'` | `database` guarda los bytes en la propia base, como el resto de workers guarda su carga útil; `local` es el adaptador de disco del paquete, para desarrollo. El adaptador S3 del paquete no se absorbió. |
+| `AUDIO_LOCAL_STORAGE_PATH` | no | `'.local/audio-assets'` | — |
+| `AUDIO_SEGMENT_CACHE_ENABLED` | no | `false` | — |
 | `WORKERS_FIXTURES_ENABLED` | no | `false` | Los escenarios de prueba son sintéticos, pero crean ejecuciones reales. En producción están apagados para que no contaminen la operación. |
 | `SCRIPT_NODES_ENABLED` | no | `false` | — |
 | `SCRIPT_RUNNER_MODE` | no | `'IN_PROCESS'` | — |
