@@ -77,6 +77,31 @@ describe('escenarios de prueba del worker de extractos', () => {
     expect(credit?.amount).toBe(1_500);
   });
 
+  it('publica los totales SUMADOS aunque el documento no imprima ninguno', async () => {
+    /*
+     * El defecto que esta prueba fija: `totals.debit`/`totals.credit` son los totales
+     * que IMPRIME el banco, y las estrategias especializadas —las de los siete formatos
+     * bolivianos— no los publican, así que llegaban `null` y quien los leía se quedaba
+     * sin el dato. El algoritmo `EXTRACTO_CAPACIDAD_PAGO` los leía para derivar el
+     * ingreso: con `null` caía a su valor por defecto y rechazaba por «cobertura
+     * insuficiente» extractos de los que había leído cada movimiento. Los sumados no
+     * dependen de lo que el banco decidiera imprimir.
+     */
+    const fixture = findBankStatementFixture('valid-basic');
+    const result = await engine.normalize(fixture!.build(), { fileName: fixture!.fileName });
+
+    expect(result.totals.debit).toBeNull();
+    expect(result.totals.credit).toBeNull();
+    expect(result.totals.debitExtracted).toBe(250);
+    expect(result.totals.creditExtracted).toBe(1_500);
+
+    // Y cuadran con los movimientos publicados, que es lo que los hace verificables.
+    const sum = (field: 'debit' | 'credit'): number =>
+      result.transactions.reduce((total, item) => total + (item[field] ?? 0), 0);
+    expect(result.totals.debitExtracted).toBeCloseTo(sum('debit'), 2);
+    expect(result.totals.creditExtracted).toBeCloseTo(sum('credit'), 2);
+  });
+
   it('nunca publica el número de cuenta completo', async () => {
     const fixture = findBankStatementFixture('valid-basic');
     const result = await engine.normalize(fixture!.build(), { fileName: fixture!.fileName });

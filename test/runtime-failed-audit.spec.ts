@@ -11,6 +11,7 @@ import type { NestedTreeExecutionService } from '../src/modules/nested-trees/nes
 import type { VariableResolutionService } from '../src/modules/variables/variable-resolution.service';
 import type { ExecutionWriterService } from '../src/modules/runtime/execution-writer.service';
 import type { IdempotencyService } from '../src/modules/runtime/idempotency.service';
+import { DecisionGuardService } from '../src/modules/risk-governance/decision-guard.service';
 import { RuntimeService } from '../src/modules/runtime/runtime.service';
 import type { ExecuteDecisionDto } from '../src/modules/runtime/runtime.dto';
 import type { AuthenticatedPrincipal } from '../src/common/security/security.types';
@@ -96,6 +97,12 @@ describe('RuntimeService: evidencia de una decisión fallida', () => {
       { bind: () => undefined } as unknown as NestedTreeExecutionService,
       { bind: () => undefined } as unknown as WorkerServiceInvokerService,
       new TracingService(),
+      /*
+       * El guardia de decisión (apetito de cartera y licitud vigente) no participa en lo que esta
+       * prueba afirma: aquí el despliegue falla ANTES de llegar a él. Un doble inerte deja el
+       * caso exactamente donde estaba y evita que la prueba dependa de una base de datos.
+       */
+      { assertCanDecide: () => Promise.resolve(), reviewOutputs: () => Promise.resolve([]) } as unknown as DecisionGuardService,
     );
 
     return { service, audited, failed, released, transactionToken, releasedCount: () => released };

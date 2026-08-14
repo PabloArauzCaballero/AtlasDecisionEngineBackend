@@ -24,7 +24,6 @@ describe('Conformidad respuesta ↔ contrato (e2e)', () => {
   let app: INestApplication;
   // El documento OpenAPI se recorre por rutas dinámicas ($ref, paths, schemas anidados);
   // tiparlo aquí sería reimplementar el metaesquema para no ganar nada.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let spec: Record<string, any>;
   let ajv: Ajv;
 

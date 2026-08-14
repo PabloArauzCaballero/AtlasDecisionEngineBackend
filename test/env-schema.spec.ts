@@ -169,4 +169,79 @@ describe('environment validation', () => {
       }).VARIABLE_BACKEND_URL,
     ).toBe('https://variables.internal/api');
   });
+  /*
+   * Locución con proveedor de pago.
+   *
+   * Estas guardas existen para que un despliegue mal configurado falle AL
+   * ARRANCAR y no en cada locución: una cola de errores contra un proveedor que
+   * cobra por petición es cara de descubrir y cara de parar.
+   */
+  describe('worker de locución', () => {
+    const conVoz = {
+      ...base,
+      AUDIO_TTS_WORKER_ENABLED: 'true',
+      AUDIO_TTS_PROVIDER: 'elevenlabs',
+      AUDIO_TTS_DATA_KEY: 'clave-de-datos-con-al-menos-32-caracteres',
+    };
+
+    it('exige la credencial del proveedor', () => {
+      expect(() => validateEnvironment(conVoz)).toThrow(/ELEVENLABS_API_KEY/);
+    });
+
+    it('exige la VOZ: elegirla es una decisión de marca, no un valor heredado', () => {
+      expect(() =>
+        validateEnvironment({ ...conVoz, ELEVENLABS_API_KEY: 'clave-de-proveedor' }),
+      ).toThrow(/ELEVENLABS_VOICE_ID/);
+    });
+
+    it('acepta la configuración completa', () => {
+      const resultado = validateEnvironment({
+        ...conVoz,
+        ELEVENLABS_API_KEY: 'clave-de-proveedor',
+        ELEVENLABS_VOICE_ID: 'voz-de-la-marca',
+      });
+      expect(resultado.AUDIO_TTS_PROVIDER).toBe('elevenlabs');
+    });
+
+    /*
+     * El texto locutado lleva dentro las variables —el nombre de una persona en
+     * la plantilla dinámica— y su única copia vive en la caché. Sin clave no hay
+     * dónde guardarlo cifrado.
+     */
+    it('exige la clave de cifrado del texto locutado', () => {
+      expect(() =>
+        validateEnvironment({
+          ...conVoz,
+          AUDIO_TTS_DATA_KEY: 'corta',
+          ELEVENLABS_API_KEY: 'clave-de-proveedor',
+          ELEVENLABS_VOICE_ID: 'voz-de-la-marca',
+        }),
+      ).toThrow(/AUDIO_TTS_DATA_KEY/);
+    });
+
+    // Un audio de prueba servido a una persona real es peor que no servir ninguno.
+    it('prohíbe el proveedor simulado en producción', () => {
+      expect(() =>
+        validateEnvironment({
+          ...jwtProduction,
+          AUDIO_TTS_WORKER_ENABLED: 'true',
+          AUDIO_TTS_PROVIDER: 'fake',
+          AUDIO_TTS_DATA_KEY: 'clave-de-datos-con-al-menos-32-caracteres',
+          AUDIO_TTS_PROD_LICENSE_CONFIRMED: 'true',
+        }),
+      ).toThrow(/AUDIO_TTS_PROVIDER/);
+    });
+
+    // Un arrendamiento más corto que la petición al proveedor deja que otra
+    // réplica reclame el trabajo y se pague la misma locución dos veces.
+    it('exige que el arrendamiento sobreviva a la petición más lenta', () => {
+      expect(() =>
+        validateEnvironment({
+          ...base,
+          AUDIO_TTS_LEASE_SECONDS: '30',
+          AUDIO_TTS_REQUEST_TIMEOUT_MS: '60000',
+        }),
+      ).toThrow(/AUDIO_TTS_LEASE_SECONDS/);
+    });
+  });
 });

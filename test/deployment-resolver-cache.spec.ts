@@ -20,11 +20,19 @@ describe('DeploymentResolverService (caché)', () => {
 
   const binding = {
     environmentId: 3n,
-    environment: { code: 'PROD' },
+    environment: { code: 'PROD', subjectReferencePolicy: 'REQUIRED' },
     activeDeployment: {
       id: 11n,
       artifactVersionId: 22n,
       compiledArtifactId: 33n,
+      // La exigencia de sujeto y el dominio de riesgo viajan con el despliegue: son datos del
+      // binding —cambian cuando cambia el despliegue, no entre peticiones— y consultarlos aparte
+      // costaría una consulta más en el camino caliente de CADA decisión.
+      artifactVersion: {
+        subjectReferencePolicy: null,
+        subjectPolicyJustification: null,
+        artifact: { riskDomain: 'CREDIT_ORIGINATION' },
+      },
       compiledArtifact: {
         compiledChecksum: 'sha256:abc',
         compiledPayloadJson: compiled,
@@ -92,6 +100,8 @@ describe('DeploymentResolverService (caché)', () => {
         environmentCode: 'PROD',
         compiledChecksum: 'sha256:abc',
         compiled,
+        subjectPolicy: 'REQUIRED',
+        riskDomain: 'CREDIT_ORIGINATION',
       }),
     );
     const { prisma, calls } = makePrisma();
@@ -137,6 +147,38 @@ describe('DeploymentResolverService (caché)', () => {
 
     expect(cacheCalls.del).toBe(1);
     expect(resolved.compiled).toEqual(compiled);
+  });
+
+  it('una entrada sin la política de sujeto cae a la base en vez de servirla', async () => {
+    /*
+     * El caso que este control existe para evitar, y que no es hipotético: durante los 60 s de
+     * TTL posteriores a un despliegue, la caché conserva entradas escritas por la versión
+     * ANTERIOR del servicio, que no llevan `subjectPolicy`. Servirlas tal cual dejaría la
+     * política en `undefined` y `applySubjectPolicy` no exigiría nada — es decir, la exigencia
+     * de sujeto desaparecería en silencio justo después de cada despliegue, que es cuando menos
+     * se está mirando.
+     */
+    const { cache, calls: cacheCalls } = makeCache(
+      JSON.stringify({
+        deploymentId: '11',
+        artifactVersionId: '22',
+        environmentId: '3',
+        compiledArtifactId: '33',
+        environmentCode: 'PROD',
+        compiledChecksum: 'sha256:abc',
+        compiled,
+      }),
+    );
+    const { prisma, calls } = makePrisma();
+    const resolved = await new DeploymentResolverService(prisma, cache).resolve(
+      TENANT,
+      'CREDIT',
+      'PROD',
+    );
+
+    expect(calls.findFirst).toBe(1);
+    expect(cacheCalls.del).toBe(1);
+    expect(resolved.subjectPolicy).toBe('REQUIRED');
   });
 
   it('si el borrado de la entrada mala falla, la lectura autoritativa sigue adelante', async () => {

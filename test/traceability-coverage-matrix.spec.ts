@@ -79,7 +79,7 @@ describe('TraceabilityService — matriz de cobertura y enlaces', () => {
       expect(matriz.covered).toBe(0);
     });
 
-    it('GAP cuando la política no está en ese objetivo', async () => {
+    it('NOT_APPLICABLE cuando la política es de otro objetivo, y no cuenta', async () => {
       const { service } = make([
         {
           id: 1n,
@@ -90,10 +90,15 @@ describe('TraceabilityService — matriz de cobertura y enlaces', () => {
         { id: 2n, objectiveCode: 'OBJ-2', name: 'y', policyRequirements: [] },
       ]);
       const matriz = await service.coverageMatrix(TENANT);
-      // La matriz es rectangular: toda política aparece en todo objetivo, y donde no aplica
-      // se dice GAP en vez de omitir la celda.
-      expect(matriz.objectives[1].coverage['POL-A']).toBe('GAP');
-      expect(matriz.total).toBe(2); // 1 política × 2 objetivos
+      /*
+       * La matriz sigue siendo rectangular —toda política aparece en todo objetivo, porque
+       * omitir celdas la vuelve ilegible—, pero la celda que no es un requisito ya no dice
+       * GAP. Decía GAP y se contaba en `total`, y esa cuenta hacía imposible el 100 %: aquí
+       * el único requisito que existe está COMPLETO, así que la cobertura es 1/1, no 1/2.
+       */
+      expect(matriz.objectives[1].coverage['POL-A']).toBe('NOT_APPLICABLE');
+      expect(matriz.covered).toBe(1);
+      expect(matriz.total).toBe(1);
     });
 
     it('las políticas se deduplican entre objetivos', async () => {
@@ -113,6 +118,29 @@ describe('TraceabilityService — matriz de cobertura y enlaces', () => {
       ]);
       const matriz = await service.coverageMatrix(TENANT);
       expect(matriz.policies).toHaveLength(1);
+      // Una columna, pero DOS requisitos: el mismo código exigido por dos objetivos.
+      expect(matriz.total).toBe(2);
+    });
+
+    it('con toda la evidencia enlazada la cobertura llega al 100 %', async () => {
+      const { service } = make([
+        {
+          id: 1n,
+          objectiveCode: 'OBJ-1',
+          name: 'x',
+          policyRequirements: [policy('POL-A', [{ id: 1 }], [{ id: 2 }])],
+        },
+        {
+          id: 2n,
+          objectiveCode: 'OBJ-2',
+          name: 'y',
+          policyRequirements: [policy('POL-B', [{ id: 3 }], [{ id: 4 }])],
+        },
+      ]);
+      const matriz = await service.coverageMatrix(TENANT);
+      // La rejilla tiene 4 celdas y sólo 2 son requisitos. Con el denominador viejo esto
+      // habría publicado 50 % teniendo TODO cubierto, que era el defecto de fondo.
+      expect(matriz.covered).toBe(2);
       expect(matriz.total).toBe(2);
     });
 

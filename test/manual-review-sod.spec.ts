@@ -33,9 +33,7 @@ describe('ManualReviewService.resolve — segregation of duties', () => {
     };
     const audit = { append: async () => ({}) };
     const service = new ManualReviewService(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       prisma as any,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       audit as any,
       new ConfigService({}),
     );

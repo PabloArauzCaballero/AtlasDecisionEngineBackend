@@ -2,6 +2,7 @@ import { ConfigService } from '@nestjs/config';
 import { WorkerServiceInvokerService } from '../src/modules/workers/worker-service-invoker.service';
 import { findBankStatementFixture } from '../src/modules/workers/bank-statement/fixtures/bank-statement-fixtures';
 import type { SemanticAnalysisPipeline } from '../src/modules/workers/semantic-analysis/core/application/semantic-analysis.pipeline';
+import type { AudioTtsRuntimeFactory } from '../src/modules/workers/audio-tts/audio-tts.runtime';
 import type { AuthenticatedPrincipal } from '../src/common/security/security.types';
 import type { WorkerServiceRequest } from '../src/modules/graph/graph.types';
 
@@ -36,7 +37,17 @@ function build(overrides: Record<string, unknown> = {}) {
     ...overrides,
   });
   const semantic = { analyze: jest.fn() } as unknown as SemanticAnalysisPipeline;
-  return new WorkerServiceInvokerService(config, semantic).bind(1n, principal);
+  /*
+   * La fábrica de locución se pasa doblada y sin expectativas: estas pruebas
+   * comprueban lo que el invocador rechaza ANTES de tocar nada, así que ninguna
+   * llega a construir el núcleo. Doblarla —en vez de instanciarla— evita
+   * arrastrar Prisma y el recolector de métricas a una suite unitaria.
+   */
+  const audio = {
+    forTenant: jest.fn(),
+    coreConfig: jest.fn(),
+  } as unknown as AudioTtsRuntimeFactory;
+  return new WorkerServiceInvokerService(config, semantic, audio).bind(1n, principal);
 }
 
 const statement = findBankStatementFixture('valid-complete')!;
@@ -46,6 +57,16 @@ function request(args: Record<string, unknown>): WorkerServiceRequest {
     service: 'bank-statement',
     operation: 'normalize',
     nodeKey: 'ANALIZAR',
+    arguments: args,
+    timeoutMs: 30_000,
+  };
+}
+
+function audioRequest(args: Record<string, unknown>): WorkerServiceRequest {
+  return {
+    service: 'audio-tts',
+    operation: 'speak',
+    nodeKey: 'LOCUTAR',
     arguments: args,
     timeoutMs: 30_000,
   };
@@ -70,6 +91,40 @@ describe('invocador de servicios de worker', () => {
         request({ documentBase64: statement.build().toString('base64') }),
       ),
     ).rejects.toThrow(/no está habilitado en este despliegue/);
+  });
+
+  /*
+   * Locución desde un nodo del grafo.
+   *
+   * Las dos guardas que se comprueban aquí ocurren ANTES de tocar el núcleo, y
+   * ése es justo su valor: una llamada a un servicio apagado o sin plantilla no
+   * debe llegar a construir un repositorio, ni mucho menos a un proveedor que
+   * cobra por petición.
+   */
+  it('rechaza locutar si el despliegue no declara la capacidad', async () => {
+    await expect(
+      build({ AUDIO_TTS_WORKER_ENABLED: false, AUDIO_TTS_PROVIDER: 'fake' }).invoke(
+        audioRequest({ templateCode: 'onboarding.welcome.generic' }),
+      ),
+    ).rejects.toThrow(/no está habilitado en este despliegue/);
+  });
+
+  // Encendido pero sin proveedor NO es disponible: aceptaría trabajo que va a
+  // fallar. Es la misma regla que aplica el catálogo `/v1/workers`.
+  it('rechaza locutar si está encendido pero sin proveedor de voz', async () => {
+    await expect(
+      build({ AUDIO_TTS_WORKER_ENABLED: true, AUDIO_TTS_PROVIDER: 'disabled' }).invoke(
+        audioRequest({ templateCode: 'onboarding.welcome.generic' }),
+      ),
+    ).rejects.toThrow(/no está habilitado en este despliegue/);
+  });
+
+  it('rechaza locutar sin plantilla: no hay texto libre por esta puerta tampoco', async () => {
+    await expect(
+      build({ AUDIO_TTS_WORKER_ENABLED: true, AUDIO_TTS_PROVIDER: 'fake' }).invoke(
+        audioRequest({ variables: { name: 'Ana' } }),
+      ),
+    ).rejects.toThrow(/sin el argumento templateCode/);
   });
 
   it('rechaza una operación que ningún servicio ofrece', async () => {

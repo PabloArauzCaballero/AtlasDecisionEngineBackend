@@ -1,6 +1,9 @@
 import { ConfigService } from '@nestjs/config';
 import { DomainException } from '../src/common/errors/domain-exception';
-import { IdentitySessionService } from '../src/modules/identity-session/identity-session.service';
+import {
+  IdentitySessionService,
+  isChallengeResult,
+} from '../src/modules/identity-session/identity-session.service';
 import { SessionCookieService } from '../src/modules/identity-session/session-cookie.service';
 import { SessionOriginService } from '../src/modules/identity-session/session-origin.service';
 import { SessionRateLimitGuard } from '../src/modules/identity-session/session-rate-limit.guard';
@@ -212,10 +215,51 @@ describe('Frontera de sesión de navegador', () => {
         password: 'p',
       } as never);
 
+      if (isChallengeResult(result)) throw new Error('se esperaba una sesión, no un desafío');
       expect(result.refreshToken).toBe('secreto-de-refresco');
       // Si se colara en la sesión pública, un XSS podría leerlo — que es justo lo que la
       // cookie HttpOnly evita.
       expect(JSON.stringify(result.session)).not.toContain('secreto-de-refresco');
+      expect(result.session).not.toHaveProperty('refreshToken');
+    });
+
+    /*
+     * El desafío de segundo factor no es una sesión a medias: no hay token de refresco que guardar,
+     * y el controlador no debe emitir cookie. Antes esto ni siquiera llegaba aquí — el cliente lo
+     * convertía en un 501 y la cuenta con 2FA no podía entrar al portal.
+     */
+    it('un desafío de PIN se devuelve como desafío, sin token de refresco', async () => {
+      const challenge = {
+        pinChallengeRequired: true,
+        challengeToken: 'desafio-largo-de-mas-de-20',
+        expiresInMinutes: 10,
+      };
+      const result = await new IdentitySessionService(
+        provider({ login: () => Promise.resolve(challenge) }),
+      ).login({ username: 'u', password: 'p' } as never);
+
+      expect(isChallengeResult(result)).toBe(true);
+      expect(result).toEqual({ challenge });
+      expect(JSON.stringify(result)).not.toContain('secreto-de-refresco');
+    });
+
+    it('el PIN correcto sí produce sesión, y el refresco sigue fuera del cuerpo', async () => {
+      const service = new IdentitySessionService(
+        provider({
+          verifyLoginPin: () =>
+            Promise.resolve({
+              refreshToken: 'secreto-de-refresco',
+              accessToken: 'acceso',
+              user: { id: 'u1' },
+            }),
+        }),
+      );
+
+      const result = await service.verifyLoginPin({
+        challengeToken: 'x'.repeat(24),
+        pin: '123456',
+      });
+      expect(result.refreshToken).toBe('secreto-de-refresco');
       expect(result.session).not.toHaveProperty('refreshToken');
     });
 

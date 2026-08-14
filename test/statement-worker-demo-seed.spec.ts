@@ -45,11 +45,26 @@ const resolver = new VariableResolutionService(
 );
 const compiled = buildStatementWorkerDemoCompiled({ id: '1', tenantId: '1' }, { id: '1' }, {});
 
-/** Totales reales del extracto sintético QA Bank del periodo 01/07/2026–31/07/2026. */
+/**
+ * Totales reales del extracto sintético QA Bank del periodo 01/07/2026–31/07/2026.
+ *
+ * **Los impresos van a `null` a propósito.** Este doble copiaba la forma que el motor
+ * PODÍA devolver, no la que devuelve: publicaba `totals.credit` con importe, como sólo
+ * hace el analizador generalista. Contra los siete formatos bolivianos especializados
+ * —los únicos que se usan de verdad— el impreso llega `null` siempre, y el demo, que leía
+ * ese campo, derivaba ingreso cero y rechazaba por COBERTURA_INSUFICIENTE extractos leídos
+ * al céntimo. El doble pasaba en verde porque describía otro documento. Dejarlo en `null`
+ * es lo que hace que esta prueba pueda volver a atrapar el defecto.
+ */
 const QA_BANK_STATEMENT = {
   account: { currency: 'BOB', accountNumberMasked: '****4821' },
   balances: { opening: 8_425.7, closing: 29_452.01 },
-  totals: { credit: 25_665.64, debit: 4_639.33 },
+  totals: {
+    credit: null,
+    debit: null,
+    creditExtracted: 25_665.64,
+    debitExtracted: 4_639.33,
+  },
   quality: { overallConfidence: 0.78, warnings: [] as string[] },
   transactions: Array.from({ length: 42 }, (_, index) => ({ id: `t-${index}` })),
 };

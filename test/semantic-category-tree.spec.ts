@@ -126,18 +126,35 @@ describe('catálogo sembrado de gastos e ingresos', () => {
    * Las hojas son el conjunto sobre el que se decide, y una hoja sin ejemplos no
    * puede sostenerse: el clasificador mide parecido con lo que alguien escribió.
    * Las ramas, al revés, no llevan ninguno a propósito.
+   *
+   * Con UNA excepción, que no es una laguna sino el diseño: las hojas CAJÓN
+   * (`GASTOS.OTROS`, `INGRESOS.OTROS`) llevan umbral 1 —inalcanzable por
+   * similitud— precisamente para que no se llegue a ellas parecièndose a nada.
+   * Darles ejemplos las convertiría en un imán: el cajón empezaría a robarle
+   * movimientos a las hojas reales, que es justo lo contrario de lo que se
+   * quiere. Su vacío es la afirmación «aquí sólo se llega a propósito».
+   *
+   * La excepción se detecta por el UMBRAL y no por el nombre del código: es la
+   * propiedad estructural que la hace un cajón, y así una hoja cajón nueva
+   * queda cubierta sin tocar esta prueba.
    */
-  it('toda hoja trae ejemplos y contraejemplos, y ninguna rama los trae', () => {
+  it('toda hoja trae ejemplos y contraejemplos, salvo los cajones, y ninguna rama los trae', () => {
     const arbol = expenseCategoryTree.map((seed) => nodo(seed.code, seed.parentCode));
     const hojas = new Set(leavesOf(arbol).map((category) => category.code));
+    const esCajon = (seed: (typeof expenseCategoryTree)[number]) => seed.acceptanceThreshold >= 1;
 
     for (const seed of expenseCategoryTree) {
-      if (hojas.has(seed.code)) {
-        expect(seed.positiveExamples.length).toBeGreaterThan(0);
-        expect(seed.counterExamples.length).toBeGreaterThan(0);
-      } else {
+      if (!hojas.has(seed.code)) {
         expect(seed.positiveExamples).toEqual([]);
+        continue;
       }
+      if (esCajon(seed)) {
+        // Un cajón con ejemplos sería un defecto, no una mejora.
+        expect(seed.positiveExamples).toEqual([]);
+        continue;
+      }
+      expect(seed.positiveExamples.length).toBeGreaterThan(0);
+      expect(seed.counterExamples.length).toBeGreaterThan(0);
     }
   });
 
