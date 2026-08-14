@@ -4,6 +4,62 @@ export class MonitoringWriteResultDto {
   @ApiProperty({ example: 250 }) recorded!: number;
 }
 
+class SubjectCoverageDto {
+  @ApiProperty({ example: 18420 }) executions!: number;
+  @ApiProperty({
+    example: 310,
+    description: 'Decisiones que DECLARAN no tener sujeto. Salen del denominador, no restan.',
+  })
+  notApplicable!: number;
+  @ApiProperty({ example: 18110 }) eligible!: number;
+  @ApiProperty({ example: 17994 }) withSubject!: number;
+  @ApiProperty({
+    example: 116,
+    description: 'Decisiones irreparables: el HMAC es de una vía y el sujeto ya no se puede añadir.',
+  })
+  missing!: number;
+  @ApiProperty({
+    nullable: true,
+    example: 0.993596,
+    description: 'Nulo, no cero, cuando no hubo decisiones: un 0 % sobre nada es alarma falsa.',
+  })
+  coverageRatio!: number | null;
+}
+
+class OutcomeCoverageDto {
+  @ApiProperty({ example: 4210, description: 'Ventanas ya vencidas. Las abiertas no son deuda.' })
+  dueWindows!: number;
+  @ApiProperty({ example: 3980 }) observedWindows!: number;
+  @ApiProperty({ example: 230 }) overdueWindows!: number;
+  @ApiProperty({
+    example: 412,
+    description: 'De las observadas, cuántas se infirieron en vez de observarse.',
+  })
+  inferredWindows!: number;
+  @ApiProperty({ nullable: true, example: 0.945368 }) coverageRatio!: number | null;
+}
+
+class CoverageDayDto {
+  @ApiProperty({ example: '2026-08-01' }) day!: string;
+  @ApiProperty({ example: 612 }) executions!: number;
+  @ApiProperty({ example: 610 }) withSubject!: number;
+}
+
+/**
+ * Estado del circuito de la decisión.
+ *
+ * Los dos ratios llegan con su numerador Y su denominador, no solos: un 100 % sobre tres
+ * decisiones no es una noticia, y la pantalla no puede distinguirlo de un 100 % sobre veinte
+ * mil si sólo recibe el porcentaje.
+ */
+export class DecisionCoverageDto {
+  @ApiProperty({ example: '2026-07-12T00:00:00.000Z' }) from!: string;
+  @ApiProperty({ example: '2026-08-11T00:00:00.000Z' }) to!: string;
+  @ApiProperty({ type: SubjectCoverageDto }) subject!: SubjectCoverageDto;
+  @ApiProperty({ type: OutcomeCoverageDto }) outcome!: OutcomeCoverageDto;
+  @ApiProperty({ type: [CoverageDayDto] }) daily!: CoverageDayDto[];
+}
+
 export class PerformanceReportDto {
   @ApiProperty({ example: '4001' }) artifactVersionId!: string;
   @ApiProperty({ example: 1200 }) observed!: number;

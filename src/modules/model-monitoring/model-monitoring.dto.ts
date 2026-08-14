@@ -131,6 +131,24 @@ export class StabilityQueryDto extends MonitoringWindowQueryDto {
   referenceTo!: string;
 }
 
+/**
+ * Ventana de la cobertura. No hereda de `MonitoringWindowQueryDto` porque la cobertura NO se
+ * pregunta por versión: mide si el circuito está vivo en toda la operación, y acotarla a una
+ * versión escondería justo el caso que interesa —un integrador que dejó de mandar sujeto en
+ * uno solo de los artefactos—.
+ */
+export class CoverageQueryDto {
+  @ApiPropertyOptional({ example: '2026-07-01T00:00:00.000Z' })
+  @IsOptional()
+  @IsISO8601()
+  from?: string;
+
+  @ApiPropertyOptional({ example: '2026-08-01T00:00:00.000Z' })
+  @IsOptional()
+  @IsISO8601()
+  to?: string;
+}
+
 export class AdverseImpactQueryDto extends MonitoringWindowQueryDto {
   @ApiProperty({ example: 'AGE_BAND' })
   @IsString()

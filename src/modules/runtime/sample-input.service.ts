@@ -59,7 +59,9 @@ export class SampleInputService {
       );
     }
 
-    const batch = buildSampleBatch(inputs, dto, this.nextSeed);
+    // El grafo compilado va también: `kind: 'OUTCOMES'` construye un caso por cada
+    // desenlace, y para eso hacen falta los nodos y las condiciones, no sólo el contrato.
+    const batch = buildSampleBatch(inputs, dto, this.nextSeed, compiled);
     return {
       ...batch,
       artifactCode,

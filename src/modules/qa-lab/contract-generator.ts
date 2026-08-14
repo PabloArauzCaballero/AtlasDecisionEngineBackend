@@ -270,7 +270,22 @@ export function generateCases(
   mix: GenerationMix,
   distributions: DistributionMap = {},
 ): GeneratedCase[] {
-  const kinds = distribute(total, mix);
+  return generateCasesOfKinds(variables, random, distribute(total, mix), distributions);
+}
+
+/**
+ * El mismo generador, con las clases ya decididas por quien llama.
+ *
+ * Existe porque el reparto por DESENLACE sustituye a la porción válida de la mezcla: esos
+ * casos los construye el planificador del grafo y el resto —frontera e inválidos— sigue
+ * saliendo de aquí. Sin esta puerta habría que generar los válidos sólo para tirarlos.
+ */
+export function generateCasesOfKinds(
+  variables: GeneratorContractVariable[],
+  random: SeededRandom,
+  kinds: CaseKind[],
+  distributions: DistributionMap = {},
+): GeneratedCase[] {
   const inputs = variables.filter((variable) => variable.code);
   return kinds.map((kind, index) => {
     const input: Record<string, unknown> = {};

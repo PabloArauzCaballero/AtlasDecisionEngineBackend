@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { FreshnessPolicy } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { HashService } from '../../common/crypto/hash.service';
 import { MetricsService } from '../../common/observability/metrics.service';
@@ -10,6 +11,8 @@ import {
 } from '../../common/contracts/constraint-engine';
 import type { ConstraintScope } from '../../common/contracts/constraints.types';
 import type { VariableContractSnapshot } from '../graph/graph.types';
+import { evaluateFreshness, type FreshnessVerdict } from './freshness';
+
 
 /** Persistable evidence describing how one variable was resolved. */
 export interface ResolvedVariableSnapshot {
@@ -22,6 +25,8 @@ export interface ResolvedVariableSnapshot {
   resolutionStatus: string;
   wasDefaulted: boolean;
   sensitive: boolean;
+  /** De cuando era cierto el valor, y cuanto habia envejecido al decidir. Ver `freshness.ts`. */
+  freshness?: FreshnessVerdict;
 }
 
 /** Resolved engine input plus validation and audit evidence. */
@@ -59,6 +64,11 @@ export class VariableResolutionService {
       allowExternal: boolean;
       /** Ejes de despliegue con los que se resuelven las restricciones acotadas (§1.1). */
       scope?: ConstraintScope;
+      /**
+       * De cuando es cada valor, por codigo. Quien entrega el dato es quien sabe cuando era
+       * cierto; el motor no puede adivinarlo y no debe suponerlo.
+       */
+      metadata?: Record<string, unknown>;
     },
   ): Promise<VariableResolutionResult> {
     // Reject hidden inputs by construction: only declared, versioned contracts enter the engine.
@@ -134,6 +144,31 @@ export class VariableResolutionService {
       const valueHash = contract.sensitive
         ? this.hashes.hmac({ code: contract.code, value })
         : this.hashes.sha256({ code: contract.code, value });
+
+      /*
+       * La frescura se juzga sobre lo que el llamante DECLARO, no sobre cuando llego la peticion.
+       * Un valor sin fecha declarada no se considera viejo: ver `freshness.ts` para el porque.
+       *
+       * El SLA sale de la fuente MAS EXIGENTE de la variable. Si una variable se puede obtener de
+       * dos sitios y uno promete 60 s, ese es el compromiso que el artefacto asumio; quedarse con
+       * el mas laxo convertiria la declaracion estricta en decorativa.
+       */
+      const freshness = evaluateFreshness(
+        (options.metadata?.[contract.code] ?? undefined) as never,
+        strictestSla(contract.sources),
+        freshnessPolicyOf(contract.fallbackPolicy),
+      );
+      if (freshness.reject) {
+        errors.push({
+          code: 'VARIABLE_STALE',
+          variable: contract.code,
+          message:
+            `El valor de ${contract.code} tenia ${freshness.ageSeconds} s cuando su compromiso de ` +
+            `frescura es de ${strictestSla(contract.sources)} s. Un dato viejo aqui no es menos ` +
+            `preciso: es la respuesta a otra pregunta.`,
+        });
+      }
+
       snapshots.push({
         variableVersionId: contract.variableVersionId,
         code: contract.code,
@@ -146,6 +181,7 @@ export class VariableResolutionService {
           : 'RESOLVED',
         wasDefaulted: defaulted.has(contract.code),
         sensitive: contract.sensitive,
+        freshness,
       });
     }
     return { valid: errors.length === 0, values, snapshots, errors };
@@ -265,4 +301,29 @@ export class VariableResolutionService {
       variableCount: codes.length,
     });
   }
+}
+
+/**
+ * El compromiso de frescura MAS EXIGENTE entre las fuentes declaradas de una variable.
+ *
+ * Cero significa «sin SLA declarado» y es el valor con el que estan sembradas casi todas las
+ * fuentes, asi que se ignora al buscar el minimo: quedarse con el cero haria que una variable con
+ * dos fuentes -una estricta y otra sin declarar- perdiera su compromiso por tener companiia.
+ */
+function strictestSla(sources: Array<{ freshnessSlaSeconds: number }>): number {
+  const declared = sources.map((source) => source.freshnessSlaSeconds).filter((sla) => sla > 0);
+  return declared.length ? Math.min(...declared) : 0;
+}
+
+/**
+ * La politica de frescura que aplica a una variable.
+ *
+ * Se deriva de `fallbackPolicy` mientras el compilado no la transporte por separado: una variable
+ * cuyo fallo es FATAL (`FAIL`) tampoco puede decidirse con un dato caducado, y una que admite
+ * respaldo tampoco deberia caerse por antiguedad. Es una aproximacion declarada, no una
+ * casualidad: la columna `freshness_policy` ya existe en el esquema y este mapeo se sustituye por
+ * ella en cuanto el compilador la incluya.
+ */
+function freshnessPolicyOf(fallbackPolicy: string): FreshnessPolicy {
+  return fallbackPolicy === 'FAIL' ? FreshnessPolicy.REJECT : FreshnessPolicy.DEGRADE;
 }

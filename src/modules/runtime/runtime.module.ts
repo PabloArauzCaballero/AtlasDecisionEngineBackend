@@ -1,5 +1,6 @@
 /** Composes deployment/variable resolution, deterministic execution, evidence and retention. */
 import { Module } from '@nestjs/common';
+import { RiskGovernanceModule } from '../risk-governance/risk-governance.module';
 import { DeploymentModule } from '../deployments/deployment.module';
 import { GraphModule } from '../graph/graph.module';
 import { NestedTreesModule } from '../nested-trees/nested-trees.module';
@@ -15,7 +16,7 @@ import { SimulationController } from './simulation.controller';
 import { SimulationService } from './simulation.service';
 
 @Module({
-  imports: [DeploymentModule, GraphModule, VariableModule, NestedTreesModule, WorkersModule],
+  imports: [RiskGovernanceModule, DeploymentModule, GraphModule, VariableModule, NestedTreesModule, WorkersModule],
   controllers: [RuntimeController, SimulationController],
   providers: [
     RuntimeService,

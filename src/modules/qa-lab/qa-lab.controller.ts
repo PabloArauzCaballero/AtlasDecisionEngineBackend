@@ -1,6 +1,12 @@
 /** QA Lab: generación masiva guiada por contrato y contraejemplos reproducibles (§10). */
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
-import { ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query } from '@nestjs/common';
+import {
+  ApiAcceptedResponse,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { parseBigIntId } from '../../common/http/id';
 import { CurrentPrincipal, Roles, TenantId } from '../../common/security/security.decorators';
 import { ApiItemsResponse, ApiPagedResponse } from '../../common/http/pagination.dto';
@@ -41,13 +47,15 @@ export class QaLabController {
   }
 
   @Post('versions/:versionId/runs')
+  @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({
-    summary: 'Generar y ejecutar un lote de casos contra una versión compilada',
+    summary: 'Lanzar un lote de casos contra una versión compilada',
     description:
-      'La semilla, la configuración y el contrato usado quedan archivados para poder reproducir la corrida. PROD no está permitido. `distributions` sesga dónde caen los valores de una variable dentro de su rango (§10.4) sin relajar el contrato; una variable ajena al contrato de entradas se rechaza en vez de ignorarse.',
+      'Responde 202 con la corrida en `RUNNING`: el lote se ejecuta DESPUÉS de la respuesta y hay que consultar `GET runs/{runId}` hasta verla `COMPLETED` o `FAILED`. Ejecutarlo dentro de la petición era imposible: el techo global de `REQUEST_TIMEOUT_MS` (15 s de serie) la cortaba mucho antes que el `timeoutMs` de la propia corrida, que admite hasta 600 000. La semilla, la configuración y el contrato usado quedan archivados para poder reproducirla. PROD no está permitido. `distributions` sesga dónde caen los valores de una variable dentro de su rango (§10.4) sin relajar el contrato; `outcomeWeights` reparte la porción VÁLIDA entre los desenlaces del grafo. Una variable o un desenlace que no existan se rechazan en vez de ignorarse.',
   })
-  @ApiCreatedResponse({
-    description: 'Corrida completada, con sus contraejemplos.',
+  @ApiAcceptedResponse({
+    description:
+      'Corrida aceptada y en marcha. Los contadores llegan a cero y se van llenando: `configJson.plannedCases` dice cuántos casos se van a ejecutar.',
     type: QaRunDto,
   })
   @Roles('QA_ANALYST', 'RISK_ANALYST', 'FRAUD_ANALYST', 'PLATFORM_ADMIN')
@@ -58,6 +66,20 @@ export class QaLabController {
     @Body() dto: GenerateQaRunDto,
   ) {
     return this.qaLab.run(tenantId, parseBigIntId(versionId, 'versionId'), dto, principal);
+  }
+
+  @Get('versions/:versionId/outcomes')
+  @ApiOperation({
+    summary: 'Desenlaces que alcanza el grafo de una versión',
+    description:
+      'La lista contra la que se validan las claves de `outcomeWeights`. Sin ella, repartir la porción válida entre ramas obligaría a teclear identificadores de nodo a ciegas y a descubrir el error al lanzar la corrida.',
+  })
+  @ApiItemsResponse('Desenlaces alcanzables de la versión. No está paginado.')
+  // `PLATFORM_ADMIN` va aquí porque puede LANZAR corridas: sin este permiso podría pedir un
+  // reparto por desenlace pero no consultar contra qué claves hacerlo.
+  @Roles('QA_ANALYST', 'RISK_ANALYST', 'FRAUD_ANALYST', 'COMPLIANCE', 'AUDITOR', 'PLATFORM_ADMIN')
+  listOutcomes(@TenantId() tenantId: bigint, @Param('versionId') versionId: string) {
+    return this.qaLab.listOutcomes(tenantId, parseBigIntId(versionId, 'versionId'));
   }
 
   @Post('versions/:versionId/sample-inputs')

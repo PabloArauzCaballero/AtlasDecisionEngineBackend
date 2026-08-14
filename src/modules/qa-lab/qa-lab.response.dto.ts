@@ -71,7 +71,18 @@ export class QaRunDto {
   @ApiProperty({ example: 5 }) failedCases!: number;
   @ApiProperty({ example: 0 }) erroredCases!: number;
   @ApiProperty({ example: 8420 }) durationMs!: number;
-  @ApiProperty({ example: { OUTPUT_CONTRACT_RESPECTED: 5 } }) summary!: Record<string, unknown>;
+  @ApiProperty({
+    example: 512,
+    description:
+      'Casos que la corrida va a ejecutar en total. Mientras está `RUNNING`, `totalCases` sólo cuenta los ya ejecutados: el avance es `totalCases` sobre esto. Vale 0 en corridas anteriores a este campo.',
+  })
+  plannedCases!: number;
+  @ApiProperty({
+    example: { OUTPUT_CONTRACT_RESPECTED: 5 },
+    description:
+      'Conteo por propiedad violada. En una corrida `FAILED` trae en su lugar `{ failureCode, failureMessage }`: el motivo por el que se abortó.',
+  })
+  summary!: Record<string, unknown>;
   @ApiProperty({ example: '2026-07-20T10:00:00.000Z' }) startedAt!: string;
   @ApiProperty({ nullable: true }) finishedAt!: string | null;
   @ApiProperty({ type: [QaCounterexampleDto] }) counterexamples!: QaCounterexampleDto[];

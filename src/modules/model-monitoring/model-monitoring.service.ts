@@ -8,6 +8,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
 import {
   adverseImpactRatios,
+  bucketOfSnapshot,
   isApproval,
   populationStabilityIndex,
   summarizePerformance,
@@ -357,29 +358,11 @@ export class ModelMonitoringService {
   /**
    * Categoría de una variable en una ejecución, para el índice de estabilidad.
    *
-   * Los numéricos se agrupan en deciles fijos porque el PSI compara FRECUENCIAS: sin agrupar,
-   * cada valor distinto sería su propia categoría y el índice mediría ruido.
-   *
-   * Un valor sensible se guarda como HMAC, así que solo aporta su presencia como categoría
-   * opaca: la deriva de una variable sensible se detecta si cambia el reparto de valores
-   * distintos, no su magnitud. Es una limitación real y preferible a guardar el valor.
+   * Delega en `bucketOfSnapshot`, que es la ÚNICA definición. Tenerla duplicada aquí y en la
+   * captura de la línea base era una bomba de relojería: en cuanto las dos se separasen, el
+   * índice compararía dos alfabetos distintos y saldría altísimo siempre.
    */
   private bucketOf(snapshot: Prisma.JsonValue | null, variableCode: string): string | null {
-    if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) return null;
-    const value = (snapshot as Record<string, unknown>)[variableCode];
-    if (value === undefined || value === null) return null;
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      // Deciles sobre una escala logarítmica: los importes se reparten mejor así que en
-      // tramos lineales, donde casi todo caería en el primero.
-      const magnitude = Math.floor(Math.log10(Math.abs(value) + 1) * 3);
-      return `n:${magnitude}`;
-    }
-    if (typeof value === 'boolean') return `b:${String(value)}`;
-    if (typeof value === 'object') {
-      // Los sensibles llegan como `{ valueHash, source }`: solo su presencia es categorizable.
-      const hash = (value as Record<string, unknown>).valueHash;
-      return typeof hash === 'string' ? `h:${hash.slice(0, 12)}` : null;
-    }
-    return `s:${String(value).slice(0, 40)}`;
+    return bucketOfSnapshot(snapshot, variableCode);
   }
 }
