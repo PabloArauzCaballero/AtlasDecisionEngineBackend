@@ -1,0 +1,113 @@
+{{!--
+  Cuerpo de `credit-analysis-report@1.1.0`.
+
+  Es una copia del de la 1.0.0 con la sección de factores añadida, y esa duplicación es
+  DELIBERADA: una plantilla compartida entre versiones haría que un retoque de estilo cambiara
+  el aspecto de documentos ya emitidos, y entonces «se generó con la 1.0.0» dejaría de
+  significar nada. Lo que se comparte entre versiones es el ESQUEMA —que sólo se amplía— y los
+  parciales del catálogo, que sí son infraestructura.
+--}}
+{{> atlas/heading title=document.title subtitle=data.customerName}}
+
+<div class="summary-row">
+  {{> atlas/summary label='Puntaje' value=data.score caption='sobre 1000'}}
+  {{> atlas/summary label='Decisión' value=data.decision}}
+  {{#if data.amount}}
+    {{> atlas/summary label='Monto' value=data.amount caption=data.currency}}
+  {{/if}}
+</div>
+
+{{#if (eq data.decision 'REVIEW')}}
+  {{> atlas/warning
+    level='caution'
+    title='Requiere revisión manual'
+    text='El motor no emitió un veredicto definitivo. El expediente queda a la espera de que un analista lo resuelva.'}}
+{{/if}}
+{{#if (eq data.decision 'REJECTED')}}
+  {{> atlas/warning
+    level='critical'
+    title='Solicitud rechazada'
+    text='Los motivos del rechazo se detallan más abajo y deben comunicarse íntegros al solicitante.'}}
+{{/if}}
+
+<section class="section">
+  {{> atlas/section-header title='Solicitante'}}
+  <div class="section__body">
+    <div class="kv">
+      <div class="kv__row">
+        <span class="kv__label">Nombre</span>
+        <span class="kv__value">{{data.customerName}}</span>
+      </div>
+      {{#if data.customerDocument}}
+        <div class="kv__row">
+          <span class="kv__label">Documento</span>
+          <span class="kv__value mono">{{data.customerDocument}}</span>
+        </div>
+      {{/if}}
+      {{#if data.termMonths}}
+        <div class="kv__row">
+          <span class="kv__label">Plazo (meses)</span>
+          <span class="kv__value">{{fmtValue data.termMonths}}</span>
+        </div>
+      {{/if}}
+      {{#if data.evaluatedAt}}
+        <div class="kv__row">
+          <span class="kv__label">Evaluado el</span>
+          <span class="kv__value">{{fmtDateTime data.evaluatedAt}}</span>
+        </div>
+      {{/if}}
+      <div class="kv__row">
+        <span class="kv__label">Veredicto</span>
+        <span class="kv__value">
+          <span class="badge badge--{{severity data.decision}}">{{data.decision}}</span>
+        </span>
+      </div>
+    </div>
+  </div>
+</section>
+
+{{#if data.factors}}
+  <section class="section">
+    {{> atlas/section-header
+      title='Factores del modelo'
+      description='Aportación de cada factor al puntaje final. Un valor negativo resta.'}}
+    <div class="section__body">
+      {{!--
+        Tabla propia y no `atlas/table`: el parcial compartido pinta celdas planas, y aquí la
+        primera columna lleva dos líneas —etiqueta y código del factor—. Ampliar el parcial
+        para admitirlo lo llenaría de condicionales al servicio de un solo documento.
+      --}}
+      <table class="table table--numeric">
+        <thead>
+          <tr>
+            <th scope="col">Factor</th>
+            <th scope="col">Valor</th>
+            <th scope="col">Aporte</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each data.factors}}
+            <tr>
+              <td>{{this.label}}<br /><span class="metadata mono">{{this.code}}</span></td>
+              <td>{{fmtValue this.value}}</td>
+              <td>{{fmtNumber this.contribution 0}}</td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{{/if}}
+
+{{#if data.reasons}}
+  <section class="section">
+    {{> atlas/section-header title='Motivos' description='Justificación emitida por el motor de decisión.'}}
+    <div class="section__body">
+      <ol>
+        {{#each data.reasons}}<li>{{this}}</li>{{/each}}
+      </ol>
+    </div>
+  </section>
+{{/if}}
+
+<footer class="doc-footnote">{{> atlas/metadata}}</footer>

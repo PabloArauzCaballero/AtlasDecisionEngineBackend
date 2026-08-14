@@ -1,5 +1,5 @@
 import type { ParsedStatement } from '../../domain/models';
-import { reconcileRunningBalance } from '../../parsers/parser-helpers';
+import { consecutiveByAccount, reconcileRunningBalance } from '../../parsers/parser-helpers';
 
 export type IssueSeverity = 'WARNING' | 'ERROR';
 
@@ -38,6 +38,18 @@ const TOLERANCE = 0.01;
  * corrieron: una conciliación que no se pudo hacer no puede contar como
  * aprobada. Es lo que evita que un extracto sin saldos publicados parezca tan
  * verificado como uno que cuadra al céntimo.
+ *
+ * **Un documento con varias cuentas no es un extracto, son varios.** Los
+ * metadatos de la carátula —período, saldos publicados, totales impresos—
+ * describen la PRIMERA, así que contrastar contra ellos los movimientos de
+ * todas produce alarmas que no señalan ningún defecto. Medido sobre un
+ * documento de doce cuentas: 867 fechas «fuera del período» —eran los meses de
+ * las otras once— y 11 saltos de saldo que resultaron ser exactamente las once
+ * fronteras entre cuentas, con la lectura encadenando al céntimo dentro de cada
+ * una. Por eso lo que se puede comprobar por cuenta se comprueba por cuenta, y
+ * lo que solo tiene sentido contra una carátula única no se ejecuta ni se
+ * cuenta como aprobado. Que el documento trae varias ya lo dice
+ * `documento-con-varias-cuentas`; repetirlo aquí mil veces no informa de nada.
  */
 export function validateStatement(
   statement: ParsedStatement,
@@ -45,6 +57,13 @@ export function validateStatement(
 ): ValidationReport {
   const issues: ValidationIssue[] = [];
   const { metadata, transactions } = statement;
+  const perAccount = consecutiveByAccount(transactions);
+  // La conciliación de saldo ya segmenta por cuenta por su cuenta; aquí sólo se
+  // necesita la partición para el orden de las fechas y para saber si la
+  // carátula describe el documento entero.
+  // La carátula describe una sola cuenta: con varias, deja de describir el
+  // documento.
+  const coverDescribesAll = perAccount.length <= 1;
   let checksRun = 0;
   let checksPassed = 0;
 
@@ -58,7 +77,8 @@ export function validateStatement(
     issues.push(issue());
   };
 
-  // 1. Continuidad del saldo entre movimientos consecutivos.
+  // 1. Continuidad del saldo entre movimientos consecutivos, dentro de cada
+  // cuenta: el saldo de una no continúa el de otra.
   const withBalance = transactions.filter((item) => item.balance).length;
   const mismatches = reconcileRunningBalance(transactions);
   check(withBalance >= 2, mismatches === 0, () => ({
@@ -77,7 +97,7 @@ export function validateStatement(
     Number.isFinite(opening) &&
     Number.isFinite(closing);
   const drift = Number((sum - (closing - opening)).toFixed(2));
-  check(balancesPublished, Math.abs(drift) <= TOLERANCE, () => ({
+  check(balancesPublished && coverDescribesAll, Math.abs(drift) <= TOLERANCE, () => ({
     code: 'cuadre-de-saldos',
     severity: 'ERROR',
     detail: `la suma de importes se aparta ${drift.toFixed(2)} de la variación entre saldos`,
@@ -91,11 +111,15 @@ export function validateStatement(
     const declared = Number(printed);
     const extracted = transactions.reduce((total, item) => total + (Number(item[field]) || 0), 0);
     const difference = Number((extracted - declared).toFixed(2));
-    check(Boolean(printed) && Number.isFinite(declared), Math.abs(difference) <= TOLERANCE, () => ({
-      code: `total-${field === 'debit' ? 'debitos' : 'creditos'}`,
-      severity: 'ERROR',
-      detail: `la suma extraída se aparta ${difference.toFixed(2)} del total impreso`,
-    }));
+    check(
+      Boolean(printed) && Number.isFinite(declared) && coverDescribesAll,
+      Math.abs(difference) <= TOLERANCE,
+      () => ({
+        code: `total-${field === 'debit' ? 'debitos' : 'creditos'}`,
+        severity: 'ERROR',
+        detail: `la suma extraída se aparta ${difference.toFixed(2)} del total impreso`,
+      }),
+    );
   }
 
   // 4. Todas las filas llevan fecha válida.
@@ -114,21 +138,29 @@ export function validateStatement(
       item.transactionDate &&
       (item.transactionDate < metadata.periodStart || item.transactionDate > metadata.periodEnd),
   ).length;
-  check(Boolean(metadata.periodStart && metadata.periodEnd), outsidePeriod === 0, () => ({
-    code: 'fechas-en-el-periodo',
-    severity: 'WARNING',
-    detail: `${outsidePeriod} movimientos fuera de ${metadata.periodStart}..${metadata.periodEnd}`,
-  }));
-
-  // 6. Las fechas avanzan en un solo sentido. Un extracto puede imprimirse del
-  // más reciente al más antiguo, pero no alternar: alternar delata filas
-  // desordenadas por una lectura equivocada.
-  const dates = transactions.map((item) => item.transactionDate).filter(Boolean);
-  const ascending = dates.every((date, index) => index === 0 || date >= (dates[index - 1] ?? date));
-  const descending = dates.every(
-    (date, index) => index === 0 || date <= (dates[index - 1] ?? date),
+  check(
+    Boolean(metadata.periodStart && metadata.periodEnd) && coverDescribesAll,
+    outsidePeriod === 0,
+    () => ({
+      code: 'fechas-en-el-periodo',
+      severity: 'WARNING',
+      detail: `${outsidePeriod} movimientos fuera de ${metadata.periodStart}..${metadata.periodEnd}`,
+    }),
   );
-  check(dates.length >= 2, ascending || descending, () => ({
+
+  // 6. Las fechas avanzan en un solo sentido DENTRO DE CADA CUENTA. Un extracto
+  // puede imprimirse del más reciente al más antiguo, pero no alternar:
+  // alternar delata filas desordenadas por una lectura equivocada. Entre una
+  // cuenta y la siguiente el documento vuelve a empezar, y eso no es alternar.
+  const datesPerAccount = perAccount
+    .map((group) => group.map((item) => item.transactionDate).filter(Boolean))
+    .filter((dates) => dates.length >= 2);
+  const monotonic = datesPerAccount.every(
+    (dates) =>
+      dates.every((date, index) => index === 0 || date >= (dates[index - 1] ?? date)) ||
+      dates.every((date, index) => index === 0 || date <= (dates[index - 1] ?? date)),
+  );
+  check(datesPerAccount.length > 0, monotonic, () => ({
     code: 'orden-cronologico',
     severity: 'WARNING',
     detail: 'las fechas no avanzan en un solo sentido',

@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import {
   SEMANTIC_AUDIT_REPOSITORY,
   SEMANTIC_METRICS_RECORDER,
@@ -6,7 +6,12 @@ import {
   SemanticMetricsRecorder,
 } from './ports';
 import { SemanticAnalysisPipeline } from './semantic-analysis.pipeline';
-import { SemanticAnalysisRequest } from '../domain/semantic-analysis.types';
+import { UNRESOLVED_SINK, type UnresolvedSink } from './ports';
+import {
+  SemanticAnalysisRequest,
+  type CategoryAssessment,
+  type SemanticAnalysisResult,
+} from '../domain/semantic-analysis.types';
 import {
   SemanticExhaustedError,
   isRetryable,
@@ -30,6 +35,9 @@ export class SemanticAnalysisProcessor {
     private readonly metrics: SemanticMetricsRecorder,
     private readonly pipeline: SemanticAnalysisPipeline,
     private readonly tracing: TracingService,
+    @Optional()
+    @Inject(UNRESOLVED_SINK)
+    private readonly unresolved: UnresolvedSink | null = null,
   ) {}
 
   /**
@@ -76,6 +84,7 @@ export class SemanticAnalysisProcessor {
     try {
       const result = await this.pipeline.analyze(request);
       await this.auditRepository.complete(request, result);
+      await this.escalarSiNoSeResolvio(request, result);
       this.tracing.setAttributes({
         [SEMANTIC_ATTRIBUTES.status]: result.status,
         [SEMANTIC_ATTRIBUTES.tier]: result.tierUsed,
@@ -94,6 +103,55 @@ export class SemanticAnalysisProcessor {
       // Se relanza siempre: la cola decide el reintento según su propio límite y, agotado éste,
       // la solicitud llega a la cola dead-letter donde queda marcada como agotada.
       throw error;
+    }
+  }
+
+  /**
+   * Un análisis que no resolvió no termina en silencio: se escala.
+   *
+   * Abstenerse es correcto —vale más un hueco que una categoría inventada— pero
+   * dejarlo ahí convierte cada abstención en información perdida. Aquí el valor
+   * se guarda tal como llegó, con la mejor candidata que el motor llegó a ver y
+   * su confianza, para que alguien pueda decidir y para que el catálogo aprenda.
+   *
+   * **No interrumpe el análisis.** Si el escalado falla, el resultado ya está
+   * auditado y devuelto: convertir un fallo de la bandeja en un fallo de la
+   * clasificación haría que la cola reintentara un trabajo que salió bien.
+   */
+  private async escalarSiNoSeResolvio(
+    request: SemanticAnalysisRequest,
+    result: SemanticAnalysisResult,
+  ): Promise<void> {
+    if (this.unresolved === null) return;
+    if (result.status !== 'UNKNOWN' && result.status !== 'AMBIGUOUS') return;
+    if (request.tenantId === undefined) return;
+
+    try {
+      await this.unresolved.record({
+        tenantId: BigInt(request.tenantId),
+        rawValue: request.text,
+        source: 'semantic-analysis',
+        context: {
+          requestId: request.requestId,
+          status: result.status,
+          tierUsed: result.tierUsed,
+          normalizedText: result.normalizedText,
+          evaluatedCategoryCodes: result.evaluatedCategoryCodes,
+        },
+        // Las candidatas que el motor evaluó, aunque ninguna alcanzara su
+        // umbral: son exactamente la recomendación que el administrador
+        // necesita para decidir en un vistazo.
+        candidates: (result.matches ?? []).map((match: CategoryAssessment) => ({
+          categoryCode: match.categoryCode,
+          confidence: match.confidence,
+        })),
+        correlationId: request.requestId,
+      });
+    } catch (error: unknown) {
+      this.logger.warn(
+        `No se pudo registrar el pendiente de ${request.requestId}: ` +
+          (error instanceof Error ? error.message : 'error desconocido'),
+      );
     }
   }
 

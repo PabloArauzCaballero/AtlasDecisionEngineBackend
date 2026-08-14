@@ -66,6 +66,8 @@ export function toNormalizedStatement(analysis: StatementAnalysis): NormalizedBa
     totals: {
       debit: toNumber(analysis.printedTotals.debit),
       credit: toNumber(analysis.printedTotals.credit),
+      debitExtracted: sumOf(statement.transactions, 'debit'),
+      creditExtracted: sumOf(statement.transactions, 'credit'),
     },
     processing: {
       documentType: context.classification.documentType,
@@ -132,6 +134,22 @@ function toNormalizedTransaction(
     warnings: transaction.warnings ?? [],
     accountMasked: transaction.account ? maskAccountNumber(transaction.account) : null,
   };
+}
+
+/**
+ * Suma una columna de importes de los movimientos leídos.
+ *
+ * Se suman los mismos campos que concilia `validateStatement` —`debit` y
+ * `credit`, no el signo de `amount`—, para que el total publicado y el total
+ * con el que se compara lo impreso no puedan divergir por criterio.
+ *
+ * El redondeo a dos decimales es al final y no por sumando: acumular en coma
+ * flotante deja restos de 1e-13 que, publicados, se leen como un total que no
+ * cuadra con la suma que cualquiera haría a mano.
+ */
+function sumOf(transactions: readonly BankTransaction[], field: 'debit' | 'credit'): number {
+  const total = transactions.reduce((sum, item) => sum + (Number(item[field]) || 0), 0);
+  return Number(total.toFixed(2));
 }
 
 /**

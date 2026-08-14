@@ -19,8 +19,8 @@ import type {
  * `percentile_cont` recorre la ventana entera y lo que viaja son dos filas.
  *
  * Vive en el módulo de workers y no en uno de observabilidad porque lo que mide
- * es el ciclo de vida de estas dos tablas, que es justo lo único que los dos
- * workers comparten. Cada uno conserva su tabla, su cola y su processor.
+ * es el ciclo de vida de estas tablas, que es justo lo único que los workers
+ * comparten. Cada uno conserva su tabla, su cola y su processor.
  */
 @Injectable()
 export class WorkerMetricsService {
@@ -38,6 +38,8 @@ export class WorkerMetricsService {
   private static readonly RUN_TABLE: Record<WorkerCode, Prisma.Sql> = {
     'semantic-analysis': Prisma.raw('"decision_semantic_analysis_run"'),
     'bank-statement': Prisma.raw('"decision_bank_statement_run"'),
+    'identity-verification': Prisma.raw('"decision_identity_verification_run"'),
+    'audio-tts': Prisma.raw('"decision_audio_tts_run"'),
   };
 
   /** Causas distintas que se publican. Más allá, la lista deja de orientar. */

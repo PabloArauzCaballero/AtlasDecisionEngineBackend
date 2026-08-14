@@ -1,0 +1,12 @@
+{{!--
+  Bloque de cifra destacada. Uso: {{> atlas/summary label='Puntaje' value=data.score caption='sobre 1000'}}
+
+  Va con lavado de acento y no con lavado de estado: el color de estado se reserva para donde
+  HAY un estado. Un resumen en verde permanente enseña a leer el verde como decoración, y
+  entonces deja de significar «correcto» el día que lo significa.
+--}}
+<div class="summary keep-together">
+  <p class="summary__label">{{label}}</p>
+  <p class="summary__value">{{fmtValue value}}</p>
+  {{#if caption}}<p class="summary__label">{{caption}}</p>{{/if}}
+</div>

@@ -29,6 +29,9 @@ import {
 } from './bank-statement/core/statement-engine';
 import { SemanticAnalysisPipeline } from './semantic-analysis/core/application/semantic-analysis.pipeline';
 import type { SemanticAnalysisResult } from './semantic-analysis/core/domain/semantic-analysis.types';
+import { AudioTtsRuntimeFactory } from './audio-tts/audio-tts.runtime';
+import { buildAudioOutcome } from './audio-tts/audio-tts.result';
+import { AudioDomainError } from './audio-tts/core/domain/errors';
 
 /** Techo absoluto de una llamada desde un nodo, en milisegundos. */
 const MAX_CALL_TIMEOUT_MS = 120_000;
@@ -44,6 +47,7 @@ export class WorkerServiceInvokerService {
   constructor(
     private readonly config: ConfigService,
     private readonly semantic: SemanticAnalysisPipeline,
+    private readonly audio: AudioTtsRuntimeFactory,
   ) {}
 
   /** Ata el invocador al tenant y al principal de UNA ejecución, para `engine.execute()`. */
@@ -63,6 +67,8 @@ export class WorkerServiceInvokerService {
         return this.normalizeStatement(request, started);
       case 'semantic-analysis.classify':
         return this.classifyText(tenantId, principal, request, started);
+      case 'audio-tts.speak':
+        return this.speak(tenantId, principal, request, started);
       default:
         // El validador de grafo ya rechaza un servicio desconocido al aprobar el
         // artefacto. Llegar aquí significa que el catálogo del validador y el de este
@@ -191,6 +197,82 @@ export class WorkerServiceInvokerService {
   }
 
   /**
+   * Locuta una plantilla del catálogo del tenant.
+   *
+   * A diferencia de los otros dos servicios, esta llamada **normalmente no calcula nada**:
+   * si la frase ya se dijo con esta misma voz, devuelve el audio que había. Por eso es
+   * aceptable dentro de una decisión, donde los milisegundos cuentan; y por eso la
+   * generación, cuando toca, se hace aquí mismo en vez de encolarse — una decisión necesita
+   * la respuesta en el instante en que la pide.
+   *
+   * Lo que la decisión recibe es la IDENTIDAD del audio, no sus bytes: un algoritmo enruta
+   * por «hay locución o no la hay», y meter un MP3 en una variable intermedia lo metería
+   * también en la traza de la ejecución.
+   */
+  private async speak(
+    tenantId: bigint,
+    principal: AuthenticatedPrincipal,
+    request: WorkerServiceRequest,
+    started: number,
+  ): Promise<WorkerServiceOutcome> {
+    this.assertAvailable(
+      'audio-tts',
+      (this.config.get<boolean>('AUDIO_TTS_WORKER_ENABLED') ?? false) &&
+        (this.config.get<string>('AUDIO_TTS_PROVIDER') ?? 'disabled') !== 'disabled',
+      request.nodeKey,
+    );
+
+    const templateCode = stringArgument(request, 'templateCode');
+    if (!templateCode) {
+      throw new DomainException(
+        'WORKER_ARGUMENT_MISSING',
+        `El nodo ${request.nodeKey} llama a audio-tts.speak sin el argumento templateCode`,
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+    }
+
+    const runtime = this.audio.forTenant(tenantId);
+    try {
+      const resolved = await this.withTimeout(
+        runtime.resolver.resolve({
+          templateCode,
+          variables: variablesArgument(request),
+          // El actor es quien pidió la decisión: el techo diario de generaciones se aplica
+          // sobre él, igual que cuando locuta desde el portal. Un algoritmo no es una vía
+          // para saltarse el presupuesto de nadie.
+          actorId: principal.id,
+          ...(stringArgument(request, 'language')
+            ? { language: stringArgument(request, 'language') as string }
+            : {}),
+          correlationId: principal.requestId,
+        }),
+        this.timeoutFor(request, MAX_CALL_TIMEOUT_MS),
+        request,
+      );
+      if (resolved.status === 'QUEUED') {
+        await this.withTimeout(
+          runtime.processor.process(resolved.assetId, principal.requestId),
+          this.timeoutFor(request, MAX_CALL_TIMEOUT_MS),
+          request,
+        );
+      }
+      const outcome = await buildAudioOutcome(runtime, resolved);
+      return {
+        // Quedarse sin audio NO es un fallo —el contrato del worker es que la falta de
+        // audio nunca rompe a quien lo pide—, pero tampoco es un éxito limpio: el
+        // algoritmo tiene que poder distinguirlo y desviarse, y `call.status` es donde
+        // lo ve. Lo mismo vale para el respaldo, que suena pero no dice lo que se pidió.
+        status: outcome.warnings.length ? 'SUCCEEDED_WITH_WARNINGS' : 'SUCCEEDED',
+        result: outcome.result as unknown as Record<string, unknown>,
+        warnings: outcome.warnings,
+        durationMs: Date.now() - started,
+      };
+    } catch (error) {
+      throw toDomainException(error, request);
+    }
+  }
+
+  /**
    * Un servicio apagado en este despliegue no puede invocarse desde un nodo.
    *
    * Se comprueba con la MISMA bandera que publica el catálogo `/v1/workers`: si la interfaz
@@ -287,6 +369,25 @@ export class WorkerServiceInvokerService {
   }
 }
 
+/**
+ * Las variables de la plantilla, saneadas a `Record<string, string>`.
+ *
+ * Un nodo puede proyectar aquí cualquier valor de la decisión —un número, una fecha—, así
+ * que se convierten a texto en vez de rechazarlos: locutar «tu saldo es 1500» es un caso
+ * legítimo. Lo que NO se convierte son objetos y arrays, que sólo pueden venir de un error
+ * de cableado y acabarían diciendo «[object Object]» en voz alta.
+ */
+function variablesArgument(request: WorkerServiceRequest): Record<string, string> {
+  const raw = request.arguments.variables;
+  if (raw === undefined || raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    return {};
+  }
+  const entries = Object.entries(raw as Record<string, unknown>)
+    .filter(([, value]) => value !== null && value !== undefined && typeof value !== 'object')
+    .map(([key, value]) => [key, String(value)] as const);
+  return Object.fromEntries(entries);
+}
+
 function stringArgument(request: WorkerServiceRequest, name: string): string | undefined {
   const value = request.arguments[name];
   if (value === undefined || value === null) return undefined;
@@ -334,6 +435,12 @@ function toDomainException(error: unknown, request: WorkerServiceRequest): Domai
   if (error instanceof DomainException) return error;
   if (error instanceof StatementProcessingError) {
     return new DomainException(error.code, error.message, error.httpStatus, error.details);
+  }
+  // Una plantilla inexistente o una variable inválida son culpa de quien llama, no del
+  // motor: viajan con su código y con 422, para que un `onError: CONTINUE` pueda
+  // distinguirlas de que el proveedor de voz se cayera.
+  if (error instanceof AudioDomainError) {
+    return new DomainException(error.code, error.message, HttpStatus.UNPROCESSABLE_ENTITY);
   }
   return new DomainException(
     'WORKER_SERVICE_FAILED',

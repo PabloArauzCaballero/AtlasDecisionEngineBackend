@@ -10,6 +10,15 @@ import { newRequestId, type ValidatedStatementInput } from './bank-statement-inp
 import { persistableCarrier } from '../../../common/events/trace-carrier';
 import { MessagingTraceService } from '../../../common/observability/messaging-trace.service';
 
+/**
+ * Estados terminales SIN resultado: subir otra vez el mismo documento vuelve a
+ * intentarlo en lugar de devolver el intento anterior. Ver `createRun`.
+ */
+const RETRYABLE_STATUSES: readonly WorkerRunStatus[] = [
+  WorkerRunStatus.FAILED,
+  WorkerRunStatus.CANCELLED,
+];
+
 /** Estados desde los que ya no puede pasar nada más. */
 const TERMINAL_STATUSES: readonly WorkerRunStatus[] = [
   WorkerRunStatus.SUCCEEDED,
@@ -127,9 +136,99 @@ export class BankStatementService {
       // entre las dos consultas. Propagar el error original es más honesto que
       // fingir un resultado.
       if (!existing) throw error;
+      /*
+       * Un intento FALLIDO no se sirve de la caché: se vuelve a intentar.
+       *
+       * La deduplicación es por huella del archivo y no caduca, así que un
+       * documento que falló una vez respondía con ese fallo PARA SIEMPRE.
+       * Volver a subirlo no cambiaba nada, y tampoco había clave con la que
+       * forzar el reanálisis —el de extractos, a diferencia del semántico y el
+       * de identidad, no admite `idempotencyKey`—. El efecto es que ninguna
+       * corrección del lector de PDF alcanzaba jamás a los documentos que la
+       * necesitaban: se arreglaba el motor, el mismo archivo seguía devolviendo
+       * el error de antes, y lo razonable era concluir que el arreglo no servía.
+       *
+       * Lo que la deduplicación protege es no repetir TRABAJO YA HECHO. Un
+       * fallo no es trabajo hecho: es la ausencia de resultado. Reintentarlo
+       * cuesta lo mismo que costó fallar, y es lo que quiere decir quien vuelve
+       * a subir el mismo archivo.
+       */
+      if (RETRYABLE_STATUSES.includes(existing.status)) {
+        this.logger.debug(
+          `Extracto con intento ${existing.status} para esta huella; se reencola ${existing.requestId}`,
+        );
+        return {
+          run: await this.requeue(
+            existing.requestId,
+            tenantId,
+            principal,
+            input,
+            source,
+            fixtureCode,
+          ),
+          deduplicated: false,
+        };
+      }
       this.logger.debug(`Extracto ya encolado para esta huella; se devuelve ${existing.requestId}`);
       return { run: existing, deduplicated: true };
     }
+  }
+
+  /**
+   * Devuelve a la cola una ejecución que terminó sin resultado.
+   *
+   * Se ACTUALIZA la fila en vez de crear otra porque la huella es única por
+   * tenant: dos filas para el mismo documento no caben, y borrar y recrear
+   * perdería el `requestId` que alguien pueda estar siguiendo.
+   *
+   * Los bytes se reponen desde la subida nueva, y no es un detalle: el worker
+   * borra `fileBytes` en la misma transacción con la que cierra la ejecución
+   * —es la decisión de privacidad de esta tabla—, así que la fila que se
+   * reencola ya no tiene documento que analizar.
+   */
+  private async requeue(
+    requestId: string,
+    tenantId: bigint,
+    principal: AuthenticatedPrincipal,
+    input: ValidatedStatementInput,
+    source: WorkerInputSource,
+    fixtureCode?: string,
+  ): Promise<BankStatementRunView> {
+    return this.prisma.$transaction(async (tx) => {
+      const requeued = await tx.bankStatementRun.update({
+        where: { tenantId_requestId: { tenantId, requestId } },
+        data: {
+          status: WorkerRunStatus.QUEUED,
+          progress: 0,
+          inputSource: source,
+          fixtureCode: fixtureCode ?? null,
+          fileName: input.fileName,
+          fileSizeBytes: input.bytes.byteLength,
+          fileBytes: new Uint8Array(input.bytes),
+          // El rastro del intento anterior se limpia entero: dejar el código de
+          // error junto a un estado QUEUED describiría una ejecución que no
+          // existe.
+          resultJson: Prisma.DbNull,
+          warningsJson: Prisma.DbNull,
+          confidence: null,
+          institutionId: null,
+          transactionCount: null,
+          errorCode: null,
+          errorMessage: null,
+          attemptCount: 0,
+          leaseExpiresAt: null,
+          queuedAt: new Date(),
+          startedAt: null,
+          finishedAt: null,
+          requestedBy: principal.id,
+          correlationId: principal.requestId,
+          traceCarrier: persistableCarrier(this.messagingTrace.inject()),
+        },
+        select: RUN_SELECTION,
+      });
+      await this.jobSignal.notify(tx, JobName.BankStatement);
+      return requeued;
+    });
   }
 
   /** Una ejecución del tenant. Ajena o inexistente responden igual: 404. */

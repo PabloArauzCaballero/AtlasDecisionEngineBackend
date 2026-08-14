@@ -28,7 +28,14 @@ const RETRYABLE_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504]);
 
 const DEFAULT_MODEL = 'intfloat/multilingual-e5-small';
 const DEFAULT_BASE_URL = 'http://127.0.0.1:8080';
-const DEFAULT_TIMEOUT_MS = 15_000;
+/*
+ * 30 s y no 15: el servidor de embeddings corre en la misma máquina y comparte
+ * CPU con todo lo demás. Con 15 s, una tanda de clasificaciones en paralelo se
+ * pisaba a sí misma y las últimas morían por tiempo agotado —el usuario lo veía
+ * como «No se pudo» en media tabla—, cuando lo único que pasaba es que había
+ * cola. Esperar de más cuesta latencia; rendirse de menos cuesta el resultado.
+ */
+const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_BATCH_SIZE = 32;
 
 /**

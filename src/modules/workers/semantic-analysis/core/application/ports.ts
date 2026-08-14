@@ -198,3 +198,25 @@ export interface SemanticMetricsRecorder {
   recordFailure(event: FailureMetricEvent): void;
   recordQueueDepth(snapshot: QueueDepthSnapshot): void;
 }
+
+/**
+ * Dónde va a parar un análisis que no resolvió.
+ *
+ * Es un puerto y no una llamada directa por lo mismo que el resto del núcleo:
+ * aquí dentro no puede haber ni Prisma ni la bandeja de notificaciones. El
+ * núcleo sabe que una abstención debe escalarse; QUIÉN la recoge lo decide el
+ * módulo. Opcional a propósito: sin adaptador enlazado el clasificador sigue
+ * funcionando igual, sólo sin bandeja.
+ */
+export const UNRESOLVED_SINK = Symbol('UNRESOLVED_SINK');
+
+export interface UnresolvedSink {
+  record(input: {
+    tenantId: bigint;
+    rawValue: string;
+    source: string;
+    context?: Record<string, unknown>;
+    candidates?: readonly { categoryCode: string; confidence: number }[];
+    correlationId?: string;
+  }): Promise<unknown>;
+}

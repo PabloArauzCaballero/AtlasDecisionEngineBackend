@@ -1,0 +1,5 @@
+{{!-- Título y subtítulo del documento. Uso: {{> atlas/heading title=data.title subtitle=data.subtitle}} --}}
+<header class="doc-heading keep-together">
+  <h1 class="doc-title">{{title}}</h1>
+  {{#if subtitle}}<p class="doc-subtitle">{{subtitle}}</p>{{/if}}
+</header>

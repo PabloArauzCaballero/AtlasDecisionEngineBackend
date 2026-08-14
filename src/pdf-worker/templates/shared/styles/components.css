@@ -1,0 +1,305 @@
+/*
+ * Componentes compartidos (§28).
+ *
+ * Todo lo que un documento suele necesitar —secciones, tablas, listas de pares, resúmenes,
+ * avisos, firmas, metadatos— vive aquí una sola vez. Un template de negocio que redefine su
+ * propia tabla es la señal de que falta un componente en esta hoja, no de que ese documento
+ * sea especial: a la tercera copia hay tres tablas con tres grosores de línea distintos y
+ * nadie se atreve a tocar ninguna.
+ */
+
+.doc {
+  font-family: var(--font-sans);
+  font-size: var(--type-base);
+  line-height: var(--leading);
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.doc__body > * + * {
+  margin-top: var(--gap-block);
+}
+
+/* ---------- Membrete de primera página ---------- */
+
+.letterhead {
+  display: table;
+  width: 100%;
+  padding-bottom: var(--gap-block);
+  border-bottom: var(--rule) solid var(--ink);
+  margin-bottom: var(--gap-section);
+}
+
+.letterhead__identity,
+.letterhead__contact {
+  display: table-cell;
+  vertical-align: bottom;
+}
+
+.letterhead__contact {
+  text-align: right;
+  font-size: var(--type-xs);
+  color: var(--ink-muted);
+}
+
+.letterhead__contact span {
+  display: block;
+}
+
+.letterhead__logo {
+  height: 14mm;
+  margin-bottom: 2mm;
+}
+
+.letterhead__org {
+  font-size: var(--type-lg);
+  font-weight: var(--weight-bold);
+}
+
+.letterhead__legal,
+.letterhead__secondary {
+  font-size: var(--type-xs);
+  color: var(--ink-muted);
+}
+
+/* ---------- Títulos ---------- */
+
+.doc-title {
+  font-size: var(--type-2xl);
+  font-weight: var(--weight-bold);
+  line-height: 1.15;
+}
+
+.doc-subtitle {
+  font-size: var(--type-lg);
+  color: var(--ink-muted);
+  margin-top: 1mm;
+}
+
+.section {
+  margin-top: var(--gap-section);
+}
+
+.section__title {
+  font-size: var(--type-lg);
+  font-weight: var(--weight-bold);
+  padding-bottom: 1.5mm;
+  border-bottom: var(--hairline) solid var(--line);
+}
+
+.section__description {
+  margin-top: 1.5mm;
+  color: var(--ink-muted);
+  font-size: var(--type-sm);
+}
+
+.section__body > * + * {
+  margin-top: var(--gap-block);
+}
+
+/* ---------- Tablas ---------- */
+
+.table {
+  width: 100%;
+  font-size: var(--type-sm);
+}
+
+.table caption {
+  caption-side: top;
+  text-align: left;
+  font-weight: var(--weight-medium);
+  padding-bottom: 1.5mm;
+}
+
+.table th,
+.table td {
+  padding: var(--cell-pad-y) var(--cell-pad-x);
+  border-bottom: var(--hairline) solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.table thead th {
+  background: var(--surface-muted);
+  border-bottom: var(--rule) solid var(--line);
+  font-weight: var(--weight-bold);
+  color: var(--ink);
+}
+
+/* La cebra usa el fondo y no un borde: con `printBackground` desactivado desaparece sin dejar
+   una tabla llena de rayas huérfanas. */
+.table tbody tr:nth-child(even) td {
+  background: var(--surface-muted);
+}
+
+.table--numeric td:not(:first-child),
+.table--numeric th:not(:first-child) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.table__empty {
+  color: var(--ink-muted);
+  font-style: italic;
+}
+
+/* ---------- Pares clave/valor ---------- */
+
+.kv {
+  display: table;
+  width: 100%;
+  font-size: var(--type-sm);
+}
+
+.kv__row {
+  display: table-row;
+}
+
+.kv__label,
+.kv__value {
+  display: table-cell;
+  padding: var(--cell-pad-y) var(--cell-pad-x) var(--cell-pad-y) 0;
+  border-bottom: var(--hairline) solid var(--line);
+}
+
+.kv__label {
+  width: 38%;
+  color: var(--ink-muted);
+}
+
+.kv__value {
+  font-weight: var(--weight-medium);
+}
+
+/* ---------- Resumen, avisos e insignias ---------- */
+
+.summary {
+  padding: var(--gap-block);
+  background: var(--wash-accent);
+  border-left: var(--rule) solid var(--accent);
+  border-radius: var(--radius-sm);
+}
+
+.summary__label {
+  font-size: var(--type-xs);
+  color: var(--ink-muted);
+}
+
+.summary__value {
+  font-size: var(--type-xl);
+  font-weight: var(--weight-bold);
+}
+
+/* Fila de cifras destacadas. Vive aquí y no en un template porque la usan ya dos documentos:
+   la segunda copia de un componente es la señal de que le toca subir al catálogo compartido. */
+.summary-row {
+  display: table;
+  width: 100%;
+  border-spacing: var(--gap-block) 0;
+  /* Compensa el `border-spacing` lateral para que la fila siga alineada con el bloque de
+     texto; sin esto, las tarjetas sobresalen por ambos lados del resto del documento. */
+  margin-left: calc(var(--gap-block) * -1);
+  margin-right: calc(var(--gap-block) * -1);
+}
+
+.summary-row .summary {
+  display: table-cell;
+  vertical-align: top;
+}
+
+.doc-footnote {
+  margin-top: var(--gap-section);
+  padding-top: 2mm;
+  border-top: var(--hairline) solid var(--line);
+}
+
+.notice {
+  padding: 3mm var(--gap-block);
+  border-left: var(--rule) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+  font-size: var(--type-sm);
+}
+
+.notice--caution {
+  border-left-color: var(--caution);
+  background: var(--wash-caution);
+}
+
+.notice--critical {
+  border-left-color: var(--critical);
+  background: var(--wash-critical);
+}
+
+.notice--positive {
+  border-left-color: var(--positive);
+  background: var(--wash-positive);
+}
+
+.notice__title {
+  font-weight: var(--weight-bold);
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.6mm 2mm;
+  border: var(--hairline) solid currentColor;
+  border-radius: var(--radius-sm);
+  font-size: var(--type-xs);
+  font-weight: var(--weight-bold);
+}
+
+.badge--positive {
+  color: var(--positive);
+}
+
+.badge--caution {
+  color: var(--caution);
+}
+
+.badge--critical {
+  color: var(--critical);
+}
+
+.badge--neutral {
+  color: var(--ink-muted);
+}
+
+/* ---------- Metadatos y firmas ---------- */
+
+.metadata {
+  font-size: var(--type-xs);
+  color: var(--ink-muted);
+}
+
+.metadata__item + .metadata__item::before {
+  content: ' · ';
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.signatures {
+  display: table;
+  width: 100%;
+  margin-top: calc(var(--gap-section) * 2);
+}
+
+.signature {
+  display: table-cell;
+  width: 50%;
+  padding-right: var(--gap-section);
+  vertical-align: bottom;
+  font-size: var(--type-sm);
+}
+
+.signature__line {
+  border-top: var(--hairline) solid var(--ink);
+  padding-top: 1.5mm;
+}
+
+.signature__role {
+  color: var(--ink-muted);
+  font-size: var(--type-xs);
+}

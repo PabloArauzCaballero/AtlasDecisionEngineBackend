@@ -206,9 +206,15 @@ export function monthPeriod(value: string): {
  * producto. Su contraparte `M/E` («moneda extranjera») **no** se traduce a
  * `USD` a propósito: nombra una categoría, no una divisa, y devolver `UNKNOWN`
  * es preferible a suponer cuál es.
+ *
+ * Los códigos ISO se admiten en las DOS divisas. `USD` estaba desde el
+ * principio y `BOB` no, así que una carátula que rotulaba «Moneda: BOB» —la
+ * forma en que la escribe cualquier documento generado por máquina— salía como
+ * `UNKNOWN` mientras la misma carátula en dólares se leía sin problema. La
+ * asimetría no respondía a ninguna decisión: era el código que falta.
  */
 export function currencyFromText(value: string): CurrencyCode {
-  if (/bolivianos|\(bs\)|\bBS\b|\bM\/N\b/i.test(value)) return 'BOB';
+  if (/bolivianos|\(bs\)|\bBS\b|\bBOB\b|\bM\/N\b/i.test(value)) return 'BOB';
   if (/d[oó]lares|\busd\b|\$us/i.test(value)) return 'USD';
   return 'UNKNOWN';
 }
@@ -266,6 +272,47 @@ function isNewestFirst(transactions: readonly BankTransaction[]): boolean {
  * can also produce a jump the parser didn't itemize as its own row.
  */
 export function reconcileRunningBalance(transactions: readonly BankTransaction[]): number {
+  // El saldo de una cuenta no continúa el de otra: en un documento que publica
+  // varias, cada frontera parecería una ruptura. La segmentación vive AQUÍ y no
+  // en quien llama porque hay más de un sitio que concilia —el servicio para
+  // registrar la incidencia, las validaciones para puntuarla— y dos de ellos
+  // corrigiéndolo por separado es la forma de que un tercero nazca sin corregir.
+  return consecutiveByAccount(transactions).reduce(
+    (total, group) => total + reconcileOneAccount(group),
+    0,
+  );
+}
+
+/**
+ * Los movimientos en tramos CONSECUTIVOS de la misma cuenta.
+ *
+ * Consecutivos y no agrupados: un documento imprime cada cuenta entera antes de
+ * pasar a la siguiente, y lo que se comprueba sobre ellos —que un saldo
+ * continúe el anterior, que las fechas avancen— es una propiedad del orden en
+ * que están impresos. Reagruparlos rompería esa relación en vez de conservarla.
+ *
+ * Sin cuenta en los movimientos —el caso normal, un documento con una sola—
+ * sale un único tramo con todo, que es exactamente lo que se hacía antes.
+ */
+export function consecutiveByAccount(
+  transactions: readonly BankTransaction[],
+): readonly (readonly BankTransaction[])[] {
+  const groups: BankTransaction[][] = [];
+  let current: BankTransaction[] | undefined;
+  let account: string | undefined;
+
+  for (const transaction of transactions) {
+    if (!current || transaction.account !== account) {
+      current = [];
+      account = transaction.account;
+      groups.push(current);
+    }
+    current.push(transaction);
+  }
+  return groups;
+}
+
+function reconcileOneAccount(transactions: readonly BankTransaction[]): number {
   const newestFirst = isNewestFirst(transactions);
   let mismatches = 0;
   for (let index = 1; index < transactions.length; index += 1) {

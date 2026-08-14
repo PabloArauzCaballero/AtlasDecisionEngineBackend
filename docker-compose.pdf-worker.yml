@@ -1,0 +1,63 @@
+# Generador documental como servicio aparte.
+#
+#   docker compose -f docker-compose.pdf-worker.yml up --build
+#
+# Va en su propio archivo y no dentro de `docker-compose.yml` a propósito: el worker NO depende
+# de Postgres, ni de Redis, ni del motor. Meterlo en el compose principal lo ataría al ciclo de
+# vida de servicios que no necesita, y lo primero que se pierde con eso es la comprobación de
+# que sigue siendo independiente.
+services:
+  pdf-worker:
+    build:
+      context: .
+      target: pdf-worker
+    image: atlas-pdf-worker:local
+    restart: unless-stopped
+    ports:
+      - '${PDF_WORKER_PORT:-3100}:3100'
+    environment:
+      NODE_ENV: production
+      PDF_WORKER_PORT: '3100'
+      PDF_SWAGGER_ENABLED: '${PDF_SWAGGER_ENABLED:-false}'
+      PDF_ORG_NAME: '${PDF_ORG_NAME:-ATLAS Decision Engine}'
+      PDF_ORG_LEGAL_NAME: '${PDF_ORG_LEGAL_NAME:-}'
+      PDF_ORG_TAX_ID: '${PDF_ORG_TAX_ID:-}'
+      PDF_ORG_ADDRESS: '${PDF_ORG_ADDRESS:-}'
+      PDF_ORG_EMAIL: '${PDF_ORG_EMAIL:-}'
+      PDF_ORG_LOGO: '${PDF_ORG_LOGO:-}'
+      # Concurrencia y memoria van EMPAREJADAS. Cada carril es una pestaña de Chromium
+      # rasterizando: subir la una sin la otra no da velocidad, da un OOM.
+      PDF_RENDER_CONCURRENCY: '${PDF_RENDER_CONCURRENCY:-4}'
+      PDF_RENDER_TIMEOUT_MS: '${PDF_RENDER_TIMEOUT_MS:-30000}'
+      PDF_STORAGE_ENABLED: '${PDF_STORAGE_ENABLED:-true}'
+      PDF_STORAGE_PATH: /app/var/pdf-worker
+    # `atlas_app` es la red por la que el portal alcanza al motor; el worker
+    # tiene que estar en ella o `http://pdf-worker:3100` no resuelve.
+    networks: [atlas_app]
+    volumes:
+      - pdf-documents:/app/var/pdf-worker
+    # `/dev/shm` por defecto son 64 MiB y Chromium los agota rasterizando una hoja grande. El
+    # adaptador ya pasa `--disable-dev-shm-usage` (usa /tmp), así que esto es el cinturón sobre
+    # los tirantes: con ambos, ni la memoria compartida ni el disco temporal se quedan cortos.
+    shm_size: '512mb'
+    deploy:
+      resources:
+        limits:
+          # 4 carriles × ~180 MiB de pico por pestaña, más el heap de Node (768 MiB por
+          # NODE_OPTIONS) y el propio navegador.
+          memory: 2g
+    security_opt:
+      - seccomp:unconfined
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3100/pdf/health').then(r=>r.json()).then(b=>process.exit(b.status==='ok'?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 10s
+      start_period: 45s
+      retries: 3
+
+volumes:
+  pdf-documents:

@@ -66,9 +66,33 @@ export interface NormalizedBalances {
   readonly closing: number | null;
 }
 
+/**
+ * Totales del periodo, por las DOS vías, y esa separación es el contrato.
+ *
+ * `debit`/`credit` son los que **imprime el banco**: evidencia independiente
+ * contra la que se concilia lo extraído, y `null` cuando el documento no los
+ * publica. Sólo el generalista los venía leyendo; ninguna de las estrategias
+ * especializadas los publica, así que contra extractos reales llegaban `null`
+ * SIEMPRE.
+ *
+ * `debitExtracted`/`creditExtracted` son la suma de los movimientos leídos.
+ * Existen porque quien pregunta «cuánto entró en el periodo» —un algoritmo que
+ * deriva capacidad de pago— no puede depender de que el banco haya decidido
+ * imprimir un total: el dato ya está, movimiento a movimiento. Sin ellos, un
+ * extracto con 112 abonos bien leídos se leía como ingreso cero y la decisión
+ * salía «cobertura insuficiente» —una afirmación sobre el solicitante— cuando
+ * lo cierto era «el documento no imprime totales» —una sobre el papel—.
+ *
+ * No se funden en un solo campo a propósito: cuando los dos existen y
+ * discrepan, esa discrepancia es justo lo que la conciliación tiene que ver.
+ */
 export interface NormalizedTotals {
   readonly debit: number | null;
   readonly credit: number | null;
+  /** Suma de los cargos leídos. Siempre presente; 0 si no hubo movimientos. */
+  readonly debitExtracted: number;
+  /** Suma de los abonos leídos. Siempre presente; 0 si no hubo movimientos. */
+  readonly creditExtracted: number;
 }
 
 /** Trazabilidad del análisis: con qué se leyó y por qué se eligió. */

@@ -60,6 +60,18 @@ const ALIASES: readonly HeaderAlias[] = [
       /^descripcion(?:\s+(?:de\s+la\s+transaccion|del\s+movimiento|de\s+la\s+operacion))?$/,
       /^(?:detalle|glosa|concepto|transaccion|movimiento|operacion)$/,
       /^(?:description|details|narrative|particulars)$/,
+      /*
+       * Rótulo de dos partes, `DESCRIPCION / METADATOS`, que es UNA columna: la
+       * glosa y lo que el banco cuelga de ella —referencias, códigos, estado—.
+       * Sin esta línea la columna se reconocía como desconocida y el extracto
+       * salía con todos sus movimientos sin glosa, que en un extracto es casi
+       * todo lo que se lee.
+       *
+       * La alternancia se enumera en vez de admitir cualquier palabra tras la
+       * barra: `DEBITO / CREDITO` también es un rótulo de dos partes y NO es una
+       * descripción, y una regla que aceptara cualquier cosa lo leería como tal.
+       */
+      /^(?:descripcion|detalle|glosa|concepto)\s*\/\s*(?:metadatos|detalle|detalles|referencia|referencias|observaciones|concepto|glosa|descripcion)$/,
     ],
   },
   {

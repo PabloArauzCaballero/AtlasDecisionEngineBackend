@@ -11,6 +11,7 @@ import {
 import { CatalogCache } from './catalog-cache';
 import { EntityResolver } from './entity-resolver';
 import { Decision, DecisionEngine } from './decision-engine';
+import { GlosaFallbackClassifier } from './glosa-fallback';
 import { TenantBudgetGuard } from './tenant-budget.guard';
 import { TextNormalizer } from './text-normalizer';
 import {
@@ -68,7 +69,47 @@ export class SemanticAnalysisPipeline {
     private readonly decisionEngine: DecisionEngine,
     private readonly tracing: TracingService,
     private readonly resultBuilder: SemanticAnalysisResultBuilder,
+    private readonly fallback: GlosaFallbackClassifier,
   ) {}
+
+  /**
+   * La decisión final, con la red de seguridad puesta.
+   *
+   * Si el modelo resolvió, manda el modelo y aquí no pasa nada. Si no —umbral no
+   * alcanzado, empate, o ni siquiera hubo candidatas—, la glosa se lee por
+   * REGLAS de instrumento: `TRASPASO`, `QR`, `RETIRO DE EFECTIVO` y compañía son
+   * literales, están en todos los extractos bolivianos y no necesitan modelo.
+   *
+   * Lo que se gana no es precisión, es COBERTURA honesta: «salió dinero por
+   * transferencia» consta en la glosa; «sin determinar» no dice nada y obliga a
+   * quien recibe el informe a resolverlo por su cuenta, fila por fila.
+   */
+  private conRedDeSeguridad(
+    decision: Decision,
+    normalizedText: string,
+    categories: readonly SemanticCategory[],
+  ): Decision {
+    if (decision.status !== 'UNKNOWN' && decision.status !== 'AMBIGUOUS') return decision;
+    const disponibles = new Set(leavesOf(categories).map((categoria) => categoria.code));
+    const regla = this.fallback.clasificar(normalizedText, disponibles);
+    if (regla === null) return decision;
+
+    this.logger.debug(`Glosa resuelta por regla como ${regla.categoryCode}.`);
+    return {
+      status: 'MATCH',
+      requiresDeepAnalysis: false,
+      matches: [
+        {
+          categoryCode: regla.categoryCode,
+          confidence: regla.confidence,
+          supported: true,
+          contradicted: false,
+          evidence: [regla.evidence],
+          rationale: regla.rationale,
+        },
+      ],
+    };
+  }
 
   /**
    * Envuelve el análisis en su span de negocio: la ruta crítica del sistema. Bajo él cuelgan el
@@ -97,8 +138,20 @@ export class SemanticAnalysisPipeline {
     const budget = AbortSignal.timeout(this.config.analysisTimeoutSeconds * 1_000);
 
     const { categories, aliases } = await this.catalog.load(request.tenantId);
-    const normalizedText = this.normalizer.normalize(request.text, aliases);
-    const entities = this.entityResolver.resolve(normalizedText, aliases);
+    /*
+     * Dos textos, y no por comodidad: el resolutor de entidades busca los
+     * nombres canónicos, así que necesita los alias YA desplegados; el
+     * clasificador necesita lo contrario —la glosa como el banco la escribió y
+     * sin los identificadores que la ahogan—. Compartir un solo texto obligaba a
+     * elegir cuál de los dos trabajaba mal, y el que trabajaba mal era el que
+     * decide la categoría.
+     *
+     * `normalizedText` es el que se guarda y se enseña porque es el que se
+     * clasificó: una traza que mostrara otro texto no explicaría el veredicto.
+     */
+    const textoConAlias = this.normalizer.normalize(request.text, aliases);
+    const normalizedText = this.normalizer.forClassification(request.text, aliases);
+    const entities = this.entityResolver.resolve(textoConAlias, aliases);
 
     const allowance = await this.budget.reserve(request.tenantId);
     if (!allowance.allowed) {
@@ -132,7 +185,7 @@ export class SemanticAnalysisPipeline {
         entities,
         candidates,
         categories,
-        decision: UNRESOLVED,
+        decision: this.conRedDeSeguridad(UNRESOLVED, normalizedText, categories),
         tier: 'FAST',
         model: NO_CATEGORIES_MODEL,
         modelVersion: NO_CATEGORIES_MODEL,
@@ -165,7 +218,7 @@ export class SemanticAnalysisPipeline {
         entities,
         candidates,
         categories,
-        decision: fastDecision,
+        decision: this.conRedDeSeguridad(fastDecision, normalizedText, categories),
         tier: 'FAST',
         model: fast.model,
         modelVersion: fast.modelVersion,
@@ -189,7 +242,7 @@ export class SemanticAnalysisPipeline {
       entities,
       candidates,
       categories,
-      decision: deepDecision,
+      decision: this.conRedDeSeguridad(deepDecision, normalizedText, categories),
       tier: 'DEEP',
       model: deep.model,
       modelVersion: deep.modelVersion,
