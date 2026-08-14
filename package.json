@@ -60,7 +60,7 @@
     "smoke:identity": "node scripts/smoke-identity.mjs",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" \"prisma/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\" \"prisma/**/*.ts\"",
-    "security:audit": "yarn audit --level high --groups dependencies",
+    "security:audit": "node scripts/audit-high.mjs",
     "verify:release": "yarn verify && yarn migration:validate && yarn security:audit && yarn docs:validate",
     "production:config:check": "node -e \"require('./dist/common/config/env.schema.js').validateEnvironment(process.env); console.log('Production configuration OK')\"",
     "calibrar:identidad": "node scripts/calibrar-identidad.mjs",
@@ -69,7 +69,8 @@
     "pdf:worker": "node dist/pdf-worker.js",
     "pdf:visual:baseline": "ts-node -P tsconfig.json -T src/pdf-worker/cli/visual-baseline.ts",
     "pdf:evidencia": "ts-node -P tsconfig.json -T src/pdf-worker/cli/evidencia.ts",
-    "pdf:openapi": "ts-node -P tsconfig.json -T scripts/pdf/export-openapi.ts"
+    "pdf:openapi": "ts-node -P tsconfig.json -T scripts/pdf/export-openapi.ts",
+    "security:audit:todo": "node scripts/audit-high.mjs --todos"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.5",
