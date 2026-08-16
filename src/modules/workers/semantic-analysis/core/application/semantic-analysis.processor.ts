@@ -17,6 +17,11 @@ import {
   isRetryable,
   toStableErrorCode,
 } from '../domain/semantic-analysis.errors';
+import {
+  MOTIVOS_DE_REVISION,
+  motivoDeRevisionPara,
+  type MotivoDeRevision,
+} from '../domain/review-reason';
 import { TracingService } from '../../../../../common/observability/tracing.service';
 import {
   APP_ATTRIBUTES,
@@ -97,6 +102,8 @@ export class SemanticAnalysisProcessor {
       const retryable = isRetryable(error);
       await this.auditRepository.fail(request, errorCode);
       this.metrics.recordFailure({ errorCode, retryable, tenantId: request.tenantId });
+      // Antes de relanzar: una glosa que tardó demasiado NO puede desaparecer.
+      await this.escalarPorFallo(request, errorCode, retryable);
       this.logger.error(
         `Falló la solicitud ${request.requestId} con código ${errorCode} (reintentable: ${String(retryable)}).`,
       );
@@ -122,8 +129,80 @@ export class SemanticAnalysisProcessor {
     request: SemanticAnalysisRequest,
     result: SemanticAnalysisResult,
   ): Promise<void> {
-    if (this.unresolved === null) return;
     if (result.status !== 'UNKNOWN' && result.status !== 'AMBIGUOUS') return;
+
+    await this.escalar(request, MOTIVOS_DE_REVISION.LOW_CONFIDENCE, {
+      context: {
+        status: result.status,
+        tierUsed: result.tierUsed,
+        normalizedText: result.normalizedText,
+        evaluatedCategoryCodes: result.evaluatedCategoryCodes,
+        processingTimeMs: result.processingTimeMs,
+      },
+      // Las candidatas que el motor evaluó, aunque ninguna alcanzara su
+      // umbral: son exactamente la recomendación que el administrador
+      // necesita para decidir en un vistazo.
+      candidates: (result.matches ?? []).map((match: CategoryAssessment) => ({
+        categoryCode: match.categoryCode,
+        confidence: match.confidence,
+      })),
+    });
+  }
+
+  /**
+   * Un análisis que TARDÓ demasiado tampoco termina en silencio.
+   *
+   * Éste es el defecto que arregla el método: hasta ahora un `SEMANTIC_TIMEOUT`
+   * marcaba la ejecución como fallida y ahí acababa todo. Y «fallido» y «lento»
+   * no son lo mismo ni de lejos: lo fallido se reintenta y se olvida, mientras
+   * que una glosa que agota el reloj suele ser justo la que MÁS necesita que la
+   * mire una persona —un caso ambiguo, una redacción que el modelo no había
+   * visto, un proveedor externo que se atascó—. Marcarla como fallida la sacaba
+   * del circuito de revisión sin que nadie lo decidiera: no aparecía en la
+   * bandeja, no se podía asignar categoría y no dejaba rastro de por qué.
+   *
+   * **Escala en cada intento, y eso no duplica nada.** La bandeja deduplica por
+   * `(tenant, source, valor normalizado)` en la propia base, así que un reintento
+   * que vuelva a agotar el reloj suma una aparición al mismo pendiente en vez de
+   * abrir otro. Y si el reintento acaba saliendo bien, el término ya escalado se
+   * cierra solo en la siguiente reevaluación del catálogo o al aprenderse su
+   * alias — que es exactamente lo que ese barrido existe para hacer.
+   *
+   * **No todo fallo se escala**: `motivoDeRevisionPara` deja fuera lo que ninguna
+   * persona puede resolver mirando una glosa (véase su cabecera).
+   */
+  private async escalarPorFallo(
+    request: SemanticAnalysisRequest,
+    errorCode: string,
+    retryable: boolean,
+  ): Promise<void> {
+    const motivo = motivoDeRevisionPara(errorCode, retryable);
+    if (motivo === null) return;
+
+    await this.escalar(request, motivo, { context: { errorCode, retryable } });
+  }
+
+  /**
+   * El ÚNICO punto que escribe en la bandeja, con su motivo siempre puesto.
+   *
+   * Uno solo y no dos por lo de siempre: dos escrituras acaban divergiendo en
+   * qué contexto guardan, y la mitad de los pendientes queda sin el campo por el
+   * que alguien filtra.
+   *
+   * **No interrumpe nada.** Si el escalado falla, el desenlace del análisis ya
+   * está auditado: convertir un fallo de la bandeja en un fallo de la
+   * clasificación haría que la cola reintentara un trabajo que salió bien, y en
+   * el camino del error taparía el error de verdad con otro distinto.
+   */
+  private async escalar(
+    request: SemanticAnalysisRequest,
+    reason: MotivoDeRevision,
+    extra: {
+      context: Record<string, unknown>;
+      candidates?: readonly { categoryCode: string; confidence: number }[];
+    },
+  ): Promise<void> {
+    if (this.unresolved === null) return;
     if (request.tenantId === undefined) return;
 
     try {
@@ -131,22 +210,11 @@ export class SemanticAnalysisProcessor {
         tenantId: BigInt(request.tenantId),
         rawValue: request.text,
         source: 'semantic-analysis',
-        context: {
-          requestId: request.requestId,
-          status: result.status,
-          tierUsed: result.tierUsed,
-          normalizedText: result.normalizedText,
-          evaluatedCategoryCodes: result.evaluatedCategoryCodes,
-        },
-        // Las candidatas que el motor evaluó, aunque ninguna alcanzara su
-        // umbral: son exactamente la recomendación que el administrador
-        // necesita para decidir en un vistazo.
-        candidates: (result.matches ?? []).map((match: CategoryAssessment) => ({
-          categoryCode: match.categoryCode,
-          confidence: match.confidence,
-        })),
+        context: { requestId: request.requestId, reason, ...extra.context },
+        ...(extra.candidates === undefined ? {} : { candidates: extra.candidates }),
         correlationId: request.requestId,
       });
+      this.metrics.recordReviewEscalation?.({ reason, tenantId: request.tenantId });
     } catch (error: unknown) {
       this.logger.warn(
         `No se pudo registrar el pendiente de ${request.requestId}: ` +

@@ -197,6 +197,27 @@ export interface SemanticMetricsRecorder {
   recordProviderCall(event: ProviderMetricEvent): void;
   recordFailure(event: FailureMetricEvent): void;
   recordQueueDepth(snapshot: QueueDepthSnapshot): void;
+  /**
+   * Una glosa que se fue a revisión, con el motivo por el que se fue.
+   *
+   * Sin esta medida no hay forma de responder la única pregunta que importa
+   * sobre la bandeja: si está creciendo porque el clasificador duda de verdad
+   * —trabajo legítimo para una persona— o porque el proveedor va lento y le
+   * estamos trasladando a la cola de revisión un problema de rendimiento. Las
+   * dos cosas se ven idénticas mirando el tamaño de la bandeja, y se arreglan de
+   * formas opuestas.
+   *
+   * **Opcional a propósito**, como el propio sumidero: un recolector que no la
+   * implemente sigue siendo un recolector válido, y no obliga a tocar cada doble
+   * de prueba que ya existe para añadir una medida nueva.
+   */
+  recordReviewEscalation?(event: ReviewEscalationMetricEvent): void;
+}
+
+export interface ReviewEscalationMetricEvent {
+  /** Vocabulario cerrado de `domain/review-reason.ts`: `TIMEOUT`, `LOW_CONFIDENCE`… */
+  readonly reason: string;
+  readonly tenantId?: string | undefined;
 }
 
 /**
