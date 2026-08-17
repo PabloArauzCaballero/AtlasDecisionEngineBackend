@@ -149,6 +149,18 @@ services:
       # «no active deployment». No se deduce de NODE_ENV porque la imagen es la misma
       # que se despliega y lo fija en `production`.
       SEED_INCLUDE_MOCKUP: ${SEED_INCLUDE_MOCKUP:-true}
+      # La siembra de demostración escribe la CADENA de auditoría y seudonimiza al
+      # solicitante, y las dos cosas son el mismo HMAC que usa el motor. Tiene que ser el
+      # MISMO secreto y el MISMO identificador de clave que reciben `api` y `worker`: una
+      # cadena firmada con otro secreto verifica como manipulada, y un sujeto seudonimizado
+      # con otro secreto no lo encuentra nunca la pantalla de solicitudes de titular.
+      #
+      # Sin esto la siembra no se cae —se salta la cartera y la bitácora y lo dice en el
+      # registro—, que es peor: la base queda con el artefacto desplegado y las siete
+      # pantallas de auditoría vacías, exactamente el estado que no se distingue de un
+      # motor apagado.
+      AUDIT_HASH_SECRET: ${AUDIT_HASH_SECRET:?set AUDIT_HASH_SECRET in .env (at least 32 characters)}
+      AUDIT_HASH_KEY_ID: ${AUDIT_HASH_KEY_ID:-v1}
     networks: [atlas_data]
     command: ["db", "seed"]
     restart: "no"
@@ -379,6 +391,20 @@ services:
       SEMANTIC_TRANSFORMER_MODEL:
       SEMANTIC_TRANSFORMER_TIMEOUT_MS:
       SEMANTIC_TRANSFORMER_BATCH_SIZE:
+      # Insistencia ante un fallo PASAJERO del servidor de embeddings (503 al
+      # cargar el modelo, cola llena). Sin ella, ese tropiezo tumbaba el análisis
+      # entero y la tabla del extracto lo mostraba como «No se pudo», que
+      # describe un fallo de clasificación que no había ocurrido.
+      SEMANTIC_TRANSFORMER_MAX_ATTEMPTS:
+      SEMANTIC_TRANSFORMER_RETRY_BACKOFF_MS:
+      # Vectores de sonda del catálogo que se conservan en memoria. Son texto que
+      # no cambia entre glosas: recalcularlos en cada una era pedir decenas de
+      # vectores para aprovechar uno. `0` desactiva la caché.
+      SEMANTIC_TRANSFORMER_PROBE_CACHE_SIZE:
+      # Memoria de glosas ya clasificadas. Su clave incluye la firma del
+      # catálogo, así que publicar una categoría invalida lo afectado sola.
+      SEMANTIC_ANALYSIS_CLASSIFICATION_TTL_SECONDS:
+      SEMANTIC_ANALYSIS_CLASSIFICATION_CACHE:
       # Prefijos y umbrales son propiedades DEL MODELO servido, no de este
       # despliegue: al cambiar de modelo hay que volver a medirlos.
       SEMANTIC_TRANSFORMER_QUERY_PREFIX:
@@ -581,6 +607,20 @@ services:
       SEMANTIC_TRANSFORMER_MODEL:
       SEMANTIC_TRANSFORMER_TIMEOUT_MS:
       SEMANTIC_TRANSFORMER_BATCH_SIZE:
+      # Insistencia ante un fallo PASAJERO del servidor de embeddings (503 al
+      # cargar el modelo, cola llena). Sin ella, ese tropiezo tumbaba el análisis
+      # entero y la tabla del extracto lo mostraba como «No se pudo», que
+      # describe un fallo de clasificación que no había ocurrido.
+      SEMANTIC_TRANSFORMER_MAX_ATTEMPTS:
+      SEMANTIC_TRANSFORMER_RETRY_BACKOFF_MS:
+      # Vectores de sonda del catálogo que se conservan en memoria. Son texto que
+      # no cambia entre glosas: recalcularlos en cada una era pedir decenas de
+      # vectores para aprovechar uno. `0` desactiva la caché.
+      SEMANTIC_TRANSFORMER_PROBE_CACHE_SIZE:
+      # Memoria de glosas ya clasificadas. Su clave incluye la firma del
+      # catálogo, así que publicar una categoría invalida lo afectado sola.
+      SEMANTIC_ANALYSIS_CLASSIFICATION_TTL_SECONDS:
+      SEMANTIC_ANALYSIS_CLASSIFICATION_CACHE:
       # Prefijos y umbrales son propiedades DEL MODELO servido, no de este
       # despliegue: al cambiar de modelo hay que volver a medirlos.
       SEMANTIC_TRANSFORMER_QUERY_PREFIX:

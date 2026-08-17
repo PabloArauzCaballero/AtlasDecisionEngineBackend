@@ -52,43 +52,54 @@ export class DecisionCoverageService {
     const to = query.to ? new Date(query.to) : new Date();
     const from = query.from ? new Date(query.from) : defaultFrom(to);
 
-    const [totals] = await this.prisma.$queryRaw<CoverageTotalsRow[]>`
-      SELECT
-        COUNT(*)::bigint                                                        AS executions,
-        COUNT(*) FILTER (WHERE "subject_id" IS NOT NULL)::bigint                AS with_subject,
-        COUNT(*) FILTER (WHERE "subject_absence_reason" = 'NOT_APPLICABLE')::bigint
-                                                                                AS not_applicable
-      FROM "decision_execution"
-      WHERE "tenant_id" = ${tenantId}
-        AND "executed_at" >= ${from}
-        AND "executed_at" <= ${to}
-    `;
+    // Las tres consultas van DENTRO de una transacción, y no es por atomicidad: es la única
+    // forma de que se fije el GUC `app.tenant_id` (ver `common/prisma/tenant-rls.ts`). Una
+    // consulta cruda suelta cae al cliente base sin fijarlo, y en cuanto la conexión del pool
+    // que le toque ya haya servido a un tenant, el GUC queda DEFINIDO con cadena vacía: la
+    // política de RLS evalúa `''::bigint` y la petición muere con 22P02. Depende de qué
+    // conexión toque, así que falla de forma intermitente — que es como estuvo esta pantalla
+    // sin que se notara, porque además no había filas que enseñar.
+    const { totals, windows, daily } = await this.prisma.$transaction(async (tx) => {
+      const [totalesFila] = await tx.$queryRaw<CoverageTotalsRow[]>`
+        SELECT
+          COUNT(*)::bigint                                                        AS executions,
+          COUNT(*) FILTER (WHERE "subject_id" IS NOT NULL)::bigint                AS with_subject,
+          COUNT(*) FILTER (WHERE "subject_absence_reason" = 'NOT_APPLICABLE')::bigint
+                                                                                  AS not_applicable
+        FROM "decision_execution"
+        WHERE "tenant_id" = ${tenantId}
+          AND "executed_at" >= ${from}
+          AND "executed_at" <= ${to}
+      `;
 
-    const [windows] = await this.prisma.$queryRaw<WindowTotalsRow[]>`
-      SELECT
-        COUNT(*)::bigint                                             AS due,
-        COUNT(*) FILTER (WHERE w."observed_at" IS NOT NULL)::bigint  AS observed,
-        COUNT(*) FILTER (WHERE o."inference_method" IS NOT NULL)::bigint AS inferred
-      FROM "outcome_window_schedule" w
-      LEFT JOIN "decision_outcome_observation" o
-        ON o."execution_id" = w."execution_id" AND o."window_days" = w."window_days"
-      WHERE w."tenant_id" = ${tenantId}
-        AND w."due_at" <= ${to}
-    `;
+      const [ventanasFila] = await tx.$queryRaw<WindowTotalsRow[]>`
+        SELECT
+          COUNT(*)::bigint                                             AS due,
+          COUNT(*) FILTER (WHERE w."observed_at" IS NOT NULL)::bigint  AS observed,
+          COUNT(*) FILTER (WHERE o."inference_method" IS NOT NULL)::bigint AS inferred
+        FROM "outcome_window_schedule" w
+        LEFT JOIN "decision_outcome_observation" o
+          ON o."execution_id" = w."execution_id" AND o."window_days" = w."window_days"
+        WHERE w."tenant_id" = ${tenantId}
+          AND w."due_at" <= ${to}
+      `;
 
-    const daily = await this.prisma.$queryRaw<DailyRow[]>`
-      SELECT
-        date_trunc('day', "executed_at")                          AS day,
-        COUNT(*)::bigint                                          AS executions,
-        COUNT(*) FILTER (WHERE "subject_id" IS NOT NULL)::bigint  AS with_subject
-      FROM "decision_execution"
-      WHERE "tenant_id" = ${tenantId}
-        AND "executed_at" >= ${from}
-        AND "executed_at" <= ${to}
-      GROUP BY 1
-      ORDER BY 1
-      LIMIT ${MAX_SERIES_DAYS}
-    `;
+      const serie = await tx.$queryRaw<DailyRow[]>`
+        SELECT
+          date_trunc('day', "executed_at")                          AS day,
+          COUNT(*)::bigint                                          AS executions,
+          COUNT(*) FILTER (WHERE "subject_id" IS NOT NULL)::bigint  AS with_subject
+        FROM "decision_execution"
+        WHERE "tenant_id" = ${tenantId}
+          AND "executed_at" >= ${from}
+          AND "executed_at" <= ${to}
+        GROUP BY 1
+        ORDER BY 1
+        LIMIT ${MAX_SERIES_DAYS}
+      `;
+
+      return { totals: totalesFila, windows: ventanasFila, daily: serie };
+    });
 
     const executions = Number(totals?.executions ?? 0);
     const withSubject = Number(totals?.with_subject ?? 0);

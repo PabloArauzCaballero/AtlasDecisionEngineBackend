@@ -101,6 +101,13 @@ export function buildSemanticWorkerConfig(config: ConfigService): SemanticWorker
     candidateLimit: config.get<number>('SEMANTIC_ANALYSIS_CANDIDATE_LIMIT') ?? 8,
     ambiguityMargin: config.get<number>('SEMANTIC_ANALYSIS_AMBIGUITY_MARGIN') ?? 0.08,
     catalogCacheTtlSeconds: config.get<number>('SEMANTIC_ANALYSIS_CATALOG_TTL_SECONDS') ?? 300,
+    // Una hora y cinco mil glosas: un extracto largo trae unas ciento veinte
+    // distintas, así que caben decenas de tandas seguidas sin desalojar nada. La
+    // frescura no depende de este plazo —la firma del catálogo la garantiza—,
+    // sólo la memoria que retiene un proceso que lleva días levantado.
+    classificationCacheTtlSeconds:
+      config.get<number>('SEMANTIC_ANALYSIS_CLASSIFICATION_TTL_SECONDS') ?? 3_600,
+    classificationCacheSize: config.get<number>('SEMANTIC_ANALYSIS_CLASSIFICATION_CACHE') ?? 5_000,
     // Léxico salvo que se pida lo contrario a propósito. El modo híbrido exige
     // un proveedor de embeddings, calcular y almacenar un vector por categoría,
     // y gasta cuota en cada análisis: no es un valor por defecto razonable, es

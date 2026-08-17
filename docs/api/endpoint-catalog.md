@@ -3,7 +3,7 @@
 
 # Catálogo de endpoints
 
-Contrato **v1** · 178 rutas · 200 operaciones.
+Contrato **v1** · 190 rutas · 212 operaciones.
 
 La referencia interactiva completa —con esquemas, ejemplos y la posibilidad de probar cada
 llamada— está en `/docs/{API_VERSION}/reference` del propio backend. Esta página existe para
@@ -333,6 +333,15 @@ Revisión de seguridad de una versión antes de su promoción.
 | `GET` | `/v1/security-review/versions/{versionId}` | `securityReviewGet` | Aggregate security and governance evidence for a version |
 | `GET` | `/v1/security-review/versions/{versionId}/export` | `securityReviewExport` | Export a reproducible security-review snapshot |
 
+## SQL Console
+
+| Método | Ruta | Operación | Resumen |
+| --- | --- | --- | --- |
+| `GET` | `/v1/sql-console/catalog` | `sqlConsoleCatalog` | List the governed datasets, tables and columns the console can query |
+| `GET` | `/v1/sql-console/history` | `sqlConsoleHistory` | List the caller´s own recent queries |
+| `POST` | `/v1/sql-console/query` | `sqlConsoleQuery` | Execute a read-only query against the governed datasets |
+| `POST` | `/v1/sql-console/validate` | `sqlConsoleValidate` | Validate and estimate a query without executing it |
+
 ## Tutorials
 
 Contenido guiado del portal.
@@ -378,6 +387,8 @@ Clasificación de texto libre contra el catálogo de categorías, con entidades 
 | `GET` | `/v1/workers/semantic-analysis/runs` | `semanticAnalysisListRuns` | Análisis del tenant |
 | `GET` | `/v1/workers/semantic-analysis/runs/{requestId}` | `semanticAnalysisGetRun` | Estado, progreso y resultado de un análisis |
 | `POST` | `/v1/workers/semantic-analysis/runs/{requestId}/cancel` | `semanticAnalysisCancelRun` | Cancela un análisis que nadie ha reclamado todavía |
+| `POST` | `/v1/workers/semantic-analysis/runs/batch` | `semanticAnalysisCreateRunBatch` | Encola varios análisis semánticos de una vez |
+| `POST` | `/v1/workers/semantic-analysis/runs/status` | `semanticAnalysisGetRunStatuses` | Estado y resultado de varias ejecuciones |
 
 ## Workers · Categorías semánticas
 
@@ -396,6 +407,12 @@ Conversión de un extracto bancario en PDF a movimientos normalizados. Asíncron
 | Método | Ruta | Operación | Resumen |
 | --- | --- | --- | --- |
 | `GET` | `/v1/workers/bank-statement/fixtures` | `bankStatementListFixtures` | Escenarios de prueba disponibles |
+| `GET` | `/v1/workers/bank-statement/reviews` | `statementReviewList` | Cola de documentos pendientes de revisión humana |
+| `GET` | `/v1/workers/bank-statement/reviews/{requestId}` | `statementReviewGet` | Un caso, con su clasificación, lo extraído y lo que falló |
+| `POST` | `/v1/workers/bank-statement/reviews/{requestId}/claim` | `statementReviewClaim` | Reclama el caso para revisarlo |
+| `POST` | `/v1/workers/bank-statement/reviews/{requestId}/reprocess` | `statementReviewReprocess` | Devuelve el documento a la cola del worker |
+| `POST` | `/v1/workers/bank-statement/reviews/{requestId}/resolve` | `statementReviewResolve` | Cierra el caso: aprobar, corregir, rechazar o marcar no válido |
+| `GET` | `/v1/workers/bank-statement/reviews/categories` | `statementReviewCategories` | Contadores por categoría de la cola de revisión |
 | `POST` | `/v1/workers/bank-statement/runs` | `bankStatementCreateRun` | Encola una conversión de extracto |
 | `GET` | `/v1/workers/bank-statement/runs` | `bankStatementListRuns` | Ejecuciones del tenant |
 | `GET` | `/v1/workers/bank-statement/runs/{requestId}` | `bankStatementGetRun` | Estado, progreso y resultado de una ejecución |

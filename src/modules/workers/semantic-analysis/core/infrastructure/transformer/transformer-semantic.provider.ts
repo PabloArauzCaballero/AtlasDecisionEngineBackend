@@ -29,9 +29,21 @@ export interface TransformerSemanticProviderOptions extends ClassifierThresholds
   readonly passagePrefix: string;
   /** Longitud máxima del fragmento citado como evidencia. */
   readonly maxEvidenceLength?: number;
+  /**
+   * Sondas cuyo vector se conserva en memoria entre clasificaciones. `0`
+   * desactiva la caché y vuelve al comportamiento anterior.
+   */
+  readonly probeCacheSize?: number;
 }
 
 const DEFAULT_MAX_EVIDENCE_LENGTH = 500;
+/**
+ * Un catálogo de gastos sembrado ronda las 60 categorías, y en `DEEP` cada una
+ * aporta su enunciado más sus ejemplos y contraejemplos: unas 400 sondas. Mil
+ * caben de sobra, dejan sitio a un catálogo tres veces mayor y ocupan unos 3 MB
+ * con vectores de 384 dimensiones.
+ */
+const DEFAULT_PROBE_CACHE_SIZE = 1_000;
 
 /**
  * Clasificador de texto sobre un transformer codificador.
@@ -52,12 +64,35 @@ const DEFAULT_MAX_EVIDENCE_LENGTH = 500;
  * **Una sola llamada de red por nivel.** El texto y todas las sondas van en el
  * mismo lote: partirlos multiplicaría la latencia por el número de categorías
  * sin cambiar un solo resultado.
+ *
+ * **Y esa llamada sólo lleva lo que falta.** Las sondas son texto del CATÁLOGO:
+ * el enunciado de una categoría y sus ejemplos son los mismos para la glosa de
+ * ahora y para la de dentro de una hora. Volver a calcular sus vectores en cada
+ * clasificación era pedirle al servidor de embeddings nueve textos —cincuenta en
+ * `DEEP`— para aprovechar uno. Con la caché puesta, una tanda de extracto manda
+ * un texto por glosa a partir de la primera, y lo que era el trabajo dominante
+ * del worker desaparece: no es una mejora de constante, es un orden de magnitud.
+ *
+ * La caché no necesita invalidación porque la clave ES el texto de la sonda:
+ * editar la descripción de una categoría produce una sonda distinta, con su
+ * propia entrada, y la vieja se va sola al llenarse el hueco. Vive en el proceso
+ * a propósito —un vector se recalcula en milisegundos y compartirlo entre
+ * instancias costaría una consulta por clasificación, que es justo lo que se
+ * está quitando—.
  */
 export class TransformerSemanticProvider implements SemanticModelProvider {
   private readonly maxEvidenceLength: number;
+  private readonly probeCacheSize: number;
+  /**
+   * Vectores de sonda por su texto exacto. `Map` conserva el orden de inserción,
+   * que es lo que permite desalojar el menos usado en O(1): un acierto reinserta
+   * la entrada al final y el desalojo se lleva siempre la primera.
+   */
+  private readonly probeCache = new Map<string, readonly number[]>();
 
   public constructor(private readonly options: TransformerSemanticProviderOptions) {
     this.maxEvidenceLength = options.maxEvidenceLength ?? DEFAULT_MAX_EVIDENCE_LENGTH;
+    this.probeCacheSize = Math.max(0, options.probeCacheSize ?? DEFAULT_PROBE_CACHE_SIZE);
   }
 
   /**
@@ -88,19 +123,11 @@ export class TransformerSemanticProvider implements SemanticModelProvider {
     }
 
     const query = `${this.options.queryPrefix}${input.normalizedText}`;
-    const vectors = await this.options.embeddings.embed(
-      [query, ...probes.map((p) => p.text)],
-      signal,
-    );
-
-    const queryVector = vectors[0];
-    if (queryVector === undefined) {
-      throw new SemanticProviderError('El servicio de embeddings no devolvió el vector del texto.');
-    }
+    const { queryVector, probeVectors } = await this.resolveVectors(query, probes, signal);
 
     const classification = modelClassificationSchema.parse({
       assessments: this.withEvidence(
-        assess(input, probes, vectors.slice(1), queryVector, this.options),
+        assess(input, probes, probeVectors, queryVector, this.options),
         input,
       ),
       model: this.options.embeddings.model,
@@ -112,6 +139,65 @@ export class TransformerSemanticProvider implements SemanticModelProvider {
     // conservarla para que un cambio futuro la encuentre puesta.
     assertOnlyCandidateCodes(classification.assessments, input);
     return classification;
+  }
+
+  /**
+   * Resuelve el vector del texto y el de cada sonda con una sola petición.
+   *
+   * El texto analizado va SIEMPRE —es distinto en cada glosa, y cachearlo sería
+   * cachear la pregunta— y las sondas sólo cuando no están ya calculadas. Las
+   * repetidas dentro de la misma tanda se piden una vez: dos categorías pueden
+   * compartir un ejemplo, y mandarlo dos veces lo pagaría dos veces.
+   *
+   * Cuando no falta ninguna sonda la petición lleva un único texto, que es el
+   * caso normal a partir de la segunda glosa de un extracto.
+   */
+  private async resolveVectors(
+    query: string,
+    probes: readonly CategoryProbe[],
+    signal?: AbortSignal,
+  ): Promise<{
+    readonly queryVector: readonly number[];
+    readonly probeVectors: readonly (readonly number[] | undefined)[];
+  }> {
+    const pendientes: string[] = [];
+    const yaPedidas = new Set<string>();
+    for (const probe of probes) {
+      if (this.recuerda(probe.text) !== undefined || yaPedidas.has(probe.text)) continue;
+      yaPedidas.add(probe.text);
+      pendientes.push(probe.text);
+    }
+
+    const vectors = await this.options.embeddings.embed([query, ...pendientes], signal);
+    const queryVector = vectors[0];
+    if (queryVector === undefined) {
+      throw new SemanticProviderError('El servicio de embeddings no devolvió el vector del texto.');
+    }
+    pendientes.forEach((text, indice) => {
+      const vector = vectors[indice + 1];
+      if (vector !== undefined) this.guarda(text, vector);
+    });
+
+    return { queryVector, probeVectors: probes.map((probe) => this.recuerda(probe.text)) };
+  }
+
+  /** Lee la caché y, al acertar, reinserta la entrada como la más reciente. */
+  private recuerda(text: string): readonly number[] | undefined {
+    const vector = this.probeCache.get(text);
+    if (vector === undefined) return undefined;
+    this.probeCache.delete(text);
+    this.probeCache.set(text, vector);
+    return vector;
+  }
+
+  private guarda(text: string, vector: readonly number[]): void {
+    if (this.probeCacheSize === 0) return;
+    this.probeCache.set(text, vector);
+    while (this.probeCache.size > this.probeCacheSize) {
+      const masAntigua = this.probeCache.keys().next();
+      if (masAntigua.done === true) break;
+      this.probeCache.delete(masAntigua.value);
+    }
   }
 
   /**

@@ -24,6 +24,7 @@ import { DomainException } from '../../common/errors/domain-exception';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { checkConsent, checkLimit, type LimitVerdict } from './exposure-rules';
 import { validateSemanticOutput, type RoleViolation } from './semantic-outputs';
+import { consultaCrudaConTenant } from '../../common/prisma/tenant-scoped-raw';
 
 /** Límite de la exposición acumulada de UN solicitante. */
 const SUBJECT_TOTAL = 'SUBJECT_TOTAL';
@@ -76,13 +77,16 @@ export class DecisionGuardService {
     });
     if (!limits.length) return;
 
-    const [row] = await this.prisma.$queryRaw<ExposureRow[]>`
+    const [row] = await consultaCrudaConTenant(
+      this.prisma,
+      (tx) => tx.$queryRaw<ExposureRow[]>`
       SELECT SUM(f."principal_amount") AS total
       FROM "credit_facility" f
       WHERE f."tenant_id" = ${tenantId}
         AND f."subject_id" = ${subjectId}
         AND f."closed_at" IS NULL
-    `;
+    `,
+    );
     const currentValue = row?.total ? Number(row.total) : 0;
 
     for (const limit of limits) {

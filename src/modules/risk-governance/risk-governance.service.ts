@@ -132,15 +132,19 @@ export class RiskGovernanceService {
 
   /** El valor más reciente de cada métrica y segmento. Es contra lo que se mide el apetito. */
   private async latestPortfolioState(tenantId: bigint): Promise<Map<string, number>> {
-    const rows = await this.prisma.$queryRaw<
-      Array<{ metric_code: string; segment: string; value: Prisma.Decimal }>
-    >`
-      SELECT DISTINCT ON ("metric_code", "segment")
-        "metric_code", "segment", "value"
-      FROM "portfolio_state"
-      WHERE "tenant_id" = ${tenantId}
-      ORDER BY "metric_code", "segment", "as_of" DESC
-    `;
+    // Dentro de `$transaction` para que se fije el GUC `app.tenant_id`: una consulta cruda
+    // suelta contra una tabla con RLS forzada aborta con 22P02 (`''::bigint`) en cuanto le
+    // toca una conexión del pool que ya sirvió a un tenant. Explicado en `tenant-rls.ts`.
+    const rows = await this.prisma.$transaction(
+      (tx) =>
+        tx.$queryRaw<Array<{ metric_code: string; segment: string; value: Prisma.Decimal }>>`
+          SELECT DISTINCT ON ("metric_code", "segment")
+            "metric_code", "segment", "value"
+          FROM "portfolio_state"
+          WHERE "tenant_id" = ${tenantId}
+          ORDER BY "metric_code", "segment", "as_of" DESC
+        `,
+    );
     return new Map(
       rows.map((row) => [this.stateKey(row.metric_code, row.segment), Number(row.value)]),
     );

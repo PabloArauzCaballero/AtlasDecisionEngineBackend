@@ -83,6 +83,70 @@ const OPTIONS: IdentityOptions = {
  */
 const ocr = new TesseractOcrAdapter();
 
+/**
+ * Esta batería EXIGE la fuente DejaVu, y hay que comprobarlo antes de leer nada.
+ *
+ * Los escenarios se dibujan con `sharp`, que compone el SVG a través de
+ * fontconfig. Cuando la familia pedida no está instalada, fontconfig **no
+ * falla**: sustituye por otra. La tarjeta sale legible, el OCR la lee, el
+ * pipeline decide… y un glifo cae del lado equivocado: en un host sin DejaVu, la
+ * `I` de la MRZ se reconoce como `T` y el escenario afirma que la titular se
+ * llama «MARTA» cuando la tarjeta dice «MARIA».
+ *
+ * Lo caro de ese fallo no es el fallo: es el diagnóstico. Se presenta como
+ * cuatro pruebas rojas del analizador de cédulas —el sitio equivocado por
+ * completo— y no dice ni una palabra de fuentes. Se persiguió hasta el parser,
+ * el OCR y la MRZ antes de dar con el entorno.
+ *
+ * La sonda compara el dibujo de un mismo texto con la familia pedida y con una
+ * inventada. Si fontconfig sustituye, los dos bytes salen IDÉNTICOS, y eso es
+ * exactamente la condición que hay que detener. Es la misma decisión que toma
+ * `test/setup-env.ts` con `DATABASE_URL`: mejor parar y explicar que producir un
+ * verde —o un rojo— que no significa lo que parece.
+ */
+async function faltaLaFuente(): Promise<boolean> {
+  const dibujar = (familia: string): Promise<Buffer> =>
+    sharp(
+      Buffer.from(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="240" height="60">` +
+          `<text x="4" y="42" font-family="${familia}" font-size="36">MARIA1I</text></svg>`,
+      ),
+    )
+      .png()
+      .toBuffer();
+
+  const [pedida, inventada] = await Promise.all([
+    dibujar('DejaVu Sans Mono'),
+    dibujar('Fuente Que No Existe En Ningun Sistema'),
+  ]);
+  return pedida.equals(inventada);
+}
+
+beforeAll(async () => {
+  if (await faltaLaFuente()) {
+    throw new Error(
+      'Falta la fuente DejaVu y estos escenarios la exigen.\n' +
+        'Sin ella fontconfig sustituye en silencio y el OCR lee mal la MRZ: la prueba señalaría ' +
+        'al analizador de cédulas cuando el problema es del entorno.\n' +
+        'Corre la batería en la imagen que sí la trae (etapa `tester` del Dockerfile):\n' +
+        '  docker build --target tester -t atlas-decision-tester:local .\n' +
+        '  docker run --rm atlas-decision-tester:local yarn test\n' +
+        'O instala `fonts-dejavu-core` en el host.\n' +
+        '\n' +
+        'En Windows no hay paquete que instalar y no hace falta tocar las fuentes del\n' +
+        'sistema: `sharp` lee `FONTCONFIG_FILE`, así que basta sacar las fuentes de la\n' +
+        'propia imagen y apuntarle a un fontconfig propio. Es reversible y no deja rastro\n' +
+        'fuera del directorio que se elija:\n' +
+        '  1. docker create --name f atlas-decision-engine-api\n' +
+        '     docker cp f:/usr/share/fonts/truetype/dejavu/. <DIR>\\fonts\\\n' +
+        '     docker rm f\n' +
+        '  2. <DIR>\\fonts.conf con  <fontconfig><dir><DIR>\\fonts</dir>\n' +
+        '     <cachedir><DIR>\\fontcache</cachedir></fontconfig>\n' +
+        '  3. set FONTCONFIG_FILE=<DIR>\\fonts.conf  antes de `yarn test`.',
+    );
+  }
+});
+
 afterAll(async () => {
   await ocr.onModuleDestroy();
 });

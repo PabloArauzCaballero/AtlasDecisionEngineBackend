@@ -3,7 +3,7 @@
 
 # Variables de entorno
 
-246 variables declaradas. El esquema se valida al arrancar: un valor ausente o
+250 variables declaradas. El esquema se valida al arrancar: un valor ausente o
 fuera de rango impide el arranque en vez de degradar el comportamiento en caliente.
 
 | Variable | Obligatoria | Valor por defecto | Para qué |
@@ -132,6 +132,10 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `BANK_STATEMENT_MAX_ATTEMPTS` | no | `3` | — |
 | `BANK_STATEMENT_MAX_UPLOAD_BYTES` | **sí** | — | 10 MiB. Acota a la vez la memoria del worker y el tamaño de la fila, porque el documento se guarda en la propia base (ADR-0026). |
 | `BANK_STATEMENT_TIMEOUT_MS` | no | `60_000` | Un PDF hostil puede hacer trabajar al lector indefinidamente. El presupuesto corta el job, no el proceso. |
+| `BANK_STATEMENT_DOCUMENT_ACCEPT_CONFIDENCE` | no | `0.55` | — |
+| `BANK_STATEMENT_DOCUMENT_REVIEW_CONFIDENCE` | no | `0.3` | — |
+| `BANK_STATEMENT_REVIEW_EXTRACTION_CONFIDENCE` | no | `0.5` | — |
+| `BANK_STATEMENT_QUEUE_WAIT_BUDGET_MS` | **sí** | — | — |
 | `IDENTITY_VERIFICATION_WORKER_ENABLED` | no | `false` | --- Worker C: verificación de identidad (ADR-0026) --------------------- |
 | `IDENTITY_WORKER_POLL_MS` | no | `500` | — |
 | `IDENTITY_WORKER_MAX_POLL_MS` | no | `30_000` | — |

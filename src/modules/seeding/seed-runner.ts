@@ -1,5 +1,8 @@
 import type { PrismaClient } from '@prisma/client';
 import { atlasBackendCatalog } from './data/atlas-backend-catalog.data';
+import { seedAuditChain } from './data/audit-chain.seed';
+import { seedAuditDemo } from './data/audit-demo.seed';
+import { seedGovernanceObservability } from './data/governance-observability.seed';
 import { seedCalculatedFields } from './data/calculated-field-catalog.data';
 import { seedCollectionsDemoArtifact } from './data/collections-demo.seed';
 import { seedContractDemoArtifact } from './data/contract-demo.seed';
@@ -230,7 +233,7 @@ export async function runMockupSeeds(prisma: PrismaClient, context: BootstrapCon
   // Escenarios negativos de gobierno (§11): ciclo, versión no disponible, contrato
   // incompatible y una corrida de QA con su contraejemplo.
   await seedGovernanceScenarios(prisma);
-  return seedDemoArtifact(
+  const demo = await seedDemoArtifact(
     prisma,
     TENANT_ID,
     context.environments,
@@ -238,6 +241,18 @@ export async function runMockupSeeds(prisma: PrismaClient, context: BootstrapCon
     outputVariables,
     context.reasonByCode,
   );
+  // A partir de aquí, lo que hace AUDITABLE al demo. Va DESPUÉS y en este orden porque cada
+  // paso necesita el anterior: sin despliegue activo en producción no hay dónde colgar una
+  // decisión, sin decisiones no hay sujetos a los que atribuir consentimientos ni población
+  // que vigilar, y la bitácora narra lo que los otros dos escribieron.
+  //
+  // Hasta que existió esto, el demo sembraba un artefacto aprobado y desplegado sobre el que
+  // nunca se había decidido nada: siete pantallas de auditoría respondiendo 200 sobre listas
+  // vacías, indistinguible de un motor apagado.
+  await seedAuditDemo(prisma);
+  await seedGovernanceObservability(prisma);
+  await seedAuditChain(prisma);
+  return demo;
 }
 
 export interface SeedSummary {

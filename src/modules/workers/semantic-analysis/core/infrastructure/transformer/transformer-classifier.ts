@@ -169,7 +169,7 @@ export function cosineSimilarity(left: readonly number[], right: readonly number
 export function assess(
   input: ModelClassificationInput,
   probes: readonly CategoryProbe[],
-  probeVectors: readonly (readonly number[])[],
+  probeVectors: readonly (readonly number[] | undefined)[],
   queryVector: readonly number[],
   thresholds: ClassifierThresholds,
 ): readonly CategoryAssessment[] {

@@ -1,5 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import type { ExtractedPdf } from '../domain/models';
+import {
+  DEFAULT_TRIAGE_THRESHOLDS,
+  normalizeThresholds,
+  triageDocument,
+  type TriageThresholds,
+} from './document-triage';
 import type { DocumentClassification } from './statement-context';
 
 /**
@@ -138,8 +144,11 @@ const MAX_HEADER_LINES = 40;
  * con fecha y filas con importe—, y un documento que solo tenga fechas e
  * importes, como una factura, se queda en 0.40 antes de la penalización. El
  * umbral se sitúa entre ambos.
+ *
+ * Es el mismo valor que `DEFAULT_TRIAGE_THRESHOLDS.accept` y se deriva de él:
+ * dos constantes con el mismo significado se separan a la primera calibración.
  */
-export const FINANCIAL_STATEMENT_THRESHOLD = 0.55;
+export const FINANCIAL_STATEMENT_THRESHOLD = DEFAULT_TRIAGE_THRESHOLDS.accept;
 
 /**
  * Decide si un PDF es un estado de cuenta **antes** de intentar extraer
@@ -152,6 +161,16 @@ export const FINANCIAL_STATEMENT_THRESHOLD = 0.55;
  */
 @Injectable()
 export class DocumentClassifier {
+  private readonly thresholds: TriageThresholds;
+
+  /**
+   * Las fronteras se inyectan para poder calibrarlas con datos reales sin
+   * recompilar. Omitirlas deja las medidas sobre los documentos del módulo.
+   */
+  constructor(thresholds: Partial<TriageThresholds> = {}) {
+    this.thresholds = normalizeThresholds(thresholds);
+  }
+
   classify(pdf: ExtractedPdf): DocumentClassification {
     const evidence = this.collect(pdf);
     const detectedSignals: string[] = [];
@@ -170,11 +189,13 @@ export class DocumentClassifier {
     }
 
     const confidence = Math.max(0, Math.min(1, Number(score.toFixed(2))));
+    const verdict = triageDocument(confidence, this.thresholds);
     return {
       documentType: this.documentType(evidence.text, confidence),
-      isFinancialStatement: confidence >= FINANCIAL_STATEMENT_THRESHOLD,
+      isFinancialStatement: verdict === 'ACCEPT',
       confidence,
       detectedSignals,
+      verdict,
     };
   }
 
@@ -208,6 +229,6 @@ export class DocumentClassifier {
   private documentType(text: string, confidence: number): string {
     const matched = DOCUMENT_TYPES.find((candidate) => candidate.pattern.test(text));
     if (matched) return matched.type;
-    return confidence >= FINANCIAL_STATEMENT_THRESHOLD ? 'FINANCIAL_DOCUMENT' : 'UNKNOWN_DOCUMENT';
+    return confidence >= this.thresholds.accept ? 'FINANCIAL_DOCUMENT' : 'UNKNOWN_DOCUMENT';
   }
 }

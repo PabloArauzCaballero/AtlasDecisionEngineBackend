@@ -17,6 +17,16 @@ import { MessagingTraceService } from '../../../common/observability/messaging-t
 const RETRYABLE_STATUSES: readonly WorkerRunStatus[] = [
   WorkerRunStatus.FAILED,
   WorkerRunStatus.CANCELLED,
+  /*
+   * `PDF_INVALID` está aquí por el MISMO motivo que `FAILED`, y es fácil de
+   * pasar por alto: un rechazo es un veredicto del clasificador de ese día. Si
+   * no fuera reintentable, ninguna recalibración de los umbrales ni ninguna
+   * señal nueva alcanzaría jamás a los documentos que la motivaron —se afina el
+   * triage, el mismo archivo sigue devolviendo «PDF no válido», y lo razonable
+   * es concluir que el arreglo no sirvió—. Volver a subirlo es exactamente lo
+   * que hace quien no está de acuerdo con el rechazo.
+   */
+  WorkerRunStatus.PDF_INVALID,
 ];
 
 /** Estados desde los que ya no puede pasar nada más. */
@@ -25,6 +35,7 @@ const TERMINAL_STATUSES: readonly WorkerRunStatus[] = [
   WorkerRunStatus.SUCCEEDED_WITH_WARNINGS,
   WorkerRunStatus.FAILED,
   WorkerRunStatus.CANCELLED,
+  WorkerRunStatus.PDF_INVALID,
 ];
 
 /** Columnas que se devuelven al cliente. `fileBytes` NUNCA está entre ellas. */
@@ -40,10 +51,20 @@ const RUN_SELECTION = {
   resultJson: true,
   warningsJson: true,
   confidence: true,
+  documentTypeConfidence: true,
   institutionId: true,
   transactionCount: true,
   errorCode: true,
   errorMessage: true,
+  reviewReason: true,
+  rejectionReason: true,
+  reviewPriority: true,
+  reviewOpenedAt: true,
+  reviewClaimedBy: true,
+  reviewClaimedAt: true,
+  reviewResolvedBy: true,
+  reviewResolvedAt: true,
+  reviewNotes: true,
   attemptCount: true,
   queuedAt: true,
   startedAt: true,
@@ -211,10 +232,23 @@ export class BankStatementService {
           resultJson: Prisma.DbNull,
           warningsJson: Prisma.DbNull,
           confidence: null,
+          documentTypeConfidence: null,
           institutionId: null,
           transactionCount: null,
           errorCode: null,
           errorMessage: null,
+          // El expediente de revisión del intento anterior se limpia entero: un
+          // motivo de revisión sobre una fila en cola describe un caso que ya no
+          // existe, y la restricción de la base lo rechazaría de todos modos.
+          reviewReason: null,
+          rejectionReason: null,
+          reviewPriority: null,
+          reviewOpenedAt: null,
+          reviewClaimedBy: null,
+          reviewClaimedAt: null,
+          reviewResolvedBy: null,
+          reviewResolvedAt: null,
+          reviewNotes: null,
           attemptCount: 0,
           leaseExpiresAt: null,
           queuedAt: new Date(),

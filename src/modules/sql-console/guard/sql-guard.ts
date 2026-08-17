@@ -21,7 +21,6 @@
  * table decision_execution`, que no explica nada. Las tres juntas dan un sistema que
  * bloquea de verdad y además sabe decir por qué.
  */
-import { QUALIFIED_RELATIONS } from '../catalog/dataset-catalog';
 import { positionOf, scanSql } from './sql-tokens';
 
 export interface GuardViolation {
@@ -238,7 +237,20 @@ function referencedRelations(masked: string): RelationReference[] {
   return found;
 }
 
-export function guardSql(sql: string): GuardResult {
+/**
+ * La lista blanca llega COMO PARÁMETRO, no se importa.
+ *
+ * Antes era una constante del módulo, y por eso la guardia no podía admitir una vista que la
+ * base publicara después de compilar: la lista y el despliegue eran la misma cosa. Ahora la
+ * pone quien llama con lo que `CatalogDiscoveryService` encontró en `pg_catalog`, así que
+ * admitir una relación nueva no necesita un despliegue — y sigue sin poder admitir nada que
+ * la base no publique, que es la propiedad que había que conservar.
+ *
+ * No tiene valor por omisión a propósito. Un respaldo silencioso a la lista escrita a mano
+ * dejaría a un llamador que se olvidara de pasarla funcionando con el catálogo de hace tres
+ * migraciones, sin un solo síntoma hasta que alguien consultara la vista nueva.
+ */
+export function guardSql(sql: string, allowed: ReadonlySet<string>): GuardResult {
   const violations: GuardViolation[] = [];
   const push = (code: string, message: string, index?: number) => {
     const at = index === undefined ? {} : positionOf(sql, index);
@@ -348,7 +360,7 @@ export function guardSql(sql: string): GuardResult {
       }
       continue;
     }
-    if (QUALIFIED_RELATIONS.has(reference.name)) {
+    if (allowed.has(reference.name)) {
       relations.add(reference.name);
       continue;
     }

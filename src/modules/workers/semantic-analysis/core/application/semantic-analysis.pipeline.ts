@@ -9,6 +9,7 @@ import {
   SemanticModelProvider,
 } from './ports';
 import { CatalogCache } from './catalog-cache';
+import { CachedClassification, ClassificationCache } from './classification-cache';
 import { EntityResolver } from './entity-resolver';
 import { Decision, DecisionEngine } from './decision-engine';
 import { GlosaFallbackClassifier } from './glosa-fallback';
@@ -63,6 +64,7 @@ export class SemanticAnalysisPipeline {
     @Inject(CANDIDATE_RETRIEVER)
     private readonly candidateRetriever: CandidateRetriever,
     private readonly catalog: CatalogCache,
+    private readonly clasificaciones: ClassificationCache,
     private readonly budget: TenantBudgetGuard,
     private readonly normalizer: TextNormalizer,
     private readonly entityResolver: EntityResolver,
@@ -137,7 +139,7 @@ export class SemanticAnalysisPipeline {
     const request = semanticAnalysisRequestSchema.parse(untrustedRequest);
     const budget = AbortSignal.timeout(this.config.analysisTimeoutSeconds * 1_000);
 
-    const { categories, aliases } = await this.catalog.load(request.tenantId);
+    const { categories, aliases, signature } = await this.catalog.load(request.tenantId);
     /*
      * Dos textos, y no por comodidad: el resolutor de entidades busca los
      * nombres canónicos, así que necesita los alias YA desplegados; el
@@ -152,6 +154,30 @@ export class SemanticAnalysisPipeline {
     const textoConAlias = this.normalizer.normalize(request.text, aliases);
     const normalizedText = this.normalizer.forClassification(request.text, aliases);
     const entities = this.entityResolver.resolve(textoConAlias, aliases);
+
+    /*
+     * Antes del presupuesto, y no después: un acierto de caché no llama al
+     * proveedor, así que reservar cuota por él cobraría un gasto que no se ha
+     * producido. Con un extracto lleno de glosas repetidas eso agotaba el
+     * presupuesto del tenant clasificando veinte conceptos distintos.
+     */
+    const recordada = this.clasificaciones.read(request.tenantId, signature, normalizedText);
+    if (recordada !== undefined) {
+      this.logger.debug(`Glosa de ${request.requestId} resuelta desde la caché de clasificación.`);
+      return this.resultBuilder.build({
+        request,
+        normalizedText,
+        entities,
+        candidates: recordada.candidates,
+        categories,
+        decision: recordada.decision,
+        tier: recordada.tier,
+        model: recordada.model,
+        modelVersion: recordada.modelVersion,
+        startedAt,
+        escalated: recordada.escalated,
+      });
+    }
 
     const allowance = await this.budget.reserve(request.tenantId);
     if (!allowance.allowed) {
@@ -183,14 +209,16 @@ export class SemanticAnalysisPipeline {
         request,
         normalizedText,
         entities,
-        candidates,
         categories,
-        decision: this.conRedDeSeguridad(UNRESOLVED, normalizedText, categories),
-        tier: 'FAST',
-        model: NO_CATEGORIES_MODEL,
-        modelVersion: NO_CATEGORIES_MODEL,
         startedAt,
-        escalated: false,
+        ...this.recuerda(request.tenantId, signature, normalizedText, {
+          candidates,
+          decision: this.conRedDeSeguridad(UNRESOLVED, normalizedText, categories),
+          tier: 'FAST',
+          model: NO_CATEGORIES_MODEL,
+          modelVersion: NO_CATEGORIES_MODEL,
+          escalated: false,
+        }),
       });
     }
 
@@ -216,14 +244,16 @@ export class SemanticAnalysisPipeline {
         request,
         normalizedText,
         entities,
-        candidates,
         categories,
-        decision: this.conRedDeSeguridad(fastDecision, normalizedText, categories),
-        tier: 'FAST',
-        model: fast.model,
-        modelVersion: fast.modelVersion,
         startedAt,
-        escalated: false,
+        ...this.recuerda(request.tenantId, signature, normalizedText, {
+          candidates,
+          decision: this.conRedDeSeguridad(fastDecision, normalizedText, categories),
+          tier: 'FAST',
+          model: fast.model,
+          modelVersion: fast.modelVersion,
+          escalated: false,
+        }),
       });
     }
 
@@ -240,15 +270,38 @@ export class SemanticAnalysisPipeline {
       request,
       normalizedText,
       entities,
-      candidates,
       categories,
-      decision: this.conRedDeSeguridad(deepDecision, normalizedText, categories),
-      tier: 'DEEP',
-      model: deep.model,
-      modelVersion: deep.modelVersion,
       startedAt,
-      escalated: true,
+      ...this.recuerda(request.tenantId, signature, normalizedText, {
+        candidates,
+        decision: this.conRedDeSeguridad(deepDecision, normalizedText, categories),
+        tier: 'DEEP',
+        model: deep.model,
+        modelVersion: deep.modelVersion,
+        escalated: true,
+      }),
     });
+  }
+
+  /**
+   * Graba el veredicto y lo devuelve para armar el resultado de esta solicitud.
+   *
+   * Se graba la decisión YA pasada por la red de seguridad: es la que el motor
+   * publica, y guardar la anterior obligaría a volver a aplicar las reglas en
+   * cada acierto para llegar al mismo sitio.
+   *
+   * Sólo pasa por aquí lo que se calculó de verdad. La degradación por
+   * presupuesto agotado retorna antes y no toca esta función: ese `UNKNOWN`
+   * describe la cuota, no el texto.
+   */
+  private recuerda(
+    tenantId: string | undefined,
+    signature: string,
+    normalizedText: string,
+    clasificacion: CachedClassification,
+  ): CachedClassification {
+    this.clasificaciones.write(tenantId, signature, normalizedText, clasificacion);
+    return clasificacion;
   }
 
   /**

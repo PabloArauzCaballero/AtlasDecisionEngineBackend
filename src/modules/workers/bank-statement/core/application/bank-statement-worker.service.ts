@@ -295,15 +295,32 @@ export class BankStatementWorkerService {
     // La compuerta va primero: si el documento no demostró ser un estado de
     // cuenta, la entidad que se le atribuya es irrelevante.
     if (!context.classification.isFinancialStatement) {
+      const evidence = {
+        documentType: context.classification.documentType,
+        documentConfidence: context.classification.confidence,
+        detectedSignals: context.classification.detectedSignals,
+      };
+      /*
+       * DOS códigos y no uno, y ésta es la distinción que da sentido a la cola
+       * de revisión. Con un único `NOT_A_FINANCIAL_STATEMENT` no había forma de
+       * separar la factura —que nadie tiene que mirar— del extracto con el
+       * encabezado ilegible —que sí—, así que o se derivaban las dos a una
+       * persona o ninguna. El clasificador ya lo sabe: sólo hacía falta que el
+       * error lo dijera.
+       */
+      if (context.classification.verdict === 'REVIEW') {
+        return new StatementProcessingError(
+          'DOUBTFUL_DOCUMENT',
+          'El documento se parece a un estado de cuenta, pero las señales no bastan para confirmarlo.',
+          422,
+          evidence,
+        );
+      }
       return new StatementProcessingError(
         'NOT_A_FINANCIAL_STATEMENT',
         'El documento no reúne señales suficientes de ser un estado de cuenta.',
         422,
-        {
-          documentType: context.classification.documentType,
-          documentConfidence: context.classification.confidence,
-          detectedSignals: context.classification.detectedSignals,
-        },
+        evidence,
       );
     }
     if (!context.institution.detected) {

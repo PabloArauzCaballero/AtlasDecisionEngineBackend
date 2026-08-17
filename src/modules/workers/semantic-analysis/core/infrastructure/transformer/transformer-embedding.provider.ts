@@ -20,7 +20,18 @@ export interface TransformerEmbeddingProviderOptions {
   readonly batchSize?: number;
   /** Recorta el texto al contexto del modelo en lugar de fallar. */
   readonly truncate?: boolean;
+  /**
+   * Intentos totales ante un fallo TRANSITORIO. `1` desactiva el reintento.
+   *
+   * Sólo cubre lo que el servidor declara pasajero —cola llena, reinicio,
+   * tiempo agotado—: un lote demasiado grande o un vector mal formado fallan
+   * igual las tres veces y se propagan al primer intento.
+   */
+  readonly maxAttempts?: number;
+  readonly retryBackoffMs?: number;
   readonly fetchImplementation?: typeof fetch;
+  /** Inyectable para hacer determinista la espera en pruebas. */
+  readonly sleepImplementation?: (ms: number, signal?: AbortSignal) => Promise<void>;
 }
 
 /** Códigos con los que el servidor dice «vuelve a intentarlo», no «esto está mal». */
@@ -37,6 +48,13 @@ const DEFAULT_BASE_URL = 'http://127.0.0.1:8080';
  */
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_BATCH_SIZE = 32;
+/**
+ * Tres intentos, no más. El servidor de embeddings es local: si dos esperas
+ * cortas no lo encuentran disponible, no está saturado sino caído, e insistir
+ * retiene el turno del worker sin arreglar nada.
+ */
+const DEFAULT_MAX_ATTEMPTS = 3;
+const DEFAULT_RETRY_BACKOFF_MS = 250;
 
 /**
  * Adaptador de embeddings sobre un servidor de inferencia de transformers
@@ -52,8 +70,16 @@ const DEFAULT_BATCH_SIZE = 32;
  * el coseno, de modo que la similitud no depende de la longitud del texto —y un
  * concepto de gasto se describe indistintamente con tres palabras o con veinte.
  *
- * No reintenta. Igual que su equivalente de OpenAI, quien decide si insistir es
- * el clasificador que lo usa, que tiene el presupuesto del análisis a la vista.
+ * **Reintenta lo transitorio, y sólo eso.** Antes no reintentaba nada, y la
+ * consecuencia se veía en pantalla: el servidor devuelve 503 mientras arranca un
+ * modelo o mientras drena su cola, y ese único tropiezo hundía el análisis
+ * entero —el worker lo reencolaba, con su espera y su reintento completo, y la
+ * tabla del extracto enseñaba «No se pudo» en la mitad de las filas por un
+ * hipo de doscientos milisegundos—. Reintentar aquí cuesta esa espera; no
+ * reintentar costaba el resultado.
+ *
+ * La espera respeta el `signal` del análisis, así que insistir nunca puede
+ * desbordar el presupuesto de tiempo que fijó el pipeline.
  */
 export class TransformerEmbeddingProvider implements EmbeddingProvider {
   public readonly model: string;
@@ -62,6 +88,9 @@ export class TransformerEmbeddingProvider implements EmbeddingProvider {
   private readonly timeoutMs: number;
   private readonly batchSize: number;
   private readonly truncate: boolean;
+  private readonly maxAttempts: number;
+  private readonly retryBackoffMs: number;
+  private readonly sleep: (ms: number, signal?: AbortSignal) => Promise<void>;
 
   public constructor(private readonly options: TransformerEmbeddingProviderOptions = {}) {
     this.model = options.model ?? DEFAULT_MODEL;
@@ -70,6 +99,9 @@ export class TransformerEmbeddingProvider implements EmbeddingProvider {
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.batchSize = Math.max(1, options.batchSize ?? DEFAULT_BATCH_SIZE);
     this.truncate = options.truncate ?? true;
+    this.maxAttempts = Math.max(1, options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS);
+    this.retryBackoffMs = Math.max(0, options.retryBackoffMs ?? DEFAULT_RETRY_BACKOFF_MS);
+    this.sleep = options.sleepImplementation ?? esperar;
   }
 
   public async embed(
@@ -82,10 +114,33 @@ export class TransformerEmbeddingProvider implements EmbeddingProvider {
     const vectors: (readonly number[])[] = [];
     for (let offset = 0; offset < texts.length; offset += this.batchSize) {
       vectors.push(
-        ...(await this.embedBatch(texts.slice(offset, offset + this.batchSize), signal)),
+        ...(await this.embedConReintento(texts.slice(offset, offset + this.batchSize), signal)),
       );
     }
     return vectors;
+  }
+
+  /**
+   * Un lote, insistiendo mientras el fallo sea pasajero y quede presupuesto.
+   *
+   * El retroceso es lineal y corto —250 ms, 500 ms— y no exponencial: lo que se
+   * espera aquí es que un servidor local termine el lote que tiene delante, no
+   * que se reponga un servicio remoto con límite de tasa.
+   */
+  private async embedConReintento(
+    texts: readonly string[],
+    signal?: AbortSignal,
+  ): Promise<readonly (readonly number[])[]> {
+    for (let intento = 1; ; intento += 1) {
+      try {
+        return await this.embedBatch(texts, signal);
+      } catch (error: unknown) {
+        const agotado = intento >= this.maxAttempts;
+        const pasajero = error instanceof SemanticProviderError && error.retryable;
+        if (agotado || !pasajero || signal?.aborted === true) throw error;
+        await this.sleep(this.retryBackoffMs * intento, signal);
+      }
+    }
   }
 
   private async embedBatch(
@@ -195,6 +250,27 @@ export class TransformerEmbeddingProvider implements EmbeddingProvider {
       { cause: error },
     );
   }
+}
+
+/**
+ * Espera que se corta con el presupuesto del análisis.
+ *
+ * No propaga el aborto como error: quien llama ya vuelve a comprobar el `signal`
+ * y relanza el fallo original, que es el que explica de verdad lo ocurrido.
+ */
+function esperar(ms: number, signal?: AbortSignal): Promise<void> {
+  if (ms <= 0 || signal?.aborted === true) return Promise.resolve();
+  return new Promise((listo) => {
+    const temporizador = setTimeout(() => {
+      signal?.removeEventListener('abort', corta);
+      listo();
+    }, ms);
+    function corta(): void {
+      clearTimeout(temporizador);
+      listo();
+    }
+    signal?.addEventListener('abort', corta, { once: true });
+  });
 }
 
 /**

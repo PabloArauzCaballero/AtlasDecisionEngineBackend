@@ -86,6 +86,15 @@ export class WorkerMetricsService {
     const summary = summaryRows[0] ?? EMPTY_SUMMARY;
 
     const succeeded = summary.succeeded + summary.succeededWithWarnings;
+    /*
+     * El denominador NO incluye lo derivado a revisión ni lo rechazado, y las
+     * razones son distintas. Un documento rechazado es el worker haciendo su
+     * trabajo bien —decir que no es un extracto es un acierto, no un fallo— y
+     * contarlo como error castigaría al motor por acertar. Un caso en revisión
+     * todavía no tiene desenlace: meterlo en cualquiera de los dos lados sería
+     * afirmar algo que aún no se sabe. Los dos SÍ salen en `statusMix`, que es
+     * donde se ve el hueco que este ratio no cubre.
+     */
     const finishedRuns = succeeded + summary.failed;
 
     return {
@@ -153,6 +162,9 @@ export class WorkerMetricsService {
           AS "succeededWithWarnings",
         (SELECT count(*) FROM ventana WHERE status = 'FAILED')::int AS "failed",
         (SELECT count(*) FROM ventana WHERE status = 'CANCELLED')::int AS "cancelled",
+        (SELECT count(*) FROM ventana WHERE status IN ('PENDING_REVIEW', 'IN_REVIEW'))::int
+          AS "pendingReview",
+        (SELECT count(*) FROM ventana WHERE status = 'PDF_INVALID')::int AS "documentRejected",
         (SELECT count(*) FROM proceso)::int AS "latencySamples",
         (SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY ms) FROM proceso) AS "p50Ms",
         (SELECT percentile_cont(0.95) WITHIN GROUP (ORDER BY ms) FROM proceso) AS "p95Ms",
@@ -213,6 +225,8 @@ interface SummaryRow {
   succeededWithWarnings: number;
   failed: number;
   cancelled: number;
+  pendingReview: number;
+  documentRejected: number;
   latencySamples: number;
   p50Ms: number | null;
   p95Ms: number | null;
@@ -232,6 +246,8 @@ const EMPTY_SUMMARY: SummaryRow = {
   running: 0,
   succeeded: 0,
   succeededWithWarnings: 0,
+  pendingReview: 0,
+  documentRejected: 0,
   failed: 0,
   cancelled: 0,
   latencySamples: 0,
@@ -260,6 +276,16 @@ function statusMix(summary: Summary): WorkerStatusCountDto[] {
     [WorkerRunStatus.CANCELLED, summary.cancelled],
     [WorkerRunStatus.RUNNING, summary.running],
     [WorkerRunStatus.QUEUED, summary.queued],
+    /*
+     * Los dos desenlaces nuevos entran en el reparto, y esto no es cosmético.
+     * Sin ellos, un worker que derive el 40 % de lo que recibe a revisión humana
+     * publicaba un 100 % de acierto: los casos derivados no estaban en ningún
+     * contador, así que el panel enseñaba verde sobre una cola creciendo. La
+     * tasa de acierto sigue midiendo lo mismo —procesado frente a fallado— pero
+     * ahora el reparto delata el hueco.
+     */
+    [WorkerRunStatus.PENDING_REVIEW, summary.pendingReview],
+    [WorkerRunStatus.PDF_INVALID, summary.documentRejected],
   ];
   return counts
     .filter(([, count]) => count > 0)

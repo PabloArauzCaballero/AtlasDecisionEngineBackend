@@ -3,7 +3,7 @@
 
 # Catálogo de entidades
 
-97 modelos persistentes. El nombre técnico es el de la tabla; el nombre del
+98 modelos persistentes. El nombre técnico es el de la tabla; el nombre del
 modelo es el que usa el código. Las restricciones e índices son los declarados en el
 esquema, que es la fuente que las migraciones aplican.
 
@@ -17,7 +17,7 @@ esquema, que es la fuente que las migraciones aplican.
 | [`AudioSegment`](#audiosegment) | `decision_audio_segment` | 10 | 1 | 0 |
 | [`AudioTemplate`](#audiotemplate) | `decision_audio_template` | 11 | 1 | 0 |
 | [`AudioTtsRun`](#audiottsrun) | `decision_audio_tts_run` | 26 | 4 | 0 |
-| [`BankStatementRun`](#bankstatementrun) | `decision_bank_statement_run` | 26 | 4 | 0 |
+| [`BankStatementRun`](#bankstatementrun) | `decision_bank_statement_run` | 36 | 5 | 0 |
 | [`BusinessObjective`](#businessobjective) | `decision_business_objective` | 10 | 1 | 0 |
 | [`CalculatedField`](#calculatedfield) | `decision_calculated_field` | 12 | 2 | 0 |
 | [`CalculatedFieldLibrary`](#calculatedfieldlibrary) | `decision_calculated_field_library` | 5 | 1 | 2 |
@@ -103,6 +103,7 @@ esquema, que es la fuente que las migraciones aplican.
 | [`SemanticCategoryEmbedding`](#semanticcategoryembedding) | `decision_semantic_category_embedding` | 6 | 1 | 1 |
 | [`SemanticEntityAlias`](#semanticentityalias) | `decision_semantic_entity_alias` | 6 | 2 | 0 |
 | [`SemanticTenantBudget`](#semantictenantbudget) | `decision_semantic_tenant_budget` | 5 | 1 | 0 |
+| [`SqlConsoleQueryLog`](#sqlconsolequerylog) | `sql_console_query_log` | 13 | 2 | 0 |
 | [`SubjectConsent`](#subjectconsent) | `subject_consent` | 11 | 2 | 1 |
 | [`UnresolvedClassification`](#unresolvedclassification) | `decision_unresolved_classification` | 20 | 3 | 0 |
 | [`UserTutorialProgress`](#usertutorialprogress) | `user_tutorial_progress` | 11 | 2 | 0 |
@@ -340,10 +341,20 @@ Tabla `decision_bank_statement_run`.
 | `resultJson` | `Json?` | @map("result_json") |
 | `warningsJson` | `Json?` | @map("warnings_json") |
 | `confidence` | `Decimal?` | @db.Decimal(4, 3) |
+| `documentTypeConfidence` | `Decimal?` | @map("document_type_confidence") @db.Decimal(4, 3) |
 | `institutionId` | `String?` | @map("institution_id") @db.VarChar(16) |
 | `transactionCount` | `Int?` | @map("transaction_count") |
 | `errorCode` | `String?` | @map("error_code") @db.VarChar(120) |
 | `errorMessage` | `String?` | @map("error_message") @db.Text |
+| `reviewReason` | `StatementReviewReason?` | @map("review_reason") |
+| `rejectionReason` | `StatementRejectionReason?` | @map("rejection_reason") |
+| `reviewPriority` | `Int?` | @map("review_priority") |
+| `reviewOpenedAt` | `DateTime?` | @map("review_opened_at") @db.Timestamptz(6) |
+| `reviewClaimedBy` | `String?` | @map("review_claimed_by") @db.VarChar(160) |
+| `reviewClaimedAt` | `DateTime?` | @map("review_claimed_at") @db.Timestamptz(6) |
+| `reviewResolvedBy` | `String?` | @map("review_resolved_by") @db.VarChar(160) |
+| `reviewResolvedAt` | `DateTime?` | @map("review_resolved_at") @db.Timestamptz(6) |
+| `reviewNotes` | `String?` | @map("review_notes") @db.Text |
 | `attemptCount` | `Int` | @default(0) @map("attempt_count") |
 | `leaseExpiresAt` | `DateTime?` | @map("lease_expires_at") @db.Timestamptz(6) |
 | `queuedAt` | `DateTime` | @default(now()) @map("queued_at") @db.Timestamptz(6) |
@@ -359,6 +370,7 @@ Tabla `decision_bank_statement_run`.
 - `unique([tenantId, requestId])`
 - `index([status, queuedAt])`
 - `index([tenantId, queuedAt])`
+- `index([tenantId, status, reviewReason, reviewPriority, reviewOpenedAt])`
 
 ## BusinessObjective
 
@@ -2354,6 +2366,31 @@ Tabla `decision_semantic_tenant_budget`.
 Índices y restricciones:
 
 - `unique([tenantId, windowStart])`
+
+## SqlConsoleQueryLog
+
+Tabla `sql_console_query_log`.
+
+| Campo | Tipo | Atributos |
+| --- | --- | --- |
+| `id` | `BigInt` | @id @default(autoincrement()) |
+| `tenantId` | `BigInt` | @map("tenant_id") |
+| `actorId` | `String` | @map("actor_id") @db.VarChar(160) |
+| `requestId` | `String?` | @map("request_id") @db.VarChar(120) |
+| `statement` | `String` | @db.Text |
+| `relations` | `String[]` | — |
+| `outcome` | `String` | @db.VarChar(20) |
+| `errorCode` | `String?` | @map("error_code") @db.VarChar(60) |
+| `rowCount` | `Int?` | @map("row_count") |
+| `durationMs` | `Int?` | @map("duration_ms") |
+| `estimatedRows` | `BigInt?` | @map("estimated_rows") |
+| `truncated` | `Boolean` | @default(false) |
+| `executedAt` | `DateTime` | @default(now()) @map("executed_at") @db.Timestamptz(6) |
+
+Índices y restricciones:
+
+- `index([tenantId, executedAt])`
+- `index([tenantId, actorId, executedAt])`
 
 ## SubjectConsent
 

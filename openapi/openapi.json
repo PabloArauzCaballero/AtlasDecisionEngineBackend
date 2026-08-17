@@ -3696,7 +3696,10 @@
                 "SUCCEEDED",
                 "SUCCEEDED_WITH_WARNINGS",
                 "FAILED",
-                "CANCELLED"
+                "CANCELLED",
+                "PENDING_REVIEW",
+                "IN_REVIEW",
+                "PDF_INVALID"
               ]
             },
             "description": "Filtra por estado exacto del recurso."
@@ -3998,7 +4001,10 @@
                 "SUCCEEDED",
                 "SUCCEEDED_WITH_WARNINGS",
                 "FAILED",
-                "CANCELLED"
+                "CANCELLED",
+                "PENDING_REVIEW",
+                "IN_REVIEW",
+                "PDF_INVALID"
               ]
             },
             "description": "Filtra por estado exacto del recurso."
@@ -4218,6 +4224,365 @@
         ]
       }
     },
+    "/v1/workers/bank-statement/reviews": {
+      "get": {
+        "operationId": "statementReviewList",
+        "parameters": [
+          {
+            "name": "category",
+            "required": false,
+            "in": "query",
+            "description": "La pestaña. Omitirlo es «Todos».",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "TIMEOUT",
+                "LOW_CONFIDENCE",
+                "DOUBTFUL_DOCUMENT",
+                "UNKNOWN_BANK",
+                "PARTIAL_EXTRACTION",
+                "AMBIGUOUS_DATA",
+                "OCR_ERROR",
+                "MANUAL_REQUEST"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Sin reclamar o ya reclamado. Omitirlo trae los dos.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING_REVIEW",
+                "IN_REVIEW"
+              ]
+            }
+          },
+          {
+            "name": "bank",
+            "required": false,
+            "in": "query",
+            "description": "Código de entidad detectada.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "dateFrom",
+            "required": false,
+            "in": "query",
+            "description": "Desde cuándo entró en la cola (ISO-8601).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "dateTo",
+            "required": false,
+            "in": "query",
+            "description": "Hasta cuándo entró en la cola (ISO-8601).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "priority",
+            "required": false,
+            "in": "query",
+            "description": "1 alta · 2 media · 3 baja.",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de casos, por prioridad y antigüedad. Nunca incluye documentos rechazados.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/PageMetaDto"
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "items"
+                      ],
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/StatementReviewItemDto"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Cola de documentos pendientes de revisión humana",
+        "tags": [
+          "Workers · Extractos bancarios"
+        ]
+      }
+    },
+    "/v1/workers/bank-statement/reviews/categories": {
+      "get": {
+        "operationId": "statementReviewCategories",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Una fila por categoría con trabajo, más la fila «Todos». Los contadores son del total, no de la página.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StatementReviewCategoryDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Contadores por categoría de la cola de revisión",
+        "tags": [
+          "Workers · Extractos bancarios"
+        ]
+      }
+    },
+    "/v1/workers/bank-statement/reviews/{requestId}": {
+      "get": {
+        "operationId": "statementReviewGet",
+        "parameters": [
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Identificador de correlación de la petición; el mismo que viaja en la cabecera `x-request-id`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatementReviewItemDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Un caso, con su clasificación, lo extraído y lo que falló",
+        "tags": [
+          "Workers · Extractos bancarios"
+        ]
+      }
+    },
+    "/v1/workers/bank-statement/reviews/{requestId}/claim": {
+      "post": {
+        "operationId": "statementReviewClaim",
+        "parameters": [
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Identificador de correlación de la petición; el mismo que viaja en la cabecera `x-request-id`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatementReviewItemDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Reclama el caso para revisarlo",
+        "tags": [
+          "Workers · Extractos bancarios"
+        ]
+      }
+    },
+    "/v1/workers/bank-statement/reviews/{requestId}/resolve": {
+      "post": {
+        "operationId": "statementReviewResolve",
+        "parameters": [
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Identificador de correlación de la petición; el mismo que viaja en la cabecera `x-request-id`."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveStatementReviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatementReviewItemDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Cierra el caso: aprobar, corregir, rechazar o marcar no válido",
+        "tags": [
+          "Workers · Extractos bancarios"
+        ]
+      }
+    },
+    "/v1/workers/bank-statement/reviews/{requestId}/reprocess": {
+      "post": {
+        "operationId": "statementReviewReprocess",
+        "parameters": [
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Identificador de correlación de la petición; el mismo que viaja en la cabecera `x-request-id`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "La ejecución vuelve a `QUEUED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatementReprocessedDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Devuelve el documento a la cola del worker",
+        "tags": [
+          "Workers · Extractos bancarios"
+        ]
+      }
+    },
     "/v1/workers/identity-verification/fixtures": {
       "get": {
         "operationId": "identityVerificationListFixtures",
@@ -4321,7 +4686,10 @@
                 "SUCCEEDED",
                 "SUCCEEDED_WITH_WARNINGS",
                 "FAILED",
-                "CANCELLED"
+                "CANCELLED",
+                "PENDING_REVIEW",
+                "IN_REVIEW",
+                "PDF_INVALID"
               ]
             },
             "description": "Filtra por estado exacto del recurso."
@@ -4570,7 +4938,10 @@
                 "SUCCEEDED",
                 "SUCCEEDED_WITH_WARNINGS",
                 "FAILED",
-                "CANCELLED"
+                "CANCELLED",
+                "PENDING_REVIEW",
+                "IN_REVIEW",
+                "PDF_INVALID"
               ]
             },
             "description": "Filtra por estado exacto del recurso."
@@ -4622,6 +4993,106 @@
           }
         },
         "summary": "Análisis del tenant",
+        "tags": [
+          "Workers · Análisis semántico"
+        ]
+      }
+    },
+    "/v1/workers/semantic-analysis/runs/batch": {
+      "post": {
+        "operationId": "semanticAnalysisCreateRunBatch",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSemanticAnalysisBatchDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Ejecuciones encoladas, en el orden en que se pidieron.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WorkerRunDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Encola varios análisis semánticos de una vez",
+        "tags": [
+          "Workers · Análisis semántico"
+        ]
+      }
+    },
+    "/v1/workers/semantic-analysis/runs/status": {
+      "post": {
+        "operationId": "semanticAnalysisGetRunStatuses",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkerRunStatusQueryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WorkerRunDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Estado y resultado de varias ejecuciones",
         "tags": [
           "Workers · Análisis semántico"
         ]
@@ -7548,11 +8019,12 @@
         ],
         "responses": {
           "200": {
-            "description": "",
+            "description": "Flujo de eventos SSE. Cada mensaje es un `LiveStepEvent` serializado en el campo `data:`.",
             "content": {
-              "application/json": {
+              "text/event-stream": {
                 "schema": {
-                  "type": "object"
+                  "type": "string",
+                  "format": "binary"
                 }
               }
             }
@@ -9433,6 +9905,184 @@
         ]
       }
     },
+    "/v1/sql-console/catalog": {
+      "get": {
+        "operationId": "sqlConsoleCatalog",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Catálogo de datasets con sus tablas y columnas, descubierto de la base, más las relaciones gobernadas que no se sirven y el motivo de cada una.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SqlCatalogDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "List the governed datasets, tables and columns the console can query",
+        "tags": [
+          "SQL Console"
+        ]
+      }
+    },
+    "/v1/sql-console/validate": {
+      "post": {
+        "operationId": "sqlConsoleValidate",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunQueryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resultado de la validación, con estimación si es válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryValidationDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Validate and estimate a query without executing it",
+        "tags": [
+          "SQL Console"
+        ]
+      }
+    },
+    "/v1/sql-console/query": {
+      "post": {
+        "operationId": "sqlConsoleQuery",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunQueryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Filas, columnas y coste real de la consulta.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryResultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Execute a read-only query against the governed datasets",
+        "tags": [
+          "SQL Console"
+        ]
+      }
+    },
+    "/v1/sql-console/history": {
+      "get": {
+        "operationId": "sqlConsoleHistory",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Cuántas consultas recientes devolver.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Historial de consultas de quien pregunta.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryHistoryPageDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "List the caller´s own recent queries",
+        "tags": [
+          "SQL Console"
+        ]
+      }
+    },
     "/pdf/generate": {
       "post": {
         "description": "Con `Accept: application/pdf` responde el archivo; con cualquier otro valor, la ficha del documento en JSON. `metadata.idempotencyKey` hace la operación repetible.",
@@ -11243,6 +11893,9 @@
     {
       "name": "Security Review",
       "description": "Revisión de seguridad de una versión antes de su promoción."
+    },
+    {
+      "name": "SQL Console"
     },
     {
       "name": "Tutorials",
@@ -18432,7 +19085,6 @@
           },
           "limits": {
             "type": "object",
-            "additionalProperties": true,
             "description": "Restricciones publicadas al cliente."
           },
           "available": {
@@ -18462,15 +19114,18 @@
         "type": "object",
         "properties": {
           "status": {
+            "type": "string",
             "enum": [
               "QUEUED",
               "RUNNING",
               "SUCCEEDED",
               "SUCCEEDED_WITH_WARNINGS",
               "FAILED",
-              "CANCELLED"
-            ],
-            "type": "string"
+              "CANCELLED",
+              "PENDING_REVIEW",
+              "IN_REVIEW",
+              "PDF_INVALID"
+            ]
           },
           "count": {
             "type": "number"
@@ -18699,12 +19354,12 @@
             "type": "number"
           },
           "strategy": {
+            "type": "string",
             "enum": [
               "STATIC",
               "DYNAMIC",
               "FALLBACK"
-            ],
-            "type": "string"
+            ]
           },
           "templateText": {
             "type": "string",
@@ -18739,15 +19394,11 @@
         "properties": {
           "templateCode": {
             "type": "string",
-            "maxLength": 160,
             "description": "Plantilla del catálogo a locutar. Excluyente con `fixtureCode`.",
             "example": "onboarding.welcome.named"
           },
           "variables": {
             "type": "object",
-            "additionalProperties": {
-              "type": "string"
-            },
             "description": "Valores de las variables que declara la plantilla. El motor rechaza las que falten y las que no cumplan el formato permitido.",
             "example": {
               "name": "Ana"
@@ -18755,18 +19406,15 @@
           },
           "language": {
             "type": "string",
-            "maxLength": 20,
             "description": "Idioma de la locución (etiqueta BCP-47). Si se omite se toma el de la plantilla y, en su defecto, el del despliegue. Forma parte de la identidad del audio: cambiarlo produce una locución distinta.",
             "example": "es-419"
           },
           "fixtureCode": {
             "type": "string",
-            "maxLength": 60,
             "description": "Escenario de prueba. Excluyente con `templateCode`."
           },
           "idempotencyKey": {
             "type": "string",
-            "maxLength": 200,
             "description": "Clave de deduplicación. Sin ella se deriva de la plantilla, sus variables, el idioma y la voz vigente, de modo que repetir la misma locución no crea una segunda ejecución ni una segunda factura."
           }
         }
@@ -18778,15 +19426,18 @@
             "type": "string"
           },
           "status": {
+            "type": "string",
             "enum": [
               "QUEUED",
               "RUNNING",
               "SUCCEEDED",
               "SUCCEEDED_WITH_WARNINGS",
               "FAILED",
-              "CANCELLED"
-            ],
-            "type": "string"
+              "CANCELLED",
+              "PENDING_REVIEW",
+              "IN_REVIEW",
+              "PDF_INVALID"
+            ]
           },
           "progress": {
             "type": "number",
@@ -18794,16 +19445,15 @@
             "maximum": 100
           },
           "inputSource": {
+            "type": "string",
             "enum": [
               "FIXTURE",
               "UPLOAD",
               "INLINE"
-            ],
-            "type": "string"
+            ]
           },
           "fixtureCode": {
-            "type": "string",
-            "nullable": true
+            "type": "object"
           },
           "attemptCount": {
             "type": "number"
@@ -18813,14 +19463,10 @@
             "type": "string"
           },
           "startedAt": {
-            "format": "date-time",
-            "type": "string",
-            "nullable": true
+            "type": "object"
           },
           "finishedAt": {
-            "format": "date-time",
-            "type": "string",
-            "nullable": true
+            "type": "object"
           },
           "requestedBy": {
             "type": "string"
@@ -18838,12 +19484,39 @@
             "description": "Advertencias de un resultado utilizable pero revisable."
           },
           "errorCode": {
-            "type": "string",
-            "nullable": true
+            "type": "object"
           },
           "errorMessage": {
+            "type": "object"
+          },
+          "reviewReason": {
             "type": "string",
-            "nullable": true
+            "enum": [
+              "TIMEOUT",
+              "LOW_CONFIDENCE",
+              "DOUBTFUL_DOCUMENT",
+              "UNKNOWN_BANK",
+              "PARTIAL_EXTRACTION",
+              "AMBIGUOUS_DATA",
+              "OCR_ERROR",
+              "MANUAL_REQUEST"
+            ],
+            "description": "Por qué espera a una persona. Sólo con estado PENDING_REVIEW o IN_REVIEW."
+          },
+          "rejectionReason": {
+            "type": "string",
+            "enum": [
+              "NOT_BANK_STATEMENT",
+              "UNSUPPORTED_FILE",
+              "EMPTY_DOCUMENT",
+              "CORRUPTED_PDF",
+              "UNREADABLE_DOCUMENT"
+            ],
+            "description": "Por qué se rechazó. Sólo con estado PDF_INVALID."
+          },
+          "reviewPriority": {
+            "type": "object",
+            "description": "1 alta · 2 media · 3 baja."
           }
         },
         "required": [
@@ -18862,28 +19535,212 @@
         "properties": {
           "fixtureCode": {
             "type": "string",
-            "maxLength": 60,
             "description": "Escenario de prueba. Excluyente con el archivo subido."
           }
         }
+      },
+      "StatementReviewItemDto": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "requestedBy": {
+            "type": "string",
+            "description": "Quién lo subió."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING_REVIEW",
+              "IN_REVIEW"
+            ]
+          },
+          "reviewReason": {
+            "type": "string",
+            "enum": [
+              "TIMEOUT",
+              "LOW_CONFIDENCE",
+              "DOUBTFUL_DOCUMENT",
+              "UNKNOWN_BANK",
+              "PARTIAL_EXTRACTION",
+              "AMBIGUOUS_DATA",
+              "OCR_ERROR",
+              "MANUAL_REQUEST"
+            ]
+          },
+          "reviewPriority": {
+            "type": "number",
+            "description": "1 alta · 2 media · 3 baja."
+          },
+          "errorCode": {
+            "type": "object",
+            "description": "Código técnico que originó la derivación."
+          },
+          "errorMessage": {
+            "type": "object"
+          },
+          "institutionId": {
+            "type": "object",
+            "description": "Entidad detectada, si se reconoció."
+          },
+          "documentTypeConfidence": {
+            "type": "object",
+            "description": "Confianza de que SEA un extracto. `null` si no se midió."
+          },
+          "extractionConfidence": {
+            "type": "object",
+            "description": "Confianza de la EXTRACCIÓN de movimientos."
+          },
+          "transactionCount": {
+            "type": "object"
+          },
+          "reviewOpenedAt": {
+            "type": "object",
+            "description": "Cuándo entró en la cola."
+          },
+          "pendingMs": {
+            "type": "object",
+            "description": "Milisegundos que lleva esperando. Lo calcula el motor: derivarlo en el cliente lo deja congelado en la hora de su reloj."
+          },
+          "reviewClaimedBy": {
+            "type": "object"
+          },
+          "reviewClaimedAt": {
+            "type": "object"
+          },
+          "queuedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId",
+          "fileName",
+          "requestedBy",
+          "status",
+          "reviewReason",
+          "reviewPriority",
+          "errorCode",
+          "errorMessage",
+          "institutionId",
+          "documentTypeConfidence",
+          "extractionConfidence",
+          "transactionCount",
+          "reviewOpenedAt",
+          "pendingMs",
+          "reviewClaimedBy",
+          "reviewClaimedAt",
+          "queuedAt"
+        ]
+      },
+      "StatementReviewCategoryDto": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": [
+              "TIMEOUT",
+              "LOW_CONFIDENCE",
+              "DOUBTFUL_DOCUMENT",
+              "UNKNOWN_BANK",
+              "PARTIAL_EXTRACTION",
+              "AMBIGUOUS_DATA",
+              "OCR_ERROR",
+              "MANUAL_REQUEST"
+            ],
+            "nullable": true,
+            "description": "`null` = «Todos»."
+          },
+          "total": {
+            "type": "number"
+          },
+          "claimed": {
+            "type": "number",
+            "description": "De ese total, cuántos ya tienen a alguien encima."
+          },
+          "oldestPendingMs": {
+            "type": "object",
+            "description": "Antigüedad del más viejo, en milisegundos."
+          }
+        },
+        "required": [
+          "category",
+          "total",
+          "claimed",
+          "oldestPendingMs"
+        ]
+      },
+      "ResolveStatementReviewDto": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "APPROVE",
+              "CORRECT",
+              "REJECT",
+              "MARK_INVALID"
+            ],
+            "description": "APPROVE da por bueno lo extraído · CORRECT lo da por bueno con notas de corrección · REJECT lo cierra sin resultado · MARK_INVALID afirma que no era un extracto."
+          },
+          "rejectionReason": {
+            "type": "string",
+            "enum": [
+              "NOT_BANK_STATEMENT",
+              "UNSUPPORTED_FILE",
+              "EMPTY_DOCUMENT",
+              "CORRUPTED_PDF",
+              "UNREADABLE_DOCUMENT"
+            ],
+            "description": "Obligatorio con MARK_INVALID: un rechazo sin motivo no es medible."
+          },
+          "notes": {
+            "type": "string",
+            "description": "Por qué. Queda en la fila y en la auditoría."
+          }
+        },
+        "required": [
+          "action",
+          "notes"
+        ]
+      },
+      "StatementReprocessedDto": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "QUEUED"
+            ],
+            "description": "Siempre `QUEUED`: el caso vuelve a la cola del worker."
+          }
+        },
+        "required": [
+          "requestId",
+          "status"
+        ]
       },
       "CreateIdentityVerificationRunDto": {
         "type": "object",
         "properties": {
           "fixtureCode": {
             "type": "string",
-            "maxLength": 60,
             "description": "Escenario de prueba. Excluyente con las imágenes subidas."
           },
           "documentCountry": {
             "type": "string",
-            "pattern": "^[A-Za-z]{2}$",
             "description": "País emisor del documento, ISO 3166-1 alfa-2. Decide qué analizador se usa; si se omite se toma el del despliegue.",
             "example": "BO"
           },
           "idempotencyKey": {
             "type": "string",
-            "maxLength": 200,
             "description": "Clave de deduplicación. Sin ella se deriva del contenido de las imágenes, de modo que reenviar las mismas fotos no crea una segunda verificación."
           }
         }
@@ -18893,20 +19750,63 @@
         "properties": {
           "text": {
             "type": "string",
-            "maxLength": 100000,
             "description": "Texto a analizar. Excluyente con `fixtureCode`."
           },
           "fixtureCode": {
             "type": "string",
-            "maxLength": 60,
             "description": "Escenario de prueba. Excluyente con `text`."
           },
           "idempotencyKey": {
             "type": "string",
-            "maxLength": 200,
             "description": "Clave de deduplicación. Si se omite se deriva del contenido, de modo que reenviar el mismo texto no crea una segunda ejecución."
           }
         }
+      },
+      "SemanticBatchItemDto": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Texto a analizar."
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "description": "Clave de deduplicación de este texto. Ver `CreateSemanticAnalysisRunDto`."
+          }
+        },
+        "required": [
+          "text"
+        ]
+      },
+      "CreateSemanticAnalysisBatchDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Textos a analizar.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SemanticBatchItemDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "WorkerRunStatusQueryDto": {
+        "type": "object",
+        "properties": {
+          "requestIds": {
+            "description": "Identificadores de las ejecuciones a consultar.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "requestIds"
+        ]
       },
       "SemanticCategoryDto": {
         "type": "object",
@@ -19571,8 +20471,25 @@
             "example": "2026-07-20T10:00:00.000Z"
           },
           "finishedAt": {
-            "type": "string",
+            "type": "object",
             "nullable": true
+          },
+          "plannedCases": {
+            "type": "number",
+            "example": 512,
+            "description": "Casos que la corrida iba a ejecutar. Mientras está `RUNNING`, `totalCases` sólo cuenta los ya ejecutados. Vale 0 en corridas anteriores al campo."
+          },
+          "concurrency": {
+            "type": "number",
+            "example": 1,
+            "nullable": true,
+            "description": "Casos ejecutados a la vez. `null` en corridas que no la archivaron. Sin este dato, `durationMs / totalCases` NO es comparable entre corridas."
+          },
+          "checkDeterminism": {
+            "type": "boolean",
+            "example": true,
+            "nullable": true,
+            "description": "Si cada caso se ejecutó DOS veces para comprobar determinismo. Duplica el trabajo real de la corrida, así que condiciona cualquier lectura de rendimiento."
           }
         },
         "required": [
@@ -19589,7 +20506,10 @@
           "durationMs",
           "counterexamples",
           "startedAt",
-          "finishedAt"
+          "finishedAt",
+          "plannedCases",
+          "concurrency",
+          "checkDeterminism"
         ]
       },
       "QaCounterexampleDto": {
@@ -19621,12 +20541,10 @@
           },
           "shrunkInput": {
             "type": "object",
-            "additionalProperties": true,
             "description": "Entrada mínima reducida que sigue reproduciendo el fallo."
           },
           "originalInput": {
             "type": "object",
-            "additionalProperties": true,
             "description": "Entrada aleatoria original, antes de reducir. Solo en `getRun`."
           },
           "observed": {
@@ -19643,7 +20561,7 @@
             "example": "42/BOUNDARY"
           },
           "resolvedAt": {
-            "type": "string",
+            "type": "object",
             "nullable": true,
             "description": "Solo en `getRun`."
           }
@@ -19692,7 +20610,6 @@
           },
           "tooling": {
             "type": "object",
-            "additionalProperties": true,
             "example": {
               "generator": "1.0",
               "node": "v20.11.0",
@@ -19727,7 +20644,6 @@
           },
           "summary": {
             "type": "object",
-            "additionalProperties": true,
             "example": {
               "OUTPUT_CONTRACT_RESPECTED": 5
             },
@@ -19738,7 +20654,7 @@
             "example": "2026-07-20T10:00:00.000Z"
           },
           "finishedAt": {
-            "type": "string",
+            "type": "object",
             "nullable": true
           },
           "counterexamples": {
@@ -19908,8 +20824,7 @@
             "example": true
           },
           "output": {
-            "type": "object",
-            "additionalProperties": true
+            "type": "object"
           },
           "status": {
             "type": "string",
@@ -19977,8 +20892,7 @@
             "description": "Si la entrada reducida sigue reproduciendo el mismo fallo."
           },
           "input": {
-            "type": "object",
-            "additionalProperties": true
+            "type": "object"
           },
           "observation": {
             "$ref": "#/components/schemas/ExecutionObservationDto"
@@ -24520,6 +25434,395 @@
         },
         "required": [
           "status"
+        ]
+      },
+      "CatalogColumnDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "estado"
+          },
+          "kind": {
+            "type": "string",
+            "example": "texto"
+          },
+          "description": {
+            "type": "string",
+            "example": "APPROVED, REJECTED, MANUAL_REVIEW, ERROR…"
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "description"
+        ]
+      },
+      "CatalogTableDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "ejecuciones"
+          },
+          "description": {
+            "type": "string"
+          },
+          "grain": {
+            "type": "string",
+            "example": "Una fila = una decisión ejecutada por el motor.",
+            "nullable": true,
+            "description": "Qué es UNA fila. Va en el catálogo y no en la documentación porque sin esta frase un COUNT(*) se interpreta mal, y nadie consulta la documentación antes de contar. Es null en una vista que la base publica y que nadie ha fichado todavía: un grano derivado del nombre se leería igual que uno comprobado."
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogColumnDto"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "grain",
+          "columns"
+        ]
+      },
+      "CatalogDatasetDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "decisiones"
+          },
+          "description": {
+            "type": "string"
+          },
+          "tables": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogTableDto"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "tables"
+        ]
+      },
+      "OmittedRelationDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "riesgo.exposicion"
+          },
+          "reason": {
+            "type": "string",
+            "example": "Su definición no invoca public.atlas_current_tenant(), así que no hay nada que acote las filas al inquilino que consulta."
+          }
+        },
+        "required": [
+          "name",
+          "reason"
+        ]
+      },
+      "ConsoleLimitsDto": {
+        "type": "object",
+        "properties": {
+          "maxRows": {
+            "type": "number",
+            "example": 10000
+          },
+          "timeoutMs": {
+            "type": "number",
+            "example": 12000
+          },
+          "maxStatementBytes": {
+            "type": "number",
+            "example": 65536
+          }
+        },
+        "required": [
+          "maxRows",
+          "timeoutMs",
+          "maxStatementBytes"
+        ]
+      },
+      "SqlCatalogDto": {
+        "type": "object",
+        "properties": {
+          "datasets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogDatasetDto"
+            }
+          },
+          "omitted": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OmittedRelationDto"
+            }
+          },
+          "limits": {
+            "$ref": "#/components/schemas/ConsoleLimitsDto"
+          }
+        },
+        "required": [
+          "datasets",
+          "omitted",
+          "limits"
+        ]
+      },
+      "RunQueryDto": {
+        "type": "object",
+        "properties": {
+          "statement": {
+            "type": "string",
+            "description": "La consulta SQL. Sólo SELECT o WITH, una sola sentencia.",
+            "example": "SELECT estado, count(*) FROM decisiones.ejecuciones WHERE es_produccion GROUP BY 1",
+            "maxLength": 65536
+          }
+        },
+        "required": [
+          "statement"
+        ]
+      },
+      "QueryViolationDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "SQL_FORBIDDEN_KEYWORD"
+          },
+          "message": {
+            "type": "string"
+          },
+          "line": {
+            "type": "number",
+            "example": 3
+          },
+          "column": {
+            "type": "number",
+            "example": 12
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ]
+      },
+      "QueryEstimateDto": {
+        "type": "object",
+        "properties": {
+          "estimatedRows": {
+            "type": "number",
+            "example": 18420,
+            "description": "Filas que el planificador ESPERA. Es una estimación, no una promesa."
+          },
+          "estimatedBytes": {
+            "type": "number",
+            "example": 1473600
+          },
+          "planCost": {
+            "type": "number",
+            "example": 1240.55
+          },
+          "scannedRelations": {
+            "example": [
+              "decisiones.ejecuciones"
+            ],
+            "description": "Relaciones que el plan recorre de verdad, no las que el texto nombra.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "estimatedRows",
+          "estimatedBytes",
+          "planCost",
+          "scannedRelations"
+        ]
+      },
+      "QueryValidationDto": {
+        "type": "object",
+        "properties": {
+          "valid": {
+            "type": "boolean",
+            "example": true
+          },
+          "violations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QueryViolationDto"
+            }
+          },
+          "estimate": {
+            "$ref": "#/components/schemas/QueryEstimateDto"
+          }
+        },
+        "required": [
+          "valid",
+          "violations"
+        ]
+      },
+      "ResultColumnDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "estado"
+          },
+          "kind": {
+            "type": "string",
+            "example": "texto",
+            "description": "Tipo con el que presentar la columna. Los enteros grandes y los decimales viajan como CADENA para no perder precisión; este campo es lo que permite alinearlos y formatearlos como números sin volver a convertirlos."
+          }
+        },
+        "required": [
+          "name",
+          "kind"
+        ]
+      },
+      "QueryResultDto": {
+        "type": "object",
+        "properties": {
+          "columns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResultColumnDto"
+            }
+          },
+          "rows": {
+            "type": "array",
+            "description": "Filas como matriz, no como objetos: una consulta puede repetir el nombre de una columna.",
+            "items": {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  }
+                ]
+              }
+            },
+            "example": [
+              [
+                "APPROVED",
+                18420
+              ]
+            ]
+          },
+          "rowCount": {
+            "type": "number",
+            "example": 2
+          },
+          "durationMs": {
+            "type": "number",
+            "example": 184
+          },
+          "truncated": {
+            "type": "boolean",
+            "example": false,
+            "description": "El resultado se cortó en el tope de filas y hay más del que se devuelve."
+          },
+          "estimate": {
+            "$ref": "#/components/schemas/QueryEstimateDto"
+          }
+        },
+        "required": [
+          "columns",
+          "rows",
+          "rowCount",
+          "durationMs",
+          "truncated",
+          "estimate"
+        ]
+      },
+      "QueryHistoryEntryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "3312"
+          },
+          "statement": {
+            "type": "string",
+            "example": "SELECT estado, count(*) FROM decisiones.ejecuciones GROUP BY 1"
+          },
+          "outcome": {
+            "type": "string",
+            "example": "SUCCEEDED",
+            "enum": [
+              "VALIDATED",
+              "SUCCEEDED",
+              "REJECTED",
+              "FAILED"
+            ]
+          },
+          "errorCode": {
+            "type": "string",
+            "nullable": true,
+            "example": "SQL_TIMEOUT"
+          },
+          "rowCount": {
+            "type": "number",
+            "nullable": true,
+            "example": 2
+          },
+          "durationMs": {
+            "type": "number",
+            "nullable": true,
+            "example": 184
+          },
+          "truncated": {
+            "type": "boolean",
+            "example": false
+          },
+          "relations": {
+            "example": [
+              "decisiones.ejecuciones"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "executedAt": {
+            "type": "string",
+            "example": "2026-08-14T09:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "statement",
+          "outcome",
+          "truncated",
+          "relations",
+          "executedAt"
+        ]
+      },
+      "QueryHistoryPageDto": {
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QueryHistoryEntryDto"
+            }
+          }
+        },
+        "required": [
+          "entries"
         ]
       },
       "ProblemDetails": {

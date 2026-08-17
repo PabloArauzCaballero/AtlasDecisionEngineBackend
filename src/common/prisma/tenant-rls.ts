@@ -107,8 +107,13 @@ export function applyTenantRls<TClient extends PrismaClient>(
     if (Array.isArray(arg)) {
       // Se antepone la sentencia del tenant y luego se descarta su resultado, para que el
       // llamante siga recibiendo sus operaciones en el orden en que las pasó.
-      return rawTransaction([setTenantStatement(tenantId), ...arg], txOptions).then((results) =>
-        (results as unknown[]).slice(1),
+      //
+      // `arg as unknown[]`: `Array.isArray` sobre un `unknown` lo estrecha a `any[]`, y
+      // esparcirlo tal cual mete un `any` en la lista de operaciones — que es tipado
+      // perdido en el camino por el que pasa TODA escritura acotada por tenant.
+      const operaciones = arg as unknown[];
+      return rawTransaction([setTenantStatement(tenantId), ...operaciones], txOptions).then(
+        (results) => (results as unknown[]).slice(1),
       );
     }
     // Forma interactiva: el GUC se fija como primera sentencia dentro de la transacción,

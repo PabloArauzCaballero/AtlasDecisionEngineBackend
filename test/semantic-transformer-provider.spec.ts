@@ -268,6 +268,89 @@ describe('TransformerSemanticProvider', () => {
   });
 
   /**
+   * El ahorro que hace utilizable la clasificación de un extracto entero.
+   *
+   * Las sondas son texto del CATÁLOGO y no cambian entre glosas, así que
+   * recalcularlas en cada una era pedir nueve vectores —cincuenta en `DEEP`—
+   * para aprovechar uno. A partir de la segunda glosa la petición lleva
+   * exactamente un texto: el que se está clasificando.
+   */
+  it('no vuelve a pedir los vectores de sonda ya calculados', async () => {
+    const primera = entrada('COMPRA EN SUPERMERCADO');
+    const segunda = entrada('CONSUMO EN RESTAURANTE ZONA SUR');
+    const pedidos: (readonly string[])[] = [];
+    const mapa: Record<string, readonly number[]> = {
+      'query: COMPRA EN SUPERMERCADO': EJES['supermercado'],
+      'query: CONSUMO EN RESTAURANTE ZONA SUR': EJES['restaurante'],
+      ...sondasDe(primera, 'DEEP', () => EJES['supermercado']),
+    };
+    const embeddings: EmbeddingProvider = {
+      model: 'modelo-de-prueba',
+      embed(texts) {
+        pedidos.push([...texts]);
+        return Promise.resolve(texts.map((text) => mapa[text] ?? EJES['ninguno']));
+      },
+    };
+    const adaptador = proveedor(embeddings);
+
+    await adaptador.classify(primera, 'DEEP');
+    await adaptador.classify(segunda, 'DEEP');
+
+    expect(pedidos[0]?.length).toBeGreaterThan(1);
+    expect(pedidos[1]).toEqual(['query: CONSUMO EN RESTAURANTE ZONA SUR']);
+  });
+
+  /**
+   * La caché no puede cambiar ni un veredicto: si lo hiciera sería una función
+   * distinta con el mismo nombre. Se clasifica dos veces la misma glosa y se
+   * compara el resultado entero.
+   */
+  it('devuelve el mismo veredicto con la caché fría y caliente', async () => {
+    const input = entrada('COMPRA EN SUPERMERCADO');
+    const embeddings = embeddingsDe({
+      'query: COMPRA EN SUPERMERCADO': EJES['supermercado'],
+      ...sondasDe(input, 'FAST', (source) =>
+        source.startsWith('Supermercado') ? EJES['supermercado'] : EJES['restaurante'],
+      ),
+    });
+    const adaptador = proveedor(embeddings);
+
+    const fria = await adaptador.classify(input, 'FAST');
+    const caliente = await adaptador.classify(input, 'FAST');
+
+    expect(caliente).toEqual(fria);
+  });
+
+  /** Con la caché apagada se vuelve al comportamiento anterior, sin sorpresas. */
+  it('recalcula las sondas en cada glosa cuando la caché está desactivada', async () => {
+    const input = entrada('COMPRA EN SUPERMERCADO');
+    const mapa: Record<string, readonly number[]> = {
+      'query: COMPRA EN SUPERMERCADO': EJES['supermercado'],
+      ...sondasDe(input, 'FAST', () => EJES['supermercado']),
+    };
+    const pedidos: number[] = [];
+    const adaptador = new TransformerSemanticProvider({
+      embeddings: {
+        model: 'modelo-de-prueba',
+        embed(texts) {
+          pedidos.push(texts.length);
+          return Promise.resolve(texts.map((text) => mapa[text] ?? EJES['ninguno']));
+        },
+      },
+      queryPrefix: 'query: ',
+      passagePrefix: 'passage: ',
+      probeCacheSize: 0,
+      ...UMBRALES,
+    });
+
+    await adaptador.classify(input, 'FAST');
+    await adaptador.classify(input, 'FAST');
+
+    expect(pedidos[0]).toBeGreaterThan(1);
+    expect(pedidos[1]).toBe(pedidos[0]);
+  });
+
+  /**
    * La evidencia cita el texto analizado, nunca el catálogo. Y sólo acompaña a
    * lo que se sostiene: junto a un `supported: false` se leería como respaldo de
    * algo que no lo tiene.
@@ -358,10 +441,67 @@ describe('TransformerEmbeddingProvider', () => {
 
   it('marca reintentable la saturación del servidor', async () => {
     const provider = new TransformerEmbeddingProvider({
+      maxAttempts: 1,
       fetchImplementation: (() =>
         Promise.resolve(respuesta(undefined, 429))) as unknown as typeof fetch,
     });
 
     await expect(provider.embed(['a'])).rejects.toMatchObject({ retryable: true });
+  });
+
+  /**
+   * El fallo que se veía en pantalla como «No se pudo» en media tabla.
+   *
+   * El servidor devuelve 503 mientras carga el modelo o drena su cola; sin
+   * reintento, ese hipo tumbaba el análisis entero y la fila del extracto
+   * quedaba marcada como fallo de clasificación, que es lo que no había pasado.
+   */
+  it('reintenta un fallo pasajero y devuelve el resultado del intento bueno', async () => {
+    let intentos = 0;
+    const provider = new TransformerEmbeddingProvider({
+      retryBackoffMs: 0,
+      sleepImplementation: () => Promise.resolve(),
+      fetchImplementation: (() => {
+        intentos += 1;
+        return Promise.resolve(intentos < 3 ? respuesta(undefined, 503) : respuesta([[1, 0]]));
+      }) as unknown as typeof fetch,
+    });
+
+    await expect(provider.embed(['a'])).resolves.toEqual([[1, 0]]);
+    expect(intentos).toBe(3);
+  });
+
+  /** Lo permanente falla al primer intento: insistir sólo retiene el turno. */
+  it('no reintenta un fallo permanente', async () => {
+    let intentos = 0;
+    const provider = new TransformerEmbeddingProvider({
+      sleepImplementation: () => Promise.resolve(),
+      fetchImplementation: (() => {
+        intentos += 1;
+        return Promise.resolve(respuesta(undefined, 413));
+      }) as unknown as typeof fetch,
+    });
+
+    await expect(provider.embed(['a'])).rejects.toMatchObject({ retryable: false });
+    expect(intentos).toBe(1);
+  });
+
+  /** Insistir nunca puede rebasar el presupuesto de tiempo del análisis. */
+  it('deja de insistir cuando el presupuesto del análisis se agota', async () => {
+    let intentos = 0;
+    const control = new AbortController();
+    const provider = new TransformerEmbeddingProvider({
+      sleepImplementation: () => {
+        control.abort();
+        return Promise.resolve();
+      },
+      fetchImplementation: (() => {
+        intentos += 1;
+        return Promise.resolve(respuesta(undefined, 503));
+      }) as unknown as typeof fetch,
+    });
+
+    await expect(provider.embed(['a'], control.signal)).rejects.toThrow(SemanticProviderError);
+    expect(intentos).toBe(2);
   });
 });

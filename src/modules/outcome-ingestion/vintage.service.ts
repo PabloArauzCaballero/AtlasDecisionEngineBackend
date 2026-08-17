@@ -16,6 +16,7 @@ import type { Prisma } from '@prisma/client';
 import { parseBigIntId } from '../../common/http/id';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { PendingWindowsQueryDto, VintageQueryDto } from './outcome-ingestion.dto';
+import { consultaCrudaConTenant } from '../../common/prisma/tenant-scoped-raw';
 
 /** Tope de la cola de pendientes: es trabajo para una persona, no un volcado. */
 const MAX_PENDING = 200;
@@ -58,7 +59,9 @@ export class VintageService {
     const to = query.to ? new Date(query.to) : new Date();
     const from = query.from ? new Date(query.from) : new Date(to.getTime() - 365 * 24 * 3_600_000);
 
-    const rows = await this.prisma.$queryRaw<VintageRow[]>`
+    const rows = await consultaCrudaConTenant(
+      this.prisma,
+      (tx) => tx.$queryRaw<VintageRow[]>`
       SELECT
         date_trunc('month', e."executed_at")                                    AS cohort,
         w."window_days"                                                         AS window_days,
@@ -82,7 +85,8 @@ export class VintageService {
         AND (${artifactVersionId}::bigint IS NULL OR e."artifact_version_id" = ${artifactVersionId}::bigint)
       GROUP BY 1, 2
       ORDER BY 1, 2
-    `;
+    `,
+    );
 
     return {
       from: from.toISOString(),
@@ -113,7 +117,9 @@ export class VintageService {
    */
   async pending(tenantId: bigint, query: PendingWindowsQueryDto) {
     const limit = Math.min(query.limit ?? 50, MAX_PENDING);
-    const rows = await this.prisma.$queryRaw<PendingRow[]>`
+    const rows = await consultaCrudaConTenant(
+      this.prisma,
+      (tx) => tx.$queryRaw<PendingRow[]>`
       SELECT
         w."id"                  AS id,
         w."execution_id"        AS execution_id,
@@ -132,7 +138,8 @@ export class VintageService {
         AND w."due_at" <= now()
       ORDER BY w."due_at" ASC
       LIMIT ${limit}
-    `;
+    `,
+    );
 
     return {
       limit,

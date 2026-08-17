@@ -65,10 +65,11 @@ export interface ResolvedModelProviders {
  * Concentra aquí la selección para que el árbol de módulos no conozca proveedores concretos y para
  * que la comprobación del presupuesto de tiempo se aplique al proveedor realmente elegido.
  *
- * El adaptador de transformers no pasa por esa comprobación, y no es un olvido: no reintenta —el
- * clasificador hace UNA llamada por nivel—, de modo que su peor caso es su propio timeout, un orden
- * de magnitud por debajo del presupuesto de cualquier análisis. La comprobación existe para el
- * proveedor generativo, cuyo peor caso se multiplica por los intentos.
+ * El adaptador de transformers no pasa por esa comprobación, y no es un olvido: su peor caso —tres
+ * intentos de 15 s con sus esperas— sigue por debajo del presupuesto por defecto del análisis, y
+ * además cada intento comparte el `AbortSignal` de ese presupuesto, así que no puede rebasarlo por
+ * mucho que se suban los intentos. La comprobación existe para el proveedor generativo, cuyos
+ * reintentos no ven el presupuesto y por eso hay que sumarlos a mano.
  */
 export function loadModelProviders(
   environment: NodeJS.ProcessEnv,
@@ -112,6 +113,7 @@ function buildTransformerModelProvider(environment: NodeJS.ProcessEnv): Semantic
     embeddings: new TransformerEmbeddingProvider(options.embedding),
     queryPrefix: options.queryPrefix,
     passagePrefix: options.passagePrefix,
+    probeCacheSize: options.probeCacheSize,
     ...options.thresholds,
   });
 }

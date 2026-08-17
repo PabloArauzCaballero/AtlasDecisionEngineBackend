@@ -9,7 +9,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
-import { SQL_CONSOLE_CATALOG } from './catalog/dataset-catalog';
+import { CatalogDiscoveryService } from './catalog/catalog-discovery.service';
 import { QueryExecutorService, SqlConsoleQueryError } from './execution/query-executor.service';
 import { guardSql, MAX_SQL_BYTES, type GuardViolation } from './guard/sql-guard';
 import type {
@@ -39,12 +39,22 @@ export class SqlConsoleService {
   constructor(
     private readonly executor: QueryExecutorService,
     private readonly prisma: PrismaService,
+    private readonly discovery: CatalogDiscoveryService,
   ) {}
 
-  catalog(): SqlCatalogDto {
+  /**
+   * El catálogo se publica CON lo que se descartó.
+   *
+   * Un catálogo que encoge sin decirlo se lee como que la base tiene menos datos, y manda a
+   * buscar el problema donde no está. Si una vista gobernada no acota por inquilino, quien
+   * abra el explorador tiene que poder ver que existe, que no se sirve y por qué — que es lo
+   * único que convierte «no aparece mi vista» en una línea que alguien puede arreglar.
+   */
+  async catalog(): Promise<SqlCatalogDto> {
     const { maxRows, timeoutMs } = this.executor.limits;
+    const { datasets, omitted } = await this.discovery.catalog();
     return {
-      datasets: SQL_CONSOLE_CATALOG.map((dataset) => ({
+      datasets: datasets.map((dataset) => ({
         name: dataset.name,
         description: dataset.description,
         tables: dataset.tables.map((table) => ({
@@ -54,6 +64,7 @@ export class SqlConsoleService {
           columns: table.columns.map((column) => ({ ...column })),
         })),
       })),
+      omitted: omitted.map((entry) => ({ ...entry })),
       limits: { maxRows, timeoutMs, maxStatementBytes: MAX_SQL_BYTES },
     };
   }
@@ -72,7 +83,7 @@ export class SqlConsoleService {
     principal: AuthenticatedPrincipal,
     statement: string,
   ): Promise<QueryValidationDto> {
-    const guard = guardSql(statement);
+    const guard = guardSql(statement, (await this.discovery.catalog()).relations);
     if (!guard.ok) return { valid: false, violations: [...guard.violations] };
 
     try {
@@ -108,7 +119,7 @@ export class SqlConsoleService {
     principal: AuthenticatedPrincipal,
     statement: string,
   ): Promise<QueryResultDto> {
-    const guard = guardSql(statement);
+    const guard = guardSql(statement, (await this.discovery.catalog()).relations);
     if (!guard.ok) {
       await this.log(tenantId, principal, {
         outcome: 'REJECTED',

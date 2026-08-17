@@ -33,6 +33,18 @@ const environmentSchema = z.object({
   SEMANTIC_TRANSFORMER_SIMILARITY_FLOOR: z.coerce.number().min(0).max(1).default(0.87),
   SEMANTIC_TRANSFORMER_TEMPERATURE: z.coerce.number().min(0.001).max(1).default(0.01),
   SEMANTIC_TRANSFORMER_CONTRADICTION_MARGIN: z.coerce.number().min(0).max(1).default(0.02),
+  /**
+   * Intentos ante un fallo pasajero del servidor de embeddings. `1` desactiva
+   * el reintento y devuelve el comportamiento anterior, en el que un 503 de
+   * arranque tumbaba el análisis completo.
+   */
+  SEMANTIC_TRANSFORMER_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(3),
+  SEMANTIC_TRANSFORMER_RETRY_BACKOFF_MS: z.coerce.number().int().min(0).max(10_000).default(250),
+  /**
+   * Sondas de catálogo cuyo vector se conserva en memoria. `0` desactiva la
+   * caché y vuelve a calcular el catálogo entero en cada glosa.
+   */
+  SEMANTIC_TRANSFORMER_PROBE_CACHE_SIZE: z.coerce.number().int().min(0).max(100_000).default(1_000),
 });
 
 export interface TransformerProviderOptions {
@@ -40,6 +52,7 @@ export interface TransformerProviderOptions {
   readonly thresholds: ClassifierThresholds;
   readonly queryPrefix: string;
   readonly passagePrefix: string;
+  readonly probeCacheSize: number;
 }
 
 /** Construye las opciones del adaptador a partir del entorno. */
@@ -55,6 +68,8 @@ export function loadTransformerProviderOptions(
       model: parsed.SEMANTIC_TRANSFORMER_MODEL,
       timeoutMs: parsed.SEMANTIC_TRANSFORMER_TIMEOUT_MS,
       batchSize: parsed.SEMANTIC_TRANSFORMER_BATCH_SIZE,
+      maxAttempts: parsed.SEMANTIC_TRANSFORMER_MAX_ATTEMPTS,
+      retryBackoffMs: parsed.SEMANTIC_TRANSFORMER_RETRY_BACKOFF_MS,
     },
     thresholds: {
       similarityFloor: parsed.SEMANTIC_TRANSFORMER_SIMILARITY_FLOOR,
@@ -63,5 +78,6 @@ export function loadTransformerProviderOptions(
     },
     queryPrefix: parsed.SEMANTIC_TRANSFORMER_QUERY_PREFIX,
     passagePrefix: parsed.SEMANTIC_TRANSFORMER_PASSAGE_PREFIX,
+    probeCacheSize: parsed.SEMANTIC_TRANSFORMER_PROBE_CACHE_SIZE,
   };
 }

@@ -379,6 +379,41 @@ export const envSchema = z
     // Un PDF hostil puede hacer trabajar al lector indefinidamente. El presupuesto
     // corta el job, no el proceso.
     BANK_STATEMENT_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(600_000).default(60_000),
+    /*
+     * Las TRES fronteras del triage, configurables porque son lo primero que hay
+     * que recalibrar con documentos reales y hacerlo no puede exigir recompilar.
+     * Están aquí y no en un componente del portal a propósito: una regla de
+     * negocio escrita en el frontend no gobierna a quien llama la API sin pasar
+     * por él, que es cualquiera con credencial.
+     *
+     * Las dos primeras miden si el documento ES un extracto: desde ACCEPT se
+     * procesa, desde REVIEW se pregunta a una persona, y por debajo se rechaza.
+     * `normalizeThresholds` ordena el par, así que un ACCEPT por debajo del
+     * REVIEW no abre una franja vacía en silencio.
+     */
+    BANK_STATEMENT_DOCUMENT_ACCEPT_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.55),
+    BANK_STATEMENT_DOCUMENT_REVIEW_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.3),
+    /*
+     * La tercera mide la EXTRACCIÓN, no la clasificación, y por eso es otra
+     * frontera: 0.5 es donde la banda publicada pasa a `NO_CONFIABLE`. Entre 0.5
+     * y 0.75 el resultado se entrega con advertencias —hay dato y se dice que
+     * mirarlo—; por debajo no hay nada utilizable que entregar y la única salida
+     * honesta es una persona.
+     */
+    BANK_STATEMENT_REVIEW_EXTRACTION_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.5),
+    /*
+     * Cuánto puede esperar un documento en la cola antes de derivarse solo.
+     * Cubre el caso que el presupuesto de procesamiento no ve: el worker apagado
+     * o saturado, donde nadie llega a empezar el trabajo y por tanto ningún reloj
+     * de procesamiento corre. Sin esto, «tarda mucho» y «no lo va a tomar nadie»
+     * se ven igual desde la pantalla: en cola, para siempre.
+     */
+    BANK_STATEMENT_QUEUE_WAIT_BUDGET_MS: z.coerce
+      .number()
+      .int()
+      .min(10_000)
+      .max(3_600_000)
+      .default(180_000),
 
     // --- Worker C: verificación de identidad (ADR-0026) ---------------------
     IDENTITY_VERIFICATION_WORKER_ENABLED: booleanFromString.default(false),

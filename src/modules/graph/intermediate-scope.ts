@@ -219,7 +219,9 @@ function maskValue(value: unknown): unknown {
 
 function accumulate(current: unknown, addition: unknown, code: string): unknown {
   if (typeof current === 'number' && typeof addition === 'number') return current + addition;
-  if (Array.isArray(current)) return [...current, addition];
+  // `as unknown[]`: `Array.isArray` sobre un `unknown` lo estrecha a `any[]`, y el
+  // acumulador devolvería un array de `any` que el resto del ámbito ya no vigila.
+  if (Array.isArray(current)) return [...(current as unknown[]), addition];
   if (typeof current === 'string' && typeof addition === 'string') return current + addition;
   if (current === undefined) return addition;
   throw new DomainException(

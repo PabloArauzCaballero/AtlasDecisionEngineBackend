@@ -21,6 +21,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { bucketOfValue } from './monitoring-analytics';
+import { consultaCrudaConTenant } from '../../common/prisma/tenant-scoped-raw';
 
 /** Techo de la muestra. Más filas no mejoran un histograma de diez cubos. */
 const MAX_SAMPLE = 20_000;
@@ -107,7 +108,9 @@ export class BaselineCaptureService {
     environmentId: bigint,
     artifactVersionId: bigint,
   ): Promise<SnapshotRow[]> {
-    return this.prisma.$queryRaw<SnapshotRow[]>`
+    return consultaCrudaConTenant(
+      this.prisma,
+      (tx) => tx.$queryRaw<SnapshotRow[]>`
       SELECT e."input_snapshot_json" AS input
       FROM "decision_execution" e
       JOIN "decision_artifact_version" v ON v."id" = e."artifact_version_id"
@@ -118,7 +121,8 @@ export class BaselineCaptureService {
         AND e."artifact_version_id" <> ${artifactVersionId}
       ORDER BY e."executed_at" DESC
       LIMIT ${MAX_SAMPLE}
-    `;
+    `,
+    );
   }
 
   /**

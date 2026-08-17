@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/workers/`](https://github.com/) · 186 ficheros TypeScript.
+Código: [`src/modules/workers/`](https://github.com/) · 193 ficheros TypeScript.
 
 Etiquetas de API: **Workers · Locución**, **Workers · Extractos bancarios**, **Workers · Verificación de identidad**, **Workers · Análisis semántico**, **Workers · Categorías semánticas**, **Workers · Pendientes de clasificación**, **Workers**.
 
@@ -24,6 +24,12 @@ Etiquetas de API: **Workers · Locución**, **Workers · Extractos bancarios**, 
 | `POST` | `/v1/workers/audio-tts/runs/{requestId}/cancel` | `audioTtsCancelRun` | Cancela una locución que nadie ha reclamado todavía |
 | `GET` | `/v1/workers/audio-tts/templates` | `audioTtsListTemplates` | Plantillas de locución del tenant, con sus variables |
 | `GET` | `/v1/workers/bank-statement/fixtures` | `bankStatementListFixtures` | Escenarios de prueba disponibles |
+| `GET` | `/v1/workers/bank-statement/reviews` | `statementReviewList` | Cola de documentos pendientes de revisión humana |
+| `GET` | `/v1/workers/bank-statement/reviews/{requestId}` | `statementReviewGet` | Un caso, con su clasificación, lo extraído y lo que falló |
+| `POST` | `/v1/workers/bank-statement/reviews/{requestId}/claim` | `statementReviewClaim` | Reclama el caso para revisarlo |
+| `POST` | `/v1/workers/bank-statement/reviews/{requestId}/reprocess` | `statementReviewReprocess` | Devuelve el documento a la cola del worker |
+| `POST` | `/v1/workers/bank-statement/reviews/{requestId}/resolve` | `statementReviewResolve` | Cierra el caso: aprobar, corregir, rechazar o marcar no válido |
+| `GET` | `/v1/workers/bank-statement/reviews/categories` | `statementReviewCategories` | Contadores por categoría de la cola de revisión |
 | `POST` | `/v1/workers/bank-statement/runs` | `bankStatementCreateRun` | Encola una conversión de extracto |
 | `GET` | `/v1/workers/bank-statement/runs` | `bankStatementListRuns` | Ejecuciones del tenant |
 | `GET` | `/v1/workers/bank-statement/runs/{requestId}` | `bankStatementGetRun` | Estado, progreso y resultado de una ejecución |
@@ -44,6 +50,8 @@ Etiquetas de API: **Workers · Locución**, **Workers · Extractos bancarios**, 
 | `GET` | `/v1/workers/semantic-analysis/runs` | `semanticAnalysisListRuns` | Análisis del tenant |
 | `GET` | `/v1/workers/semantic-analysis/runs/{requestId}` | `semanticAnalysisGetRun` | Estado, progreso y resultado de un análisis |
 | `POST` | `/v1/workers/semantic-analysis/runs/{requestId}/cancel` | `semanticAnalysisCancelRun` | Cancela un análisis que nadie ha reclamado todavía |
+| `POST` | `/v1/workers/semantic-analysis/runs/batch` | `semanticAnalysisCreateRunBatch` | Encola varios análisis semánticos de una vez |
+| `POST` | `/v1/workers/semantic-analysis/runs/status` | `semanticAnalysisGetRunStatuses` | Estado y resultado de varias ejecuciones |
 | `GET` | `/v1/workers/semantic-analysis/unresolved` | `unresolvedClassificationList` | Pendientes, los más frecuentes primero |
 | `POST` | `/v1/workers/semantic-analysis/unresolved/{id}/resolve` | `unresolvedClassificationResolve` | Resuelve un pendiente y enseña el alias al catálogo |
 | `GET` | `/v1/workers/semantic-analysis/unresolved/count` | `unresolvedClassificationCount` | Cuántos pendientes hay |
@@ -60,12 +68,18 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `AUDIO_RUN_NOT_CANCELLABLE`
 - `AUDIO_RUN_NOT_FOUND`
 - `AUDIO_RUN_WITHOUT_AUDIO`
+- `BANK_STATEMENT_DOCUMENT_UNAVAILABLE`
 - `BANK_STATEMENT_FILE_EMPTY`
 - `BANK_STATEMENT_FILE_NAME_INVALID`
 - `BANK_STATEMENT_FILE_NOT_PDF`
 - `BANK_STATEMENT_FILE_REQUIRED`
 - `BANK_STATEMENT_FILE_TOO_LARGE`
+- `BANK_STATEMENT_REJECTION_REASON_REQUIRED`
 - `BANK_STATEMENT_RESULT_NOT_READY`
+- `BANK_STATEMENT_REVIEW_ASSIGNEE_MISMATCH`
+- `BANK_STATEMENT_REVIEW_NOT_CLAIMABLE`
+- `BANK_STATEMENT_REVIEW_NOT_CLAIMED`
+- `BANK_STATEMENT_REVIEW_NOT_FOUND`
 - `BANK_STATEMENT_RUN_NOT_CANCELLABLE`
 - `BANK_STATEMENT_RUN_NOT_FOUND`
 - `IDENTITY_RUN_NOT_CANCELLABLE`
@@ -120,10 +134,12 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `Bulkhead`
 - `CatalogCache`
 - `CircuitBreaker`
+- `ClassificationCache`
 - `ConversionMetrics`
 - `CreateAudioTtsRunDto`
 - `CreateBankStatementRunDto`
 - `CreateIdentityVerificationRunDto`
+- `CreateSemanticAnalysisBatchDto`
 - `CreateSemanticAnalysisRunDto`
 - `DecisionEngine`
 - `DisabledLivenessAdapter`
@@ -179,6 +195,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `ProviderRateGate`
 - `ReevaluationStateDto`
 - `ReevaluationSummaryDto`
+- `ResolveStatementReviewDto`
 - `ResolveUnresolvedDto`
 - `ResolveUnresolvedResultDto`
 - `RunScopedAudioQueue`
@@ -188,6 +205,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `SemanticAnalysisProcessor`
 - `SemanticAnalysisResultBuilder`
 - `SemanticAnalysisService`
+- `SemanticBatchItemDto`
 - `SemanticCategoryController`
 - `SemanticCategoryDto`
 - `SemanticCategoryImportSummaryDto`
@@ -204,6 +222,12 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `StatementExtractor`
 - `StatementParserRegistry`
 - `StatementProcessingError`
+- `StatementReprocessedDto`
+- `StatementReviewCategoryDto`
+- `StatementReviewController`
+- `StatementReviewItemDto`
+- `StatementReviewQueryDto`
+- `StatementReviewService`
 - `TableAnalyzer`
 - `TenantBudgetGuard`
 - `TesseractOcrAdapter`
@@ -230,6 +254,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `WorkerQueueDto`
 - `WorkerRunDto`
 - `WorkerRunQueryDto`
+- `WorkerRunStatusQueryDto`
 - `WorkerServiceInvokerService`
 - `WorkerStatusCountDto`
 - `WorkersController`

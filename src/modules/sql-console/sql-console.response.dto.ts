@@ -10,13 +10,36 @@ class CatalogTableDto {
   @ApiProperty({ example: 'ejecuciones' }) name!: string;
   @ApiProperty() description!: string;
   @ApiProperty({
+    // `type` explícito: de `string | null` Swagger infiere `object`, y entonces el
+    // ejemplo contradice el esquema que él mismo publicó. Lo detecta `redocly lint`.
+    type: String,
     example: 'Una fila = una decisión ejecutada por el motor.',
+    nullable: true,
     description:
       'Qué es UNA fila. Va en el catálogo y no en la documentación porque sin esta frase ' +
-      'un COUNT(*) se interpreta mal, y nadie consulta la documentación antes de contar.',
+      'un COUNT(*) se interpreta mal, y nadie consulta la documentación antes de contar. ' +
+      'Es null en una vista que la base publica y que nadie ha fichado todavía: un grano ' +
+      'derivado del nombre se leería igual que uno comprobado.',
   })
-  grain!: string;
+  grain!: string | null;
   @ApiProperty({ type: [CatalogColumnDto] }) columns!: CatalogColumnDto[];
+}
+
+/**
+ * Una relación que la base publica y la consola NO sirve.
+ *
+ * Se publica en la misma respuesta que el catálogo a propósito. Sin esto, una vista gobernada
+ * a la que le falte el filtro por inquilino es indistinguible de una que no existe, y la
+ * pregunta «¿por qué no veo mi vista?» no tiene ninguna respuesta que dé el sistema.
+ */
+class OmittedRelationDto {
+  @ApiProperty({ example: 'riesgo.exposicion' }) name!: string;
+  @ApiProperty({
+    example:
+      'Su definición no invoca public.atlas_current_tenant(), así que no hay nada que acote ' +
+      'las filas al inquilino que consulta.',
+  })
+  reason!: string;
 }
 
 class CatalogDatasetDto {
@@ -33,6 +56,7 @@ class ConsoleLimitsDto {
 
 export class SqlCatalogDto {
   @ApiProperty({ type: [CatalogDatasetDto] }) datasets!: CatalogDatasetDto[];
+  @ApiProperty({ type: [OmittedRelationDto] }) omitted!: OmittedRelationDto[];
   @ApiProperty({ type: ConsoleLimitsDto }) limits!: ConsoleLimitsDto;
 }
 
@@ -90,7 +114,16 @@ export class QueryResultDto {
   @ApiProperty({
     description:
       'Filas como matriz, no como objetos: una consulta puede repetir el nombre de una columna.',
-    example: [['APPROVED', '18420']],
+    // La celda es de cualquier tipo escalar, o nula: sin declararlo, Swagger
+    // publicaba una matriz de cadenas y el ejemplo con números no validaba.
+    // Una celda es cualquier escalar, o nula. `oneOf` y no un `type` suelto:
+    // `nullable` exige tipo declarado, y la celda no tiene uno solo.
+    type: 'array',
+    items: {
+      type: 'array',
+      items: { oneOf: [{ type: 'string' }, { type: 'number' }, { type: 'boolean' }] },
+    },
+    example: [['APPROVED', 18420]],
   })
   rows!: (string | number | boolean | null)[][];
   @ApiProperty({ example: 2 }) rowCount!: number;
@@ -109,9 +142,11 @@ export class QueryHistoryEntryDto {
   statement!: string;
   @ApiProperty({ example: 'SUCCEEDED', enum: ['VALIDATED', 'SUCCEEDED', 'REJECTED', 'FAILED'] })
   outcome!: string;
-  @ApiPropertyOptional({ example: 'SQL_TIMEOUT' }) errorCode?: string | null;
-  @ApiPropertyOptional({ example: 2 }) rowCount?: number | null;
-  @ApiPropertyOptional({ example: 184 }) durationMs?: number | null;
+  // Los tres son uniones con null: sin `type`, mismo defecto que arriba.
+  @ApiPropertyOptional({ type: String, nullable: true, example: 'SQL_TIMEOUT' })
+  errorCode?: string | null;
+  @ApiPropertyOptional({ type: Number, nullable: true, example: 2 }) rowCount?: number | null;
+  @ApiPropertyOptional({ type: Number, nullable: true, example: 184 }) durationMs?: number | null;
   @ApiProperty({ example: false }) truncated!: boolean;
   @ApiProperty({ type: [String], example: ['decisiones.ejecuciones'] }) relations!: string[];
   @ApiProperty({ example: '2026-08-14T09:00:00.000Z' }) executedAt!: string;

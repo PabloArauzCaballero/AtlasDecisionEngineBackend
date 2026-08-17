@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-08-14T03:55:21.060Z",
+  "generatedAt": "2026-08-16T15:01:22.955Z",
   "modules": {
-    "total": 29,
-    "documented": 29
+    "total": 30,
+    "documented": 30
   },
   "apiTags": {
-    "total": 35,
-    "documented": 35
+    "total": 36,
+    "documented": 36
   },
   "operations": {
-    "total": 200,
-    "documented": 200
+    "total": 212,
+    "documented": 212
   },
   "environmentVariables": {
-    "total": 246,
-    "documented": 246
+    "total": 250,
+    "documented": 250
   },
   "runbooks": 4,
   "failures": 0

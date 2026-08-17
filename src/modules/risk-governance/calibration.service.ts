@@ -19,6 +19,7 @@ import { calibration } from '../model-monitoring/discrimination';
 import { discrimination } from '../model-monitoring/discrimination';
 import { METRIC, thresholdOf, verdictFor } from '../model-monitoring/monitoring-thresholds';
 import type { CalibrationRequestDto } from './risk-governance.dto';
+import { consultaCrudaConTenant } from '../../common/prisma/tenant-scoped-raw';
 
 /** Techo de filas por cálculo; el mismo criterio que el resto del monitoreo. */
 const MAX_ROWS = 20_000;
@@ -44,7 +45,9 @@ export class CalibrationService {
     const artifactVersionId = parseBigIntId(dto.artifactVersionId, 'artifactVersionId');
     await this.assertVersion(tenantId, artifactVersionId);
 
-    const rows = await this.prisma.$queryRaw<SampleRow[]>`
+    const rows = await consultaCrudaConTenant(
+      this.prisma,
+      (tx) => tx.$queryRaw<SampleRow[]>`
       SELECT e."output_json" AS output, o."label"::text AS label
       FROM "decision_execution" e
       JOIN "decision_outcome_observation" o
@@ -56,7 +59,8 @@ export class CalibrationService {
         AND o."inference_method" IS NULL
         AND o."label" IN ('GOOD', 'BAD')
       LIMIT ${MAX_ROWS}
-    `;
+    `,
+    );
 
     const samples = rows
       .map((row) => ({

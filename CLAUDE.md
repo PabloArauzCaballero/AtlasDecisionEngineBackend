@@ -3,6 +3,7 @@
 This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
 
 Rules:
+
 - For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
 - If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
 - Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
@@ -163,6 +164,50 @@ cuando hay prisa.
   expediente del modelo rechaza que la validación independiente la firme quien creó la versión.
 - **Vencer el expediente NO bloquea la ejecución.** Cortar el crédito de una financiera por un
   papel vencido es peor que el papel vencido: se marca, se ve, y no se puede ignorar en silencio.
+
+## El triage de extractos: rechazar no es lo mismo que preguntar
+
+Manual: [docs/workers/bank-statement-triage.md](docs/workers/bank-statement-triage.md).
+
+El worker tenía UN desenlace para todo lo que no producía movimientos —`FAILED`—, así que al
+querer derivar los casos ambiguos a una persona no había dónde separar el contrato que nadie
+debió subir del extracto con el encabezado ilegible. Los dos caían en la misma cola, y una cola
+de revisión con facturas dentro deja de revisarse: cuesta dinero, esconde los casos que sí
+importan y hace imposible medir si el motor mejora.
+
+- **Tres desenlaces, no dos** (`core/engine/document-triage.ts`): por encima de `accept` se
+  procesa, en la franja intermedia se PREGUNTA (`PENDING_REVIEW`), y por debajo de `review` se
+  RECHAZA (`PDF_INVALID`, terminal y **fuera de la cola**). Los tres umbrales se leen del
+  entorno (`BANK_STATEMENT_DOCUMENT_*_CONFIDENCE`) porque son lo primero que hay que recalibrar
+  con documentos reales. `normalizeThresholds` ordena el par: un `accept` por debajo del
+  `review` dejaría la franja de duda VACÍA y todo dudoso se rechazaría en silencio.
+- **Dos confianzas y no una.** `confidence` mide la EXTRACCIÓN, `document_type_confidence` la
+  CLASIFICACIÓN. Colapsarlas hacía que «99 % de que es un extracto, 60 % de algunos
+  movimientos» —revisión de extracción— y «2 % de que sea un extracto» —rechazo— se leyeran
+  igual.
+- **Estado y motivo son dos columnas.** El estado dice DÓNDE está el caso; el motivo, QUÉ hay
+  que resolver. Con un solo campo habría que inventar un estado por causa y migrar el enum del
+  ciclo de vida entero cada vez que aparece una nueva. Dos CHECK en la base lo sostienen: hay
+  dos caminos que escriben aquí y sólo uno es el sospechoso habitual.
+- **`statement-outcome.ts` es el único sitio donde se decide el desenlace.** Es una regla de
+  negocio, no un detalle de ejecución: repartida en `catch` no había forma de responder «¿por
+  qué acabó esto en la cola?» sin leer el worker entero. Y sin motivo declarado un código
+  revisable FALLA en vez de encolarse: un pendiente mal clasificado no lo detecta nadie porque
+  la lista sigue pintándose igual.
+- **Un PDF ilegible se RECHAZA, no se encola.** Es la corrección menos obvia y la que más cola
+  ahorra: mandarlo a revisión pone delante de una persona un archivo que tampoco ella puede
+  abrir, y el trabajo que mueve el caso sólo puede hacerlo quien lo subió.
+- **El documento se conserva mientras el caso está abierto.** La regla de privacidad —borrar el
+  PDF al cerrar la ejecución— sigue intacta porque un caso en revisión NO está cerrado. Sin
+  eso, la cola ofrecería «reprocesar» sobre una fila sin documento.
+- **`PDF_INVALID` y `PENDING_REVIEW` entran en `statusMix` pero NO en la tasa de acierto.** Un
+  rechazo es el worker acertando y un pendiente todavía no tiene desenlace; contarlos en el
+  ratio castigaría al motor por acertar o afirmaría lo que no se sabe. Sin salir en el reparto,
+  en cambio, un worker que derive el 40 % publicaba un 100 % de acierto sobre una cola
+  creciendo.
+- **`PDF_INVALID` es reintentable al volver a subir el archivo**, por lo mismo que `FAILED`: un
+  rechazo es el veredicto del clasificador de ese día, y si no lo fuera ninguna recalibración
+  alcanzaría jamás a los documentos que la motivaron.
 
 ## Campos calculados, librerías y QA Lab (§5–§10)
 

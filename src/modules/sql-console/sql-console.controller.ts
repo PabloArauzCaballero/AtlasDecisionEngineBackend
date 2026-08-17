@@ -55,10 +55,12 @@ export class SqlConsoleController {
     summary: 'List the governed datasets, tables and columns the console can query',
   })
   @ApiOkResponse({
-    description: 'Catálogo de datasets con sus tablas y columnas.',
+    description:
+      'Catálogo de datasets con sus tablas y columnas, descubierto de la base, más las ' +
+      'relaciones gobernadas que no se sirven y el motivo de cada una.',
     type: SqlCatalogDto,
   })
-  catalog(): SqlCatalogDto {
+  catalog(): Promise<SqlCatalogDto> {
     return this.console.catalog();
   }
 

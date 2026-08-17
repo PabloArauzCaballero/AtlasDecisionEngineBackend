@@ -29,6 +29,7 @@ import {
   summarizePerformance,
 } from './monitoring-analytics';
 import { METRIC, thresholdOf, verdictFor } from './monitoring-thresholds';
+import { consultaCrudaConTenant } from '../../common/prisma/tenant-scoped-raw';
 
 /** Una versión desplegada en producción, que es lo único que se vigila. */
 interface LiveVersion {
@@ -317,7 +318,9 @@ export class MonitoringEvaluatorService implements OnModuleInit, BackgroundJob {
    * deja de reportar los créditos de UN producto y la cifra global apenas se mueve.
    */
   private async outcomeCoverage(version: LiveVersion): Promise<Measurement | null> {
-    const [row] = await this.prisma.$queryRaw<CoverageRow[]>`
+    const [row] = await consultaCrudaConTenant(
+      this.prisma,
+      (tx) => tx.$queryRaw<CoverageRow[]>`
       SELECT
         COUNT(*)::bigint                                            AS due,
         COUNT(*) FILTER (WHERE w."observed_at" IS NOT NULL)::bigint AS observed
@@ -326,7 +329,8 @@ export class MonitoringEvaluatorService implements OnModuleInit, BackgroundJob {
       WHERE w."tenant_id" = ${version.tenantId}
         AND e."artifact_version_id" = ${version.artifactVersionId}
         AND w."due_at" <= now()
-    `;
+    `,
+    );
     const due = Number(row?.due ?? 0);
     if (due === 0) return null;
     return {
@@ -347,13 +351,16 @@ export class MonitoringEvaluatorService implements OnModuleInit, BackgroundJob {
    * dice «hace cuánto se midió algo» sino «hace cuánto dejó de mirarse».
    */
   private async monitoringFreshness(version: LiveVersion): Promise<Measurement> {
-    const [row] = await this.prisma.$queryRaw<LastEvaluationRow[]>`
+    const [row] = await consultaCrudaConTenant(
+      this.prisma,
+      (tx) => tx.$queryRaw<LastEvaluationRow[]>`
       SELECT EXTRACT(EPOCH FROM (now() - MAX("evaluated_at"))) / 3600 AS hours
       FROM "monitoring_evaluation"
       WHERE "tenant_id" = ${version.tenantId}
         AND "artifact_version_id" = ${version.artifactVersionId}
         AND "metric_code" <> ${METRIC.monitoringFreshness}
-    `;
+    `,
+    );
     const hours = row?.hours === null || row?.hours === undefined ? 0 : Number(row.hours);
     return {
       metricCode: METRIC.monitoringFreshness,

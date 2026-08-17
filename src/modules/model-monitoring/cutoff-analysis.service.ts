@@ -17,6 +17,7 @@ import { Prisma } from '@prisma/client';
 import { DomainException } from '../../common/errors/domain-exception';
 import { parseBigIntId } from '../../common/http/id';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { consultaCrudaConTenant } from '../../common/prisma/tenant-scoped-raw';
 
 const MAX_ROWS = 20_000;
 /** Cortes de la curva. Veinte puntos describen la forma sin volverla ilegible. */
@@ -58,7 +59,9 @@ export class CutoffAnalysisService {
     const versionId = parseBigIntId(artifactVersionId, 'artifactVersionId');
     await this.assertVersion(tenantId, versionId);
 
-    const rows = await this.prisma.$queryRaw<ScoredRow[]>`
+    const rows = await consultaCrudaConTenant(
+      this.prisma,
+      (tx) => tx.$queryRaw<ScoredRow[]>`
       SELECT
         (e."output_json" ->> ${scoreField})::numeric AS score,
         o."label"::text                              AS label,
@@ -72,7 +75,8 @@ export class CutoffAnalysisService {
         AND o."label" IN ('GOOD', 'BAD')
         AND e."output_json" ->> ${scoreField} IS NOT NULL
       LIMIT ${MAX_ROWS}
-    `;
+    `,
+    );
 
     const samples = rows
       .map((row) => ({
@@ -119,7 +123,9 @@ export class CutoffAnalysisService {
    */
   async compareBranches(tenantId: bigint, deploymentId: string) {
     const id = parseBigIntId(deploymentId, 'deploymentId');
-    const rows = await this.prisma.$queryRaw<BranchRow[]>`
+    const rows = await consultaCrudaConTenant(
+      this.prisma,
+      (tx) => tx.$queryRaw<BranchRow[]>`
       SELECT
         d."id"                                                             AS deployment_id,
         d."artifact_version_id"                                            AS artifact_version_id,
@@ -138,7 +144,8 @@ export class CutoffAnalysisService {
         ))
       GROUP BY 1, 2
       ORDER BY 1
-    `;
+    `,
+    );
 
     return {
       deploymentId,

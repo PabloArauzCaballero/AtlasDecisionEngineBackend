@@ -689,6 +689,16 @@ export class QaLabService {
         counterexamples: row._count.counterexamples,
         startedAt: row.startedAt,
         finishedAt: row.finishedAt,
+        // La CARGA con la que se corrió, sacada de la configuración archivada.
+        //
+        // Sin ella el listado publica duración y número de casos, con lo que cualquiera
+        // puede dividir y obtener un «milisegundos por caso» que NO es comparable entre
+        // corridas: con concurrencia 1 el motor despacha de uno en uno y con la de serie
+        // ocho a la vez, y con `checkDeterminism` cada caso se ejecuta DOS veces. Dos
+        // corridas de la misma versión pueden diferir en un orden de magnitud sin que el
+        // motor se haya degradado nada. Publicarla es lo que convierte una serie de
+        // corridas en una medición legible.
+        ...loadOf(row.configJson),
       })),
       total,
       page,
@@ -924,6 +934,33 @@ function plannedCasesOf(config: Prisma.JsonValue): number {
   if (!config || typeof config !== 'object' || Array.isArray(config)) return 0;
   const planned = (config as Record<string, unknown>).plannedCases;
   return typeof planned === 'number' && Number.isFinite(planned) ? planned : 0;
+}
+
+/**
+ * La carga con la que se lanzó una corrida, leída de su configuración archivada.
+ *
+ * `null` y no un valor por omisión cuando el dato no está: las corridas anteriores a este
+ * campo no llevan concurrencia guardada, y rellenarla con el 8 de serie inventaría una
+ * medición —diría que aquella corrida iba a ocho en paralelo sin que nadie lo sepa—.
+ */
+function loadOf(config: Prisma.JsonValue): {
+  plannedCases: number;
+  concurrency: number | null;
+  checkDeterminism: boolean | null;
+} {
+  const planned = plannedCasesOf(config);
+  if (!config || typeof config !== 'object' || Array.isArray(config)) {
+    return { plannedCases: planned, concurrency: null, checkDeterminism: null };
+  }
+  const record = config as Record<string, unknown>;
+  const concurrency = record.concurrency;
+  const determinism = record.checkDeterminism;
+  return {
+    plannedCases: planned,
+    concurrency:
+      typeof concurrency === 'number' && Number.isFinite(concurrency) ? concurrency : null,
+    checkDeterminism: typeof determinism === 'boolean' ? determinism : null,
+  };
 }
 
 function sortedKeys(value: Record<string, unknown>): Record<string, unknown> {

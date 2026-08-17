@@ -3,7 +3,7 @@
 
 # Catálogo de códigos de error
 
-221 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
+227 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
 el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 
 | Código | Mensaje de referencia | Origen |
@@ -22,12 +22,18 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `AUDIO_RUN_NOT_FOUND` | No existe esa locución. | `src/modules/workers/audio-tts/audio-tts.service.ts` |
 | `AUDIO_RUN_WITHOUT_AUDIO` | Esta locución todavía no tiene audio. | `src/modules/workers/audio-tts/audio-tts.service.ts` |
 | `AUTH_RATE_LIMIT_EXCEEDED` | Too many failed authentication attempts | `src/common/security/authentication.guard.ts` |
+| `BANK_STATEMENT_DOCUMENT_UNAVAILABLE` | El documento original ya no está disponible: hay que volver a subirlo. | `src/modules/workers/bank-statement/review/statement-review.service.ts` |
 | `BANK_STATEMENT_FILE_EMPTY` | El archivo recibido está vacío. | `src/modules/workers/bank-statement/bank-statement-input.ts` |
 | `BANK_STATEMENT_FILE_NAME_INVALID` | El nombre del archivo contiene caracteres no permitidos. | `src/modules/workers/bank-statement/bank-statement-input.ts` |
 | `BANK_STATEMENT_FILE_NOT_PDF` | El archivo no es un PDF. Se comprueba su contenido, no su extensión. | `src/modules/workers/bank-statement/bank-statement-input.ts` |
 | `BANK_STATEMENT_FILE_REQUIRED` | Se requiere un archivo PDF del extracto. | `src/modules/workers/bank-statement/bank-statement-input.ts` |
 | `BANK_STATEMENT_FILE_TOO_LARGE` | El archivo supera el máximo permitido de ${Math.floor(maxBytes / 1_048_576)} MiB. | `src/modules/workers/bank-statement/bank-statement-input.ts` |
+| `BANK_STATEMENT_REJECTION_REASON_REQUIRED` | Marcar un documento como no válido exige declarar el motivo. | `src/modules/workers/bank-statement/review/statement-review.service.ts` |
 | `BANK_STATEMENT_RESULT_NOT_READY` | — | `src/modules/workers/bank-statement/bank-statement.controller.ts` |
+| `BANK_STATEMENT_REVIEW_ASSIGNEE_MISMATCH` | Sólo quien reclamó este caso puede resolverlo. | `src/modules/workers/bank-statement/review/statement-review.service.ts` |
+| `BANK_STATEMENT_REVIEW_NOT_CLAIMABLE` | — | `src/modules/workers/bank-statement/review/statement-review.service.ts` |
+| `BANK_STATEMENT_REVIEW_NOT_CLAIMED` | Hay que reclamar el caso antes de resolverlo. | `src/modules/workers/bank-statement/review/statement-review.service.ts` |
+| `BANK_STATEMENT_REVIEW_NOT_FOUND` | No hay ningún caso de revisión con ese identificador. | `src/modules/workers/bank-statement/review/statement-review.service.ts` |
 | `BANK_STATEMENT_RUN_NOT_CANCELLABLE` | — | `src/modules/workers/bank-statement/bank-statement.service.ts` |
 | `BANK_STATEMENT_RUN_NOT_FOUND` | No existe esa ejecución. | `src/modules/workers/bank-statement/bank-statement.service.ts` |
 | `BASELINE_COMPARISON_NOT_SUPPORTED` | Baseline comparison is not available; omit baselineCompiledArtifactId and use explicit expected results | `src/modules/testing/test-execution.service.ts` |

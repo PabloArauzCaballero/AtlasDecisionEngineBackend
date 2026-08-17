@@ -367,6 +367,57 @@ enum WorkerRunStatus {
   SUCCEEDED_WITH_WARNINGS
   FAILED
   CANCELLED
+  /// Espera a una persona. **No es un fallo**: el motor llegó hasta donde pudo y
+  /// la duda que queda es real. Sólo lo produce el worker de extractos por ahora;
+  /// vive en el enum común porque el ciclo de vida de una ejecución es uno.
+  PENDING_REVIEW
+  /// Alguien lo reclamó y lo está mirando. Separado de `PENDING_REVIEW` para que
+  /// dos analistas no trabajen sobre el mismo caso sin saberlo.
+  IN_REVIEW
+  /// El documento NO era lo que este worker procesa, y hay evidencia suficiente
+  /// para afirmarlo. Es terminal y **nunca entra en la cola de revisión**: una
+  /// cola con facturas dentro deja de revisarse.
+  PDF_INVALID
+}
+
+/// Por qué un documento espera a una persona. Va SEPARADO del estado: el estado
+/// dice dónde está el caso, el motivo dice qué hay que resolver, y mezclarlos
+/// obliga a inventar un estado nuevo cada vez que aparece una causa nueva.
+enum StatementReviewReason {
+  /// El procesamiento superó su presupuesto de tiempo. El documento sigue siendo
+  /// válido; lo que se agotó es la paciencia razonable de quien espera.
+  TIMEOUT
+  /// Se extrajo, y la confianza de la extracción quedó por debajo del corte.
+  LOW_CONFIDENCE
+  /// Se parece a un estado de cuenta y las señales no bastaron para confirmarlo.
+  DOUBTFUL_DOCUMENT
+  /// Es un estado de cuenta y no se reconoció la entidad, o su formato no tiene
+  /// analizador verificado.
+  UNKNOWN_BANK
+  /// Se reconoció el documento y no se obtuvieron movimientos utilizables.
+  PARTIAL_EXTRACTION
+  /// Las comprobaciones contables no cuadran: saldos, totales o continuidad.
+  AMBIGUOUS_DATA
+  /// No hay capa de texto aprovechable y el reconocimiento óptico no la produjo.
+  OCR_ERROR
+  /// Alguien lo mandó a revisar a mano. Es el único motivo que no calcula el motor.
+  MANUAL_REQUEST
+}
+
+/// Por qué se rechazó un documento. Los cinco son afirmaciones sobre el ARCHIVO
+/// o su contenido, nunca sobre el estado del motor: un fallo del motor se
+/// reintenta, no se le echa la culpa a quien subió el documento.
+enum StatementRejectionReason {
+  /// El PDF es legítimo y no es un extracto bancario.
+  NOT_BANK_STATEMENT
+  /// El archivo no es un PDF admisible: extensión, tipo, firma o tamaño.
+  UNSUPPORTED_FILE
+  /// El PDF no tiene contenido: cero bytes útiles o cero páginas.
+  EMPTY_DOCUMENT
+  /// El PDF no se pudo abrir: estructura dañada.
+  CORRUPTED_PDF
+  /// El PDF se abre y no se puede leer: cifrado o protegido por contraseña.
+  UNREADABLE_DOCUMENT
 }
 
 /// De dónde salió la entrada de una ejecución. Separar el fixture del dato real
@@ -2506,14 +2557,42 @@ model BankStatementRun {
 
   /// `NormalizedBankStatement`. Hereda el enmascarado del motor: nunca trae el
   /// número de cuenta completo.
-  resultJson       Json?    @map("result_json")
-  warningsJson     Json?    @map("warnings_json")
+  resultJson Json? @map("result_json")
+
+  warningsJson Json? @map("warnings_json")
+  /// Confianza de la EXTRACCIÓN: qué tan bien se leyeron los movimientos.
+  /// Conserva el nombre `confidence` porque es la que ya publicaban la API y el
+  /// portal, y renombrarla rompería a los dos por una mejora de vocabulario.
   confidence       Decimal? @db.Decimal(4, 3)
-  institutionId    String?  @map("institution_id") @db.VarChar(16)
-  transactionCount Int?     @map("transaction_count")
+  /// Confianza de la CLASIFICACIÓN: qué tan seguro es que el documento sea un
+  /// extracto. Es una pregunta distinta de la anterior y por eso es otra columna:
+  /// el motor puede estar al 99 % de que es un extracto y al 60 % de algunos
+  /// movimientos —eso es revisión de extracción— o al 2 % de que lo sea —eso es
+  /// un rechazo, y mandarlo a revisión sería trabajo para nadie.
+  documentTypeConfidence Decimal? @map("document_type_confidence") @db.Decimal(4, 3)
+  institutionId          String?  @map("institution_id") @db.VarChar(16)
+  transactionCount       Int?     @map("transaction_count")
 
   errorCode    String? @map("error_code") @db.VarChar(120)
   errorMessage String? @map("error_message") @db.Text
+
+  /// Presente sólo con `status` en PENDING_REVIEW o IN_REVIEW.
+  reviewReason StatementReviewReason? @map("review_reason")
+  /// Presente sólo con `status = PDF_INVALID`.
+  rejectionReason StatementRejectionReason? @map("rejection_reason")
+  /// 1 alta · 2 media · 3 baja. Se deriva del motivo al entrar en la cola, no se
+  /// teclea: una prioridad que se pone a mano se pone a «alta» siempre.
+  reviewPriority Int?      @map("review_priority")
+  /// Cuándo entró en la cola. Es el origen del «tiempo pendiente», que no se
+  /// puede derivar de `queuedAt` —ése es el de la cola del worker, otra espera—.
+  reviewOpenedAt DateTime? @map("review_opened_at") @db.Timestamptz(6)
+  reviewClaimedBy String?  @map("review_claimed_by") @db.VarChar(160)
+  reviewClaimedAt DateTime? @map("review_claimed_at") @db.Timestamptz(6)
+  reviewResolvedBy String?  @map("review_resolved_by") @db.VarChar(160)
+  reviewResolvedAt DateTime? @map("review_resolved_at") @db.Timestamptz(6)
+  /// Lo que decidió quien revisó, en sus palabras. Se conserva aunque el caso se
+  /// cierre: es lo único que explica por qué un documento dudoso se aprobó.
+  reviewNotes String? @map("review_notes") @db.Text
 
   attemptCount   Int       @default(0) @map("attempt_count")
   leaseExpiresAt DateTime? @map("lease_expires_at") @db.Timestamptz(6)
@@ -2532,6 +2611,10 @@ model BankStatementRun {
   @@unique([tenantId, requestId])
   @@index([status, queuedAt])
   @@index([tenantId, queuedAt])
+  /// El orden EXACTO en que la cola de revisión lee: por tenant y estado, dentro
+  /// de eso por motivo (la pestaña elegida), y ordenado por prioridad y
+  /// antigüedad. Sin él, cada pestaña recorre la tabla entera para contar.
+  @@index([tenantId, status, reviewReason, reviewPriority, reviewOpenedAt])
   @@map("decision_bank_statement_run")
 }
 

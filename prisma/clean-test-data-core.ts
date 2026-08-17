@@ -41,6 +41,13 @@ export async function cleanTestArtifacts(
         { artifactCode: { startsWith: 'PW_' } },
         { artifactCode: { startsWith: 'SMOKE_' } },
         { artifactCode: { startsWith: 'SHOULD_' } },
+        // Los dos que faltaban, y que por eso se acumularon: los deja el diagnóstico de
+        // importación de código (`DIAG_IMPORT_…`, `DIAG_SEEDAGE_…`) y el fixture del
+        // formulario de alta (`SUBMIT_…`). Llevan un sello de tiempo en el código, así que
+        // cada corrida estrenaba uno nuevo y ninguno se volvía a mirar: diecinueve
+        // artefactos en la lista y sólo once significaban algo.
+        { artifactCode: { startsWith: 'DIAG_' } },
+        { artifactCode: { startsWith: 'SUBMIT_' } },
         { artifactCode: { contains: 'BLOCKED' } },
         { artifactCode: { contains: 'FIXTURE' } },
         { artifactCode: { contains: 'SHOULD_NOT' } },

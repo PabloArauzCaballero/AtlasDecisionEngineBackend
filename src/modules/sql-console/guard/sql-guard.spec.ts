@@ -7,11 +7,20 @@
  * alguien relaje una regla para desatascar una consulta legítima, esta lista dice cuál era
  * el precio.
  */
+import { QUALIFIED_RELATIONS } from '../catalog/dataset-catalog';
 import { guardSql, MAX_SQL_BYTES } from './sql-guard';
 
-const acepta = (sql: string) => expect(guardSql(sql).ok).toBe(true);
+/*
+ * La lista blanca la pone quien llama —en producción, lo que `CatalogDiscoveryService`
+ * encontró en `pg_catalog`—. Aquí se usa la derivada de la ficha escrita a mano porque esta
+ * batería es sobre el ANALIZADOR, no sobre el descubrimiento: necesita un conjunto conocido y
+ * estable de relaciones para poder afirmar qué se rechaza y por qué.
+ */
+const CATALOGO = QUALIFIED_RELATIONS;
+
+const acepta = (sql: string) => expect(guardSql(sql, CATALOGO).ok).toBe(true);
 const rechaza = (sql: string, code?: string) => {
-  const result = guardSql(sql);
+  const result = guardSql(sql, CATALOGO);
   expect(result.ok).toBe(false);
   if (code) expect(result.violations.map((v) => v.code)).toContain(code);
 };
@@ -199,10 +208,13 @@ describe('guardSql — topes de entrada', () => {
 
 describe('guardSql — lo que informa al llamante', () => {
   it('devuelve las relaciones del catálogo que la consulta nombra', () => {
-    const result = guardSql(`
+    const result = guardSql(
+      `
       SELECT * FROM decisiones.ejecuciones e
       JOIN desenlaces.observaciones o ON o.ejecucion_id = e.ejecucion_id
-    `);
+    `,
+      CATALOGO,
+    );
     expect([...result.relations].sort()).toEqual([
       'decisiones.ejecuciones',
       'desenlaces.observaciones',
@@ -210,7 +222,10 @@ describe('guardSql — lo que informa al llamante', () => {
   });
 
   it('señala la línea del problema, para poder subrayarla en el editor', () => {
-    const result = guardSql('SELECT *\nFROM decisiones.ejecuciones\nWHERE 1 = 1;\nDROP TABLE x');
+    const result = guardSql(
+      'SELECT *\nFROM decisiones.ejecuciones\nWHERE 1 = 1;\nDROP TABLE x',
+      CATALOGO,
+    );
     expect(result.violations[0]?.line).toBeGreaterThan(1);
   });
 });

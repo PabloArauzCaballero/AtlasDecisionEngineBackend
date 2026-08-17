@@ -7,6 +7,8 @@ import { AudioTtsService } from './audio-tts/audio-tts.service';
 import { BankStatementController } from './bank-statement/bank-statement.controller';
 import { BankStatementRunWorkerService } from './bank-statement/bank-statement-run-worker.service';
 import { BankStatementService } from './bank-statement/bank-statement.service';
+import { StatementReviewController } from './bank-statement/review/statement-review.controller';
+import { StatementReviewService } from './bank-statement/review/statement-review.service';
 import {
   DisabledLivenessAdapter,
   HeuristicDocumentClassifierAdapter,
@@ -53,6 +55,7 @@ import {
 } from './semantic-analysis/adapters/prisma-catalog.repository';
 import { AuditRetentionService } from './semantic-analysis/core/application/audit-retention.service';
 import { CatalogCache } from './semantic-analysis/core/application/catalog-cache';
+import { ClassificationCache } from './semantic-analysis/core/application/classification-cache';
 import { DecisionEngine } from './semantic-analysis/core/application/decision-engine';
 import { EntityResolver } from './semantic-analysis/core/application/entity-resolver';
 import { LexicalCandidateRetriever } from './semantic-analysis/core/application/lexical-candidate-retriever';
@@ -121,6 +124,7 @@ import { WorkerServiceInvokerService } from './worker-service-invoker.service';
     WorkersController,
     AudioTtsController,
     BankStatementController,
+    StatementReviewController,
     IdentityVerificationController,
     SemanticAnalysisController,
     SemanticCategoryController,
@@ -152,6 +156,10 @@ import { WorkerServiceInvokerService } from './worker-service-invoker.service';
     // --- Worker B: extractos bancarios -------------------------------------
     BankStatementService,
     BankStatementRunWorkerService,
+    // La cola de revisión humana. Servicio aparte del de ejecuciones porque
+    // responde a otra pregunta y la contesta con otras reglas: quién puede
+    // resolver, en qué orden se trabaja y qué queda en la auditoría.
+    StatementReviewService,
 
     // --- Worker D: locución -------------------------------------------------
     //
@@ -239,6 +247,7 @@ import { WorkerServiceInvokerService } from './worker-service-invoker.service';
     EntityResolver,
     DecisionEngine,
     CatalogCache,
+    ClassificationCache,
     TenantBudgetGuard,
     SemanticAnalysisResultBuilder,
     GlosaFallbackClassifier,

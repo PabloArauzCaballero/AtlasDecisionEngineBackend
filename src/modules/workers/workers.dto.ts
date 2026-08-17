@@ -8,9 +8,18 @@
  * opcionales, que no valida nada.
  */
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { AudioTemplateStrategy, WorkerInputSource, WorkerRunStatus } from '@prisma/client';
+import {
+  AudioTemplateStrategy,
+  StatementRejectionReason,
+  StatementReviewReason,
+  WorkerInputSource,
+  WorkerRunStatus,
+} from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
   IsEnum,
   IsIn,
   IsInt,
@@ -18,10 +27,12 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  IsUUID,
   Matches,
   Max,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 import { PaginationQueryDto } from '../../common/http/pagination';
 
@@ -93,6 +104,25 @@ export class WorkerRunDto {
   warnings?: unknown;
   @ApiPropertyOptional() errorCode?: string | null;
   @ApiPropertyOptional() errorMessage?: string | null;
+  /*
+   * El estado dice DÓNDE está el caso; estos dos dicen QUÉ pasó, y viajan
+   * siempre que existan porque son lo que la pantalla necesita para elegir el
+   * mensaje. Sin ellos, `PENDING_REVIEW` obligaba a anunciar «enviado a revisión»
+   * en genérico —sin distinguir el timeout de la baja confianza— que es
+   * exactamente el aviso que no informa de nada.
+   */
+  @ApiPropertyOptional({
+    enum: StatementReviewReason,
+    description: 'Por qué espera a una persona. Sólo con estado PENDING_REVIEW o IN_REVIEW.',
+  })
+  reviewReason?: StatementReviewReason | null;
+  @ApiPropertyOptional({
+    enum: StatementRejectionReason,
+    description: 'Por qué se rechazó. Sólo con estado PDF_INVALID.',
+  })
+  rejectionReason?: StatementRejectionReason | null;
+  @ApiPropertyOptional({ description: '1 alta · 2 media · 3 baja.' })
+  reviewPriority?: number | null;
 }
 
 export class WorkerRunQueryDto extends PaginationQueryDto {
@@ -258,6 +288,73 @@ export class CreateSemanticAnalysisRunDto {
       'Clave de deduplicación. Si se omite se deriva del contenido, de modo que reenviar el mismo texto no crea una segunda ejecución.',
   })
   idempotencyKey?: string;
+}
+
+/** Un texto dentro de un alta por lote. Sin escenarios: un lote es trabajo real. */
+export class SemanticBatchItemDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100_000)
+  @ApiProperty({ description: 'Texto a analizar.' })
+  text!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  @ApiPropertyOptional({
+    description: 'Clave de deduplicación de este texto. Ver `CreateSemanticAnalysisRunDto`.',
+  })
+  idempotencyKey?: string;
+}
+
+/**
+ * Alta de varios análisis semánticos en una sola petición.
+ *
+ * ## Por qué existe
+ *
+ * Clasificar un extracto es clasificar sus glosas distintas —del orden de cien—
+ * y el alta de una en una convertía ese trabajo en cien peticiones más los
+ * sondeos de cada una. El portal tenía que defenderse de su propio tráfico:
+ * cuatro en vuelo como máximo, para no agotar el limitador de tasa y empezar a
+ * recibir 429 que la tabla enseñaba como fallos de clasificación. El resultado
+ * era una espera de minutos gobernada por el ritmo del sondeo, no por lo que
+ * tarda el motor en clasificar.
+ *
+ * Con el lote, esas cien altas son UNA petición y un `INSERT` masivo. El trabajo
+ * del worker no cambia —sigue siendo una ejecución auditable por glosa, con su
+ * fila, su estado y su resultado—; lo que desaparece es el peaje de red y de
+ * limitador que se pagaba por cada una.
+ *
+ * ## El tope
+ *
+ * Doscientas por lote. Es un `INSERT` dentro de una transacción y un cuerpo de
+ * unos pocos kilobytes; por encima, lo honesto es que el cliente parta el
+ * trabajo y no que el servidor decida en silencio cuánto atiende.
+ */
+export class CreateSemanticAnalysisBatchDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(200)
+  @ValidateNested({ each: true })
+  @Type(() => SemanticBatchItemDto)
+  @ApiProperty({ type: [SemanticBatchItemDto], description: 'Textos a analizar.' })
+  items!: SemanticBatchItemDto[];
+}
+
+/**
+ * Consulta del estado de varias ejecuciones a la vez.
+ *
+ * Va por `POST` y no por `GET` con parámetros por una razón mecánica: doscientos
+ * identificadores son unos siete kilobytes de URL, muy por encima de lo que
+ * cualquier proxy acepta. No modifica nada.
+ */
+export class WorkerRunStatusQueryDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(200)
+  @IsUUID('4', { each: true })
+  @ApiProperty({ type: [String], description: 'Identificadores de las ejecuciones a consultar.' })
+  requestIds!: string[];
 }
 
 /**

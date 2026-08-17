@@ -125,6 +125,14 @@ sys.stdout.write(json.dumps(scope.get('result')))
  *    own network-less, capability-dropped, gVisor-sandboxed container (see docker-compose.yml),
  *    which is the actual OS security boundary production requires.
  */
+/** Lo que el sidecar contesta. Su forma es un contrato entre dos procesos nuestros. */
+interface SidecarPayload {
+  ok: boolean;
+  code?: string;
+  message?: string;
+  result?: unknown;
+}
+
 @Injectable()
 export class ScriptNodeRunnerService {
   private readonly enabled: boolean;
@@ -230,7 +238,7 @@ export class ScriptNodeRunnerService {
 
   private postToSidecar(body: string): Promise<{
     statusCode: number;
-    payload?: { ok: boolean; code?: string; message?: string; result?: unknown };
+    payload?: SidecarPayload;
   }> {
     return new Promise((resolve, reject) => {
       const request = http.request(
@@ -269,8 +277,15 @@ export class ScriptNodeRunnerService {
             if (aborted) return;
             try {
               resolve({
+                /*
+                 * `as SidecarPayload` y no el `any` que devuelve `JSON.parse`: lo que
+                 * llega es la respuesta de un proceso aislado, y dejar que un `any` se
+                 * propague desde ahí anula el tipado justo en la frontera donde más
+                 * hace falta. La forma no se comprueba —el sidecar es nuestro— pero el
+                 * compilador vuelve a exigir que quien la lea la trate como declarada.
+                 */
                 statusCode: response.statusCode ?? 500,
-                payload: raw ? JSON.parse(raw) : undefined,
+                payload: raw ? (JSON.parse(raw) as SidecarPayload) : undefined,
               });
             } catch {
               resolve({ statusCode: response.statusCode ?? 500 });

@@ -8,12 +8,13 @@
  * cómo una superficie acotada deja de estarlo.
  */
 import { Module } from '@nestjs/common';
+import { CatalogDiscoveryService } from './catalog/catalog-discovery.service';
 import { QueryExecutorService } from './execution/query-executor.service';
 import { SqlConsoleController } from './sql-console.controller';
 import { SqlConsoleService } from './sql-console.service';
 
 @Module({
   controllers: [SqlConsoleController],
-  providers: [SqlConsoleService, QueryExecutorService],
+  providers: [SqlConsoleService, QueryExecutorService, CatalogDiscoveryService],
 })
 export class SqlConsoleModule {}
