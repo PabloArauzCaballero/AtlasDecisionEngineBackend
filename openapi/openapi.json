@@ -4266,6 +4266,7 @@
             "in": "query",
             "description": "Código de entidad detectada.",
             "schema": {
+              "maxLength": 16,
               "type": "string"
             }
           },
@@ -4293,6 +4294,8 @@
             "in": "query",
             "description": "1 alta · 2 media · 3 baja.",
             "schema": {
+              "minimum": 1,
+              "maximum": 3,
               "type": "number"
             }
           }
@@ -19085,6 +19088,7 @@
           },
           "limits": {
             "type": "object",
+            "additionalProperties": true,
             "description": "Restricciones publicadas al cliente."
           },
           "available": {
@@ -19114,7 +19118,6 @@
         "type": "object",
         "properties": {
           "status": {
-            "type": "string",
             "enum": [
               "QUEUED",
               "RUNNING",
@@ -19125,7 +19128,8 @@
               "PENDING_REVIEW",
               "IN_REVIEW",
               "PDF_INVALID"
-            ]
+            ],
+            "type": "string"
           },
           "count": {
             "type": "number"
@@ -19354,12 +19358,12 @@
             "type": "number"
           },
           "strategy": {
-            "type": "string",
             "enum": [
               "STATIC",
               "DYNAMIC",
               "FALLBACK"
-            ]
+            ],
+            "type": "string"
           },
           "templateText": {
             "type": "string",
@@ -19394,11 +19398,15 @@
         "properties": {
           "templateCode": {
             "type": "string",
+            "maxLength": 160,
             "description": "Plantilla del catálogo a locutar. Excluyente con `fixtureCode`.",
             "example": "onboarding.welcome.named"
           },
           "variables": {
             "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
             "description": "Valores de las variables que declara la plantilla. El motor rechaza las que falten y las que no cumplan el formato permitido.",
             "example": {
               "name": "Ana"
@@ -19406,15 +19414,18 @@
           },
           "language": {
             "type": "string",
+            "maxLength": 20,
             "description": "Idioma de la locución (etiqueta BCP-47). Si se omite se toma el de la plantilla y, en su defecto, el del despliegue. Forma parte de la identidad del audio: cambiarlo produce una locución distinta.",
             "example": "es-419"
           },
           "fixtureCode": {
             "type": "string",
+            "maxLength": 60,
             "description": "Escenario de prueba. Excluyente con `templateCode`."
           },
           "idempotencyKey": {
             "type": "string",
+            "maxLength": 200,
             "description": "Clave de deduplicación. Sin ella se deriva de la plantilla, sus variables, el idioma y la voz vigente, de modo que repetir la misma locución no crea una segunda ejecución ni una segunda factura."
           }
         }
@@ -19426,7 +19437,6 @@
             "type": "string"
           },
           "status": {
-            "type": "string",
             "enum": [
               "QUEUED",
               "RUNNING",
@@ -19437,7 +19447,8 @@
               "PENDING_REVIEW",
               "IN_REVIEW",
               "PDF_INVALID"
-            ]
+            ],
+            "type": "string"
           },
           "progress": {
             "type": "number",
@@ -19445,15 +19456,16 @@
             "maximum": 100
           },
           "inputSource": {
-            "type": "string",
             "enum": [
               "FIXTURE",
               "UPLOAD",
               "INLINE"
-            ]
+            ],
+            "type": "string"
           },
           "fixtureCode": {
-            "type": "object"
+            "type": "string",
+            "nullable": true
           },
           "attemptCount": {
             "type": "number"
@@ -19463,10 +19475,14 @@
             "type": "string"
           },
           "startedAt": {
-            "type": "object"
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
           },
           "finishedAt": {
-            "type": "object"
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
           },
           "requestedBy": {
             "type": "string"
@@ -19484,13 +19500,15 @@
             "description": "Advertencias de un resultado utilizable pero revisable."
           },
           "errorCode": {
-            "type": "object"
+            "type": "string",
+            "nullable": true
           },
           "errorMessage": {
-            "type": "object"
+            "type": "string",
+            "nullable": true
           },
           "reviewReason": {
-            "type": "string",
+            "nullable": true,
             "enum": [
               "TIMEOUT",
               "LOW_CONFIDENCE",
@@ -19501,10 +19519,11 @@
               "OCR_ERROR",
               "MANUAL_REQUEST"
             ],
+            "type": "string",
             "description": "Por qué espera a una persona. Sólo con estado PENDING_REVIEW o IN_REVIEW."
           },
           "rejectionReason": {
-            "type": "string",
+            "nullable": true,
             "enum": [
               "NOT_BANK_STATEMENT",
               "UNSUPPORTED_FILE",
@@ -19512,10 +19531,12 @@
               "CORRUPTED_PDF",
               "UNREADABLE_DOCUMENT"
             ],
+            "type": "string",
             "description": "Por qué se rechazó. Sólo con estado PDF_INVALID."
           },
           "reviewPriority": {
-            "type": "object",
+            "type": "number",
+            "nullable": true,
             "description": "1 alta · 2 media · 3 baja."
           }
         },
@@ -19535,6 +19556,7 @@
         "properties": {
           "fixtureCode": {
             "type": "string",
+            "maxLength": 60,
             "description": "Escenario de prueba. Excluyente con el archivo subido."
           }
         }
@@ -19553,14 +19575,13 @@
             "description": "Quién lo subió."
           },
           "status": {
-            "type": "string",
             "enum": [
               "PENDING_REVIEW",
               "IN_REVIEW"
-            ]
+            ],
+            "type": "string"
           },
           "reviewReason": {
-            "type": "string",
             "enum": [
               "TIMEOUT",
               "LOW_CONFIDENCE",
@@ -19570,47 +19591,60 @@
               "AMBIGUOUS_DATA",
               "OCR_ERROR",
               "MANUAL_REQUEST"
-            ]
+            ],
+            "type": "string"
           },
           "reviewPriority": {
             "type": "number",
             "description": "1 alta · 2 media · 3 baja."
           },
           "errorCode": {
-            "type": "object",
+            "type": "string",
+            "nullable": true,
             "description": "Código técnico que originó la derivación."
           },
           "errorMessage": {
-            "type": "object"
+            "type": "string",
+            "nullable": true
           },
           "institutionId": {
-            "type": "object",
+            "type": "string",
+            "nullable": true,
             "description": "Entidad detectada, si se reconoció."
           },
           "documentTypeConfidence": {
-            "type": "object",
+            "type": "number",
+            "nullable": true,
             "description": "Confianza de que SEA un extracto. `null` si no se midió."
           },
           "extractionConfidence": {
-            "type": "object",
+            "type": "number",
+            "nullable": true,
             "description": "Confianza de la EXTRACCIÓN de movimientos."
           },
           "transactionCount": {
-            "type": "object"
+            "type": "number",
+            "nullable": true
           },
           "reviewOpenedAt": {
-            "type": "object",
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
             "description": "Cuándo entró en la cola."
           },
           "pendingMs": {
-            "type": "object",
+            "type": "number",
+            "nullable": true,
             "description": "Milisegundos que lleva esperando. Lo calcula el motor: derivarlo en el cliente lo deja congelado en la hora de su reloj."
           },
           "reviewClaimedBy": {
-            "type": "object"
+            "type": "string",
+            "nullable": true
           },
           "reviewClaimedAt": {
-            "type": "object"
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
           },
           "queuedAt": {
             "format": "date-time",
@@ -19641,7 +19675,7 @@
         "type": "object",
         "properties": {
           "category": {
-            "type": "string",
+            "nullable": true,
             "enum": [
               "TIMEOUT",
               "LOW_CONFIDENCE",
@@ -19652,7 +19686,7 @@
               "OCR_ERROR",
               "MANUAL_REQUEST"
             ],
-            "nullable": true,
+            "type": "string",
             "description": "`null` = «Todos»."
           },
           "total": {
@@ -19663,7 +19697,8 @@
             "description": "De ese total, cuántos ya tienen a alguien encima."
           },
           "oldestPendingMs": {
-            "type": "object",
+            "type": "number",
+            "nullable": true,
             "description": "Antigüedad del más viejo, en milisegundos."
           }
         },
@@ -19678,17 +19713,16 @@
         "type": "object",
         "properties": {
           "action": {
-            "type": "string",
             "enum": [
               "APPROVE",
               "CORRECT",
               "REJECT",
               "MARK_INVALID"
             ],
+            "type": "string",
             "description": "APPROVE da por bueno lo extraído · CORRECT lo da por bueno con notas de corrección · REJECT lo cierra sin resultado · MARK_INVALID afirma que no era un extracto."
           },
           "rejectionReason": {
-            "type": "string",
             "enum": [
               "NOT_BANK_STATEMENT",
               "UNSUPPORTED_FILE",
@@ -19696,10 +19730,12 @@
               "CORRUPTED_PDF",
               "UNREADABLE_DOCUMENT"
             ],
+            "type": "string",
             "description": "Obligatorio con MARK_INVALID: un rechazo sin motivo no es medible."
           },
           "notes": {
             "type": "string",
+            "maxLength": 2000,
             "description": "Por qué. Queda en la fila y en la auditoría."
           }
         },
@@ -19715,10 +19751,10 @@
             "type": "string"
           },
           "status": {
-            "type": "string",
             "enum": [
               "QUEUED"
             ],
+            "type": "string",
             "description": "Siempre `QUEUED`: el caso vuelve a la cola del worker."
           }
         },
@@ -19732,15 +19768,18 @@
         "properties": {
           "fixtureCode": {
             "type": "string",
+            "maxLength": 60,
             "description": "Escenario de prueba. Excluyente con las imágenes subidas."
           },
           "documentCountry": {
             "type": "string",
+            "pattern": "^[A-Za-z]{2}$",
             "description": "País emisor del documento, ISO 3166-1 alfa-2. Decide qué analizador se usa; si se omite se toma el del despliegue.",
             "example": "BO"
           },
           "idempotencyKey": {
             "type": "string",
+            "maxLength": 200,
             "description": "Clave de deduplicación. Sin ella se deriva del contenido de las imágenes, de modo que reenviar las mismas fotos no crea una segunda verificación."
           }
         }
@@ -19750,14 +19789,17 @@
         "properties": {
           "text": {
             "type": "string",
+            "maxLength": 100000,
             "description": "Texto a analizar. Excluyente con `fixtureCode`."
           },
           "fixtureCode": {
             "type": "string",
+            "maxLength": 60,
             "description": "Escenario de prueba. Excluyente con `text`."
           },
           "idempotencyKey": {
             "type": "string",
+            "maxLength": 200,
             "description": "Clave de deduplicación. Si se omite se deriva del contenido, de modo que reenviar el mismo texto no crea una segunda ejecución."
           }
         }
@@ -19767,10 +19809,12 @@
         "properties": {
           "text": {
             "type": "string",
+            "maxLength": 100000,
             "description": "Texto a analizar."
           },
           "idempotencyKey": {
             "type": "string",
+            "maxLength": 200,
             "description": "Clave de deduplicación de este texto. Ver `CreateSemanticAnalysisRunDto`."
           }
         },
@@ -19782,6 +19826,8 @@
         "type": "object",
         "properties": {
           "items": {
+            "minItems": 1,
+            "maxItems": 200,
             "description": "Textos a analizar.",
             "type": "array",
             "items": {
@@ -19797,10 +19843,13 @@
         "type": "object",
         "properties": {
           "requestIds": {
+            "minItems": 1,
+            "maxItems": 200,
             "description": "Identificadores de las ejecuciones a consultar.",
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "format": "uuid"
             }
           }
         },
@@ -20471,7 +20520,7 @@
             "example": "2026-07-20T10:00:00.000Z"
           },
           "finishedAt": {
-            "type": "object",
+            "type": "string",
             "nullable": true
           },
           "plannedCases": {
@@ -20481,14 +20530,14 @@
           },
           "concurrency": {
             "type": "number",
-            "example": 1,
             "nullable": true,
+            "example": 1,
             "description": "Casos ejecutados a la vez. `null` en corridas que no la archivaron. Sin este dato, `durationMs / totalCases` NO es comparable entre corridas."
           },
           "checkDeterminism": {
             "type": "boolean",
-            "example": true,
             "nullable": true,
+            "example": true,
             "description": "Si cada caso se ejecutó DOS veces para comprobar determinismo. Duplica el trabajo real de la corrida, así que condiciona cualquier lectura de rendimiento."
           }
         },
@@ -20541,10 +20590,12 @@
           },
           "shrunkInput": {
             "type": "object",
+            "additionalProperties": true,
             "description": "Entrada mínima reducida que sigue reproduciendo el fallo."
           },
           "originalInput": {
             "type": "object",
+            "additionalProperties": true,
             "description": "Entrada aleatoria original, antes de reducir. Solo en `getRun`."
           },
           "observed": {
@@ -20561,7 +20612,7 @@
             "example": "42/BOUNDARY"
           },
           "resolvedAt": {
-            "type": "object",
+            "type": "string",
             "nullable": true,
             "description": "Solo en `getRun`."
           }
@@ -20610,6 +20661,7 @@
           },
           "tooling": {
             "type": "object",
+            "additionalProperties": true,
             "example": {
               "generator": "1.0",
               "node": "v20.11.0",
@@ -20644,6 +20696,7 @@
           },
           "summary": {
             "type": "object",
+            "additionalProperties": true,
             "example": {
               "OUTPUT_CONTRACT_RESPECTED": 5
             },
@@ -20654,7 +20707,7 @@
             "example": "2026-07-20T10:00:00.000Z"
           },
           "finishedAt": {
-            "type": "object",
+            "type": "string",
             "nullable": true
           },
           "counterexamples": {
@@ -20824,7 +20877,8 @@
             "example": true
           },
           "output": {
-            "type": "object"
+            "type": "object",
+            "additionalProperties": true
           },
           "status": {
             "type": "string",
@@ -20892,7 +20946,8 @@
             "description": "Si la entrada reducida sigue reproduciendo el mismo fallo."
           },
           "input": {
-            "type": "object"
+            "type": "object",
+            "additionalProperties": true
           },
           "observation": {
             "$ref": "#/components/schemas/ExecutionObservationDto"
@@ -25470,8 +25525,8 @@
           },
           "grain": {
             "type": "string",
-            "example": "Una fila = una decisión ejecutada por el motor.",
             "nullable": true,
+            "example": "Una fila = una decisión ejecutada por el motor.",
             "description": "Qué es UNA fila. Va en el catálogo y no en la documentación porque sin esta frase un COUNT(*) se interpreta mal, y nadie consulta la documentación antes de contar. Es null en una vista que la base publica y que nadie ha fichado todavía: un grano derivado del nombre se leería igual que uno comprobado."
           },
           "columns": {
@@ -25580,9 +25635,10 @@
         "properties": {
           "statement": {
             "type": "string",
+            "minLength": 1,
+            "maxLength": 65536,
             "description": "La consulta SQL. Sólo SELECT o WITH, una sola sentencia.",
-            "example": "SELECT estado, count(*) FROM decisiones.ejecuciones WHERE es_produccion GROUP BY 1",
-            "maxLength": 65536
+            "example": "SELECT estado, count(*) FROM decisiones.ejecuciones WHERE es_produccion GROUP BY 1"
           }
         },
         "required": [
