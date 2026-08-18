@@ -10,12 +10,12 @@
 
 El grafo contiene **5003 nodos** y **10304 relaciones** repartidos en
 **439 comunidades**. El árbol real declara
-**25 módulos de dominio** en `src/modules/`, de los cuales
+**30 módulos de dominio** en `src/modules/`, de los cuales
 todos están registrados en `src/app.module.ts` (comprobado sobre el fichero, no supuesto).
 
-El grafo cubre **250 de 361**
-ficheros TypeScript de `src/` (69 %).
-**1 módulo(s) de dominio no aparecen en absoluto**: `workers`. Consultar el grafo sobre ellos no devuelve nada, así que su documentación **no** se deriva de aquí.
+El grafo cubre **250 de 663**
+ficheros TypeScript de `src/` (38 %).
+**6 módulo(s) de dominio no aparecen en absoluto**: `data-subject`, `model-monitoring`, `outcome-ingestion`, `risk-governance`, `sql-console`, `workers`. Consultar el grafo sobre ellos no devuelve nada, así que su documentación **no** se deriva de aquí.
 
 ## Inventario cuantitativo
 
@@ -107,8 +107,10 @@ La mayoría son ficheros de configuración y documentos sueltos, que por natural
 
 ### El grafo menciona ficheros que ya no existen
 
-**2 ficheros** referenciados por el grafo ya no existen en disco. El grafo está desactualizado respecto al árbol; ejecute `graphify update .`:
+**4 ficheros** referenciados por el grafo ya no existen en disco. El grafo está desactualizado respecto al árbol; ejecute `graphify update .`:
 
+- `prisma/deploy-demo-all-envs.ts`
+- `prisma/seed-chain-example.ts`
 - `scripts/generate-baseline-sql.py`
 - `scripts/validate-baseline.py`
 
@@ -118,10 +120,12 @@ Es la dirección que más daño hace: sobre un fichero ausente el grafo no devue
 consulta vacía se lee igual que «no existe». Por eso los catálogos del portal se generan del
 código y del contrato, nunca de este grafo.
 
-**111 de 361** ficheros `.ts` de `src/` no aparecen en el grafo, incluidos **1 módulo(s) completos** (`workers`). Se listan los primeros 20:
+**413 de 663** ficheros `.ts` de `src/` no aparecen en el grafo, incluidos **6 módulo(s) completos** (`data-subject`, `model-monitoring`, `outcome-ingestion`, `risk-governance`, `sql-console`, `workers`). Se listan los primeros 20:
 
 - `src/common/contracts/constraint-coherence.ts`
+- `src/common/events/trace-carrier.ts`
 - `src/common/observability/messaging-trace.service.ts`
+- `src/common/observability/metrics-token.ts`
 - `src/common/observability/telemetry.config.ts`
 - `src/common/observability/telemetry.constants.ts`
 - `src/common/observability/telemetry.instrumentations.ts`
@@ -130,23 +134,21 @@ código y del contrato, nunca de este grafo.
 - `src/common/observability/trace-error.ts`
 - `src/common/observability/trace-response.interceptor.ts`
 - `src/common/observability/tracing.service.ts`
-- `src/modules/graph/validators/graph-input-contract.validator.ts`
-- `src/modules/graph/validators/graph-operation-inputs.validator.ts`
-- `src/modules/seeding/data/collections-demo.graph.ts`
-- `src/modules/seeding/data/collections-demo.seed.ts`
-- `src/modules/seeding/data/graph-rows.ts`
-- `src/modules/seeding/data/semantic-catalog.data.ts`
-- `src/modules/workers/bank-statement/bank-statement-input.ts`
-- `src/modules/workers/bank-statement/bank-statement-run-worker.service.ts`
-- `src/modules/workers/bank-statement/bank-statement.controller.ts`
-- `src/modules/workers/bank-statement/bank-statement.service.ts`
+- `src/common/persistence/adapters/postgres/read-path.service.ts`
+- `src/common/persistence/adapters/postgres/write-path.service.ts`
+- `src/common/persistence/connections/cache-connection.ts`
+- `src/common/persistence/connections/connection-fingerprint.ts`
+- `src/common/persistence/connections/connection-registry.service.ts`
+- `src/common/persistence/connections/postgres-connection.ts`
+- `src/common/persistence/errors/persistence-errors.ts`
+- `src/common/persistence/errors/postgres-error-mapper.ts`
 
 ## Riesgos identificados
 
 | Riesgo | Naturaleza | Mitigación vigente |
 | --- | --- | --- |
 | El grafo se desactualiza tras cada cambio de código | Documental | `graphify update .` tras modificar código; esta auditoría detecta la divergencia en ambos sentidos |
-| El grafo desconoce 1 módulo(s) (workers), así que consultarlo sobre ellos devuelve vacío | Documental | Su documentación se deriva del código y del contrato; esta auditoría lo declara en vez de ocultarlo |
+| El grafo desconoce 6 módulo(s) (data-subject, model-monitoring, outcome-ingestion, risk-governance, sql-console, workers), así que consultarlo sobre ellos devuelve vacío | Documental | Su documentación se deriva del código y del contrato; esta auditoría lo declara en vez de ocultarlo |
 | Un módulo con mucho fan-in concentra el impacto de sus cambios | Arquitectónico | Contratos explícitos y pruebas por módulo |
 | La documentación derivada del grafo hereda sus errores | Documental | Los catálogos del portal se generan del **código y del contrato**, no del grafo |
 

@@ -65,12 +65,17 @@ Un `fan-in` alto significa que muchos módulos dependen de este: cambiarlo es ca
 | [`libraries`](../modules/libraries.md) | 17 | 0 |
 | [`seeding`](../modules/seeding.md) | 0 | 12 |
 | [`audit-query`](../modules/audit-query.md) | 0 | 0 |
+| [`data-subject`](../modules/data-subject.md) | 0 | 0 |
 | [`health`](../modules/health.md) | 0 | 0 |
 | [`identity-session`](../modules/identity-session.md) | 0 | 0 |
 | [`manual-review`](../modules/manual-review.md) | 0 | 0 |
+| [`model-monitoring`](../modules/model-monitoring.md) | 0 | 0 |
 | [`notifications`](../modules/notifications.md) | 0 | 0 |
 | [`outbox-relay`](../modules/outbox-relay.md) | 0 | 0 |
+| [`outcome-ingestion`](../modules/outcome-ingestion.md) | 0 | 0 |
+| [`risk-governance`](../modules/risk-governance.md) | 0 | 0 |
 | [`security-review`](../modules/security-review.md) | 0 | 0 |
+| [`sql-console`](../modules/sql-console.md) | 0 | 0 |
 | [`traceability`](../modules/traceability.md) | 0 | 0 |
 | [`tutorials`](../modules/tutorials.md) | 0 | 0 |
 | [`views`](../modules/views.md) | 0 | 0 |
