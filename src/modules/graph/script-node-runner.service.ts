@@ -168,11 +168,20 @@ export class ScriptNodeRunnerService {
     this.socketPath =
       config.get<string>('SCRIPT_RUNNER_SOCKET_PATH') ?? '/var/run/atlas-runner/runner.sock';
     this.timeoutMs = ScriptNodeRunnerService.intOption(config, 'SCRIPT_NODE_TIMEOUT_MS', 250);
-    this.maxSourceBytes = ScriptNodeRunnerService.intOption(config, 'SCRIPT_NODE_MAX_SOURCE_BYTES', 16_384);
-    this.maxOutputBytes = ScriptNodeRunnerService.intOption(config, 'SCRIPT_NODE_MAX_OUTPUT_BYTES', 65_536);
+    this.maxSourceBytes = ScriptNodeRunnerService.intOption(
+      config,
+      'SCRIPT_NODE_MAX_SOURCE_BYTES',
+      16_384,
+    );
+    this.maxOutputBytes = ScriptNodeRunnerService.intOption(
+      config,
+      'SCRIPT_NODE_MAX_OUTPUT_BYTES',
+      65_536,
+    );
     // El runner de JS recibe la cota en sus argumentos (--max-old-space-size); el de Python
     // la recibe en el payload y la aplica con RLIMIT_AS. Mismo techo para los dos.
-    this.maxMemoryBytes = ScriptNodeRunnerService.intOption(config, 'SCRIPT_NODE_MAX_MEMORY_MB', 32) * 1024 * 1024;
+    this.maxMemoryBytes =
+      ScriptNodeRunnerService.intOption(config, 'SCRIPT_NODE_MAX_MEMORY_MB', 32) * 1024 * 1024;
     this.pythonExecutable = config.get<string>('PYTHON_EXECUTABLE') ?? 'python';
   }
 
