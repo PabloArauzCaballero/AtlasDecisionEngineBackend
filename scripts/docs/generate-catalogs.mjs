@@ -444,7 +444,10 @@ async function main() {
   const environment = await generateEnvironmentCatalog();
 
   const summary = {
-    generatedAt: new Date().toISOString(),
+  // Sin marca de tiempo a propósito: este JSON está versionado y CI lo regenera para
+  // comprobar que no quedó atrás. Un `generatedAt` cambia en cada corrida sin que cambie
+  // nada medido, así que el gate no podía pasar nunca y el archivo ensuciaba todos los
+  // diffs. Cuándo se generó lo dice el commit que lo trae.
     modules: modules.length,
     endpoints: [...byTag.values()].reduce((total, list) => total + list.length, 0),
     entities: models.length,

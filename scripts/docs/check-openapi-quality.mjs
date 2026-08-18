@@ -43,7 +43,6 @@ async function main() {
   const schemaDebt = [];
   const operationIds = new Map();
   const metrics = {
-    generatedAt: null,
     apiVersion: document.info?.version ?? 'unknown',
     paths: Object.keys(document.paths ?? {}).length,
     operations: 0,
@@ -188,7 +187,8 @@ async function main() {
     'utf8',
   );
 
-  metrics.generatedAt = new Date().toISOString();
+  // Ver la nota de `generate-catalogs.mjs`: nada de marca de tiempo en un artefacto
+  // versionado que CI regenera y compara.
   await writeFile(reportPath, `${JSON.stringify(metrics, null, 2)}\n`, 'utf8');
 
   const nonPublic = metrics.operations - metrics.publicOperations;
