@@ -81,4 +81,4 @@ interfaz que solo PostgreSQL podría implementar. Se quedan donde están, declar
 
 - [Superficie de persistencia](architecture.md)
 - [Plan de migración y rollback](migration-plan.md)
-- [Dependencias entre módulos](../../architecture/module-dependencies.md)
+- [Dependencias entre módulos](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/architecture/module-dependencies.md)

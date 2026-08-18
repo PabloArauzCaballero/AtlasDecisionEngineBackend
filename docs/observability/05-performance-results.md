@@ -8,7 +8,7 @@
 
 ## Medición de extremo a extremo (API compilada)
 
-Herramienta: [`scripts/bench-telemetry.mjs`](../../scripts/bench-telemetry.mjs), incluida en el
+Herramienta: [`scripts/bench-telemetry.mjs`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/scripts/bench-telemetry.mjs), incluida en el
 repositorio para poder repetirla.
 
 ```bash
@@ -135,7 +135,7 @@ node --input-type=module -e "...bench de 20000 iteraciones por escenario..."
 Por prueba ejecutada, no por medición de rendimiento:
 
 - El backend **arranca y opera con `OTEL_ENABLED=false`**, sin parcheo ni exportador
-  ([observability-interceptor.spec.ts](../../test/observability-interceptor.spec.ts)).
+  ([observability-interceptor.spec.ts](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/test/observability-interceptor.spec.ts)).
 - La exportación es **asíncrona y tolerante a fallos**: un destino inalcanzable pierde spans y
   no afecta a ninguna petición. Ya no es sólo una propiedad del `BatchSpanProcessor` — quedó
   **observado**: el exportador agotó su timeout y las 400 peticiones de ese mismo escenario se

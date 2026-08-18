@@ -22,9 +22,9 @@ siempre, un campo del contrato de salida que lo mapee explícitamente.
 El catálogo es cerrado y se comprueba **al validar el grafo**: un nodo que nombra un
 servicio u operación inexistente impide aprobar el artefacto, en vez de abortar la primera
 decisión que lo alcance. El catálogo vive en
-[graph-worker.validator.ts](../../src/modules/graph/validators/graph-worker.validator.ts)
+[graph-worker.validator.ts](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/modules/graph/validators/graph-worker.validator.ts)
 (`WORKER_SERVICE_OPERATIONS`) y la ejecución real en
-[worker-service-invoker.service.ts](../../src/modules/workers/worker-service-invoker.service.ts).
+[worker-service-invoker.service.ts](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/modules/workers/worker-service-invoker.service.ts).
 
 Un servicio sólo se puede invocar si el despliegue lo declara disponible, con la **misma
 bandera** que publica el catálogo `GET /v1/workers` (`BANK_STATEMENT_WORKER_ENABLED`,
@@ -175,9 +175,9 @@ START → ANALIZAR_EXTRACTO (WORKER) → DERIVAR_CAPACIDAD → EVALUAR → 4 res
 ```
 
 - El grafo puro está en
-  [`statement-worker-demo.graph.ts`](../../src/modules/seeding/data/statement-worker-demo.graph.ts)
+  [`statement-worker-demo.graph.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/modules/seeding/data/statement-worker-demo.graph.ts)
   y su siembra en
-  [`statement-worker-demo.seed.ts`](../../src/modules/seeding/data/statement-worker-demo.seed.ts).
+  [`statement-worker-demo.seed.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/modules/seeding/data/statement-worker-demo.seed.ts).
 - `test/statement-worker-demo-seed.spec.ts` lo ejecuta contra el motor real y comprueba las
   cuatro ramas.
 

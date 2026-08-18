@@ -65,7 +65,7 @@ sean atómicas.
 
 Ningún motor de la tabla de capacidades ofrece transacciones distribuidas, y ninguna se
 simula. La coordinación entre motores va por el outbox transaccional que el sistema ya
-tiene (ver [ADR-0027](../../adr/ADR-0027-messaging-technology-selection.md)): outbox, inbox
+tiene (ver [ADR-0027](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/adr/ADR-0027-messaging-technology-selection.md)): outbox, inbox
 de deduplicación, reintentos con retroceso y cola muerta.
 
 ## Errores normalizados
@@ -161,5 +161,5 @@ añadiría un reloj más al proceso para dar un dato viejo.
 
 - [Enrutamiento de lectura y escritura](read-write-routing.md)
 - [Superficie de persistencia](architecture.md)
-- [Métricas](../../observability/metrics.md)
-- [Alertas](../../observability/alerts.md)
+- [Métricas](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/observability/metrics.md)
+- [Alertas](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/observability/alerts.md)

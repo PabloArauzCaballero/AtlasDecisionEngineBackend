@@ -6,7 +6,7 @@ de Prisma»*, y que cambiar la topología de datos —una réplica, un rol disti
 motor— sea configuración y no una reescritura.
 
 La decisión y sus alternativas están en
-[ADR-0029](../../adr/ADR-0029-polyglot-persistence-read-write.md).
+[ADR-0029](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/adr/ADR-0029-polyglot-persistence-read-write.md).
 
 ## Dirección de dependencias
 

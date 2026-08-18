@@ -109,4 +109,4 @@ Los cuatro primeros no tocan código. Esa es la razón de que el interruptor exi
 - [Superficie de persistencia](architecture.md)
 - [Inventario de fuentes de datos](source-inventory.md)
 - [Pruebas y evidencia](testing-and-evidence.md)
-- [ADR-0029](../../adr/ADR-0029-polyglot-persistence-read-write.md)
+- [ADR-0029](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/adr/ADR-0029-polyglot-persistence-read-write.md)

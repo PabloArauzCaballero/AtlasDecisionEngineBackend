@@ -3,7 +3,7 @@
 **Fecha:** 2026-08-06 · **Rama:** `test/workers-integracion-postgres` · **Base:** `ccfe686`
 
 Auditoría por fases del backend y sus trabajos de fondo, siguiendo
-[la skill `backend-hardening`](../../.claude/skills/backend-hardening/SKILL.md). Cada hallazgo
+[la skill `backend-hardening`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/.claude/skills/backend-hardening/SKILL.md). Cada hallazgo
 cita archivo/línea o salida de gate ejecutada. Lo que no se pudo verificar se dice.
 
 ## Resumen
@@ -36,32 +36,32 @@ inventario: no existe una segunda definición de la configuración que pueda des
 Sin hallazgos abiertos. Verificado:
 
 - El orquestador garantiza **exclusión mutua dentro del proceso** y la delega a la base de
-  datos entre réplicas ([`job-scheduler.service.ts`](../../src/common/jobs/job-scheduler.service.ts)).
+  datos entre réplicas ([`job-scheduler.service.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/common/jobs/job-scheduler.service.ts)).
   `runNow()` ocupa la ranura antes de ejecutar, así que un temporizador pendiente no puede
   arrancar el mismo trabajo en paralelo.
 - El reparto del outbox es **at-least-once explícito**, con deduplicación aguas abajo en
-  `decision_processed_event` ([`outbox-relay.service.ts:37-54`](../../src/modules/outbox-relay/outbox-relay.service.ts#L37-L54)).
+  `decision_processed_event` ([`outbox-relay.service.ts:37-54`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/modules/outbox-relay/outbox-relay.service.ts#L37-L54)).
 - `EventBus.emit` propaga el fallo del handler a propósito: es lo que mantiene la fila
-  `PENDING` y hace real el reintento ([`event-bus.ts:9-18`](../../src/common/events/event-bus.ts#L9-L18)).
+  `PENDING` y hace real el reintento ([`event-bus.ts:9-18`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/common/events/event-bus.ts#L9-L18)).
 
 ## Fase 3 — Seguridad
 
 Sin hallazgos abiertos. Verificado:
 
 - RLS por tenant aplicada vía GUC transaccional, con **fallo cerrado en producción** si la
-  conexión resulta ser superusuario ([`prisma.service.ts:74-87`](../../src/common/prisma/prisma.service.ts#L74-L87)).
+  conexión resulta ser superusuario ([`prisma.service.ts:74-87`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/common/prisma/prisma.service.ts#L74-L87)).
 - El identificador de canal de `LISTEN` se valida contra un patrón cerrado porque no se puede
-  parametrizar ([`job-signal.service.ts:12`](../../src/common/jobs/job-signal.service.ts#L12)).
+  parametrizar ([`job-signal.service.ts:12`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/common/jobs/job-signal.service.ts#L12)).
 - `/metrics` autoriza igual en API y worker, por el mismo código y en tiempo constante
-  ([`worker.ts`](../../src/worker.ts), `metrics-token.ts`).
+  ([`worker.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/worker.ts), `metrics-token.ts`).
 - `/health/ready` es público y **nunca** filtra el texto crudo del driver
-  ([`health-probe.service.ts:59-63`](../../src/modules/health/health-probe.service.ts#L59-L63)).
+  ([`health-probe.service.ts:59-63`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/modules/health/health-probe.service.ts#L59-L63)).
 
 ## Fase 4 — Integridad de datos
 
 Sin hallazgos abiertos. La idempotencia usa lease corto (60 s) además del TTL de respuesta,
 con reclamo atómico por guardia en el `WHERE` y un tope de reintentos que evita la recursión
-sin cota ([`idempotency.service.ts:85-121`](../../src/modules/runtime/idempotency.service.ts#L85-L121)).
+sin cota ([`idempotency.service.ts:85-121`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/modules/runtime/idempotency.service.ts#L85-L121)).
 
 ## Fase 5 — Observabilidad
 
@@ -79,7 +79,7 @@ Dos consecuencias reales, medidas:
 un `Promise.allSettled` sin plazo. Un solo lote que no termina —una extracción de PDF que
 superó su timeout sin poder cancelarse, porque `withTimeout` compite contra la promesa pero
 no cancela el trabajo subyacente
-([`worker-service-invoker.service.ts:250-276`](../../src/modules/workers/worker-service-invoker.service.ts#L250-L276))—
+([`worker-service-invoker.service.ts:250-276`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/modules/workers/worker-service-invoker.service.ts#L250-L276))—
 dejaba el apagado colgado hasta el SIGKILL del orquestador. Un SIGKILL es peor que abandonar
 el lote a propósito: se lleva por delante el cierre del pool y el vaciado de trazas, así que
 el incidente se pierde justo cuando importa.
@@ -102,15 +102,15 @@ siempre acababa saliendo: era una salida **lenta**, no un cuelgue indefinido.
 
 **Corrección aplicada:**
 
-1. [`job-scheduler.service.ts`](../../src/common/jobs/job-scheduler.service.ts) — el drenaje se
+1. [`job-scheduler.service.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/common/jobs/job-scheduler.service.ts) — el drenaje se
    acota al 80 % de `SHUTDOWN_GRACE_MS` y deja constancia de qué trabajos se abandonaron. Lo
    abandonado no se pierde: cada trabajo reclama por lease, así que vuelve a estar disponible
    al vencer y otra réplica lo retoma.
-2. [`worker.ts`](../../src/worker.ts) y [`main.ts`](../../src/main.ts) — el camino de fallo de
+2. [`worker.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/worker.ts) y [`main.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/main.ts) — el camino de fallo de
    arranque cierra el contexto y vacía las trazas antes de salir; ambas señales de apagado
    arman un vigilante que fuerza la salida al agotarse la gracia, para salir por decisión
    propia un instante antes del SIGKILL y conservar el motivo en el log.
-3. [`env.schema.ts`](../../src/common/config/env.schema.ts) — la variable pasa a llevar su
+3. [`env.schema.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/common/config/env.schema.ts) — la variable pasa a llevar su
    propia explicación. La tabla de
    [variables de entorno](../getting-started/environment-variables.md) se **genera** desde el
    esquema (`yarn docs:catalog`), así que documentarla en cualquier otro sitio se habría
@@ -120,7 +120,7 @@ El 20 % restante de la gracia queda para lo que va después del drenaje: cerrar 
 Postgres, el cliente de Redis y vaciar el exportador de trazas.
 
 **Validación:** prueba nueva en
-[`test/job-scheduler.spec.ts`](../../test/job-scheduler.spec.ts) con un trabajo que nunca
+[`test/job-scheduler.spec.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/test/job-scheduler.spec.ts) con un trabajo que nunca
 resuelve; afirma cota superior **y** inferior, de modo que no puede pasar por vacío.
 
 **Rollback:** revertir los tres archivos. `SHUTDOWN_GRACE_MS` vuelve a ser inerte y el
@@ -139,7 +139,7 @@ subir la gracia.
 Sin hallazgos abiertos. El muestreo del gauge de pendientes del outbox solo ocurre en ciclos
 ociosos y como mucho cada `OUTBOX_BACKLOG_SAMPLE_MS`, tras haberse detectado que la medida
 costaba más que lo medido
-([`outbox-relay.service.ts:108-124`](../../src/modules/outbox-relay/outbox-relay.service.ts#L108-L124)).
+([`outbox-relay.service.ts:108-124`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/modules/outbox-relay/outbox-relay.service.ts#L108-L124)).
 
 **No es un hallazgo:** importar `app.module.js` tarda 16–90 s en el host Windows de
 desarrollo. En el contenedor Linux la inicialización de módulos es de ~4 ms (`docker logs`),

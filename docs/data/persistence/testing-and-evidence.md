@@ -202,4 +202,4 @@ Toda la lectura vuelve al primario sin desplegar código.
 - [Superficie de persistencia](architecture.md)
 - [Roles y privilegios PostgreSQL](postgres-roles.md)
 - [Plan de migración y rollback](migration-plan.md)
-- [Ejecutar las pruebas](../../getting-started/running-tests.md)
+- [Ejecutar las pruebas](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/getting-started/running-tests.md)

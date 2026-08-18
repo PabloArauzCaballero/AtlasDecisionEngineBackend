@@ -45,12 +45,12 @@ Una sola capa falla el día que alguien añade una instrumentación nueva.
 ### 1. En origen (código)
 
 - Ningún span recibe payloads; los atributos permitidos están enumerados en
-  [`telemetry.constants.ts`](../../src/common/observability/telemetry.constants.ts).
+  [`telemetry.constants.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/common/observability/telemetry.constants.ts).
 - `recordSpanError` usa el **código estable** del error como descripción del estado, nunca su
   mensaje, que puede llevar fragmentos de la entrada. Un valor lanzado que no sea `Error` se
   sustituye por su código antes de registrarse.
 - El logger ya redacta agresivamente (`SENSITIVE_KEYS` en
-  [`structured-logger.service.ts`](../../src/common/observability/structured-logger.service.ts)),
+  [`structured-logger.service.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/common/observability/structured-logger.service.ts)),
   con sobre-redacción deliberada de todo lo que tenga forma de decisión.
 
 ### 2. En la instrumentación
@@ -64,7 +64,7 @@ Una sola capa falla el día que alguien añade una instrumentación nueva.
 
 ### 3. En el Collector
 
-[`infra/otel-collector/otel-collector.config.yml`](../../infra/otel-collector/otel-collector.config.yml)
+[`infra/otel-collector/otel-collector.config.yml`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/infra/otel-collector/otel-collector.config.yml)
 borra cabeceras sensibles, parámetros SQL y `url.query` antes de persistir. Es la red que
 recoge lo que se cuele por una biblioteca actualizada.
 
@@ -99,7 +99,7 @@ de exposición sin aportar valor probatorio.
 - `yarn jaeger:verify` comprueba, entre otras cosas, que **ninguna** traza almacenada contiene
   atributos con `authorization`, `cookie`, `x-api-key`, `password`, `token` o `secret`.
 - La prueba unitaria *«no deja el mensaje del error como descripción del estado»*
-  ([observability-interceptor.spec.ts](../../test/observability-interceptor.spec.ts)) fija por
+  ([observability-interceptor.spec.ts](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/test/observability-interceptor.spec.ts)) fija por
   contrato que el mensaje de una excepción no llega al span.
 - Toda instrumentación nueva se revisa contra esta lista antes de habilitarse.
 

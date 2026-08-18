@@ -95,4 +95,4 @@ deduplicación. Sin dual-write, sin atomicidad fingida.
 - [Superficie de persistencia](architecture.md)
 - [Enrutamiento de lectura y escritura](read-write-routing.md)
 - [Consistencia, transacciones y fallos](consistency-and-failure.md)
-- [ADR-0027 — tecnología de mensajería](../../adr/ADR-0027-messaging-technology-selection.md)
+- [ADR-0027 — tecnología de mensajería](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/adr/ADR-0027-messaging-technology-selection.md)

@@ -62,7 +62,7 @@ implementaciones son intercambiables:
 ```
 
 Ejemplo completo de un algoritmo publicando su resultado:
-[`src/pdf-worker/examples/algorithm-report.example.ts`](../../src/pdf-worker/examples/algorithm-report.example.ts).
+[`src/pdf-worker/examples/algorithm-report.example.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/pdf-worker/examples/algorithm-report.example.ts).
 
 ### Dos costumbres que ahorran incidentes
 

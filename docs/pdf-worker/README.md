@@ -36,7 +36,7 @@ const result = await this.pdf.generate({
 // result.checksum → SHA-256 del archivo
 ```
 
-Ejemplo completo y compilado: [`src/pdf-worker/examples/algorithm-report.example.ts`](../../src/pdf-worker/examples/algorithm-report.example.ts).
+Ejemplo completo y compilado: [`src/pdf-worker/examples/algorithm-report.example.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/pdf-worker/examples/algorithm-report.example.ts).
 
 ### Por HTTP
 
@@ -285,7 +285,7 @@ Escritos aquí porque un componente que promete de más es peor que uno que dice
 - **Sin fuentes embebidas.** El repositorio no incluye ninguna a propósito (licencias). Dentro de
   la imagen Docker el resultado es idéntico en desarrollo, CI y producción gracias a Liberation
   y DejaVu; fuera de ella depende del sistema. `/pdf/health` lo publica en vez de suponerlo.
-  Ver [`templates/shared/fonts/README.md`](../../src/pdf-worker/templates/shared/fonts/README.md).
+  Ver [`templates/shared/fonts/README.md`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/pdf-worker/templates/shared/fonts/README.md).
 - **La huella visual cubre el HTML compuesto, no el rasterizado.** Detecta cambios accidentales
   en plantillas, parciales, estilos, tokens, membrete y pie. No detecta que otra versión de
   Chromium pagine distinto; para eso están las capturas de `yarn pdf:evidencia`, que mira una
@@ -307,7 +307,7 @@ Escritos aquí porque un componente que promete de más es peor que uno que dice
 
 ## Configuración
 
-Todas las variables, con su motivo, en [`.env.example`](../../.env.example) (sección
+Todas las variables, con su motivo, en [`.env.example`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/.env.example) (sección
 `PDF Generator Worker`). Un despliegue mínimo sólo necesita `PDF_ORG_NAME`.
 
 ## Pruebas

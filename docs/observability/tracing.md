@@ -6,7 +6,7 @@ Página de referencia rápida. Para aprender a usarlas, [README](README.md); par
 ## Qué está instrumentado
 
 OpenTelemetry con exportador **OTLP/HTTP** y cinco instrumentaciones elegidas una a una
-([telemetry.instrumentations.ts](../../src/common/observability/telemetry.instrumentations.ts)):
+([telemetry.instrumentations.ts](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/common/observability/telemetry.instrumentations.ts)):
 
 | Instrumentación | Qué cubre |
 | --- | --- |

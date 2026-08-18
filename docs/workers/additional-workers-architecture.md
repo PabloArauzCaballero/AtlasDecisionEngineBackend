@@ -346,7 +346,7 @@ puesto de trabajo: OpenAI cuesta dinero y manda el texto a un tercero, y el
 clasificador de transformers exige levantar el servidor de inferencia y descargar
 el modelo.
 
-[`scripts/semantic-local-provider.mjs`](../../scripts/semantic-local-provider.mjs)
+[`scripts/semantic-local-provider.mjs`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/scripts/semantic-local-provider.mjs)
 habla el mismo dialecto que el adaptador de OpenAI (`POST /v1/responses` con la
 salida estructurada en `output_text`) pero **no es un modelo**: puntúa por
 solapamiento de vocabulario entre el texto y cada categoría candidata, de forma

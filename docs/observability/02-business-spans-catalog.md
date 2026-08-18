@@ -28,7 +28,7 @@ envolverlo sólo añade profundidad.
 
 | | |
 | --- | --- |
-| **Módulo** | `runtime` — [runtime.service.ts](../../src/modules/runtime/runtime.service.ts) |
+| **Módulo** | `runtime` — [runtime.service.ts](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/modules/runtime/runtime.service.ts) |
 | **Operación** | Ejecución en línea de una decisión: idempotencia → despliegue → variables → motor → evidencia |
 | **Tipo** | INTERNAL |
 
@@ -68,7 +68,7 @@ los dos entra en el span.** Sólo viaja el *código* del artefacto y el resultad
 
 | | |
 | --- | --- |
-| **Módulo** | `events` — [outbox-publisher.service.ts](../../src/common/events/outbox-publisher.service.ts) |
+| **Módulo** | `events` — [outbox-publisher.service.ts](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/common/events/outbox-publisher.service.ts) |
 | **Operación** | Escritura del evento en el outbox transaccional |
 | **Tipo** | **PRODUCER** |
 
@@ -87,7 +87,7 @@ la decisión.
 
 | | |
 | --- | --- |
-| **Módulo** | `outbox-relay` — [outbox-relay.service.ts](../../src/modules/outbox-relay/outbox-relay.service.ts) |
+| **Módulo** | `outbox-relay` — [outbox-relay.service.ts](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/modules/outbox-relay/outbox-relay.service.ts) |
 | **Operación** | Reparto del evento al bus, ya en el proceso worker |
 | **Tipo** | **CONSUMER** |
 
@@ -103,13 +103,13 @@ visible «la API aprobó la versión y el worker tardó 40 s en notificar».
 
 | | |
 | --- | --- |
-| **Módulo** | `semantic-analysis` — [semantic-run-worker.service.ts](../../src/modules/workers/semantic-analysis/semantic-run-worker.service.ts) |
+| **Módulo** | `semantic-analysis` — [semantic-run-worker.service.ts](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/modules/workers/semantic-analysis/semantic-run-worker.service.ts) |
 | **Tipo** | **CONSUMER** |
 
 Atributos de mensajería más `app.job.name` y `app.job.attempt`. Por debajo cuelgan los spans
 del núcleo absorbido (`semantic.process`, `semantic.analyze`, `semantic.classify`,
 `catalog.load`, `tenant-budget.reserve`), cuyo vocabulario está en
-[telemetry.constants.ts](../../src/modules/workers/semantic-analysis/core/observability/telemetry.constants.ts).
+[telemetry.constants.ts](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/modules/workers/semantic-analysis/core/observability/telemetry.constants.ts).
 
 **Privacidad.** El texto analizado (`input_text`) **nunca** entra en un atributo. El núcleo
 publica el nivel, el estado y el recuento de candidatos, no el contenido.
@@ -120,7 +120,7 @@ publica el nivel, el estado y el recuento de candidatos, no el contenido.
 
 | | |
 | --- | --- |
-| **Módulo** | `bank-statement` — [bank-statement-run-worker.service.ts](../../src/modules/workers/bank-statement/bank-statement-run-worker.service.ts) |
+| **Módulo** | `bank-statement` — [bank-statement-run-worker.service.ts](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/modules/workers/bank-statement/bank-statement-run-worker.service.ts) |
 | **Tipo** | **CONSUMER** |
 
 **Privacidad.** El documento (`file_bytes`), el nombre del titular y el número de cuenta no
@@ -132,7 +132,7 @@ salen del proceso. El span identifica la ejecución por su id, nada más.
 
 | | |
 | --- | --- |
-| **Módulo** | `jobs` — [job-scheduler.service.ts](../../src/common/jobs/job-scheduler.service.ts) |
+| **Módulo** | `jobs` — [job-scheduler.service.ts](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/common/jobs/job-scheduler.service.ts) |
 | **Operación** | Un ciclo de cualquier trabajo de fondo |
 | **Tipo** | INTERNAL, **raíz** |
 

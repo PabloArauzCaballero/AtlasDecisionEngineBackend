@@ -129,4 +129,4 @@ Ni host, ni usuario, ni base, ni cadena de conexión: la sonda es pública.
 - [Superficie de persistencia](architecture.md)
 - [Roles y privilegios PostgreSQL](postgres-roles.md)
 - [Consistencia, transacciones y fallos](consistency-and-failure.md)
-- [Variables de entorno](../../getting-started/environment-variables.md)
+- [Variables de entorno](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/getting-started/environment-variables.md)

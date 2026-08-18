@@ -82,7 +82,7 @@ módulo para inyectarlo.
 El span se finaliza **siempre**, también si la operación lanza; en ese caso se registra la
 excepción, se marca el error y **se relanza sin tocarlo**.
 
-Ejemplo real: [runtime.service.ts](../../src/modules/runtime/runtime.service.ts).
+Ejemplo real: [runtime.service.ts](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/modules/runtime/runtime.service.ts).
 
 ### Eventos y atributos
 

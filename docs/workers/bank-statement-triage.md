@@ -68,7 +68,7 @@ Dos restricciones CHECK en la base sostienen la invariante, porque hay dos camin
 escriben aquí —el worker y las acciones de revisión— y sólo uno es el sospechoso habitual.
 
 El mapa completo de código de error a desenlace vive en un solo archivo,
-[`statement-outcome.ts`](../../src/modules/workers/bank-statement/statement-outcome.ts): es
+[`statement-outcome.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/modules/workers/bank-statement/statement-outcome.ts): es
 una regla de negocio, no un detalle de ejecución, y repartida en `catch` no había forma de
 responder «¿por qué acabó esto en la cola?» sin leer el worker entero.
 
@@ -120,9 +120,9 @@ acierto sobre una cola creciendo.
 
 ## Enlaces
 
-- Motor: [`core/engine/document-triage.ts`](../../src/modules/workers/bank-statement/core/engine/document-triage.ts) ·
-  [`core/engine/document-classifier.ts`](../../src/modules/workers/bank-statement/core/engine/document-classifier.ts)
-- Desenlaces: [`statement-outcome.ts`](../../src/modules/workers/bank-statement/statement-outcome.ts)
-- Cola: [`review/statement-review.service.ts`](../../src/modules/workers/bank-statement/review/statement-review.service.ts)
+- Motor: [`core/engine/document-triage.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/modules/workers/bank-statement/core/engine/document-triage.ts) ·
+  [`core/engine/document-classifier.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/modules/workers/bank-statement/core/engine/document-classifier.ts)
+- Desenlaces: [`statement-outcome.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/modules/workers/bank-statement/statement-outcome.ts)
+- Cola: [`review/statement-review.service.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/modules/workers/bank-statement/review/statement-review.service.ts)
 - Migraciones: `20260816090000_statement_review_status`, `20260816091000_statement_review_triage`
 - Arquitectura de los workers: [additional-workers-architecture.md](additional-workers-architecture.md)

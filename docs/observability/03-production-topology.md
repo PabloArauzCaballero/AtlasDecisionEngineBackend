@@ -1,6 +1,6 @@
 # Fase 16 — Topología de producción
 
-El `all-in-one` de [`docker-compose.jaeger.yml`](../../docker-compose.jaeger.yml) guarda las
+El `all-in-one` de [`docker-compose.jaeger.yml`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/docker-compose.jaeger.yml) guarda las
 trazas **en memoria**: se pierden en cada reinicio y la memoria crece hasta el límite del
 contenedor. Vale para desarrollo, demostraciones y pruebas locales. **No vale para producción.**
 

@@ -117,7 +117,7 @@ súbita. La regla es **un span por lote**.
 ## 3. Los logs no traen `trace_id`
 
 Los campos `trace_id`/`span_id` salen del **contexto activo** de OpenTelemetry
-([structured-logger.service.ts](../../src/common/observability/structured-logger.service.ts)).
+([structured-logger.service.ts](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/common/observability/structured-logger.service.ts)).
 Que falten significa que **no había span activo** al escribir la línea. Causas, por frecuencia:
 
 1. **Telemetría apagada.** Sin SDK no hay contexto. Es lo normal por defecto.
@@ -208,4 +208,4 @@ OTEL_ENABLED=false   # y redesplegar
 
 El motor arranca y opera con normalidad sin telemetría: no se parchea nada, no hay exportador y
 no hay conexiones de fondo. Es una salida segura y verificada por prueba
-([observability-interceptor.spec.ts](../../test/observability-interceptor.spec.ts)).
+([observability-interceptor.spec.ts](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/test/observability-interceptor.spec.ts)).

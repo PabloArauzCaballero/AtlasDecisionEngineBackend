@@ -155,5 +155,5 @@ Las migraciones usan `ADMIN_DATABASE_URL` (o `POSTGRES_MIGRATION_URL` donde se s
 
 - [Enrutamiento de lectura y escritura](read-write-routing.md)
 - [Pruebas y evidencia](testing-and-evidence.md)
-- [Aislamiento por tenant](../../security/tenant-isolation.md)
+- [Aislamiento por tenant](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/security/tenant-isolation.md)
 - [Migraciones](../migrations.md)
