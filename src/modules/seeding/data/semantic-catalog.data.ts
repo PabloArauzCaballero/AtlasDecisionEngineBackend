@@ -107,32 +107,65 @@ export function sortByDepth(
 }
 
 /**
+ * Agrupa el árbol por NIVELES: la raíz, luego sus hijos, luego los hijos de esos.
+ *
+ * `sortByDepth` ya devuelve un orden válido para insertar, pero es una lista
+ * plana y sembrarla implica esperar una escritura antes de empezar la siguiente.
+ * Con 83 categorías eso era medio segundo de arranque y nadie lo notaba; con el
+ * catálogo ampliado son varios centenares de idas y vueltas a la base en el
+ * camino crítico del arranque, que es justo lo que no debe crecer al enriquecer
+ * el catálogo.
+ *
+ * Dentro de un nivel las categorías son independientes entre sí —ninguna es
+ * padre de otra— así que se pueden escribir a la vez. Entre niveles no: la clave
+ * foránea `(tenant_id, parent_code)` exige que el padre ya esté.
+ */
+function groupByLevel(
+  categories: readonly SemanticCategorySeed[],
+): readonly (readonly SemanticCategorySeed[])[] {
+  const ordered = sortByDepth(categories);
+  const levelOf = new Map<string, number>();
+  const levels: SemanticCategorySeed[][] = [];
+
+  for (const category of ordered) {
+    const parent = category.parentCode;
+    // `sortByDepth` garantiza que el padre ya pasó por aquí; si no está, es una
+    // raíz. Ninguno de los dos casos puede dejar un nivel sin definir.
+    const level = parent === null ? 0 : (levelOf.get(parent) ?? -1) + 1;
+    levelOf.set(category.code, level);
+    (levels[level] ??= []).push(category);
+  }
+
+  return levels;
+}
+
+/**
+ * Escrituras simultáneas dentro de un nivel.
+ *
+ * El pool de Prisma es finito y el arranque compite con las demás semillas: más
+ * paralelismo del que hay conexiones no acelera nada y encola trabajo en un
+ * recurso compartido. Veinte cubre la latencia de ida y vuelta sin acaparar.
+ */
+const SIEMBRA_SIMULTANEA = 20;
+
+/**
  * Siembra el catálogo. Idempotente por `(tenant, code)`: reejecutar actualiza en
  * vez de duplicar, que es lo que permite correrlo en cada arranque.
+ *
+ * Se escribe por niveles y en tandas: el orden que la clave foránea exige se
+ * respeta entre niveles, y dentro de cada uno las categorías van a la vez.
  */
 export async function seedSemanticCatalog(
   prisma: PrismaClient,
 ): Promise<{ categories: number; aliases: number }> {
-  for (const seed of sortByDepth(expenseCategoryTree)) {
-    const data = {
-      name: seed.name,
-      description: seed.description,
-      parentCode: seed.parentCode,
-      positiveExamples: [...seed.positiveExamples],
-      counterExamples: [...seed.counterExamples],
-      restrictions: [...seed.restrictions],
-      relatedCategoryCodes: [...seed.relatedCategoryCodes],
-      acceptanceThreshold: seed.acceptanceThreshold,
-      isActive: true,
-    };
-    await prisma.semanticCategory.upsert({
-      where: { tenantId_code: { tenantId: TENANT_ID, code: seed.code } },
-      create: { tenantId: TENANT_ID, code: seed.code, ...data },
-      // La versión NO se toca al actualizar: la sube quien cambie el significado
-      // de la categoría, no una reejecución de la semilla. Si subiera sola, la
-      // auditoría diría que la categoría cambió cada vez que arranca el motor.
-      update: data,
-    });
+  for (const level of groupByLevel(expenseCategoryTree)) {
+    for (let offset = 0; offset < level.length; offset += SIEMBRA_SIMULTANEA) {
+      await Promise.all(
+        level
+          .slice(offset, offset + SIEMBRA_SIMULTANEA)
+          .map((seed) => upsertCategory(prisma, seed)),
+      );
+    }
   }
 
   for (const alias of semanticEntityAliasCatalog) {
@@ -153,4 +186,26 @@ export async function seedSemanticCatalog(
     categories: expenseCategoryTree.length,
     aliases: semanticEntityAliasCatalog.length,
   };
+}
+
+async function upsertCategory(prisma: PrismaClient, seed: SemanticCategorySeed): Promise<void> {
+  const data = {
+    name: seed.name,
+    description: seed.description,
+    parentCode: seed.parentCode,
+    positiveExamples: [...seed.positiveExamples],
+    counterExamples: [...seed.counterExamples],
+    restrictions: [...seed.restrictions],
+    relatedCategoryCodes: [...seed.relatedCategoryCodes],
+    acceptanceThreshold: seed.acceptanceThreshold,
+    isActive: true,
+  };
+  await prisma.semanticCategory.upsert({
+    where: { tenantId_code: { tenantId: TENANT_ID, code: seed.code } },
+    create: { tenantId: TENANT_ID, code: seed.code, ...data },
+    // La versión NO se toca al actualizar: la sube quien cambie el significado de
+    // la categoría, no una reejecución de la semilla. Si subiera sola, la
+    // auditoría diría que la categoría cambió cada vez que arranca el motor.
+    update: data,
+  });
 }

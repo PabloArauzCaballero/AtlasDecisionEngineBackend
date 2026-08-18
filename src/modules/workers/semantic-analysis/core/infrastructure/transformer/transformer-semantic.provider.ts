@@ -38,12 +38,22 @@ export interface TransformerSemanticProviderOptions extends ClassifierThresholds
 
 const DEFAULT_MAX_EVIDENCE_LENGTH = 500;
 /**
- * Un catálogo de gastos sembrado ronda las 60 categorías, y en `DEEP` cada una
- * aporta su enunciado más sus ejemplos y contraejemplos: unas 400 sondas. Mil
- * caben de sobra, dejan sitio a un catálogo tres veces mayor y ocupan unos 3 MB
- * con vectores de 384 dimensiones.
+ * Tamaño de la caché de sondas, y la aritmética que lo fija.
+ *
+ * En `DEEP` cada categoría candidata aporta su enunciado más cada ejemplo y cada
+ * contraejemplo, así que el total de sondas del catálogo es la suma de las tres
+ * cosas. El árbol sembrado ronda hoy las 2.800 —164 categorías, unos 2.250
+ * ejemplos y 400 contraejemplos—, de modo que los 1.000 de antes ya no cabían: la
+ * caché LRU se vaciaba a sí misma y volvía a pedir vectores que acababa de
+ * calcular, que es el peor de los dos mundos —memoria ocupada y ninguna llamada
+ * ahorrada—.
+ *
+ * Cuatro mil cubren el catálogo entero con sitio para que siga creciendo, y son
+ * unos 12 MB con vectores de 384 dimensiones. **Al ampliar el catálogo hay que
+ * revisar este número**: si la suma de sondas lo supera, la caché deja de servir
+ * de golpe y no hay ninguna señal que lo diga salvo la latencia.
  */
-const DEFAULT_PROBE_CACHE_SIZE = 1_000;
+const DEFAULT_PROBE_CACHE_SIZE = 4_000;
 
 /**
  * Clasificador de texto sobre un transformer codificador.

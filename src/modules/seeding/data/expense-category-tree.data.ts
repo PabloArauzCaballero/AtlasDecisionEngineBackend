@@ -53,6 +53,10 @@
 
 import { bankDialectExamples } from './bank-dialect.data';
 import { bolivianMerchantExamples } from './bolivian-merchants.data';
+import { businessCategories } from './business-categories.data';
+import { financialCategories } from './financial-categories.data';
+import { glosaVocabularyExamples, glosaVocabularyExtraExamples } from './glosa-vocabulary.data';
+import { householdCategories } from './household-categories.data';
 import { statementCategories, statementVocabularyExamples } from './statement-vocabulary.data';
 
 export interface SemanticCategorySeed {
@@ -612,32 +616,40 @@ const curatedTree: readonly SemanticCategorySeed[] = [
   ),
   {
     code: 'GASTOS.TRANSPORTE.COMBUSTIBLE',
-    name: 'Combustible y vehículo',
-    description: 'Carburante, mantenimiento, seguro y trámites del vehículo propio.',
+    name: 'Combustible',
+    description: 'Carburante del vehículo propio: gasolina, diésel y gas natural vehicular.',
     parentCode: 'GASTOS.TRANSPORTE',
     /*
-     * El SOAT aparece dos veces, con sigla y desplegado, y hace falta.
+     * Esta hoja prometía «carburante, mantenimiento, seguro y trámites», y eran
+     * cuatro hechos distintos con un mismo vector: el promedio de los cuatro no
+     * describe bien a ninguno, y el informe no podía separar lo que se va en
+     * gasolina de lo que se va en el taller. El taller, el SOAT y la inspección
+     * técnica viven ahora en hojas propias —`TALLER`, `SEGURO`, `TRAMITES`— y
+     * aquí quedan como contraejemplo, que es lo que impide que vuelvan.
      *
-     * El normalizador SUSTITUYE los alias del catálogo de entidades antes de
-     * medir, así que «PAGO SEGURO OBLIGATORIO SOAT» llega aquí como «PAGO SEGURO
-     * OBLIGATORIO Seguro Obligatorio de Accidentes de Tránsito»: la sigla, que
-     * era la única palabra que ataba la línea a un vehículo, desaparece, y lo
-     * que queda se parece a cualquier prima de seguro. Medido: contra la forma
-     * desplegada el seguro genérico ganaba y el movimiento salía SIN DETERMINAR.
-     * El ejemplo desplegado es lo que el clasificador ve de verdad.
+     * El SOAT se movió CON su forma desplegada, y esa duplicación no es un
+     * descuido: el normalizador sustituye los alias del catálogo de entidades
+     * antes de medir, así que «PAGO SEGURO OBLIGATORIO SOAT» llega al
+     * clasificador como «PAGO SEGURO OBLIGATORIO Seguro Obligatorio de
+     * Accidentes de Tránsito». La sigla —la única palabra que ataba la línea a
+     * un vehículo— desaparece, y sin el ejemplo desplegado el seguro genérico
+     * gana y el movimiento sale SIN DETERMINAR.
      */
-    positiveExamples: [
-      'COMPRA GASOLINA SURTIDOR',
-      'CARGA DE COMBUSTIBLE',
+    positiveExamples: ['COMPRA GASOLINA SURTIDOR', 'CARGA DE COMBUSTIBLE'],
+    counterExamples: [
+      'PAGO VIAJE EN TAXI',
+      'RECARGA TARJETA TRANSPORTE PUBLICO',
       'PAGO MANTENIMIENTO VEHICULO',
-      'PAGO CAMBIO DE ACEITE',
       'PAGO SEGURO OBLIGATORIO SOAT',
-      'PAGO SEGURO OBLIGATORIO DE ACCIDENTES DE TRANSITO',
       'PAGO INSPECCION TECNICA VEHICULAR',
     ],
-    counterExamples: ['PAGO VIAJE EN TAXI', 'RECARGA TARJETA TRANSPORTE PUBLICO'],
     restrictions: ['Requiere vehículo propio; un viaje pagado a un tercero no lo es.'],
-    relatedCategoryCodes: ['GASTOS.TRANSPORTE.PUBLICO'],
+    relatedCategoryCodes: [
+      'GASTOS.TRANSPORTE.PUBLICO',
+      'GASTOS.TRANSPORTE.TALLER',
+      'GASTOS.TRANSPORTE.SEGURO',
+      'GASTOS.TRANSPORTE.TRAMITES',
+    ],
     acceptanceThreshold: CORRIENTE,
   },
   {
@@ -701,19 +713,20 @@ const curatedTree: readonly SemanticCategorySeed[] = [
   {
     code: 'GASTOS.SALUD.ATENCION',
     name: 'Consultas y estudios',
-    description:
-      'Consultas médicas, odontología, laboratorio, estudios por imágenes y seguro de salud.',
+    description: 'Consultas médicas, odontología, laboratorio e internación.',
     parentCode: 'GASTOS.SALUD',
+    // La prima de un seguro de salud se pagaba aquí y no es lo mismo: una
+    // consulta se paga por atenderse y una prima por estar cubierto, esté uno
+    // sano o enfermo. Vive en `GASTOS.SALUD.SEGURO` y aquí queda de contraejemplo.
     positiveExamples: [
       'PAGO CONSULTA MEDICA',
       'PAGO LABORATORIO ANALISIS CLINICOS',
       'PAGO TRATAMIENTO ODONTOLOGICO',
-      'PAGO SEGURO DE SALUD',
       'PAGO CLINICA INTERNACION',
     ],
-    counterExamples: ['COMPRA EN FARMACIA', 'PAGO SEGURO OBLIGATORIO SOAT'],
+    counterExamples: ['COMPRA EN FARMACIA', 'PAGO SEGURO OBLIGATORIO SOAT', 'PAGO SEGURO DE SALUD'],
     restrictions: [],
-    relatedCategoryCodes: ['GASTOS.SALUD.FARMACIA'],
+    relatedCategoryCodes: ['GASTOS.SALUD.FARMACIA', 'GASTOS.SALUD.SEGURO'],
     acceptanceThreshold: CORRIENTE,
   },
 
@@ -1216,14 +1229,59 @@ const curatedTree: readonly SemanticCategorySeed[] = [
  */
 export const expenseCategoryTree: readonly SemanticCategorySeed[] = (() => {
   /*
-   * El árbol curado describe el gasto de una PERSONA. `statementCategories` añade
-   * lo que mueve un extracto empresarial —adquirencia, nómina pagada, insumos
-   * agrícolas, fondos en custodia—, que no tenía dónde caer: medido sobre 1.464
-   * movimientos reales, esas familias eran el grueso del 41 % sin clasificar.
+   * El árbol curado describe el gasto de una PERSONA. Los otros cuatro aportes
+   * cubren lo que esa mirada dejaba fuera, y cada uno responde a una carencia
+   * distinta y medida:
+   *
+   * - `statementCategories`: lo que mueve un extracto EMPRESARIAL —adquirencia,
+   *   nómina pagada, insumos agrícolas, fondos en custodia—. Sobre 1.464
+   *   movimientos reales, esas familias eran el grueso del 41 % sin clasificar.
+   * - `householdCategories`: los rubros del hogar y de la persona que ninguna
+   *   hoja nombraba —anticrético, taller, óptica, funeraria, membresías—.
+   * - `businessCategories`: la operación de una empresa más allá del proveedor
+   *   —local, publicidad, aduana, aportes laborales, obra, campo, minería—.
+   * - `financialCategories`: lo financiero que no es una cuota —ITF, garantías,
+   *   leasing, embargo— y el ingreso que espeja cada uno de esos hechos.
    */
-  const arbol = [...curatedTree, ...statementCategories];
+  const arbol = [
+    ...curatedTree,
+    ...statementCategories,
+    ...householdCategories,
+    ...businessCategories,
+    ...financialCategories,
+  ];
+
+  /*
+   * Un código repetido se DENUNCIA. La siembra es idempotente por `(tenant,
+   * code)`, así que dos entradas con el mismo código no fallarían: la segunda
+   * pisaría a la primera en silencio y el catálogo perdería una categoría entera
+   * sin que ninguna prueba lo notara. Con el árbol repartido en cinco archivos
+   * eso deja de ser hipotético.
+   */
+  const repetidos = arbol
+    .map((categoria) => categoria.code)
+    .filter((codigo, indice, todos) => todos.indexOf(codigo) !== indice);
+  if (repetidos.length > 0) {
+    throw new Error(
+      `Hay categorías declaradas dos veces en el árbol: ${[...new Set(repetidos)].join(', ')}.`,
+    );
+  }
+
+  /*
+   * Un código del dialecto que no exista en el árbol se DENUNCIA en vez de
+   * ignorarse. Una errata en un diccionario de vocabulario no tiene ninguna
+   * señal visible —los ejemplos simplemente no llegarían a ninguna hoja y la
+   * categoría clasificaría peor sin que nadie supiera por qué—, así que se rompe
+   * el arranque, que es la única forma de que se corrija.
+   */
   const codigos = new Set(arbol.map((categoria) => categoria.code));
-  const aportes = [bankDialectExamples, bolivianMerchantExamples, statementVocabularyExamples];
+  const aportes = [
+    bankDialectExamples,
+    bolivianMerchantExamples,
+    statementVocabularyExamples,
+    glosaVocabularyExamples,
+    glosaVocabularyExtraExamples,
+  ];
   const huerfanos = aportes
     .flatMap((aporte) => Object.keys(aporte))
     .filter((codigo) => !codigos.has(codigo));
@@ -1232,10 +1290,23 @@ export const expenseCategoryTree: readonly SemanticCategorySeed[] = (() => {
       `El dialecto bancario menciona categorías que no existen en el árbol: ${huerfanos.join(', ')}.`,
     );
   }
+
+  /*
+   * Los ejemplos se DEDUPLICAN al unirlos.
+   *
+   * Cuatro diccionarios escritos en momentos distintos repiten glosas sin
+   * quererlo, y una repetición no es inocua: en `DEEP` cada ejemplo es una sonda
+   * que se embebe y se compara, de modo que la copia cuesta lo mismo que el
+   * original y no aporta nada —el parecido con un texto y con su gemelo es el
+   * mismo número—. Con el catálogo ampliado eso eran decenas de sondas pagadas
+   * dos veces en cada clasificación.
+   */
   return arbol.map((categoria) => {
     const extra = aportes.flatMap((aporte) => aporte[categoria.code] ?? []);
-    return extra.length === 0
+    const positiveExamples = [...new Set([...categoria.positiveExamples, ...extra])];
+    return positiveExamples.length === categoria.positiveExamples.length &&
+      positiveExamples.every((ejemplo, indice) => ejemplo === categoria.positiveExamples[indice])
       ? categoria
-      : { ...categoria, positiveExamples: [...categoria.positiveExamples, ...extra] };
+      : { ...categoria, positiveExamples };
   });
 })();

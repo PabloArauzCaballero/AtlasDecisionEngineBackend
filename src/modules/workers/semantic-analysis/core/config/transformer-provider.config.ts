@@ -31,7 +31,22 @@ const environmentSchema = z.object({
   SEMANTIC_TRANSFORMER_QUERY_PREFIX: z.string().default('query: '),
   SEMANTIC_TRANSFORMER_PASSAGE_PREFIX: z.string().default('passage: '),
   SEMANTIC_TRANSFORMER_SIMILARITY_FLOOR: z.coerce.number().min(0).max(1).default(0.87),
-  SEMANTIC_TRANSFORMER_TEMPERATURE: z.coerce.number().min(0.001).max(1).default(0.01),
+  /**
+   * Temperatura del reparto de confianza, y BAJA al crecer el catálogo.
+   *
+   * No es una preferencia: con más hojas sembradas TODAS casan un poco mejor con
+   * cualquier glosa, el ganador se despega menos del pelotón y las hojas de
+   * umbral alto —tributos, financieros— dejan de alcanzarlo. Está medido en el
+   * `.env`: con 48 hojas y el vocabulario de comercios, a 0,01 la calibración
+   * caía a 20/21 y los siete extractos reales pasaban de 205 a 168 glosas
+   * clasificadas; a 0,005 volvía a 21/21.
+   *
+   * El árbol sembrado hoy es tres veces aquel, así que el valor por omisión es el
+   * medido como bueno y no el que aquella medición descartó. **Sigue pendiente
+   * volver a correr `scripts/semantic-calibration.mjs` sobre el catálogo actual**:
+   * lo más probable es que el óptimo esté todavía por debajo.
+   */
+  SEMANTIC_TRANSFORMER_TEMPERATURE: z.coerce.number().min(0.001).max(1).default(0.005),
   SEMANTIC_TRANSFORMER_CONTRADICTION_MARGIN: z.coerce.number().min(0).max(1).default(0.02),
   /**
    * Intentos ante un fallo pasajero del servidor de embeddings. `1` desactiva
@@ -43,8 +58,12 @@ const environmentSchema = z.object({
   /**
    * Sondas de catálogo cuyo vector se conserva en memoria. `0` desactiva la
    * caché y vuelve a calcular el catálogo entero en cada glosa.
+   *
+   * El valor por omisión se dimensiona sobre el catálogo sembrado —enunciados
+   * más ejemplos más contraejemplos— y hay que subirlo al ampliarlo: por debajo
+   * de esa suma la LRU expulsa vectores que va a volver a pedir.
    */
-  SEMANTIC_TRANSFORMER_PROBE_CACHE_SIZE: z.coerce.number().int().min(0).max(100_000).default(1_000),
+  SEMANTIC_TRANSFORMER_PROBE_CACHE_SIZE: z.coerce.number().int().min(0).max(100_000).default(4_000),
 });
 
 export interface TransformerProviderOptions {

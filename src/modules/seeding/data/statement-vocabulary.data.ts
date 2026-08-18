@@ -201,9 +201,10 @@ export const statementCategories: readonly SemanticCategorySeed[] = [
       'ALQUILER DE MAQUINARIA',
       'RENTA DE EQUIPO',
       'ARRIENDO MAQUINARIA PESADA',
-      'ALQUILER LOCAL COMERCIAL',
     ],
-    ['ALQUILER VIVIENDA', 'CUOTA HIPOTECA'],
+    // El alquiler del local estaba entre los ejemplos de esta hoja, que en su
+    // propia descripción dice que no lo es. Vive en `EMPRESARIALES.LOCAL`.
+    ['ALQUILER VIVIENDA', 'CUOTA HIPOTECA', 'ALQUILER LOCAL COMERCIAL'],
   ),
   hoja(
     'GASTOS.EMPRESARIALES.SUMINISTROS',

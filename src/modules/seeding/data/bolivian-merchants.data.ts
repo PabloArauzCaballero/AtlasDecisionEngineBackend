@@ -164,8 +164,9 @@ export const bolivianMerchantExamples: Readonly<Record<string, readonly string[]
     'PAGO CAJA PETROLERA DE SALUD',
     'PAGO LABORATORIO CLINICO',
     'PAGO CENTRO MEDICO',
-    'PAGO SEGURO DE SALUD PREPAGO',
   ],
+  // La prepaga no es una consulta: se paga esté uno sano o enfermo.
+  'GASTOS.SALUD.SEGURO': ['PAGO SEGURO DE SALUD PREPAGO'],
 
   // ==========================================================================
   // Vivienda: las empresas de servicio de cada ciudad son nombres propios que
@@ -216,8 +217,10 @@ export const bolivianMerchantExamples: Readonly<Record<string, readonly string[]
     'PAGO POS ESTACION DE SERVICIO',
     'PAGO POS SURTIDOR',
     'COMPRA COMBUSTIBLE ESTACION',
-    'PAGO POS LUBRICANTES Y SERVICIOS',
   ],
+  // El lubricentro es taller, no surtidor: cambió de hoja con el resto del
+  // mantenimiento del vehículo.
+  'GASTOS.TRANSPORTE.TALLER': ['PAGO POS LUBRICANTES Y SERVICIOS'],
   'GASTOS.TRANSPORTE.PUBLICO': [
     'DEBITO ACH QR YANGO',
     'DEBITO ACH QR TAXI',

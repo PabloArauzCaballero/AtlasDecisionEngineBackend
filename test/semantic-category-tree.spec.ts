@@ -6,6 +6,11 @@ import {
 import type { SemanticCategory } from '../src/modules/workers/semantic-analysis/core/domain/semantic-analysis.types';
 import { expenseCategoryTree } from '../src/modules/seeding/data/expense-category-tree.data';
 import { sortByDepth } from '../src/modules/seeding/data/semantic-catalog.data';
+import { LexicalCandidateRetriever } from '../src/modules/workers/semantic-analysis/core/application/lexical-candidate-retriever';
+import { loadTransformerProviderOptions } from '../src/modules/workers/semantic-analysis/core/config/transformer-provider.config';
+
+/** El mismo `SEMANTIC_ANALYSIS_CANDIDATE_LIMIT` que usa el pipeline por omisión. */
+const CANDIDATOS_POR_GLOSA = 8;
 
 /**
  * El árbol de categorías, por los dos lados que puede romperse.
@@ -186,5 +191,132 @@ describe('catálogo sembrado de gastos e ingresos', () => {
   it('describe las dos direcciones del dinero', () => {
     expect(porCodigo.has('INGRESOS')).toBe(true);
     expect(porCodigo.has('GASTOS')).toBe(true);
+  });
+
+  /**
+   * El árbol se declara en cinco archivos, y la siembra es idempotente por
+   * `(tenant, code)`: dos entradas con el mismo código no fallarían al sembrar,
+   * la segunda pisaría a la primera en silencio y el catálogo perdería una
+   * categoría entera sin que nada lo dijera.
+   */
+  it('ningún código se declara dos veces', () => {
+    const codigos = expenseCategoryTree.map((seed) => seed.code);
+
+    expect(codigos).toHaveLength(new Set(codigos).size);
+  });
+
+  /**
+   * Una glosa en dos hojas es un empate provocado: las dos casan igual de bien,
+   * el reparto de confianza las deja a las dos por debajo de su umbral y un
+   * movimiento identificable sale SIN DETERMINAR. Es el fallo que el árbol ya
+   * documenta con `PAGO SERVICIOS`, y no se detecta leyendo un archivo porque
+   * las dos hojas suelen vivir en archivos distintos.
+   *
+   * Las dos excepciones vienen del dialecto observado y se dejan a propósito:
+   * son glosas que los bancos imprimen de verdad para las dos cosas, y quitarlas
+   * de una de las hojas perdería un caso real en vez de ganar precisión. La
+   * lista es explícita para que añadir una tercera sea una decisión y no un
+   * descuido.
+   */
+  it('una misma glosa no se reparte entre dos hojas', () => {
+    const CONVIVENCIAS_ACEPTADAS = new Set([
+      // Cabecera real del QR: el instrumento y el destino se escriben igual.
+      'DEBITO ACH QR',
+      // La papelería de la casa y la de la oficina se compran en el mismo sitio.
+      'COMPRA MATERIAL DE ESCRITORIO',
+    ]);
+    const porGlosa = new Map<string, Set<string>>();
+    for (const seed of expenseCategoryTree) {
+      for (const ejemplo of seed.positiveExamples) {
+        const clave = ejemplo.trim().toUpperCase();
+        const duenos = porGlosa.get(clave) ?? new Set<string>();
+        duenos.add(seed.code);
+        porGlosa.set(clave, duenos);
+      }
+    }
+
+    const compartidas = [...porGlosa]
+      .filter(([glosa, duenos]) => duenos.size > 1 && !CONVIVENCIAS_ACEPTADAS.has(glosa))
+      .map(([glosa, duenos]) => `${glosa} → ${[...duenos].join(', ')}`);
+
+    expect(compartidas).toEqual([]);
+  });
+
+  /**
+   * Ningún ejemplo se repite DENTRO de su propia hoja.
+   *
+   * En `DEEP` cada ejemplo es una sonda que se embebe y se compara, así que una
+   * copia cuesta lo mismo que el original y no aporta nada: el parecido con un
+   * texto y con su gemelo es el mismo número. El ensamblado del árbol deduplica
+   * al unir los cuatro diccionarios de vocabulario; esta prueba es lo que
+   * garantiza que siga haciéndolo.
+   */
+  it('ninguna hoja repite un ejemplo consigo misma', () => {
+    const conRepetidos = expenseCategoryTree
+      .filter((seed) => new Set(seed.positiveExamples).size !== seed.positiveExamples.length)
+      .map((seed) => seed.code);
+
+    expect(conRepetidos).toEqual([]);
+  });
+
+  /**
+   * Cada hoja se reconoce a sí misma por LÉXICO.
+   *
+   * Es la única propiedad del catálogo que se puede comprobar sin levantar el
+   * servidor de embeddings, y cubre el riesgo real de ampliarlo: una familia de
+   * hojas nuevas que se canibalizan entre sí. Si el propio ejemplo de una hoja
+   * no la trae de vuelta entre las candidatas, el modelo NUNCA llega a verla y
+   * la hoja es inalcanzable por muy bien escrita que esté.
+   *
+   * El listón no es del 100 % y no puede serlo: la puntuación léxica divide por
+   * el tamaño del vocabulario de la categoría, así que las hojas con muchísimos
+   * ejemplos —transferencias, con más de cincuenta— pierden contra otra que diga
+   * lo mismo con menos palabras. Esas se rescatan por vector, que es justamente
+   * lo que el recuperador híbrido añade. Lo que esta prueba impide es el
+   * derrumbe: que una ampliación deje a decenas de hojas fuera de su propio
+   * alcance.
+   */
+  it('los ejemplos de una hoja la recuperan a ella misma', () => {
+    const catalogo = expenseCategoryTree.map((seed) => ({
+      ...nodo(seed.code, seed.parentCode),
+      name: seed.name,
+      description: seed.description,
+      positiveExamples: [...seed.positiveExamples],
+      relatedCategoryCodes: [...seed.relatedCategoryCodes],
+    }));
+    const hojas = new Set(leavesOf(catalogo).map((categoria) => categoria.code));
+    const recuperador = new LexicalCandidateRetriever();
+
+    let probados = 0;
+    let perdidos = 0;
+    for (const categoria of catalogo) {
+      if (!hojas.has(categoria.code)) continue;
+      for (const ejemplo of categoria.positiveExamples) {
+        probados += 1;
+        const candidatas = recuperador.retrieveSync(ejemplo, catalogo, CANDIDATOS_POR_GLOSA);
+        if (!candidatas.some((c) => c.category.code === categoria.code)) perdidos += 1;
+      }
+    }
+
+    expect(probados).toBeGreaterThan(1_000);
+    expect(perdidos / probados).toBeLessThan(0.02);
+  });
+
+  /**
+   * El catálogo entero cabe en la caché de sondas.
+   *
+   * En `DEEP` cada categoría candidata aporta su enunciado más cada ejemplo y
+   * cada contraejemplo. Si la suma supera la caché, la LRU expulsa vectores que
+   * va a volver a pedir en la glosa siguiente y la caché deja de servir de
+   * golpe: memoria ocupada y ninguna llamada ahorrada. No hay ninguna señal que
+   * lo avise salvo la latencia, así que lo dice esta prueba.
+   */
+  it('cabe entero en la caché de sondas del adaptador', () => {
+    const sondas = expenseCategoryTree.reduce(
+      (total, seed) => total + 1 + seed.positiveExamples.length + seed.counterExamples.length,
+      0,
+    );
+
+    expect(sondas).toBeLessThanOrEqual(loadTransformerProviderOptions({}).probeCacheSize);
   });
 });
