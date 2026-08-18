@@ -65,11 +65,14 @@ jobs:
       - run: yarn lint
       - run: yarn typecheck
       - run: yarn build
+      # La base se migra ANTES de las pruebas: la batería incluye suites de integración que
+      # hablan con Postgres de verdad, y correrlas contra una base vacía no las convierte en
+      # unitarias — las convierte en 115 fallos de «la tabla no existe» que tapan los reales.
+      - run: yarn prisma:migrate
+      - run: yarn prisma:seed
       - run: yarn test:cov
       # Single source of truth for the audit threshold (package.json: yarn audit --level high).
       - run: yarn security:audit
-      - run: yarn prisma:migrate
-      - run: yarn prisma:seed
       # Con cobertura: los controladores y el cableado de módulos SOLO los ejercita esta
       # batería, así que medir únicamente la unitaria los dejaba al 10% y al 0% — no porque
       # nadie los ejecute, sino porque quien los ejecuta no se estaba midiendo.
