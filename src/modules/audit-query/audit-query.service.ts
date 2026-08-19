@@ -13,6 +13,7 @@ import {
   type AuditEventCriteria,
   type DecisionAuditReadPort,
 } from './ports/decision-audit-read.port';
+import { numeroDeConfig } from '../../common/config/config-coercion.util';
 
 /**
  * Consultas de auditoría: el módulo piloto de la separación read/write.
@@ -107,7 +108,7 @@ export class AuditQueryService {
     // evento en memoria. Una cadena de auditoría crece sin cota, así que leerla entera
     // agotaría la memoria en un tenant grande (y regalaría un DoS barato). Solo el
     // previousHash en curso y los contadores cruzan el límite de un lote.
-    const batchSize = this.config.get<number>('AUDIT_VERIFY_BATCH_SIZE') ?? 500;
+    const batchSize = numeroDeConfig(this.config, 'AUDIT_VERIFY_BATCH_SIZE', 500);
     let cursorId = 0n;
     let previousHash: string | null = null;
     let eventCount = 0;

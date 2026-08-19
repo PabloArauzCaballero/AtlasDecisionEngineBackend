@@ -1,5 +1,6 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { numeroDeConfig } from '../config/config-coercion.util';
 import { DomainException } from '../errors/domain-exception';
 import {
   identityPinChallengeSchema,
@@ -181,10 +182,10 @@ export class IdentityProviderClient {
      */
     const esLogin = path.startsWith('/internal/auth/login');
     const timeoutMs = esLogin
-      ? (this.config.get<number>('IDENTITY_PROVIDER_LOGIN_TIMEOUT_MS') ?? 12_000)
-      : (this.config.get<number>('IDENTITY_PROVIDER_TIMEOUT_MS') ?? 3_000);
-    const maxAttempts = (this.config.get<number>('IDENTITY_PROVIDER_RETRY_ATTEMPTS') ?? 2) + 1;
-    const backoffMs = this.config.get<number>('IDENTITY_PROVIDER_RETRY_BACKOFF_MS') ?? 300;
+      ? numeroDeConfig(this.config, 'IDENTITY_PROVIDER_LOGIN_TIMEOUT_MS', 12_000)
+      : numeroDeConfig(this.config, 'IDENTITY_PROVIDER_TIMEOUT_MS', 3_000);
+    const maxAttempts = numeroDeConfig(this.config, 'IDENTITY_PROVIDER_RETRY_ATTEMPTS', 2) + 1;
+    const backoffMs = numeroDeConfig(this.config, 'IDENTITY_PROVIDER_RETRY_BACKOFF_MS', 300);
 
     // Bodies are always strings (JSON.stringify) or absent, so `init` is safe to reuse across
     // attempts. Only transient failures retry — a rejected credential (401) surfaces immediately.

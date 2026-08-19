@@ -16,6 +16,7 @@ import {
   SPAN_NAMES,
 } from '../../common/observability/telemetry.constants';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { booleanoDeConfig, numeroDeConfig } from '../../common/config/config-coercion.util';
 
 /** An outbox row as returned by the raw claim query (snake_case, post-increment attempt). */
 interface ClaimedRow {
@@ -73,9 +74,9 @@ export class OutboxRelayService implements OnModuleInit, BackgroundJob {
     private readonly scheduler: JobSchedulerService,
     private readonly messagingTrace: MessagingTraceService,
   ) {
-    this.minIdleIntervalMs = config.get<number>('OUTBOX_RELAY_INTERVAL_MS') ?? 1_000;
+    this.minIdleIntervalMs = numeroDeConfig(config, 'OUTBOX_RELAY_INTERVAL_MS', 1_000);
     this.maxIdleIntervalMs = Math.max(
-      config.get<number>('OUTBOX_RELAY_MAX_INTERVAL_MS') ?? 30_000,
+      numeroDeConfig(config, 'OUTBOX_RELAY_MAX_INTERVAL_MS', 30_000),
       this.minIdleIntervalMs,
     );
   }
@@ -87,7 +88,7 @@ export class OutboxRelayService implements OnModuleInit, BackgroundJob {
       this.logger.log(`Outbox relay not started: WORKER_ROLE=${workerRoleOf(this.config)}`);
       return;
     }
-    if (!(this.config.get<boolean>('OUTBOX_RELAY_ENABLED') ?? true)) {
+    if (!booleanoDeConfig(this.config, 'OUTBOX_RELAY_ENABLED', true)) {
       this.logger.log('Outbox relay disabled by configuration');
       return;
     }
@@ -114,7 +115,7 @@ export class OutboxRelayService implements OnModuleInit, BackgroundJob {
    * un gauge que Prometheus raspa cada 15 s. La medida costaba más que lo medido.
    */
   private async sampleBacklog(): Promise<void> {
-    const intervalMs = this.config.get<number>('OUTBOX_BACKLOG_SAMPLE_MS') ?? 30_000;
+    const intervalMs = numeroDeConfig(this.config, 'OUTBOX_BACKLOG_SAMPLE_MS', 30_000);
     const now = Date.now();
     if (now - this.lastBacklogSampleAt < intervalMs) return;
     this.lastBacklogSampleAt = now;
@@ -129,8 +130,8 @@ export class OutboxRelayService implements OnModuleInit, BackgroundJob {
    * timers.
    */
   async dispatchBatch(): Promise<number> {
-    const batchSize = this.config.get<number>('OUTBOX_BATCH_SIZE') ?? 25;
-    const leaseMs = this.config.get<number>('OUTBOX_LEASE_MS') ?? 30_000;
+    const batchSize = numeroDeConfig(this.config, 'OUTBOX_BATCH_SIZE', 25);
+    const leaseMs = numeroDeConfig(this.config, 'OUTBOX_LEASE_MS', 30_000);
     // La reclamación va DENTRO de `$transaction` aunque sea una sola sentencia, y esto no
     // es estilo: `decision_outbox_event` tiene RLS FORZADA, y `$queryRaw` suelto cae al
     // cliente base sin fijar `app.tenant_id` (ver `tenant-rls.ts` y la misma nota en
@@ -233,7 +234,7 @@ export class OutboxRelayService implements OnModuleInit, BackgroundJob {
 
   private async recordFailure(row: ClaimedRow, error: unknown): Promise<void> {
     const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
-    const maxAttempts = this.config.get<number>('OUTBOX_MAX_ATTEMPTS') ?? 8;
+    const maxAttempts = numeroDeConfig(this.config, 'OUTBOX_MAX_ATTEMPTS', 8);
     // attempt_count was already incremented by the claim, so it is the attempt just made.
     if (row.attempt_count >= maxAttempts) {
       await this.prisma.decisionOutboxEvent.update({
@@ -264,7 +265,7 @@ export class OutboxRelayService implements OnModuleInit, BackgroundJob {
 
   /** Exponential backoff seeded by the poll interval: 2x, 4x, 8x… capped at five minutes. */
   private backoffMs(attempt: number): number {
-    const base = this.config.get<number>('OUTBOX_RELAY_INTERVAL_MS') ?? 1_000;
+    const base = numeroDeConfig(this.config, 'OUTBOX_RELAY_INTERVAL_MS', 1_000);
     return Math.min(300_000, base * 2 ** Math.min(attempt, 8));
   }
 }
