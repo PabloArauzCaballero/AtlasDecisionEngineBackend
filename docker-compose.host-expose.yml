@@ -1,0 +1,20 @@
+# Solo desarrollo local. Dos cosas que el stack necesita en una maquina de escritorio:
+#
+#   1. Publicar la API en todas las interfaces. `docker-compose.yml` la ata a 127.0.0.1, que un
+#      contenedor de otro proyecto (AtlasBackend) no alcanza ni por host.docker.internal.
+#   2. Elegir proveedor de modelo LOCAL para el analisis semantico. La fabrica de proveedores se
+#      resuelve al construir el modulo, no al ejecutar el worker, asi que con el proveedor por
+#      omision (`openai`) la falta de `OPENAI_API_KEY` impide arrancar la API ENTERA — y el camino
+#      de decision, que es el que importa aqui, no usa analisis semantico para nada.
+#
+# Nunca usar fuera de local.
+services:
+  api:
+    ports: !override
+      - "0.0.0.0:${API_PORT:-3200}:3000"
+    environment:
+      SEMANTIC_MODEL_PROVIDER: ${SEMANTIC_MODEL_PROVIDER:-ollama}
+
+  worker:
+    environment:
+      SEMANTIC_MODEL_PROVIDER: ${SEMANTIC_MODEL_PROVIDER:-ollama}
