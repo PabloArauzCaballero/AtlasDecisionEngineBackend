@@ -52,6 +52,13 @@ export const identityPinChallengeSchema = z.object({
   expiresInMinutes: z.number(),
 });
 
+/**
+ * The provider's answer to a password-change request. Same shape as the login challenge, and
+ * deliberately so: the portal reuses one PIN screen for both instead of learning a second contract
+ * for the same thing.
+ */
+export const identityPasswordChangedSchema = z.object({ passwordChanged: z.literal(true) });
+
 /** The session ATLAS works with once the provider's cookie tokens have been recovered. */
 export const identitySessionSchema = identityProfileSchema.extend({
   accessToken: z.string().min(20),
@@ -63,6 +70,7 @@ export const identitySessionSchema = identityProfileSchema.extend({
 export type IdentityProfile = z.infer<typeof identityProfileSchema>;
 export type IdentitySession = z.infer<typeof identitySessionSchema>;
 export type IdentityPinChallenge = z.infer<typeof identityPinChallengeSchema>;
+export type IdentityPasswordChanged = z.infer<typeof identityPasswordChangedSchema>;
 
 export type PublicIdentitySession = Omit<IdentitySession, 'refreshToken'>;
 

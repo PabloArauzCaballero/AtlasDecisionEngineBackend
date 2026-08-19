@@ -41,6 +41,38 @@ export class IdentityLoginPinDto {
   pin!: string;
 }
 
+/**
+ * Password change for the signed-in actor, in the same two steps as the login's second factor.
+ *
+ * Neither step carries an email or a user id on purpose: who changes the password is decided by
+ * the bearer token, upstream. A body that named the account would make this a "change anyone's
+ * password" endpoint for whoever holds any valid token.
+ */
+export class IdentityPasswordChangeRequestDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(128)
+  currentPassword!: string;
+}
+
+export class IdentityPasswordChangeConfirmDto {
+  @IsString()
+  @MinLength(20)
+  @MaxLength(256)
+  challengeToken!: string;
+
+  @IsString()
+  @Matches(/^\d{6}$/)
+  code!: string;
+
+  // Ten characters is the provider's own floor; rejecting a shorter one here saves a round trip
+  // and keeps the two bounds from drifting apart silently.
+  @IsString()
+  @MinLength(10)
+  @MaxLength(128)
+  newPassword!: string;
+}
+
 export class IdentityLogoutDto {
   @IsOptional()
   @IsBoolean()

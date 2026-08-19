@@ -12,7 +12,13 @@ import {
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { Public } from '../../common/security/security.decorators';
-import { IdentityLoginDto, IdentityLoginPinDto, IdentityLogoutDto } from './identity-session.dto';
+import {
+  IdentityLoginDto,
+  IdentityLoginPinDto,
+  IdentityLogoutDto,
+  IdentityPasswordChangeConfirmDto,
+  IdentityPasswordChangeRequestDto,
+} from './identity-session.dto';
 import { LogoutResultDto } from './identity-session.response.dto';
 import { IdentitySessionService, isChallengeResult } from './identity-session.service';
 import { SessionCookieService } from './session-cookie.service';
@@ -61,6 +67,42 @@ export class IdentitySessionController {
     return result.session;
   }
 
+  /**
+   * Password change for the signed-in actor, proxied to the identity provider in two steps.
+   *
+   * The bearer token travels from the caller's header straight upstream: this portal never learns
+   * who is changing the password, which is what keeps the endpoint from becoming a way to change
+   * someone else's.
+   */
+  @Post('password/change/request')
+  @ApiOperation({ summary: 'Request the mailed code that confirms a password change' })
+  @HttpCode(HttpStatus.OK)
+  async requestPasswordChange(
+    @Headers('origin') origin: string | undefined,
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: IdentityPasswordChangeRequestDto,
+  ) {
+    this.origins.assertAllowed(origin);
+    return this.sessions.requestPasswordChange(bearerFrom(authorization), body.currentPassword);
+  }
+
+  @Post('password/change/confirm')
+  @ApiOperation({ summary: 'Confirm a password change with the mailed code' })
+  @HttpCode(HttpStatus.OK)
+  async confirmPasswordChange(
+    @Headers('origin') origin: string | undefined,
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: IdentityPasswordChangeConfirmDto,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    this.origins.assertAllowed(origin);
+    const result = await this.sessions.confirmPasswordChange(bearerFrom(authorization), body);
+    // The provider revokes every session of the actor on a successful change, this one included.
+    // Leaving the refresh cookie in place would only buy an unexplained 401 on the next call.
+    response.setHeader('set-cookie', this.cookies.clear());
+    return result;
+  }
+
   @Post('refresh')
   @ApiOperation({ summary: 'Rotate the provider session using the HttpOnly refresh cookie' })
   @HttpCode(HttpStatus.OK)
@@ -93,4 +135,10 @@ export class IdentitySessionController {
       response.setHeader('set-cookie', this.cookies.clear());
     }
   }
+}
+
+/** `Authorization: Bearer <token>` → `<token>`. Anything else is treated as no token at all. */
+function bearerFrom(header: string | undefined): string | undefined {
+  const match = /^Bearer\s+(.+)$/i.exec(header?.trim() ?? '');
+  return match?.[1];
 }

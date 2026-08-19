@@ -3,10 +3,13 @@ import { ConfigService } from '@nestjs/config';
 import { numeroDeConfig } from '../config/config-coercion.util';
 import { DomainException } from '../errors/domain-exception';
 import {
+  identityPasswordChangedSchema,
   identityPinChallengeSchema,
   identityProfileSchema,
   identityProviderSessionSchema,
   type IdentityLoginOutcome,
+  type IdentityPasswordChanged,
+  type IdentityPinChallenge,
   type IdentityProfile,
   type IdentitySession,
 } from './identity-provider.contract';
@@ -75,6 +78,77 @@ export class IdentityProviderClient {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ refreshToken, allDevices }),
     });
+  }
+
+  /**
+   * First step of a password change for the signed-in actor: the provider checks the current
+   * password and mails a code, answering with the same challenge shape as the login.
+   *
+   * No tenant header, for the same reason as `verifyLoginPin`: the actor comes from the bearer
+   * token, and letting the caller assert a tenant it has not authenticated against is exactly the
+   * hole `TenantGuard` exists to close.
+   */
+  async requestPasswordChange(
+    accessToken: string,
+    currentPassword: string,
+  ): Promise<IdentityPinChallenge> {
+    const payload = await this.request('/auth/password/change/request', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+        accept: 'application/json',
+      },
+      body: JSON.stringify({ currentPassword }),
+    });
+    return this.parseOrBadGateway(
+      identityPinChallengeSchema,
+      payload,
+      'a password-change challenge',
+    );
+  }
+
+  /** Second step: the challenge token and the mailed code, exchanged for the new password. */
+  async confirmPasswordChange(
+    accessToken: string,
+    body: { challengeToken: string; code: string; newPassword: string },
+  ): Promise<IdentityPasswordChanged> {
+    const payload = await this.request('/auth/password/change/confirm', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+        accept: 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+    return this.parseOrBadGateway(
+      identityPasswordChangedSchema,
+      payload,
+      'a password-change confirmation',
+    );
+  }
+
+  /**
+   * A provider reply that does not match the contract is a 502, never a 401.
+   *
+   * Reporting it as "invalid credentials" is how a provider-side contract drift turns into a
+   * support queue full of operators certain their password works — because it does.
+   */
+  private parseOrBadGateway<T>(
+    schema: { safeParse: (value: unknown) => { success: boolean; data?: T } },
+    payload: unknown,
+    what: string,
+  ): T {
+    const parsed = schema.safeParse(payload);
+    if (!parsed.success || parsed.data === undefined) {
+      throw new DomainException(
+        'IDENTITY_PROVIDER_INVALID_RESPONSE',
+        `Identity provider did not return ${what} matching the expected contract`,
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
+    return parsed.data;
   }
 
   async profile(accessToken: string): Promise<IdentityProfile> {

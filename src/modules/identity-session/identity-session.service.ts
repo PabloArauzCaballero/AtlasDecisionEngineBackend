@@ -4,11 +4,16 @@ import { DomainException } from '../../common/errors/domain-exception';
 import { IdentityProviderClient } from '../../common/security/identity-provider.client';
 import {
   isPinChallenge,
+  type IdentityPasswordChanged,
   type IdentityPinChallenge,
   type IdentitySession,
   type PublicIdentitySession,
 } from '../../common/security/identity-provider.contract';
-import type { IdentityLoginDto, IdentityLoginPinDto } from './identity-session.dto';
+import type {
+  IdentityLoginDto,
+  IdentityLoginPinDto,
+  IdentityPasswordChangeConfirmDto,
+} from './identity-session.dto';
 
 export type SessionResult = { session: PublicIdentitySession; refreshToken: string };
 export type LoginResult = SessionResult | { challenge: IdentityPinChallenge };
@@ -41,6 +46,36 @@ export class IdentitySessionService {
   async refresh(refreshToken: string | undefined): Promise<SessionResult> {
     if (!refreshToken) throw this.unauthorized();
     return this.toResult(await this.identityProvider.refresh(refreshToken));
+  }
+
+  /**
+   * Password change, step one. The access token comes from the caller's `Authorization` header and
+   * is forwarded untouched: this service never holds a credential of its own for the actor.
+   */
+  async requestPasswordChange(
+    accessToken: string | undefined,
+    currentPassword: string,
+  ): Promise<IdentityPinChallenge> {
+    return this.identityProvider.requestPasswordChange(
+      this.requireAccessToken(accessToken),
+      currentPassword,
+    );
+  }
+
+  async confirmPasswordChange(
+    accessToken: string | undefined,
+    input: IdentityPasswordChangeConfirmDto,
+  ): Promise<IdentityPasswordChanged> {
+    return this.identityProvider.confirmPasswordChange(this.requireAccessToken(accessToken), {
+      challengeToken: input.challengeToken,
+      code: input.code,
+      newPassword: input.newPassword,
+    });
+  }
+
+  private requireAccessToken(accessToken: string | undefined): string {
+    if (!accessToken) throw this.unauthorized();
+    return accessToken;
   }
 
   async logout(refreshToken: string | undefined, allDevices: boolean): Promise<void> {
