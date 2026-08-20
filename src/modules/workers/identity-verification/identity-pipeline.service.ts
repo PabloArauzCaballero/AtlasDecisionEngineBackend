@@ -5,6 +5,7 @@ import { identityErrors } from './core/domain/identity-domain.error';
 import type { ExtractedIdentityData } from './core/domain/extracted-identity.types';
 import { ImageQualityAssessmentService } from './core/image-quality-assessment.service';
 import {
+  IDENTITY_ARBITRATION_PORT,
   IDENTITY_CLASSIFIER_PORT,
   IDENTITY_FACE_DETECTOR_PORT,
   IDENTITY_FACE_MATCH_PORT,
@@ -15,6 +16,8 @@ import {
   type IdentityOptions,
 } from './core/identity-options';
 import { DocumentParserRegistry } from './core/parsers/document-parser.registry';
+import { medirEvidenciaDeIdentidad } from './core/engine/identity-evidence';
+import { triageIdentityDocument, type IdentityGateOutcome } from './core/engine/identity-triage';
 import { mrzDiagnostics } from './core/parsers/mrz-td1';
 import { isoDateToUtcDate } from './core/parsers/spanish-date';
 import type { DocumentParser } from './core/parsers/document-parser';
@@ -29,6 +32,7 @@ import type {
   FaceDetectorPort,
   FaceMatchPort,
   FaceMatchResult,
+  IdentityArbitrationPort,
   ImageNormalizerPort,
   LivenessPort,
   LivenessResult,
@@ -81,6 +85,20 @@ export interface IdentityPipelineInput {
    * de vida, que sobre una imagen fabricada no tiene nada que medir.
    */
   readonly entradaGenerada?: boolean;
+  /**
+   * El tipo de documento que YA decidió un árbitro, si alguien lo decidió.
+   *
+   * Es lo que cierra el bucle. Un caso derivado a la cola vuelve al worker
+   * cuando una persona confirma qué documento es, y sin este dato la puerta
+   * volvería a dudar exactamente igual y a devolverlo a la misma cola por el
+   * mismo motivo, para siempre. Con él, la puerta no pregunta: la respuesta ya
+   * está dada, se anota en las marcas de riesgo —`DOCUMENT_ARBITRATED`, para que
+   * el veredicto final diga que hubo una mano humana— y el camino sigue.
+   *
+   * Lo pone el SERVICIO de fondo leyendo la fila resuelta, nunca quien sube un
+   * archivo: es una decisión de un rol autorizado, no un parámetro de entrada.
+   */
+  readonly arbitratedDocumentType?: IdentityDocumentType | null;
   /** Se invoca al terminar cada etapa, con el avance en tanto por ciento. */
   readonly onProgress?: (progress: number) => Promise<void>;
 }
@@ -113,6 +131,8 @@ export class IdentityPipelineService {
     @Inject(IDENTITY_FACE_DETECTOR_PORT) private readonly faces: FaceDetectorPort,
     @Inject(IDENTITY_FACE_MATCH_PORT) private readonly faceMatch: FaceMatchPort,
     @Inject(IDENTITY_LIVENESS_PORT) private readonly liveness: LivenessPort,
+    @Inject(IDENTITY_ARBITRATION_PORT)
+    private readonly arbitration: IdentityArbitrationPort,
     private readonly parsers: DocumentParserRegistry,
     private readonly quality: ImageQualityAssessmentService,
   ) {}
@@ -253,15 +273,128 @@ export class IdentityPipelineService {
      * una imagen grande y bien expuesta lo supera por muy plana que esté: como
      * instrumento para explicar un fallo no sirve.
      */
-    if (classification.type === IdentityDocumentType.UNKNOWN) {
-      if (documentQuality.warnings.some((aviso) => DEFECTOS_DECISIVOS.includes(aviso))) {
+    /*
+     * LA PUERTA. Tres desenlaces donde antes había uno.
+     *
+     * Lo que cambió no es el rigor —una foto de un gato se sigue rechazando—
+     * sino a QUIÉN se le dice qué. Antes toda imagen sin tipo reconocible salía
+     * por `IDENTITY_DOCUMENT_UNSUPPORTED`, de modo que la cédula fotografiada de
+     * noche y el recibo del supermercado recibían la misma respuesta y el mismo
+     * desenlace. Ahora se mide la EVIDENCIA de que haya un documento de
+     * identidad —independiente de cuál sea— y esa medida separa las tres cosas:
+     * lo que se rechaza, lo que se pregunta y lo que sigue.
+     *
+     * El defecto de captura conserva su prioridad sobre todo lo demás: si la
+     * medición señala un problema real —oscura, quemada, movida— se contesta
+     * eso, porque se arregla repitiendo la foto y es la única respuesta que
+     * desbloquea a quien está delante del móvil.
+     */
+    const evidencia = medirEvidenciaDeIdentidad({
+      texto: `${front.rawText}\n${back?.rawText ?? ''}`,
+      anchoLargo: Math.max(document.quality.width, document.quality.height),
+      ladoCorto: Math.min(document.quality.width, document.quality.height),
+    });
+    /*
+     * Un documento ya arbitrado no vuelve a pasar por la puerta.
+     *
+     * Quien confirmó tenía delante la misma foto y más contexto del que la
+     * puerta puede medir —el expediente, el trámite, a veces la persona—, así
+     * que volver a preguntarle a un puntaje sería devolver el caso a la cola de
+     * la que acaba de salir. Queda constancia en las marcas de riesgo: el
+     * veredicto final tiene que poder decir que aquí hubo una mano humana.
+     */
+    if (input.arbitratedDocumentType != null) {
+      riskFlags.push('DOCUMENT_ARBITRATED');
+    }
+    const puerta: IdentityGateOutcome =
+      input.arbitratedDocumentType != null
+        ? { verdict: 'ACCEPT', documentType: input.arbitratedDocumentType }
+        : triageIdentityDocument({
+            evidence: evidencia,
+            documentType: classification.type,
+            acceptedTypes: this.options.acceptedDocumentTypes,
+            thresholds: {
+              accept: this.options.documentAcceptConfidence,
+              review: this.options.documentReviewConfidence,
+            },
+          });
+
+    if (puerta.verdict === 'REJECT') {
+      /*
+       * El aviso de calidad manda SÓLO cuando el rechazo fue por falta de
+       * evidencia. Si lo que se reconoció fue otro documento —o un tipo que este
+       * flujo no admite— la foto está perfectamente bien y decirle a alguien que
+       * repita la captura le hace perder el intento siguiente sin arreglar nada.
+       */
+      if (
+        puerta.reason !== 'UNSUPPORTED_DOCUMENT_TYPE' &&
+        evidencia.contraindicator === null &&
+        documentQuality.warnings.some((aviso) => DEFECTOS_DECISIVOS.includes(aviso))
+      ) {
         throw identityErrors.blurryDocument(documentQuality.warnings);
       }
-      throw identityErrors.unsupportedDocument(describeUnreadable(ocr));
+      if (puerta.reason === 'UNSUPPORTED_DOCUMENT_TYPE') {
+        throw identityErrors.documentTypeNotAccepted(puerta.detail);
+      }
+      throw identityErrors.notAnIdentityDocument(
+        `${puerta.detail} ${describeUnreadable(ocr)}`.trim(),
+        puerta.reason,
+      );
     }
 
-    const parser = this.parsers.resolve({ type: classification.type, country });
-    const parsed = await parser.parse({ ocr, context: { type: classification.type, country } });
+    if (puerta.verdict === 'REVIEW') {
+      /*
+       * La franja de duda, y el ÚNICO sitio del worker que delega en alguien.
+       *
+       * Se corta ANTES de la biometría a propósito: comparar rostros es la parte
+       * cara, y no hay nada que comparar contra un documento del que todavía no
+       * se sabe si lo es. Quien conteste —persona hoy, modelo mañana— decide eso
+       * primero; si acepta, el caso se relanza y recorre el camino completo.
+       */
+      const veredicto = await this.arbitration.arbitrate({
+        correlationId: input.correlationId,
+        reason: puerta.reason,
+        detail: puerta.detail,
+        documentType: classification.type,
+        evidenceConfidence: evidencia.confidence,
+        signals: evidencia.signals,
+      });
+
+      if (veredicto.outcome === 'REJECT_DOCUMENT') {
+        throw identityErrors.notAnIdentityDocument(
+          veredicto.rationale,
+          'NOT_AN_IDENTITY_DOCUMENT',
+        );
+      }
+      /*
+       * Aceptar sin poder nombrar el tipo no es aceptar: sin tipo no hay
+       * analizador, y seguir adelante significaría leer una cédula con el
+       * analizador equivocado. Se vuelve a la cola con el mismo motivo, que es
+       * la respuesta honesta —«sí es un documento, pero sigo sin saber cuál»—.
+       */
+      if (
+        veredicto.outcome !== 'ACCEPT_DOCUMENT' ||
+        classification.type === IdentityDocumentType.UNKNOWN
+      ) {
+        throw identityErrors.arbitrationPending(
+          veredicto.rationale,
+          puerta.reason,
+          this.options.arbitrationMode,
+        );
+      }
+    }
+
+    /*
+     * El tipo que manda es el de la PUERTA, no el del clasificador.
+     *
+     * Coinciden siempre salvo en un caso, y es justo el que importa: cuando una
+     * persona arbitró, ella dijo qué documento es y el clasificador seguía sin
+     * saberlo. Leer aquí `classification.type` habría elegido el analizador
+     * genérico para una cédula que alguien acababa de identificar.
+     */
+    const tipoResuelto = puerta.verdict === 'ACCEPT' ? puerta.documentType : classification.type;
+    const parser = this.parsers.resolve({ type: tipoResuelto, country });
+    const parsed = await parser.parse({ ocr, context: { type: tipoResuelto, country } });
     if (back) this.assertSidesAgree(parser, front, back, parsed.warnings);
     riskFlags.push(...parsed.warnings);
     await input.onProgress?.(40);
@@ -421,11 +554,16 @@ export class IdentityPipelineService {
       reasonCodes: decision.reasonCodes,
       calibratedFaceDecision: decision.calibratedFaceDecision,
       thresholdProfileVersion: this.options.thresholdProfileVersion,
-      documentType: classification.type,
+      documentType: tipoResuelto,
       documentCountry: country,
       classification: {
         confidence: classification.confidence,
         signals: classification.signals,
+      },
+      documentEvidence: {
+        confidence: evidencia.confidence,
+        signals: [...evidencia.signals],
+        contraindicator: evidencia.contraindicator,
       },
       // El número de documento va enmascarado también aquí, no sólo en la
       // pantalla: lo que se guarda en la fila es este objeto, y una consola de

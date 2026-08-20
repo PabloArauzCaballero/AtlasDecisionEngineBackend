@@ -21,6 +21,18 @@ export interface IdentityVerificationOutcome {
   documentCountry: string;
   classification: { confidence: number; signals: string[] };
 
+  /**
+   * Cuánta evidencia había de que la imagen fuera un documento de identidad.
+   *
+   * Es una medida DISTINTA de `classification.confidence`, y separarlas es lo
+   * que permitió dejar de contestar lo mismo a dos casos que no se parecen:
+   * `classification` dice cuál de los documentos conocidos es —o que no se supo—
+   * y esto dice si siquiera hay un documento delante. Con una sola confianza,
+   * «es claramente una cédula, no sé de qué país» y «esto es un recibo» se leían
+   * igual, y los dos se rechazaban con la misma frase.
+   */
+  documentEvidence: { confidence: number; signals: string[]; contraindicator: string | null };
+
   /** Campos leídos del documento, con el número ya enmascarado. */
   fields: ExtractedIdentityData;
 

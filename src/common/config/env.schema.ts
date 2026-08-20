@@ -305,6 +305,13 @@ export const envSchema = z
     // reintentar sin cota convierte un fallo permanente en gasto perpetuo.
     SEMANTIC_ANALYSIS_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(3),
     SEMANTIC_ANALYSIS_MAX_TEXT_LENGTH: z.coerce.number().int().min(100).max(100_000).default(8_000),
+
+    /*
+     * Las dos garantías de que una glosa no se quede sin categoría. Encendidas
+     * por defecto; se apagan sólo para medir al modelo por su cuenta.
+     */
+    SEMANTIC_ANALYSIS_RULE_FAST_PATH_ENABLED: booleanFromString.default(true),
+    SEMANTIC_ANALYSIS_TIMEOUT_RESCUE_ENABLED: booleanFromString.default(true),
     // Vacío ⇒ el worker NO se registra, y lo dice en el log. Es preferible a
     // arrancar y fallar en cada job por falta de credenciales.
     SEMANTIC_ANALYSIS_PROVIDER: z.enum(['', 'openai', 'transformer']).default(''),
@@ -380,6 +387,15 @@ export const envSchema = z
     // corta el job, no el proceso.
     BANK_STATEMENT_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(600_000).default(60_000),
     /*
+     * Techo de una verificación de identidad invocada DESDE UN NODO de decisión.
+     *
+     * Holgado a propósito: el worker lee el documento, detecta dos rostros y los
+     * compara, todo en el mismo proceso. Un tope corto convertiría un teléfono
+     * lento en un rechazo. No gobierna la cola —esa tiene su propio lease
+     * (`IDENTITY_LEASE_SECONDS`)—, sólo la llamada en línea.
+     */
+    IDENTITY_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(600_000).default(90_000),
+    /*
      * Las TRES fronteras del triage, configurables porque son lo primero que hay
      * que recalibrar con documentos reales y hacerlo no puede exigir recompilar.
      * Están aquí y no en un componente del portal a propósito: una regla de
@@ -447,6 +463,27 @@ export const envSchema = z
       .max(52_428_800)
       .default(10_485_760),
     IDENTITY_DEFAULT_DOCUMENT_COUNTRY: z.string().length(2).default('BO'),
+
+    /*
+     * La puerta de documentos del worker de identidad.
+     *
+     * `IDENTITY_ACCEPTED_DOCUMENT_TYPES` es la lista, separada por comas, de lo
+     * que este despliegue admite. Por omisión sólo el carnet boliviano: es el
+     * único con analizador verificado, y abrir la puerta a un pasaporte sin su
+     * analizador no lo verifica mejor, sólo lo acepta peor.
+     *
+     * Las dos confianzas separan rechazar de preguntar. Se recalibran con
+     * documentos reales y son lo primero que hay que mover al abrir el flujo a
+     * otro país.
+     *
+     * `IDENTITY_ARBITRATION_MODE` elige QUIÉN resuelve la franja de duda. Hoy
+     * `HUMAN`, que la manda a la bandeja del portal; `AI` queda declarado para
+     * que enchufar un modelo sea cambiar esta variable.
+     */
+    IDENTITY_ACCEPTED_DOCUMENT_TYPES: z.string().default('BOLIVIA_CI'),
+    IDENTITY_DOCUMENT_ACCEPT_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.55),
+    IDENTITY_DOCUMENT_REVIEW_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.25),
+    IDENTITY_ARBITRATION_MODE: z.enum(['HUMAN', 'AI']).default('HUMAN'),
     /*
      * Umbrales de la comparación biométrica. **Sin valor por omisión y
      * acoplados**: o se configuran los dos, o el motor de decisión devuelve

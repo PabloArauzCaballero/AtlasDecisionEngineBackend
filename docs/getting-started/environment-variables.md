@@ -3,7 +3,7 @@
 
 # Variables de entorno
 
-251 variables declaradas. El esquema se valida al arrancar: un valor ausente o
+258 variables declaradas. El esquema se valida al arrancar: un valor ausente o
 fuera de rango impide el arranque en vez de degradar el comportamiento en caliente.
 
 | Variable | Obligatoria | Valor por defecto | Para qué |
@@ -116,6 +116,8 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `SEMANTIC_ANALYSIS_LEASE_SECONDS` | no | `120` | — |
 | `SEMANTIC_ANALYSIS_MAX_ATTEMPTS` | no | `3` | Agotados los intentos la ejecución queda FAILED en vez de volver a la cola: reintentar sin cota convierte un fallo permanente en gasto perpetuo. |
 | `SEMANTIC_ANALYSIS_MAX_TEXT_LENGTH` | no | `8_000` | — |
+| `SEMANTIC_ANALYSIS_RULE_FAST_PATH_ENABLED` | no | `true` | — |
+| `SEMANTIC_ANALYSIS_TIMEOUT_RESCUE_ENABLED` | no | `true` | — |
 | `SEMANTIC_ANALYSIS_PROVIDER` | no | `''` | Vacío ⇒ el worker NO se registra, y lo dice en el log. Es preferible a arrancar y fallar en cada job por falta de credenciales. |
 | `SEMANTIC_ALLOW_INTERNATIONAL_TRANSFER` | no | `false` | — |
 | `SEMANTIC_ANALYSIS_BUDGET_WINDOW_SECONDS` | **sí** | — | — |
@@ -132,6 +134,7 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `BANK_STATEMENT_MAX_ATTEMPTS` | no | `3` | — |
 | `BANK_STATEMENT_MAX_UPLOAD_BYTES` | **sí** | — | 10 MiB. Acota a la vez la memoria del worker y el tamaño de la fila, porque el documento se guarda en la propia base (ADR-0026). |
 | `BANK_STATEMENT_TIMEOUT_MS` | no | `60_000` | Un PDF hostil puede hacer trabajar al lector indefinidamente. El presupuesto corta el job, no el proceso. |
+| `IDENTITY_TIMEOUT_MS` | no | `90_000` | — |
 | `BANK_STATEMENT_DOCUMENT_ACCEPT_CONFIDENCE` | no | `0.55` | — |
 | `BANK_STATEMENT_DOCUMENT_REVIEW_CONFIDENCE` | no | `0.3` | — |
 | `BANK_STATEMENT_REVIEW_EXTRACTION_CONFIDENCE` | no | `0.5` | — |
@@ -146,6 +149,10 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `IDENTITY_MAX_ATTEMPTS` | no | `3` | — |
 | `IDENTITY_MAX_UPLOAD_BYTES` | **sí** | — | Por IMAGEN, no por petición: 10 MiB es lo que pesa una foto de un móvil moderno sin recortar. |
 | `IDENTITY_DEFAULT_DOCUMENT_COUNTRY` | no | `'BO'` | — |
+| `IDENTITY_ACCEPTED_DOCUMENT_TYPES` | no | `'BOLIVIA_CI'` | — |
+| `IDENTITY_DOCUMENT_ACCEPT_CONFIDENCE` | no | `0.55` | — |
+| `IDENTITY_DOCUMENT_REVIEW_CONFIDENCE` | no | `0.25` | — |
+| `IDENTITY_ARBITRATION_MODE` | no | `'HUMAN'` | — |
 | `IDENTITY_MATCH_THRESHOLD` | no | — | — |
 | `IDENTITY_REVIEW_THRESHOLD` | no | — | — |
 | `IDENTITY_THRESHOLD_PROFILE_VERSION` | no | `'unconfigured'` | — |

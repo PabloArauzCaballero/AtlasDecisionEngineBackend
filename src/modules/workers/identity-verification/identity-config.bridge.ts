@@ -1,6 +1,8 @@
 import { Logger } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
 import { IDENTITY_DEFAULTS, type IdentityOptions } from './core/identity-options';
+import { parsearTiposAceptados } from './core/engine/identity-evidence';
+import { normalizeIdentityThresholds } from './core/engine/identity-triage';
 
 const logger = new Logger('IdentityWorkerConfig');
 
@@ -94,6 +96,34 @@ export function buildIdentityOptions(config: ConfigService): IdentityOptions {
     livenessProvider: flag('IDENTITY_LIVENESS_ENABLED', IDENTITY_DEFAULTS.livenessEnabled)
       ? text('IDENTITY_LIVENESS_PROVIDER', IDENTITY_DEFAULTS.livenessProvider)
       : 'disabled',
+    /*
+     * La puerta de documentos, entera, por entorno.
+     *
+     * Los tres ajustes son lo primero que hay que mover al abrir el flujo a otro
+     * país o a otro tipo de documento, y ninguno debería exigir un despliegue de
+     * código: los umbrales se recalibran con documentos reales y la lista de
+     * tipos es política del producto, no del motor.
+     */
+    acceptedDocumentTypes: parsearTiposAceptados(
+      config.get<string>('IDENTITY_ACCEPTED_DOCUMENT_TYPES'),
+    ),
+    ...(() => {
+      // Se saneia el par junto: con `review > accept` la franja de duda quedaría
+      // vacía y todo documento dudoso se rechazaría en silencio, que es justo el
+      // fallo que la puerta existe para impedir.
+      const umbrales = normalizeIdentityThresholds({
+        accept: number('IDENTITY_DOCUMENT_ACCEPT_CONFIDENCE', IDENTITY_DEFAULTS.documentAcceptConfidence),
+        review: number('IDENTITY_DOCUMENT_REVIEW_CONFIDENCE', IDENTITY_DEFAULTS.documentReviewConfidence),
+      });
+      return {
+        documentAcceptConfidence: umbrales.accept,
+        documentReviewConfidence: umbrales.review,
+      };
+    })(),
+    arbitrationMode:
+      text('IDENTITY_ARBITRATION_MODE', IDENTITY_DEFAULTS.arbitrationMode).toUpperCase() === 'AI'
+        ? 'AI'
+        : 'HUMAN',
     maxUploadBytes: number('IDENTITY_MAX_UPLOAD_BYTES', IDENTITY_DEFAULTS.maxUploadBytes),
     defaultDocumentCountry: text(
       'IDENTITY_DEFAULT_DOCUMENT_COUNTRY',

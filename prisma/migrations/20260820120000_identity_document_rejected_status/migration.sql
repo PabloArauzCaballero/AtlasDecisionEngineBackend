@@ -1,0 +1,26 @@
+-- Un estado terminal para «esto no es un documento de identidad».
+--
+-- Va en su PROPIA migración porque PostgreSQL prohíbe usar un valor de enum en
+-- la misma transacción que lo añade, y la migración siguiente lo NOMBRA en sus
+-- restricciones CHECK. Es la misma razón por la que
+-- `20260816090000_statement_review_status` existe separada de su triage.
+--
+-- Por qué hace falta un estado y no basta con `FAILED`:
+--
+-- El worker de identidad marcaba `FAILED` tanto la foto de un recibo como la
+-- caída del proveedor biométrico. En la columna de estado las dos se leen igual,
+-- y no son lo mismo ni de lejos: una es el motor ACERTANDO —reconoció que lo que
+-- le dieron no era un documento y se negó— y la otra es una avería. Mezcladas,
+-- la tasa de fallos del worker sube cada vez que alguien sube una foto
+-- equivocada, y quien mira el tablero aprende a ignorarla.
+--
+-- `DOCUMENT_REJECTED` es terminal y **nunca entra en la cola de revisión**: poner
+-- delante de una persona la foto de un paisaje le cuesta el mismo minuto que un
+-- caso real y no desbloquea a nadie, porque el trabajo que lo arregla sólo puede
+-- hacerlo quien subió la foto.
+--
+-- Reversión operacional: los valores de enum no se quitan en PostgreSQL sin
+-- recrear el tipo. Para revertir, dejar de escribirlo desde el código; las filas
+-- ya escritas siguen siendo legibles.
+
+ALTER TYPE "WorkerRunStatus" ADD VALUE IF NOT EXISTS 'DOCUMENT_REJECTED';

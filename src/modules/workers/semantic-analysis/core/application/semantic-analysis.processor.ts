@@ -129,11 +129,24 @@ export class SemanticAnalysisProcessor {
     request: SemanticAnalysisRequest,
     result: SemanticAnalysisResult,
   ): Promise<void> {
-    if (result.status !== 'UNKNOWN' && result.status !== 'AMBIGUOUS') return;
+    /*
+     * Se mira `requiresReview`, no el estado, y ese cambio es el que sostiene
+     * toda la política de «nunca sin categoría».
+     *
+     * El worker ya no publica `UNKNOWN`: una glosa que el modelo no resolvió
+     * sale con la categoría que sus reglas afirman —o con el cajón de su
+     * sentido— y con esta bandera puesta. Si el escalado siguiera filtrando por
+     * estado, el mismo día en que dejamos de abstenernos la bandeja se habría
+     * vaciado sin haber resuelto un solo caso más: los pendientes no habrían
+     * desaparecido, sólo se habrían vuelto invisibles.
+     */
+    if (!result.requiresReview) return;
+    const motivo = (result.reviewReason ?? MOTIVOS_DE_REVISION.LOW_CONFIDENCE) as MotivoDeRevision;
 
-    await this.escalar(request, MOTIVOS_DE_REVISION.LOW_CONFIDENCE, {
+    await this.escalar(request, motivo, {
       context: {
         status: result.status,
+        decidedBy: result.decidedBy,
         tierUsed: result.tierUsed,
         normalizedText: result.normalizedText,
         evaluatedCategoryCodes: result.evaluatedCategoryCodes,

@@ -11,8 +11,9 @@ import {
   MESSAGING_SYSTEM,
 } from '../../../common/observability/telemetry.constants';
 import { PrismaService } from '../../../common/prisma/prisma.service';
-import { IdentityDecision } from './core/domain/identity-enums';
+import { IdentityDecision, IdentityDocumentType } from './core/domain/identity-enums';
 import { IdentityDomainError } from './core/domain/identity-domain.error';
+import { outcomeForIdentityError, type IdentityRunOutcome } from './identity-outcome';
 import { IdentityPipelineService } from './identity-pipeline.service';
 
 /**
@@ -161,6 +162,12 @@ export class IdentityRunWorkerService implements OnModuleInit, OnModuleDestroy, 
           documentCountry: true,
           fixtureCode: true,
           correlationId: true,
+          // Las dos que dicen si este caso YA lo arbitró alguien. Se leen juntas
+          // a propósito: el tipo sin el resolutor sería el que proyectó una
+          // ejecución anterior, y saltarse la puerta por eso convertiría una
+          // clasificación automática en una confirmación humana.
+          reviewResolvedBy: true,
+          documentType: true,
         },
       });
       if (!run?.documentBytes || !run.selfieBytes) {
@@ -193,6 +200,12 @@ export class IdentityRunWorkerService implements OnModuleInit, OnModuleDestroy, 
         // Lo pone el SERVIDOR, a partir de que la ejecución naciera del catálogo
         // de escenarios. Quien sube archivos no puede activarlo.
         entradaGenerada: Boolean(run.fixtureCode),
+        // El veredicto de quien arbitró, si lo hubo. La puerta no vuelve a
+        // preguntar por un documento que una persona ya identificó.
+        arbitratedDocumentType:
+          run.reviewResolvedBy !== null && run.documentType !== null
+            ? (run.documentType as IdentityDocumentType)
+            : null,
         onProgress: (progress) => this.setProgress(runId, progress),
       });
 
@@ -215,6 +228,10 @@ export class IdentityRunWorkerService implements OnModuleInit, OnModuleDestroy, 
           warningsJson: warnings as unknown as Prisma.InputJsonValue,
           decision: outcome.decision,
           documentType: outcome.documentType,
+          // La evidencia se proyecta a columna para poder medir la puerta sin
+          // abrir el JSON de cada ejecución: es el número que dice si los
+          // umbrales están bien puestos.
+          documentTypeConfidence: outcome.documentEvidence.confidence,
           similarityScore: outcome.faceMatch?.similarityScore ?? null,
           finishedAt: new Date(),
           leaseExpiresAt: null,
@@ -241,6 +258,21 @@ export class IdentityRunWorkerService implements OnModuleInit, OnModuleDestroy, 
    * categoría la fija el núcleo absorbido, no una lista de códigos aquí.
    */
   private async recordFailure(runId: bigint, error: unknown): Promise<void> {
+    /*
+     * Antes que nada: ¿esto es un fallo, o es el worker acertando?
+     *
+     * Rechazar la foto de un recibo y derivar una cédula dudosa a una persona
+     * NO son averías, y marcarlas `FAILED` mezclaba «esto no es un documento»
+     * con «el proveedor biométrico se cayó» en la misma columna y en la misma
+     * métrica. La tasa de fallos del worker subía cada vez que alguien subía una
+     * foto equivocada, que es la forma más rápida de que nadie mire el tablero.
+     */
+    const desenlace = outcomeForIdentityError(error);
+    if (desenlace !== null) {
+      await this.closeWithOutcome(runId, error as IdentityDomainError, desenlace);
+      return;
+    }
+
     if (error instanceof IdentityDomainError && !error.retryable) {
       await this.failRun(runId, error.code, error.message);
       return;
@@ -275,6 +307,50 @@ export class IdentityRunWorkerService implements OnModuleInit, OnModuleDestroy, 
         progress: 0,
       },
     });
+  }
+
+  /**
+   * Cierra la ejecución en el estado que su desenlace dicta.
+   *
+   * Dos diferencias con `failRun`, y las dos importan:
+   *
+   * - **Un pendiente CONSERVA las imágenes.** La regla de privacidad —borrarlas
+   *   al cerrar— sigue intacta porque un caso en revisión no está cerrado: sin
+   *   ellas, la pestaña ofrecería «resolver» sobre una fila sin nada que mirar.
+   *   Un rechazo, en cambio, es terminal y las borra como cualquier veredicto.
+   * - **El mensaje se guarda en `errorMessage` también aquí.** Es lo que la
+   *   pantalla enseña a quien subió la foto, y es exactamente la instrucción que
+   *   necesita: «esto era un recibo» o «la cédula quedó a la espera de revisión».
+   */
+  private async closeWithOutcome(
+    runId: bigint,
+    error: IdentityDomainError,
+    outcome: IdentityRunOutcome,
+  ): Promise<void> {
+    const enRevision = outcome.status === WorkerRunStatus.PENDING_REVIEW;
+    await this.prisma.identityVerificationRun.updateMany({
+      where: { id: runId, status: WorkerRunStatus.RUNNING },
+      data: {
+        status: outcome.status,
+        errorCode: error.code,
+        errorMessage: error.message,
+        reviewReason: outcome.reviewReason,
+        rejectionReason: outcome.rejectionReason,
+        arbitrationMode: outcome.arbitrationMode,
+        reviewPriority: outcome.reviewPriority,
+        reviewOpenedAt: enRevision ? new Date() : null,
+        finishedAt: enRevision ? null : new Date(),
+        leaseExpiresAt: null,
+        ...(enRevision
+          ? {}
+          : { documentBytes: null, documentBackBytes: null, selfieBytes: null }),
+      },
+    });
+    this.logger.log(
+      `Verificación ${runId.toString()} cerrada como ${outcome.status}` +
+        `${outcome.reviewReason ? ` (${outcome.reviewReason})` : ''}` +
+        `${outcome.rejectionReason ? ` (${outcome.rejectionReason})` : ''}.`,
+    );
   }
 
   private async failRun(runId: bigint, code: string, message: string): Promise<void> {
