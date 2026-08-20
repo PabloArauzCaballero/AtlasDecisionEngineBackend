@@ -1,5 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
 import { atlasBackendCatalog } from './data/atlas-backend-catalog.data';
+import { seedAtlasUnderwritingArtifact } from './data/atlas-underwriting.seed';
 import { seedCalculatedFields } from './data/calculated-field-catalog.data';
 import { seedCollectionsDemoArtifact } from './data/collections-demo.seed';
 import { seedContractDemoArtifact } from './data/contract-demo.seed';
@@ -135,6 +136,8 @@ function dedupeByCode(seeds: VariableSeed[]): VariableSeed[] {
 
 export interface BootstrapContext {
   environments: { sandbox: { id: bigint }; test: { id: bigint }; prod: { id: bigint } };
+  /** Política de originación que invoca AtlasBackend; `undefined` si ya estaba sembrada. */
+  atlasUnderwriting?: Awaited<ReturnType<typeof seedAtlasUnderwritingArtifact>>;
   variableByCode: Record<string, Awaited<ReturnType<typeof ensureVariable>>>;
   reasonByCode: Record<string, Awaited<ReturnType<typeof ensureReason>>>;
   counts: {
@@ -183,8 +186,25 @@ export async function runBootstrapSeeds(prisma: PrismaClient): Promise<Bootstrap
   // dato de demostración, es lo mínimo para que la capacidad exista.
   const semanticCatalog = await seedSemanticCatalog(prisma);
 
+  /*
+   * La política que AtlasBackend invoca de verdad. Va en el BOOTSTRAP y no en el mockup
+   * porque no es material de demostración: sin ella, una instalación nueva sólo tiene el
+   * demo `BNPL_CREDIT_DECISION`, cuyo contrato exige 56 variables que el backend no emite.
+   * El motor responde 422 al payload real y el cliente del backend lee ese 422 como «la
+   * política dice que no»: un desajuste de contrato acaba presentándose a una persona como
+   * un rechazo de crédito.
+   *
+   * Después de las variables a propósito: declara su contrato sobre el catálogo ya sembrado.
+   */
+  const atlasUnderwriting = await seedAtlasUnderwritingArtifact(prisma, {
+    sandbox,
+    test,
+    prod,
+  });
+
   return {
     environments: { sandbox, test, prod },
+    atlasUnderwriting,
     variableByCode,
     reasonByCode,
     counts: {
