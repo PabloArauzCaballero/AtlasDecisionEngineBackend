@@ -92,7 +92,7 @@ export class IdentityProviderClient {
     accessToken: string,
     currentPassword: string,
   ): Promise<IdentityPinChallenge> {
-    const payload = await this.request('/auth/password/change/request', {
+    const payload = await this.requestPropagatingMessage('/auth/password/change/request', {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -113,7 +113,7 @@ export class IdentityProviderClient {
     accessToken: string,
     body: { challengeToken: string; code: string; newPassword: string },
   ): Promise<IdentityPasswordChanged> {
-    const payload = await this.request('/auth/password/change/confirm', {
+    const payload = await this.requestPropagatingMessage('/auth/password/change/confirm', {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -235,6 +235,42 @@ export class IdentityProviderClient {
 
   private async request(path: string, init: RequestInit): Promise<unknown> {
     return (await this.send(path, init)).payload;
+  }
+
+  /**
+   * Igual que `request`, pero dejando pasar el MENSAJE del proveedor cuando rechaza.
+   *
+   * `send` vuelve opacos los 4xx a propósito: en el login, distinguir «contraseña mala» de
+   * «tenant inexistente» es un oráculo de enumeración. En el cambio de contraseña esa razón
+   * desaparece —quien llama ya está autenticado y pregunta por SU cuenta—, y el precio de la
+   * opacidad es una pantalla que dice «Invalid identity request» cuando lo que pasó es que la
+   * contraseña actual estaba mal escrita. Aquí sí se propaga, con el mismo estado y el texto que
+   * el proveedor redactó para la persona.
+   */
+  private async requestPropagatingMessage(path: string, init: RequestInit): Promise<unknown> {
+    const baseUrl = this.config.get<string>('IDENTITY_PROVIDER_URL');
+    const response = await fetch(`${baseUrl}${path}`, {
+      ...init,
+      signal: AbortSignal.timeout(
+        numeroDeConfig(this.config, 'IDENTITY_PROVIDER_TIMEOUT_MS', 3_000),
+      ),
+    }).catch(() => null);
+
+    if (!response) {
+      throw new DomainException(
+        'IDENTITY_PROVIDER_UNAVAILABLE',
+        'Identity provider is unavailable',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
+    const payload: unknown = await response.json().catch(() => null);
+    if (response.ok) return (payload as { data?: unknown })?.data ?? payload;
+
+    const message =
+      (payload as { error?: { message?: string } } | null)?.error?.message ??
+      'El proveedor de identidad rechazó la operación.';
+    throw new DomainException('IDENTITY_REQUEST_REJECTED', message, response.status);
   }
 
   private async send(
