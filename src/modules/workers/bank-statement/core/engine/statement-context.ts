@@ -63,6 +63,15 @@ export interface InstitutionDetection {
   readonly licenseStatus?: InstitutionLicenseStatus;
   /** Si la entidad capta depósitos del público. Ver `BoliviaInstitution`. */
   readonly retailDeposits?: boolean;
+  /**
+   * Si la atribución se hizo contra el padrón VIGENTE o contra la semilla de
+   * respaldo tras un fallo de carga. Ver `InstitutionRegistry.isAuthoritative`.
+   *
+   * Viaja con la detección y no aparte porque es una propiedad de ESTA lectura:
+   * el mismo documento, resuelto un minuto después con la base ya en pie, es
+   * una afirmación distinta.
+   */
+  readonly registryAuthoritative?: boolean;
   /** Por qué la licencia no está vigente, cuando no lo está. */
   readonly licenseNote?: string;
   /**

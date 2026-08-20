@@ -69,6 +69,10 @@ export class InstitutionDetector {
   detect(pdf: ExtractedPdf): InstitutionDetection {
     const cover = coverText(pdf);
     const matched = this.matchInstitution(cover);
+    // Se pregunta UNA vez por documento y se arrastra en la detección: el padrón
+    // puede recuperarse entre dos llamadas, y un veredicto medio vigente y medio
+    // degradado no lo puede interpretar nadie.
+    const registryAuthoritative = this.registry.isAuthoritative();
     const generic = GENERIC_SIGNALS.filter((signal) => signal.pattern.test(cover)).map(
       (signal) => signal.id,
     );
@@ -82,6 +86,7 @@ export class InstitutionDetector {
           Math.min(UNKNOWN_MAX_CONFIDENCE, generic.length * GENERIC_SIGNAL_WEIGHT).toFixed(2),
         ),
         signals: issuer ? [`emisor-no-financiero:${issuer.code}`, ...generic] : generic,
+        registryAuthoritative,
         nonBankingIssuer: issuer && {
           code: issuer.code,
           name: issuer.name,
@@ -101,6 +106,7 @@ export class InstitutionDetector {
       licenseStatus: institution.licenseStatus,
       retailDeposits: institution.retailDeposits,
       licenseNote: institution.note,
+      registryAuthoritative,
     };
   }
 

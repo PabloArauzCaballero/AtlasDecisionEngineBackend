@@ -13,15 +13,14 @@
  * barato— que preguntar.
  */
 
-/** Qué hacer con el documento, decidido antes de intentar extraer nada. */
-export type DocumentVerdict = 'ACCEPT' | 'REVIEW' | 'REJECT';
+import {
+  triageByConfidence,
+  normalizeThresholds as normalizeConUmbrales,
+  type DocumentVerdict,
+  type TriageThresholds,
+} from '../../../../../common/triage/confidence-triage';
 
-export interface TriageThresholds {
-  /** Desde aquí se procesa sin preguntar. */
-  readonly accept: number;
-  /** Desde aquí hay duda razonable; por debajo, no la hay. */
-  readonly review: number;
-}
+export type { DocumentVerdict, TriageThresholds };
 
 /**
  * Fronteras por defecto, calibrables con datos reales.
@@ -43,37 +42,15 @@ export const DEFAULT_TRIAGE_THRESHOLDS: TriageThresholds = {
   review: 0.3,
 };
 
-/**
- * Ordena las dos fronteras y las acota a `[0, 1]`.
- *
- * Se saneia aquí y no en quien configura porque los valores llegan del entorno
- * del anfitrión: con `review > accept` la franja de revisión sería vacía y todo
- * documento dudoso se rechazaría en silencio, que es justo el fallo que este
- * módulo existe para impedir.
- */
+/** Los umbrales del worker de extractos, saneados contra sus propios valores. */
 export function normalizeThresholds(thresholds: Partial<TriageThresholds> = {}): TriageThresholds {
-  const accept = clamp(thresholds.accept ?? DEFAULT_TRIAGE_THRESHOLDS.accept);
-  const review = clamp(thresholds.review ?? DEFAULT_TRIAGE_THRESHOLDS.review);
-  return { accept, review: Math.min(review, accept) };
+  return normalizeConUmbrales(thresholds, DEFAULT_TRIAGE_THRESHOLDS);
 }
 
-/**
- * El veredicto. `>= accept` procesa, `>= review` pregunta, y por debajo rechaza.
- *
- * Las comparaciones son inclusivas hacia arriba a propósito: un documento que
- * cae justo en la frontera se trata como el lado más permisivo de las dos, de
- * modo que subir un umbral nunca deja un caso sin clasificar.
- */
+/** El veredicto de un documento contra los umbrales del worker de extractos. */
 export function triageDocument(
   confidence: number,
   thresholds: TriageThresholds = DEFAULT_TRIAGE_THRESHOLDS,
 ): DocumentVerdict {
-  if (confidence >= thresholds.accept) return 'ACCEPT';
-  if (confidence >= thresholds.review) return 'REVIEW';
-  return 'REJECT';
-}
-
-function clamp(value: number): number {
-  if (!Number.isFinite(value)) return 0;
-  return Math.max(0, Math.min(1, value));
+  return triageByConfidence(confidence, thresholds);
 }

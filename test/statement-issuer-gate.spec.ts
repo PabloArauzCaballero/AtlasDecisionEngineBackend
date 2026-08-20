@@ -3,6 +3,11 @@ import { DocumentClassifier } from '../src/modules/workers/bank-statement/core/e
 import { InstitutionDetector } from '../src/modules/workers/bank-statement/core/engine/institution-detector';
 import { assessIssuer } from '../src/modules/workers/bank-statement/core/engine/issuer-gate';
 import { BOLIVIA_INSTITUTIONS } from '../src/modules/workers/bank-statement/core/institutions/bolivia-institutions';
+import {
+  ASFI_SEED_REGISTRY,
+  fixedRegistry,
+  resolvedRegistry,
+} from '../src/modules/workers/bank-statement/core/institutions/institution-registry';
 
 /**
  * La compuerta que pregunta QUIÉN emitió el documento.
@@ -191,3 +196,61 @@ describe('el agujero que la compuerta cierra', () => {
     expect(clasificacion.confidence).toBeGreaterThanOrEqual(0.9);
   });
 });
+
+/**
+ * El padrón degradado no puede firmar una licencia vigente.
+ *
+ * Hallazgo `fail-open-state-drift` de la revisión de seguridad del 20-ago-2026.
+ * `resolvedRegistry` cae a la semilla compilada cuando la carga falla —bien
+ * pensado: un fallo de base no puede convertir todos los extractos del país en
+ * documentos de entidad desconocida—, pero lo hacía en SILENCIO. La semilla dice
+ * `LICENSED` de entidades cuya licencia pudo revocarse después, porque una
+ * revocación de ASFI se administra en la base y no se despliega. Resultado: un
+ * documento que debía ir a revisión salía ACEPTADO, y justo cuando la capa de
+ * datos estaba caída.
+ */
+describe('Padrón degradado', () => {
+  it('marca la semilla de respaldo como NO vigente y el padrón cargado como vigente', () => {
+    const cargado = resolvedRegistry(() => BOLIVIA_INSTITUTIONS.slice(0, 2));
+    const caido = resolvedRegistry(() => undefined);
+    const vacio = resolvedRegistry(() => []);
+
+    expect(cargado.isAuthoritative()).toBe(true);
+    expect(caido.isAuthoritative()).toBe(false);
+    // Un padrón vacío nunca es una afirmación sobre el sistema financiero
+    // boliviano: siempre es un fallo de carga.
+    expect(vacio.isAuthoritative()).toBe(false);
+    // Y en los tres casos sigue habiendo entidades con las que trabajar.
+    expect(caido.list().length).toBeGreaterThan(0);
+  });
+
+  it('la semilla elegida a propósito SÍ es vigente: no está degradada, sólo no tiene otra fuente', () => {
+    expect(ASFI_SEED_REGISTRY.isAuthoritative()).toBe(true);
+    expect(fixedRegistry(BOLIVIA_INSTITUTIONS).isAuthoritative()).toBe(true);
+  });
+
+  it('con el padrón degradado, una entidad con licencia va a REVISIÓN y no a aceptación', () => {
+    const vigente = assessIssuer(deteccionLicenciada(true));
+    const degradado = assessIssuer(deteccionLicenciada(false));
+
+    expect(vigente.disposition).toBe('ACCEPT');
+    expect(degradado.disposition).toBe('REVIEW');
+    // El motivo distingue este caso de una licencia realmente revocada, que es
+    // lo que necesita quien atiende la cola.
+    expect(degradado.reasons).toContain('padron-no-vigente');
+    expect(degradado.verdict).toBe('LICENSED');
+  });
+});
+
+function deteccionLicenciada(registryAuthoritative: boolean) {
+  return {
+    code: 'BNB',
+    name: 'Banco Nacional de Bolivia',
+    detected: true as const,
+    confidence: 0.9,
+    signals: ['marcadores-de-entidad:2'],
+    licenseStatus: 'LICENSED' as const,
+    retailDeposits: true,
+    registryAuthoritative,
+  };
+}

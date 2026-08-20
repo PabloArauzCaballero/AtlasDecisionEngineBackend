@@ -109,6 +109,28 @@ function classifyIssuer(institution: InstitutionDetection): IssuerAssessment {
      */
     const reasons = [`entidad:${institution.code}`];
     if (institution.retailDeposits === false) reasons.push('entidad-sin-depositos-del-publico');
+
+    /*
+     * Con el padrón degradado, «licencia vigente» es una afirmación que nadie
+     * comprobó: la semilla compilada dice `LICENSED` de entidades cuya licencia
+     * pudo revocarse después, porque una revocación de ASFI se administra en la
+     * base y no se despliega. Aceptar aquí saltaba el control JUSTO cuando la
+     * capa de datos estaba caída, y sin dejar rastro.
+     *
+     * Va a REVISIÓN y no a rechazo, que es la mitad que el respaldo sí acierta:
+     * un fallo de carga no puede convertir todos los extractos del país en
+     * documentos inválidos. Revisar es exactamente el estado que este módulo ya
+     * tiene para «no lo sé»; el motivo dice por qué, así que quien atiende la
+     * cola distingue este caso de una licencia realmente revocada.
+     */
+    if (institution.registryAuthoritative === false) {
+      return {
+        verdict: 'LICENSED',
+        disposition: 'REVIEW',
+        reasons: [...reasons, 'padron-no-vigente'],
+      };
+    }
+
     return { verdict: 'LICENSED', disposition: 'ACCEPT', reasons };
   }
 
