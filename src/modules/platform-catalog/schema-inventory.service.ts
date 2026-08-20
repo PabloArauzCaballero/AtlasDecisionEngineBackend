@@ -1,5 +1,5 @@
 /**
- * Inventario de tablas leído del `information_schema` de ESTE servicio.
+ * Inventario de tablas leído del catálogo de PostgreSQL de ESTE servicio.
  *
  * Es deliberadamente la misma técnica que Atlas Backend aplica sobre su propia base
  * (`SystemsSchemaIntrospectionService`), y no una lectura del `schema.prisma`. Dos razones:
@@ -20,12 +20,16 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { CatalogManifestDataEntityDto } from './platform-catalog.dto';
 
 /**
- * Las columnas se piden con `::text` explícito.
+ * Dos detalles de la consulta que no son opcionales:
  *
- * `information_schema` las declara como el tipo interno `name` de PostgreSQL, y el driver de Prisma
- * no sabe deserializarlo: la consulta fallaba entera con «Failed to deserialize column of type
- * 'name'», que se lee como un problema de permisos o de esquema y no lo es. El casteo es la
- * traducción explícita a un tipo que el cliente sí conoce.
+ * - Las columnas se piden con `::text` explícito. El catálogo las declara como el tipo interno
+ *   `name` de PostgreSQL y el driver de Prisma no sabe deserializarlo: la consulta fallaba entera
+ *   con «Failed to deserialize column of type 'name'», que se lee como un problema de permisos o de
+ *   esquema y no lo es.
+ * - Se lee `pg_catalog` y no `information_schema`. La vista `key_column_usage` —la forma canónica
+ *   de sacar las claves primarias— tarda segundos en una base con cientos de tablas, más que el
+ *   plazo de la petición que la federa, y el bloque acababa reportándose como «no responde». La
+ *   misma respuesta sale de `pg_class`/`pg_index` en milisegundos.
  */
 type ColumnRow = {
   schemaName: string;
@@ -49,32 +53,19 @@ export class SchemaInventoryService {
 
   async collect(moduleResolver: (tableName: string) => string): Promise<CatalogManifestDataEntityDto[]> {
     const rows = await this.prisma.$queryRaw<ColumnRow[]>`
-WITH pk AS (
-  SELECT kcu.table_schema, kcu.table_name, kcu.column_name
-    FROM information_schema.table_constraints tc
-    JOIN information_schema.key_column_usage kcu
-      ON kcu.constraint_schema = tc.constraint_schema
-     AND kcu.constraint_name = tc.constraint_name
-     AND kcu.table_schema = tc.table_schema
-     AND kcu.table_name = tc.table_name
-   WHERE tc.constraint_type = 'PRIMARY KEY'
-)
-SELECT c.table_schema::text AS "schemaName",
-       c.table_name::text   AS "tableName",
-       c.column_name::text  AS "columnName",
-       (pk.column_name IS NOT NULL) AS "isPrimaryKey"
-  FROM information_schema.columns c
-  JOIN information_schema.tables t
-    ON t.table_schema = c.table_schema
-   AND t.table_name = c.table_name
-   AND t.table_type = 'BASE TABLE'
-  LEFT JOIN pk
-    ON pk.table_schema = c.table_schema
-   AND pk.table_name = c.table_name
-   AND pk.column_name = c.column_name
- WHERE c.table_schema NOT IN ('pg_catalog', 'information_schema')
-   AND c.table_name NOT LIKE '\\_prisma%'
- ORDER BY c.table_schema, c.table_name, c.ordinal_position;`;
+SELECT n.nspname::text  AS "schemaName",
+       c.relname::text  AS "tableName",
+       a.attname::text  AS "columnName",
+       COALESCE(i.indisprimary, false) AS "isPrimaryKey"
+  FROM pg_class c
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+  JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
+  LEFT JOIN pg_index i ON i.indrelid = c.oid AND i.indisprimary AND a.attnum = ANY(i.indkey)
+ WHERE c.relkind = 'r'
+   AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+   AND n.nspname NOT LIKE 'pg\\_%'
+   AND c.relname NOT LIKE '\\_prisma%'
+ ORDER BY n.nspname, c.relname, a.attnum;`;
 
     const byTable = new Map<string, ColumnRow[]>();
     for (const row of rows) {
