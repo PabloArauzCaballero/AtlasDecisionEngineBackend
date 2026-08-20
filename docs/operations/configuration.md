@@ -46,6 +46,28 @@ Los valores por defecto del esquema son **la** referencia. Donde el código repi
 es una defensa ante un `ConfigService` construido a mano en una prueba, no una segunda fuente
 de verdad.
 
+## `get<number>` no convierte nada
+
+`ConfigService.get<T>()` **no valida ni convierte**: el genérico es un cast de TypeScript sobre lo
+que haya. Con el esquema activo el valor llega coercido —`z.coerce.number()`, `z.coerce.boolean()`—
+y todo cuadra. Pero en cuanto el valor se lee sin pasar por el esquema (un `ConfigService`
+construido a mano en una prueba, o un ajuste que el esquema no cubra), lo que sale de `process.env`
+es **una cadena**, y TypeScript afirma que es un número sin que nadie lo haya comprobado.
+
+Las dos formas en que eso se rompe, medidas en este repositorio el 19-ago-2026:
+
+| Lectura | Con cadena | Consecuencia |
+|---|---|---|
+| `AbortSignal.timeout(get<number>(…))` | `AbortSignal.timeout('12000')` | Lanza `TypeError`. Ocurría **dentro** del `try` del `fetch`, así que el cliente de identidad lo leía como «el proveedor no contesta» y devolvía `503`: el login entero fallaba culpando a un proveedor sano |
+| `get<number>(…) + 1` | `'2' + 1 === '21'` | El contador de reintentos pasaba a **veintiún** intentos contra el proveedor, con su backoff, por cada login |
+| `get<boolean>(…) ?? true` | `'false'` es *truthy* | Apagar un interruptor por variable de entorno lo dejaba encendido |
+
+La regla, entonces: **cualquier ajuste que se vaya a usar como número o booleano se normaliza en el
+punto de lectura**, no se confía en el genérico. `Number(...)` con caída al valor por defecto si el
+resultado no es finito; para booleanos, comparar explícitamente contra `'false'`. Cuesta una
+función y quita las tres trampas. Ver `numeroDeConfig` en `identity-provider.client.ts` y el getter
+`enabled` de `job-signal.service.ts`.
+
 ## Configuración por rol de proceso
 
 | Variable | `API` | `WORKER` |

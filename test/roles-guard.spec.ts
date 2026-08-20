@@ -1,7 +1,6 @@
 import { Reflector } from '@nestjs/core';
 import type { ExecutionContext } from '@nestjs/common';
 import { RolesGuard } from '../src/common/security/roles.guard';
-import { REQUIRED_ROLES } from '../src/common/security/security.decorators';
 import type { AuthenticatedPrincipal, AuthMethod } from '../src/common/security/security.types';
 
 /**

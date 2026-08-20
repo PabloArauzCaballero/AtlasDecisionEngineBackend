@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { ExtractedPdf, PageLine } from '../domain/models';
+import type { DocumentVerdict } from './document-triage';
 
 /**
  * Cómo se obtuvo el texto del documento.
@@ -31,6 +32,14 @@ export interface DocumentClassification {
   readonly isFinancialStatement: boolean;
   readonly confidence: number;
   readonly detectedSignals: readonly string[];
+  /**
+   * Qué hacer con el documento: procesarlo, preguntarle a una persona o
+   * rechazarlo. Se publica junto a `isFinancialStatement` —que sigue siendo
+   * `verdict === 'ACCEPT'`— porque «no es procesable» y «no es un extracto» son
+   * dos afirmaciones distintas y confundirlas fue lo que llenó la cola de
+   * revisión de documentos que nadie tenía que mirar.
+   */
+  readonly verdict: DocumentVerdict;
 }
 
 export interface InstitutionDetection {

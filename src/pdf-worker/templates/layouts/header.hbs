@@ -1,0 +1,58 @@
+{{!--
+  Banda de membrete que el navegador pinta en el MARGEN SUPERIOR de cada hoja.
+
+  Vive en un documento aparte del cuerpo: no ve `var(--ink)`, ni la hoja de estilos, ni la
+  fuente embebida. De ahí que aquí haya colores literales y un bloque `@font-face` propio —los
+  valores vienen del contexto (`colors`, `type`, `fontFaceCss`), no escritos a mano.
+
+  El relleno lateral repite los márgenes de la página: la cabecera ocupa el ANCHO COMPLETO del
+  papel, así que sin él el texto arrancaría pegado al borde y no alineado con el contenido.
+
+  Chromium ignora `display:flex` de forma fiable en estas plantillas; por eso la maquetación es
+  una tabla. No es nostalgia: es el único modelo de caja que se comporta igual en el documento
+  de cabecera y en el cuerpo.
+--}}
+<style>{{{fontFaceCss}}}</style>
+<div
+  style="
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8mm {{margins.right}} 0 {{margins.left}};
+    font-family: {{type.fontFamily}};
+    font-size: 7.5pt;
+    color: {{colors.inkMuted}};
+    -webkit-print-color-adjust: exact;
+  "
+>
+  <table style="width: 100%; border-collapse: collapse; border-bottom: 0.5pt solid {{colors.line}};">
+    <tr>
+      <td style="vertical-align: middle; padding: 0 0 2mm 0;">
+        {{#if letterhead.logoDataUri}}
+          <img src="{{letterhead.logoDataUri}}" alt="" style="height: 8mm; vertical-align: middle; margin-right: 3mm;" />
+        {{/if}}
+        <span style="font-size: 8.5pt; font-weight: 700; color: {{colors.ink}}; vertical-align: middle;">
+          {{letterhead.organizationName}}
+        </span>
+        {{#if letterhead.secondaryText}}
+          <span style="vertical-align: middle;"> · {{letterhead.secondaryText}}</span>
+        {{/if}}
+      </td>
+      <td style="vertical-align: middle; padding: 0 0 2mm 0; text-align: right;">
+        <span style="color: {{colors.ink}};">{{document.title}}</span>
+        {{#if document.classificationLabel}}
+          <span
+            style="
+              margin-left: 3mm;
+              padding: 0.6mm 1.8mm;
+              border: 0.5pt solid {{colors.caution}};
+              border-radius: 1mm;
+              color: {{colors.caution}};
+              font-size: 6.5pt;
+              letter-spacing: 0.02em;
+            "
+          >{{document.classificationLabel}}</span>
+        {{/if}}
+      </td>
+    </tr>
+  </table>
+</div>

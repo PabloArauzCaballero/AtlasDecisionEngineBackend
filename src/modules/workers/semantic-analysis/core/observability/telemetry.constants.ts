@@ -1,67 +1,21 @@
 /**
- * Constantes compartidas por la capa de observabilidad.
+ * Vocabulario de trazas **propio del análisis semántico**.
  *
- * Se centralizan aquí para que los nombres de span, los atributos y las exclusiones tengan una
- * única definición: un nombre divergente entre productor y consumidor rompe la lectura de la traza
- * sin producir ningún error.
- */
-
-/** Nombre del emisor de trazas. Coincide con el paquete para localizar su origen en Jaeger. */
-export const TRACER_NAME = '@business/semantic-analysis-worker';
-
-/**
- * Nombres de servicio por proceso. Deben ser distintos: reutilizar el nombre de la API en un worker
- * haría inservible el grafo de dependencias de Jaeger.
- */
-export const SERVICE_NAMES = {
-  worker: 'semantic-analysis-worker',
-  migrator: 'semantic-analysis-migrator',
-  seeder: 'semantic-analysis-seeder',
-  smoke: 'semantic-analysis-smoke',
-} as const;
-
-export const DEFAULT_SERVICE_NAMESPACE = 'platform';
-
-/**
- * Versión declarada del paquete. Se mantiene como constante en lugar de leer `package.json` en
- * ejecución: un `require` del manifiesto desde `dist/` depende del empaquetado del host.
- * `OTEL_SERVICE_VERSION` la sobrescribe cuando el despliegue publica su propia versión.
- */
-export const DEFAULT_SERVICE_VERSION = '1.0.0';
-
-export const DEFAULT_OTLP_TRACES_ENDPOINT = 'http://localhost:4318/v1/traces';
-
-/**
- * Rutas que nunca deben generar trazas. Son sondas de infraestructura: se consultan cada pocos
- * segundos y no describen ninguna operación de negocio.
- */
-export const UNTRACED_HTTP_PATHS: readonly string[] = [
-  '/health',
-  '/health/live',
-  '/health/ready',
-  '/healthz',
-  '/ready',
-  '/readiness',
-  '/liveness',
-  '/metrics',
-  '/metrics.json',
-  '/favicon.ico',
-];
-
-/**
- * Esquema de PostgreSQL que administra pg-boss. Su sondeo produce varias consultas por segundo por
- * réplica que no describen trabajo alguno; se excluyen por nombre además de por ausencia de padre.
- */
-export const QUEUE_INTERNAL_SCHEMA = 'pgboss';
-
-/**
- * Clave del sobre que transporta el contexto de traza junto al mensaje encolado.
+ * La mecánica de trazado —fachada, propagación entre procesos, lectura del contexto, marcado de
+ * errores— vive en `src/common/observability/` y la comparte todo el motor. Aquí sólo quedan los
+ * nombres y atributos que este worker aporta, que es lo que de verdad es específico suyo.
  *
- * Vive **fuera** del objeto de dominio: `semanticAnalysisRequestSchema` es un `z.object` de zod v4 y
- * descarta las claves desconocidas en silencio, de modo que un `traceparent` colocado dentro del
- * objeto se perdería sin ningún aviso.
+ * Lo que este fichero traía y ya no: el arranque del SDK (lo hace `common/observability/tracing.ts`
+ * para todo el proceso), los nombres de servicio por proceso (este worker corre **dentro** de
+ * `atlas-worker` y se distingue por `app.module`, no por un servicio aparte) y las constantes de
+ * pg-boss, que desapareció al absorber el paquete: la cola es ahora una tabla del motor.
  */
-export const TRACE_CARRIER_KEY = '_otel';
+import { APP_ATTRIBUTES } from '../../../../../common/observability/telemetry.constants';
+
+// Se reexporta para que los ficheros del núcleo conserven su import local, con una única
+// definición detrás: dos listas de atributos `app.*` que divergen rompen las consultas de Jaeger
+// sin producir ningún error.
+export { APP_ATTRIBUTES };
 
 /** Nombres de span de negocio. Estables y sin identificadores dinámicos. */
 export const SPAN_NAMES = {
@@ -77,22 +31,6 @@ export const SPAN_NAMES = {
   schedulerRetention: 'scheduler.audit-retention',
   schedulerQueueDepth: 'scheduler.queue-depth',
   migrationRun: 'migration.run',
-} as const;
-
-/**
- * Atributos propios, con namespace `app.*` para no colisionar con las convenciones semánticas.
- * Ninguno admite contenido analizado ni secretos: ver `docs/observability/04-data-privacy-policy.md`.
- */
-export const APP_ATTRIBUTES = {
-  module: 'app.module',
-  operation: 'app.operation',
-  tenantId: 'app.tenant.id',
-  entityType: 'app.entity.type',
-  entityId: 'app.entity.id',
-  jobName: 'app.job.name',
-  jobAttempt: 'app.job.attempt',
-  eventType: 'app.event.type',
-  errorRetryable: 'app.error.retryable',
 } as const;
 
 /** Atributos de dominio, todos de cardinalidad acotada. */
@@ -115,6 +53,3 @@ export const SEMANTIC_ATTRIBUTES = {
   queueDeadLetter: 'queue.dead_letter.count',
   migrationsApplied: 'migration.applied.count',
 } as const;
-
-/** Valor de `messaging.system` para pg-boss, que no tiene un valor registrado en la especificación. */
-export const MESSAGING_SYSTEM = 'pg-boss';

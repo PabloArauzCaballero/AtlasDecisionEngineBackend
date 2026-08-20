@@ -12,6 +12,18 @@ import { buildMovement, correctSignsWithBalance, type BuiltMovement } from './mo
 import { detectNumberFormat, type NumberFormat } from './number-format';
 import { assembleRows } from './row-assembler';
 
+/**
+ * Páginas en las que un renglón tiene que repetirse, en el mismo sitio, para
+ * considerarlo encabezado o pie de página y no un renglón suelto.
+ *
+ * Tres es el mínimo con el que «repetirse» significa algo: dos coincidencias
+ * pueden ser dos movimientos con la misma glosa cayendo a la misma altura.
+ */
+const FURNITURE_MIN_PAGES = 3;
+
+/** Tolerancia vertical al comparar dos renglones de páginas distintas, en puntos. */
+const FURNITURE_Y_TOLERANCE = 2;
+
 /** Aportes al reconocimiento de la estructura, por campo canónico presente. */
 const STRUCTURE_WEIGHTS: Readonly<Partial<Record<CanonicalField, number>>> = {
   transactionDate: 0.4,
@@ -94,6 +106,7 @@ export class TableAnalyzer {
     // distintos, y sumarlos produciría un extracto que no existe.
     const accountByLine = accountsByLine(pdf);
     const multiAccount = new Set(accountByLine.filter(Boolean)).size > 1;
+    const isFurniture = pageFurniture(pdf);
 
     for (const region of regions) {
       const columns = region.layout.columns;
@@ -104,7 +117,7 @@ export class TableAnalyzer {
           dateInterpretation,
         ),
       );
-      orphanLines += assembly.orphanLines;
+      orphanLines += countOrphans(region, assembly.rows, isFurniture);
       for (const row of assembly.rows) {
         const movement = buildMovement(row, {
           columns,
@@ -215,6 +228,63 @@ export class TableAnalyzer {
       }
     }
   }
+}
+
+/**
+ * Renglones que no acabaron dentro de ninguna fila **y que no son el
+ * encabezado o el pie que la página repite**.
+ *
+ * La distinción es el motivo de que esta función exista. «Renglones no
+ * atribuidos» se publica como advertencia y se lee como pérdida de datos, y en
+ * un documento paginado la inmensa mayoría no lo era: el membrete, el número de
+ * página y el aviso legal del pie caen fuera de toda fila por definición. Un
+ * extracto de sesenta páginas leído al completo —1.200 filas, ni una perdida—
+ * advertía de 415 renglones sueltos, de los cuales 398 eran su propio
+ * mobiliario. Con la advertencia inflada así, la que sí importa —un movimiento
+ * partido que no se pudo recomponer— queda enterrada.
+ *
+ * Se cuenta sobre los SOBRANTES y no se filtra la entrada a propósito: lo que
+ * cambia es el recuento, nunca lo que compone una fila, así que esta heurística
+ * no puede perder un movimiento por más que se equivoque.
+ */
+function countOrphans(
+  region: TableRegion,
+  rows: readonly { readonly lines: readonly PageLine[] }[],
+  isFurniture: (line: PageLine) => boolean,
+): number {
+  const attached = new Set<PageLine>();
+  for (const row of rows) for (const line of row.lines) attached.add(line);
+  return region.lines.filter((line) => !attached.has(line) && !isFurniture(line)).length;
+}
+
+/**
+ * Reconoce el mobiliario de página: lo que se repite igual, a la misma altura,
+ * en varias páginas.
+ *
+ * Las dos condiciones se necesitan mutuamente. Sólo por texto, una glosa
+ * recurrente —«COMISION MANTENIMIENTO CUENTA»— pasaría por membrete; sólo por
+ * altura, cualquier renglón de una tabla regular coincidiría con el de la
+ * página siguiente. Juntas describen lo que de verdad es un encabezado: el mismo
+ * contenido impreso en el mismo sitio de cada hoja.
+ *
+ * Las cifras se enmascaran porque el mobiliario suele llevar la única parte que
+ * cambia —«PAGINA 3 / 60», el saldo de la página— dentro de un texto por lo
+ * demás idéntico.
+ */
+function pageFurniture(pdf: ExtractedPdf): (line: PageLine) => boolean {
+  if (pdf.pageCount < FURNITURE_MIN_PAGES) return () => false;
+
+  const key = (line: PageLine): string =>
+    `${Math.round(line.y / FURNITURE_Y_TOLERANCE)}|${line.text.replace(/\d/g, '#')}`;
+
+  const pagesByKey = new Map<string, Set<number>>();
+  for (const line of pdf.lines) {
+    const pages = pagesByKey.get(key(line)) ?? new Set<number>();
+    pages.add(line.page);
+    pagesByKey.set(key(line), pages);
+  }
+
+  return (line) => (pagesByKey.get(key(line))?.size ?? 0) >= FURNITURE_MIN_PAGES;
 }
 
 /**

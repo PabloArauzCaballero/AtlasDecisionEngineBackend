@@ -77,7 +77,6 @@ async function buildCompiledArtifact(): Promise<{
     reasonCodeCatalog.map((reason, index) => [reason.code, { id: BigInt(index + 1) }]),
   );
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const graph = await buildDemoGraph(prisma as any, 1n, reasonByCode);
 
   const inputCodes = new Set(
@@ -117,7 +116,6 @@ async function buildCompiledArtifact(): Promise<{
   );
 
   await buildDemoSnapshots(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     prisma as any,
     {
       id: 1n,

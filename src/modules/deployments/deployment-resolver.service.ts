@@ -1,9 +1,11 @@
 /** Resolves the active compiled payload with tenant-scoped caching and explicit invalidation. */
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { SubjectReferencePolicy } from '@prisma/client';
 import { CacheService } from '../../common/cache/cache.service';
 import { DomainException } from '../../common/errors/domain-exception';
 import { parseBigIntId } from '../../common/http/id';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { effectiveSubjectPolicy } from '../runtime/subject-policy';
 import type { CompiledDecisionArtifact } from '../graph/graph.types';
 
 export interface ResolvedDeployment {
@@ -14,6 +16,19 @@ export interface ResolvedDeployment {
   compiledArtifactId: bigint;
   compiledChecksum: string;
   compiled: CompiledDecisionArtifact;
+  /**
+   * Exigencia de sujeto ya resuelta (ambiente afinado por la versión).
+   *
+   * Viaja con el despliegue y no se consulta aparte por dos motivos: es un dato del binding
+   * —cambia cuando cambia el despliegue, no entre peticiones— y una consulta extra en el
+   * camino caliente de la decisión se paga en cada ejecución del día.
+   */
+  subjectPolicy: SubjectReferencePolicy;
+  /**
+   * Dominio de riesgo del artefacto. Viaja aquí porque decide si esta decisión origina un
+   * crédito y, por tanto, si se le programan ventanas de observación.
+   */
+  riskDomain: string;
 }
 
 @Injectable()
@@ -66,7 +81,9 @@ export class DeploymentResolverService {
       },
       include: {
         environment: true,
-        activeDeployment: { include: { compiledArtifact: true } },
+        activeDeployment: {
+          include: { compiledArtifact: true, artifactVersion: { include: { artifact: true } } },
+        },
       },
     });
     if (!binding) {
@@ -85,6 +102,12 @@ export class DeploymentResolverService {
       compiledChecksum: binding.activeDeployment.compiledArtifact.compiledChecksum,
       compiled: binding.activeDeployment.compiledArtifact
         .compiledPayloadJson as unknown as CompiledDecisionArtifact,
+      riskDomain: binding.activeDeployment.artifactVersion.artifact.riskDomain,
+      subjectPolicy: effectiveSubjectPolicy(
+        binding.environment.subjectReferencePolicy,
+        binding.activeDeployment.artifactVersion.subjectReferencePolicy,
+        binding.activeDeployment.artifactVersion.subjectPolicyJustification,
+      ),
     };
     await this.cache.setForTenant(
       tenantId,
@@ -111,7 +134,18 @@ export class DeploymentResolverService {
       environmentId: string;
       compiledArtifactId: string;
     };
-    if (!parsed || typeof parsed !== 'object' || !parsed.compiled || !parsed.compiledChecksum) {
+    // `subjectPolicy` entra en la comprobación a propósito: una entrada escrita por la versión
+    // anterior del servicio no la lleva, y sin este control la política llegaría `undefined`
+    // al camino de la decisión durante los 60 s de TTL — es decir, la exigencia de sujeto
+    // desaparecería en silencio justo después de cada despliegue.
+    if (
+      !parsed ||
+      typeof parsed !== 'object' ||
+      !parsed.compiled ||
+      !parsed.compiledChecksum ||
+      !parsed.subjectPolicy ||
+      !parsed.riskDomain
+    ) {
       throw new Error('missing required deployment fields');
     }
     return {

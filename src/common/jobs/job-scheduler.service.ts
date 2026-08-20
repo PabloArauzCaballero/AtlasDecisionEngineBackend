@@ -8,8 +8,17 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { runsBackgroundJobs, workerRoleOf } from '../config/worker-role';
 import { MetricsService } from '../observability/metrics.service';
+import { APP_ATTRIBUTES, SPAN_NAMES } from '../observability/telemetry.constants';
+import { TracingService } from '../observability/tracing.service';
 import { BackgroundJob, JobCadence } from './background-job';
 import { JobSignalService } from './job-signal.service';
+
+/**
+ * Parte de `SHUTDOWN_GRACE_MS` que se reserva al drenaje de lotes. El resto queda para lo
+ * que va DESPUÉS en el apagado —cerrar el pool de Postgres, el cliente de Redis y vaciar
+ * las trazas—, que también necesita ocurrir dentro de la misma gracia del orquestador.
+ */
+const DRAIN_SHARE = 0.8;
 
 /** Estado que el orquestador lleva por trabajo registrado. */
 interface ScheduledJob {
@@ -61,6 +70,7 @@ export class JobSchedulerService implements OnModuleInit, OnApplicationBootstrap
   private readonly backoffFactor: number;
   private readonly errorDelayMs: number;
   private readonly maxErrorDelayMs: number;
+  private readonly drainDeadlineMs: number;
 
   private enabled = false;
   private started = false;
@@ -71,6 +81,7 @@ export class JobSchedulerService implements OnModuleInit, OnApplicationBootstrap
     private readonly config: ConfigService,
     private readonly signal: JobSignalService,
     private readonly metrics: MetricsService,
+    private readonly tracing: TracingService,
   ) {
     this.defaults = {
       initialDelayMs: config.get<number>('JOB_INITIAL_DELAY_MS') ?? 500,
@@ -80,6 +91,9 @@ export class JobSchedulerService implements OnModuleInit, OnApplicationBootstrap
     this.backoffFactor = config.get<number>('JOB_BACKOFF_FACTOR') ?? 2;
     this.errorDelayMs = config.get<number>('JOB_ERROR_INTERVAL_MS') ?? 5_000;
     this.maxErrorDelayMs = config.get<number>('JOB_MAX_ERROR_INTERVAL_MS') ?? 120_000;
+    this.drainDeadlineMs = Math.floor(
+      (config.get<number>('SHUTDOWN_GRACE_MS') ?? 20_000) * DRAIN_SHARE,
+    );
   }
 
   onModuleInit(): void {
@@ -128,7 +142,53 @@ export class JobSchedulerService implements OnModuleInit, OnApplicationBootstrap
     // Esperar los lotes en vuelo antes de que Nest cierre el pool de Prisma: si no, el
     // último rastro de cada apagado limpio es un `Cannot use a pool after calling end`
     // en nivel error, que es exactamente el ruido que enseña a un operador a ignorar el log.
-    await Promise.allSettled([...this.scheduled.values()].map((entry) => entry.inFlight));
+    //
+    // Pero esa espera va ACOTADA. Sin cota, un solo lote que no termina —una extracción de
+    // PDF que superó su timeout sin poder cancelarse, una consulta que no respeta
+    // `statement_timeout`— deja el apagado colgado hasta que el orquestador manda SIGKILL.
+    // Un SIGKILL es peor que abandonar el lote a propósito: mata también el cierre del pool
+    // y el vaciado de trazas, así que el incidente se pierde justo cuando importa. Lo que se
+    // abandona aquí no se pierde: cada trabajo reclama por lease, así que lo no confirmado
+    // vuelve a estar disponible al vencer y otra réplica lo retoma.
+    // `!== undefined` y no la promesa a secas: una promesa SIEMPRE es «verdadera», así que
+    // usarla como condición es la forma habitual de que un `if` asincrónico mienta. Aquí lo
+    // que se pregunta es si la ranura está ocupada, y eso se dice explícitamente.
+    const pending = [...this.scheduled.values()].filter((entry) => entry.inFlight !== undefined);
+    if (pending.length === 0) return;
+    if (await this.drainWithin(pending, this.drainDeadlineMs)) return;
+
+    const stuck = pending
+      .filter((entry) => entry.inFlight !== undefined)
+      .map((entry) => entry.job.name)
+      .sort();
+    this.logger.warn(
+      `Apagado: ${stuck.length} lote(s) seguían en vuelo tras ${this.drainDeadlineMs} ms y se ` +
+        `abandonan (${stuck.join(', ')}); su lease vencerá y otra réplica los retomará`,
+    );
+  }
+
+  /**
+   * Espera a que terminen los lotes en vuelo, o hasta agotar el plazo. Devuelve si drenaron.
+   *
+   * El temporizador va con `unref` para no ser él mismo la razón por la que el proceso sigue
+   * vivo: si todo lo demás ya se cerró, el proceso debe poder morir sin esperar al plazo.
+   */
+  private drainWithin(entries: ScheduledJob[], deadlineMs: number): Promise<boolean> {
+    // Se filtran los `undefined` en vez de pasárselos a `allSettled`: los tolera, pero
+    // entonces el tipo del arreglo ya no dice que esto espera promesas, y una ranura vacía
+    // colada por error se resolvería al instante haciendo creer que el drenaje terminó.
+    const inFlight = entries
+      .map((entry) => entry.inFlight)
+      .filter((promise): promise is Promise<void> => promise !== undefined);
+    const drained = Promise.allSettled(inFlight).then(() => true);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const lapsed = new Promise<boolean>((resolve) => {
+      timer = setTimeout(() => resolve(false), deadlineMs);
+      timer.unref?.();
+    });
+    return Promise.race([drained, lapsed]).finally(() => {
+      if (timer) clearTimeout(timer);
+    });
   }
 
   /**
@@ -244,11 +304,44 @@ export class JobSchedulerService implements OnModuleInit, OnApplicationBootstrap
     entry.timer.unref?.();
   }
 
+  /**
+   * Ejecuta un lote dentro de una traza RAÍZ.
+   *
+   * Raíz y no hija: un trabajo periódico no lo origina ninguna solicitud y no debe heredar el
+   * contexto de lo que se estuviera ejecutando en el proceso, que sería una petición ajena
+   * elegida al azar por el bucle de eventos.
+   *
+   * Un span por **lote**, nunca uno por registro: un barrido de retención que procesa cien mil
+   * filas debe producir una traza legible, no cien mil spans.
+   *
+   * También se abre para los ciclos en vacío, y eso es aceptable por el retroceso adaptativo:
+   * al ralentí la cadencia tiende al techo (30 s por defecto), así que un trabajo ocioso aporta
+   * dos trazas por minuto. Decidir a posteriori habría dejado las consultas del propio lote sin
+   * padre, que es justo lo que se quiere ver.
+   */
+  private runBatch(entry: ScheduledJob): Promise<number> {
+    return this.tracing.runInRootSpan(
+      SPAN_NAMES.jobRun,
+      {
+        [APP_ATTRIBUTES.module]: 'jobs',
+        [APP_ATTRIBUTES.operation]: 'run',
+        [APP_ATTRIBUTES.jobName]: entry.job.name,
+        [APP_ATTRIBUTES.jobAttempt]: entry.consecutiveFailures + 1,
+      },
+      async (span) => {
+        const processed = await entry.job.runOnce();
+        span.setAttribute(APP_ATTRIBUTES.jobProcessed, processed);
+        span.setAttribute(APP_ATTRIBUTES.jobOutcome, processed > 0 ? 'work' : 'idle');
+        return processed;
+      },
+    );
+  }
+
   private async run(entry: ScheduledJob): Promise<void> {
     if (this.stopped) return;
     const startedAt = Date.now();
     try {
-      const processed = await entry.job.runOnce();
+      const processed = await this.runBatch(entry);
       const durationMs = Date.now() - startedAt;
       entry.consecutiveFailures = 0;
       entry.lastSuccessAt = Date.now();

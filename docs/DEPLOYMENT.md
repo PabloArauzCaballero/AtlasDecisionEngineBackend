@@ -113,7 +113,7 @@ Requisitos:
 | `AUDIT_VERIFY_BATCH_SIZE` | Permite verificar cadenas extensas sin degradar el servicio. | Limita cada lectura del historial append-only y mantiene memoria acotada. |
 | `NESTED_TREE_MAX_DEPTH` / `NESTED_TREE_DEFAULT_TIMEOUT_MS` | Acotan el costo y la latencia de políticas compuestas. | Detienen recursión o subárboles que exceden el presupuesto. |
 | `CODE_IMPORT_MAX_SOURCE_BYTES` / `CODE_IMPORT_ANALYSIS_TIMEOUT_MS` | Evitan que una carga de autor bloquee el portal. | Limitan memoria y tiempo del analizador estático. |
-| `LIVE_EXECUTION_STREAM_ENABLED` | La previsualización no es evidencia regulatoria y debe ser una decisión consciente. | Habilita SSE sólo para SANDBOX/TEST; el valor seguro por defecto es `false`. |
+| `LIVE_EXECUTION_STREAM_ENABLED` | La previsualización no es evidencia regulatoria y debe ser una decisión consciente. | Habilita SSE sólo para ambientes no productivos (DEV/STAGING/TEST); el valor seguro por defecto es `false`. |
 | `LIVE_EXECUTION_STREAM_HEARTBEAT_MS` | Mantiene una sesión de diagnóstico visible detrás de proxies. | Emite heartbeats sin convertir la previsualización en una ejecución persistida. |
 | `STARTUP_SEED_ENABLED` | Impide crear datos demostrativos de forma accidental. | Debe fijarse en `false` en producción; la provisión se ejecuta por jobs controlados. Solo tiene efecto en procesos con `WORKER_ROLE` ∈ `ALL`, `WORKER` — una réplica de API nunca siembra. |
 | `JOB_WAKE_ENABLED` | Determina si el trabajo de fondo arranca a la latencia del commit o a la del sondeo. | En `true` (default) requiere que la conexión a Postgres propague `LISTEN`/`NOTIFY`; un `pgbouncer` en modo `transaction`/`statement` no lo hace, así que ese despliegue debe ponerlo en `false` y confiar solo en el sondeo. |

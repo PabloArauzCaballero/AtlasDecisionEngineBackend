@@ -31,6 +31,17 @@ services:
         # lleva por delante a todos los demás servicios que comparten ese disco.
         max-size: "10m"
         max-file: "5"
+    # Se RETIRA la publicación de puerto del fichero base. En desarrollo `127.0.0.1:5432`
+    # existe para abrir psql desde el portátil; en un servidor, ese mismo enlace es una
+    # superficie que solo hace falta durante una incidencia — y para eso está
+    # `docker compose exec postgres psql`, que no requiere puerto publicado.
+    #
+    # `!override` es OBLIGATORIO aquí. Compose FUSIONA las secuencias de una superposición con
+    # las del fichero base en vez de sustituirlas, así que un `ports: []` a secas no quita
+    # nada: no hay nada que añadir y la publicación del base sobrevive intacta. Se comprobó
+    # resolviendo la configuración combinada, que seguía mostrando `127.0.0.1:5432` publicado
+    # en producción. La etiqueta fuerza la sustitución.
+    ports: !override []
     cpus: ${POSTGRES_CPUS:-4}
     mem_limit: ${POSTGRES_MEMORY:-4g}
     shm_size: ${POSTGRES_SHM:-1gb}
@@ -38,6 +49,9 @@ services:
   redis:
     restart: always
     logging: *json-logging
+    # Mismo criterio que Postgres, y misma necesidad de `!override` para que la sustitución
+    # ocurra de verdad.
+    ports: !override []
     cpus: ${REDIS_CPUS:-1}
     mem_limit: ${REDIS_MEMORY:-512m}
 
@@ -76,6 +90,10 @@ services:
       # FOR UPDATE SKIP LOCKED más un lease que caduca. Lo que N NO debe hacer es agotar el
       # pool de conexiones, de ahí que su pool sea deliberadamente pequeño.
       DATABASE_POOL_MAX: ${WORKER_DATABASE_POOL_MAX:-5}
+      # La siembra de arranque es trabajo de fondo, así que el worker —y sólo él— la
+      # ejecuta. Se le pone el mismo tope que al Job: en producción, catálogo base y nada
+      # más, aunque alguien deje un `SEED_INCLUDE_MOCKUP=true` suelto en el `.env`.
+      SEED_INCLUDE_MOCKUP: "false"
     cpus: ${WORKER_CPUS:-1}
     mem_limit: ${WORKER_MEMORY:-1g}
 
@@ -92,3 +110,14 @@ services:
   seed:
     restart: "no"
     logging: *json-logging
+    environment:
+      # Producción siembra el catálogo BASE y NADA más. El fichero base pone
+      # `SEED_INCLUDE_MOCKUP: ${SEED_INCLUDE_MOCKUP:-true}` porque describe el portátil, y
+      # una superposición que no diga nada HEREDA ese `true`: la pila de producción sembraba
+      # los artefactos de demostración —con despliegue ACTIVO en PROD incluido— sobre la
+      # base real. Aquí se fija, no se hereda.
+      #
+      # No se deduce de `NODE_ENV`: la imagen del migrador lo fija en `production` también
+      # en desarrollo, así que como guarda no distingue nada. La distinción tiene que ser
+      # esta línea, que además deja la decisión a la vista de quien lea el compose.
+      SEED_INCLUDE_MOCKUP: "false"

@@ -28,7 +28,8 @@ import 'reflect-metadata';
 // que arrancar la traza después de cargar Nest no produciría ningún span.
 import { startTracing, stopTracing } from './common/observability/tracing';
 
-startTracing();
+// Nombre propio, distinto del de la API: es el que separa los dos procesos en Jaeger.
+startTracing('atlas-worker');
 
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -36,10 +37,15 @@ import { NestFactory } from '@nestjs/core';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { AppModule } from './app.module';
 import { StructuredLoggerService } from './common/observability/structured-logger.service';
+import {
+  extractMetricsToken,
+  isAuthorizedMetricsRequest,
+} from './common/observability/metrics-token';
 import { MetricsService } from './common/observability/metrics.service';
 import { HashService } from './common/crypto/hash.service';
 import { JobSchedulerService } from './common/jobs/job-scheduler.service';
 import { workerRoleOf } from './common/config/worker-role';
+import { DataSourceHealthService } from './common/persistence/health/data-source-health.service';
 import { HealthProbeService } from './modules/health/health-probe.service';
 
 (BigInt.prototype as unknown as { toJSON: () => string }).toJSON = function toJSON() {
@@ -70,13 +76,22 @@ function sendText(
   response.end(body);
 }
 
-/** Cabecera única, aunque el cliente mande varias: dos valores no son una credencial. */
-function singleHeader(value: string | string[] | undefined): string | undefined {
-  return Array.isArray(value) ? undefined : value;
-}
+/**
+ * Contexto ya creado, para que el manejador de fallo de arranque pueda cerrarlo.
+ *
+ * Sin esto, un arranque que falla DESPUÉS de crear el contexto —el rechazo de `WORKER_ROLE`
+ * de más abajo es exactamente ese caso— dejaba el pool de Postgres y la escucha de trabajos
+ * abiertos: `process.exitCode = 1` no termina un proceso que aún tiene descriptores vivos,
+ * así que el contenedor tardaba en morir lo que tardase el pool en cerrar por inactividad
+ * (`DATABASE_IDLE_TIMEOUT_MS`, 30 s por defecto) — medido: 30,1 s entre el log fatal y la
+ * salida real. Un fallo de configuración que se anuncia rápido pero sale despacio alarga
+ * cada vuelta del ciclo de reinicio y pierde las trazas del propio fallo.
+ */
+let startedContext: Awaited<ReturnType<typeof NestFactory.createApplicationContext>> | undefined;
 
 async function bootstrapWorker(): Promise<void> {
   const context = await NestFactory.createApplicationContext(AppModule, { bufferLogs: true });
+  startedContext = context;
   const logger = context.get(StructuredLoggerService);
   context.useLogger(logger);
 
@@ -92,6 +107,7 @@ async function bootstrapWorker(): Promise<void> {
   }
 
   const probe = context.get(HealthProbeService);
+  const dataSources = context.get(DataSourceHealthService);
   const metrics = context.get(MetricsService);
   const hashes = context.get(HashService);
   const scheduler = context.get(JobSchedulerService);
@@ -116,14 +132,31 @@ async function bootstrapWorker(): Promise<void> {
         .catch(() => send(response, 503, { status: 'not_ready' }));
       return;
     }
+    // Misma sonda de fuentes de datos que la API, por la misma razón que `/health/ready`:
+    // el worker abre sus propias conexiones y, durante un incidente, hay que poder ver las
+    // suyas y no las de otro proceso. Responde 200 aunque estén degradadas — el veredicto
+    // de sacarlo de rotación lo da `/health/ready`, y un 503 aquí escondería el cuerpo que
+    // se viene a leer.
+    if (path === '/health/data-sources') {
+      void dataSources
+        .report()
+        .then((report) => send(response, 200, report))
+        .catch(() => send(response, 503, { status: 'unknown' }));
+      return;
+    }
     if (path === '/metrics') {
       if (!metricsEnabled) return send(response, 404, { error: 'metrics_disabled' });
-      const supplied = singleHeader(request.headers['x-metrics-token']);
-      // Se comparan los digest y no las cadenas: `timingSafeEqual` exige la misma longitud,
-      // y comparar longitudes de secretos ya filtra información.
+      // Misma decisión que en el endpoint de la API, y por el mismo código: `/metrics` del
+      // worker y el de la API tienen que autorizar igual, o el panel del outbox se alimenta
+      // de un proceso y no del otro.
+      const supplied = extractMetricsToken(request.headers);
       if (
-        metricsToken &&
-        (!supplied || !hashes.equals(hashes.sha256(supplied), hashes.sha256(metricsToken)))
+        !isAuthorizedMetricsRequest(
+          supplied,
+          metricsToken,
+          (a, b) => hashes.equals(a, b),
+          (value) => hashes.sha256(value),
+        )
       ) {
         return send(response, 401, { error: 'unauthorized' });
       }
@@ -140,16 +173,36 @@ async function bootstrapWorker(): Promise<void> {
   // Nest cierra el contexto —y con él los onModuleDestroy que drenan los trabajos en
   // vuelo— pero nadie cerraría el servidor de sondas ni vaciaría las trazas.
   context.enableShutdownHooks();
+  const graceMs = config.get<number>('SHUTDOWN_GRACE_MS') ?? 20_000;
   let shuttingDown = false;
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     process.once(signal, () => {
       if (shuttingDown) return;
       shuttingDown = true;
       server.close();
+      // Plazo duro para TODO el apagado. El orquestador ya lleva su propio cronómetro
+      // (`terminationGracePeriodSeconds`) y al agotarlo manda SIGKILL, que no deja escribir
+      // ni una línea. Salir por decisión propia un momento antes conserva el motivo en el
+      // log; llegar al SIGKILL lo pierde. `unref` para que este temporizador no sea nunca
+      // la causa de que el proceso siga vivo cuando ya no queda nada que cerrar.
+      const watchdog = setTimeout(() => {
+        process.stderr.write(
+          `${JSON.stringify({
+            timestamp: new Date().toISOString(),
+            level: 'error',
+            context: 'WorkerShutdown',
+            message: `El apagado ordenado no terminó en ${graceMs} ms; se fuerza la salida`,
+          })}\n`,
+        );
+        process.exit(1);
+      }, graceMs);
+      watchdog.unref?.();
+
       void context
         .close()
         .then(() => stopTracing())
-        .then(() => process.exit(0));
+        .then(() => process.exit(0))
+        .catch(() => process.exit(1));
     });
   }
 
@@ -170,7 +223,7 @@ async function bootstrapWorker(): Promise<void> {
   );
 }
 
-void bootstrapWorker().catch((error: unknown) => {
+void bootstrapWorker().catch(async (error: unknown) => {
   process.stderr.write(
     `${JSON.stringify({
       timestamp: new Date().toISOString(),
@@ -179,5 +232,12 @@ void bootstrapWorker().catch((error: unknown) => {
       stack: error instanceof Error ? error.stack : undefined,
     })}\n`,
   );
-  process.exitCode = 1;
+  // Cerrar lo que sí llegó a abrirse antes de salir: el pool de Postgres, la escucha de
+  // trabajos y el exportador de trazas. Es best-effort —ya estamos en el camino de fallo, y
+  // un error aquí no puede tapar el que nos trajo— pero sin ello la salida depende de que
+  // cada descriptor caiga por su propio timeout de inactividad. `exit(1)` explícito y no
+  // `exitCode`: el cierre puede dejar algo vivo y la salida no puede quedar a su merced.
+  await startedContext?.close().catch(() => undefined);
+  await stopTracing().catch(() => undefined);
+  process.exit(1);
 });

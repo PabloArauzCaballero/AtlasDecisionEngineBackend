@@ -15,6 +15,7 @@ import {
   type ExecutableCalculatedField,
 } from '../calculated-fields/calculated-field-runtime';
 import { intermediateAssignmentsOf } from './validators/graph-intermediate.validator';
+import { requireWorkerCall } from './worker-call';
 import type {
   ArtifactReferenceResolver,
   CalculatedFieldCallSnapshot,
@@ -28,7 +29,38 @@ import type {
   LiveStepEvent,
   NestedExecutionTraceEntry,
   NestedReferenceCursor,
+  WorkerCallSnapshot,
+  WorkerCallTraceEntry,
+  WorkerServiceInvoker,
+  WorkerServiceOutcome,
 } from './graph.types';
+
+/**
+ * Convierte a número o detiene la ejecución.
+ *
+ * `Number()` a secas devuelve `NaN` para cualquier cosa que no sea numérica, y `NaN` no
+ * levanta ninguna alarma: se propaga por las sumas, sobrevive a `state.score`, y al
+ * serializar la respuesta `JSON.stringify` lo convierte en `null`. El solicitante recibía
+ * entonces `{"status":"SUCCEEDED","outcome":"APPROVED","score":null}` — una decisión que el
+ * motor declara correcta sobre un número que nunca llegó a calcular.
+ *
+ * Es la misma regla que ya aplicaba `ExpressionEvaluator.asNumber` a las expresiones; lo que
+ * faltaba era aplicarla a la otra puerta por la que entran números al estado de la decisión:
+ * la configuración de los nodos SCORE y las acciones SET_SCORE/ADD_SCORE/SET_LIMIT, que se
+ * escriben a mano en el editor y por tanto son igual de capaces de traer un valor no
+ * numérico. `Infinity` se rechaza por el mismo motivo que `NaN`: no es un importe ni una
+ * puntuación que se pueda persistir ni comparar.
+ */
+function requireFiniteNumber(value: unknown, code: string, what: string): number {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(parsed)) {
+    throw new DomainException(
+      'NON_NUMERIC_DECISION_VALUE',
+      `${what} de ${code} no produjo un número finito`,
+    );
+  }
+  return parsed;
+}
 
 interface MutableExecutionState {
   outcome: string;
@@ -49,6 +81,8 @@ interface MutableExecutionState {
   currentNodeKey: string;
   /** Invocaciones a campos calculados de esta ejecución, en orden (§12). */
   calculatedFieldCalls: CalculatedFieldTraceEntry[];
+  /** Llamadas a servicios de worker de esta ejecución, en orden. */
+  workerCalls: WorkerCallTraceEntry[];
 }
 
 @Injectable()
@@ -78,6 +112,11 @@ export class ExecutionEngineService {
     // omitted by every existing caller (RuntimeService, SimulationService,
     // TestCaseExecutorService), so this changes nothing for them.
     onStep?: (event: LiveStepEvent) => void,
+    // Quién ejecuta la llamada de un nodo WORKER. Mismo criterio que el resolutor de
+    // referencias: argumento de llamada, nunca dependencia de constructor, para que el
+    // motor no dependa del módulo de workers. Omitirlo solo afecta a los grafos que
+    // tengan nodos WORKER, y ahí falla cerrado.
+    workerInvoker?: WorkerServiceInvoker,
   ): Promise<EngineExecutionResult> {
     const state: MutableExecutionState = {
       outcome: 'NO_DECISION',
@@ -86,6 +125,7 @@ export class ExecutionEngineService {
       intermediates: new IntermediateScope(compiled.intermediates ?? []),
       currentNodeKey: compiled.startNodeKey,
       calculatedFieldCalls: [],
+      workerCalls: [],
     };
     const trace: EngineExecutionResult['trace'] = [];
     const visitedNodeKeys: string[] = [];
@@ -121,6 +161,9 @@ export class ExecutionEngineService {
         if (node.type === 'ACTION') {
           this.executeActions(node, compiled, variables, state, evaluation);
         }
+        if (node.type === 'WORKER') {
+          await this.invokeWorkerService(node, variables, state, evaluation, workerInvoker);
+        }
         if (node.type === 'RESULT') {
           await this.evaluateResultNode(
             node,
@@ -137,8 +180,12 @@ export class ExecutionEngineService {
           state.outcome = 'MANUAL_REVIEW';
           state.manualReview = {
             queueCode: String(node.config.queueCode ?? 'CREDIT_REVIEW'),
-            priority: Number(node.config.priority ?? 100),
-            slaMinutes: Number(node.config.slaMinutes ?? 240),
+            priority: requireFiniteNumber(node.config.priority ?? 100, node.key, 'La prioridad'),
+            slaMinutes: requireFiniteNumber(
+              node.config.slaMinutes ?? 240,
+              node.key,
+              'El SLA en minutos',
+            ),
             evidence: renderTemplate(
               (node.config.evidence ?? {}) as Record<string, unknown>,
               this.context(variables, state),
@@ -316,7 +363,183 @@ export class ExecutionEngineService {
       manualReview: state.manualReview,
       nestedExecutions,
       calculatedFieldCalls: state.calculatedFieldCalls,
+      workerCalls: state.workerCalls,
     };
+  }
+
+  /**
+   * Ejecuta la llamada a servicio que declara un nodo `WORKER`.
+   *
+   * El nodo no devuelve nada al contrato público: lo que trae el servicio se proyecta a
+   * variables intermedias, que es lo que después leen las condiciones, los scores y las
+   * expresiones. Así un dato de un worker entra al motor por la misma puerta —con su tipo,
+   * su autorización de escritura y su política de traza— que cualquier valor calculado.
+   */
+  private async invokeWorkerService(
+    node: GraphNodeSnapshot,
+    variables: Record<string, unknown>,
+    state: MutableExecutionState,
+    evaluation: Record<string, unknown>,
+    invoker: WorkerServiceInvoker | undefined,
+  ): Promise<void> {
+    const call = requireWorkerCall(node);
+    if (!invoker) {
+      throw new DomainException(
+        'WORKER_SERVICE_NOT_CONFIGURED',
+        `El nodo ${node.key} llama al servicio ${call.service}, pero esta ejecución no recibió un invocador de servicios`,
+      );
+    }
+
+    const started = Date.now();
+    let outcome: WorkerServiceOutcome;
+    try {
+      outcome = await invoker.invoke({
+        service: call.service,
+        operation: call.operation,
+        nodeKey: node.key,
+        arguments: this.resolveWorkerArguments(call, variables, state),
+        timeoutMs: call.timeoutMs,
+      });
+    } catch (error) {
+      const errorCode = error instanceof DomainException ? error.code : 'WORKER_SERVICE_FAILED';
+      const durationMs = Date.now() - started;
+      if (call.onError === 'FAIL') {
+        state.workerCalls.push({
+          nodeKey: node.key,
+          service: call.service,
+          operation: call.operation,
+          status: 'FAILED',
+          durationMs,
+          outputs: [],
+          warnings: [],
+          errorCode,
+        });
+        this.metrics.recordWorkerCall(call.service, call.operation, 'ERROR', durationMs);
+        throw error;
+      }
+      // `CONTINUE`: el algoritmo sigue con lo que el autor declaró como valor por defecto,
+      // y `call.status` deja el fallo a la vista para que una rama pueda desviarse por él.
+      const written = this.applyWorkerOutputs(
+        call,
+        { result: {}, call: { status: 'FAILED', errorCode, durationMs, warningCount: 0 } },
+        node,
+        variables,
+        state,
+      );
+      state.workerCalls.push({
+        nodeKey: node.key,
+        service: call.service,
+        operation: call.operation,
+        status: 'FAILED',
+        durationMs,
+        outputs: written,
+        warnings: [],
+        errorCode,
+      });
+      this.metrics.recordWorkerCall(call.service, call.operation, 'ERROR', durationMs);
+      evaluation.worker = {
+        service: call.service,
+        operation: call.operation,
+        status: 'FAILED',
+        errorCode,
+        outputs: written,
+      };
+      return;
+    }
+
+    const written = this.applyWorkerOutputs(
+      call,
+      {
+        result: outcome.result,
+        call: {
+          status: outcome.status,
+          errorCode: null,
+          durationMs: outcome.durationMs,
+          warningCount: outcome.warnings.length,
+        },
+      },
+      node,
+      variables,
+      state,
+    );
+    state.workerCalls.push({
+      nodeKey: node.key,
+      service: call.service,
+      operation: call.operation,
+      status: outcome.status,
+      durationMs: outcome.durationMs,
+      outputs: written,
+      warnings: outcome.warnings,
+    });
+    this.metrics.recordWorkerCall(call.service, call.operation, outcome.status, outcome.durationMs);
+    evaluation.worker = {
+      service: call.service,
+      operation: call.operation,
+      status: outcome.status,
+      durationMs: outcome.durationMs,
+      warnings: outcome.warnings,
+      outputs: written,
+    };
+  }
+
+  /** Alimenta cada argumento del servicio desde el contexto del grafo. */
+  private resolveWorkerArguments(
+    call: WorkerCallSnapshot,
+    variables: Record<string, unknown>,
+    state: MutableExecutionState,
+  ): Record<string, unknown> {
+    const resolved: Record<string, unknown> = {};
+    for (const [name, binding] of Object.entries(call.arguments)) {
+      const context = this.context(variables, state);
+      switch (binding.source) {
+        case 'LITERAL':
+          resolved[name] = binding.value;
+          break;
+        case 'EXPRESSION':
+          resolved[name] = this.expressions.evaluate(binding.expression, context);
+          break;
+        case 'TEMPLATE':
+          resolved[name] = renderTemplate(binding.value, context);
+          break;
+        case 'INTERMEDIATE':
+          resolved[name] = this.expressions.evaluate(
+            { var: `intermediate.${binding.path ?? ''}` },
+            context,
+          );
+          break;
+        default:
+          resolved[name] = this.expressions.evaluate({ var: binding.path ?? '' }, context);
+      }
+    }
+    return resolved;
+  }
+
+  /**
+   * Proyecta la respuesta del servicio sobre las intermedias declaradas.
+   *
+   * Las rutas se resuelven contra `{ result, call }` y no contra la respuesta pelada: así
+   * un servicio que devuelva su propio campo `status` no tapa el estado de la llamada, que
+   * es justo el dato del que suele colgar la rama de contingencia.
+   */
+  private applyWorkerOutputs(
+    call: WorkerCallSnapshot,
+    envelope: { result: Record<string, unknown>; call: Record<string, unknown> },
+    node: GraphNodeSnapshot,
+    variables: Record<string, unknown>,
+    state: MutableExecutionState,
+  ): string[] {
+    const context = { ...this.context(variables, state), ...envelope };
+    const written: string[] = [];
+    for (const output of call.outputs) {
+      const raw =
+        output.source === 'EXPRESSION'
+          ? this.expressions.evaluate(output.expression, context)
+          : this.expressions.evaluate({ var: output.path ?? '' }, context);
+      const value = raw === undefined || raw === null ? (output.defaultValue ?? null) : raw;
+      state.intermediates.write(output.intermediateCode, node.key, value);
+      written.push(output.intermediateCode);
+    }
+    return written.sort();
   }
 
   private async evaluateResultNode(
@@ -337,7 +560,10 @@ export class ExecutionEngineService {
       if (language !== 'JAVASCRIPT' && language !== 'PYTHON') {
         throw new DomainException(
           'RESULT_SCRIPT_LANGUAGE_INVALID',
-          `Unsupported RESULT script language ${language}`,
+          // `String(...)`: el `as ScriptLanguage` de arriba hace creer al compilador que
+          // aquí ya no queda ningún valor posible. Esta guarda es justamente la que
+          // comprueba que el aserto era cierto.
+          `Unsupported RESULT script language ${String(language)}`,
         );
       }
       Object.assign(
@@ -492,7 +718,11 @@ export class ExecutionEngineService {
     state: MutableExecutionState,
     evaluation: Record<string, unknown>,
   ): void {
-    let score = Number(node.config.baseScore ?? state.score ?? 0);
+    let score = requireFiniteNumber(
+      node.config.baseScore ?? state.score ?? 0,
+      node.key,
+      'La puntuación base',
+    );
     const components = Array.isArray(node.config.components) ? node.config.components : [];
     const applied: Array<{ conditionCode?: string; points: number }> = [];
     for (const raw of components) {
@@ -503,18 +733,22 @@ export class ExecutionEngineService {
         ? Boolean(this.expressions.evaluate(condition.expression, this.context(variables, state)))
         : true;
       if (matches) {
-        const points = Number(
+        const points = requireFiniteNumber(
           component.pointsExpression
             ? this.expressions.evaluate(component.pointsExpression, this.context(variables, state))
             : (component.points ?? 0),
+          conditionCode ?? node.key,
+          'El componente de puntuación',
         );
         score += points;
         applied.push({ conditionCode, points });
       }
     }
     if (node.config.scoreExpression) {
-      score = Number(
+      score = requireFiniteNumber(
         this.expressions.evaluate(node.config.scoreExpression, this.context(variables, state)),
+        node.key,
+        'La expresión de puntuación',
       );
     }
     state.score = score;
@@ -583,13 +817,27 @@ export class ExecutionEngineService {
         state.outcome = String(payload.outcome ?? 'NO_DECISION');
         break;
       case 'SET_SCORE':
-        state.score = Number(this.resolveActionValue(payload, context));
+        state.score = requireFiniteNumber(
+          this.resolveActionValue(payload, context),
+          action.code,
+          'La acción SET_SCORE',
+        );
         break;
       case 'ADD_SCORE':
-        state.score = Number(state.score ?? 0) + Number(this.resolveActionValue(payload, context));
+        state.score =
+          requireFiniteNumber(state.score ?? 0, action.code, 'La puntuación acumulada') +
+          requireFiniteNumber(
+            this.resolveActionValue(payload, context),
+            action.code,
+            'La acción ADD_SCORE',
+          );
         break;
       case 'SET_LIMIT':
-        state.limit = Number(this.resolveActionValue(payload, context));
+        state.limit = requireFiniteNumber(
+          this.resolveActionValue(payload, context),
+          action.code,
+          'La acción SET_LIMIT',
+        );
         break;
       case 'SET_RISK_BAND':
         state.riskBand = String(this.resolveActionValue(payload, context));
@@ -603,8 +851,12 @@ export class ExecutionEngineService {
         state.outcome = 'MANUAL_REVIEW';
         state.manualReview = {
           queueCode: String(payload.queueCode ?? 'CREDIT_REVIEW'),
-          priority: Number(payload.priority ?? 100),
-          slaMinutes: Number(payload.slaMinutes ?? 240),
+          priority: requireFiniteNumber(payload.priority ?? 100, action.code, 'La prioridad'),
+          slaMinutes: requireFiniteNumber(
+            payload.slaMinutes ?? 240,
+            action.code,
+            'El SLA en minutos',
+          ),
           evidence: renderTemplate(
             (payload.evidence ?? {}) as Record<string, unknown>,
             context,

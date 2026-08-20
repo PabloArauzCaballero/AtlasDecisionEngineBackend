@@ -3,6 +3,7 @@ import type { ParsedStatement } from './domain/models';
 import type { StatementProcessingContext } from './domain/processing-context';
 import type { StatementParser } from './domain/statement-parser';
 import { DocumentClassifier } from './engine/document-classifier';
+import type { TriageThresholds } from './engine/document-triage';
 import type { StatementOcrPort } from './engine/extraction/ocr-port';
 import { StatementExtractor } from './engine/extraction/statement-extractor';
 import { GenericStatementStrategy } from './engine/generic/generic-statement.strategy';
@@ -31,6 +32,12 @@ import { LayoutPdfReader } from './pdf/layout-pdf-reader';
 export interface StatementEngineOptions {
   /** Límites de tamaño, páginas y tiempo. Se completan con los de por defecto. */
   readonly limits?: Partial<BankStatementModuleOptions>;
+  /**
+   * Fronteras entre procesar, preguntar y rechazar. Se dejan configurables
+   * porque son lo primero que hay que recalibrar con documentos reales, y
+   * hacerlo no puede exigir recompilar el motor.
+   */
+  readonly triage?: Partial<TriageThresholds>;
   /** Reconocimiento óptico, si el anfitrión lo aporta. */
   readonly ocr?: StatementOcrPort;
   /** Perfiles de formato en JSON, validados al construir el motor. */
@@ -101,7 +108,7 @@ export function createStatementEngine(options: StatementEngineOptions = {}): Sta
   const worker = new BankStatementWorkerService(
     new StatementExtractor(new LayoutPdfReader(limits), options.ocr),
     registry,
-    new DocumentClassifier(),
+    new DocumentClassifier(options.triage ?? {}),
     new InstitutionDetector(),
     metrics,
   );

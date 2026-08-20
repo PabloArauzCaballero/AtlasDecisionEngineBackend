@@ -398,7 +398,7 @@ async function seedQaRun(prisma: PrismaClient, artifactVersionId: bigint): Promi
     data: {
       tenantId: TENANT_ID,
       artifactVersionId,
-      environmentCode: 'SANDBOX',
+      environmentCode: 'DEV',
       status: 'COMPLETED',
       seed,
       configJson: {

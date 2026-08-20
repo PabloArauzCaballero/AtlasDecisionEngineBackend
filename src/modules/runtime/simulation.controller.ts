@@ -37,7 +37,7 @@ export class SimulationController {
 
   @Post(':artifactCode')
   @ApiOperation({
-    summary: 'Simulate a SANDBOX or TEST decision without persistence',
+    summary: 'Simulate a non-production decision (DEV, STAGING or TEST) without persistence',
     description:
       'With `compareWithProduction: true` the same resolved inputs are also run through the ' +
       'artifact currently deployed to PROD, and the response carries a `productionComparison` ' +

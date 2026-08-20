@@ -49,8 +49,11 @@ export class GraphGeneratorService {
       })),
       ...contract.outputs.map((variable) => ({
         variableCode: variable.id,
-        usageType: (variable.id === primaryOutputId ? 'OUTPUT_PRIMARY' : 'OUTPUT') as
-          'OUTPUT_PRIMARY' | 'OUTPUT',
+        // Cada rama lleva su `as const`: aplicado al ternario entero TypeScript lo
+        // rechaza (TS1355, sólo admite literales), y sin él ensancha el tipo a
+        // `string`, que deja de encajar en la unión que declara el contrato.
+        usageType:
+          variable.id === primaryOutputId ? ('OUTPUT_PRIMARY' as const) : ('OUTPUT' as const),
         dependencyPath: `output.${variable.id}`,
         dataType: variable.type,
         required: variable.required,

@@ -47,6 +47,16 @@ export const semanticWorkerConfigSchema = z
     catalogCacheTtlSeconds: z.number().int().min(0).max(3_600).default(60),
 
     /**
+     * Vida de la caché de clasificación. Su clave incluye la firma del catálogo,
+     * así que el TTL no protege contra datos obsoletos —de eso se encarga la
+     * firma— sino que acota cuánta memoria retiene un proceso de vida larga.
+     * `0` desactiva la caché.
+     */
+    classificationCacheTtlSeconds: z.number().int().min(0).max(86_400).default(3_600),
+    /** Glosas distintas que se recuerdan a la vez. `0` desactiva la caché. */
+    classificationCacheSize: z.number().int().min(0).max(1_000_000).default(5_000),
+
+    /**
      * `lexical` conserva el comportamiento sin coste adicional. `hybrid` añade similitud por
      * embeddings, lo que mejora el recall cuando texto y categoría no comparten vocabulario, a
      * cambio de una llamada de embedding por análisis.
@@ -121,6 +131,8 @@ const environmentSchema = z.object({
   SEMANTIC_AMBIGUITY_MARGIN: z.coerce.number().default(0.08),
   SEMANTIC_HEALTH_PORT: z.coerce.number().int().default(3001),
   SEMANTIC_CATALOG_CACHE_TTL_SECONDS: z.coerce.number().int().default(60),
+  SEMANTIC_CLASSIFICATION_CACHE_TTL_SECONDS: z.coerce.number().int().default(3_600),
+  SEMANTIC_CLASSIFICATION_CACHE_SIZE: z.coerce.number().int().default(5_000),
   SEMANTIC_RETRIEVAL_MODE: z.enum(['lexical', 'hybrid']).default('lexical'),
   SEMANTIC_RETRIEVAL_SEMANTIC_WEIGHT: z.coerce.number().default(0.6),
   SEMANTIC_AUDIT_RETENTION_DAYS: z.coerce.number().int().default(90),
@@ -162,6 +174,8 @@ export function loadSemanticWorkerConfig(
     ambiguityMargin: parsed.SEMANTIC_AMBIGUITY_MARGIN,
     healthPort: parsed.SEMANTIC_HEALTH_PORT,
     catalogCacheTtlSeconds: parsed.SEMANTIC_CATALOG_CACHE_TTL_SECONDS,
+    classificationCacheTtlSeconds: parsed.SEMANTIC_CLASSIFICATION_CACHE_TTL_SECONDS,
+    classificationCacheSize: parsed.SEMANTIC_CLASSIFICATION_CACHE_SIZE,
     retrievalMode: parsed.SEMANTIC_RETRIEVAL_MODE,
     retrievalSemanticWeight: parsed.SEMANTIC_RETRIEVAL_SEMANTIC_WEIGHT,
     auditRetentionDays: parsed.SEMANTIC_AUDIT_RETENTION_DAYS,

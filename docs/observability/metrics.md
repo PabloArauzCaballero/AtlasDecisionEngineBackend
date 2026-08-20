@@ -59,6 +59,21 @@ divergencia no se puede leer.
 | `atlas_outbox_dead_total` | Counter | `> 0` requiere una persona |
 | `atlas_notification_created_total` | Counter | Proyección a la bandeja |
 
+### Persistencia y rutas de datos
+
+| Métrica | Tipo | Lectura |
+| --- | --- | --- |
+| `atlas_database_operation_total` | Counter | Qué conexión sirve qué módulo y con qué resultado. Etiquetas: `connection`, `engine`, `module`, `operation`, `outcome` |
+| `atlas_database_operation_duration_ms` | Histogram | Latencia por conexión y módulo; permite comparar primario y réplica |
+| `atlas_database_fallback_total` | Counter | **Debería ser cero.** Si sube, la ruta de lectura está caída y el primario absorbe su carga |
+| `atlas_database_connection_failures_total` | Counter | Fallos de conexión por ruta lógica |
+| `atlas_database_pool_connections` | Gauge | `total`, `idle`, `waiting` por pool. `waiting` sostenido = el pool va justo |
+
+El tamaño del pool se muestrea en el instante del scrape, mediante un colector registrado en
+`MetricsService`: publicarlo desde un temporizador propio añadiría un reloj más al proceso
+para dar, además, un dato viejo. Detalle en
+[consistencia, transacciones y fallos](../data/persistence/consistency-and-failure.md).
+
 ### QA y auditoría
 
 | Métrica | Tipo |

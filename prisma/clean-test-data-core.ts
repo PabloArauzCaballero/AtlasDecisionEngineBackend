@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
+import { resolveBootstrapTenantId } from '../src/modules/seeding/data/helpers';
 
 /** Codes that must NEVER be removed (the real demo + the documented logic algos). */
 export const KEEP_ARTIFACT_CODES = new Set([
@@ -28,7 +29,9 @@ export async function cleanTestArtifacts(
   prisma: PrismaClient,
   options: { tenantId?: bigint; dryRun?: boolean } = {},
 ): Promise<CleanupResult> {
-  const tenantId = options.tenantId ?? BigInt(process.env.SEED_TENANT_ID ?? '1');
+  // El mismo tenant que sembró los datos. Una limpieza que mira otro tenant no borra nada
+  // y lo informa como éxito, que es peor que fallar.
+  const tenantId = options.tenantId ?? resolveBootstrapTenantId();
   const candidates = await prisma.decisionArtifact.findMany({
     where: {
       tenantId,
@@ -38,6 +41,13 @@ export async function cleanTestArtifacts(
         { artifactCode: { startsWith: 'PW_' } },
         { artifactCode: { startsWith: 'SMOKE_' } },
         { artifactCode: { startsWith: 'SHOULD_' } },
+        // Los dos que faltaban, y que por eso se acumularon: los deja el diagnóstico de
+        // importación de código (`DIAG_IMPORT_…`, `DIAG_SEEDAGE_…`) y el fixture del
+        // formulario de alta (`SUBMIT_…`). Llevan un sello de tiempo en el código, así que
+        // cada corrida estrenaba uno nuevo y ninguno se volvía a mirar: diecinueve
+        // artefactos en la lista y sólo once significaban algo.
+        { artifactCode: { startsWith: 'DIAG_' } },
+        { artifactCode: { startsWith: 'SUBMIT_' } },
         { artifactCode: { contains: 'BLOCKED' } },
         { artifactCode: { contains: 'FIXTURE' } },
         { artifactCode: { contains: 'SHOULD_NOT' } },
@@ -66,6 +76,17 @@ export async function cleanTestArtifacts(
   const bindings = await prisma.decisionRuntimeBinding.deleteMany({
     where: { tenantId, artifactCode: { in: codes } },
   });
+  // Las ejecuciones van ANTES que los despliegues a los que apuntan.
+  //
+  // El smoke integral ejecuta decisiones de verdad contra el artefacto que crea, así que
+  // sus despliegues quedan referenciados por filas de ejecución. Borrar el despliegue
+  // primero violaba `decision_execution_deployment_id_fkey` y abortaba la limpieza entera:
+  // la basura se acumulaba en la base compartida y hacía fallar corridas posteriores por
+  // motivos que no tenían nada que ver con el cambio que se estaba probando.
+  //
+  // La evidencia, los pasos y los casos de revisión manual cuelgan de la ejecución en
+  // cascada, así que se van con ella.
+  await prisma.decisionExecution.deleteMany({ where: { artifactVersionId: { in: versionIds } } });
   await prisma.decisionDeployment.deleteMany({ where: { artifactVersionId: { in: versionIds } } });
 
   const suites = await prisma.decisionTestSuite.findMany({

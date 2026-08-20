@@ -118,7 +118,7 @@ export interface AtlasUnderwritingSummary {
 
 export async function seedAtlasUnderwritingArtifact(
   prisma: PrismaClient,
-  environments: { sandbox: { id: bigint }; test: { id: bigint }; prod: { id: bigint } },
+  environments: { dev: { id: bigint }; staging: { id: bigint }; test: { id: bigint }; prod: { id: bigint } },
 ): Promise<AtlasUnderwritingSummary | undefined> {
   const existing = await prisma.decisionArtifact.findUnique({
     where: { tenantId_artifactCode: { tenantId: TENANT_ID, artifactCode: ATLAS_UNDERWRITING_CODE } },
@@ -375,19 +375,25 @@ async function seedApproval(prisma: PrismaClient, artifactVersionId: bigint) {
 }
 
 /**
- * Despliegue ACTIVO y binding de runtime en los tres entornos.
+ * Despliegue ACTIVO y binding de runtime en los cuatro entornos.
  *
- * PROD es el que necesita AtlasBackend; SANDBOX y TEST existen para que la política pueda
- * simularse antes de tocar producción, que es lo que hace útil al simulador del portal.
+ * PROD es el que necesita AtlasBackend; DEV, STAGING y TEST existen para que la política pueda
+ * simularse antes de tocar producción, que es lo que hace útil al simulador del portal. Son los
+ * cuatro ambientes en el orden en que se promueve una versión.
  */
 async function deployToAllEnvironments(
   prisma: PrismaClient,
   artifactVersionId: bigint,
   compiledArtifactId: bigint,
-  environments: { sandbox: { id: bigint }; test: { id: bigint }; prod: { id: bigint } },
+  environments: { dev: { id: bigint }; staging: { id: bigint }; test: { id: bigint }; prod: { id: bigint } },
 ) {
   let production!: Awaited<ReturnType<typeof prisma.decisionDeployment.create>>;
-  for (const environment of [environments.sandbox, environments.test, environments.prod]) {
+  for (const environment of [
+    environments.dev,
+    environments.staging,
+    environments.test,
+    environments.prod,
+  ]) {
     const deployment = await prisma.decisionDeployment.create({
       data: {
         artifactVersionId,

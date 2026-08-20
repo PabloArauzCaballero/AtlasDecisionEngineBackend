@@ -162,8 +162,12 @@ export class ContractValidatorService {
       const readPattern = new RegExp(
         `variables\\s*\\[\\s*['"]${escaped}['"]\\s*\\]|variables\\.get\\(\\s*['"]${escaped}['"]`,
       );
+      // El literal se delimita con `{...}` en vez de `.*`: `.` no cruza saltos de línea,
+      // así que un diccionario escrito en varias líneas —la forma en que se escribe de
+      // verdad, y la que el extractor de ramas ya entiende— hacía fallar la coincidencia
+      // y toda salida declarada salía marcada como "nunca asignada".
       const writePattern = new RegExp(
-        `result\\s*\\[\\s*['"]${escaped}['"]\\s*\\]\\s*=|result\\s*=.*['"]${escaped}['"]`,
+        `result\\s*\\[\\s*['"]${escaped}['"]\\s*\\]\\s*=|result\\s*=\\s*\\{[^}]*['"]${escaped}['"]`,
       );
       return mode === 'read' ? readPattern.test(scriptBody) : writePattern.test(scriptBody);
     }

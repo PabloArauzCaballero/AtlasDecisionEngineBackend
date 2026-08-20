@@ -2,7 +2,16 @@ import { z } from 'zod';
 
 export const semanticAnalysisRequestSchema = z.object({
   requestId: z.string().uuid(),
-  idempotencyKey: z.string().trim().min(8).max(160),
+  /*
+   * 200, que es lo que promete `CreateSemanticAnalysisRunDto`. Aquí ponía 160, y
+   * ese desajuste no rechazaba nada: la API aceptaba la clave, encolaba, y el
+   * worker reventaba con UNEXPECTED_ANALYSIS_ERROR tres veces seguidas. Al
+   * cliente le llegaba «error inesperado» por una clave que le habían admitido.
+   * Lo medido: las glosas largas del BNB —las que llevan cuenta destino, nombre
+   * y banco— pasan de 137 caracteres y el portal, que mete la glosa en la clave,
+   * caía justo ahí.
+   */
+  idempotencyKey: z.string().trim().min(8).max(200),
   text: z.string().trim().min(1).max(20_000),
   tenantId: z.string().trim().min(1).max(100).optional(),
   requestedBy: z.string().trim().min(1).max(160).optional(),

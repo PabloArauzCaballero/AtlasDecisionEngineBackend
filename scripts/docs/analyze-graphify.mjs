@@ -40,6 +40,18 @@ async function listModules() {
     .sort();
 }
 
+/** Todo fichero TypeScript bajo `src/`, en rutas relativas al repositorio. */
+async function listSourceFiles(relative = 'src') {
+  const entries = await readdir(join(repoRoot, relative), { withFileTypes: true });
+  const files = [];
+  for (const entry of entries) {
+    const child = `${relative}/${entry.name}`;
+    if (entry.isDirectory()) files.push(...(await listSourceFiles(child)));
+    else if (entry.name.endsWith('.ts')) files.push(child);
+  }
+  return files;
+}
+
 async function main() {
   const graph = JSON.parse(await readFile(graphPath, 'utf8'));
   const nodes = graph.nodes ?? [];
@@ -75,6 +87,23 @@ async function main() {
   // --- Divergencia grafo ↔ disco ---
   const referencedFiles = new Set(nodes.map((node) => node.source_file).filter(Boolean));
   const missingOnDisk = [...referencedFiles].filter((file) => !existsSync(join(repoRoot, file)));
+
+  // --- Divergencia disco → grafo ---
+  // La dirección contraria importa más que la anterior: un fichero que el grafo desconoce no
+  // aparece en ninguna consulta, así que una documentación derivada del grafo lo omitiría en
+  // silencio. Un módulo entero ausente es lo que ocurre cuando se añade código y nadie
+  // ejecuta `graphify update .`.
+  const sourceFiles = await listSourceFiles();
+  const missingInGraph = sourceFiles.filter((file) => !referencedFiles.has(file));
+  const modulesInGraph = new Set(
+    [...referencedFiles].map((file) => moduleOf(file)).filter((name) => name !== null),
+  );
+  const modulesMissingFromGraph = modules.filter((name) => !modulesInGraph.has(name));
+
+  // --- Registro real de cada módulo en el módulo raíz ---
+  // Comprobado, no supuesto: el informe afirmaba que todos estaban registrados.
+  const appModule = await readFile(join(repoRoot, 'src', 'app.module.ts'), 'utf8');
+  const unregisteredModules = modules.filter((name) => !appModule.includes(`modules/${name}/`));
 
   // --- Grafo de dependencias entre módulos de dominio ---
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
@@ -124,8 +153,19 @@ async function main() {
     '',
     `El grafo contiene **${nodes.length} nodos** y **${links.length} relaciones** repartidos en`,
     `**${new Set(nodes.map((node) => node.community)).size} comunidades**. El árbol real declara`,
-    `**${modules.length} módulos de dominio** en \`src/modules/\`, todos registrados en`,
-    '`src/app.module.ts`.',
+    `**${modules.length} módulos de dominio** en \`src/modules/\`, de los cuales`,
+    unregisteredModules.length
+      ? `**${String(modules.length - unregisteredModules.length)}** están registrados en \`src/app.module.ts\` y ` +
+        `**${String(unregisteredModules.length)}** no: ${unregisteredModules.map((name) => `\`${name}\``).join(', ')}.`
+      : 'todos están registrados en `src/app.module.ts` (comprobado sobre el fichero, no supuesto).',
+    '',
+    `El grafo cubre **${String(sourceFiles.length - missingInGraph.length)} de ${String(sourceFiles.length)}**`,
+    `ficheros TypeScript de \`src/\` (${String(Math.round(((sourceFiles.length - missingInGraph.length) / sourceFiles.length) * 100))} %).`,
+    modulesMissingFromGraph.length
+      ? `**${String(modulesMissingFromGraph.length)} módulo(s) de dominio no aparecen en absoluto**: ` +
+        `${modulesMissingFromGraph.map((name) => `\`${name}\``).join(', ')}. Consultar el grafo sobre ellos ` +
+        'no devuelve nada, así que su documentación **no** se deriva de aquí.'
+      : 'Todos los módulos de dominio aparecen en el grafo.',
     '',
     '## Inventario cuantitativo',
     '',
@@ -186,19 +226,42 @@ async function main() {
     '',
     '## Divergencia entre el grafo y el disco',
     '',
+    '### El grafo menciona ficheros que ya no existen',
+    '',
     missingOnDisk.length
       ? `**${missingOnDisk.length} ficheros** referenciados por el grafo ya no existen en disco. El grafo está desactualizado respecto al árbol; ejecute \`graphify update .\`:\n\n` +
         missingOnDisk
           .slice(0, 20)
           .map((file) => `- \`${file}\``)
           .join('\n')
-      : 'Todo fichero referenciado por el grafo existe en el árbol de trabajo. El grafo está alineado con el disco.',
+      : 'Todo fichero referenciado por el grafo existe en el árbol de trabajo.',
+    '',
+    '### El disco tiene código que el grafo desconoce',
+    '',
+    'Es la dirección que más daño hace: sobre un fichero ausente el grafo no devuelve nada, y una',
+    'consulta vacía se lee igual que «no existe». Por eso los catálogos del portal se generan del',
+    'código y del contrato, nunca de este grafo.',
+    '',
+    missingInGraph.length
+      ? `**${missingInGraph.length} de ${sourceFiles.length}** ficheros \`.ts\` de \`src/\` no aparecen en el grafo` +
+        (modulesMissingFromGraph.length
+          ? `, incluidos **${modulesMissingFromGraph.length} módulo(s) completos** (${modulesMissingFromGraph.map((name) => `\`${name}\``).join(', ')})`
+          : '') +
+        '. Se listan los primeros 20:\n\n' +
+        missingInGraph
+          .slice(0, 20)
+          .map((file) => `- \`${file}\``)
+          .join('\n')
+      : 'Todo fichero `.ts` de `src/` está representado en el grafo.',
     '',
     '## Riesgos identificados',
     '',
     '| Riesgo | Naturaleza | Mitigación vigente |',
     '| --- | --- | --- |',
-    '| El grafo se desactualiza tras cada cambio de código | Documental | `graphify update .` tras modificar código; esta auditoría detecta la divergencia |',
+    '| El grafo se desactualiza tras cada cambio de código | Documental | `graphify update .` tras modificar código; esta auditoría detecta la divergencia en ambos sentidos |',
+    modulesMissingFromGraph.length
+      ? `| El grafo desconoce ${modulesMissingFromGraph.length} módulo(s) (${modulesMissingFromGraph.join(', ')}), así que consultarlo sobre ellos devuelve vacío | Documental | Su documentación se deriva del código y del contrato; esta auditoría lo declara en vez de ocultarlo |`
+      : '| Ningún módulo de dominio queda fuera del grafo | Documental | Comprobado en cada ejecución de esta auditoría |',
     '| Un módulo con mucho fan-in concentra el impacto de sus cambios | Arquitectónico | Contratos explícitos y pruebas por módulo |',
     '| La documentación derivada del grafo hereda sus errores | Documental | Los catálogos del portal se generan del **código y del contrato**, no del grafo |',
     '',
@@ -270,7 +333,12 @@ async function main() {
 
   console.log(
     `Auditoría Graphify: ${nodes.length} nodos, ${links.length} relaciones, ${modules.length} módulos, ` +
-      `${cycles.length} ciclo(s) entre módulos, ${orphans.length} huérfanos, ${missingOnDisk.length} ficheros ausentes en disco.`,
+      `${cycles.length} ciclo(s) entre módulos, ${orphans.length} huérfanos, ${missingOnDisk.length} ficheros ausentes en disco, ` +
+      `${missingInGraph.length}/${sourceFiles.length} ficheros de src/ ausentes del grafo` +
+      (modulesMissingFromGraph.length
+        ? ` (módulos sin cubrir: ${modulesMissingFromGraph.join(', ')})`
+        : '') +
+      '.',
   );
 }
 

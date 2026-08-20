@@ -31,7 +31,7 @@ export const libraryCatalog: LibrarySeed[] = [
     category: 'MATEMATICAS',
     description:
       'Aritmética determinista: valor absoluto, redondeo, potencias y raíces. No expone Math.random.',
-    allowedEnvironments: ['SANDBOX', 'TEST', 'PROD'],
+    allowedEnvironments: ['DEV', 'STAGING', 'TEST', 'PROD'],
   },
   {
     logicalName: 'math',
@@ -40,7 +40,7 @@ export const libraryCatalog: LibrarySeed[] = [
     language: 'PYTHON',
     category: 'MATEMATICAS',
     description: 'Equivalente Python de la aritmética determinista, con nombres math_*.',
-    allowedEnvironments: ['SANDBOX', 'TEST', 'PROD'],
+    allowedEnvironments: ['DEV', 'STAGING', 'TEST', 'PROD'],
   },
   {
     logicalName: 'statistics',
@@ -49,7 +49,7 @@ export const libraryCatalog: LibrarySeed[] = [
     language: 'JAVASCRIPT',
     category: 'ESTADISTICA',
     description: 'Estadística descriptiva sobre listas: media, mediana, varianza y desviación.',
-    allowedEnvironments: ['SANDBOX', 'TEST', 'PROD'],
+    allowedEnvironments: ['DEV', 'STAGING', 'TEST', 'PROD'],
   },
   {
     logicalName: 'statistics',
@@ -58,7 +58,7 @@ export const libraryCatalog: LibrarySeed[] = [
     language: 'PYTHON',
     category: 'ESTADISTICA',
     description: 'Estadística descriptiva en Python, con nombres stats_*.',
-    allowedEnvironments: ['SANDBOX', 'TEST', 'PROD'],
+    allowedEnvironments: ['DEV', 'STAGING', 'TEST', 'PROD'],
   },
   {
     logicalName: 'dates',
@@ -68,7 +68,7 @@ export const libraryCatalog: LibrarySeed[] = [
     category: 'FECHAS',
     description:
       'Diferencias entre fechas provistas. No lee el reloj del sistema: eso rompería el determinismo.',
-    allowedEnvironments: ['SANDBOX', 'TEST', 'PROD'],
+    allowedEnvironments: ['DEV', 'STAGING', 'TEST', 'PROD'],
   },
   {
     logicalName: 'dates',
@@ -77,7 +77,7 @@ export const libraryCatalog: LibrarySeed[] = [
     language: 'PYTHON',
     category: 'FECHAS',
     description: 'Diferencias entre fechas en Python, con nombres dates_*.',
-    allowedEnvironments: ['SANDBOX', 'TEST', 'PROD'],
+    allowedEnvironments: ['DEV', 'STAGING', 'TEST', 'PROD'],
   },
   {
     logicalName: 'finance',
@@ -88,7 +88,7 @@ export const libraryCatalog: LibrarySeed[] = [
     description: 'Cálculo financiero básico: DTI, LTV, interés simple y cuota mensual.',
     // Finanzas nace restringida a no producción: §7 exige aprobación explícita antes de
     // que una fórmula financiera influya en una decisión real.
-    allowedEnvironments: ['SANDBOX', 'TEST'],
+    allowedEnvironments: ['DEV', 'STAGING', 'TEST'],
     status: 'RESTRICTED',
     knownRisks:
       'Las fórmulas asumen tasas ya normalizadas al periodo. Requiere validación actuarial antes de habilitarla en PROD.',
@@ -100,7 +100,7 @@ export const libraryCatalog: LibrarySeed[] = [
     language: 'PYTHON',
     category: 'FINANZAS',
     description: 'Equivalente Python del cálculo financiero básico, con nombres finance_*.',
-    allowedEnvironments: ['SANDBOX', 'TEST'],
+    allowedEnvironments: ['DEV', 'STAGING', 'TEST'],
     status: 'RESTRICTED',
     knownRisks:
       'Las fórmulas asumen tasas ya normalizadas al periodo. Requiere validación actuarial antes de habilitarla en PROD.',

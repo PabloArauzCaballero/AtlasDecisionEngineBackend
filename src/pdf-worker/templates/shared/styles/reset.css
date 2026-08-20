@@ -1,0 +1,54 @@
+/*
+ * Restablecimiento mínimo para impresión.
+ *
+ * No es un `normalize.css`: en un PDF no hay navegadores distintos que reconciliar, hay UN
+ * motor. Lo que sí hay son valores por defecto pensados para pantalla —márgenes de párrafo en
+ * `em`, tamaños en `px`, `box-sizing: content-box`— que en papel se traducen en cajas que se
+ * desbordan del margen y en medidas que no coinciden con las que declara el layout.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+h1,
+h2,
+h3,
+h4,
+p,
+figure,
+blockquote,
+dl,
+dd {
+  margin: 0;
+}
+
+ul,
+ol {
+  margin: 0;
+  padding-left: 5mm;
+}
+
+table {
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+
+img {
+  max-width: 100%;
+  /* Sin esto, una imagen es `inline` y arrastra el espacio de línea base: aparece una franja
+     de dos o tres puntos bajo cada logotipo que nadie sabe de dónde sale. */
+  display: block;
+}
+
+address {
+  font-style: normal;
+}

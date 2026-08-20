@@ -1,5 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import type { ExtractedPdf } from '../domain/models';
+import {
+  DEFAULT_TRIAGE_THRESHOLDS,
+  normalizeThresholds,
+  triageDocument,
+  type TriageThresholds,
+} from './document-triage';
 import type { DocumentClassification } from './statement-context';
 
 /**
@@ -18,6 +24,16 @@ interface ClassificationSignal {
 
 interface DocumentEvidence {
   readonly text: string;
+  /**
+   * Encabezado: donde un documento DICE lo que es.
+   *
+   * Se separa del cuerpo porque las dos preguntas son distintas. «¿De qué habla
+   * este documento?» se responde con el texto entero; «¿qué dice ser?» sólo con
+   * su cabecera, y confundirlas es lo que hacía que un extracto de sesenta
+   * páginas se rechazara por llevar la palabra «contrato» en la glosa de una
+   * cuota de hipoteca.
+   */
+  readonly header: string;
   readonly dateRows: number;
   readonly amountRows: number;
 }
@@ -104,11 +120,22 @@ const SIGNALS: readonly ClassificationSignal[] = [
 ];
 
 /**
- * Peso que se resta cuando el documento se anuncia como otra cosa. No es
+ * Peso que se resta cuando el documento **se anuncia** como otra cosa. No es
  * definitivo a propósito: un extracto puede contener la palabra «factura» en la
  * glosa de un pago, así que resta en lugar de descartar.
  */
 const COUNTER_INDICATOR_PENALTY = 0.35;
+
+/**
+ * Tope del encabezado, para el documento que nunca llega a tener tabla.
+ *
+ * El encabezado termina de verdad donde EMPIEZA LA TABLA —la primera línea con
+ * fecha e importe a la vez—, no en un número fijo de líneas: así se ajusta solo
+ * a un extracto de sesenta páginas y a uno de cinco. Este tope sólo actúa cuando
+ * no hay ninguna fila de datos, que es el caso de un documento que no es un
+ * extracto en absoluto.
+ */
+const MAX_HEADER_LINES = 40;
 
 /**
  * Umbral a partir del cual se acepta procesar el documento.
@@ -117,8 +144,11 @@ const COUNTER_INDICATOR_PENALTY = 0.35;
  * con fecha y filas con importe—, y un documento que solo tenga fechas e
  * importes, como una factura, se queda en 0.40 antes de la penalización. El
  * umbral se sitúa entre ambos.
+ *
+ * Es el mismo valor que `DEFAULT_TRIAGE_THRESHOLDS.accept` y se deriva de él:
+ * dos constantes con el mismo significado se separan a la primera calibración.
  */
-export const FINANCIAL_STATEMENT_THRESHOLD = 0.55;
+export const FINANCIAL_STATEMENT_THRESHOLD = DEFAULT_TRIAGE_THRESHOLDS.accept;
 
 /**
  * Decide si un PDF es un estado de cuenta **antes** de intentar extraer
@@ -131,6 +161,16 @@ export const FINANCIAL_STATEMENT_THRESHOLD = 0.55;
  */
 @Injectable()
 export class DocumentClassifier {
+  private readonly thresholds: TriageThresholds;
+
+  /**
+   * Las fronteras se inyectan para poder calibrarlas con datos reales sin
+   * recompilar. Omitirlas deja las medidas sobre los documentos del módulo.
+   */
+  constructor(thresholds: Partial<TriageThresholds> = {}) {
+    this.thresholds = normalizeThresholds(thresholds);
+  }
+
   classify(pdf: ExtractedPdf): DocumentClassification {
     const evidence = this.collect(pdf);
     const detectedSignals: string[] = [];
@@ -142,17 +182,20 @@ export class DocumentClassifier {
       score += signal.weight;
     }
 
-    if (COUNTER_INDICATORS.test(evidence.text)) {
+    // Sólo en el encabezado: ahí es donde un documento dice lo que es.
+    if (COUNTER_INDICATORS.test(evidence.header)) {
       detectedSignals.push('contraindicador-de-otro-documento');
       score -= COUNTER_INDICATOR_PENALTY;
     }
 
     const confidence = Math.max(0, Math.min(1, Number(score.toFixed(2))));
+    const verdict = triageDocument(confidence, this.thresholds);
     return {
       documentType: this.documentType(evidence.text, confidence),
-      isFinancialStatement: confidence >= FINANCIAL_STATEMENT_THRESHOLD,
+      isFinancialStatement: verdict === 'ACCEPT',
       confidence,
       detectedSignals,
+      verdict,
     };
   }
 
@@ -163,12 +206,29 @@ export class DocumentClassifier {
       if (DATE.test(line.text)) dateRows += 1;
       if (AMOUNT.test(line.text)) amountRows += 1;
     }
-    return { text: pdf.text, dateRows, amountRows };
+    return { text: pdf.text, header: this.header(pdf), dateRows, amountRows };
+  }
+
+  /**
+   * Lo que va ANTES de la primera fila de movimientos.
+   *
+   * Una fila de movimiento lleva fecha e importe en la misma línea; en cuanto
+   * aparece una, lo que sigue son datos y ya no es el documento hablando de sí
+   * mismo. Cortar ahí es lo que permite que la palabra «contrato» de una cuota de
+   * hipoteca no se lea como «este documento es un contrato».
+   */
+  private header(pdf: ExtractedPdf): string {
+    const encabezado: string[] = [];
+    for (const line of pdf.lines.slice(0, MAX_HEADER_LINES)) {
+      if (DATE.test(line.text) && AMOUNT.test(line.text)) break;
+      encabezado.push(line.text);
+    }
+    return encabezado.join('\n');
   }
 
   private documentType(text: string, confidence: number): string {
     const matched = DOCUMENT_TYPES.find((candidate) => candidate.pattern.test(text));
     if (matched) return matched.type;
-    return confidence >= FINANCIAL_STATEMENT_THRESHOLD ? 'FINANCIAL_DOCUMENT' : 'UNKNOWN_DOCUMENT';
+    return confidence >= this.thresholds.accept ? 'FINANCIAL_DOCUMENT' : 'UNKNOWN_DOCUMENT';
   }
 }

@@ -1,8 +1,10 @@
 /** Enforces approval, separation of duties and atomic environment-binding invariants. */
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { DeploymentStatus, Prisma, VersionStatus } from '@prisma/client';
+import { DecisionKind, DeploymentStatus, Prisma, VersionStatus } from '@prisma/client';
 import { AuditService } from '../../common/audit/audit.service';
+import { OutboxPublisherService } from '../../common/events/outbox-publisher.service';
+import { DecisionEventType, type VersionPublishedPayload } from '../../common/events/event-types';
 import { DomainException } from '../../common/errors/domain-exception';
 import { parseBigIntId } from '../../common/http/id';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -17,6 +19,8 @@ import {
   SuspendDeploymentDto,
 } from './deployment.dto';
 import { pageResult, paginationArgs } from '../../common/http/pagination';
+import { BaselineCaptureService } from '../model-monitoring/baseline-capture.service';
+import { reviewEconomicContract } from '../risk-governance/semantic-outputs';
 import { DeploymentResolverService } from './deployment-resolver.service';
 
 @Injectable()
@@ -27,7 +31,9 @@ export class DeploymentService {
     private readonly states: VersionStateService,
     private readonly resolver: DeploymentResolverService,
     private readonly audit: AuditService,
+    private readonly outbox: OutboxPublisherService,
     private readonly config: ConfigService,
+    private readonly baselines: BaselineCaptureService,
   ) {}
 
   listEnvironments() {
@@ -71,6 +77,7 @@ export class DeploymentService {
         HttpStatus.NOT_FOUND,
       );
     }
+    await this.assertEconomicContract(tenantId, version, environment.isProduction);
     const requestedCompiledArtifactId = dto.compiledArtifactId
       ? parseBigIntId(dto.compiledArtifactId, 'compiledArtifactId')
       : undefined;
@@ -184,12 +191,90 @@ export class DeploymentService {
         },
         tx,
       );
+      // `version.published` es el evento de DOMINIO de la publicación, distinto del apunte
+      // de auditoría de arriba: aquél describe la fila de despliegue creada, éste describe
+      // que una versión pasó a atender tráfico.
+      //
+      // Va al OUTBOX, no al registro de auditoría, porque su destinatario es el relay: el
+      // proyector de notificaciones escucha ahí para avisar a operaciones. Su rama existía
+      // y nunca se ejecutaba —nadie emitía el evento—, así que el aviso "versión publicada"
+      // no llegaba a nadie. En la misma transacción que el despliegue: no puede haber
+      // publicación sin evento ni evento sin publicación.
+      await this.outbox.publish(tx, {
+        eventType: DecisionEventType.VERSION_PUBLISHED,
+        tenantId,
+        aggregateType: 'DecisionArtifactVersion',
+        aggregateId: version.id.toString(),
+        actorId: principal.id,
+        correlationId: principal.requestId,
+        payload: {
+          versionId: version.id.toString(),
+          artifactCode: version.artifact.artifactCode,
+          versionNumber: version.versionNumber,
+          deploymentId: created.id.toString(),
+          environmentCode: environment.code,
+        } satisfies VersionPublishedPayload,
+      });
       return created;
     });
     // Cache invalidation stays outside the transaction: it is not rollback-able, so it must
     // only run once the deployment is durably committed.
     await this.resolver.invalidate(tenantId, version.artifact.artifactCode, environment.code);
+    /*
+     * Congelar la población de referencia justo aquí, y no antes ni después.
+     *
+     * Antes sería dentro de la transacción, y un histograma sobre veinte mil filas no puede
+     * retener el bloqueo de un despliegue. Después —un trabajo periódico— tomaría la muestra ya
+     * contaminada con las primeras ejecuciones de la versión NUEVA, que es medir la deriva
+     * contra sí misma.
+     *
+     * Es best-effort: perder la línea base se arregla recapturándola; abortar un despliegue
+     * porque falló un histograma sería un intercambio absurdo.
+     */
+    await this.baselines.capture(
+      tenantId,
+      version.id,
+      version.artifact.artifactCode,
+      environment.id,
+      principal.id,
+    );
     return deployment;
+  }
+
+  /**
+   * Un artefacto que ORIGINA crédito no llega a producción sin declarar su riesgo.
+   *
+   * Es el gate económico del plan, y sólo actúa en producción a propósito: en sandbox se
+   * experimenta, y exigir el contrato completo para probar una idea sólo conseguiría que la
+   * gente probara en producción.
+   *
+   * La salida legítima no es una exención escondida: es declarar `decisionKind` de verdad. Un
+   * artefacto que no origina crédito no tiene por qué publicar una probabilidad de
+   * incumplimiento, y decirlo así queda en el esquema, en la auditoría y en la pantalla — al
+   * contrario que una casilla «saltar comprobación», que nadie vuelve a mirar.
+   */
+  private async assertEconomicContract(
+    tenantId: bigint,
+    version: { id: bigint; artifact: { decisionKind: DecisionKind } },
+    isProduction: boolean,
+  ): Promise<void> {
+    if (!isProduction) return;
+    const fields = await this.prisma.decisionOutputContractField.findMany({
+      where: { tenantId, artifactVersionId: version.id },
+      select: { fieldCode: true, semanticRole: true },
+    });
+    const problems = reviewEconomicContract(
+      fields,
+      version.artifact.decisionKind === DecisionKind.ORIGINATION,
+    );
+    if (!problems.length) return;
+    throw new DomainException(
+      'ECONOMIC_CONTRACT_INCOMPLETE',
+      `${problems.join(' ')} Si esta decisión no origina crédito, decláralo en su ` +
+        `\`decisionKind\` en vez de publicar un contrato económico incompleto.`,
+      HttpStatus.CONFLICT,
+      { problems },
+    );
   }
 
   async rollback(
@@ -399,10 +484,22 @@ export class DeploymentService {
     return pageResult(items, total, paging.page, paging.pageSize);
   }
 
+  /**
+   * Traduce el código del ambiente al estado que queda escrito en la versión.
+   *
+   * `SANDBOX` era el nombre de `DEV` antes de que hubiera cuatro ambientes, y se
+   * sigue aceptando porque una instalación puede tener esa fila en su catálogo:
+   * caer al `default` la habría marcado como desplegada en TEST, que es mentira
+   * y además una mentira invisible.
+   */
   private statusForEnvironment(code: string): VersionStatus {
     switch (code.toUpperCase()) {
+      case 'DEV':
+      case 'DEVELOPMENT':
       case 'SANDBOX':
-        return VersionStatus.DEPLOYED_TO_SANDBOX;
+        return VersionStatus.DEPLOYED_TO_DEV;
+      case 'STAGING':
+        return VersionStatus.DEPLOYED_TO_STAGING;
       case 'TEST':
         return VersionStatus.DEPLOYED_TO_TEST;
       case 'PROD':

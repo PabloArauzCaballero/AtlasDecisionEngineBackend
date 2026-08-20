@@ -76,9 +76,12 @@ describe('IdempotencyService: cota del reclamo bajo contención', () => {
   it('sigue reservando normalmente cuando gana el reclamo', async () => {
     const { service, counts } = makeService({ alwaysLoseRace: false });
 
+    // `lease` es el comprobante de propiedad que devuelve el reclamo: se compara por forma,
+    // porque su valor es «ahora + IDEMPOTENCY_LEASE_SECONDS» y no es reproducible.
     await expect(service.reserve(1n, 'ART-1', 'key-1', 'hash-1')).resolves.toEqual({
       kind: 'reserved',
       id: 7n,
+      lease: expect.any(Date),
     });
     expect(counts().updates).toBe(1);
   });

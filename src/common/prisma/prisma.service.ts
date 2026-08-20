@@ -2,74 +2,61 @@ import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/commo
 import { ConfigService } from '@nestjs/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
-import { Pool } from 'pg';
 import { RequestContextService } from '../context/request-context.service';
+import {
+  ConnectionRegistryService,
+  WRITE_CONNECTION,
+} from '../persistence/connections/connection-registry.service';
+import { applyTenantRls } from './tenant-rls';
 
 /**
- * Prisma client that sets the Postgres `app.tenant_id` GUC for every request-scoped query,
- * so the tenant Row-Level Security policies (migration 20260719080000) actually enforce
- * isolation as defense in depth (plan §2.6).
+ * Cliente de la RUTA DE ESCRITURA.
  *
- * How the context reaches the database:
- *  - Plain model operations are wrapped by a query extension that batches
- *    `set_config('app.tenant_id', <tenant>, true)` with the operation in ONE transaction,
- *    so the transaction-local GUC applies to that statement.
- *  - `$transaction` (both callback and array forms) is overridden to set the GUC as the
- *    first statement, so every query inside a transaction is covered too.
- *  - When there is no tenant in the request context (auth resolution, health, migrations,
- *    seeds) the GUC is left unset; the policies allow an unset context, so those paths are
- *    unaffected. This is why RLS is inert until the app connects as the non-superuser
- *    atlas_app role — a superuser bypasses RLS regardless.
+ * Sigue llamándose `PrismaService` y conserva su superficie: es el cliente que ya usaban
+ * todos los módulos, y una escritura, una transacción de negocio o una lectura que deba
+ * ver lo que acaba de escribirse siguen resolviéndose por aquí sin tocar nada. Lo que
+ * cambia es de dónde sale el pool: ya no lo abre este servicio, lo toma de la conexión
+ * `postgres-write` del registro. Así la lectura puede compartir ese mismo pool
+ * (Escenario A) o abrir el suyo contra otro rol, otro servidor u otra réplica
+ * (Escenarios B a E) sin que este archivo se entere.
+ *
+ * El tenant y la RLS los aplica `applyTenantRls`, compartido con la ruta de lectura para
+ * que no existan dos definiciones de «consulta acotada al tenant».
  */
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PrismaService.name);
-  private readonly pool: Pool;
-
   private readonly nodeEnv: string;
 
   constructor(
+    registry: ConnectionRegistryService,
     config: ConfigService,
     private readonly requestContext: RequestContextService,
   ) {
-    const statementTimeout = Math.trunc(
-      config.get<number>('DATABASE_STATEMENT_TIMEOUT_MS') ?? 30_000,
-    );
-    const pool = new Pool({
-      connectionString: config.getOrThrow<string>('DATABASE_URL'),
-      max: config.get<number>('DATABASE_POOL_MAX') ?? 15,
-      connectionTimeoutMillis: config.get<number>('DATABASE_CONNECTION_TIMEOUT_MS') ?? 5_000,
-      idleTimeoutMillis: config.get<number>('DATABASE_IDLE_TIMEOUT_MS') ?? 30_000,
-      application_name: 'atlas-decision-engine',
-      options: `-c statement_timeout=${statementTimeout} -c idle_in_transaction_session_timeout=${statementTimeout}`,
-    });
-    pool.on('error', (error) => {
-      process.stderr.write(
-        `${JSON.stringify({
-          timestamp: new Date().toISOString(),
-          level: 'error',
-          context: 'PostgresPool',
-          message: error.message,
-        })}\n`,
-      );
-    });
-    super({ adapter: new PrismaPg(pool, { disposeExternalPool: false }) });
-    this.pool = pool;
+    const connection = registry.postgres(WRITE_CONNECTION);
+    // `disposeExternalPool: false`: el pool pertenece a la conexión registrada, que lo
+    // cierra en el apagado ordenado. Si Prisma también lo cerrara, el segundo cierre
+    // fallaría cuando lectura y escritura comparten pool.
+    super({ adapter: new PrismaPg(connection.pool, { disposeExternalPool: false }) });
     this.nodeEnv = config.get<string>('NODE_ENV') ?? 'development';
-    return this.withTenantRls();
+    return applyTenantRls(this, {
+      currentTenantId: () => this.requestContext.get()?.tenantId,
+      connectionName: WRITE_CONNECTION,
+    });
   }
 
   async onModuleInit(): Promise<void> {
     await this.$connect();
     await this.assertNotSuperuser();
-    this.logger.log('PostgreSQL connection established');
+    this.logger.log('PostgreSQL write path established');
   }
 
   /**
-   * RLS is inert for a superuser connection (see the class doc comment), so a superuser
-   * DATABASE_URL reaching the API in production would silently disable every tenant-isolation
-   * policy. Fails closed in production; only warns elsewhere so local/dev flows that
-   * legitimately use the admin role (before `bootstrap-app-role` is wired up) still work.
+   * La RLS es inerte para una conexión de superusuario (ver `tenant-rls.ts`), así que un
+   * DATABASE_URL de superusuario llegando a la API en producción desactivaría en silencio
+   * todas las políticas de aislamiento por tenant. Falla cerrado en producción; en el
+   * resto solo avisa, para que los flujos locales que aún usan el rol administrativo
+   * (antes de aplicar `bootstrap-app-role`) sigan funcionando.
    */
   private async assertNotSuperuser(): Promise<void> {
     const [{ isSuperuser }] = await this.$queryRaw<{ isSuperuser: boolean }[]>`
@@ -87,87 +74,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   }
 
   async onModuleDestroy(): Promise<void> {
+    // Solo se desconecta el cliente: el pool lo cierra el registro de conexiones.
     await this.$disconnect();
-    await this.pool.end();
-  }
-
-  private currentTenantId(): string | undefined {
-    return this.requestContext.get()?.tenantId;
-  }
-
-  /**
-   * Returns a Proxy that routes model operations through a tenant-setting query extension
-   * and `$transaction` through a tenant-setting override, while every other member (raw
-   * queries, $connect, lifecycle) falls through to the base client unchanged.
-   */
-  private withTenantRls(): this {
-    const base = this;
-    // Captured before proxying so the overrides can reach the un-proxied originals without
-    // re-entering the Proxy (which would recurse).
-    const rawTransaction = PrismaClient.prototype.$transaction.bind(this) as unknown as (
-      ...args: unknown[]
-    ) => Promise<unknown>;
-
-    const extended = this.$extends({
-      query: {
-        $allModels: {
-          async $allOperations({ args, query }) {
-            const tenantId = base.currentTenantId();
-            if (tenantId === undefined) return query(args);
-            const [, result] = (await rawTransaction([
-              base.setTenantStatement(tenantId),
-              query(args),
-            ])) as [unknown, unknown];
-            return result;
-          },
-        },
-      },
-    });
-
-    const tenantTransaction = (arg: unknown, options?: unknown): Promise<unknown> => {
-      const tenantId = base.currentTenantId();
-      if (tenantId === undefined) return rawTransaction(arg, options);
-      if (Array.isArray(arg)) {
-        // Prepend the tenant statement, then drop its result so callers still get their
-        // operations' results in the order they passed them.
-        return rawTransaction([base.setTenantStatement(tenantId), ...arg], options).then(
-          (results) => (results as unknown[]).slice(1),
-        );
-      }
-      // Interactive form: set the GUC as the first statement inside the transaction so every
-      // query the callback runs on `tx` is tenant-scoped.
-      const callback = arg as (tx: unknown) => unknown;
-      return rawTransaction(
-        async (tx: {
-          $executeRaw: (q: TemplateStringsArray, ...v: unknown[]) => Promise<unknown>;
-        }) => {
-          await tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true)`;
-          return callback(tx);
-        },
-        options,
-      );
-    };
-
-    return new Proxy(this, {
-      get(target, prop, receiver) {
-        if (prop === '$transaction') return tenantTransaction;
-        if (
-          typeof prop === 'string' &&
-          !prop.startsWith('$') &&
-          !prop.startsWith('_') &&
-          prop in extended
-        ) {
-          const value = (extended as unknown as Record<string, unknown>)[prop];
-          if (value && typeof value === 'object') return value;
-        }
-        const value = Reflect.get(target, prop, receiver) as unknown;
-        return typeof value === 'function' ? value.bind(target) : value;
-      },
-    }) as this;
-  }
-
-  /** A PrismaPromise that sets the tenant GUC transaction-locally, for batching. */
-  private setTenantStatement(tenantId: string) {
-    return this.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true)`;
   }
 }

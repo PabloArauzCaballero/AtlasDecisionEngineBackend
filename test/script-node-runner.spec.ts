@@ -5,6 +5,23 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { ScriptNodeRunnerService } from '../src/modules/graph/script-node-runner.service';
 
+/**
+ * Presupuesto de tiempo para los casos que SÍ ejecutan un script.
+ *
+ * No es un ajuste de tolerancia: estas pruebas asertan comportamiento —qué devuelve el motor,
+ * qué error produce—, nunca latencia. El presupuesto sólo tiene que quedar por encima del coste
+ * de arrancar el proceso hijo, que no depende de este código.
+ *
+ * Estaba en 3 s asumiendo un arranque de 300-500 ms. Medido en una máquina de desarrollo
+ * Windows con contenedores en marcha, `node -e 0` tarda entre 1 356 y 2 919 ms: el peor caso ya
+ * consumía el presupuesto entero antes de ejecutar una sola línea del script, y la prueba
+ * fallaba con `script timed out` sin que hubiera nada roto. Un presupuesto generoso no ralentiza
+ * nada —es un techo, no una espera— y elimina un fallo intermitente que dependía de la carga.
+ *
+ * El caso que verifica el timeout usa su propio valor corto, deliberadamente.
+ */
+const SPAWN_BUDGET_MS = 15_000;
+
 describe('ScriptNodeRunnerService (IN_PROCESS)', () => {
   it('is fail-closed by default', async () => {
     const runner = new ScriptNodeRunnerService(new ConfigService({ SCRIPT_NODES_ENABLED: false }));
@@ -13,13 +30,11 @@ describe('ScriptNodeRunnerService (IN_PROCESS)', () => {
     );
   });
 
-  // Spawning the child node.exe alone costs 300-500ms on Windows dev machines, so these
-  // tests budget well above it; what they assert is behaviour, not latency.
   it('runs JavaScript out of process and returns a JSON object', async () => {
     const runner = new ScriptNodeRunnerService(
       new ConfigService({
         SCRIPT_NODES_ENABLED: true,
-        SCRIPT_NODE_TIMEOUT_MS: 3000,
+        SCRIPT_NODE_TIMEOUT_MS: SPAWN_BUDGET_MS,
       }),
     );
     await expect(
@@ -35,7 +50,10 @@ describe('ScriptNodeRunnerService (IN_PROCESS)', () => {
     const runner = new ScriptNodeRunnerService(
       new ConfigService({
         SCRIPT_NODES_ENABLED: true,
-        SCRIPT_NODE_TIMEOUT_MS: 3000,
+        // Con 3 s, un arranque lento mataba el proceso ANTES de que la guardia de
+        // determinismo pudiera rechazarlo, y la prueba veía `timed out` en lugar del
+        // `exited with status` que es lo que de verdad comprueba.
+        SCRIPT_NODE_TIMEOUT_MS: SPAWN_BUDGET_MS,
       }),
     );
     await expect(

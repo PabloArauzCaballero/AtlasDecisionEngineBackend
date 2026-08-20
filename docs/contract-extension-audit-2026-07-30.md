@@ -247,7 +247,7 @@ Recorrido sugerido:
 2. **Contrato de salida** → pulsa «Declarar las que faltan» y observa las validaciones.
 3. **Campos calculados** → crea uno visual, pruébalo con un ejemplo, publícalo (ejecuta
    sus casos antes de dejarte).
-4. **Librerías autorizadas** → comprueba que `finance` está restringida a SANDBOX/TEST.
+4. **Librerías autorizadas** → comprueba que `finance` está restringida a DEV/STAGING/TEST.
 4.bis **Editor de grafo → un nodo** → panel «Campos calculados»: invoca `debt_to_income`,
    mapea sus entradas y elige dónde se guarda el resultado.
 4.ter **Catálogo → una variable** → contrato completo, versiones, quién la usa y

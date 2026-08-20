@@ -355,6 +355,7 @@ class GraphNodeDto {
       'ACTION',
       'RESULT',
       'MANUAL_REVIEW',
+      'WORKER',
       'END',
     ],
   })
@@ -532,4 +533,29 @@ export class ArtifactVersionDiffDto {
   @ApiProperty({ type: DiffEntryDto }) conditions!: DiffEntryDto<GraphConditionDto>;
   @ApiProperty({ type: DiffEntryDto }) actions!: DiffEntryDto<GraphActionDto>;
   @ApiProperty({ type: DiffEntryDto }) variables!: DiffEntryDto<VariableContractDto>;
+}
+
+/** `ArtifactService.updateProcessingBasis`: finalidad y base legal declaradas de una versión. */
+export class ProcessingBasisResultDto {
+  @ApiProperty({ example: '4001' }) id!: string;
+  @ApiProperty({
+    nullable: true,
+    example: 'Evaluación de riesgo para originación de crédito al consumo',
+  })
+  processingPurpose!: string | null;
+  @ApiProperty({
+    nullable: true,
+    enum: [
+      'CONSENT',
+      'CONTRACT',
+      'LEGAL_OBLIGATION',
+      'REGULATORY_EXERCISE',
+      'CREDIT_PROTECTION',
+      'LEGITIMATE_INTEREST',
+      'VITAL_INTEREST',
+      'HEALTH_PROTECTION',
+    ],
+    example: 'CREDIT_PROTECTION',
+  })
+  legalBasis!: string | null;
 }

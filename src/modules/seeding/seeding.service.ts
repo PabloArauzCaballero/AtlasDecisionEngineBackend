@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { runsBackgroundJobs, workerRoleOf } from '../../common/config/worker-role';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AdvisoryLockDomain, advisoryLockKey } from '../../common/prisma/advisory-lock';
+import { describeMockupDecision, resolveMockupPolicy } from './mockup-policy';
 import { runSeeds } from './seed-runner';
 
 // Stable key for the Postgres session-level advisory lock that serializes startup seeding
@@ -36,7 +37,7 @@ const SEED_ADVISORY_LOCK_KEY = advisoryLockKey(AdvisoryLockDomain.Seeding);
 export class SeedingService implements OnApplicationBootstrap {
   private readonly logger = new Logger(SeedingService.name);
   private readonly enabled: boolean;
-  private readonly includeMockup: boolean;
+  private readonly mockup: ReturnType<typeof resolveMockupPolicy>;
   private readonly role: string;
 
   constructor(
@@ -49,7 +50,10 @@ export class SeedingService implements OnApplicationBootstrap {
     this.enabled =
       runsBackgroundJobs(config) &&
       (config.get<boolean>('STARTUP_SEED_ENABLED') ?? nodeEnv !== 'test');
-    this.includeMockup = nodeEnv === 'development';
+    // Misma regla que el Job de siembra (`prisma/seed.ts`): una sola función decide, y
+    // `SEED_INCLUDE_MOCKUP` también se honra aquí. Cuando no está declarada, el valor sigue
+    // saliendo de `NODE_ENV`, así que el comportamiento por defecto no cambia.
+    this.mockup = resolveMockupPolicy({ ...process.env, NODE_ENV: nodeEnv });
   }
 
   async onApplicationBootstrap(): Promise<void> {
@@ -67,7 +71,8 @@ export class SeedingService implements OnApplicationBootstrap {
     }
 
     try {
-      const summary = await runSeeds(this.prisma, { includeMockup: this.includeMockup });
+      this.logger.log(describeMockupDecision(this.mockup));
+      const summary = await runSeeds(this.prisma, { includeMockup: this.mockup.includeMockup });
       this.logger.log(
         `Startup seeding complete: ${summary.bootstrap.variables} variables, ` +
           `${summary.bootstrap.reasonCodes} reason codes, ` +

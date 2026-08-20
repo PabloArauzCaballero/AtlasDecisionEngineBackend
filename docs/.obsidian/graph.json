@@ -1,0 +1,30 @@
+{
+  "collapse-filter": true,
+  "search": "",
+  "showTags": true,
+  "showAttachments": false,
+  "hideUnresolved": true,
+  "showOrphans": true,
+  "collapse-color-groups": false,
+  "colorGroups": [
+    { "query": "path:vault", "color": { "a": 1, "rgb": 14729532 } },
+    { "query": "path:architecture", "color": { "a": 1, "rgb": 5011668 } },
+    { "query": "path:data", "color": { "a": 1, "rgb": 5025616 } },
+    { "query": "path:security", "color": { "a": 1, "rgb": 13913164 } },
+    { "query": "path:design-rules", "color": { "a": 1, "rgb": 10250974 } },
+    { "query": "path:prompts OR path:skills", "color": { "a": 1, "rgb": 14715452 } },
+    { "query": "path:adr", "color": { "a": 1, "rgb": 3979191 } }
+  ],
+  "collapse-display": true,
+  "showArrow": true,
+  "textFadeMultiplier": -0.5,
+  "nodeSizeMultiplier": 1.2,
+  "lineSizeMultiplier": 1,
+  "collapse-forces": true,
+  "centerStrength": 0.4,
+  "repelStrength": 11,
+  "linkStrength": 0.8,
+  "linkDistance": 220,
+  "scale": 0.7,
+  "close": false
+}

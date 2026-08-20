@@ -28,16 +28,56 @@ export interface GenericMetadata {
 }
 
 /**
- * Rótulo de cuenta, en cualquiera de sus formas. Se usa dos veces: para leer la
- * cuenta de la carátula y para descubrir si el documento tiene más de una.
+ * Rótulo de cuenta con identificador NUMÉRICO —o enmascarado—, que es como lo
+ * imprime un banco. Los dos puntos son opcionales porque muchos rotulan
+ * `Nro. Cuenta 4010203040` sin ellos.
  */
 export const ACCOUNT_LABEL =
   /(?:nro\.?\s*(?:de\s+)?cuenta|n[uú]mero\s+de\s+cuenta|cuenta|account\s*(?:number|no\.?)?)\s*:?\s*(?:[A-Z]{1,3}\s*:\s*)?([\dXx*][\dXx*-]{4,})/gi;
 
-/** Cuentas distintas rotuladas en un texto, en orden de aparición. */
+/**
+ * La misma cuenta cuando su identificador lleva LETRAS y el rótulo trae un
+ * calificador: `Cuenta de prueba: CUENTA-TEST-P01-XXXX`.
+ *
+ * Existe por un fallo medido. Un documento de sesenta páginas con doce cuentas
+ * distintas no disparó ni una sola de las salvaguardas que hay para eso
+ * —`documento-con-varias-cuentas`, la etiqueta de cuenta en cada movimiento—
+ * porque el patrón de arriba exige que el valor empiece por dígito. Con cero
+ * cuentas reconocidas, el motor mezcló las doce en silencio y validó 1.082
+ * movimientos contra el período y los saldos de la primera: 867 fechas «fuera
+ * del período» y 11 saltos de saldo que no eran errores de lectura sino las
+ * once fronteras entre cuentas.
+ *
+ * Aquí los dos puntos son OBLIGATORIOS y el valor tiene que llevar dígito o
+ * máscara. Las dos condiciones juntas son lo que separa un rótulo de una glosa:
+ * «COMISION MANTENIMIENTO CUENTA | CONTABILIZADA» contiene la palabra pero no
+ * cierra con dos puntos, y «Cuenta de ahorro: Bolivianos» los cierra pero no
+ * nombra ninguna cuenta. Sin ellas, cada extracto con una comisión de
+ * mantenimiento habría pasado por documento multicuenta.
+ */
+const ACCOUNT_LABEL_ALPHANUMERIC =
+  /(?:n(?:ro\.?|[uú]mero)\s*(?:de\s+)?)?cuenta(?:\s+(?:de|del|para)?\s*[a-zá-úñ]+){0,2}\s*:\s*([A-Za-z][A-Za-z\d*]*(?:[-/][A-Za-z\d*]+)*)/gi;
+
+/** Un identificador de cuenta nombra algo: lleva cifras o va enmascarado. */
+const IDENTIFIES_AN_ACCOUNT = /\d|\*|X{3,}/;
+
+/**
+ * Cuentas distintas rotuladas en un texto, en orden de aparición.
+ *
+ * Los dos patrones se recorren juntos y el resultado se ordena por posición, no
+ * por patrón: «orden de aparición» es lo que promete el contrato, y un
+ * documento puede rotular unas cuentas de una forma y otras de otra.
+ */
 export function findAccountNumbers(text: string): string[] {
+  const matches = [
+    ...text.matchAll(ACCOUNT_LABEL),
+    ...[...text.matchAll(ACCOUNT_LABEL_ALPHANUMERIC)].filter((match) =>
+      IDENTIFIES_AN_ACCOUNT.test(match[1] ?? ''),
+    ),
+  ].sort((left, right) => (left.index ?? 0) - (right.index ?? 0));
+
   const found: string[] = [];
-  for (const match of text.matchAll(ACCOUNT_LABEL)) {
+  for (const match of matches) {
     const value = match[1]?.trim();
     if (value && !found.includes(value)) found.push(value);
   }
@@ -189,13 +229,15 @@ function readPeriod(
  * El número de cuenta admite prefijos de producto (`CA: 1234567890`), guiones y
  * enmascarado con asteriscos. Se conserva tal como lo imprime el banco: el
  * enmascarado para publicación ocurre en el modelo normalizado, no aquí.
+ *
+ * Es la primera que aparece en la carátula, y se lee con el MISMO reconocedor
+ * que descubre si el documento trae varias. Antes eran dos patrones gemelos
+ * escritos a mano, que es una forma segura de que un día dejen de coincidir:
+ * bastaba ampliar uno para que el motor supiera de una cuenta que luego no
+ * sabía contar.
  */
 function readAccountNumber(cover: string): string {
-  const match =
-    /(?:nro\.?\s*(?:de\s+)?cuenta|n[uú]mero\s+de\s+cuenta|cuenta|account\s*(?:number|no\.?)?)\s*:?\s*(?:[A-Z]{1,3}\s*:\s*)?([\dXx*][\dXx*-]{4,})/i.exec(
-      cover,
-    );
-  return match?.[1]?.trim() ?? '';
+  return findAccountNumbers(cover)[0] ?? '';
 }
 
 const ACCOUNT_TYPE_LABEL = /^(?:producto|account\s+type|tipo(?:\s+de\s+cuenta)?(?!\s*de\s+cambio))/;

@@ -50,6 +50,26 @@ El validador de calidad del contrato busca patrones con forma de secreto en
 `openapi/openapi.json` y **falla** si encuentra alguno: ese fichero acaba en el portal, en el
 repositorio y en cualquier cliente generado.
 
+## Datos que no pasan por el contrato de variables
+
+Los dos workers adicionales (ADR-0026) reciben datos **sin declaración de sensibilidad**: no
+son variables del catálogo, sino texto y documentos que entran enteros. El tratamiento no puede
+apoyarse en `sensitivityClass`, así que se fija por tabla.
+
+| Dato | Dónde vive | Clasificación de facto | Tratamiento |
+| --- | --- | --- | --- |
+| Texto a clasificar | `decision_semantic_analysis_run.input_text` | Desconocida — depende de quién lo envíe; se trata como **PII** | Se minimiza a su huella `md5` a los `SEMANTIC_ANALYSIS_MINIMIZE_AFTER_DAYS` y se purga la fila a los `SEMANTIC_ANALYSIS_AUDIT_RETENTION_DAYS`. **Con `SEMANTIC_ANALYSIS_PROVIDER=openai` sale del perímetro antes de eso** |
+| PDF del extracto | `decision_bank_statement_run.file_bytes` | **SENSITIVE_PII** | Se anula al cerrar la ejecución; nunca se devuelve al cliente |
+| Movimientos normalizados | `…run.result_json` | **PII** | La cuenta solo aparece enmascarada; la glosa se escapa antes de entrar en un CSV |
+| Nombre del archivo | `…run.file_name` | **INTERNAL** | Saneado en el borde: sin rutas ni caracteres de control |
+| Categorías y alias | `decision_semantic_category`, `…_entity_alias` | **INTERNAL** | Catálogo de configuración, no datos de una persona |
+
+!!! warning "El texto analizado es la clase más difícil de acotar"
+    Nadie declara qué contiene: lo escribe quien llama. Un analista puede pegar una glosa
+    bancaria, un correo o una conversación entera. Por eso se trata como PII por defecto,
+    tiene un plazo de retención propio y su envío a un tercero es una decisión explícita y no
+    el valor por defecto.
+
 ## Responsabilidades
 
 | Rol | Responsabilidad |

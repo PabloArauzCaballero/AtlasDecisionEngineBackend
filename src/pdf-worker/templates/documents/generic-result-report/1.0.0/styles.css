@@ -1,0 +1,29 @@
+/*
+ * Estilos propios de `generic-result-report`.
+ *
+ * Tres reglas, y ése es el objetivo. `.summary-row` y `.doc-footnote` empezaron aquí y se
+ * mudaron a `shared/styles/components.css` en cuanto un segundo documento las necesitó: la
+ * segunda copia de un componente es la señal de que le toca subir al catálogo compartido, y no
+ * hacerlo es cómo se acaba con tres tablas de tres grosores distintos.
+ *
+ * Sólo tokens, ningún literal.
+ */
+
+/* Este informe puede traer hasta cuatro cifras destacadas, y con cuatro el valor no cabe en el
+   tamaño grande sin partirse. Se reduce sólo aquí porque es una consecuencia del tope que fija
+   ESTE contrato, no una decisión de la marca. */
+.summary-row .summary__value {
+  font-size: var(--type-lg);
+}
+
+/* Las secciones sin datos son parte del informe: se declaran vacías, no se omiten. El tono
+   apagado las distingue del contenido sin hacerlas desaparecer. */
+.section__body > .table__empty {
+  color: var(--ink-muted);
+  font-style: italic;
+}
+
+.section__body ol {
+  margin: 0;
+  padding-left: 6mm;
+}

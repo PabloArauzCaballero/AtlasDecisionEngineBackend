@@ -45,19 +45,65 @@ jobs:
         with:
           fail-on-severity: high
 
-  image-scan:
-    name: Container image scan
+  # Análisis estático de los Dockerfile. Barato y detecta justo la clase de defecto que una
+  # revisión humana pasa por alto: una etiqueta flotante, un `apt-get` sin `--no-install-
+  # recommends`, un `USER` que falta.
+  dockerfile-lint:
+    name: Dockerfile lint (hadolint)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build runtime image
-        run: docker build --target runtime -t atlas-decision-engine:scan .
+      - uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+          # `failure-threshold: warning` y no `error`: las reglas de aviso de hadolint son las
+          # que cubren fijar versiones y limpiar cachés, que es precisamente lo que se quiere
+          # sostener aquí. Las excepciones se declaran en .hadolint.yaml con su motivo.
+          failure-threshold: warning
+
+  image-scan:
+    name: Container image scan
+    runs-on: ubuntu-latest
+    # Se escanean las TRES imágenes que se despliegan, no solo la de la API. `migrator` es la
+    # que más superficie tiene —lleva el CLI de Prisma y el árbol de desarrollo— y era la única
+    # que nadie miraba; que sea un contenedor efímero no la hace inofensiva: corre con la
+    # credencial de superusuario de la base de datos.
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [runtime, worker, migrator]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build ${{ matrix.target }} image
+        run: docker build --target ${{ matrix.target }} -t atlas-decision-engine:scan-${{ matrix.target }} .
+
       - name: Scan image for OS and library vulnerabilities
         uses: aquasecurity/trivy-action@0.24.0
         with:
-          image-ref: atlas-decision-engine:scan
+          image-ref: atlas-decision-engine:scan-${{ matrix.target }}
           format: table
           # Matches the yarn audit threshold so the two gates agree.
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '1'
+
+      # El SBOM se genera de la IMAGEN construida y no del manifiesto del repositorio: el
+      # manifiesto dice lo que se pidió, la imagen dice lo que se embarcó. Cuando llegue un
+      # aviso sobre un paquete del sistema base, esta es la lista que responde «¿nos afecta?»
+      # sin tener que reconstruir una imagen que quizá ya no compila igual.
+      - name: Generate SBOM (SPDX)
+        uses: anchore/sbom-action@v0
+        with:
+          image: atlas-decision-engine:scan-${{ matrix.target }}
+          format: spdx-json
+          artifact-name: sbom-${{ matrix.target }}.spdx.json
+          output-file: ${{ runner.temp }}/sbom-${{ matrix.target }}.spdx.json
+
+      - name: Publish SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ matrix.target }}-${{ github.sha }}
+          path: ${{ runner.temp }}/sbom-${{ matrix.target }}.spdx.json
+          # Más retención que la documentación: un SBOM sirve para responder a un aviso que
+          # llega semanas después de que la versión se desplegó.
+          retention-days: 90

@@ -14,11 +14,13 @@ site_dir: site
 
 # Documentos que viven en `docs/` pero NO forman parte del portal.
 #
-# Dos familias, ambas legítimas fuera de la navegación:
+# Tres familias, todas legítimas fuera de la navegación:
 #   - Informes históricos fechados (auditorías, verificaciones). Su valor es ser un registro
 #     del momento en que se escribieron, y enlazan a ficheros de código con rutas del
 #     repositorio, que en un portal serían enlaces rotos.
 #   - Documentación de herramientas de asistencia y de progreso interno.
+#   - La capa propia de la bóveda de Obsidian: `vault/` (mapas de contenido y plantillas, que
+#     duplicarían la navegación lateral del portal) y `.obsidian/` (su configuración).
 #
 # Excluirlos es preferible a reescribirlos: alterar un informe fechado destruye justamente lo
 # que lo hace útil. `scripts/docs/check-doc-links.mjs` lee esta misma lista.
@@ -30,6 +32,8 @@ exclude_docs: |
   # MkDocs trata `README.md` como el índice de su directorio y entra en conflicto con la
   # portada `index.md`, que es la que el portal usa.
   /README.md
+  /vault/
+  /.obsidian/
   /audit-*.md
   /contract-extension-audit-*.md
   /verification-*.md
@@ -41,6 +45,11 @@ exclude_docs: |
   /claude/
   /progress/
   /atlas/
+  # Bitácora de coordinación entre agentes que comparten este árbol de trabajo. Es una nota
+  # de proceso interno, no documentación del producto: publicarla en el portal la ofrecería a
+  # quien viene a entender el motor de decisiones. Estaba quedando huérfana y hacía fallar
+  # `yarn docs:links`, que trata toda página fuera de la navegación como un defecto.
+  /AGENT-COORDINATION.md
   /plantuml/
   /stitch-reference/
 
@@ -108,11 +117,13 @@ nav:
       - Variables de entorno: getting-started/environment-variables.md
       - Base de datos: getting-started/database-setup.md
       - Ejecutar las pruebas: getting-started/running-tests.md
+      - Smoke integral por tipo de usuario: getting-started/smoke-integral.md
       - Diagnóstico de problemas: getting-started/troubleshooting.md
   - Negocio:
       - Contexto: business/business-context.md
       - Actores y roles: business/actors-and-roles.md
       - Capacidades: business/capabilities.md
+      - Casos de uso: business/use-cases.md
       - Flujos críticos: business/critical-workflows.md
       - Reglas de negocio: business/business-rules.md
       - Glosario: business/glossary.md
@@ -125,6 +136,11 @@ nav:
       - Ciclo de vida de una petición: architecture/request-lifecycle.md
       - Procesamiento en segundo plano: architecture/background-processing.md
       - Orquestación de trabajos de fondo: worker-orchestration.md
+      - Workers adicionales: workers/additional-workers-architecture.md
+      - Nodos que llaman a un worker: workers/worker-service-nodes.md
+      - Triage de extractos y revisión humana: workers/bank-statement-triage.md
+      - Catálogo de categorías del worker semántico: workers/semantic-category-catalog.md
+      - Monitoreo continuo del modelo: model-monitoring.md
       - Mapa de integraciones: architecture/integration-map.md
   - Módulos:
       - Índice: modules/index.md
@@ -152,6 +168,15 @@ nav:
       - Retención: data/retention.md
       - Clasificación: data/classification.md
       - Respaldo y restauración: data/backup-and-restore.md
+      - Persistencia:
+          - Superficie de persistencia: data/persistence/architecture.md
+          - Inventario de fuentes de datos: data/persistence/source-inventory.md
+          - Enrutamiento de lectura y escritura: data/persistence/read-write-routing.md
+          - Roles y privilegios PostgreSQL: data/persistence/postgres-roles.md
+          - Consistencia, transacciones y fallos: data/persistence/consistency-and-failure.md
+          - Persistencia políglota: data/persistence/polyglot.md
+          - Plan de migración y rollback: data/persistence/migration-plan.md
+          - Pruebas y evidencia: data/persistence/testing-and-evidence.md
   - Eventos:
       - Panorama: events/overview.md
       - Catálogo de eventos: events/event-catalog.md
@@ -167,19 +192,32 @@ nav:
       - Auditabilidad: security/auditability.md
       - Seguridad de dependencias: security/dependency-security.md
       - Respuesta a incidentes: security/incident-response.md
+      - Controles regulatorios: security/regulatory-controls.md
   - Observabilidad:
+      - Guía de trazabilidad: observability/README.md
       - Registros: observability/logging.md
       - Métricas: observability/metrics.md
       - Trazas: observability/tracing.md
       - Tableros: observability/dashboards.md
       - Alertas: observability/alerts.md
       - Objetivos de nivel de servicio: observability/service-level-objectives.md
+      - Trazabilidad distribuida:
+          - Auditoría del estado inicial: observability/00-current-state-audit.md
+          - Diseño de la arquitectura: observability/01-architecture-design.md
+          - Catálogo de spans de negocio: observability/02-business-spans-catalog.md
+          - Topología de producción: observability/03-production-topology.md
+          - Política de privacidad de datos: observability/04-data-privacy-policy.md
+          - Resultados de rendimiento: observability/05-performance-results.md
+          - Runbook operativo: observability/06-operational-runbook.md
+          - Informe de implementación: observability/07-implementation-report.md
   - Operación:
       - Ambientes: operations/environments.md
+      - Contenedores, redes y riesgos: docker/architecture.md
       - Despliegue: operations/deployment.md
       - Configuración: operations/configuration.md
       - Sondas de salud: operations/health-checks.md
       - Escalado: operations/scaling.md
+      - Resiliencia: operations/resilience.md
       - Reversión: operations/rollback.md
       - Recuperación ante desastres: operations/disaster-recovery.md
       - Mantenimiento: operations/maintenance.md
@@ -205,6 +243,43 @@ nav:
       - ADR-0023 Documentación generada: adr/ADR-0023-generated-documentation.md
       - ADR-0024 Adopción de SLO/RTO/RPO: adr/ADR-0024-slo-rto-rpo-adoption.md
       - ADR-0025 Umbral de archivado de ejecuciones: adr/ADR-0025-execution-archival-threshold.md
+      - ADR-0026 Integración de workers adicionales: adr/ADR-0026-additional-workers-integration.md
+      - ADR-0027 Selección de tecnología de mensajería: adr/ADR-0027-messaging-technology-selection.md
+      - ADR-0028 Nodos que llaman a un worker: adr/ADR-0028-worker-service-nodes.md
+      - ADR-0029 Persistencia desacoplada y rutas read/write: adr/ADR-0029-polyglot-persistence-read-write.md
+      - ADR-0030 Worker de verificación de identidad: adr/ADR-0030-identity-verification-worker.md
+      - ADR-0031 Worker generador de PDF: adr/ADR-0031-pdf-generator-worker.md
+  # Espejo generado de `.claude/rules/`, que es la fuente canónica porque la herramienta de
+  # asistencia las carga desde ahí por ruta de archivo. Se regenera con `yarn docs:vault`.
+  # El generador documental se despliega como servicio aparte y tiene su propia superficie,
+  # su propio contrato y su propia evidencia visual. Sin estas tres entradas los documentos
+  # existían y no había forma de llegar a ellos desde la navegación.
+  - Generador documental:
+      - Visión general: pdf-worker/README.md
+      - Integración: pdf-worker/integracion.md
+      - Evidencia visual: pdf-worker/evidencia/README.md
+  - Reglas de diseño:
+      - Índice: design-rules/index.md
+      - Gobernanza y precedencia: design-rules/00-governance.md
+      - Arquitectura backend: design-rules/10-backend-architecture.md
+      - Clean code: design-rules/20-clean-code.md
+      - Seguridad: design-rules/30-security.md
+      - Observabilidad: design-rules/40-observability.md
+      - Rendimiento: design-rules/50-performance.md
+      - Pruebas: design-rules/60-testing.md
+      - Selección de librerías: design-rules/70-library-selection.md
+      - Base de datos y migraciones: design-rules/80-database.md
+      - Documentación: design-rules/90-documentation.md
+  - Entorno de trabajo:
+      - Prompts y contexto: prompts/index.md
+      - Capas de contexto: prompts/capas-de-contexto.md
+      - Catálogo de prompts operativos: prompts/catalogo.md
+      - Límites e higiene: prompts/limites.md
+      - Skills del proyecto: skills/index.md
+      - Verificación de producción: skills/production-verification.md
+      - Auditoría de seguridad: skills/security-audit.md
+      - Endurecimiento del backend: skills/backend-hardening.md
+      - Skills del entorno: skills/entorno.md
   - Gobierno:
       - Propiedad: governance/ownership.md
       - Política de documentación: governance/documentation-policy.md
@@ -233,9 +308,14 @@ nav:
       - Preparación productiva (documento original): PRODUCTION_READINESS.md
   - Informes:
       - Línea base: reports/baseline.md
+      - Matriz de resiliencia: reports/resilience-run.md
+      - Capacidad del repartidor: reports/load-run.md
       - Auditoría Graphify: reports/graphify-audit.md
       - Análisis de brechas: reports/documentation-gap-analysis.md
       - Métricas documentales: reports/documentation-metrics.md
       - Preparación para producción: reports/production-readiness.md
       - Validación final: reports/final-validation.md
       - Plan de corrección 2026-07-31: reports/correction-plan-2026-07-31.md
+      - Auditoría de endurecimiento 2026-08-06: reports/hardening-audit-2026-08-06.md
+      - Remediación de la auditoría integral 2026-08-07: reports/remediation-2026-08-07.md
+      - Integración de workers adicionales: workers/additional-workers-integration-analysis.md

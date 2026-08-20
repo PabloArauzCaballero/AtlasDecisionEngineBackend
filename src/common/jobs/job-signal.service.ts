@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { Client } from 'pg';
 import { PrismaService } from '../prisma/prisma.service';
+import { booleanoDeConfig, numeroDeConfig } from '../config/config-coercion.util';
 
 /**
  * Un canal es a la vez identificador SQL (va sin comillas ni parámetros en `LISTEN`),
@@ -63,9 +64,16 @@ export class JobSignalService implements OnModuleDestroy {
     this.channel = CHANNEL_PATTERN.test(configured) ? configured : DEFAULT_NOTIFY_CHANNEL;
   }
 
-  /** ¿Está habilitado el despertar por señal? Fuera de eso, todo cae al sondeo. */
+  /**
+   * ¿Está habilitado el despertar por señal? Fuera de eso, todo cae al sondeo.
+   *
+   * El valor se normaliza porque `config.get<boolean>(...)` no convierte nada: el genérico es un
+   * cast de TypeScript y, cuando el ajuste sale de `process.env`, lo que llega es la cadena
+   * `'false'`. Y `'false'` es verdadero en JavaScript, así que apagar el despertar por variable de
+   * entorno lo dejaba encendido — un interruptor que no apaga es peor que no tener interruptor.
+   */
   get enabled(): boolean {
-    return this.config.get<boolean>('JOB_WAKE_ENABLED') ?? true;
+    return booleanoDeConfig(this.config, 'JOB_WAKE_ENABLED', true);
   }
 
   /** ¿Hay una conexión de escucha viva ahora mismo? Lo consulta la sonda de disponibilidad. */
@@ -121,7 +129,8 @@ export class JobSignalService implements OnModuleDestroy {
     const client = new Client({
       connectionString,
       application_name: 'atlas-decision-jobs-listener',
-      connectionTimeoutMillis: this.config.get<number>('DATABASE_CONNECTION_TIMEOUT_MS') ?? 5_000,
+      // `pg` espera un número: una cadena convierte su aritmética de timeouts en concatenación.
+      connectionTimeoutMillis: numeroDeConfig(this.config, 'DATABASE_CONNECTION_TIMEOUT_MS', 5_000),
       // Detecta un corte silencioso (NAT, balanceador) sin sondear: si el keepalive del
       // socket falla, el evento `error` dispara la reconexión en vez de dejar una escucha
       // muda que parece sana. Es el único modo de fallo del que el sondeo no protege bien,

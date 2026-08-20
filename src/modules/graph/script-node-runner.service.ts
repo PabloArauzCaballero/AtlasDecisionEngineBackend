@@ -125,6 +125,14 @@ sys.stdout.write(json.dumps(scope.get('result')))
  *    own network-less, capability-dropped, gVisor-sandboxed container (see docker-compose.yml),
  *    which is the actual OS security boundary production requires.
  */
+/** Lo que el sidecar contesta. Su forma es un contrato entre dos procesos nuestros. */
+interface SidecarPayload {
+  ok: boolean;
+  code?: string;
+  message?: string;
+  result?: unknown;
+}
+
 @Injectable()
 export class ScriptNodeRunnerService {
   private readonly enabled: boolean;
@@ -138,19 +146,42 @@ export class ScriptNodeRunnerService {
 
   private readonly isProduction: boolean;
 
+  /**
+   * Entero de configuración, venga como número o como el string que trae `process.env`.
+   *
+   * `ConfigService.get<number>()` NO convierte: el genérico es una promesa al compilador, y en
+   * cuanto la variable está declarada en el entorno lo que llega es texto. Node 24 dejó de tolerar
+   * eso en `child_process` —`maxBuffer: '65536'` aborta con `RangeError`— así que el ejecutor de
+   * scripts quedaba roto justo en el despliegue que sí configura sus cotas.
+   */
+  private static intOption(config: ConfigService, key: string, fallback: number): number {
+    const raw = config.get<number | string>(key);
+    if (raw === undefined || raw === null || raw === '') return fallback;
+    const parsed = typeof raw === 'number' ? raw : Number.parseInt(raw, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  }
+
   constructor(config: ConfigService) {
     this.enabled = config.get<boolean>('SCRIPT_NODES_ENABLED') ?? false;
-    this.mode = (config.get<ScriptRunnerMode>('SCRIPT_RUNNER_MODE') ??
-      'IN_PROCESS') as ScriptRunnerMode;
+    this.mode = config.get<ScriptRunnerMode>('SCRIPT_RUNNER_MODE') ?? 'IN_PROCESS';
     this.isProduction = config.get<string>('NODE_ENV') === 'production';
     this.socketPath =
       config.get<string>('SCRIPT_RUNNER_SOCKET_PATH') ?? '/var/run/atlas-runner/runner.sock';
-    this.timeoutMs = config.get<number>('SCRIPT_NODE_TIMEOUT_MS') ?? 250;
-    this.maxSourceBytes = config.get<number>('SCRIPT_NODE_MAX_SOURCE_BYTES') ?? 16_384;
-    this.maxOutputBytes = config.get<number>('SCRIPT_NODE_MAX_OUTPUT_BYTES') ?? 65_536;
+    this.timeoutMs = ScriptNodeRunnerService.intOption(config, 'SCRIPT_NODE_TIMEOUT_MS', 250);
+    this.maxSourceBytes = ScriptNodeRunnerService.intOption(
+      config,
+      'SCRIPT_NODE_MAX_SOURCE_BYTES',
+      16_384,
+    );
+    this.maxOutputBytes = ScriptNodeRunnerService.intOption(
+      config,
+      'SCRIPT_NODE_MAX_OUTPUT_BYTES',
+      65_536,
+    );
     // El runner de JS recibe la cota en sus argumentos (--max-old-space-size); el de Python
     // la recibe en el payload y la aplica con RLIMIT_AS. Mismo techo para los dos.
-    this.maxMemoryBytes = (config.get<number>('SCRIPT_NODE_MAX_MEMORY_MB') ?? 32) * 1024 * 1024;
+    this.maxMemoryBytes =
+      ScriptNodeRunnerService.intOption(config, 'SCRIPT_NODE_MAX_MEMORY_MB', 32) * 1024 * 1024;
     this.pythonExecutable = config.get<string>('PYTHON_EXECUTABLE') ?? 'python';
   }
 
@@ -231,7 +262,7 @@ export class ScriptNodeRunnerService {
 
   private postToSidecar(body: string): Promise<{
     statusCode: number;
-    payload?: { ok: boolean; code?: string; message?: string; result?: unknown };
+    payload?: SidecarPayload;
   }> {
     return new Promise((resolve, reject) => {
       const request = http.request(
@@ -270,8 +301,15 @@ export class ScriptNodeRunnerService {
             if (aborted) return;
             try {
               resolve({
+                /*
+                 * `as SidecarPayload` y no el `any` que devuelve `JSON.parse`: lo que
+                 * llega es la respuesta de un proceso aislado, y dejar que un `any` se
+                 * propague desde ahí anula el tipado justo en la frontera donde más
+                 * hace falta. La forma no se comprueba —el sidecar es nuestro— pero el
+                 * compilador vuelve a exigir que quien la lea la trate como declarada.
+                 */
                 statusCode: response.statusCode ?? 500,
-                payload: raw ? JSON.parse(raw) : undefined,
+                payload: raw ? (JSON.parse(raw) as SidecarPayload) : undefined,
               });
             } catch {
               resolve({ statusCode: response.statusCode ?? 500 });

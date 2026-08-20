@@ -43,6 +43,30 @@ const MINIMUM_HEADER_FIELDS = 2;
 const MAX_LABEL_TOKENS = 4;
 
 /**
+ * Separación máxima, en anchos de carácter, para que dos fichas puedan ser el
+ * mismo rótulo.
+ *
+ * **Sin este límite, dos columnas contiguas se funden en una.** Una cabecera
+ * `FECHA VALOR CANAL …` —dos columnas de fecha, la de operación y la valor— se
+ * leía entera como el rótulo `fecha valor`: la ventana glotona alcanzaba las dos
+ * fichas, el diccionario reconocía `valueDate`, y el documento se quedaba **sin
+ * `transactionDate`**. Como el analizador descarta toda región que no lo traiga,
+ * el extracto entero salía «sin cabecera de tabla reconocible» y acababa
+ * rechazado, aunque sus 1.200 movimientos estuvieran perfectamente alineados.
+ *
+ * El valor sale de medir, no de tantear. Un espacio entre palabras ronda 0,6
+ * anchos de carácter; la separación entre columnas más estrecha que se ha medido
+ * en los formatos reales es de 3,6 —y en la mayoría pasa de 6—. 1,5 deja el
+ * espacio de palabra dentro con holgura y la columna fuera con holgura, que es
+ * exactamente lo que distingue «Fecha Valor», un rótulo, de «FECHA | VALOR», dos.
+ *
+ * Se mide en anchos de carácter y no en puntos porque un extracto a cuerpo 6 y
+ * otro a cuerpo 12 tienen columnas igual de separadas en la lectura y el doble
+ * de separadas en puntos.
+ */
+const MAX_LABEL_GAP_IN_CHARS = 1.5;
+
+/**
  * Localiza las tablas del documento y traduce sus encabezados a campos
  * canónicos.
  *
@@ -147,13 +171,40 @@ function labelSegments(line: PageLine, extra?: ExtraAliases): LabelSegment[] {
   return segments;
 }
 
+/**
+ * ¿Están las dos fichas lo bastante juntas como para ser el mismo rótulo?
+ *
+ * El ancho de carácter se estima con la ficha de la izquierda —su anchura
+ * repartida entre sus letras—, que es la referencia disponible sin conocer la
+ * fuente. Una ficha sin anchura medible no permite decidir, y ahí se prefiere
+ * NO fundir: separar de más produce una columna desconocida; fundir de menos
+ * borra una columna entera.
+ */
+function sameLabel(left: TextToken, right: TextToken): boolean {
+  const charWidth = left.width / Math.max(1, left.text.length);
+  if (!(charWidth > 0)) return false;
+  return right.x - (left.x + left.width) <= charWidth * MAX_LABEL_GAP_IN_CHARS;
+}
+
+/** Fichas contiguas desde `index` que podrían formar un mismo rótulo. */
+function adjacentRun(tokens: readonly TextToken[], index: number, limit: number): number {
+  let length = 1;
+  while (length < limit) {
+    const left = tokens[index + length - 1];
+    const right = tokens[index + length];
+    if (!left || !right || !sameLabel(left, right)) break;
+    length += 1;
+  }
+  return length;
+}
+
 function longestMatch(
   tokens: readonly TextToken[],
   index: number,
   pageWidth: number,
   extra?: ExtraAliases,
 ): { segment: LabelSegment; length: number } | undefined {
-  const maxWindow = Math.min(MAX_LABEL_TOKENS, tokens.length - index);
+  const maxWindow = adjacentRun(tokens, index, Math.min(MAX_LABEL_TOKENS, tokens.length - index));
   for (let size = maxWindow; size >= 1; size -= 1) {
     const window = tokens.slice(index, index + size);
     const label = window.map((token) => token.text).join(' ');

@@ -1,9 +1,13 @@
 import type { PrismaClient } from '@prisma/client';
 import { atlasBackendCatalog } from './data/atlas-backend-catalog.data';
 import { seedAtlasUnderwritingArtifact } from './data/atlas-underwriting.seed';
+import { seedAuditChain } from './data/audit-chain.seed';
+import { seedAuditDemo } from './data/audit-demo.seed';
+import { seedGovernanceObservability } from './data/governance-observability.seed';
 import { seedCalculatedFields } from './data/calculated-field-catalog.data';
 import { seedCollectionsDemoArtifact } from './data/collections-demo.seed';
 import { seedContractDemoArtifact } from './data/contract-demo.seed';
+import { seedStatementWorkerDemoArtifact } from './data/statement-worker-demo.seed';
 import { seedGovernanceScenarios } from './data/governance-scenarios.seed';
 import { seedApprovedLibraries } from './data/library-catalog.data';
 import { seedDemoArtifact } from './data/demo-artifact';
@@ -135,7 +139,12 @@ function dedupeByCode(seeds: VariableSeed[]): VariableSeed[] {
 }
 
 export interface BootstrapContext {
-  environments: { sandbox: { id: bigint }; test: { id: bigint }; prod: { id: bigint } };
+  environments: {
+    dev: { id: bigint };
+    staging: { id: bigint };
+    test: { id: bigint };
+    prod: { id: bigint };
+  };
   /** Política de originación que invoca AtlasBackend; `undefined` si ya estaba sembrada. */
   atlasUnderwriting?: Awaited<ReturnType<typeof seedAtlasUnderwritingArtifact>>;
   variableByCode: Record<string, Awaited<ReturnType<typeof ensureVariable>>>;
@@ -158,8 +167,12 @@ export interface BootstrapContext {
  * and the reusable calculated fields. Fully idempotent (upserts).
  */
 export async function runBootstrapSeeds(prisma: PrismaClient): Promise<BootstrapContext> {
-  const [sandbox, test, prod] = await Promise.all([
-    ensureEnvironment(prisma, 'SANDBOX', 'Sandbox', false),
+  // Los cuatro ambientes de decisión, en el orden en que se promueve una versión:
+  // se diseña en DEV, se prueba en TEST (donde el QA Lab mete miles de ejecuciones
+  // sintéticas), se ensaya en STAGING —espejo de producción— y se decide en PROD.
+  const [dev, staging, test, prod] = await Promise.all([
+    ensureEnvironment(prisma, 'DEV', 'Development', false),
+    ensureEnvironment(prisma, 'STAGING', 'Staging', false),
     ensureEnvironment(prisma, 'TEST', 'Testing', false),
     ensureEnvironment(prisma, 'PROD', 'Production', true),
   ]);
@@ -197,13 +210,14 @@ export async function runBootstrapSeeds(prisma: PrismaClient): Promise<Bootstrap
    * Después de las variables a propósito: declara su contrato sobre el catálogo ya sembrado.
    */
   const atlasUnderwriting = await seedAtlasUnderwritingArtifact(prisma, {
-    sandbox,
+    dev,
+    staging,
     test,
     prod,
   });
 
   return {
-    environments: { sandbox, test, prod },
+    environments: { dev, staging, test, prod },
     atlasUnderwriting,
     variableByCode,
     reasonByCode,
@@ -234,10 +248,13 @@ export async function runMockupSeeds(prisma: PrismaClient, context: BootstrapCon
   // Segundo algoritmo: el único que ejercita nodos de CONDICIÓN y SWITCH, que el
   // demo BNPL no usa en ninguna parte (allí las bifurcaciones viven en aristas).
   await seedCollectionsDemoArtifact(prisma);
+  // Tercer algoritmo: el único con un nodo WORKER, que llama al servicio de extractos
+  // bancarios durante la decisión y proyecta su respuesta a variables intermedias.
+  await seedStatementWorkerDemoArtifact(prisma);
   // Escenarios negativos de gobierno (§11): ciclo, versión no disponible, contrato
   // incompatible y una corrida de QA con su contraejemplo.
   await seedGovernanceScenarios(prisma);
-  return seedDemoArtifact(
+  const demo = await seedDemoArtifact(
     prisma,
     TENANT_ID,
     context.environments,
@@ -245,11 +262,23 @@ export async function runMockupSeeds(prisma: PrismaClient, context: BootstrapCon
     outputVariables,
     context.reasonByCode,
   );
+  // A partir de aquí, lo que hace AUDITABLE al demo. Va DESPUÉS y en este orden porque cada
+  // paso necesita el anterior: sin despliegue activo en producción no hay dónde colgar una
+  // decisión, sin decisiones no hay sujetos a los que atribuir consentimientos ni población
+  // que vigilar, y la bitácora narra lo que los otros dos escribieron.
+  //
+  // Hasta que existió esto, el demo sembraba un artefacto aprobado y desplegado sobre el que
+  // nunca se había decidido nada: siete pantallas de auditoría respondiendo 200 sobre listas
+  // vacías, indistinguible de un motor apagado.
+  await seedAuditDemo(prisma);
+  await seedGovernanceObservability(prisma);
+  await seedAuditChain(prisma);
+  return demo;
 }
 
 export interface SeedSummary {
   bootstrap: BootstrapContext['counts'];
-  environments: { sandboxId: string; testId: string; prodId: string };
+  environments: { devId: string; stagingId: string; testId: string; prodId: string };
   mockup?: Awaited<ReturnType<typeof seedDemoArtifact>>;
   mockupSkipped: boolean;
 }
@@ -266,7 +295,8 @@ export async function runSeeds(
   const summary: SeedSummary = {
     bootstrap: bootstrap.counts,
     environments: {
-      sandboxId: bootstrap.environments.sandbox.id.toString(),
+      devId: bootstrap.environments.dev.id.toString(),
+      stagingId: bootstrap.environments.staging.id.toString(),
       testId: bootstrap.environments.test.id.toString(),
       prodId: bootstrap.environments.prod.id.toString(),
     },

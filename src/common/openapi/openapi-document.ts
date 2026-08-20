@@ -154,6 +154,12 @@ const TAG_DESCRIPTIONS: Record<string, string> = {
   'Read Model Views': 'Vistas de solo lectura que alimentan catálogos y selectores del portal.',
   Tutorials: 'Contenido guiado del portal.',
   Observability: 'Exposición de métricas Prometheus, protegida por token.',
+  Workers:
+    'Catálogo de los workers adicionales, con sus límites y su disponibilidad en este despliegue (ADR-0026).',
+  'Workers · Análisis semántico':
+    'Clasificación de texto libre contra el catálogo de categorías, con entidades y evidencia. Asíncrono: se encola y se consulta.',
+  'Workers · Extractos bancarios':
+    'Conversión de un extracto bancario en PDF a movimientos normalizados. Asíncrono; el documento no se conserva y la cuenta se publica enmascarada.',
 };
 
 function declareGlobalTags(document: OpenAPIObject): void {
@@ -251,7 +257,7 @@ const COMMON_PARAMETER_DESCRIPTIONS: Record<string, string> = {
   search: 'Coincidencia parcial sobre el código o el nombre del recurso.',
   status: 'Filtra por estado exacto del recurso.',
   category: 'Filtra por categoría del catálogo.',
-  environmentCode: 'Ambiente de decisión (`SANDBOX`, `TEST`, `PROD`…).',
+  environmentCode: 'Ambiente de decisión (`DEV`, `STAGING`, `TEST`, `PROD`).',
   eventType: 'Filtra por tipo de evento.',
   from: 'Límite inferior del rango temporal, inclusive (ISO 8601).',
   to: 'Límite superior del rango temporal, inclusive (ISO 8601).',
@@ -347,7 +353,10 @@ export function buildOpenApiDocument(
     if (!pathItem) continue;
     for (const operation of Object.values(pathItem)) {
       if (operation && typeof operation === 'object' && 'responses' in operation) {
-        operation.security = [];
+        // `Object.values` de un PathItem devuelve la unión de todo lo que puede colgar de
+        // una ruta (operaciones, `parameters`, `$ref`), así que se acota tras comprobar que
+        // esto es una operación —que es lo que dice `'responses' in operation`—.
+        (operation as { security?: unknown[] }).security = [];
       }
     }
   }

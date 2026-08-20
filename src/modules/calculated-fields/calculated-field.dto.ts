@@ -3,6 +3,7 @@ import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
+  IsDefined,
   IsIn,
   IsInt,
   IsObject,
@@ -109,6 +110,10 @@ export class CreateCalculatedFieldVersionDto {
   @Type(() => CalculatedFieldInputDto)
   inputs!: CalculatedFieldInputDto[];
 
+  // `@ValidateNested()` no comprueba presencia: sobre `undefined` no hay nada que validar.
+  // El contrato de retorno es obligatorio (§5.3), así que su ausencia debe ser un 400 aquí y
+  // no un fallo del servidor más adelante.
+  @IsDefined()
   @ValidateNested()
   @Type(() => CalculatedFieldReturnDto)
   returns!: CalculatedFieldReturnDto;
@@ -166,4 +171,44 @@ export class SampleCalculatedFieldInputsDto {
   /** Repetir la semilla devuelve exactamente el mismo lote. */
   @IsOptional() @IsString() @MaxLength(120) seed?: string;
   @IsOptional() @IsInt() @Min(1) @Max(20) count?: number;
+}
+
+/**
+ * Cobertura de desenlaces: cuántos casos POR CLASE se generan y ejecutan.
+ *
+ * El tope es más bajo que el de `sample-inputs` porque aquí cada caso se EJECUTA, y
+ * las tres clases se corren siempre: pedir diez son treinta ejecuciones del sandbox.
+ */
+export class CalculatedFieldOutcomeCoverageDto {
+  @IsOptional() @IsString() @MaxLength(120) seed?: string;
+  @IsOptional() @IsInt() @Min(1) @Max(10) count?: number;
+}
+
+/**
+ * El borrador de una versión que todavía no existe.
+ *
+ * Es exactamente el cuerpo que crearía la versión: mismo DTO, misma validación y mismo
+ * validador de contrato después. Un cuerpo distinto para ensayar significaría poder
+ * ensayar algo que el guardado no acepta.
+ */
+export class PreviewCalculatedFieldDto {
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => CreateCalculatedFieldVersionDto)
+  definition!: CreateCalculatedFieldVersionDto;
+}
+
+export class PreviewTryCalculatedFieldDto extends PreviewCalculatedFieldDto {
+  @IsObject() inputs!: Record<string, unknown>;
+}
+
+export class PreviewSampleCalculatedFieldInputsDto extends PreviewCalculatedFieldDto {
+  @IsOptional() @IsIn(['VALID', 'BOUNDARY', 'INVALID']) kind?: 'VALID' | 'BOUNDARY' | 'INVALID';
+  @IsOptional() @IsString() @MaxLength(120) seed?: string;
+  @IsOptional() @IsInt() @Min(1) @Max(20) count?: number;
+}
+
+export class PreviewOutcomeCoverageDto extends PreviewCalculatedFieldDto {
+  @IsOptional() @IsString() @MaxLength(120) seed?: string;
+  @IsOptional() @IsInt() @Min(1) @Max(10) count?: number;
 }

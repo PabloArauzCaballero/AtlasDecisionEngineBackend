@@ -1,0 +1,17 @@
+{{!--
+  Lista de pares etiqueta/valor. Uso: {{> atlas/key-value-list items=section.fields}}
+
+  `fmtValue` decide cómo se pinta cada valor —número con separadores, booleano como «Sí»/«No»,
+  ausente como un guion— para que ningún template tenga que hacerlo y para que dos documentos
+  no impriman el mismo dato de dos maneras.
+--}}
+{{#if items}}
+  <div class="kv">
+    {{#each items}}
+      <div class="kv__row">
+        <span class="kv__label">{{this.label}}</span>
+        <span class="kv__value">{{fmtValue this.value}}</span>
+      </div>
+    {{/each}}
+  </div>
+{{/if}}

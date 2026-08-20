@@ -333,7 +333,7 @@ function numberOrUndefined(value: unknown): number | undefined {
 
 function stringArray(value: unknown): string[] | undefined {
   return Array.isArray(value) && value.every((item) => typeof item === 'string')
-    ? (value as string[])
+    ? value
     : undefined;
 }
 

@@ -18,7 +18,8 @@ import { ExecutionEngineService } from '../graph/execution-engine.service';
 import type { CompiledDecisionArtifact } from '../graph/graph.types';
 import { VariableResolutionService } from '../variables/variable-resolution.service';
 import {
-  generateCases,
+  distribute,
+  generateCasesOfKinds,
   type DistributionMap,
   type GeneratedCase,
   type GeneratorContractVariable,
@@ -32,9 +33,36 @@ import {
 } from './qa-properties';
 import { GENERATOR_VERSION, SeededRandom, generateSeed } from './seeded-random';
 import { GenerateQaRunDto, GenerateSampleCasesDto, QaRunQueryDto } from './qa-lab.dto';
+import {
+  allocateOutcomeCounts,
+  describeOutcomes,
+  planOutcomeAllocation,
+  planOutcomeCases,
+  reachableOutcomeKeys,
+  type OutcomeCase,
+} from './outcome-coverage';
 import { buildSampleBatch, seedSequence, type SampleBatch } from './sample-inputs';
 
 const DEFAULT_MIX = { validPercent: 60, invalidPercent: 25, boundaryPercent: 15 };
+
+/**
+ * Tope de casos por desenlace que se añaden a una corrida. Se suman a `caseCount`, así
+ * que sin cota un grafo muy ramificado podría multiplicar la duración de la tanda.
+ */
+const MAX_OUTCOME_CASES_PER_RUN = 25;
+
+/** Techo del listado de desenlaces: el enumerador de caminos ya no devuelve más. */
+const MAX_OUTCOMES_LISTED = 200;
+
+/**
+ * A partir de aquí una corrida `RUNNING` está muerta, no ocupada.
+ *
+ * Es el techo que admite `timeoutMs` (600 s) más un margen. La ejecución sobrevive a la
+ * petición que la lanzó, así que un reinicio del proceso a mitad de tanda deja la fila en
+ * `RUNNING` para siempre: el portal la sondearía sin fin y el historial mentiría diciendo
+ * que sigue trabajando.
+ */
+const ABANDONED_RUN_MS = 660_000;
 
 @Injectable()
 export class QaLabService {
@@ -77,7 +105,43 @@ export class QaLabService {
     };
     const inputContract = this.inputContract(compiled);
     const distributions = this.resolveDistributions(dto, inputContract);
+    // El reparto de clases se decide aquí porque el de desenlaces se calcula SOBRE él:
+    // los pesos reparten la porción válida, no el lote entero.
+    const kinds = distribute(dto.caseCount, mix);
+    // Se valida ANTES de crear la corrida: un peso sobre un desenlace que este grafo no
+    // alcanza no se puede aplicar, y descubrirlo a mitad de la ejecución dejaría una
+    // corrida archivada cuyo reparto no es el que pidió quien la lanzó.
+    const outcomeAllocation = this.resolveOutcomeAllocation(
+      dto,
+      compiled,
+      kinds.filter((kind) => kind === 'VALID').length,
+    );
 
+    const random = new SeededRandom(seed);
+    // Con reparto por desenlace, la porción VÁLIDA la construye el planificador del grafo
+    // y aquí sólo quedan frontera e inválidos. `validPercent` sigue decidiendo CUÁNTOS son
+    // válidos; el reparto decide DÓNDE acaban. Sin `outcomeWeights` no cambia nada.
+    const mixKinds = outcomeAllocation ? kinds.filter((kind) => kind !== 'VALID') : kinds;
+    const allocated = outcomeAllocation
+      ? this.asGeneratedCases(
+          planOutcomeAllocation(compiled, inputContract, random, outcomeAllocation),
+        )
+      : [];
+    const cases = [
+      ...allocated,
+      ...generateCasesOfKinds(inputContract, random, mixKinds, distributions),
+    ];
+    // Los casos por desenlace van DELANTE y con su propio flujo aleatorio —derivado de la
+    // misma semilla, así que la corrida sigue siendo reproducible—. Delante porque son los
+    // que responden la pregunta que importa: si algo se rompe, que se rompa aquí antes de
+    // que un tope de tiempo trunque la tanda.
+    const outcomeCases =
+      dto.coverOutcomes === false ? [] : this.outcomeCases(compiled, inputContract, seed);
+    // Se renumera al unir: cada generador cuenta desde 0 por su cuenta, y dos casos con el
+    // mismo índice hacen que un contraejemplo apunte a un caso que no es el suyo.
+    const batch = [...outcomeCases, ...cases].map((testCase, index) => ({ ...testCase, index }));
+
+    await this.failAbandonedRuns(tenantId);
     const run = await this.prisma.qaGenerationRun.create({
       data: {
         tenantId,
@@ -92,6 +156,15 @@ export class QaLabService {
           environmentCode,
           mix,
           distributions,
+          // El reparto YA RESUELTO, no los pesos: los pesos son relativos y cuántos casos
+          // caen en cada rama depende además de `caseCount` y de `validPercent`. Guardar
+          // sólo los pesos obligaría a rehacer esa cuenta —y acertarla— para saber qué se
+          // ejecutó de verdad.
+          outcomeAllocation: outcomeAllocation ? Object.fromEntries(outcomeAllocation) : undefined,
+          // Cuántos casos se van a ejecutar. Es lo único que permite dibujar un avance
+          // honesto mientras corre: `totalCases` sólo cuenta los ya ejecutados, así que sin
+          // este dato el portal no puede decir 40 DE CUÁNTOS.
+          plannedCases: batch.length,
         } as unknown as Prisma.InputJsonValue,
         generatorVersion: GENERATOR_VERSION,
         toolingJson: this.toolingVersions(),
@@ -106,45 +179,200 @@ export class QaLabService {
       },
     });
 
+    /*
+     * La ejecución NO se espera: la respuesta sale ya, con la corrida en RUNNING, y quien
+     * la lanzó consulta `getRun` hasta verla cerrada.
+     *
+     * Es la única forma de que `timeoutMs` signifique algo. Un interceptor global corta
+     * TODA petición a los `REQUEST_TIMEOUT_MS` del despliegue (15 s de serie), así que
+     * ejecutar el lote dentro de la petición hacía que doscientos casos murieran siempre
+     * con `REQUEST_TIMEOUT` —y encima dejaban la fila en RUNNING y las ejecuciones
+     * corriendo, porque cortar la respuesta no cancela el trabajo—. El formulario ofrecía
+     * hasta 600 000 ms de una espera que nunca podía pasar de 15 000.
+     */
+    void this.executeRun(tenantId, compiled, batch, dto, run.id, seed, principal);
+
+    return this.presentRun(run, []);
+  }
+
+  /**
+   * Ejecuta el lote fuera de la petición y cierra la corrida.
+   *
+   * Nadie espera esta promesa, así que un error aquí no puede propagarse a ningún sitio
+   * donde se vea: se archiva en la propia corrida como FAILED. Un fallo que sólo aparece
+   * en el registro del servidor deja la pantalla sondeando una corrida que ya no avanza.
+   */
+  private async executeRun(
+    tenantId: bigint,
+    compiled: CompiledDecisionArtifact,
+    batch: GeneratedCase[],
+    dto: GenerateQaRunDto,
+    runId: bigint,
+    seed: string,
+    principal: AuthenticatedPrincipal,
+  ): Promise<void> {
     const started = Date.now();
-    const cases = generateCases(
+    try {
+      const summary = await this.executeBatch(tenantId, compiled, batch, dto, runId, seed);
+      const durationMs = Date.now() - started;
+
+      // El cierre de la corrida y su evento de auditoría van en LA MISMA transacción
+      // (`.claude/rules/80-database.md`). Antes commiteaban por separado: si el `append`
+      // fallaba, quedaba una corrida COMPLETED sin ninguna entrada en la cadena de
+      // auditoría, que es justo la combinación que no se puede explicar después.
+      await this.prisma.$transaction(async (tx) => {
+        await tx.qaGenerationRun.update({
+          where: { id: runId },
+          data: {
+            status: QaRunStatus.COMPLETED,
+            totalCases: summary.total,
+            passedCases: summary.passed,
+            failedCases: summary.failed,
+            erroredCases: summary.errored,
+            durationMs,
+            finishedAt: new Date(),
+            summaryJson: summary.byProperty as unknown as Prisma.InputJsonValue,
+          },
+        });
+        await this.audit.append(
+          {
+            tenantId,
+            eventType: 'QA_GENERATION_RUN_COMPLETED',
+            aggregateType: 'QaGenerationRun',
+            aggregateId: runId.toString(),
+            actorId: principal.id,
+            requestId: principal.requestId,
+            payload: {
+              seed,
+              total: summary.total,
+              failed: summary.failed,
+              environmentCode: dto.environmentCode.toUpperCase(),
+            },
+          },
+          tx,
+        );
+      });
+
+      this.metrics.recordQaCase('PASSED', summary.passed);
+      this.metrics.recordQaCase('FAILED', summary.failed);
+      this.metrics.recordQaCase('ERRORED', summary.errored);
+    } catch (error) {
+      await this.abortRun(runId, error, Date.now() - started);
+    }
+  }
+
+  /** Cierra como FALLIDA una corrida que reventó, sin volver a lanzar: nadie la espera. */
+  private async abortRun(runId: bigint, error: unknown, durationMs: number): Promise<void> {
+    const failureCode = error instanceof DomainException ? error.code : 'QA_RUN_UNEXPECTED_ERROR';
+    const failureMessage = error instanceof Error ? error.message : String(error);
+    this.logger.error({ event: 'QA_RUN_FAILED', runId: runId.toString(), failureCode });
+    try {
+      await this.prisma.qaGenerationRun.update({
+        where: { id: runId },
+        data: {
+          status: QaRunStatus.FAILED,
+          durationMs,
+          finishedAt: new Date(),
+          // Sólo las corridas FALLIDAS traen esta forma; las que terminan bien siguen
+          // guardando el conteo por propiedad. Así el portal puede decir POR QUÉ falló en
+          // vez de enseñar una corrida vacía sin explicación.
+          summaryJson: { failureCode, failureMessage } as unknown as Prisma.InputJsonValue,
+        },
+      });
+    } catch (secondary) {
+      // Si ni siquiera se puede archivar el fallo, queda el barrido de abandonadas.
+      this.logger.error({
+        event: 'QA_RUN_FAILURE_NOT_RECORDED',
+        runId: runId.toString(),
+        detail: String(secondary),
+      });
+    }
+  }
+
+  /**
+   * Un caso por desenlace, con la forma que espera el ejecutor.
+   *
+   * Se etiquetan `VALID` porque eso es lo que son: entradas legítimas que el motor debe
+   * ACEPTAR —las propiedades sólo tratan distinto a `INVALID`, del que esperan rechazo—.
+   * El desenlace perseguido viaja en `mutation`, el campo que el informe ya enseña junto a
+   * cada contraejemplo: sin él un fallo diría «caso 3» y no «el camino a Rechazar».
+   */
+  private outcomeCases(
+    compiled: CompiledDecisionArtifact,
+    inputContract: GeneratorContractVariable[],
+    seed: string,
+  ): GeneratedCase[] {
+    const plan = planOutcomeCases(
+      compiled,
       inputContract,
-      new SeededRandom(seed),
-      dto.caseCount,
-      mix,
-      distributions,
+      new SeededRandom(`${seed}:outcomes`),
+      MAX_OUTCOME_CASES_PER_RUN,
     );
-    const summary = await this.executeBatch(tenantId, compiled, cases, dto, run.id, seed);
-    const durationMs = Date.now() - started;
+    return this.asGeneratedCases(plan.cases);
+  }
 
-    const finished = await this.prisma.qaGenerationRun.update({
-      where: { id: run.id },
-      data: {
-        status: QaRunStatus.COMPLETED,
-        totalCases: summary.total,
-        passedCases: summary.passed,
-        failedCases: summary.failed,
-        erroredCases: summary.errored,
-        durationMs,
-        finishedAt: new Date(),
-        summaryJson: summary.byProperty as unknown as Prisma.InputJsonValue,
-      },
-    });
+  /** Traduce los casos del planificador de desenlaces a la forma que ejecuta el lote. */
+  private asGeneratedCases(plan: OutcomeCase[]): GeneratedCase[] {
+    return plan.map((item, index) => ({
+      index,
+      kind: 'VALID' as const,
+      mutation: `desenlace: ${item.outcome}${item.unresolved.length ? ' (no garantizado desde la entrada)' : ''}`,
+      input: item.input,
+      ...(item.unsatisfiable?.length ? { unsatisfiable: item.unsatisfiable } : {}),
+    }));
+  }
 
-    this.metrics.recordQaCase('PASSED', summary.passed);
-    this.metrics.recordQaCase('FAILED', summary.failed);
-    this.metrics.recordQaCase('ERRORED', summary.errored);
-    await this.audit.append({
-      tenantId,
-      eventType: 'QA_GENERATION_RUN_COMPLETED',
-      aggregateType: 'QaGenerationRun',
-      aggregateId: run.id.toString(),
-      actorId: principal.id,
-      requestId: principal.requestId,
-      payload: { seed, total: summary.total, failed: summary.failed, environmentCode },
-    });
+  /**
+   * Convierte los pesos por desenlace en un número exacto de casos, o `null` si no se pidió
+   * reparto.
+   *
+   * Dos decisiones que no son de estilo:
+   *
+   * - Una clave que este grafo NO alcanza es un error, no un peso que se ignora. Quien
+   *   escribe `{"RECHAZADO": 70}` sobre un artefacto cuyo nodo se llama `DECLINED_RESULT`
+   *   se llevaría una corrida verde con un reparto que nunca ocurrió, y el informe diría
+   *   que el 70 % acabó en una rama que no existe.
+   * - El reparto usa el resto MAYOR, así que los casos asignados suman exactamente los
+   *   válidos pedidos. Redondear cada peso por su cuenta perdía casos por el camino y la
+   *   corrida ejecutaba menos de los que decía.
+   */
+  private resolveOutcomeAllocation(
+    dto: GenerateQaRunDto,
+    compiled: CompiledDecisionArtifact,
+    validCount: number,
+  ): Map<string, number> | null {
+    const weights = dto.outcomeWeights;
+    if (!weights || !Object.keys(weights).length) return null;
 
-    return this.presentRun(finished, summary.counterexamples);
+    const reachable = reachableOutcomeKeys(compiled);
+    const unknown = Object.keys(weights).filter((key) => !reachable.includes(key));
+    if (unknown.length) {
+      throw new DomainException(
+        'QA_RUN_OUTCOME_UNKNOWN',
+        `Estos desenlaces no existen en la versión: ${unknown.join(', ')}. Los alcanzables son: ${reachable.join(', ')}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    const entries = reachable
+      .filter((key) => key in weights)
+      .map((key) => [key, Number(weights[key])] as const);
+    if (entries.some(([, weight]) => !Number.isFinite(weight) || weight < 0)) {
+      throw new DomainException(
+        'QA_RUN_OUTCOME_WEIGHT_INVALID',
+        'Los pesos por desenlace tienen que ser números no negativos',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    const total = entries.reduce((sum, [, weight]) => sum + weight, 0);
+    if (total <= 0) {
+      throw new DomainException(
+        'QA_RUN_OUTCOME_WEIGHT_INVALID',
+        'Al menos un desenlace tiene que llevar peso mayor que cero',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    return allocateOutcomeCounts(entries, validCount);
   }
 
   private async executeBatch(
@@ -205,6 +433,10 @@ export class QaLabService {
           break;
         }
       }
+      // El avance se publica al cerrar cada tanda, no al final. Sin esto la corrida está
+      // en RUNNING con todos los contadores a cero hasta que termina, y una tanda larga es
+      // indistinguible de una colgada: quien mira la pantalla no puede saber si esperar.
+      await this.publishProgress(runId, { passed, failed, errored });
     }
 
     return {
@@ -215,6 +447,35 @@ export class QaLabService {
       byProperty,
       counterexamples,
     };
+  }
+
+  /**
+   * Publica los contadores de una corrida en marcha.
+   *
+   * No propaga el error: un fallo escribiendo el avance no es motivo para abortar una tanda
+   * que va bien, y `executeRun` archiva el resultado definitivo al terminar.
+   */
+  private async publishProgress(
+    runId: bigint,
+    counts: { passed: number; failed: number; errored: number },
+  ): Promise<void> {
+    try {
+      await this.prisma.qaGenerationRun.update({
+        where: { id: runId },
+        data: {
+          totalCases: counts.passed + counts.failed,
+          passedCases: counts.passed,
+          failedCases: counts.failed,
+          erroredCases: counts.errored,
+        },
+      });
+    } catch (error) {
+      this.logger.warn({
+        event: 'QA_RUN_PROGRESS_NOT_PUBLISHED',
+        runId: runId.toString(),
+        detail: String(error),
+      });
+    }
   }
 
   private async evaluateCase(
@@ -371,12 +632,31 @@ export class QaLabService {
       );
     }
     return {
-      ...buildSampleBatch(inputs, dto, this.nextSampleSeed),
+      // Igual que el simulador: con `kind: 'OUTCOMES'` el lote se construye recorriendo
+      // el grafo, así que la versión compilada viaja entera y no sólo su contrato.
+      ...buildSampleBatch(inputs, dto, this.nextSampleSeed, compiled),
       versionId: versionId.toString(),
     };
   }
 
+  /**
+   * Desenlaces que el grafo de la versión alcanza de verdad, para poder repartir pesos
+   * sobre ellos sin adivinar cómo se llaman.
+   *
+   * El portal los necesita para ofrecer el reparto: sin esta lista, escribir
+   * `outcomeWeights` sería teclear claves a ciegas y descubrir el error al lanzar.
+   */
+  async listOutcomes(tenantId: bigint, versionId: bigint) {
+    const compiled = await this.loadCompiled(tenantId, versionId);
+    const items = describeOutcomes(compiled).slice(0, MAX_OUTCOMES_LISTED);
+    return { versionId: versionId.toString(), items };
+  }
+
   async listRuns(tenantId: bigint, query: QaRunQueryDto) {
+    // Una corrida vive en la petición que la lanzó: si el proceso se reinicia a mitad, su
+    // fila se queda en RUNNING para siempre y el historial dice que sigue trabajando algo
+    // que ya no existe. Se cierran al leer, que es cuando alguien va a creerse el dato.
+    await this.failAbandonedRuns(tenantId);
     const { skip, take, page, pageSize } = paginationArgs(query);
     const where: Prisma.QaGenerationRunWhereInput = {
       tenantId,
@@ -409,11 +689,43 @@ export class QaLabService {
         counterexamples: row._count.counterexamples,
         startedAt: row.startedAt,
         finishedAt: row.finishedAt,
+        // La CARGA con la que se corrió, sacada de la configuración archivada.
+        //
+        // Sin ella el listado publica duración y número de casos, con lo que cualquiera
+        // puede dividir y obtener un «milisegundos por caso» que NO es comparable entre
+        // corridas: con concurrencia 1 el motor despacha de uno en uno y con la de serie
+        // ocho a la vez, y con `checkDeterminism` cada caso se ejecuta DOS veces. Dos
+        // corridas de la misma versión pueden diferir en un orden de magnitud sin que el
+        // motor se haya degradado nada. Publicarla es lo que convierte una serie de
+        // corridas en una medición legible.
+        ...loadOf(row.configJson),
       })),
       total,
       page,
       pageSize,
     );
+  }
+
+  /**
+   * Cierra como FALLIDAS las corridas que llevan demasiado tiempo en RUNNING.
+   *
+   * El techo es el tiempo máximo de una corrida más margen: por encima de eso no está
+   * tardando, está abandonada. Se marca FAILED y no COMPLETED porque no hay resumen que
+   * enseñar, y un COMPLETED sin casos se leería como «pasó todo».
+   */
+  private async failAbandonedRuns(tenantId: bigint): Promise<void> {
+    const limite = new Date(Date.now() - ABANDONED_RUN_MS);
+    const cerradas = await this.prisma.qaGenerationRun.updateMany({
+      where: { tenantId, status: QaRunStatus.RUNNING, startedAt: { lt: limite } },
+      data: { status: QaRunStatus.FAILED, finishedAt: new Date() },
+    });
+    if (cerradas.count > 0) {
+      this.logger.warn({
+        event: 'QA_RUN_ABANDONED',
+        tenantId: tenantId.toString(),
+        closed: cerradas.count,
+      });
+    }
   }
 
   async getRun(tenantId: bigint, runId: bigint) {
@@ -584,6 +896,7 @@ export class QaLabService {
       failedCases: number;
       erroredCases: number;
       durationMs: number;
+      configJson: Prisma.JsonValue;
       summaryJson: Prisma.JsonValue;
       startedAt: Date;
       finishedAt: Date | null;
@@ -603,12 +916,51 @@ export class QaLabService {
       failedCases: run.failedCases,
       erroredCases: run.erroredCases,
       durationMs: run.durationMs,
+      // Cuántos casos se van a ejecutar en total. Sale de la configuración archivada y se
+      // publica aparte porque es lo único con lo que se puede dibujar un avance: mientras
+      // la corrida vive, `totalCases` sólo cuenta los ya ejecutados, y un número que sube
+      // sin un techo al lado no dice si falta un segundo o cinco minutos.
+      plannedCases: plannedCasesOf(run.configJson),
       summary: run.summaryJson,
       startedAt: run.startedAt,
       finishedAt: run.finishedAt,
       counterexamples,
     };
   }
+}
+
+/** `plannedCases` de una configuración archivada; 0 en las corridas anteriores al campo. */
+function plannedCasesOf(config: Prisma.JsonValue): number {
+  if (!config || typeof config !== 'object' || Array.isArray(config)) return 0;
+  const planned = (config as Record<string, unknown>).plannedCases;
+  return typeof planned === 'number' && Number.isFinite(planned) ? planned : 0;
+}
+
+/**
+ * La carga con la que se lanzó una corrida, leída de su configuración archivada.
+ *
+ * `null` y no un valor por omisión cuando el dato no está: las corridas anteriores a este
+ * campo no llevan concurrencia guardada, y rellenarla con el 8 de serie inventaría una
+ * medición —diría que aquella corrida iba a ocho en paralelo sin que nadie lo sepa—.
+ */
+function loadOf(config: Prisma.JsonValue): {
+  plannedCases: number;
+  concurrency: number | null;
+  checkDeterminism: boolean | null;
+} {
+  const planned = plannedCasesOf(config);
+  if (!config || typeof config !== 'object' || Array.isArray(config)) {
+    return { plannedCases: planned, concurrency: null, checkDeterminism: null };
+  }
+  const record = config as Record<string, unknown>;
+  const concurrency = record.concurrency;
+  const determinism = record.checkDeterminism;
+  return {
+    plannedCases: planned,
+    concurrency:
+      typeof concurrency === 'number' && Number.isFinite(concurrency) ? concurrency : null,
+    checkDeterminism: typeof determinism === 'boolean' ? determinism : null,
+  };
 }
 
 function sortedKeys(value: Record<string, unknown>): Record<string, unknown> {
@@ -618,8 +970,11 @@ function sortedKeys(value: Record<string, unknown>): Record<string, unknown> {
 /** Lee la versión instalada de un paquete sin fallar si no está presente. */
 function readPackageVersion(packageName: string): string {
   try {
+    // `require` dinámico a propósito: el paquete puede no estar instalado, y un `import`
+    // estático lo convertiría en dependencia obligatoria del arranque.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    return String(require(`${packageName}/package.json`).version);
+    const manifest = require(`${packageName}/package.json`) as { version?: unknown };
+    return String(manifest.version ?? 'unknown');
   } catch {
     return 'not-installed';
   }

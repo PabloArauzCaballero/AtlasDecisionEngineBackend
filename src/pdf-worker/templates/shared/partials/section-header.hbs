@@ -1,0 +1,11 @@
+{{!--
+  Cabecera de sección. Uso: {{> atlas/section-header title=section.title description=section.description}}
+
+  Está en su propio parcial —y con la clase `section__header`— porque `print.css` le aplica
+  `break-after: avoid`: un título que cae en la última línea de la hoja y deja su contenido en
+  la siguiente es el corte que peor se lee de todos.
+--}}
+<div class="section__header">
+  <h2 class="section__title">{{title}}</h2>
+  {{#if description}}<p class="section__description">{{description}}</p>{{/if}}
+</div>

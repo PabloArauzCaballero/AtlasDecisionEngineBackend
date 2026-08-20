@@ -1,0 +1,99 @@
+# Superposición de MÉTRICAS: Prometheus y Grafana.
+#
+#   docker compose -f docker-compose.yml -f compose.observability.yml \
+#     --profile observability up -d
+#
+# Alcance deliberadamente limitado a métricas. Las TRAZAS ya tienen su propia pila en
+# `docker-compose.jaeger.yml` (`yarn jaeger:up`) con su colector en `infra/otel-collector/`;
+# añadir aquí un segundo destino OTLP habría dejado dos sitios donde configurar lo mismo y
+# dos respuestas distintas a «¿dónde miro una traza?».
+#
+# Qué aporta que no existiera: la aplicación PRODUCE métricas desde hace tiempo (prom-client,
+# vía `MetricsService`), pero no había nada que las recogiera. `atlas_outbox_pending` o
+# `atlas_job_last_success_timestamp_seconds` solo podían mirarse con un `curl` manual al
+# endpoint, justo cuando lo que hace falta es una serie temporal y no una foto. Las alertas de
+# `docs/observability/alerts.md` eran propuestas sin nada que las evaluara; ahora viven como
+# reglas en `docker/observability/alerts.yml`.
+#
+# Los dos servicios llevan `profiles: [observability]`, así que no arrancan ni con este fichero
+# en la línea de órdenes salvo que se pida el perfil. Ninguno publica fuera de loopback.
+
+services:
+  prometheus:
+    profiles: ["observability"]
+    image: prom/prometheus:v3.1.0
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      # 15 días: suficiente para una revisión post-incidente sin que el volumen crezca sin
+      # cota en el portátil de nadie.
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
+    volumes:
+      - ./docker/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./docker/observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - atlas_prometheus:/prometheus
+    # El token de raspado llega como fichero (`credentials_file` en prometheus.yml) y NO como
+    # variable de entorno ni horneado en la configuración versionada: `docker inspect` muestra
+    # el entorno de cualquier contenedor a quien pueda hablar con el demonio.
+    configs:
+      - source: metrics_token
+        target: /etc/prometheus/metrics-token
+        # 0444 y no 0400. `0400` solo lo lee su PROPIETARIO, y los ficheros que Compose
+        # materializa desde `configs` pertenecen a root mientras que este contenedor corre
+        # como `nobody` (65534). El resultado era que Prometheus arrancaba, cargaba la
+        # configuración y dejaba los dos destinos en `health=down` con
+        # «unable to read authorization credentials: permission denied» — una pila de
+        # observabilidad en pie y ciega. Se descubrió levantándola, no leyéndola.
+        #
+        # Que sea legible por todos dentro del contenedor no añade exposición: quien pueda
+        # leer ese fichero ya ejecuta código aquí dentro. Lo que importa es que el valor no
+        # esté en el entorno del proceso, donde `docker inspect` lo mostraría.
+        mode: 0444
+    ports:
+      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
+    # `atlas_app` para alcanzar api:3000 y worker:3001 por nombre de servicio.
+    networks: [atlas_app]
+    user: "nobody"
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${PROMETHEUS_MEMORY:-512m}
+    restart: unless-stopped
+
+  grafana:
+    profiles: ["observability"]
+    image: grafana/grafana:11.5.1
+    environment:
+      # Sin registro anónimo y sin credencial por defecto: aunque solo escuche en loopback,
+      # `admin/admin` es exactamente la que sobrevive a la migración a un servidor.
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      # Sin telemetría saliente: este panel mira una base de decisiones de crédito.
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    volumes:
+      - ./docker/observability/grafana-datasources.yml:/etc/grafana/provisioning/datasources/atlas.yml:ro
+      - atlas_grafana:/var/lib/grafana
+    ports:
+      # 3300 en el anfitrión porque 3000 ya lo usa la API.
+      - "127.0.0.1:${GRAFANA_PORT:-3300}:3000"
+    networks: [atlas_app]
+    depends_on:
+      prometheus:
+        condition: service_started
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${GRAFANA_MEMORY:-384m}
+    restart: unless-stopped
+
+configs:
+  metrics_token:
+    # `content:` materializa el valor como fichero dentro del contenedor sin que aparezca en
+    # el entorno del proceso ni en la configuración versionada.
+    content: ${METRICS_TOKEN:?set METRICS_TOKEN in .env (at least 24 characters)}
+
+volumes:
+  atlas_grafana:
+  atlas_prometheus:

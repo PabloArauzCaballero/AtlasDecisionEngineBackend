@@ -13,6 +13,13 @@
  *
  * Compartido a propósito: cualquier seeder nuevo que llame aquí queda inmune al
  * mismo olvido.
+ *
+ * **Devuelve los identificadores al compilado**, y no es un detalle: el escritor de
+ * ejecuciones enlaza cada paso de la traza con `decision_rule_node` por el `id` que el
+ * compilado lleva dentro. Un compilado sembrado sin esos ids decide igual de bien, pero
+ * cada una de sus ejecuciones pierde la traza paso a paso —el escritor la descarta con un
+ * `ERROR` en el log— y con ella la evidencia de POR QUÉ se decidió lo que se decidió. Por
+ * eso esta función se llama SIEMPRE antes de persistir el compilado.
  */
 import type { Prisma, PrismaClient } from '@prisma/client';
 import type { CompiledDecisionArtifact } from '../../graph/graph.types';
@@ -30,7 +37,7 @@ export async function writeGraphRows(
         conditionCode: code,
         name: condition.name,
         expressionType: 'JSON_AST',
-        expressionJson: condition.expression as unknown as Prisma.InputJsonValue,
+        expressionJson: condition.expression as Prisma.InputJsonValue,
         severity: 'BLOCKING',
         isReusable: true,
       },
@@ -39,7 +46,7 @@ export async function writeGraphRows(
 
   const nodeByKey: Record<string, { id: bigint }> = {};
   for (const node of Object.values(compiled.nodes)) {
-    nodeByKey[node.key] = await prisma.decisionRuleNode.create({
+    const row = await prisma.decisionRuleNode.create({
       data: {
         artifactVersionId,
         nodeKey: node.key,
@@ -52,6 +59,10 @@ export async function writeGraphRows(
         isTerminal: node.terminal,
       },
     });
+    nodeByKey[node.key] = row;
+    // Se anota en el propio nodo del compilado, que es el objeto que el llamador va a
+    // persistir a continuación. Sin esto, la traza de cada ejecución se pierde entera.
+    node.id = row.id.toString();
   }
 
   let edges = 0;
@@ -100,6 +111,20 @@ export async function writeGraphRows(
  * `decision_test_run` apunta al compilado por clave foránea, así que rehacer un
  * demo que ya se ejecutó alguna vez fallaba con P2003 y dejaba la siembra a
  * medias. Se limpian primero las corridas, luego el artefacto.
+ *
+ * Lo mismo pasaba —y peor— con las EJECUCIONES: `decision_execution` apunta al
+ * despliegue con `onDelete: Restrict`, así que en cuanto alguien simulaba el
+ * demo una sola vez desde el portal, rehacerlo moría con
+ * `decision_execution_deployment_id_fkey`. El efecto es traicionero: la
+ * corrección del grafo se publica en el repositorio, la siembra dice «se
+ * rehace», y en la única máquina donde el demo se había usado de verdad el
+ * motor sigue ejecutando el grafo viejo. Por eso se borran aquí.
+ *
+ * **Se borran ejecuciones, que en cualquier otro artefacto serían evidencia que
+ * no se toca.** Alcance: sólo lo que cuelga de un artefacto de DEMOSTRACIÓN que
+ * se está rehaciendo a propósito, en la misma llamada que ya borraba sus
+ * corridas de prueba y su despliegue. Sus hijas —variables, pasos, motivos,
+ * errores— caen por cascada declarada en el esquema.
  */
 export async function deleteDemoArtifact(prisma: PrismaClient, artifactId: bigint): Promise<void> {
   const versions = await prisma.decisionArtifactVersion.findMany({
@@ -120,6 +145,11 @@ export async function deleteDemoArtifact(prisma: PrismaClient, artifactId: bigin
     }
     await prisma.decisionRuntimeBinding.deleteMany({
       where: { activeDeployment: { artifactVersionId: { in: versionIds } } },
+    });
+    // Antes que el despliegue: la ejecución lo retiene con `Restrict`, y también
+    // retiene la versión, así que se filtra por versión —que cubre las dos—.
+    await prisma.decisionExecution.deleteMany({
+      where: { artifactVersionId: { in: versionIds } },
     });
     await prisma.decisionDeployment.deleteMany({
       where: { artifactVersionId: { in: versionIds } },

@@ -9,8 +9,10 @@ import {
   SemanticModelProvider,
 } from './ports';
 import { CatalogCache } from './catalog-cache';
+import { CachedClassification, ClassificationCache } from './classification-cache';
 import { EntityResolver } from './entity-resolver';
 import { Decision, DecisionEngine } from './decision-engine';
+import { GlosaFallbackClassifier } from './glosa-fallback';
 import { TenantBudgetGuard } from './tenant-budget.guard';
 import { TextNormalizer } from './text-normalizer';
 import {
@@ -23,9 +25,10 @@ import {
   SemanticCategory,
 } from '../domain/semantic-analysis.types';
 import { semanticAnalysisRequestSchema } from '../domain/semantic-analysis.schemas';
+import { leavesOf } from '../domain/category-tree';
 import { SemanticWorkerConfig } from '../config/semantic-worker.config';
 import { SemanticTimeoutError } from '../domain/semantic-analysis.errors';
-import { TracingService } from '../observability/tracing.service';
+import { TracingService } from '../../../../../common/observability/tracing.service';
 import { SEMANTIC_ATTRIBUTES, SPAN_NAMES } from '../observability/telemetry.constants';
 import {
   analyzeAttributes,
@@ -61,13 +64,54 @@ export class SemanticAnalysisPipeline {
     @Inject(CANDIDATE_RETRIEVER)
     private readonly candidateRetriever: CandidateRetriever,
     private readonly catalog: CatalogCache,
+    private readonly clasificaciones: ClassificationCache,
     private readonly budget: TenantBudgetGuard,
     private readonly normalizer: TextNormalizer,
     private readonly entityResolver: EntityResolver,
     private readonly decisionEngine: DecisionEngine,
     private readonly tracing: TracingService,
     private readonly resultBuilder: SemanticAnalysisResultBuilder,
+    private readonly fallback: GlosaFallbackClassifier,
   ) {}
+
+  /**
+   * La decisión final, con la red de seguridad puesta.
+   *
+   * Si el modelo resolvió, manda el modelo y aquí no pasa nada. Si no —umbral no
+   * alcanzado, empate, o ni siquiera hubo candidatas—, la glosa se lee por
+   * REGLAS de instrumento: `TRASPASO`, `QR`, `RETIRO DE EFECTIVO` y compañía son
+   * literales, están en todos los extractos bolivianos y no necesitan modelo.
+   *
+   * Lo que se gana no es precisión, es COBERTURA honesta: «salió dinero por
+   * transferencia» consta en la glosa; «sin determinar» no dice nada y obliga a
+   * quien recibe el informe a resolverlo por su cuenta, fila por fila.
+   */
+  private conRedDeSeguridad(
+    decision: Decision,
+    normalizedText: string,
+    categories: readonly SemanticCategory[],
+  ): Decision {
+    if (decision.status !== 'UNKNOWN' && decision.status !== 'AMBIGUOUS') return decision;
+    const disponibles = new Set(leavesOf(categories).map((categoria) => categoria.code));
+    const regla = this.fallback.clasificar(normalizedText, disponibles);
+    if (regla === null) return decision;
+
+    this.logger.debug(`Glosa resuelta por regla como ${regla.categoryCode}.`);
+    return {
+      status: 'MATCH',
+      requiresDeepAnalysis: false,
+      matches: [
+        {
+          categoryCode: regla.categoryCode,
+          confidence: regla.confidence,
+          supported: true,
+          contradicted: false,
+          evidence: [regla.evidence],
+          rationale: regla.rationale,
+        },
+      ],
+    };
+  }
 
   /**
    * Envuelve el análisis en su span de negocio: la ruta crítica del sistema. Bajo él cuelgan el
@@ -95,9 +139,45 @@ export class SemanticAnalysisPipeline {
     const request = semanticAnalysisRequestSchema.parse(untrustedRequest);
     const budget = AbortSignal.timeout(this.config.analysisTimeoutSeconds * 1_000);
 
-    const { categories, aliases } = await this.catalog.load(request.tenantId);
-    const normalizedText = this.normalizer.normalize(request.text, aliases);
-    const entities = this.entityResolver.resolve(normalizedText, aliases);
+    const { categories, aliases, signature } = await this.catalog.load(request.tenantId);
+    /*
+     * Dos textos, y no por comodidad: el resolutor de entidades busca los
+     * nombres canónicos, así que necesita los alias YA desplegados; el
+     * clasificador necesita lo contrario —la glosa como el banco la escribió y
+     * sin los identificadores que la ahogan—. Compartir un solo texto obligaba a
+     * elegir cuál de los dos trabajaba mal, y el que trabajaba mal era el que
+     * decide la categoría.
+     *
+     * `normalizedText` es el que se guarda y se enseña porque es el que se
+     * clasificó: una traza que mostrara otro texto no explicaría el veredicto.
+     */
+    const textoConAlias = this.normalizer.normalize(request.text, aliases);
+    const normalizedText = this.normalizer.forClassification(request.text, aliases);
+    const entities = this.entityResolver.resolve(textoConAlias, aliases);
+
+    /*
+     * Antes del presupuesto, y no después: un acierto de caché no llama al
+     * proveedor, así que reservar cuota por él cobraría un gasto que no se ha
+     * producido. Con un extracto lleno de glosas repetidas eso agotaba el
+     * presupuesto del tenant clasificando veinte conceptos distintos.
+     */
+    const recordada = this.clasificaciones.read(request.tenantId, signature, normalizedText);
+    if (recordada !== undefined) {
+      this.logger.debug(`Glosa de ${request.requestId} resuelta desde la caché de clasificación.`);
+      return this.resultBuilder.build({
+        request,
+        normalizedText,
+        entities,
+        candidates: recordada.candidates,
+        categories,
+        decision: recordada.decision,
+        tier: recordada.tier,
+        model: recordada.model,
+        modelVersion: recordada.modelVersion,
+        startedAt,
+        escalated: recordada.escalated,
+      });
+    }
 
     const allowance = await this.budget.reserve(request.tenantId);
     if (!allowance.allowed) {
@@ -109,6 +189,7 @@ export class SemanticAnalysisPipeline {
         normalizedText,
         entities,
         candidates: [],
+        categories,
         decision: UNRESOLVED,
         tier: 'FAST',
         model: BUDGET_EXHAUSTED_MODEL,
@@ -128,13 +209,16 @@ export class SemanticAnalysisPipeline {
         request,
         normalizedText,
         entities,
-        candidates,
-        decision: UNRESOLVED,
-        tier: 'FAST',
-        model: NO_CATEGORIES_MODEL,
-        modelVersion: NO_CATEGORIES_MODEL,
+        categories,
         startedAt,
-        escalated: false,
+        ...this.recuerda(request.tenantId, signature, normalizedText, {
+          candidates,
+          decision: this.conRedDeSeguridad(UNRESOLVED, normalizedText, categories),
+          tier: 'FAST',
+          model: NO_CATEGORIES_MODEL,
+          modelVersion: NO_CATEGORIES_MODEL,
+          escalated: false,
+        }),
       });
     }
 
@@ -160,13 +244,16 @@ export class SemanticAnalysisPipeline {
         request,
         normalizedText,
         entities,
-        candidates,
-        decision: fastDecision,
-        tier: 'FAST',
-        model: fast.model,
-        modelVersion: fast.modelVersion,
+        categories,
         startedAt,
-        escalated: false,
+        ...this.recuerda(request.tenantId, signature, normalizedText, {
+          candidates,
+          decision: this.conRedDeSeguridad(fastDecision, normalizedText, categories),
+          tier: 'FAST',
+          model: fast.model,
+          modelVersion: fast.modelVersion,
+          escalated: false,
+        }),
       });
     }
 
@@ -183,33 +270,64 @@ export class SemanticAnalysisPipeline {
       request,
       normalizedText,
       entities,
-      candidates,
-      decision: deepDecision,
-      tier: 'DEEP',
-      model: deep.model,
-      modelVersion: deep.modelVersion,
+      categories,
       startedAt,
-      escalated: true,
+      ...this.recuerda(request.tenantId, signature, normalizedText, {
+        candidates,
+        decision: this.conRedDeSeguridad(deepDecision, normalizedText, categories),
+        tier: 'DEEP',
+        model: deep.model,
+        modelVersion: deep.modelVersion,
+        escalated: true,
+      }),
     });
+  }
+
+  /**
+   * Graba el veredicto y lo devuelve para armar el resultado de esta solicitud.
+   *
+   * Se graba la decisión YA pasada por la red de seguridad: es la que el motor
+   * publica, y guardar la anterior obligaría a volver a aplicar las reglas en
+   * cada acierto para llegar al mismo sitio.
+   *
+   * Sólo pasa por aquí lo que se calculó de verdad. La degradación por
+   * presupuesto agotado retorna antes y no toca esta función: ese `UNKNOWN`
+   * describe la cuota, no el texto.
+   */
+  private recuerda(
+    tenantId: string | undefined,
+    signature: string,
+    normalizedText: string,
+    clasificacion: CachedClassification,
+  ): CachedClassification {
+    this.clasificaciones.write(tenantId, signature, normalizedText, clasificacion);
+    return clasificacion;
   }
 
   /**
    * Span propio porque es la etapa que más varía entre configuraciones: en modo híbrido añade una
    * llamada de embeddings y una consulta de vectores que, sin él, colgarían del análisis sin
    * explicación.
+   *
+   * **Sólo se proponen las HOJAS del árbol de categorías.** Un nodo intermedio —«Vivienda»— agrupa
+   * a sus hijas y no describe ningún caso concreto: aceptarlo como resultado sería clasificar con
+   * menos detalle del que el catálogo ofrece, y encima competiría con sus propias hojas por el
+   * mismo texto. En un catálogo plano, donde ninguna categoría tiene hijas, todas son hojas y esto
+   * no cambia nada.
    */
   private retrieveCandidates(
     normalizedText: string,
     categories: readonly SemanticCategory[],
     budget: AbortSignal,
   ): Promise<readonly CategoryCandidate[]> {
+    const classifiable = leavesOf(categories);
     return this.tracing.runInSpan(
       SPAN_NAMES.retrieve,
-      retrieveAttributes(this.config.retrievalMode, categories.length),
+      retrieveAttributes(this.config.retrievalMode, classifiable.length),
       async (span) => {
         const candidates = await this.candidateRetriever.retrieve(
           normalizedText,
-          categories,
+          classifiable,
           this.config.candidateLimit,
           budget,
         );

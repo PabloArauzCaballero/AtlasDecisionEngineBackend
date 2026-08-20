@@ -1,11 +1,13 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
-import { ExecutionStatus, Prisma } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
+import { ExecutionStatus, Prisma, SubjectReferencePolicy } from '@prisma/client';
 import { HashService } from '../../common/crypto/hash.service';
 import { DomainException } from '../../common/errors/domain-exception';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { ResolvedDeployment } from '../deployments/deployment-resolver.service';
 import type { EngineExecutionResult } from '../graph/graph.types';
 import type { ResolvedVariableSnapshot } from '../variables/variable-resolution.service';
+import { outcomeWindowsFor, windowDueAt } from './outcome-windows';
 
 /** Complete persistence payload for one decision execution and its evidence. */
 export interface WriteExecutionInput {
@@ -15,6 +17,8 @@ export interface WriteExecutionInput {
   correlationId?: string;
   idempotencyKey: string;
   subjectReference?: string;
+  /** Por qué no hay sujeto, cuando no lo hay. Lo decide `subject-policy.ts`. */
+  subjectAbsenceReason?: SubjectReferencePolicy | null;
   inputSnapshot: Record<string, unknown>;
   durationMs: number;
   variableSnapshots: ResolvedVariableSnapshot[];
@@ -38,6 +42,7 @@ export class ExecutionWriterService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly hashes: HashService,
+    private readonly config: ConfigService,
   ) {}
 
   /**
@@ -65,6 +70,12 @@ export class ExecutionWriterService {
 
   private async writeWithin(tx: Prisma.TransactionClient, input: WriteExecutionInput) {
     const result = input.result;
+    const subjectReferenceHash = input.subjectReference
+      ? this.hashes.hmac(input.subjectReference)
+      : undefined;
+    const subjectId = subjectReferenceHash
+      ? await this.resolveSubject(tx, input.tenantId, subjectReferenceHash)
+      : null;
     const execution = await tx.decisionExecution.create({
       data: {
         tenantId: input.tenantId,
@@ -74,16 +85,21 @@ export class ExecutionWriterService {
         requestId: input.requestId,
         correlationId: input.correlationId,
         idempotencyKey: input.idempotencyKey,
-        subjectReferenceHash: input.subjectReference
-          ? this.hashes.hmac(input.subjectReference)
-          : undefined,
+        subjectReferenceHash,
+        subjectId,
+        subjectAbsenceReason: input.subjectAbsenceReason ?? undefined,
         inputSnapshotJson: input.inputSnapshot as Prisma.InputJsonValue,
         outputJson: result?.output as Prisma.InputJsonValue | undefined,
+        // Una decision tomada con datos viejos sigue siendo valida; lo que no vale es que no se
+        // pueda distinguir de una tomada con datos frescos.
+        degradedInputs: input.variableSnapshots.some((variable) => variable.freshness?.degraded),
         decisionStatus: this.executionStatus(result, input.errors),
         businessOutcome: result?.outcome,
         durationMs: input.durationMs,
       },
     });
+
+    if (subjectId) await this.scheduleOutcomeWindows(tx, input, execution.id);
 
     if (input.variableSnapshots.length) {
       await tx.decisionExecutionVariable.createMany({
@@ -95,6 +111,14 @@ export class ExecutionWriterService {
           sourceCode: variable.sourceCode,
           resolutionStatus: variable.resolutionStatus,
           wasDefaulted: variable.wasDefaulted,
+          // El sello temporal del dato. Sin el, la traza guardaba el valor y callaba de cuando
+          // era: reentrenar sobre ella mete informacion del futuro, y defender la decision dos
+          // anos despues es reconstruir de memoria.
+          observedAt: variable.freshness?.observedAt ?? undefined,
+          fetchedAt: variable.freshness?.fetchedAt ?? undefined,
+          sourceVersion: variable.freshness?.sourceVersion ?? undefined,
+          ageSeconds: variable.freshness?.ageSeconds ?? undefined,
+          staleAccepted: variable.freshness?.degraded ?? false,
         })),
       });
     }
@@ -192,6 +216,69 @@ export class ExecutionWriterService {
       });
     }
     return execution;
+  }
+
+  /**
+   * Devuelve el id del sujeto, creándolo si es su primera decisión.
+   *
+   * `INSERT … ON CONFLICT DO UPDATE … RETURNING` y no `prisma.upsert` por una razón que sólo
+   * se ve bajo carga: dos decisiones simultáneas del mismo solicitante —un reintento del
+   * integrador, una doble pulsación— compiten por la misma clave única. El `upsert` de Prisma
+   * son dos sentencias, así que la perdedora recibe P2002 y ABORTA LA TRANSACCIÓN entera,
+   * tirando una decisión ya calculada por un choque de contabilidad. `ON CONFLICT` lo resuelve
+   * dentro de la misma sentencia y las dos decisiones sobreviven.
+   *
+   * El `DO UPDATE` no es decorativo: además de devolver la fila existente, adelanta
+   * `last_seen_at` y suma al contador, que es justo lo que hace útil la tabla para ordenar por
+   * actividad sin recorrer las ejecuciones.
+   */
+  private async resolveSubject(
+    tx: Prisma.TransactionClient,
+    tenantId: bigint,
+    subjectReferenceHash: string,
+  ): Promise<bigint> {
+    const rows = await tx.$queryRaw<Array<{ id: bigint }>>`
+      INSERT INTO "decision_subject" ("tenant_id", "subject_reference_hash", "decision_count")
+      VALUES (${tenantId}, ${subjectReferenceHash}, 1)
+      ON CONFLICT ("tenant_id", "subject_reference_hash") DO UPDATE
+        SET "last_seen_at" = now(),
+            "decision_count" = "decision_subject"."decision_count" + 1
+      RETURNING "id"
+    `;
+    return rows[0].id;
+  }
+
+  /**
+   * Materializa las ventanas de observación de una decisión que origina crédito.
+   *
+   * Se hace aquí, en la misma transacción que la ejecución, y no en un barrido posterior: un
+   * barrido que deja de correr produce exactamente el silencio que todo esto viene a eliminar
+   * —cero ventanas pendientes leído como «todo observado»—, mientras que una ventana escrita
+   * junto a su decisión existe siempre que la decisión exista.
+   *
+   * Sólo se programan con sujeto. Sin él no hay a quién atribuir el desenlace, así que la
+   * ventana nacería imposible de cerrar y llenaría la cola de trabajo que nadie puede hacer.
+   */
+  private async scheduleOutcomeWindows(
+    tx: Prisma.TransactionClient,
+    input: WriteExecutionInput,
+    executionId: bigint,
+  ): Promise<void> {
+    const windows = outcomeWindowsFor(
+      input.deployment.riskDomain,
+      this.config.get<string>('OUTCOME_WINDOW_DAYS'),
+    );
+    if (!windows.length) return;
+    const decidedAt = new Date();
+    await tx.outcomeWindowSchedule.createMany({
+      data: windows.map((windowDays) => ({
+        tenantId: input.tenantId,
+        executionId,
+        windowDays,
+        dueAt: windowDueAt(decidedAt, windowDays),
+      })),
+      skipDuplicates: true,
+    });
   }
 
   private executionStatus(

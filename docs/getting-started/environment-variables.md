@@ -3,7 +3,7 @@
 
 # Variables de entorno
 
-118 variables declaradas. El esquema se valida al arrancar: un valor ausente o
+250 variables declaradas. El esquema se valida al arrancar: un valor ausente o
 fuera de rango impide el arranque en vez de degradar el comportamiento en caliente.
 
 | Variable | Obligatoria | Valor por defecto | Para qué |
@@ -30,6 +30,12 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `DATABASE_CONNECTION_TIMEOUT_MS` | no | `5_000` | — |
 | `DATABASE_IDLE_TIMEOUT_MS` | no | `30_000` | — |
 | `DATABASE_STATEMENT_TIMEOUT_MS` | no | `30_000` | — |
+| `DATABASE_WRITE_URL` | no | — | --------------------------------------------------------------------- Separación de rutas de datos (ADR-0029).  Vacías, las tres rutas son la misma conexión y el comportamiento es idéntico al anterior: DATABASE_URL sigue siendo la única variable obligatoria. Declarar DATABASE_READ_URL con el rol lector separa lectura y escritura por credencial; apuntarla a otro host la separa por servidor (réplica). El registro reutiliza el pool cuando las huellas coinciden, así que declarar la misma URL no duplica nada. --------------------------------------------------------------------- |
+| `DATABASE_READ_URL` | no | — | — |
+| `DATABASE_READ_POOL_MAX` | no | — | — |
+| `DATA_READ_ROUTING_ENABLED` | no | `false` | — |
+| `ENABLE_PRIMARY_READ_FALLBACK` | no | `true` | — |
+| `DATA_ROUTING_RULES` | no | — | — |
 | `REDIS_URL` | no | — | — |
 | `REDIS_PREFIX` | **sí** | — | — |
 | `REQUIRE_REDIS_IN_PRODUCTION` | no | `true` | — |
@@ -47,8 +53,14 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `JWT_CLOCK_SKEW_SECONDS` | no | `30` | — |
 | `IDENTITY_PROVIDER_URL` | no | — | — |
 | `IDENTITY_PROVIDER_TIMEOUT_MS` | no | `3_000` | — |
-| `IDENTITY_PROVIDER_RETRY_ATTEMPTS` | no | `2` | Retries only for transient failures (network error / timeout / 502-503-504), never for a rejected credential. Shields login from the brief window where the provider dev server is restarting (build-and-watch). 0 disables retries. |
+| `IDENTITY_PROVIDER_LOGIN_TIMEOUT_MS` | **sí** | — | — |
+| `IDENTITY_PROVIDER_RETRY_ATTEMPTS` | no | `2` | Retries only for transient failures (connection refused / 502-503-504), never for a rejected credential and never for a timeout, which does not prove the request failed to arrive. Shields login from the brief window where the provider dev server is restarting (build-and-watch). 0 disables retries. |
 | `IDENTITY_PROVIDER_RETRY_BACKOFF_MS` | no | `300` | — |
+| `UNRESOLVED_HIGH_CONFIDENCE` | no | `0.9` | — |
+| `UNRESOLVED_MEDIUM_CONFIDENCE` | no | `0.6` | — |
+| `UNRESOLVED_AUTO_CLOSE_FLOOR` | no | `0.75` | — |
+| `UNRESOLVED_AUTO_RESOLVE_ENABLED` | no | `false` | — |
+| `IDENTITY_PROVIDER_CACHE_TTL_SECONDS` | no | `10` | — |
 | `IDENTITY_REFRESH_COOKIE_NAME` | **sí** | — | — |
 | `IDENTITY_REFRESH_COOKIE_MAX_AGE_SECONDS` | **sí** | — | — |
 | `IDENTITY_SESSION_RATE_LIMIT` | no | `20` | — |
@@ -56,7 +68,7 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `TRUST_PROXY_HOPS` | no | `1` | — |
 | `BODY_LIMIT_BYTES` | no | `1_048_576` | — |
 | `REQUEST_TIMEOUT_MS` | no | `15_000` | — |
-| `SHUTDOWN_GRACE_MS` | no | `20_000` | — |
+| `SHUTDOWN_GRACE_MS` | no | `20_000` | Plazo total del apagado ordenado. El 80 % acota el drenaje de lotes en vuelo del orquestador de trabajos y el resto queda para cerrar los pools y vaciar las trazas; agotado el plazo, el proceso fuerza la salida. Debe quedar POR DEBAJO del terminationGracePeriodSeconds del orquestador: si lo supera, el SIGKILL llega antes que el vigilante y se pierde el motivo del apagado, que es justo lo que se quería salvar. |
 | `RATE_LIMIT_ENABLED` | no | `true` | — |
 | `RATE_LIMIT_WINDOW_SECONDS` | no | `60` | — |
 | `RATE_LIMIT_MANAGEMENT_REQUESTS` | no | `300` | — |
@@ -73,7 +85,15 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `ACCESS_AUDIT_RETRY_SECONDS` | no | `15` | — |
 | `OTEL_ENABLED` | no | `false` | Distributed tracing. Read directly from process.env by observability/tracing.ts (it runs before the Nest container exists); declared here so the values are still validated and documented rather than being undeclared magic strings. |
 | `OTEL_SERVICE_NAME` | no | `'atlas-decision-engine'` | — |
+| `OTEL_SERVICE_NAMESPACE` | no | `'atlas'` | Agrupa API y worker bajo el mismo producto en el grafo de servicios de Jaeger. |
+| `OTEL_SERVICE_VERSION` | no | — | Por defecto se toma BUILD_VERSION; esta variable sólo existe para despliegues que versionan la telemetría por separado del artefacto. |
+| `OTEL_DEPLOYMENT_ENVIRONMENT` | no | — | — |
 | `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | no | — | — |
+| `OTEL_EXPORT_TIMEOUT_MS` | no | `10_000` | — |
+| `OTEL_TRACES_SAMPLER` | no | `'parentbased_traceidratio'` | Muestreo basado en el padre: se respeta la decisión de un servicio aguas arriba, porque media traza no sirve para nada. La proporción sólo gobierna las trazas que nacen aquí. |
+| `OTEL_TRACES_SAMPLER_ARG` | no | `1` | — |
+| `OTEL_PROPAGATORS` | no | `'tracecontext,baggage'` | — |
+| `OTEL_DIAG_LOG_LEVEL` | **sí** | — | — |
 | `VARIABLE_BACKEND_URL` | no | — | — |
 | `VARIABLE_BACKEND_TIMEOUT_MS` | no | `1_500` | — |
 | `AUDIT_HASH_SECRET` | **sí** | — | — |
@@ -88,6 +108,116 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `TEST_RUN_WORKER_CONCURRENCY` | no | `2` | — |
 | `TEST_RUN_LEASE_SECONDS` | no | `300` | — |
 | `TEST_CASE_CONCURRENCY` | no | `4` | — |
+| `SEMANTIC_ANALYSIS_WORKER_ENABLED` | no | `false` | --- Workers adicionales (ADR-0026) ------------------------------------- Los dos vienen APAGADOS por defecto, al revés que los trabajos nativos: un despliegue que se actualice no debe empezar a consumir cuota de un proveedor de modelos ni a cargar `pdfjs-dist` sin que nadie lo haya pedido. |
+| `SEMANTIC_ANALYSIS_WORKER_POLL_MS` | no | `500` | — |
+| `SEMANTIC_ANALYSIS_WORKER_MAX_POLL_MS` | **sí** | — | — |
+| `SEMANTIC_ANALYSIS_RECOVERY_INTERVAL_MS` | **sí** | — | — |
+| `SEMANTIC_ANALYSIS_WORKER_CONCURRENCY` | no | `4` | — |
+| `SEMANTIC_ANALYSIS_LEASE_SECONDS` | no | `120` | — |
+| `SEMANTIC_ANALYSIS_MAX_ATTEMPTS` | no | `3` | Agotados los intentos la ejecución queda FAILED en vez de volver a la cola: reintentar sin cota convierte un fallo permanente en gasto perpetuo. |
+| `SEMANTIC_ANALYSIS_MAX_TEXT_LENGTH` | no | `8_000` | — |
+| `SEMANTIC_ANALYSIS_PROVIDER` | no | `''` | Vacío ⇒ el worker NO se registra, y lo dice en el log. Es preferible a arrancar y fallar en cada job por falta de credenciales. |
+| `SEMANTIC_ALLOW_INTERNATIONAL_TRANSFER` | no | `false` | — |
+| `SEMANTIC_ANALYSIS_BUDGET_WINDOW_SECONDS` | **sí** | — | — |
+| `SEMANTIC_ANALYSIS_BUDGET_MAX_ANALYSES` | **sí** | — | — |
+| `SEMANTIC_ANALYSIS_MINIMIZE_AFTER_DAYS` | no | `30` | --- Retención del texto analizado --- El texto que se clasifica se persiste íntegro para poder explicar la decisión, y en el caso de un proveedor alojado ya salió del perímetro una vez. Retenerlo indefinidamente añade una segunda copia permanente que nadie pidió, así que la barrida lo minimiza (lo sustituye por su huella) y más tarde purga la fila entera. |
+| `SEMANTIC_ANALYSIS_AUDIT_RETENTION_DAYS` | no | `90` | — |
+| `SEMANTIC_ANALYSIS_RETENTION_SWEEP_INTERVAL_MS` | **sí** | — | — |
+| `BANK_STATEMENT_WORKER_ENABLED` | no | `false` | — |
+| `BANK_STATEMENT_WORKER_POLL_MS` | no | `500` | — |
+| `BANK_STATEMENT_WORKER_MAX_POLL_MS` | **sí** | — | — |
+| `BANK_STATEMENT_RECOVERY_INTERVAL_MS` | **sí** | — | — |
+| `BANK_STATEMENT_WORKER_CONCURRENCY` | no | `2` | Menor que la del semántico: cada job carga un PDF entero en memoria. |
+| `BANK_STATEMENT_LEASE_SECONDS` | no | `300` | — |
+| `BANK_STATEMENT_MAX_ATTEMPTS` | no | `3` | — |
+| `BANK_STATEMENT_MAX_UPLOAD_BYTES` | **sí** | — | 10 MiB. Acota a la vez la memoria del worker y el tamaño de la fila, porque el documento se guarda en la propia base (ADR-0026). |
+| `BANK_STATEMENT_TIMEOUT_MS` | no | `60_000` | Un PDF hostil puede hacer trabajar al lector indefinidamente. El presupuesto corta el job, no el proceso. |
+| `BANK_STATEMENT_DOCUMENT_ACCEPT_CONFIDENCE` | no | `0.55` | — |
+| `BANK_STATEMENT_DOCUMENT_REVIEW_CONFIDENCE` | no | `0.3` | — |
+| `BANK_STATEMENT_REVIEW_EXTRACTION_CONFIDENCE` | no | `0.5` | — |
+| `BANK_STATEMENT_QUEUE_WAIT_BUDGET_MS` | **sí** | — | — |
+| `IDENTITY_VERIFICATION_WORKER_ENABLED` | no | `false` | --- Worker C: verificación de identidad (ADR-0026) --------------------- |
+| `IDENTITY_WORKER_POLL_MS` | no | `500` | — |
+| `IDENTITY_WORKER_MAX_POLL_MS` | no | `30_000` | — |
+| `IDENTITY_RECOVERY_INTERVAL_MS` | no | `30_000` | — |
+| `IDENTITY_WORKER_CONCURRENCY` | no | `2` | Cada job carga tres imágenes en memoria y las remuestrea con `sharp`, que reserva su propio búfer: la misma cota que el worker de extractos. |
+| `IDENTITY_LEASE_SECONDS` | no | `300` | — |
+| `IDENTITY_MAX_ATTEMPTS` | no | `3` | — |
+| `IDENTITY_MAX_UPLOAD_BYTES` | **sí** | — | Por IMAGEN, no por petición: 10 MiB es lo que pesa una foto de un móvil moderno sin recortar. |
+| `IDENTITY_DEFAULT_DOCUMENT_COUNTRY` | no | `'BO'` | — |
+| `IDENTITY_MATCH_THRESHOLD` | no | — | — |
+| `IDENTITY_REVIEW_THRESHOLD` | no | — | — |
+| `IDENTITY_THRESHOLD_PROFILE_VERSION` | no | `'unconfigured'` | — |
+| `IDENTITY_MIN_DOCUMENT_QUALITY` | no | `0.5` | — |
+| `IDENTITY_MIN_SELFIE_QUALITY` | no | `0.5` | — |
+| `IDENTITY_MIN_FACE_AREA_RATIO` | no | `0.012` | — |
+| `IDENTITY_DOCUMENT_EXPIRY_GRACE_DAYS` | no | `0` | — |
+| `IDENTITY_MAX_IMAGE_PIXELS` | **sí** | — | — |
+| `IDENTITY_MIN_IMAGE_WIDTH` | no | `480` | — |
+| `IDENTITY_MIN_IMAGE_HEIGHT` | no | `480` | — |
+| `IDENTITY_MIN_IMAGE_PIXELS` | no | `230_400` | — |
+| `IDENTITY_MIN_READABLE_LONG_EDGE` | no | `240` | — |
+| `IDENTITY_MIN_READABLE_SHORT_EDGE` | no | `150` | — |
+| `IDENTITY_FACE_CROP_PADDING_RATIO` | no | `0.25` | — |
+| `IDENTITY_MIN_DOCUMENT_FACE_PX` | no | `80` | — |
+| `IDENTITY_LIVENESS_ENABLED` | no | `true` | — |
+| `IDENTITY_LIVENESS_PASS_SCORE` | no | `0.55` | — |
+| `IDENTITY_LIVENESS_FAIL_SCORE` | no | `0.35` | — |
+| `IDENTITY_ACCEPT_NO_LIVENESS_RISK` | no | `false` | — |
+| `IDENTITY_DOCUMENT_CLASSIFICATION_ENABLED` | no | `true` | — |
+| `IDENTITY_OCR_PROVIDER` | no | `'tesseract'` | — |
+| `IDENTITY_FACE_PROVIDER` | no | `'human'` | — |
+| `IDENTITY_LIVENESS_PROVIDER` | no | `'human'` | — |
+| `AUDIO_TTS_WORKER_ENABLED` | no | `false` | --- Worker D: locución (ADR-0026) --------------------------------------  El único de los cuatro que puede COSTAR DINERO por ejecución, y eso marca casi todas las variables que siguen: hay un presupuesto mensual, un techo por persona y día, y una puerta aparte para permitir generar bajo demanda. |
+| `AUDIO_TTS_PROVIDER` | no | `'disabled'` | — |
+| `AUDIO_TTS_ALLOW_RUNTIME_GENERATION` | no | `false` | — |
+| `AUDIO_TTS_PROD_LICENSE_CONFIRMED` | no | `false` | — |
+| `AUDIO_TTS_DEFAULT_LANGUAGE` | no | `'es-419'` | — |
+| `AUDIO_TTS_DEFAULT_FORMAT` | no | `'mp3_44100_128'` | — |
+| `AUDIO_TTS_SAMPLE_RATE` | no | `44_100` | — |
+| `AUDIO_TTS_VOICE_PROFILE` | no | `'brand_es_latam_v1'` | — |
+| `AUDIO_TTS_VOICE_VERSION` | no | `1` | — |
+| `AUDIO_TTS_MODEL` | no | `'eleven_v3'` | — |
+| `AUDIO_TTS_GLOBAL_FALLBACK_TEMPLATE` | **sí** | — | — |
+| `AUDIO_TTS_MAX_TEXT_LENGTH` | no | `5_000` | — |
+| `AUDIO_TTS_MONTHLY_BUDGET_UNITS` | **sí** | — | Presupuesto. Un 0 en el límite por actor significa BLOQUEADO, no ilimitado: un valor por omisión inseguro nunca debe abrir la puerta. |
+| `AUDIO_TTS_SAFETY_RESERVE_UNITS` | **sí** | — | — |
+| `AUDIO_TTS_RUNTIME_GENERATIONS_PER_ACTOR_DAY` | **sí** | — | — |
+| `AUDIO_TTS_ACTOR_LIMIT_UNLIMITED` | no | `false` | — |
+| `AUDIO_TTS_REQUEST_TIMEOUT_MS` | no | `10_000` | Red y resiliencia frente al proveedor. |
+| `AUDIO_TTS_MAX_RESPONSE_BYTES` | **sí** | — | — |
+| `AUDIO_TTS_MIN_RESPONSE_BYTES` | no | `256` | — |
+| `AUDIO_TTS_HTTP_MAX_RETRIES` | no | `0` | — |
+| `AUDIO_TTS_RETRY_BASE_MS` | no | `500` | — |
+| `AUDIO_TTS_MAX_CONCURRENCY` | no | `2` | — |
+| `AUDIO_TTS_MAX_REQUESTS_PER_SECOND` | no | `2` | — |
+| `AUDIO_TTS_REPLICA_COUNT` | no | `1` | — |
+| `AUDIO_TTS_BULKHEAD_QUEUE_SIZE` | no | `16` | — |
+| `AUDIO_TTS_BULKHEAD_WAIT_MS` | no | `15_000` | — |
+| `AUDIO_TTS_CB_FAILURE_THRESHOLD` | no | `5` | — |
+| `AUDIO_TTS_CB_OPEN_MS` | no | `30_000` | — |
+| `AUDIO_TTS_DATA_KEY` | no | `''` | — |
+| `AUDIO_TTS_DATA_KEY_ID` | **sí** | — | — |
+| `AUDIO_TTS_DATA_KEYS_PREVIOUS` | no | `''` | — |
+| `ELEVENLABS_API_KEY` | no | `''` | — |
+| `ELEVENLABS_BASE_URL` | no | `'https://api.elevenlabs.io'` | — |
+| `ELEVENLABS_VOICE_ID` | no | `''` | — |
+| `ELEVENLABS_MODEL_ID` | no | `''` | — |
+| `ELEVENLABS_OUTPUT_FORMAT` | no | `''` | — |
+| `ELEVENLABS_VOICE_STABILITY` | no | `0.5` | — |
+| `ELEVENLABS_VOICE_SIMILARITY_BOOST` | no | `0.75` | — |
+| `ELEVENLABS_VOICE_STYLE` | no | `0` | — |
+| `ELEVENLABS_VOICE_SPEAKER_BOOST` | no | `true` | — |
+| `AUDIO_TTS_WORKER_POLL_MS` | no | `500` | Ciclo de vida del trabajo, con la misma forma que los otros tres workers. |
+| `AUDIO_TTS_WORKER_MAX_POLL_MS` | no | `30_000` | — |
+| `AUDIO_TTS_RECOVERY_INTERVAL_MS` | no | `30_000` | — |
+| `AUDIO_TTS_WORKER_CONCURRENCY` | no | `2` | Más baja que la de los otros workers: lo que limita aquí no es la memoria del motor sino las peticiones por segundo que admite el proveedor. |
+| `AUDIO_TTS_LEASE_SECONDS` | no | `300` | — |
+| `AUDIO_TTS_MAX_ATTEMPTS` | no | `3` | — |
+| `AUDIO_STORAGE_DRIVER` | no | `'database'` | `database` guarda los bytes en la propia base, como el resto de workers guarda su carga útil; `local` es el adaptador de disco del paquete, para desarrollo. El adaptador S3 del paquete no se absorbió. |
+| `AUDIO_LOCAL_STORAGE_PATH` | no | `'.local/audio-assets'` | — |
+| `AUDIO_SEGMENT_CACHE_ENABLED` | no | `false` | — |
+| `WORKERS_FIXTURES_ENABLED` | no | `false` | Los escenarios de prueba son sintéticos, pero crean ejecuciones reales. En producción están apagados para que no contaminen la operación. |
 | `SCRIPT_NODES_ENABLED` | no | `false` | — |
 | `SCRIPT_RUNNER_MODE` | no | `'IN_PROCESS'` | — |
 | `PYTHON_EXECUTABLE` | no | `'python'` | Interpreter used by the in-process runner and the Code->Flow Python syntax checker. The SIDECAR image ships only `python3`, so that container sets this explicitly; the default matches the usual development install where the launcher is named `python`. |
@@ -123,7 +253,9 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `OUTBOX_MAX_ATTEMPTS` | no | `8` | Failed dispatches back off exponentially via available_at; after this many attempts the event is dead-lettered (status DEAD) for operator attention. |
 | `OUTBOX_LEASE_MS` | no | `30_000` | Claim lease: a relay replica that dies mid-batch frees its rows after this lapse. |
 | `STARTUP_SEED_ENABLED` | no | — | Idempotently injects bootstrap seeds (every environment) and mockup/demo seeds (development only) at application startup. Left unset it is on everywhere except `test`, where suites provision their own fixtures. Set explicitly to force either way. Solo surte efecto donde corren los trabajos de fondo (WORKER_ROLE ∈ ALL, WORKER): una réplica de API nunca siembra, aunque esto esté en `true`. |
-| `BOOTSTRAP_TENANT_ID` | **sí** | — | Bootstrap integration clients. Read straight from process.env by the seed helpers (they stay framework-free so `prisma db seed` can run them without Nest); declared here so the values are validated and documented instead of being magic strings. |
+| `SEED_INCLUDE_MOCKUP` | no | — | Decide si la corrida incluye los datos de DEMOSTRACIÓN (artefactos de ejemplo con despliegues ACTIVOS). Lo resuelve `seeding/mockup-policy.ts`, compartido con `prisma db seed`; se declara aquí para que exista en la documentación del entorno y no como una variable mágica. Sin declarar, se deduce de NODE_ENV. OJO: `NODE_ENV` NO basta como guarda de producción —la imagen del migrador lo fija en `production` también en un portátil—, por eso `docker-compose.prod.yml` la pone en `false` de forma explícita. |
+| `BOOTSTRAP_TENANT_ID` | **sí** | — | Bootstrap integration clients. Read straight from process.env by the seed helpers (they stay framework-free so `prisma db seed` can run them without Nest); declared here so the values are validated and documented instead of being magic strings.  El tenant de TODO lo que siembra el módulo, no sólo de estos clientes: lo resuelve `seeding/data/helpers.ts`. `[1-9][0-9]*` y no `[0-9]+` para que las dos validaciones digan lo mismo — el `0` pasaba aquí y el resolutor lo rechaza, así que un despliegue arrancaba y la siembra moría después, que es el peor sitio para enterarse. |
+| `SEED_TENANT_ID` | **sí** | — | Sinónimo histórico, el que usan los guiones de `prisma/dev-seeds/`. Se declara para que valide igual; si están las dos, manda BOOTSTRAP_TENANT_ID. |
 | `BOOTSTRAP_MANAGEMENT_ROLES` | no | `''` | — |
 | `BOOTSTRAP_RUNTIME_ROLES` | no | `''` | — |
 

@@ -56,6 +56,31 @@ estado. Sin acciones vagas del tipo «mejorar la documentación».
 
 ---
 
+## Brechas de la revisión del 2026-08-04 (workers adicionales)
+
+La integración de los dos workers (ADR-0026) entró después de la tanda anterior. Revisar el
+sistema real contra el portal sacó cinco brechas nuevas, tres de ellas por delante de la
+documentación: eran defectos del producto que la documentación se habría limitado a describir
+mal.
+
+| ID | Área | Elemento real | Evidencia | Brecha | Riesgo | Acción | Validación | Estado |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| G29 | API / Arranque | 12 operaciones de `/v1/workers` | `generate-openapi.mjs` salía con código 0 y **sin escribir**; `openapi.json` se quedó en 110 operaciones | `workers.module.ts` construía el proveedor de OpenAI al cablear el módulo y su fábrica valida `OPENAI_API_KEY` al construir: **ningún proceso arrancaba sin esa clave**, ni una réplica de API con el worker apagado | `BLOCKER` | `semantic-model-provider.bridge.ts`: construcción perezosa en la primera clasificación, y traducción de `SEMANTIC_ANALYSIS_PROVIDER` al nombre que lee el núcleo | `generate-openapi.mjs` → 122 operaciones; `semantic-model-provider-bridge.spec.ts` | ✅ |
+| G30 | Datos / Privacidad | `decision_semantic_analysis_run.input_text` | `AuditRetentionService` implementado y **no registrado**; ningún trabajo lo invocaba | El texto analizado —que con proveedor alojado ya salió del perímetro— se conservaba **indefinidamente**. Sus dos variables ni siquiera estaban en `env.schema.ts`, así que ajustarlas no hacía nada | `CRITICAL` | Trabajo `semantic-retention` (`semantic-retention-sweeper.service.ts`) + 3 variables declaradas | `semantic-retention-sweeper.spec.ts` (6 pruebas); `docs:coverage` 150/150 | ✅ |
+| G31 | Seguridad | Fronteras F6 y F7 | El propio modelo exige revisarse «al añadir una integración saliente o una tabla con datos personales»; ADR-0026 añadió ambas y no se revisó | Sin amenazas para la salida de texto a un tercero ni para el PDF bancario | `CRITICAL` | F6/F7, amenazas I7–I10 y D7–D8, secciones propias y 4 riesgos residuales; tratamiento por tabla en clasificación y retención | Revisión contra el código, no contra la intención | ✅ |
+| G32 | Configuración | Presupuesto de tiempo del proveedor | `assertProviderTimeoutFitsAnalysis` exige `timeout × intentos × 2 ≤ analysisTimeoutSeconds`. Por defecto: OpenAI 30 s × 3 × 2 = **180 s** contra un presupuesto de **110 s** (lease 120 − 10). Ollama, 120 s contra 110 s | Con los valores por defecto la primera clasificación **siempre** falla con `SemanticConfigurationError` | `HIGH` | **No corregida aquí.** Mover el lease o los tiempos del proveedor tiene efectos distintos sobre la recuperación de ejecuciones muertas: la decisión es del dueño del worker. Registrada en `docs/AGENT-COORDINATION.md` | La aritmética queda fijada en `semantic-model-provider-bridge.spec.ts` | 🔴 Abierta y asignada |
+| G33 | Documentación | `docs/docker/`, `docs/observability/00-`, `01-`, `ADR-0027` | `docs:links`: 4 enlaces rotos, 7 páginas huérfanas | Páginas en curso de otro agente que enlazan a 4 ficheros que aún no existen; `mkdocs build --strict` no pasa | `HIGH` | **No corregida aquí.** Inventar esas páginas o meterlas en la navegación sería documentar lo que no existe y pisar trabajo ajeno. Registrada en `docs/AGENT-COORDINATION.md` | `yarn docs:links` | 🔴 Abierta y asignada |
+| G34 | Arquitectura | Auditoría de Graphify | Solo comprobaba grafo → disco, y por eso informaba «alineado» | La dirección que hace daño es la contraria: **111 de 361** ficheros de `src/` no están en el grafo, incluido el módulo `workers` **entero**. Consultarlo sobre ellos devuelve vacío, que se lee igual que «no existe» | `MEDIUM` | `analyze-graphify.mjs` comprueba las dos direcciones, informa la cobertura real y verifica el registro en `app.module.ts` en vez de afirmarlo | Salida real del script | ✅ |
+
+!!! note "Por qué tres de estas brechas se corrigieron en el código y no en la documentación"
+    G29, G30 y G32 no eran documentación ausente: eran afirmaciones **falsas** que el código
+    ya hacía. El esquema decía que el texto «se minimiza al vencer el plazo»; el módulo decía
+    que el proveedor «se construye pero nunca se invoca». Documentar eso tal cual habría
+    producido un portal impecable describiendo un sistema que no existe. La regla del encargo
+    —corregir el código o registrar la deuda— se aplicó en ese orden.
+
+---
+
 ## Desviaciones deliberadas del árbol documental propuesto
 
 | Propuesto | Implementado | Razón |
@@ -84,14 +109,19 @@ Tres hallazgos al declararlas. El contrato ahora refleja **lo que es**, no lo qu
 
 | Estado | Cantidad |
 | --- | --- |
-| ✅ Cerradas | 25 |
-| 🔴 Abiertas | 2 |
+| ✅ Cerradas | 29 |
+| 🔴 Abiertas | 4 |
 
-Las dos abiertas son:
+Las cuatro abiertas son:
 
-| ID | Qué falta | Por qué sigue abierta |
-| --- | --- | --- |
-| G21 | Arnés de carga sostenida (k6/Gatling con umbrales de SLO) | Fuera de alcance por decisión: es una pieza de infraestructura con su propio ambiente y presupuesto, y montarla a medias produce números que nadie se cree |
-| G28 | Descripción de parámetros que no están en el mapa común | Aparecerá como aviso de Redocly en cuanto alguien añada un nombre nuevo. Es la presión que mantiene la lista viva, no una deuda pendiente |
+| ID | Qué falta | Riesgo | Por qué sigue abierta |
+| --- | --- | --- | --- |
+| G21 | Arnés de carga sostenida (k6/Gatling con umbrales de SLO) | `MEDIUM` | Fuera de alcance por decisión: es una pieza de infraestructura con su propio ambiente y presupuesto, y montarla a medias produce números que nadie se cree |
+| G28 | Descripción de parámetros que no están en el mapa común | `LOW` | Aparecerá como aviso de Redocly en cuanto alguien añada un nombre nuevo. Es la presión que mantiene la lista viva, no una deuda pendiente |
+| G32 | Presupuesto por defecto del proveedor de modelos incoherente con el lease | `HIGH` | Es una decisión de diseño del dueño del worker semántico, no una omisión documental. La aritmética está fijada en una prueba y anotada en la bitácora de coordinación |
+| G33 | 4 enlaces rotos y 7 páginas huérfanas del trabajo de observabilidad en curso | `HIGH` | Son páginas de otro agente, a medias en el árbol compartido. Completarlas o esconderlas de la navegación sería documentar lo inexistente o pisar su trabajo |
 
-**No queda ninguna brecha `BLOCKER` ni `CRITICAL` abierta.**
+**No queda ninguna brecha `BLOCKER` abierta.** Las dos `HIGH` abiertas (G32 y G33) están
+asignadas nominalmente en [`docs/AGENT-COORDINATION.md`](../AGENT-COORDINATION.md); ninguna
+de las dos es de este agente y ambas impiden hoy declarar el cierre — ver el
+[informe final](final-validation.md).

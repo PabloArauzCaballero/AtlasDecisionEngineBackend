@@ -7,8 +7,10 @@ import {
   ResolvedEntity,
   SemanticAnalysisRequest,
   SemanticAnalysisResult,
+  SemanticCategory,
 } from '../domain/semantic-analysis.types';
-import { TracingService } from '../observability/tracing.service';
+import { buildCategoryPaths } from '../domain/category-tree';
+import { TracingService } from '../../../../../common/observability/tracing.service';
 import { outcomeAttributes } from './semantic-analysis.attributes';
 
 export interface ResultInput {
@@ -16,6 +18,14 @@ export interface ResultInput {
   readonly normalizedText: string;
   readonly entities: readonly ResolvedEntity[];
   readonly candidates: readonly CategoryCandidate[];
+  /**
+   * Catálogo COMPLETO del tenant, no sólo los candidatos.
+   *
+   * La ruta de una hoja pasa por ancestros que el recuperador no propuso —nadie
+   * clasifica en «Gastos» a secas—, así que con la lista de candidatos la ruta
+   * saldría truncada justo en la parte que da contexto.
+   */
+  readonly categories: readonly SemanticCategory[];
   readonly decision: Decision;
   readonly tier: AnalysisTier;
   readonly model: string;
@@ -43,13 +53,15 @@ export class SemanticAnalysisResultBuilder {
 
   public build(input: ResultInput): SemanticAnalysisResult {
     const processingTimeMs = Math.round(performance.now() - input.startedAt);
+    const evaluatedCategoryCodes = input.candidates.map((candidate) => candidate.category.code);
     const result: SemanticAnalysisResult = {
       requestId: input.request.requestId,
       status: input.decision.status,
       normalizedText: input.normalizedText,
       entities: input.entities,
       matches: input.decision.matches,
-      evaluatedCategoryCodes: input.candidates.map((candidate) => candidate.category.code),
+      evaluatedCategoryCodes,
+      categoryPaths: buildCategoryPaths(input.categories, evaluatedCategoryCodes),
       tierUsed: input.tier,
       model: input.model,
       modelVersion: input.modelVersion,

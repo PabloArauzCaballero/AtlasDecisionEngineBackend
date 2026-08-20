@@ -1,15 +1,21 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { numeroDeConfig } from '../config/config-coercion.util';
 import { DomainException } from '../errors/domain-exception';
 import {
+  identityPasswordChangedSchema,
   identityPinChallengeSchema,
   identityProfileSchema,
   identityProviderSessionSchema,
+  type IdentityLoginOutcome,
+  type IdentityPasswordChanged,
+  type IdentityPinChallenge,
   type IdentityProfile,
   type IdentitySession,
 } from './identity-provider.contract';
 
 type LoginInput = { tenantId: string; email: string; password: string };
+type PinInput = { challengeToken: string; pin: string };
 
 /**
  * Cookie names issued by the identity provider's internal auth endpoints. They are the only
@@ -22,10 +28,38 @@ const REFRESH_TOKEN_COOKIE = 'atlas_internal_refresh';
 export class IdentityProviderClient {
   constructor(private readonly config: ConfigService) {}
 
-  login(input: LoginInput): Promise<IdentitySession> {
-    return this.requestSession('/internal/auth/login', {
+  /**
+   * A password check yields a session or a PIN challenge, and both are successful outcomes.
+   *
+   * The challenge used to be turned into a 501 here, which inverted the security incentive: a
+   * deployment that configured a mail channel — and therefore actually enforced the second factor
+   * on internal actors — locked every operator out of the portal, while a deployment with no
+   * channel let everyone in with a password alone and worked fine.
+   */
+  async login(input: LoginInput): Promise<IdentityLoginOutcome> {
+    const { payload, response } = await this.send('/internal/auth/login', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-tenant-id': input.tenantId },
+      body: JSON.stringify(input),
+    });
+
+    const challenge = identityPinChallengeSchema.safeParse(payload);
+    if (challenge.success) return challenge.data;
+
+    return this.toSession(payload, response);
+  }
+
+  /**
+   * Second step: the challenge token plus the mailed PIN, exchanged for the session.
+   *
+   * No tenant header: the challenge already names the actor it was issued for, and the provider
+   * resolves the tenant from it. Sending one would let the caller assert a tenant it has not
+   * authenticated against.
+   */
+  verifyLoginPin(input: PinInput): Promise<IdentitySession> {
+    return this.requestSession('/internal/auth/login/pin', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify(input),
     });
   }
@@ -44,6 +78,77 @@ export class IdentityProviderClient {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ refreshToken, allDevices }),
     });
+  }
+
+  /**
+   * First step of a password change for the signed-in actor: the provider checks the current
+   * password and mails a code, answering with the same challenge shape as the login.
+   *
+   * No tenant header, for the same reason as `verifyLoginPin`: the actor comes from the bearer
+   * token, and letting the caller assert a tenant it has not authenticated against is exactly the
+   * hole `TenantGuard` exists to close.
+   */
+  async requestPasswordChange(
+    accessToken: string,
+    currentPassword: string,
+  ): Promise<IdentityPinChallenge> {
+    const payload = await this.requestPropagatingMessage('/auth/password/change/request', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+        accept: 'application/json',
+      },
+      body: JSON.stringify({ currentPassword }),
+    });
+    return this.parseOrBadGateway(
+      identityPinChallengeSchema,
+      payload,
+      'a password-change challenge',
+    );
+  }
+
+  /** Second step: the challenge token and the mailed code, exchanged for the new password. */
+  async confirmPasswordChange(
+    accessToken: string,
+    body: { challengeToken: string; code: string; newPassword: string },
+  ): Promise<IdentityPasswordChanged> {
+    const payload = await this.requestPropagatingMessage('/auth/password/change/confirm', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+        accept: 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+    return this.parseOrBadGateway(
+      identityPasswordChangedSchema,
+      payload,
+      'a password-change confirmation',
+    );
+  }
+
+  /**
+   * A provider reply that does not match the contract is a 502, never a 401.
+   *
+   * Reporting it as "invalid credentials" is how a provider-side contract drift turns into a
+   * support queue full of operators certain their password works — because it does.
+   */
+  private parseOrBadGateway<T>(
+    schema: { safeParse: (value: unknown) => { success: boolean; data?: T } },
+    payload: unknown,
+    what: string,
+  ): T {
+    const parsed = schema.safeParse(payload);
+    if (!parsed.success || parsed.data === undefined) {
+      throw new DomainException(
+        'IDENTITY_PROVIDER_INVALID_RESPONSE',
+        `Identity provider did not return ${what} matching the expected contract`,
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
+    return parsed.data;
   }
 
   async profile(accessToken: string): Promise<IdentityProfile> {
@@ -72,15 +177,10 @@ export class IdentityProviderClient {
    */
   private async requestSession(path: string, init: RequestInit): Promise<IdentitySession> {
     const { payload, response } = await this.send(path, init);
+    return this.toSession(payload, response);
+  }
 
-    if (identityPinChallengeSchema.safeParse(payload).success) {
-      throw new DomainException(
-        'IDENTITY_PIN_CHALLENGE_REQUIRED',
-        'This account completes sign-in with an emailed PIN, which this portal does not support yet',
-        HttpStatus.NOT_IMPLEMENTED,
-      );
-    }
-
+  private toSession(payload: unknown, response: Response): IdentitySession {
     const parsed = identityProviderSessionSchema.safeParse(payload);
     // Only a rejected credential is an authentication failure. A session that cannot be read
     // is a contract problem, and reporting it as "invalid credentials" is what previously hid
@@ -137,6 +237,42 @@ export class IdentityProviderClient {
     return (await this.send(path, init)).payload;
   }
 
+  /**
+   * Igual que `request`, pero dejando pasar el MENSAJE del proveedor cuando rechaza.
+   *
+   * `send` vuelve opacos los 4xx a propósito: en el login, distinguir «contraseña mala» de
+   * «tenant inexistente» es un oráculo de enumeración. En el cambio de contraseña esa razón
+   * desaparece —quien llama ya está autenticado y pregunta por SU cuenta—, y el precio de la
+   * opacidad es una pantalla que dice «Invalid identity request» cuando lo que pasó es que la
+   * contraseña actual estaba mal escrita. Aquí sí se propaga, con el mismo estado y el texto que
+   * el proveedor redactó para la persona.
+   */
+  private async requestPropagatingMessage(path: string, init: RequestInit): Promise<unknown> {
+    const baseUrl = this.config.get<string>('IDENTITY_PROVIDER_URL');
+    const response = await fetch(`${baseUrl}${path}`, {
+      ...init,
+      signal: AbortSignal.timeout(
+        numeroDeConfig(this.config, 'IDENTITY_PROVIDER_TIMEOUT_MS', 3_000),
+      ),
+    }).catch(() => null);
+
+    if (!response) {
+      throw new DomainException(
+        'IDENTITY_PROVIDER_UNAVAILABLE',
+        'Identity provider is unavailable',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
+    const payload: unknown = await response.json().catch(() => null);
+    if (response.ok) return (payload as { data?: unknown })?.data ?? payload;
+
+    const message =
+      (payload as { error?: { message?: string } } | null)?.error?.message ??
+      'El proveedor de identidad rechazó la operación.';
+    throw new DomainException('IDENTITY_REQUEST_REJECTED', message, response.status);
+  }
+
   private async send(
     path: string,
     init: RequestInit,
@@ -149,9 +285,17 @@ export class IdentityProviderClient {
         HttpStatus.SERVICE_UNAVAILABLE,
       );
     }
-    const timeoutMs = this.config.get<number>('IDENTITY_PROVIDER_TIMEOUT_MS') ?? 3_000;
-    const maxAttempts = (this.config.get<number>('IDENTITY_PROVIDER_RETRY_ATTEMPTS') ?? 2) + 1;
-    const backoffMs = this.config.get<number>('IDENTITY_PROVIDER_RETRY_BACKOFF_MS') ?? 300;
+    /*
+     * El login tiene su propio presupuesto: firma la contraseña y, con segundo factor, emite el
+     * PIN y se lo entrega al canal de correo. Medido, ~4,7 s contra el proveedor local, por
+     * encima de los 3 s que le sobran a cualquier lectura.
+     */
+    const esLogin = path.startsWith('/internal/auth/login');
+    const timeoutMs = esLogin
+      ? numeroDeConfig(this.config, 'IDENTITY_PROVIDER_LOGIN_TIMEOUT_MS', 12_000)
+      : numeroDeConfig(this.config, 'IDENTITY_PROVIDER_TIMEOUT_MS', 3_000);
+    const maxAttempts = numeroDeConfig(this.config, 'IDENTITY_PROVIDER_RETRY_ATTEMPTS', 2) + 1;
+    const backoffMs = numeroDeConfig(this.config, 'IDENTITY_PROVIDER_RETRY_BACKOFF_MS', 300);
 
     // Bodies are always strings (JSON.stringify) or absent, so `init` is safe to reuse across
     // attempts. Only transient failures retry — a rejected credential (401) surfaces immediately.
@@ -162,10 +306,24 @@ export class IdentityProviderClient {
           ...init,
           signal: AbortSignal.timeout(timeoutMs),
         });
-      } catch {
-        // Connection refused / timeout: the provider never answered, so a retry cannot double any
-        // side effect. This is the exact failure a dev server produces while it is restarting.
-        if (attempt < maxAttempts) {
+      } catch (error) {
+        /*
+         * Retry only when the request PROVABLY never reached the provider.
+         *
+         * This used to retry on any thrown error, on the premise that "the provider never
+         * answered, so a retry cannot double any side effect". That premise is false for a
+         * timeout, and it produced a real defect: `/internal/auth/login` mails a PIN, and
+         * mailing takes longer than the 3 s default, so the first attempt aborted AFTER the
+         * provider had already issued and sent the code. The retry issued a second one — and
+         * because issuing a PIN invalidates the previous, the operator received two mails of
+         * which the FIRST one no longer worked. Measured: one POST /v1/session/login, two rows
+         * in `auth_one_time_codes` 1,6 s apart.
+         *
+         * A refused connection is different in kind: nothing was written to the socket, so
+         * nothing on the other side happened. That is the failure a dev server produces while
+         * it restarts, which is what the retry was for.
+         */
+        if (attempt < maxAttempts && this.neverArrived(error)) {
           await this.backoff(backoffMs * attempt);
           continue;
         }
@@ -193,7 +351,27 @@ export class IdentityProviderClient {
           'Invalid identity request',
           HttpStatus.BAD_REQUEST,
         );
-      if (response.status === 401 || response.status === 403) throw this.unauthorized();
+      /*
+       * 404 and 409 are the provider saying "no such account here", not "I am broken".
+       *
+       * A 404 is an unknown user; a 409 is a tenant that does not exist or does not match
+       * the credential (measured: the provider answers 409 for an unknown `x-tenant-id`).
+       * Both are definitive answers from a HEALTHY provider, so they belong with 401/403.
+       *
+       * They used to fall through to BAD_GATEWAY, and that was wrong twice over. Operationally
+       * a 502 means "the identity provider is down": it fires retries, alerts and an on-call
+       * page for what is really a typo in the tenant box. And for the caller it is an
+       * enumeration oracle — a wrong password answered 401 while a wrong tenant answered 502,
+       * so the pair of responses told an attacker which tenants exist. Mapping both to the
+       * same opaque 401 removes the signal.
+       */
+      if (
+        response.status === 401 ||
+        response.status === 403 ||
+        response.status === 404 ||
+        response.status === 409
+      )
+        throw this.unauthorized();
       if (response.status === 429)
         throw new DomainException(
           'IDENTITY_RATE_LIMITED',
@@ -226,6 +404,29 @@ export class IdentityProviderClient {
       'UNAUTHORIZED',
       'Invalid or expired session',
       HttpStatus.UNAUTHORIZED,
+    );
+  }
+
+  /**
+   * Whether the request demonstrably never reached the provider.
+   *
+   * `AbortSignal.timeout` rejects with a `TimeoutError`, and that only says WE stopped waiting:
+   * the provider may have finished the work — issued a PIN, mailed it, rotated a token — and be
+   * writing the response. A refused or reset connection is the opposite: the socket never
+   * carried the request, so repeating it is free.
+   *
+   * Anything unrecognised is treated as "it may have arrived". Guessing the other way is what
+   * duplicates side effects, and a login the operator has to repeat is a far smaller cost than
+   * a second PIN that silently kills the first.
+   */
+  private neverArrived(error: unknown): boolean {
+    if (error instanceof DOMException && error.name === 'TimeoutError') return false;
+    const causa = (error as { cause?: { code?: string } })?.cause?.code;
+    return (
+      causa === 'ECONNREFUSED' ||
+      causa === 'ENOTFOUND' ||
+      causa === 'EAI_AGAIN' ||
+      causa === 'ECONNRESET'
     );
   }
 

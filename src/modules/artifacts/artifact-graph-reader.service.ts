@@ -91,6 +91,11 @@ export class ArtifactGraphReaderService {
         status: version.status,
         checksum: version.canonicalChecksum,
         authoringNotes: version.authoringNotes,
+        // Finalidad y base legal viajan con la versión porque son propiedades del
+        // TRATAMIENTO, no de una ejecución concreta: el validador de publicación las exige
+        // cuando el grafo consume una variable de categoría especial.
+        processingPurpose: version.processingPurpose,
+        legalBasis: version.legalBasis,
       },
       variables: version.variableDependencies.map((dependency) => ({
         variableVersionId: dependency.variableVersion.id.toString(),
@@ -101,7 +106,14 @@ export class ArtifactGraphReaderService {
         dataType: dependency.variableVersion.dataType,
         unitCode: dependency.variableVersion.unitCode,
         nullable: dependency.variableVersion.nullable,
-        defaultValue: dependency.variableVersion.defaultValueJson,
+        // `?? undefined`: una columna JSON sin valor vuelve de Prisma como `null`, y eso
+        // NO significa "el defecto declarado es nulo" sino "no se declaró ninguno". Sin
+        // normalizarlo, el validador del contrato de entrada leía lo segundo como lo
+        // primero y rechazaba con `INPUT_NULL_DEFAULT_ON_NON_NULLABLE` toda variable no
+        // anulable que no declarara defecto — es decir, la mayoría del catálogo sembrado,
+        // que quedaba inservible como entrada de un grafo. El resto de lectores del mismo
+        // campo (enlace de campos calculados, detalle de versión) ya normalizaban así.
+        defaultValue: dependency.variableVersion.defaultValueJson ?? undefined,
         validationSchema: dependency.variableVersion.validationSchemaJson,
         constraints: dependency.variableVersion.constraintsJson,
         displayName: dependency.variableVersion.displayName,
@@ -112,6 +124,7 @@ export class ArtifactGraphReaderService {
         expectedOrigin: dependency.variableVersion.expectedOrigin,
         contractVersion: dependency.variableVersion.contractVersion,
         sensitivityClass: dependency.variableVersion.definition.sensitivityClass,
+        decisionUseRestriction: dependency.variableVersion.definition.decisionUseRestriction,
         validationRules: dependency.variableVersion.validationRules.map((rule) => ({
           ruleType: rule.ruleType,
           config: rule.ruleConfigJson,

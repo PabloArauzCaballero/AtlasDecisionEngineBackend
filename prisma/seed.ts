@@ -4,6 +4,7 @@
  */
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
+import { describeMockupDecision, resolveMockupPolicy } from '../src/modules/seeding/mockup-policy';
 import { runSeeds } from '../src/modules/seeding/seed-runner';
 
 // Thin CLI wrapper around the shared seed runner (see src/modules/seeding). The same logic
@@ -13,21 +14,13 @@ const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error('DATABASE_URL is required to seed the database');
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 
-/**
- * Los datos base se siembran siempre; los de demostración sólo cuando se piden.
- *
- * `SEED_INCLUDE_MOCKUP` manda sobre `NODE_ENV` a propósito. La imagen fija
- * `NODE_ENV=production` (es la misma que se despliega), así que deducirlo del
- * entorno hacía que el contenedor de siembra saltara SIEMPRE el demo —incluso en
- * una máquina de desarrollo— y dejara la base sin ningún artefacto ejecutable:
- * el motor respondía «no active deployment» a cualquier prueba. Al ser explícito,
- * habilitarlo o no es una decisión visible en el compose, no un efecto colateral.
- */
-const includeMockup = process.env.SEED_INCLUDE_MOCKUP
-  ? process.env.SEED_INCLUDE_MOCKUP === 'true'
-  : (process.env.NODE_ENV ?? 'development') === 'development';
+// Los datos base se siembran siempre; los de demostración sólo cuando se piden. La regla
+// vive entera en `mockup-policy.ts`, compartida con el arranque de la aplicación, para que
+// el Job y el proceso no puedan decidir cosas distintas sobre la misma base.
+const decision = resolveMockupPolicy();
+console.log(describeMockupDecision(decision));
 
-runSeeds(prisma, { includeMockup })
+runSeeds(prisma, { includeMockup: decision.includeMockup })
   .then((summary) => {
     console.log(
       JSON.stringify(

@@ -6,36 +6,35 @@
  * añade una restricción `maxLength`, los casos "justo por encima del máximo" aparecen
  * solos. Esa es la diferencia entre un banco de pruebas que envejece y uno que sigue
  * al contrato.
- */
-import { parseConstraints, resolveConstraints } from '../../common/contracts/constraint-engine';
-import { normalizeDataTypeOrString, type DataType } from '../../common/contracts/data-types';
-import type { VariableConstraints } from '../../common/contracts/constraints.types';
-import type { DistributionShape, SeededRandom } from './seeded-random';
-
-/**
- * Cómo se reparten los valores de UNA variable dentro de su rango (§10.4).
  *
- * Sin esto el generador reparte uniformemente, que es justo lo que infrarrepresenta los
- * casos que más interesan: si el 3 % de la cartera real cobra el mínimo, un lote uniforme
- * apenas roza ese tramo y la política que lo rechaza mal se publica sin haberse probado.
- * La distribución NO relaja el contrato: sesga dónde caen los valores, nunca genera uno
- * que las restricciones prohíban.
+ * ## Los tres tipos de caso tienen que ser verdad
+ *
+ * Un VÁLIDO que el contrato rechaza, o un FRONTERA que se sale del rango, llenan el
+ * informe de fallos que no son fallos y queman la confianza en el QA Lab. Por eso los
+ * candidatos de frontera y de inválido se CRIBAN con el mismo juez que ejecutará después
+ * (`validateAgainstConstraints`): sobrevive el que de verdad es lo que dice ser. Antes se
+ * elegían a ciegas y, por ejemplo, un porcentaje acotado a 20–80 recibía el «límite» 0.
+ *
+ * La construcción de un valor válido vive en `contract-value-factory.ts`.
  */
-export interface VariableDistribution {
-  shape?: DistributionShape;
-  /** Pesos relativos por valor, solo para variables con enumeración cerrada. */
-  valueWeights?: Record<string, number>;
-}
+import type { VariableConstraints } from '../../common/contracts/constraints.types';
+import { normalizeDataTypeOrString, type DataType } from '../../common/contracts/data-types';
+import {
+  buildValidValue,
+  resolvedConstraintsOf,
+  satisfiesContract,
+  type DistributionMap,
+  type GeneratorContractVariable,
+  type VariableDistribution,
+} from './contract-value-factory';
+import { sampleForPattern } from './pattern-samples';
+import type { SeededRandom } from './seeded-random';
 
-export type DistributionMap = Readonly<Record<string, VariableDistribution>>;
-
-/** Peso declarado para un valor concreto de una enumeración; 1 cuando no se declaró. */
-function weightFor(distribution: VariableDistribution | undefined, value: unknown): number {
-  const weights = distribution?.valueWeights;
-  if (!weights) return 1;
-  const declared = weights[String(value)];
-  return declared === undefined ? 1 : declared;
-}
+export type {
+  DistributionMap,
+  GeneratorContractVariable,
+  VariableDistribution,
+} from './contract-value-factory';
 
 /** Clase de caso generado. Determina qué se espera de la ejecución. */
 export type CaseKind = 'VALID' | 'BOUNDARY' | 'INVALID';
@@ -46,15 +45,13 @@ export interface GeneratedCase {
   /** Qué se manipuló para hacerlo inválido/frontera, para el informe. */
   mutation?: string;
   input: Record<string, unknown>;
-}
-
-export interface GeneratorContractVariable {
-  code: string;
-  dataType: string;
-  required: boolean;
-  nullable: boolean;
-  defaultValue?: unknown;
-  constraints?: unknown;
+  /**
+   * Códigos cuyo contrato es contradictorio y para los que NINGÚN valor es válido
+   * (`format: EMAIL` con `maxLength: 4`, `min` mayor que `max`…). Se declara en vez de
+   * silenciarse: el caso se entrega igual, pero quien lo lea sabe que ese campo no
+   * describe una entrada legítima y que lo que hay que arreglar es el contrato.
+   */
+  unsatisfiable?: string[];
 }
 
 export interface GenerationMix {
@@ -70,84 +67,72 @@ export function generateValidValue(
   random: SeededRandom,
   distribution?: VariableDistribution,
 ): unknown {
-  const type = normalizeDataTypeOrString(variable.dataType);
-  const constraints = resolveConstraints(parseConstraints(variable.constraints), { siblings: {} });
-  const shape = distribution?.shape;
-  if (constraints.allowedValues?.length) {
-    return distribution?.valueWeights
-      ? random.pickWeighted(constraints.allowedValues, (value) => weightFor(distribution, value))
-      : random.pick(constraints.allowedValues);
-  }
-
-  switch (type) {
-    case 'INTEGER': {
-      const [min, max] = numericBounds(constraints, 0, 1_000, true);
-      return random.int(Math.ceil(min), Math.floor(max), shape);
-    }
-    case 'DECIMAL':
-    case 'CURRENCY': {
-      const [min, max] = numericBounds(constraints, 0, 10_000, false);
-      return random.float(min, max, constraints.scale ?? 2, shape);
-    }
-    case 'PERCENTAGE': {
-      const [min, max] = numericBounds(constraints, 0, 100, false);
-      return random.float(Math.max(0, min), Math.min(100, max), constraints.scale ?? 2, shape);
-    }
-    case 'BOOLEAN':
-      // Un booleano no tiene rango que deformar, pero sí proporción: el peso de `true`
-      // frente al de `false` es exactamente lo que se quiere sesgar.
-      return random.bool(booleanProbability(distribution));
-    case 'DATE':
-      return random.isoDate();
-    case 'DATETIME':
-      return `${random.isoDate()}T${pad(random.int(0, 23))}:${pad(random.int(0, 59))}:00Z`;
-    case 'TIME':
-      return `${pad(random.int(0, 23))}:${pad(random.int(0, 59))}`;
-    case 'LIST': {
-      const size = random.int(constraints.minItems ?? 1, Math.min(constraints.maxItems ?? 3, 5));
-      return Array.from({ length: size }, (_, index) => index + 1);
-    }
-    case 'OBJECT':
-    case 'STRUCTURED_RESULT':
-      return { valor: random.int(1, 100) };
-    default: {
-      const min = constraints.minLength ?? 3;
-      const max = Math.min(constraints.maxLength ?? Math.max(min + 5, 12), 64);
-      return textFor(type, random, min, Math.max(min, max), constraints);
-    }
-  }
+  return buildValidValue(variable, random, distribution).value;
 }
 
-/** Valor exactamente en el borde permitido: el caso que más fallos destapa. */
+/**
+ * Valor exactamente en el borde permitido: el caso que más fallos destapa.
+ *
+ * Todo candidato pasa por el contrato antes de entrar en el sorteo. Un borde derivado de
+ * una restricción no vale si otra lo prohíbe —el mínimo de un rango que además tiene
+ * enumeración cerrada, o el 0 de un porcentaje acotado a 20–80— y devolverlo convertía un
+ * caso «frontera» en un caso inválido mal etiquetado.
+ */
 export function generateBoundaryValue(
   variable: GeneratorContractVariable,
   random: SeededRandom,
 ): { value: unknown; mutation: string } | null {
   const type = normalizeDataTypeOrString(variable.dataType);
-  const constraints = resolveConstraints(parseConstraints(variable.constraints), { siblings: {} });
-  const candidates: Array<{ value: unknown; mutation: string }> = [];
+  const constraints = resolvedConstraintsOf(variable);
+  const feasible = boundaryCandidates(type, constraints, random).filter((candidate) =>
+    satisfiesContract(variable, candidate.value),
+  );
+  return feasible.length ? random.pick(feasible) : null;
+}
 
-  if (constraints.min !== undefined)
+function boundaryCandidates(
+  type: DataType,
+  constraints: VariableConstraints,
+  random: SeededRandom,
+): Array<{ value: unknown; mutation: string }> {
+  const candidates: Array<{ value: unknown; mutation: string }> = [];
+  const step = 10 ** -(constraints.scale ?? (type === 'INTEGER' ? 0 : 2));
+
+  if (constraints.min !== undefined) {
     candidates.push({ value: constraints.min, mutation: 'min exacto' });
-  if (constraints.max !== undefined)
+  }
+  if (constraints.max !== undefined) {
     candidates.push({ value: constraints.max, mutation: 'max exacto' });
-  if (constraints.minLength !== undefined && isTextual(type)) {
-    candidates.push({ value: 'a'.repeat(constraints.minLength), mutation: 'longitud mínima' });
   }
-  if (constraints.maxLength !== undefined && isTextual(type)) {
-    candidates.push({ value: 'a'.repeat(constraints.maxLength), mutation: 'longitud máxima' });
-  }
-  if (constraints.minItems !== undefined && type === 'LIST') {
+  // El primer valor representable dentro de un límite abierto: el borde real de la regla.
+  if (constraints.exclusiveMin !== undefined) {
     candidates.push({
-      value: Array.from({ length: constraints.minItems }, (_, index) => index),
-      mutation: 'lista con el mínimo de elementos',
+      value: round(constraints.exclusiveMin + step),
+      mutation: 'justo dentro del límite abierto inferior',
     });
   }
-  if (constraints.maxItems !== undefined && type === 'LIST') {
+  if (constraints.exclusiveMax !== undefined) {
     candidates.push({
-      value: Array.from({ length: constraints.maxItems }, (_, index) => index),
-      mutation: 'lista con el máximo de elementos',
+      value: round(constraints.exclusiveMax - step),
+      mutation: 'justo dentro del límite abierto superior',
     });
+  }
+  if (isTextual(type)) {
+    candidates.push(...textBoundaries(constraints, random));
+  }
+  if (type === 'LIST') {
+    if (constraints.minItems !== undefined) {
+      candidates.push({
+        value: listOf(constraints.minItems),
+        mutation: 'lista con el mínimo de elementos',
+      });
+    }
+    if (constraints.maxItems !== undefined) {
+      candidates.push({
+        value: listOf(constraints.maxItems),
+        mutation: 'lista con el máximo de elementos',
+      });
+    }
   }
   if (constraints.allowedValues?.length) {
     candidates.push({
@@ -165,16 +150,54 @@ export function generateBoundaryValue(
       { value: 100, mutation: 'porcentaje 100' },
     );
   }
-  return candidates.length ? random.pick(candidates) : null;
+  return candidates;
 }
 
-/** Valor que el contrato DEBE rechazar. */
+/**
+ * Bordes de longitud. Cuando hay `pattern`, la cadena de relleno `aaa…` casi nunca casa,
+ * así que se pide al muestreador de patrones una cadena de esa longitud exacta; si no la
+ * consigue, no se propone el candidato en lugar de proponer uno inválido.
+ */
+function textBoundaries(
+  constraints: VariableConstraints,
+  random: SeededRandom,
+): Array<{ value: unknown; mutation: string }> {
+  const bounds: Array<[number | undefined, string]> = [
+    [constraints.minLength, 'longitud mínima'],
+    [constraints.maxLength, 'longitud máxima'],
+  ];
+  const candidates: Array<{ value: unknown; mutation: string }> = [];
+  for (const [length, mutation] of bounds) {
+    if (length === undefined) continue;
+    const value = constraints.pattern
+      ? sampleForPattern(constraints.pattern, random, (candidate) => candidate.length === length)
+      : 'a'.repeat(length);
+    if (value !== null) candidates.push({ value, mutation });
+  }
+  return candidates;
+}
+
+/**
+ * Valor que el contrato DEBE rechazar.
+ *
+ * También se criba: `min - 1` deja de ser inválido si otra restricción ya admitía ese
+ * valor, y proponerlo haría fallar al caso por la razón equivocada.
+ */
 export function generateInvalidValue(
   variable: GeneratorContractVariable,
   random: SeededRandom,
 ): { value: unknown; mutation: string } | null {
   const type = normalizeDataTypeOrString(variable.dataType);
-  const constraints = resolveConstraints(parseConstraints(variable.constraints), { siblings: {} });
+  const constraints = resolvedConstraintsOf(variable);
+  const candidates = invalidCandidates(type, constraints);
+  const rejected = candidates.filter((candidate) => !satisfiesContract(variable, candidate.value));
+  return rejected.length ? random.pick(rejected) : null;
+}
+
+function invalidCandidates(
+  type: DataType,
+  constraints: VariableConstraints,
+): Array<{ value: unknown; mutation: string }> {
   const candidates: Array<{ value: unknown; mutation: string }> = [];
 
   if (constraints.min !== undefined) {
@@ -182,6 +205,12 @@ export function generateInvalidValue(
   }
   if (constraints.max !== undefined) {
     candidates.push({ value: constraints.max + 1, mutation: 'justo por encima del máximo' });
+  }
+  if (constraints.exclusiveMin !== undefined) {
+    candidates.push({ value: constraints.exclusiveMin, mutation: 'igual al límite abierto' });
+  }
+  if (constraints.exclusiveMax !== undefined) {
+    candidates.push({ value: constraints.exclusiveMax, mutation: 'igual al límite abierto' });
   }
   if (constraints.minLength !== undefined && isTextual(type) && constraints.minLength > 0) {
     candidates.push({ value: '', mutation: 'texto vacío' });
@@ -197,22 +226,40 @@ export function generateInvalidValue(
   }
   if (constraints.maxItems !== undefined && type === 'LIST') {
     candidates.push({
-      value: Array.from({ length: constraints.maxItems + 1 }, (_, index) => index),
+      value: listOf(constraints.maxItems + 1),
       mutation: 'lista con exceso de elementos',
     });
   }
   if (type === 'LIST' && (constraints.minItems ?? 0) > 0) {
     candidates.push({ value: [], mutation: 'lista vacía' });
   }
+  if (type === 'LIST' && constraints.unique) {
+    candidates.push({ value: [1, 1], mutation: 'lista con elementos repetidos' });
+  }
   if (constraints.pattern) {
     candidates.push({ value: '###patrón-inválido###', mutation: 'no cumple el patrón' });
+  }
+  if (constraints.format) {
+    candidates.push({ value: 'no-cumple-el-formato', mutation: `formato ${constraints.format}` });
+  }
+  if (constraints.precision !== undefined) {
+    candidates.push({
+      value: 10 ** (constraints.precision + 1),
+      mutation: 'más dígitos de los admitidos',
+    });
+  }
+  if (constraints.scale !== undefined) {
+    candidates.push({
+      value: 1 + 10 ** -(constraints.scale + 1),
+      mutation: 'más decimales de los admitidos',
+    });
   }
   if (type === 'PERCENTAGE') {
     candidates.push({ value: 120, mutation: 'porcentaje fuera de rango' });
   }
   // Tipo incorrecto: siempre disponible, cualquiera que sea el contrato.
   candidates.push({ value: typeMismatchFor(type), mutation: 'tipo incorrecto' });
-  return random.pick(candidates);
+  return candidates;
 }
 
 /** Construye un lote determinista de casos a partir del contrato de entradas. */
@@ -223,26 +270,47 @@ export function generateCases(
   mix: GenerationMix,
   distributions: DistributionMap = {},
 ): GeneratedCase[] {
-  const kinds = distribute(total, mix);
+  return generateCasesOfKinds(variables, random, distribute(total, mix), distributions);
+}
+
+/**
+ * El mismo generador, con las clases ya decididas por quien llama.
+ *
+ * Existe porque el reparto por DESENLACE sustituye a la porción válida de la mezcla: esos
+ * casos los construye el planificador del grafo y el resto —frontera e inválidos— sigue
+ * saliendo de aquí. Sin esta puerta habría que generar los válidos sólo para tirarlos.
+ */
+export function generateCasesOfKinds(
+  variables: GeneratorContractVariable[],
+  random: SeededRandom,
+  kinds: CaseKind[],
+  distributions: DistributionMap = {},
+): GeneratedCase[] {
   const inputs = variables.filter((variable) => variable.code);
   return kinds.map((kind, index) => {
     const input: Record<string, unknown> = {};
+    const unsatisfiable: string[] = [];
     for (const variable of inputs) {
       // Una entrada opcional se omite de vez en cuando: probar solo payloads completos
       // deja sin cubrir justo la rama de valores por defecto.
       if (!variable.required && random.bool(0.25)) continue;
-      input[variable.code] = generateValidValue(variable, random, distributions[variable.code]);
+      const generated = buildValidValue(variable, random, distributions[variable.code]);
+      input[variable.code] = generated.value;
+      if (!generated.satisfied) unsatisfiable.push(variable.code);
     }
-    if (kind === 'VALID' || !inputs.length) return { index, kind, input };
+    const notes = unsatisfiable.length ? { unsatisfiable } : {};
+    if (kind === 'VALID' || !inputs.length) return { index, kind, input, ...notes };
 
     const target = random.pick(inputs);
     const mutated =
       kind === 'BOUNDARY'
         ? generateBoundaryValue(target, random)
         : generateInvalidValue(target, random);
-    if (!mutated) return { index, kind: 'VALID', input };
+    // Sin borde ni valor rechazable, este contrato no admite la clase pedida: se entrega
+    // como VÁLIDO en vez de fingir una mutación que no ocurrió.
+    if (!mutated) return { index, kind: 'VALID', input, ...notes };
     input[target.code] = mutated.value;
-    return { index, kind, mutation: `${target.code}: ${mutated.mutation}`, input };
+    return { index, kind, mutation: `${target.code}: ${mutated.mutation}`, input, ...notes };
   });
 }
 
@@ -271,56 +339,17 @@ export function distribute(total: number, mix: GenerationMix): CaseKind[] {
   return kinds.slice(0, total);
 }
 
-function numericBounds(
-  constraints: VariableConstraints,
-  fallbackMin: number,
-  fallbackMax: number,
-  integer: boolean,
-): [number, number] {
-  const min =
-    constraints.min ??
-    (constraints.exclusiveMin !== undefined
-      ? constraints.exclusiveMin + (integer ? 1 : 0.01)
-      : fallbackMin);
-  const max =
-    constraints.max ??
-    (constraints.exclusiveMax !== undefined
-      ? constraints.exclusiveMax - (integer ? 1 : 0.01)
-      : fallbackMax);
-  return max < min ? [min, min] : [min, max];
-}
-
-/**
- * Proporción de `true` para un booleano sesgado. Se deriva de los mismos `valueWeights`
- * que las enumeraciones para no inventar una segunda forma de decir lo mismo.
- */
-function booleanProbability(distribution: VariableDistribution | undefined): number {
-  const weights = distribution?.valueWeights;
-  if (!weights) return 0.5;
-  const positive = Math.max(0, Number(weights.true ?? weights.TRUE ?? 1));
-  const negative = Math.max(0, Number(weights.false ?? weights.FALSE ?? 1));
-  const total = positive + negative;
-  return total > 0 ? positive / total : 0.5;
-}
-
 function isTextual(type: DataType): boolean {
   return ['STRING', 'LONG_TEXT', 'CODE', 'IDENTIFIER', 'ENUM'].includes(type);
 }
 
-function textFor(
-  type: DataType,
-  random: SeededRandom,
-  min: number,
-  max: number,
-  constraints: VariableConstraints,
-): string {
-  const length = random.int(min, max);
-  if (constraints.format === 'EMAIL') return `${random.string(6)}@ejemplo.test`;
-  if (constraints.format === 'ISO_COUNTRY') return random.pick(['BO', 'PE', 'CL', 'AR', 'MX']);
-  if (constraints.format === 'ISO_CURRENCY') return random.pick(['BOB', 'USD', 'PEN', 'CLP']);
-  if (type === 'IDENTIFIER') return random.string(Math.max(8, length), 'ABCDEF0123456789');
-  if (type === 'CODE') return random.string(Math.max(3, length), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ_');
-  return random.string(Math.max(1, length));
+function listOf(size: number): number[] {
+  return Array.from({ length: Math.max(0, size) }, (_, index) => index);
+}
+
+/** Corta la basura binaria de la aritmética flotante al proponer un borde. */
+function round(value: number): number {
+  return Number(value.toFixed(10));
 }
 
 /** Un valor de otro tipo, garantizado incompatible con `type`. */
@@ -330,8 +359,4 @@ function typeMismatchFor(type: DataType): unknown {
   if (type === 'LIST') return { noSoy: 'una lista' };
   if (type === 'OBJECT' || type === 'STRUCTURED_RESULT') return ['no', 'soy', 'un', 'objeto'];
   return 12345;
-}
-
-function pad(value: number): string {
-  return String(value).padStart(2, '0');
 }

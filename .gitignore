@@ -1,10 +1,22 @@
 node_modules
 dist
 .env
+# Toda variante local de .env, no solo el fichero exacto. `.env` a secas dejaba fuera las
+# copias que se hacen antes de un cambio grande (`.env.bak-antes-transformer`, `.env.old`,
+# `.env.local`), que llevan los MISMOS secretos y quedaban como untracked a la espera de
+# que un `git add -A` las publicara. `.env.example` se exceptúa: es la plantilla, y sus
+# valores son literales `change-me-*` que el env schema rechaza en producción.
+.env.*
+!.env.example
 coverage
+# Los otros dos informes: el de la batería e2e y la unión de ambos (`yarn cov:merge`).
+coverage-e2e
+coverage-merged
 *.log
 .prisma
 /smoke/last-run.json
+# Evidencia del smoke integral: describe una corrida local concreta, no se versiona.
+/smoke/out/
 
 graphify-out/
 # Build artifacts and archives (never commit — backend.zip previously leaked .env)
@@ -22,3 +34,11 @@ package-lock.json
 
 # Portal MkDocs generado (se construye en CI y en contenedor).
 site/
+
+# Estado local de la bóveda de Obsidian (`docs/` abierta como vault). La configuración sí se
+# versiona —define que los enlaces sean Markdown relativos y por tanto compatibles con MkDocs—,
+# pero el layout de ventanas y la caché son de cada máquina.
+docs/.obsidian/workspace.json
+docs/.obsidian/workspace-mobile.json
+docs/.obsidian/cache
+backups/

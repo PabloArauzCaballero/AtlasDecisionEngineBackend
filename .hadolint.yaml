@@ -1,0 +1,27 @@
+# Configuración de hadolint. Cada excepción lleva su motivo: una lista de reglas ignoradas sin
+# justificación es indistinguible de una lista de defectos aceptados por cansancio.
+
+ignored:
+  # DL3008 — «fijar la versión en apt-get install».
+  #
+  # Se ignora a conciencia. Los paquetes que se instalan son `ca-certificates`, `dumb-init`,
+  # `openssl` y `python3`, y fijar sus versiones exactas de Debian ataría la imagen a un
+  # instante del archivo de bookworm: en cuanto Debian publica el parche de seguridad y retira
+  # la versión anterior del espejo, la construcción deja de funcionar y hay que actualizar el
+  # Dockerfile para volver a compilar. Para paquetes del sistema base, el resultado sería
+  # quedarse con la versión vulnerable más tiempo, no menos.
+  #
+  # Lo que sí protege contra la deriva: la etiqueta de la imagen base está fijada
+  # (`node:22-bookworm-slim`), Trivy escanea las tres imágenes en cada cambio y el gate falla
+  # ante cualquier vulnerabilidad HIGH o CRITICAL con corrección disponible.
+  - DL3008
+
+  # DL3059 — «combinar varios RUN consecutivos».
+  #
+  # Los RUN de este Dockerfile están separados a propósito para que la caché de capas funcione:
+  # la instalación de dependencias no debe rehacerse porque haya cambiado el código fuente.
+  # Fusionarlos ahorraría una capa vacía y costaría minutos en cada construcción.
+  - DL3059
+
+trustedRegistries:
+  - docker.io
