@@ -30,6 +30,7 @@ import { RiskGovernanceModule } from './modules/risk-governance/risk-governance.
 import { NestedTreesModule } from './modules/nested-trees/nested-trees.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { OutboxRelayModule } from './modules/outbox-relay/outbox-relay.module';
+import { PlatformCatalogModule } from './modules/platform-catalog/platform-catalog.module';
 import { QaLabModule } from './modules/qa-lab/qa-lab.module';
 import { RuntimeModule } from './modules/runtime/runtime.module';
 import { SecurityReviewModule } from './modules/security-review/security-review.module';
@@ -81,6 +82,9 @@ import { PdfWorkerModule } from './pdf-worker/pdf-worker.module';
     CodeImportModule,
     TestingModule,
     QaLabModule,
+    // Espejo de introspección para el catálogo unificado del portal interno. Va después de los
+    // módulos de dominio a propósito: lee el router ya montado, no participa en él.
+    PlatformCatalogModule,
     GovernanceModule,
     DeploymentModule,
     RuntimeModule,
