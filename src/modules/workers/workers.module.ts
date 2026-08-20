@@ -7,6 +7,9 @@ import { AudioTtsService } from './audio-tts/audio-tts.service';
 import { BankStatementController } from './bank-statement/bank-statement.controller';
 import { BankStatementRunWorkerService } from './bank-statement/bank-statement-run-worker.service';
 import { BankStatementService } from './bank-statement/bank-statement.service';
+import { FinancialInstitutionController } from './bank-statement/institutions/financial-institution.controller';
+import { FinancialInstitutionService } from './bank-statement/institutions/financial-institution.service';
+import { InstitutionCatalogService } from './bank-statement/institutions/institution-catalog.service';
 import { StatementReviewController } from './bank-statement/review/statement-review.controller';
 import { StatementReviewService } from './bank-statement/review/statement-review.service';
 import {
@@ -125,12 +128,18 @@ import { WorkerServiceInvokerService } from './worker-service-invoker.service';
     AudioTtsController,
     BankStatementController,
     StatementReviewController,
+    FinancialInstitutionController,
     IdentityVerificationController,
     SemanticAnalysisController,
     SemanticCategoryController,
     UnresolvedClassificationController,
   ],
   providers: [
+    // El padrón de entidades: la tabla que decide a quién se atribuye un
+    // extracto. El catálogo va antes que el CRUD porque éste lo invalida en cada
+    // escritura, y antes que el worker porque el motor lo lee en cada documento.
+    InstitutionCatalogService,
+    FinancialInstitutionService,
     SemanticCategoryService,
     UnresolvedClassificationService,
     UnresolvedResolutionService,

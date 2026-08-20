@@ -1,4 +1,5 @@
 import { ConfigService } from '@nestjs/config';
+import { InstitutionCatalogService } from '../src/modules/workers/bank-statement/institutions/institution-catalog.service';
 import { WorkerServiceInvokerService } from '../src/modules/workers/worker-service-invoker.service';
 import { findBankStatementFixture } from '../src/modules/workers/bank-statement/fixtures/bank-statement-fixtures';
 import type { SemanticAnalysisPipeline } from '../src/modules/workers/semantic-analysis/core/application/semantic-analysis.pipeline';
@@ -47,7 +48,15 @@ function build(overrides: Record<string, unknown> = {}) {
     forTenant: jest.fn(),
     coreConfig: jest.fn(),
   } as unknown as AudioTtsRuntimeFactory;
-  return new WorkerServiceInvokerService(config, semantic, audio).bind(1n, principal);
+  /*
+   * El padrón se dobla por el mismo motivo que la fábrica de locución: estas
+   * pruebas se detienen antes de construir el motor, así que nunca se consulta.
+   */
+  const institutions = {
+    registryFor: jest.fn(),
+    invalidate: jest.fn(),
+  } as unknown as InstitutionCatalogService;
+  return new WorkerServiceInvokerService(config, semantic, audio, institutions).bind(1n, principal);
 }
 
 const statement = findBankStatementFixture('valid-complete')!;

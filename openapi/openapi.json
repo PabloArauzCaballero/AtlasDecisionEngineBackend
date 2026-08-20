@@ -239,6 +239,100 @@
         ]
       }
     },
+    "/v1/session/password/change/request": {
+      "post": {
+        "operationId": "identitySessionRequestPasswordChange",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdentityPasswordChangeRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Second-factor challenge; the code travels by mail.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityPinChallengeDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Request the mailed code that confirms a password change",
+        "tags": [
+          "Portal Session"
+        ]
+      }
+    },
+    "/v1/session/password/change/confirm": {
+      "post": {
+        "operationId": "identitySessionConfirmPasswordChange",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdentityPasswordChangeConfirmDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password changed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityPasswordChangedDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Confirm a password change with the mailed code",
+        "tags": [
+          "Portal Session"
+        ]
+      }
+    },
     "/v1/session/refresh": {
       "post": {
         "operationId": "identitySessionRefresh",
@@ -4583,6 +4677,316 @@
         "summary": "Devuelve el documento a la cola del worker",
         "tags": [
           "Workers · Extractos bancarios"
+        ]
+      }
+    },
+    "/v1/workers/bank-statement/institutions": {
+      "get": {
+        "operationId": "financialInstitutionList",
+        "parameters": [
+          {
+            "name": "includeInactive",
+            "required": false,
+            "in": "query",
+            "description": "Incluye las dadas de baja. Se pide de forma expresa porque una entidad inactiva ya no reconoce documentos y verla mezclada con las vigentes induce a creer que sí.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Entidades ordenadas por tipo y código.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FinancialInstitutionDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Padrón de entidades financieras del tenant",
+        "tags": [
+          "Workers · Entidades financieras"
+        ]
+      },
+      "post": {
+        "operationId": "financialInstitutionCreate",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertFinancialInstitutionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Entidad escrita.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinancialInstitutionDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Da de alta una entidad en el padrón",
+        "tags": [
+          "Workers · Entidades financieras"
+        ]
+      }
+    },
+    "/v1/workers/bank-statement/institutions/summary": {
+      "get": {
+        "operationId": "financialInstitutionSummary",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Recuento por tipo y faltantes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinancialInstitutionSummaryDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Estado del padrón y entidades que faltan respecto de la nómina ASFI",
+        "tags": [
+          "Workers · Entidades financieras"
+        ]
+      }
+    },
+    "/v1/workers/bank-statement/institutions/{code}": {
+      "put": {
+        "operationId": "financialInstitutionUpdate",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertFinancialInstitutionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Entidad actualizada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinancialInstitutionDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Actualiza una entidad del padrón",
+        "tags": [
+          "Workers · Entidades financieras"
+        ]
+      },
+      "delete": {
+        "operationId": "financialInstitutionDeactivate",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Entidad desactivada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinancialInstitutionDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Da de baja una entidad (no se borra: las trazas la citan)",
+        "tags": [
+          "Workers · Entidades financieras"
+        ]
+      }
+    },
+    "/v1/workers/bank-statement/institutions/{code}/reactivate": {
+      "post": {
+        "operationId": "financialInstitutionReactivate",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Entidad reactivada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinancialInstitutionDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Vuelve a poner en servicio una entidad dada de baja",
+        "tags": [
+          "Workers · Entidades financieras"
+        ]
+      }
+    },
+    "/v1/workers/bank-statement/institutions/seed": {
+      "post": {
+        "description": "Sólo crea lo que falta; nunca pisa una entidad existente. Con dryRun responde qué haría sin escribir.",
+        "operationId": "financialInstitutionSeed",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Resumen de lo sembrado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinancialInstitutionSeedSummaryDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Inyecta las entidades de la nómina ASFI que falten en el padrón",
+        "tags": [
+          "Workers · Entidades financieras"
         ]
       }
     },
@@ -11920,6 +12324,9 @@
       "name": "Workers · Categorías semánticas"
     },
     {
+      "name": "Workers · Entidades financieras"
+    },
+    {
       "name": "Workers · Extractos bancarios",
       "description": "Conversión de un extracto bancario en PDF a movimientos normalizados. Asíncrono; el documento no se conserva y la cuenta se publica enmascarada."
     },
@@ -12134,6 +12541,77 @@
         "required": [
           "challengeToken",
           "pin"
+        ]
+      },
+      "IdentityPasswordChangeRequestDto": {
+        "type": "object",
+        "properties": {
+          "currentPassword": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "currentPassword"
+        ]
+      },
+      "IdentityPinChallengeDto": {
+        "type": "object",
+        "properties": {
+          "pinChallengeRequired": {
+            "type": "boolean",
+            "example": true
+          },
+          "challengeToken": {
+            "type": "string",
+            "description": "Se canjea junto al código recibido por correo."
+          },
+          "expiresInMinutes": {
+            "type": "number",
+            "example": 10
+          }
+        },
+        "required": [
+          "pinChallengeRequired",
+          "challengeToken",
+          "expiresInMinutes"
+        ]
+      },
+      "IdentityPasswordChangeConfirmDto": {
+        "type": "object",
+        "properties": {
+          "challengeToken": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 256
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^\\d{6}$"
+          },
+          "newPassword": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "challengeToken",
+          "code",
+          "newPassword"
+        ]
+      },
+      "IdentityPasswordChangedDto": {
+        "type": "object",
+        "properties": {
+          "passwordChanged": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "passwordChanged"
         ]
       },
       "IdentityLogoutDto": {
@@ -19761,6 +20239,212 @@
         "required": [
           "requestId",
           "status"
+        ]
+      },
+      "FinancialInstitutionDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "MULTIPLE_BANK",
+              "PYME_BANK",
+              "STATE_BANK",
+              "DEVELOPMENT_BANK",
+              "HOUSING_ENTITY",
+              "COOPERATIVE",
+              "DEVELOPMENT_IFD"
+            ]
+          },
+          "licenseStatus": {
+            "type": "string",
+            "enum": [
+              "LICENSED",
+              "SUSPENDED",
+              "REVOKED"
+            ]
+          },
+          "retailDeposits": {
+            "type": "boolean"
+          },
+          "markers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "exclusions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "updatedBy": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "kind",
+          "licenseStatus",
+          "retailDeposits",
+          "markers",
+          "exclusions",
+          "isActive",
+          "updatedAt"
+        ]
+      },
+      "FinancialInstitutionSummaryDto": {
+        "type": "object",
+        "properties": {
+          "active": {
+            "type": "number",
+            "description": "Entidades activas en el padrón del tenant."
+          },
+          "byKind": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "Cuántas hay por tipo, con la clave del enum."
+          },
+          "withoutLicense": {
+            "type": "number",
+            "description": "Cuántas tienen la licencia no vigente."
+          },
+          "missingFromSeed": {
+            "description": "Entidades de la nómina ASFI compilada que faltan en el padrón del tenant. Vacío es lo esperado.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "active",
+          "byKind",
+          "withoutLicense",
+          "missingFromSeed"
+        ]
+      },
+      "UpsertFinancialInstitutionDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 16,
+            "pattern": "^[A-Z0-9_]+$",
+            "description": "Sigla ASFI de la entidad. Es la clave con la que el regulador la nombra, y la que queda en la traza de cada documento atribuido.",
+            "example": "BNB"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 200,
+            "description": "Razón social como la publica ASFI."
+          },
+          "kind": {
+            "enum": [
+              "MULTIPLE_BANK",
+              "PYME_BANK",
+              "STATE_BANK",
+              "DEVELOPMENT_BANK",
+              "HOUSING_ENTITY",
+              "COOPERATIVE",
+              "DEVELOPMENT_IFD"
+            ],
+            "type": "string"
+          },
+          "licenseStatus": {
+            "enum": [
+              "LICENSED",
+              "SUSPENDED",
+              "REVOKED"
+            ],
+            "type": "string",
+            "description": "Situación de la licencia. Cualquier valor distinto de LICENSED exige `note`: quien revise el caso necesita leer por qué."
+          },
+          "retailDeposits": {
+            "type": "boolean",
+            "description": "Si capta depósitos del público y por tanto emite extractos de cuenta. Informativo: no rechaza documentos."
+          },
+          "markers": {
+            "minItems": 1,
+            "description": "Expresiones regulares que, impresas en la carátula, atribuyen el documento a esta entidad. Se evalúan sin distinguir mayúsculas.",
+            "example": [
+              "BANCO\\s+NACIONAL\\s+DE\\s+BOLIVIA",
+              "\\bBNB\\b"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "exclusions": {
+            "description": "Expresiones que ANULAN la atribución aunque un marcador coincida. Es lo que separa a un banco de su aseguradora hermana.",
+            "example": [
+              "BISA\\s+SEGUROS"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "Por qué la licencia no está vigente. Obligatorio si no lo está."
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "kind",
+          "markers"
+        ]
+      },
+      "FinancialInstitutionSeedSummaryDto": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "number",
+            "description": "Entidades que trae la nómina ASFI compilada."
+          },
+          "created": {
+            "description": "Siglas creadas, o que se crearían con dryRun.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "dryRun": {
+            "type": "boolean",
+            "description": "Si fue un ensayo: nada se escribió."
+          }
+        },
+        "required": [
+          "total",
+          "created",
+          "dryRun"
         ]
       },
       "CreateIdentityVerificationRunDto": {

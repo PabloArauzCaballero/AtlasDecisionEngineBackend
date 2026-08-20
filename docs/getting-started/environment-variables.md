@@ -3,7 +3,7 @@
 
 # Variables de entorno
 
-250 variables declaradas. El esquema se valida al arrancar: un valor ausente o
+251 variables declaradas. El esquema se valida al arrancar: un valor ausente o
 fuera de rango impide el arranque en vez de degradar el comportamiento en caliente.
 
 | Variable | Obligatoria | Valor por defecto | Para qué |
@@ -135,6 +135,7 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `BANK_STATEMENT_DOCUMENT_ACCEPT_CONFIDENCE` | no | `0.55` | — |
 | `BANK_STATEMENT_DOCUMENT_REVIEW_CONFIDENCE` | no | `0.3` | — |
 | `BANK_STATEMENT_REVIEW_EXTRACTION_CONFIDENCE` | no | `0.5` | — |
+| `BANK_STATEMENT_REQUIRE_LICENSED_ISSUER` | no | `true` | — |
 | `BANK_STATEMENT_QUEUE_WAIT_BUDGET_MS` | **sí** | — | — |
 | `IDENTITY_VERIFICATION_WORKER_ENABLED` | no | `false` | --- Worker C: verificación de identidad (ADR-0026) --------------------- |
 | `IDENTITY_WORKER_POLL_MS` | no | `500` | — |

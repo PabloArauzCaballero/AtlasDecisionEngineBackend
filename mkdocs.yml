@@ -139,6 +139,7 @@ nav:
       - Workers adicionales: workers/additional-workers-architecture.md
       - Nodos que llaman a un worker: workers/worker-service-nodes.md
       - Triage de extractos y revisión humana: workers/bank-statement-triage.md
+      - Padrón de entidades y compuerta de emisor: workers/bank-statement-institutions.md
       - Catálogo de categorías del worker semántico: workers/semantic-category-catalog.md
       - Monitoreo continuo del modelo: model-monitoring.md
       - Mapa de integraciones: architecture/integration-map.md

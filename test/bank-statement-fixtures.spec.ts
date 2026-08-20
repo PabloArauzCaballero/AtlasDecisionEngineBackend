@@ -145,6 +145,30 @@ describe('escenarios de prueba del worker de extractos', () => {
     ).rejects.toBeInstanceOf(StatementProcessingError);
   });
 
+  /*
+   * La compuerta de EMISOR, de punta a punta. Vive en esta suite y no en
+   * `statement-issuer-gate.spec.ts` porque `pdfjs-dist` sólo puede cargarse en
+   * una máquina virtual de Jest por corrida: dos suites leyendo PDF reales hacen
+   * fallar a la segunda con `PDF_EXTRACTION_FAILED`, un error que señala al
+   * documento y no al entorno. Allí se mide todo lo demás sobre texto ya
+   * extraído, incluida la mitad que da sentido a esto: que el clasificador, por
+   * sí solo, acepta este mismo documento.
+   */
+  it('«foreign-issuer» se rechaza por su emisor, no por su forma', async () => {
+    const fixture = findBankStatementFixture('foreign-issuer');
+
+    await expect(
+      engine.normalize(fixture!.build(), { fileName: fixture!.fileName }),
+    ).rejects.toMatchObject({ code: 'NON_BANKING_ISSUER' });
+  });
+
+  it('ese rechazo es un error de negocio, así que no consume reintentos', async () => {
+    const fixture = findBankStatementFixture('foreign-issuer');
+    await expect(
+      engine.normalize(fixture!.build(), { fileName: fixture!.fileName }),
+    ).rejects.toBeInstanceOf(StatementProcessingError);
+  });
+
   it('escapa los caracteres que romperían el PDF', async () => {
     // `(`, `)` y `\` tienen significado dentro de una cadena literal de PDF.
     // Sin escaparlos el archivo queda corrupto y el lector falla, así que esto

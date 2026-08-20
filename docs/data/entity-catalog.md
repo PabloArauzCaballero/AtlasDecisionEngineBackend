@@ -3,7 +3,7 @@
 
 # Catálogo de entidades
 
-98 modelos persistentes. El nombre técnico es el de la tabla; el nombre del
+99 modelos persistentes. El nombre técnico es el de la tabla; el nombre del
 modelo es el que usa el código. Las restricciones e índices son los declarados en el
 esquema, que es la fuente que las migraciones aplican.
 
@@ -80,6 +80,7 @@ esquema, que es la fuente que las migraciones aplican.
 | [`DecisionVariableVersion`](#decisionvariableversion) | `decision_variable_version` | 24 | 2 | 1 |
 | [`DecisionVersionStatusHistory`](#decisionversionstatushistory) | `decision_version_status_history` | 8 | 1 | 1 |
 | [`ExposureLimit`](#exposurelimit) | `exposure_limit` | 10 | 2 | 0 |
+| [`FinancialInstitution`](#financialinstitution) | `decision_financial_institution` | 14 | 3 | 0 |
 | [`IdentityVerificationRun`](#identityverificationrun) | `decision_identity_verification_run` | 30 | 4 | 0 |
 | [`IntegrationClient`](#integrationclient) | `integration_client` | 10 | 1 | 0 |
 | [`IntegrationCredential`](#integrationcredential) | `integration_credential` | 11 | 2 | 1 |
@@ -1846,6 +1847,33 @@ Tabla `exposure_limit`.
 
 - `unique([tenantId, limitCode, segment])`
 - `index([tenantId, isActive])`
+
+## FinancialInstitution
+
+Tabla `decision_financial_institution`.
+
+| Campo | Tipo | Atributos |
+| --- | --- | --- |
+| `id` | `BigInt` | @id @default(autoincrement()) |
+| `tenantId` | `BigInt` | @map("tenant_id") |
+| `code` | `String` | @db.VarChar(16) |
+| `name` | `String` | @db.VarChar(200) |
+| `kind` | `FinancialInstitutionKind` | — |
+| `licenseStatus` | `InstitutionLicenseStatus` | @default(LICENSED) @map("license_status") |
+| `retailDeposits` | `Boolean` | @default(true) @map("retail_deposits") |
+| `markers` | `Json` | — |
+| `exclusions` | `Json` | — |
+| `note` | `String?` | @db.Text |
+| `isActive` | `Boolean` | @default(true) @map("is_active") |
+| `createdAt` | `DateTime` | @default(now()) @map("created_at") @db.Timestamptz(6) |
+| `updatedAt` | `DateTime` | @updatedAt @map("updated_at") @db.Timestamptz(6) |
+| `updatedBy` | `String?` | @map("updated_by") @db.VarChar(160) |
+
+Índices y restricciones:
+
+- `unique([tenantId, code])`
+- `index([tenantId, isActive])`
+- `index([tenantId, licenseStatus])`
 
 ## IdentityVerificationRun
 

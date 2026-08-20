@@ -3,7 +3,7 @@
 
 # Catálogo de endpoints
 
-Contrato **v1** · 190 rutas · 212 operaciones.
+Contrato **v1** · 197 rutas · 221 operaciones.
 
 La referencia interactiva completa —con esquemas, ejemplos y la posibilidad de probar cada
 llamada— está en `/docs/{API_VERSION}/reference` del propio backend. Esta página existe para
@@ -262,6 +262,8 @@ Inicio y cierre de sesión del portal contra el proveedor de identidad.
 | `POST` | `/v1/session/login` | `identitySessionLogin` | Authenticate through the configured identity provider |
 | `POST` | `/v1/session/login/pin` | `identitySessionVerifyLoginPin` | Complete a second-factor sign-in with the mailed PIN |
 | `POST` | `/v1/session/logout` | `identitySessionLogout` | Revoke the provider session and clear the refresh cookie |
+| `POST` | `/v1/session/password/change/confirm` | `identitySessionConfirmPasswordChange` | Confirm a password change with the mailed code |
+| `POST` | `/v1/session/password/change/request` | `identitySessionRequestPasswordChange` | Request the mailed code that confirms a password change |
 | `POST` | `/v1/session/refresh` | `identitySessionRefresh` | Rotate the provider session using the HttpOnly refresh cookie |
 
 ## QA Lab
@@ -399,6 +401,18 @@ Clasificación de texto libre contra el catálogo de categorías, con entidades 
 | `PUT` | `/v1/workers/semantic-analysis/categories/{code}` | `semanticCategoryUpdate` | Actualiza una categoría |
 | `DELETE` | `/v1/workers/semantic-analysis/categories/{code}` | `semanticCategoryDeactivate` | Desactiva una categoría (no se borra: las trazas la citan) |
 | `POST` | `/v1/workers/semantic-analysis/categories/import` | `semanticCategoryImport` | Inyecta un subárbol completo desde JSON |
+
+## Workers · Entidades financieras
+
+| Método | Ruta | Operación | Resumen |
+| --- | --- | --- | --- |
+| `GET` | `/v1/workers/bank-statement/institutions` | `financialInstitutionList` | Padrón de entidades financieras del tenant |
+| `POST` | `/v1/workers/bank-statement/institutions` | `financialInstitutionCreate` | Da de alta una entidad en el padrón |
+| `PUT` | `/v1/workers/bank-statement/institutions/{code}` | `financialInstitutionUpdate` | Actualiza una entidad del padrón |
+| `DELETE` | `/v1/workers/bank-statement/institutions/{code}` | `financialInstitutionDeactivate` | Da de baja una entidad (no se borra: las trazas la citan) |
+| `POST` | `/v1/workers/bank-statement/institutions/{code}/reactivate` | `financialInstitutionReactivate` | Vuelve a poner en servicio una entidad dada de baja |
+| `POST` | `/v1/workers/bank-statement/institutions/seed` | `financialInstitutionSeed` | Inyecta las entidades de la nómina ASFI que falten en el padrón |
+| `GET` | `/v1/workers/bank-statement/institutions/summary` | `financialInstitutionSummary` | Estado del padrón y entidades que faltan respecto de la nómina ASFI |
 
 ## Workers · Extractos bancarios
 

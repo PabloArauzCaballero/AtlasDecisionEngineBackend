@@ -6,9 +6,9 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/workers/`](https://github.com/) · 193 ficheros TypeScript.
+Código: [`src/modules/workers/`](https://github.com/) · 201 ficheros TypeScript.
 
-Etiquetas de API: **Workers · Locución**, **Workers · Extractos bancarios**, **Workers · Verificación de identidad**, **Workers · Análisis semántico**, **Workers · Categorías semánticas**, **Workers · Pendientes de clasificación**, **Workers**.
+Etiquetas de API: **Workers · Locución**, **Workers · Extractos bancarios**, **Workers · Entidades financieras**, **Workers · Verificación de identidad**, **Workers · Análisis semántico**, **Workers · Categorías semánticas**, **Workers · Pendientes de clasificación**, **Workers**.
 
 ## Endpoints
 
@@ -24,6 +24,13 @@ Etiquetas de API: **Workers · Locución**, **Workers · Extractos bancarios**, 
 | `POST` | `/v1/workers/audio-tts/runs/{requestId}/cancel` | `audioTtsCancelRun` | Cancela una locución que nadie ha reclamado todavía |
 | `GET` | `/v1/workers/audio-tts/templates` | `audioTtsListTemplates` | Plantillas de locución del tenant, con sus variables |
 | `GET` | `/v1/workers/bank-statement/fixtures` | `bankStatementListFixtures` | Escenarios de prueba disponibles |
+| `GET` | `/v1/workers/bank-statement/institutions` | `financialInstitutionList` | Padrón de entidades financieras del tenant |
+| `POST` | `/v1/workers/bank-statement/institutions` | `financialInstitutionCreate` | Da de alta una entidad en el padrón |
+| `PUT` | `/v1/workers/bank-statement/institutions/{code}` | `financialInstitutionUpdate` | Actualiza una entidad del padrón |
+| `DELETE` | `/v1/workers/bank-statement/institutions/{code}` | `financialInstitutionDeactivate` | Da de baja una entidad (no se borra: las trazas la citan) |
+| `POST` | `/v1/workers/bank-statement/institutions/{code}/reactivate` | `financialInstitutionReactivate` | Vuelve a poner en servicio una entidad dada de baja |
+| `POST` | `/v1/workers/bank-statement/institutions/seed` | `financialInstitutionSeed` | Inyecta las entidades de la nómina ASFI que falten en el padrón |
+| `GET` | `/v1/workers/bank-statement/institutions/summary` | `financialInstitutionSummary` | Estado del padrón y entidades que faltan respecto de la nómina ASFI |
 | `GET` | `/v1/workers/bank-statement/reviews` | `statementReviewList` | Cola de documentos pendientes de revisión humana |
 | `GET` | `/v1/workers/bank-statement/reviews/{requestId}` | `statementReviewGet` | Un caso, con su clasificación, lo extraído y lo que falló |
 | `POST` | `/v1/workers/bank-statement/reviews/{requestId}/claim` | `statementReviewClaim` | Reclama el caso para revisarlo |
@@ -84,6 +91,10 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `BANK_STATEMENT_RUN_NOT_FOUND`
 - `IDENTITY_RUN_NOT_CANCELLABLE`
 - `IDENTITY_RUN_NOT_FOUND`
+- `INSTITUTION_INVALID_PATTERN`
+- `INSTITUTION_NOTE_REQUIRED`
+- `INSTITUTION_NOT_FOUND`
+- `INSTITUTION_WITHOUT_MARKERS`
 - `SEMANTIC_CATEGORY_DUPLICATE_CODE`
 - `SEMANTIC_CATEGORY_HAS_ACTIVE_CHILDREN`
 - `SEMANTIC_CATEGORY_NOT_FOUND`
@@ -155,6 +166,11 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `EntityResolver`
 - `FakeTtsAdapter`
 - `FileValidationService`
+- `FinancialInstitutionController`
+- `FinancialInstitutionDto`
+- `FinancialInstitutionSeedSummaryDto`
+- `FinancialInstitutionService`
+- `FinancialInstitutionSummaryDto`
 - `GanaderoStatementParser`
 - `GenericDocumentParser`
 - `GenericStatementStrategy`
@@ -172,6 +188,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `IdentityVerificationService`
 - `ImageQualityAssessmentService`
 - `ImportSemanticCategoriesDto`
+- `InstitutionCatalogService`
 - `InstitutionDetector`
 - `InvalidProfileError`
 - `LayoutPdfReader`
@@ -243,6 +260,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `UnresolvedCountsDto`
 - `UnresolvedReevaluationService`
 - `UnresolvedResolutionService`
+- `UpsertFinancialInstitutionDto`
 - `UpsertSemanticCategoryDto`
 - `WorkerDescriptorDto`
 - `WorkerFixtureDto`

@@ -15,7 +15,8 @@ import { DomainException } from '../src/common/errors/domain-exception';
  */
 describe('Mensajes del cambio de contraseña contra el proveedor', () => {
   const config = {
-    get: (key: string) => (key === 'IDENTITY_PROVIDER_URL' ? 'http://identity.test/api/v1' : undefined),
+    get: (key: string) =>
+      key === 'IDENTITY_PROVIDER_URL' ? 'http://identity.test/api/v1' : undefined,
   } as unknown as ConfigService;
 
   const originalFetch = global.fetch;
@@ -32,10 +33,14 @@ describe('Mensajes del cambio de contraseña contra el proveedor', () => {
   }
 
   it('propaga el motivo del rechazo, con su estado', async () => {
-    respondWith(400, { error: { code: 'BAD_REQUEST', message: 'La contraseña actual no es correcta.' } });
+    respondWith(400, {
+      error: { code: 'BAD_REQUEST', message: 'La contraseña actual no es correcta.' },
+    });
     const client = new IdentityProviderClient(config);
 
-    const error = await client.requestPasswordChange('token', 'la-que-no-es').catch((caught) => caught);
+    const error = await client
+      .requestPasswordChange('token', 'la-que-no-es')
+      .catch((caught) => caught);
 
     expect(error).toBeInstanceOf(DomainException);
     expect((error as DomainException).message).toBe('La contraseña actual no es correcta.');
@@ -44,7 +49,10 @@ describe('Mensajes del cambio de contraseña contra el proveedor', () => {
 
   it('propaga también el 429 del cooldown, que la pantalla necesita distinguir', async () => {
     respondWith(429, {
-      error: { message: 'Ya te enviamos un código hace menos de un minuto. Revisa tu correo antes de pedir otro.' },
+      error: {
+        message:
+          'Ya te enviamos un código hace menos de un minuto. Revisa tu correo antes de pedir otro.',
+      },
     });
     const client = new IdentityProviderClient(config);
 
@@ -60,7 +68,9 @@ describe('Mensajes del cambio de contraseña contra el proveedor', () => {
 
     const error = await client.requestPasswordChange('token', 'x').catch((caught) => caught);
 
-    expect((error as DomainException).message).toBe('El proveedor de identidad rechazó la operación.');
+    expect((error as DomainException).message).toBe(
+      'El proveedor de identidad rechazó la operación.',
+    );
   });
 
   it('devuelve el desafío cuando el proveedor acepta', async () => {

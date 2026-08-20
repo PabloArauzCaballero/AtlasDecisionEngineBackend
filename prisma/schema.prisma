@@ -420,6 +420,33 @@ enum StatementRejectionReason {
   UNREADABLE_DOCUMENT
 }
 
+/// Tipo de entidad de intermediación financiera, con la clasificación que usa
+/// ASFI en su nómina de licencias. No es una etiqueta descriptiva: separa a
+/// quien capta depósitos del público de quien no, y esa diferencia es lo que
+/// explica por qué un "extracto del BDP" a nombre de una persona merece que
+/// alguien lo mire.
+enum FinancialInstitutionKind {
+  MULTIPLE_BANK
+  PYME_BANK
+  STATE_BANK
+  DEVELOPMENT_BANK
+  HOUSING_ENTITY
+  COOPERATIVE
+  DEVELOPMENT_IFD
+}
+
+/// Situación de la licencia de funcionamiento. `REVOKED` NO se borra del padrón:
+/// un extracto de una entidad intervenida es un documento auténtico y su
+/// historial sigue siendo cierto, pero quien lo recibe hoy tiene que enterarse
+/// de que la entidad ya no opera. Borrar la fila convertiría ese caso en
+/// "entidad desconocida", que se lee como un fallo del motor y no como el hecho
+/// que es.
+enum InstitutionLicenseStatus {
+  LICENSED
+  SUSPENDED
+  REVOKED
+}
+
 /// De dónde salió la entrada de una ejecución. Separar el fixture del dato real
 /// permite excluir las pruebas de cualquier lectura de operación.
 enum WorkerInputSource {
@@ -2616,6 +2643,58 @@ model BankStatementRun {
   /// antigüedad. Sin él, cada pestaña recorre la tabla entera para contar.
   @@index([tenantId, status, reviewReason, reviewPriority, reviewOpenedAt])
   @@map("decision_bank_statement_run")
+}
+
+/// El padrón de entidades de intermediación financiera contra el que el motor
+/// atribuye un extracto.
+///
+/// Se siembra con la nómina oficial de ASFI y **se administra desde el portal**,
+/// que es la razón de que sea una tabla y no una constante compilada: una
+/// licencia se revoca por resolución del regulador, y esperar a un despliegue
+/// para dejar de procesar los documentos de una entidad intervenida sería
+/// exactamente el fallo que esta compuerta existe para impedir.
+model FinancialInstitution {
+  id       BigInt @id @default(autoincrement())
+  tenantId BigInt @map("tenant_id")
+
+  /// Sigla ASFI. Es la clave con la que el regulador nombra a la entidad, así
+  /// que `institution_id` de una ejecución se cruza con cualquier reporte suyo
+  /// sin una tabla de traducción.
+  code String @db.VarChar(16)
+  name String @db.VarChar(200)
+
+  kind          FinancialInstitutionKind
+  licenseStatus InstitutionLicenseStatus @default(LICENSED) @map("license_status")
+
+  /// Si capta depósitos del público y por tanto emite extractos de cuenta.
+  /// Informativo, no motivo de rechazo: una IFD emite estados de cuenta de
+  /// crédito y la banca de segundo piso no atiende ventanilla.
+  retailDeposits Boolean @default(true) @map("retail_deposits")
+
+  /// Expresiones que, impresas en la carátula, atribuyen el documento a esta
+  /// entidad; y las que ANULAN la atribución aunque un marcador coincida.
+  /// Se guardan como fuente de expresión regular en un arreglo JSON porque son
+  /// datos que se editan, no código: quien administra el padrón añade la marca
+  /// nueva de un banco sin desplegar nada.
+  markers    Json
+  exclusions Json
+
+  /// Por qué la licencia no está vigente, cuando no lo está.
+  note String? @db.Text
+
+  /// Baja lógica. La fila no se borra porque las ejecuciones ya hechas citan el
+  /// código con el que se atribuyó el documento, y una traza que apunte al vacío
+  /// no se puede auditar.
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy String?  @map("updated_by") @db.VarChar(160)
+
+  @@unique([tenantId, code])
+  @@index([tenantId, isActive])
+  @@index([tenantId, licenseStatus])
+  @@map("decision_financial_institution")
 }
 
 /// Ejecución del worker de verificación de identidad.

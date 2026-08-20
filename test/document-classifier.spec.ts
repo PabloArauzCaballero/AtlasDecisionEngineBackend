@@ -63,6 +63,55 @@ describe('DocumentClassifier', () => {
   });
 
   /*
+   * La factura boliviana era el hueco grande, y no por parecerse a un extracto:
+   * lo suma TODO —imprime «Estado de Cuenta» del cliente, número de cuenta,
+   * saldo, columna de importes y una tabla de consumos fechados—. Llegaba a
+   * 1.00, la penalización de 0.35 la dejaba en 0.65 y se procesaba.
+   *
+   * Lo que la cierra no es una palabra que «suene» a factura: es el código de
+   * control que el SIN pone en cada una. Ningún banco lo imprime en un extracto,
+   * así que encontrarlo en la carátula no es evidencia en contra — es la
+   * respuesta, y por eso el veredicto es REJECT y no una confianza rebajada.
+   */
+  it('rechaza sin puntuar la factura que trae la marca del SIN', () => {
+    const factura = classifier.classify(
+      pdfDe([
+        'ESTADO DE CUENTA DEL CLIENTE',
+        'FACTURA ELECTRONICA',
+        'NIT: 1023456789   CODIGO DE CONTROL: A2-B4-C6-D8',
+        'CUENTA: 70011223   SALDO ANTERIOR: 120,00',
+        'FECHA DETALLE IMPORTE SALDO',
+        '05/03/2026 CONSUMO DEL PERIODO 150,00 270,00',
+        '20/03/2026 PAGO RECIBIDO 120,00 150,00',
+      ]),
+    );
+
+    expect(factura.verdict).toBe('REJECT');
+    expect(factura.confidence).toBe(0);
+    expect(factura.documentType).toBe('TAX_INVOICE');
+    // No entra en la cola: no hay nada que una persona pueda resolver mirándola.
+    expect(factura.isFinancialStatement).toBe(false);
+  });
+
+  /*
+   * Y la mitad que impide que el arreglo se pase de frenada: la marca decisiva
+   * se busca sólo en la CARÁTULA. Un extracto real menciona facturas en las
+   * glosas de sus movimientos, y esa palabra describe EL MOVIMIENTO.
+   */
+  it('no rechaza el extracto que paga facturas en sus movimientos', () => {
+    const extracto = classifier.classify(
+      pdfDe([
+        ...CABECERA,
+        ...MOVIMIENTOS,
+        '05/02/26 DEBITO PAGO FACTURA ELECTRONICA CODIGO DE CONTROL A1-B2 65.03 22,462.57',
+      ]),
+    );
+
+    expect(extracto.verdict).not.toBe('REJECT');
+    expect(extracto.isFinancialStatement).toBe(true);
+  });
+
+  /*
    * Y la otra mitad: la compuerta sigue existiendo. Un documento que se ANUNCIA
    * como otra cosa se penaliza igual que antes, que es para lo que se escribió.
    */

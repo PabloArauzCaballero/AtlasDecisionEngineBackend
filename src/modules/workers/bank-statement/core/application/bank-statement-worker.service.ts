@@ -8,6 +8,12 @@ import {
 import { DocumentClassifier } from '../engine/document-classifier';
 import { InstitutionDetector } from '../engine/institution-detector';
 import {
+  assessIssuer,
+  DEFAULT_ISSUER_GATE_OPTIONS,
+  type IssuerAssessment,
+  type IssuerGateOptions,
+} from '../engine/issuer-gate';
+import {
   StatementExtractor,
   type ExtractionOutcome,
 } from '../engine/extraction/statement-extractor';
@@ -41,6 +47,8 @@ export class BankStatementWorkerService {
     private readonly classifier: DocumentClassifier,
     private readonly institutionDetector: InstitutionDetector,
     private readonly metrics: ConversionMetrics,
+    /** Exigencia sobre el EMISOR. Ver `issuer-gate.ts`. */
+    private readonly issuerGate: IssuerGateOptions = DEFAULT_ISSUER_GATE_OPTIONS,
   ) {}
 
   /**
@@ -135,6 +143,22 @@ export class BankStatementWorkerService {
     const context = timeSync(stageDurations, 'clasificacion', () =>
       this.buildContext(buffer, processing, extraction),
     );
+    /*
+     * La compuerta de emisor va ANTES de la cascada, y esa posición es el
+     * arreglo. Estaba —sólo a medias— dentro de `unsupported()`, que únicamente
+     * corre cuando NINGUNA estrategia acepta el documento; y el motor generalista
+     * acepta cualquier cosa con una tabla de fechas e importes, así que en la
+     * práctica el documento ajeno nunca llegaba a esa comprobación: se convertía
+     * en movimientos. Preguntar quién lo emitió cuesta una lectura de la
+     * carátula que ya está hecha, y ahorra el análisis entero.
+     */
+    const issuer = timeSync(stageDurations, 'emisor', () =>
+      assessIssuer(context.institution, this.issuerGate),
+    );
+    if (issuer.disposition !== 'ACCEPT') {
+      throw this.rejectedIssuer(context, issuer, correlation);
+    }
+
     const candidates = await timed('resolucion', () => this.registry.resolveAll(context));
     if (candidates.length === 0) {
       throw this.unsupported(context);
@@ -294,35 +318,8 @@ export class BankStatementWorkerService {
   private unsupported(context: StatementContext): StatementProcessingError {
     // La compuerta va primero: si el documento no demostró ser un estado de
     // cuenta, la entidad que se le atribuya es irrelevante.
-    if (!context.classification.isFinancialStatement) {
-      const evidence = {
-        documentType: context.classification.documentType,
-        documentConfidence: context.classification.confidence,
-        detectedSignals: context.classification.detectedSignals,
-      };
-      /*
-       * DOS códigos y no uno, y ésta es la distinción que da sentido a la cola
-       * de revisión. Con un único `NOT_A_FINANCIAL_STATEMENT` no había forma de
-       * separar la factura —que nadie tiene que mirar— del extracto con el
-       * encabezado ilegible —que sí—, así que o se derivaban las dos a una
-       * persona o ninguna. El clasificador ya lo sabe: sólo hacía falta que el
-       * error lo dijera.
-       */
-      if (context.classification.verdict === 'REVIEW') {
-        return new StatementProcessingError(
-          'DOUBTFUL_DOCUMENT',
-          'El documento se parece a un estado de cuenta, pero las señales no bastan para confirmarlo.',
-          422,
-          evidence,
-        );
-      }
-      return new StatementProcessingError(
-        'NOT_A_FINANCIAL_STATEMENT',
-        'El documento no reúne señales suficientes de ser un estado de cuenta.',
-        422,
-        evidence,
-      );
-    }
+    const classification = this.classificationFailure(context);
+    if (classification) return classification;
     if (!context.institution.detected) {
       return new StatementProcessingError(
         'UNSUPPORTED_INSTITUTION',
@@ -336,6 +333,99 @@ export class BankStatementWorkerService {
       `Se detectó ${context.institution.name}, pero este formato de extracto aún no tiene un parser verificado.`,
       422,
       { institutionCode: context.institution.code },
+    );
+  }
+
+  /**
+   * El error cuando la clasificación no avala el documento, o nada si sí lo
+   * avala.
+   *
+   * DOS códigos y no uno, y ésta es la distinción que da sentido a la cola de
+   * revisión. Con un único `NOT_A_FINANCIAL_STATEMENT` no había forma de separar
+   * la factura —que nadie tiene que mirar— del extracto con el encabezado
+   * ilegible —que sí—, así que o se derivaban las dos a una persona o ninguna.
+   * El clasificador ya lo sabe: sólo hacía falta que el error lo dijera.
+   */
+  private classificationFailure(context: StatementContext): StatementProcessingError | undefined {
+    if (context.classification.isFinancialStatement) return undefined;
+    const evidence = {
+      documentType: context.classification.documentType,
+      documentConfidence: context.classification.confidence,
+      detectedSignals: context.classification.detectedSignals,
+    };
+    if (context.classification.verdict === 'REVIEW') {
+      return new StatementProcessingError(
+        'DOUBTFUL_DOCUMENT',
+        'El documento se parece a un estado de cuenta, pero las señales no bastan para confirmarlo.',
+        422,
+        evidence,
+      );
+    }
+    return new StatementProcessingError(
+      'NOT_A_FINANCIAL_STATEMENT',
+      'El documento no reúne señales suficientes de ser un estado de cuenta.',
+      422,
+      evidence,
+    );
+  }
+
+  /**
+   * El error del EMISOR, y por qué la clasificación manda sobre él.
+   *
+   * Cuando el documento además falla la clasificación, quien manda es ella: «no
+   * es un estado de cuenta» dice más —y es más accionable para quien lo subió—
+   * que «no reconozco a su emisor». Sólo cuando el documento SÍ demostró ser un
+   * estado de cuenta el problema es de quién lo firma, y entonces sí se dice.
+   */
+  private rejectedIssuer(
+    context: StatementContext,
+    issuer: IssuerAssessment,
+    correlation: string,
+  ): StatementProcessingError {
+    const classification = this.classificationFailure(context);
+    if (classification) return classification;
+
+    this.logger.warn(
+      `Emisor rechazado: veredicto=${issuer.verdict} ` +
+        `motivos=${issuer.reasons.join('|')}${correlation}`,
+    );
+    const evidence = {
+      issuerVerdict: issuer.verdict,
+      issuerReasons: issuer.reasons,
+      institutionCode: context.institution.code,
+      nonBankingIssuer: context.institution.nonBankingIssuer?.name,
+    };
+
+    if (issuer.verdict === 'UNLICENSED') {
+      return new StatementProcessingError(
+        'UNLICENSED_INSTITUTION',
+        `El documento se atribuye a ${context.institution.name}, cuya licencia de ASFI no está vigente.`,
+        422,
+        evidence,
+      );
+    }
+    if (issuer.verdict === 'NON_BANKING') {
+      return new StatementProcessingError(
+        'NON_BANKING_ISSUER',
+        `El documento lo emitió ${context.institution.nonBankingIssuer?.name ?? 'una entidad no financiera'}, ` +
+          'que no es una entidad financiera supervisada por ASFI.',
+        422,
+        evidence,
+      );
+    }
+    if (issuer.disposition === 'REVIEW') {
+      return new StatementProcessingError(
+        'UNSUPPORTED_INSTITUTION',
+        'No se pudo reconocer una entidad financiera boliviana compatible.',
+        422,
+        evidence,
+      );
+    }
+    return new StatementProcessingError(
+      'UNRECOGNIZED_ISSUER',
+      'La carátula del documento no identifica a ninguna entidad financiera boliviana.',
+      422,
+      evidence,
     );
   }
 }

@@ -4,6 +4,7 @@ import type { JobSchedulerService } from '../src/common/jobs/job-scheduler.servi
 import type { PrismaService } from '../src/common/prisma/prisma.service';
 import type { MessagingTraceService } from '../src/common/observability/messaging-trace.service';
 import { BankStatementRunWorkerService } from '../src/modules/workers/bank-statement/bank-statement-run-worker.service';
+import { InstitutionCatalogService } from '../src/modules/workers/bank-statement/institutions/institution-catalog.service';
 import { SemanticRunWorkerService } from '../src/modules/workers/semantic-analysis/semantic-run-worker.service';
 import type { SemanticAnalysisProcessor } from '../src/modules/workers/semantic-analysis/core/application/semantic-analysis.processor';
 
@@ -75,6 +76,8 @@ describe('recuperación de ejecuciones con lease vencido', () => {
       new ConfigService({ BANK_STATEMENT_MAX_ATTEMPTS: 3 }),
       scheduler,
       trace,
+      // La recuperación de leases no toca el padrón; basta con que exista.
+      new InstitutionCatalogService(prisma),
     );
 
     await (worker as unknown as { recoverExpiredRuns: () => Promise<void> }).recoverExpiredRuns();
