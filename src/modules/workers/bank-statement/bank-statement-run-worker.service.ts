@@ -7,6 +7,7 @@ import { JobName } from '../../../common/jobs/job-names';
 import { JobSchedulerService } from '../../../common/jobs/job-scheduler.service';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { StatementProcessingError } from './core/domain/errors';
+import { InstitutionCatalogService } from './institutions/institution-catalog.service';
 import { createStatementEngine, type StatementEngine } from './core/statement-engine';
 import {
   outcomeForError,
@@ -51,14 +52,21 @@ export class BankStatementRunWorkerService implements OnModuleInit, OnModuleDest
    *
    * Perezoso porque construirlo arrastra `pdfjs-dist`: un proceso con el worker
    * apagado no debe pagar esa carga.
+   *
+   * Hay uno POR TENANT, y no es un detalle de implementación: el padrón de
+   * entidades es tenant-scoped, así que un motor compartido atribuiría los
+   * documentos de un cliente contra las entidades que administró otro. Son unos
+   * pocos objetos sin estado por tenant; el coste es despreciable al lado de esa
+   * confusión.
    */
-  private engine?: StatementEngine;
+  private readonly engines = new Map<string, StatementEngine>();
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly scheduler: JobSchedulerService,
     private readonly messagingTrace: MessagingTraceService,
+    private readonly institutions: InstitutionCatalogService,
   ) {
     this.minIdleIntervalMs = config.get<number>('BANK_STATEMENT_WORKER_POLL_MS') ?? 500;
     this.maxIdleIntervalMs = Math.max(
@@ -176,6 +184,7 @@ export class BankStatementRunWorkerService implements OnModuleInit, OnModuleDest
       const run = await this.prisma.bankStatementRun.findUnique({
         where: { id: runId },
         select: {
+          tenantId: true,
           fileBytes: true,
           fileName: true,
           attemptCount: true,
@@ -204,10 +213,13 @@ export class BankStatementRunWorkerService implements OnModuleInit, OnModuleDest
       // El `correlationId` viaja al motor para que sus trazas se puedan unir a
       // la petición que originó la conversión. El motor lo sanea antes de
       // registrarlo, porque su origen último es una cabecera HTTP.
-      const normalized = await this.engineInstance().normalize(Buffer.from(run.fileBytes), {
-        fileName: run.fileName,
-        correlationId: run.correlationId,
-      });
+      const normalized = await this.engineInstance(run.tenantId).normalize(
+        Buffer.from(run.fileBytes),
+        {
+          fileName: run.fileName,
+          correlationId: run.correlationId,
+        },
+      );
       await this.setProgress(runId, 80);
 
       const warnings = normalized.quality.warnings;
@@ -500,8 +512,11 @@ export class BankStatementRunWorkerService implements OnModuleInit, OnModuleDest
     });
   }
 
-  private engineInstance(): StatementEngine {
-    this.engine ??= createStatementEngine({
+  private engineInstance(tenantId: bigint): StatementEngine {
+    const key = tenantId.toString();
+    let engine = this.engines.get(key);
+    if (engine) return engine;
+    engine = createStatementEngine({
       limits: {
         maxFileSizeBytes: this.config.get<number>('BANK_STATEMENT_MAX_UPLOAD_BYTES') ?? 10_485_760,
         maxPageCount: 60,
@@ -513,8 +528,16 @@ export class BankStatementRunWorkerService implements OnModuleInit, OnModuleDest
         accept: this.config.get<number>('BANK_STATEMENT_DOCUMENT_ACCEPT_CONFIDENCE'),
         review: this.config.get<number>('BANK_STATEMENT_DOCUMENT_REVIEW_CONFIDENCE'),
       },
+      // El padrón administrable del tenant, resuelto en cada documento: revocar
+      // una licencia desde el portal no puede exigir reiniciar el worker.
+      institutions: this.institutions.registryFor(tenantId),
+      issuerGate: {
+        requireLicensedIssuer:
+          this.config.get<boolean>('BANK_STATEMENT_REQUIRE_LICENSED_ISSUER') ?? true,
+      },
     });
-    return this.engine;
+    this.engines.set(key, engine);
+    return engine;
   }
 
   private nextLease(): Date {

@@ -23,6 +23,7 @@ import type {
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
 import { validateStatementUpload } from './bank-statement/bank-statement-input';
 import { StatementProcessingError } from './bank-statement/core/domain/errors';
+import { InstitutionCatalogService } from './bank-statement/institutions/institution-catalog.service';
 import {
   createStatementEngine,
   type StatementEngine,
@@ -42,12 +43,13 @@ export class WorkerServiceInvokerService {
    * Perezoso y memorizado, igual que en el worker de fondo: construir el motor arrastra
    * `pdfjs-dist` y registra los siete analizadores, y eso no puede pagarse por decisión.
    */
-  private statementEngine?: StatementEngine;
+  private readonly statementEngines = new Map<string, StatementEngine>();
 
   constructor(
     private readonly config: ConfigService,
     private readonly semantic: SemanticAnalysisPipeline,
     private readonly audio: AudioTtsRuntimeFactory,
+    private readonly institutions: InstitutionCatalogService,
   ) {}
 
   /** Ata el invocador al tenant y al principal de UNA ejecución, para `engine.execute()`. */
@@ -64,7 +66,7 @@ export class WorkerServiceInvokerService {
     const key = `${request.service}.${request.operation}`;
     switch (key) {
       case 'bank-statement.normalize':
-        return this.normalizeStatement(request, started);
+        return this.normalizeStatement(tenantId, request, started);
       case 'semantic-analysis.classify':
         return this.classifyText(tenantId, principal, request, started);
       case 'audio-tts.speak':
@@ -89,6 +91,7 @@ export class WorkerServiceInvokerService {
    * documento que la petición trae, no el resultado de un trabajo que alguien encoló antes.
    */
   private async normalizeStatement(
+    tenantId: bigint,
     request: WorkerServiceRequest,
     started: number,
   ): Promise<WorkerServiceOutcome> {
@@ -111,7 +114,7 @@ export class WorkerServiceInvokerService {
 
     try {
       const normalized = await this.withTimeout(
-        this.statementEngineInstance().normalize(validated.bytes, {
+        this.statementEngineInstance(tenantId).normalize(validated.bytes, {
           fileName: validated.fileName,
         }),
         this.timeoutFor(request, this.config.get<number>('BANK_STATEMENT_TIMEOUT_MS') ?? 60_000),
@@ -357,15 +360,33 @@ export class WorkerServiceInvokerService {
     }
   }
 
-  private statementEngineInstance(): StatementEngine {
-    this.statementEngine ??= createStatementEngine({
+  /**
+   * Un motor por tenant, por lo mismo que en el worker asíncrono: el padrón de
+   * entidades es tenant-scoped, y uno compartido atribuiría los documentos de un
+   * cliente contra las entidades que administró otro.
+   */
+  private statementEngineInstance(tenantId: bigint): StatementEngine {
+    const key = tenantId.toString();
+    let engine = this.statementEngines.get(key);
+    if (engine) return engine;
+    engine = createStatementEngine({
       limits: {
         maxFileSizeBytes: this.config.get<number>('BANK_STATEMENT_MAX_UPLOAD_BYTES') ?? 10_485_760,
         maxPageCount: 60,
         processingTimeoutMs: this.config.get<number>('BANK_STATEMENT_TIMEOUT_MS') ?? 60_000,
       },
+      triage: {
+        accept: this.config.get<number>('BANK_STATEMENT_DOCUMENT_ACCEPT_CONFIDENCE'),
+        review: this.config.get<number>('BANK_STATEMENT_DOCUMENT_REVIEW_CONFIDENCE'),
+      },
+      institutions: this.institutions.registryFor(tenantId),
+      issuerGate: {
+        requireLicensedIssuer:
+          this.config.get<boolean>('BANK_STATEMENT_REQUIRE_LICENSED_ISSUER') ?? true,
+      },
     });
-    return this.statementEngine;
+    this.statementEngines.set(key, engine);
+    return engine;
   }
 }
 

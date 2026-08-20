@@ -7,6 +7,12 @@ export type StatementErrorCode =
   | 'NOT_A_FINANCIAL_STATEMENT'
   | 'DOUBTFUL_DOCUMENT'
   | 'EMPTY_DOCUMENT'
+  /** El documento lo emitió alguien que no es una entidad financiera boliviana. */
+  | 'NON_BANKING_ISSUER'
+  /** No se atribuye a nadie y no queda ninguna señal financiera en la carátula. */
+  | 'UNRECOGNIZED_ISSUER'
+  /** Se atribuye a una entidad del padrón cuya licencia de ASFI no está vigente. */
+  | 'UNLICENSED_INSTITUTION'
   | 'UNSUPPORTED_INSTITUTION'
   | 'UNSUPPORTED_STATEMENT_FORMAT'
   | 'NO_TRANSACTIONS'
@@ -52,6 +58,21 @@ const DEFAULT_DISPOSITION: Readonly<Record<StatementErrorCode, StatementDisposit
   // Fallos del CONTENIDO: es un PDF legítimo y no es un extracto.
   NOT_A_FINANCIAL_STATEMENT: 'INVALID',
   /*
+   * Los dos del EMISOR se rechazan, y es deliberado que no vayan a la cola.
+   *
+   * `NON_BANKING_ISSUER` se apoya en evidencia positiva: la carátula nombra a
+   * una telefónica, una aseguradora o un banco extranjero. Preguntarle eso a
+   * una persona sería pedirle que confirme lo que el documento dice de sí mismo.
+   *
+   * `UNRECOGNIZED_ISSUER` es el otro extremo: no hay atribución NI ninguna señal
+   * financiera —ni ASFI, ni dominio bancario, ni seguro de depósitos—. Mandarlo a
+   * revisión pondría delante de un analista un documento sobre el que no hay
+   * nada que decidir, y el trabajo que mueve el caso —conseguir el extracto de
+   * verdad— sólo puede hacerlo quien lo subió.
+   */
+  NON_BANKING_ISSUER: 'INVALID',
+  UNRECOGNIZED_ISSUER: 'INVALID',
+  /*
    * Un PDF que pdf.js no consigue abrir, o que pide contraseña, se RECHAZA y no
    * se encola. Es la corrección menos obvia de esta tabla y la que más cola
    * ahorra: mandarlo a revisión pone delante de una persona un archivo que
@@ -63,6 +84,13 @@ const DEFAULT_DISPOSITION: Readonly<Record<StatementErrorCode, StatementDisposit
   ENCRYPTED_PDF: 'INVALID',
   // Duda razonable: se parece a un extracto y no se pudo confirmar.
   DOUBTFUL_DOCUMENT: 'REVIEW',
+  /*
+   * Una entidad intervenida sí va a la cola, y es la diferencia con los dos de
+   * arriba: el documento es auténtico y sus movimientos son ciertos. Lo que hace
+   * falta es que alguien decida qué peso darle sabiendo que la entidad ya no
+   * opera, y eso no lo puede resolver quien subió el archivo.
+   */
+  UNLICENSED_INSTITUTION: 'REVIEW',
   UNSUPPORTED_INSTITUTION: 'REVIEW',
   UNSUPPORTED_STATEMENT_FORMAT: 'REVIEW',
   NO_TRANSACTIONS: 'REVIEW',

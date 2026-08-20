@@ -1,5 +1,10 @@
 import { createHash } from 'node:crypto';
 import type { ExtractedPdf, PageLine } from '../domain/models';
+import type {
+  InstitutionKind,
+  InstitutionLicenseStatus,
+} from '../institutions/bolivia-institutions';
+import type { NonBankingIssuerKind } from '../institutions/non-banking-issuers';
 import type { DocumentVerdict } from './document-triage';
 
 /**
@@ -49,6 +54,28 @@ export interface InstitutionDetection {
   readonly detected: boolean;
   readonly confidence: number;
   readonly signals: readonly string[];
+  readonly kind?: InstitutionKind;
+  /**
+   * Situación de la licencia de la entidad atribuida. Presente sólo cuando
+   * `detected`, y es lo que separa «el banco que emitió esto ya no existe» —un
+   * caso para una persona— de «este documento no es de un banco».
+   */
+  readonly licenseStatus?: InstitutionLicenseStatus;
+  /** Si la entidad capta depósitos del público. Ver `BoliviaInstitution`. */
+  readonly retailDeposits?: boolean;
+  /** Por qué la licencia no está vigente, cuando no lo está. */
+  readonly licenseNote?: string;
+  /**
+   * Quién emitió el documento, cuando NO es una entidad del padrón y sí se
+   * reconoce como otra cosa: una telefónica, una aseguradora, un banco
+   * extranjero. Es la evidencia que convierte «no lo pude atribuir» en «sé de
+   * quién es, y no es de una entidad financiera boliviana».
+   */
+  readonly nonBankingIssuer?: {
+    readonly code: string;
+    readonly name: string;
+    readonly kind: NonBankingIssuerKind;
+  };
 }
 
 /**

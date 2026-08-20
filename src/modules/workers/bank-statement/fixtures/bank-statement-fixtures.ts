@@ -158,13 +158,21 @@ export const BANK_STATEMENT_FIXTURES: readonly BankStatementFixture[] = [
     code: 'boundary-case',
     name: 'Caso límite',
     description:
-      'Institución que nadie configuró y un renglón que no se puede atribuir a ninguna columna. Se procesa igual, pero termina con advertencias y confianza menor: es el escenario que demuestra que «con advertencias» no es lo mismo que «bien».',
-    preview: 'Entidad no catalogada · 1 movimiento · 1 renglón ambiguo',
+      'Entidad del padrón sin analizador propio y un renglón que no se puede atribuir a ninguna columna. Se procesa igual, pero termina con advertencias y confianza menor: es el escenario que demuestra que «con advertencias» no es lo mismo que «bien».',
+    preview: 'Cooperativa sin analizador · 1 movimiento · 1 renglón ambiguo',
     expectsFailure: false,
     fileName: 'extracto-limite.pdf',
     build: () =>
       buildSyntheticPdf([
-        ...header('COOPERATIVA FINANCIERA SIN CATALOGAR LTDA.', '5555000111'),
+        /*
+         * Una cooperativa REAL del padrón de ASFI, y no un nombre inventado como
+         * antes. Desde que la compuerta de emisor exige atribución, «entidad que
+         * nadie catalogó» dejó de ser un caso límite y pasó a ser un caso de
+         * revisión humana —tiene su propio escenario—. Lo que este escenario
+         * demuestra sigue intacto y es lo que siempre demostró de verdad: el
+         * RENGLÓN que no encaja en ninguna columna.
+         */
+        ...header('COOPERATIVA DE AHORRO Y CREDITO ABIERTA QUILLACOLLO R.L.', '5555000111'),
         { text: 'SALDO INICIAL', x: 20, y: lineY(5) },
         { text: '1.000,00', x: 620, y: lineY(5) },
         ...columns(7),
@@ -179,6 +187,36 @@ export const BANK_STATEMENT_FIXTURES: readonly BankStatementFixture[] = [
         { text: 'OBSERVACION: SALDO SUJETO A CONFIRMACION 999,99', x: 120, y: lineY(9) },
         { text: 'SALDO FINAL', x: 20, y: lineY(11) },
         { text: '900,00', x: 620, y: lineY(11) },
+      ]),
+  },
+  {
+    code: 'foreign-issuer',
+    name: 'Estado de cuenta que no es de un banco',
+    description:
+      'Un documento con todas las señales de un estado de cuenta —título, número de cuenta, saldo y una tabla de consumos fechados— emitido por una telefónica. El clasificador por sí solo lo acepta: es la compuerta de emisor la que lo rechaza, y este escenario existe para que esa diferencia se vea.',
+    preview: 'Emisor no financiero · rechazo por compuerta de emisor',
+    expectsFailure: true,
+    fileName: 'estado-de-cuenta-telefonia.pdf',
+    build: () =>
+      buildSyntheticPdf([
+        { text: 'ENTEL S.A.', x: 20, y: lineY(0) },
+        { text: 'ESTADO DE CUENTA', x: 20, y: lineY(1) },
+        { text: 'CUENTA: 70011223', x: 20, y: lineY(2) },
+        { text: 'PERIODO: 01/03/2026 AL 31/03/2026', x: 20, y: lineY(3) },
+        { text: 'SALDO ANTERIOR: 120,00', x: 20, y: lineY(4) },
+        ...columns(6),
+        ...movement(7, {
+          date: '05/03/2026',
+          description: 'CONSUMO PLAN POSPAGO',
+          debit: '150,00',
+          balance: '270,00',
+        }),
+        ...movement(8, {
+          date: '20/03/2026',
+          description: 'PAGO RECIBIDO',
+          credit: '120,00',
+          balance: '150,00',
+        }),
       ]),
   },
   {

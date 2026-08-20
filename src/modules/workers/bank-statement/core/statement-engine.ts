@@ -8,6 +8,8 @@ import type { StatementOcrPort } from './engine/extraction/ocr-port';
 import { StatementExtractor } from './engine/extraction/statement-extractor';
 import { GenericStatementStrategy } from './engine/generic/generic-statement.strategy';
 import { InstitutionDetector } from './engine/institution-detector';
+import { DEFAULT_ISSUER_GATE_OPTIONS, type IssuerGateOptions } from './engine/issuer-gate';
+import { ASFI_SEED_REGISTRY, type InstitutionRegistry } from './institutions/institution-registry';
 import { toNormalizedStatement } from './engine/normalized/normalized-mapper';
 import type { NormalizedBankStatement } from './engine/normalized/normalized-model';
 import {
@@ -38,6 +40,13 @@ export interface StatementEngineOptions {
    * hacerlo no puede exigir recompilar el motor.
    */
   readonly triage?: Partial<TriageThresholds>;
+  /**
+   * De dónde sale el padrón de entidades. Por defecto, la nómina de ASFI
+   * compilada; el motor desplegado inyecta aquí la tabla administrable.
+   */
+  readonly institutions?: InstitutionRegistry;
+  /** Exigencia sobre el emisor del documento. Ver `engine/issuer-gate.ts`. */
+  readonly issuerGate?: Partial<IssuerGateOptions>;
   /** Reconocimiento óptico, si el anfitrión lo aporta. */
   readonly ocr?: StatementOcrPort;
   /** Perfiles de formato en JSON, validados al construir el motor. */
@@ -109,8 +118,9 @@ export function createStatementEngine(options: StatementEngineOptions = {}): Sta
     new StatementExtractor(new LayoutPdfReader(limits), options.ocr),
     registry,
     new DocumentClassifier(options.triage ?? {}),
-    new InstitutionDetector(),
+    new InstitutionDetector(options.institutions ?? ASFI_SEED_REGISTRY),
     metrics,
+    { ...DEFAULT_ISSUER_GATE_OPTIONS, ...options.issuerGate },
   );
 
   return {

@@ -402,6 +402,19 @@ export const envSchema = z
      */
     BANK_STATEMENT_REVIEW_EXTRACTION_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.5),
     /*
+     * La cuarta no es un umbral: es una EXIGENCIA sobre quién emitió el
+     * documento. Con `true`, un extracto que no se atribuye a ninguna entidad
+     * con licencia de ASFI no se procesa —se rechaza si además no queda ninguna
+     * señal financiera en la carátula, o se manda a una persona si queda alguna—.
+     *
+     * Existe el `false` porque encender una exigencia nueva sobre un motor en
+     * marcha rechaza documentos que ayer pasaban, y esa decisión es de quien
+     * opera el sistema. En modo de medición la compuerta sigue evaluando y
+     * dejando constancia del veredicto real: se puede ver cuánto rechazaría
+     * antes de dejar que rechace.
+     */
+    BANK_STATEMENT_REQUIRE_LICENSED_ISSUER: booleanFromString.default(true),
+    /*
      * Cuánto puede esperar un documento en la cola antes de derivarse solo.
      * Cubre el caso que el presupuesto de procesamiento no ve: el worker apagado
      * o saturado, donde nadie llega a empezar el trabajo y por tanto ningún reloj
