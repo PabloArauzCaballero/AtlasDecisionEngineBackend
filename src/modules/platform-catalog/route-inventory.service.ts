@@ -18,6 +18,12 @@ import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { DiscoveryService, MetadataScanner } from '@nestjs/core';
 import { PUBLIC_ROUTE, REQUIRED_ROLES, REQUIRED_AUDIENCE } from '../../common/security/security.decorators';
 import { CatalogManifestEndpointDto } from './platform-catalog.dto';
+import { OpenApiDocumentRegistry } from './openapi-document.registry';
+import {
+  contractFromRequestBody,
+  contractsFromParameters,
+  successStatusCodes,
+} from './openapi-contract.util';
 
 /** Verbos que sólo leen. Cualquier otro muta algo y el catálogo debe decirlo. */
 const READONLY_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -27,10 +33,15 @@ export class RouteInventoryService {
   constructor(
     private readonly discovery: DiscoveryService,
     private readonly scanner: MetadataScanner,
+    private readonly openApi: OpenApiDocumentRegistry,
   ) {}
 
   collect(routePrefix: string, blockPrefix: string): CatalogManifestEndpointDto[] {
     const endpoints: CatalogManifestEndpointDto[] = [];
+    // El contrato de cada ruta, indexado por `MÉTODO ruta`. Se calcula una vez para todo el
+    // recorrido: resolver `$ref` por endpoint sobre un documento de cientos de operaciones sería
+    // repetir el mismo trabajo doscientas veces.
+    const contracts = this.contractIndex();
     for (const wrapper of this.discovery.getControllers()) {
       const controller = wrapper.metatype as (new (...args: never[]) => object) | undefined;
       if (!controller?.prototype) continue;
@@ -68,10 +79,55 @@ export class RouteInventoryService {
           isReadonly: READONLY_METHODS.has(method),
           isDestructive: method === 'DELETE',
           riskLevel: this.riskLevelOf(method, isPublic),
+          ...(contracts.get(`${method} ${fullPath}`) ?? {}),
         });
       }
     }
     return endpoints.sort((left, right) => left.code.localeCompare(right.code));
+  }
+
+  /**
+   * El contrato de entrada de cada ruta, leído del documento OpenAPI de este mismo proceso.
+   *
+   * El router vivo sabe el verbo, la ruta y los roles; los CAMPOS viven en los esquemas de
+   * validación, y el documento OpenAPI es donde ya están traducidos. Sin esto, ATLAS cataloga los
+   * endpoints de este bloque sin un solo campo y su laboratorio de QA no puede generar un payload
+   * de prueba: hay que escribirlo a mano, que es lo que hace que nadie pruebe el caso inválido.
+   *
+   * Si el documento no se generó (`SWAGGER_ENABLED=false`) el índice queda vacío y el manifiesto
+   * sale sin contratos, exactamente como antes. Es una mejora que se degrada, no una dependencia.
+   */
+  private contractIndex(): Map<string, Partial<CatalogManifestEndpointDto>> {
+    const index = new Map<string, Partial<CatalogManifestEndpointDto>>();
+    const document = this.openApi.get();
+    if (!document) return index;
+
+    for (const [path, item] of Object.entries(document.paths ?? {})) {
+      if (!item || typeof item !== 'object') continue;
+      const pathItem = item as Record<string, unknown>;
+      for (const verb of ['get', 'post', 'put', 'patch', 'delete']) {
+        const operation = pathItem[verb];
+        if (!operation || typeof operation !== 'object') continue;
+        const record = operation as Record<string, unknown>;
+        const params = contractsFromParameters(document, record.parameters, pathItem.parameters);
+        const body = contractFromRequestBody(document, record.requestBody);
+        const codes = successStatusCodes(record.responses);
+        // El documento escribe `{id}` y el router `:id`: sin normalizar, ninguna ruta con parámetro
+        // casaría y justo las que reciben datos se quedarían sin contrato.
+        index.set(`${verb.toUpperCase()} ${this.routerPath(path)}`, {
+          ...(Object.keys(body).length ? { minPayloadSchema: body } : {}),
+          ...(Object.keys(params.query).length ? { queryParamsSchema: params.query } : {}),
+          ...(Object.keys(params.path).length ? { pathParamsSchema: params.path } : {}),
+          ...(codes.length ? { expectedStatusCodes: codes } : {}),
+        });
+      }
+    }
+    return index;
+  }
+
+  /** `/v1/artifacts/{code}` → `/v1/artifacts/:code`, que es como lo escribe el router de Nest. */
+  private routerPath(openApiPath: string): string {
+    return openApiPath.replace(/\{([^}]+)\}/g, ':$1');
   }
 
   /** Metadato del handler con respaldo en la clase: el mismo orden que aplica el guard. */

@@ -23,7 +23,7 @@
  * comparable: «PII» significaría una cosa aquí y otra allá. Un contrato común obliga a que la
  * clasificación sea la misma pregunta en todos.
  */
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CatalogManifestBlockDto {
   @ApiProperty({ example: 'DECISION_ENGINE', description: 'Código estable del bloque dentro del ecosistema ATLAS.' })
@@ -81,6 +81,31 @@ export class CatalogManifestEndpointDto {
 
   @ApiProperty({ example: 'management', nullable: true, description: 'Plano de la API al que pertenece la ruta.' })
   audience!: string | null;
+
+  /**
+   * El CONTRATO de entrada, en el formato abreviado que ATLAS ingiere: `{ campo: 'tipo|required' }`.
+   *
+   * Opcional porque sale del documento OpenAPI y éste puede no haberse generado. Sin él, ATLAS
+   * cataloga el endpoint sin un solo campo y su laboratorio de QA no puede derivar un payload de
+   * prueba — hay que escribirlo a mano, que es lo que hace que nadie pruebe el caso inválido.
+   */
+  @ApiPropertyOptional({
+    type: 'object',
+    additionalProperties: { type: 'string' },
+    example: { artifactCode: 'string|required', environmentCode: 'string|required' },
+    description: 'Campos del cuerpo con su tipo y obligatoriedad.',
+  })
+  minPayloadSchema?: Record<string, string>;
+
+  @ApiPropertyOptional({ type: 'object', additionalProperties: { type: 'string' }, description: 'Parámetros de query.' })
+  queryParamsSchema?: Record<string, string>;
+
+  @ApiPropertyOptional({ type: 'object', additionalProperties: { type: 'string' }, description: 'Parámetros de ruta.' })
+  pathParamsSchema?: Record<string, string>;
+
+  /** Códigos de éxito DECLARADOS. Ausente significa «no se declara», no «devuelve 200». */
+  @ApiPropertyOptional({ type: [Number], example: [200, 201] })
+  expectedStatusCodes?: number[];
 
   @ApiProperty({ example: true, description: 'Verdadero para GET y HEAD: no muta estado.' })
   isReadonly!: boolean;
