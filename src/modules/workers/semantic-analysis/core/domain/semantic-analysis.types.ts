@@ -63,10 +63,38 @@ export interface CategoryAssessment {
   readonly rationale: string;
 }
 
+/**
+ * Lo que costó la llamada, tal como lo declaró quien la atendió.
+ *
+ * Es OPCIONAL en todos sus campos y en el conjunto: un adaptador local no
+ * consume tokens y un gateway puede no publicar el coste. Rellenar ceros para
+ * que el tipo cuadre haría indistinguible «no gastó» de «no lo dijo», y es la
+ * segunda la que hay que investigar cuando el panel de coste se queda plano.
+ */
+export interface ProviderUsage {
+  readonly inputTokens?: number;
+  readonly outputTokens?: number;
+  readonly totalTokens?: number;
+  /** Coste estimado por el gateway, en su moneda de facturación (USD en LiteLLM). */
+  readonly estimatedCost?: number;
+}
+
 export interface ModelClassification {
   readonly assessments: readonly CategoryAssessment[];
+  /**
+   * El modelo que se PIDIÓ. Con un gateway por delante es el alias lógico
+   * (`semantic-classifier-fast`), no el proveedor físico: es lo que mantiene
+   * acotada la etiqueta de las métricas y lo que sigue siendo cierto cuando el
+   * gateway cambia de proveedor por debajo.
+   */
   readonly model: string;
+  /**
+   * El modelo que RESPONDIÓ. Con un gateway es el despliegue físico que atendió
+   * la llamada, que es justo lo que hace falta para saber si contestó el modelo
+   * primario o su suplente.
+   */
   readonly modelVersion: string;
+  readonly usage?: ProviderUsage;
 }
 
 export interface SemanticAnalysisRequest {

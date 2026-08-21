@@ -143,6 +143,7 @@ nav:
       - Padrón de entidades y compuerta de emisor: workers/bank-statement-institutions.md
       - Catálogo de categorías del worker semántico: workers/semantic-category-catalog.md
       - Ninguna glosa sin categoría: workers/semantic-sin-desconocido.md
+      - Gateway LiteLLM del worker semántico: workers/semantic-litellm-gateway.md
       - Monitoreo continuo del modelo: model-monitoring.md
       - Mapa de integraciones: architecture/integration-map.md
   - Módulos:

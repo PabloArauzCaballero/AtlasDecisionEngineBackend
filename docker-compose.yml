@@ -245,6 +245,59 @@ services:
     cpus: ${TRANSFORMER_CPUS:-2}
     restart: unless-stopped
 
+  # Pasarela de modelos: UNA interfaz compatible con OpenAI por delante de todos
+  # los proveedores. Su razón de ser no es ahorrar código —el adaptador de OpenAI
+  # ya existía— sino sacar del motor dos cosas que no le corresponden: qué modelo
+  # atiende cada alias y las credenciales de quien lo sirve.
+  #
+  # Bajo perfil, como `transformer`: sólo se levanta con
+  # `docker compose --profile litellm up -d litellm`. Un despliegue que no lo use
+  # no arranca un contenedor más ni pide una clave que no tiene.
+  litellm:
+    profiles: ["litellm"]
+    image: ghcr.io/berriai/litellm:main-stable
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    volumes:
+      - ./infra/litellm/config.yaml:/app/config.yaml:ro
+    environment:
+      # La credencial que el motor presenta. Es la ÚNICA compartida entre los dos.
+      #
+      # Se pasa en forma DESNUDA y no como `${...:?...}` a propósito: un `:?` se
+      # evalúa al interpolar el fichero entero, así que un despliegue que ni
+      # siquiera use este perfil vería fallar cualquier `docker compose` por una
+      # variable de un servicio que no arranca. En forma desnuda la clave llega
+      # del entorno o no llega, y si no llega es LiteLLM quien se niega a
+      # levantar —`os.environ/LITELLM_MASTER_KEY` sin valor es un error suyo de
+      # arranque—, que es donde el fallo importa y a quien le importa.
+      LITELLM_MASTER_KEY:
+      # Alias lógico → despliegue físico. Los nombres de modelo van aquí, nunca en
+      # el entorno del motor: es lo que permite cambiar de proveedor sin desplegarlo.
+      SEMANTIC_FAST_DEPLOYMENT: ${SEMANTIC_FAST_DEPLOYMENT:-gpt-4.1-mini}
+      SEMANTIC_FAST_API_KEY: ${SEMANTIC_FAST_API_KEY:-}
+      SEMANTIC_FAST_FALLBACK_DEPLOYMENT: ${SEMANTIC_FAST_FALLBACK_DEPLOYMENT:-gpt-4.1-mini}
+      SEMANTIC_FAST_FALLBACK_API_KEY: ${SEMANTIC_FAST_FALLBACK_API_KEY:-}
+      SEMANTIC_DEEP_DEPLOYMENT: ${SEMANTIC_DEEP_DEPLOYMENT:-gpt-4.1}
+      SEMANTIC_DEEP_API_KEY: ${SEMANTIC_DEEP_API_KEY:-}
+      SEMANTIC_EMBEDDING_DEPLOYMENT: ${SEMANTIC_EMBEDDING_DEPLOYMENT:-text-embedding-3-small}
+      SEMANTIC_EMBEDDING_API_KEY: ${SEMANTIC_EMBEDDING_API_KEY:-}
+    # `expose`, NUNCA `ports`: quien tiene la master key puede gastar contra todos
+    # los proveedores configurados. Se alcanza sólo desde esta red; para depurar,
+    # `docker compose exec litellm curl localhost:4000/health/liveliness`.
+    expose:
+      - "4000"
+    networks: [atlas_data]
+    healthcheck:
+      # `/health/liveliness` no consulta a los proveedores: responde si el proxy
+      # está en pie. `/health` sí los llama, y usarlo aquí gastaría una petición
+      # de pago cada pocos segundos.
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:4000/health/liveliness', timeout=3).status==200 else 1)\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    mem_limit: ${LITELLM_MEMORY:-1g}
+    restart: unless-stopped
+
   # Trabajos de fondo en su propio proceso: relay del outbox, worker de corridas de prueba
   # y purga de idempotencia, todos bajo el orquestador central (src/common/jobs). Se escala
   # con `--scale worker=N` sin tocar la API — los tres reclaman su trabajo con
@@ -373,6 +426,11 @@ services:
       AUDIO_TTS_MONTHLY_BUDGET_UNITS: ${AUDIO_TTS_MONTHLY_BUDGET_UNITS:-10000}
       SEMANTIC_ANALYSIS_WORKER_ENABLED: ${SEMANTIC_ANALYSIS_WORKER_ENABLED:-false}
       SEMANTIC_ANALYSIS_PROVIDER: ${SEMANTIC_ANALYSIS_PROVIDER:-}
+      # Reconocimiento de que el texto analizado SALE del perímetro. Su guarda en
+      # `env.schema.ts` no distingue entorno —a propósito: la transferencia ocurre
+      # igual en desarrollo—, así que sin este paso el worker con `openai` o
+      # `litellm` no arranca dentro de compose y el fallo no menciona a Docker.
+      SEMANTIC_ALLOW_INTERNATIONAL_TRANSFER: ${SEMANTIC_ALLOW_INTERNATIONAL_TRANSFER:-false}
       # Configuración del proveedor elegido. Sin estas variables, declarar
       # `SEMANTIC_ANALYSIS_PROVIDER=transformer` no basta: el adaptador cae en su
       # valor por omisión y busca el servidor en `127.0.0.1:8080`, que dentro del
@@ -428,6 +486,23 @@ services:
       SEMANTIC_PROVIDER_MAX_OUTPUT_TOKENS:
       OPENAI_BASE_URL:
       OPENAI_API_KEY:
+      #
+      # Gateway LiteLLM (SEMANTIC_ANALYSIS_PROVIDER=litellm). El motor pide ALIAS
+      # LÓGICOS y sólo conoce la credencial del gateway; qué modelo físico los
+      # atiende vive en `infra/litellm/config.yaml`, junto con las claves de los
+      # proveedores. `litellm:4000` es el nombre de servicio de esta red: con
+      # `localhost` el contenedor se buscaría a sí mismo.
+      LITELLM_BASE_URL: ${LITELLM_BASE_URL:-http://litellm:4000/v1}
+      LITELLM_API_KEY: ${LITELLM_MASTER_KEY:-}
+      LITELLM_FAST_MODEL:
+      LITELLM_DEEP_MODEL:
+      LITELLM_EMBEDDING_MODEL:
+      LITELLM_TIMEOUT_MS:
+      LITELLM_MAX_ATTEMPTS:
+      LITELLM_MAX_OUTPUT_TOKENS:
+      # Cuánto se le espera al codificador local antes de escalar al LLM
+      # (SEMANTIC_ANALYSIS_PROVIDER=cascade).
+      SEMANTIC_CASCADE_LOCAL_TIMEOUT_MS:
       WORKERS_FIXTURES_ENABLED: ${WORKERS_FIXTURES_ENABLED:-true}
       # Orquestación de trabajos. El despertar por LISTEN/NOTIFY llega directo a Postgres
       # (sin pgbouncer de por medio en esta topología), así que el techo de sondeo puede ser
@@ -589,6 +664,11 @@ services:
       AUDIO_TTS_MONTHLY_BUDGET_UNITS: ${AUDIO_TTS_MONTHLY_BUDGET_UNITS:-10000}
       SEMANTIC_ANALYSIS_WORKER_ENABLED: ${SEMANTIC_ANALYSIS_WORKER_ENABLED:-false}
       SEMANTIC_ANALYSIS_PROVIDER: ${SEMANTIC_ANALYSIS_PROVIDER:-}
+      # Reconocimiento de que el texto analizado SALE del perímetro. Su guarda en
+      # `env.schema.ts` no distingue entorno —a propósito: la transferencia ocurre
+      # igual en desarrollo—, así que sin este paso el worker con `openai` o
+      # `litellm` no arranca dentro de compose y el fallo no menciona a Docker.
+      SEMANTIC_ALLOW_INTERNATIONAL_TRANSFER: ${SEMANTIC_ALLOW_INTERNATIONAL_TRANSFER:-false}
       # Configuración del proveedor elegido. Sin estas variables, declarar
       # `SEMANTIC_ANALYSIS_PROVIDER=transformer` no basta: el adaptador cae en su
       # valor por omisión y busca el servidor en `127.0.0.1:8080`, que dentro del
@@ -644,6 +724,23 @@ services:
       SEMANTIC_PROVIDER_MAX_OUTPUT_TOKENS:
       OPENAI_BASE_URL:
       OPENAI_API_KEY:
+      #
+      # Gateway LiteLLM (SEMANTIC_ANALYSIS_PROVIDER=litellm). El motor pide ALIAS
+      # LÓGICOS y sólo conoce la credencial del gateway; qué modelo físico los
+      # atiende vive en `infra/litellm/config.yaml`, junto con las claves de los
+      # proveedores. `litellm:4000` es el nombre de servicio de esta red: con
+      # `localhost` el contenedor se buscaría a sí mismo.
+      LITELLM_BASE_URL: ${LITELLM_BASE_URL:-http://litellm:4000/v1}
+      LITELLM_API_KEY: ${LITELLM_MASTER_KEY:-}
+      LITELLM_FAST_MODEL:
+      LITELLM_DEEP_MODEL:
+      LITELLM_EMBEDDING_MODEL:
+      LITELLM_TIMEOUT_MS:
+      LITELLM_MAX_ATTEMPTS:
+      LITELLM_MAX_OUTPUT_TOKENS:
+      # Cuánto se le espera al codificador local antes de escalar al LLM
+      # (SEMANTIC_ANALYSIS_PROVIDER=cascade).
+      SEMANTIC_CASCADE_LOCAL_TIMEOUT_MS:
       WORKERS_FIXTURES_ENABLED: ${WORKERS_FIXTURES_ENABLED:-true}
       DATABASE_POOL_MAX: ${API_DATABASE_POOL_MAX:-15}
       # Connects as atlas_app (non-superuser), NOT the atlas/POSTGRES_USER role migrate and

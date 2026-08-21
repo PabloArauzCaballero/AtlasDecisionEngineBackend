@@ -71,6 +71,27 @@ describe('puente de configuración del worker semántico', () => {
     }
   });
 
+  it('con el gateway, el peor caso sale de las variables DEL GATEWAY', () => {
+    // Leer siempre `SEMANTIC_PROVIDER_*` derivaba el presupuesto de variables que
+    // un despliegue con LiteLLM no usa: subir el plazo del gateway volvía a
+    // romper la primera clasificación, que es justo lo que este cálculo impide.
+    const config = bridgeWith({
+      SEMANTIC_ANALYSIS_PROVIDER: 'litellm',
+      LITELLM_TIMEOUT_MS: 60_000,
+      LITELLM_MAX_ATTEMPTS: 4,
+    });
+    expect(() =>
+      assertProviderTimeoutFitsAnalysis(60_000, 4, config.analysisTimeoutSeconds),
+    ).not.toThrow();
+  });
+
+  it('sin gateway, las variables del gateway no alteran el presupuesto', () => {
+    // La simétrica: un `LITELLM_TIMEOUT_MS` olvidado en el entorno no debe
+    // inflar el lease de un despliegue que clasifica con OpenAI.
+    const conGateway = bridgeWith({ LITELLM_TIMEOUT_MS: 600_000, LITELLM_MAX_ATTEMPTS: 10 });
+    expect(conGateway.analysisTimeoutSeconds).toBe(bridgeWith().analysisTimeoutSeconds);
+  });
+
   it('no enciende el modo híbrido por defecto', () => {
     // El híbrido exige un vector por categoría calculado de antemano. Sin ese
     // paso devuelve peores candidatos que el léxico y gastando cuota.

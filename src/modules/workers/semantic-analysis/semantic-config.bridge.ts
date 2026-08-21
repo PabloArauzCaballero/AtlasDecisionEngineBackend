@@ -44,11 +44,43 @@ import { booleanoDeConfig } from '../../../common/config/config-coercion.util';
  * antes—, mientras que ampliar el presupuesto sólo alarga el techo del peor
  * caso. El lease se eleva en consecuencia, porque un lease más corto que el
  * trabajo que ampara haría que otra réplica reclamara un job todavía vivo.
+ *
+ * **Se mira el peor caso DEL PROVEEDOR ELEGIDO, no siempre el de OpenAI.** Cada
+ * adaptador generativo declara su plazo y sus intentos en variables propias, y
+ * `assertProviderTimeoutFitsAnalysis` comprueba la desigualdad con las suyas. Si
+ * aquí se leyeran siempre las de OpenAI, un despliegue con el gateway y
+ * `LITELLM_TIMEOUT_MS` por encima del valor por defecto derivaría un presupuesto
+ * calculado sobre variables que ese despliegue no usa, y volvería a fallar en la
+ * primera clasificación —justo el defecto que este cálculo existe para impedir,
+ * reaparecido por la puerta de al lado—.
  */
 function providerWorstCaseSeconds(config: ConfigService): number {
-  const timeoutMs = config.get<number>('SEMANTIC_PROVIDER_TIMEOUT_MS') ?? 30_000;
-  const attempts = config.get<number>('SEMANTIC_PROVIDER_MAX_ATTEMPTS') ?? 3;
   const TIERS = 2;
+  const selected = config.get<string>('SEMANTIC_ANALYSIS_PROVIDER') ?? '';
+  const usaGateway = selected === 'litellm' || selected === 'cascade';
+
+  const timeoutMs = usaGateway
+    ? (config.get<number>('LITELLM_TIMEOUT_MS') ?? 30_000)
+    : (config.get<number>('SEMANTIC_PROVIDER_TIMEOUT_MS') ?? 30_000);
+  const attempts = usaGateway
+    ? (config.get<number>('LITELLM_MAX_ATTEMPTS') ?? 3)
+    : (config.get<number>('SEMANTIC_PROVIDER_MAX_ATTEMPTS') ?? 3);
+
+  /*
+   * En cascada los dos niveles NO los atiende el mismo adaptador: el rápido es el
+   * codificador local —acotado por su propio plazo— y sólo el profundo llega al
+   * gateway. El peor caso es por tanto «lo que se le espera al local» más UNA pasada
+   * del remoto, no dos.
+   *
+   * Se calcula así y no con la fórmula de dos niveles del gateway porque sobrestimar
+   * tampoco es gratis: infla el lease, y un lease largo retrasa la recuperación de
+   * los trabajos que mueren de verdad.
+   */
+  if (selected === 'cascade') {
+    const localMs = config.get<number>('SEMANTIC_CASCADE_LOCAL_TIMEOUT_MS') ?? 2_000;
+    return Math.ceil((localMs + timeoutMs * attempts) / 1_000);
+  }
+
   return Math.ceil((timeoutMs * attempts * TIERS) / 1_000);
 }
 
@@ -105,7 +137,11 @@ export function buildSemanticWorkerConfig(config: ConfigService): SemanticWorker
     // una glosa NUNCA se quede sin categoría: uno resuelve antes de preguntar,
     // el otro resuelve cuando preguntar tardó demasiado.
     ruleFastPathEnabled: booleanoDeConfig(config, 'SEMANTIC_ANALYSIS_RULE_FAST_PATH_ENABLED', true),
-    timeoutRescueEnabled: booleanoDeConfig(config, 'SEMANTIC_ANALYSIS_TIMEOUT_RESCUE_ENABLED', true),
+    timeoutRescueEnabled: booleanoDeConfig(
+      config,
+      'SEMANTIC_ANALYSIS_TIMEOUT_RESCUE_ENABLED',
+      true,
+    ),
     catalogCacheTtlSeconds: config.get<number>('SEMANTIC_ANALYSIS_CATALOG_TTL_SECONDS') ?? 300,
     // Una hora y cinco mil glosas: un extracto largo trae unas ciento veinte
     // distintas, así que caben decenas de tandas seguidas sin desalojar nada. La

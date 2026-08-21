@@ -314,7 +314,34 @@ export const envSchema = z
     SEMANTIC_ANALYSIS_TIMEOUT_RESCUE_ENABLED: booleanFromString.default(true),
     // Vacío ⇒ el worker NO se registra, y lo dice en el log. Es preferible a
     // arrancar y fallar en cada job por falta de credenciales.
-    SEMANTIC_ANALYSIS_PROVIDER: z.enum(['', 'openai', 'transformer']).default(''),
+    /*
+     * `cascade` es el modo recomendado con IA: el codificador LOCAL clasifica
+     * primero y el LLM sólo entra cuando aquél no resuelve o tarda demasiado.
+     * `litellm` a secas manda TODAS las glosas al gateway, que cuesta más y saca
+     * más texto del perímetro; se conserva para medir al modelo por su cuenta.
+     */
+    SEMANTIC_ANALYSIS_PROVIDER: z
+      .enum(['', 'openai', 'transformer', 'litellm', 'cascade'])
+      .default(''),
+    /** Cuánto se espera al clasificador local antes de escalar al LLM. */
+    SEMANTIC_CASCADE_LOCAL_TIMEOUT_MS: z.coerce.number().int().min(200).max(60_000).optional(),
+    /*
+     * --- Gateway LiteLLM (SEMANTIC_ANALYSIS_PROVIDER=litellm) --------------
+     *
+     * El motor habla con UN endpoint compatible con OpenAI y pide ALIAS LÓGICOS;
+     * qué modelo físico los atiende lo decide `infra/litellm/config.yaml`, que es
+     * lo que permite cambiar de proveedor —o añadirle un suplente— sin desplegar
+     * el motor. La única credencial que entra en este proceso es la del gateway:
+     * las de OpenAI, Anthropic o Vertex viven en el contenedor de LiteLLM.
+     */
+    LITELLM_BASE_URL: z.url().optional(),
+    LITELLM_API_KEY: z.string().trim().min(1).optional(),
+    LITELLM_FAST_MODEL: z.string().trim().min(1).optional(),
+    LITELLM_DEEP_MODEL: z.string().trim().min(1).optional(),
+    LITELLM_EMBEDDING_MODEL: z.string().trim().min(1).optional(),
+    LITELLM_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(600_000).optional(),
+    LITELLM_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).optional(),
+    LITELLM_MAX_OUTPUT_TOKENS: z.coerce.number().int().min(256).max(32_000).optional(),
     /**
      * Reconocimiento explícito de que el texto analizado SALE del país.
      *
@@ -727,7 +754,13 @@ export const envSchema = z
     // Interpreter used by the in-process runner and the Code->Flow Python syntax checker.
     // The SIDECAR image ships only `python3`, so that container sets this explicitly; the
     // default matches the usual development install where the launcher is named `python`.
-    PYTHON_EXECUTABLE: z.string().min(1).default('python'),
+    /*
+     * `python3` y no `python`: desde el fin de vida de Python 2 el nombre corto dejó de existir en
+     * macOS y en la mayoría de distribuciones, y PEP 394 sólo garantiza `python3`. El defecto
+     * anterior funcionaba en la máquina de quien lo escribió y fallaba en las demás con un
+     * `SCRIPT_EXECUTION_FAILED` que hablaba del script, no del intérprete ausente.
+     */
+    PYTHON_EXECUTABLE: z.string().min(1).default('python3'),
     SCRIPT_RUNNER_SOCKET_PATH: z.string().min(1).default('/var/run/atlas-runner/runner.sock'),
     SCRIPT_NODE_TIMEOUT_MS: z.coerce.number().int().min(10).max(5_000).default(250),
     SCRIPT_NODE_MAX_SOURCE_BYTES: z.coerce.number().int().min(1).max(65_536).default(16_384),
@@ -1176,6 +1209,30 @@ export const envSchema = z
             'país. Declara SEMANTIC_ALLOW_INTERNATIONAL_TRANSFER=true una vez cubiertas las ' +
             'obligaciones de transferencia internacional, o usa SEMANTIC_ANALYSIS_PROVIDER=' +
             'transformer, que se ejecuta dentro del perímetro.',
+        });
+      }
+      /*
+       * El gateway sin credencial arranca y falla en CADA job.
+       *
+       * La fábrica del núcleo la exige, pero se construye PEREZOSAMENTE (ver
+       * `semantic-model-provider.bridge.ts`), así que sin esta guarda el proceso
+       * levanta sano, acepta trabajo y lo convierte en pendientes de revisión uno
+       * a uno. Es el modo de fallo más caro de los tres: no cae, no clasifica y
+       * la bandeja crece sin que nada apunte a la configuración.
+       */
+      if (
+        value.SEMANTIC_ANALYSIS_WORKER_ENABLED &&
+        (value.SEMANTIC_ANALYSIS_PROVIDER === 'litellm' ||
+          value.SEMANTIC_ANALYSIS_PROVIDER === 'cascade') &&
+        (value.LITELLM_API_KEY ?? '') === ''
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['LITELLM_API_KEY'],
+          message:
+            'SEMANTIC_ANALYSIS_PROVIDER=litellm necesita la credencial del gateway. Define ' +
+            'LITELLM_API_KEY (la master key o una virtual key del proxy); las claves de los ' +
+            'proveedores físicos no van aquí, sino en el contenedor de LiteLLM.',
         });
       }
       /*

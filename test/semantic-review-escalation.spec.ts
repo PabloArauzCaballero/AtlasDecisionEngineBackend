@@ -176,6 +176,23 @@ describe('una glosa que tarda demasiado va a REVISIÓN, no a fallida', () => {
     expect(contextoEscrito(bandeja)).toMatchObject({ reason: 'PROCESSING_ERROR' });
   });
 
+  it('un incumplimiento PERMANENTE del proveedor también escala', async () => {
+    // Categoría alucinada, JSON truncado, esquema incumplido: no se reintentan
+    // —repetirlos da lo mismo— pero la glosa se lee perfectamente y alguien la
+    // clasifica en dos segundos. Tratarlos como una credencial ausente los
+    // sacaba del circuito y el movimiento desaparecía del informe.
+    const { procesador, bandeja } = montar(
+      jest
+        .fn()
+        .mockRejectedValue(
+          new SemanticProviderError('El proveedor devolvió una categoría no candidata.', false),
+        ),
+    );
+    await expect(procesador.execute(PETICION)).rejects.toThrow();
+
+    expect(contextoEscrito(bandeja)).toMatchObject({ reason: 'PROCESSING_ERROR' });
+  });
+
   it('un error de CONFIGURACIÓN no ensucia la bandeja', async () => {
     // Nadie arregla una credencial ausente desde una pantalla de clasificación.
     // Escalarlo llenaría la cola de trabajo con avisos que sus destinatarios no
