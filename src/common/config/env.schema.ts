@@ -10,6 +10,21 @@ const booleanFromString = z.preprocess((value) => {
   return value;
 }, z.boolean());
 
+/**
+ * Una variable PRESENTE pero vacía es una variable ausente.
+ *
+ * Es lo que produce `${VAR:-}` en Docker Compose, que es como se pasa una credencial opcional:
+ * cuando no está configurada, el contenedor no recibe «nada», recibe la cadena vacía. Y `''` no es
+ * `undefined`, así que un `.optional()` no la salva y el `min(1)` de al lado tumba el arranque —
+ * de un proceso que ni siquiera usa esa función—. Verificado en caliente: la API entró en bucle de
+ * reinicio en cuanto compose empezó a pasar `LITELLM_API_KEY` vacía a los despliegues sin gateway.
+ */
+const emptyAsUndefined = <T extends z.ZodTypeAny>(schema: T) =>
+  z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    schema,
+  );
+
 const optionalUrl = z.string().url().optional().or(z.literal(''));
 const optionalSecret = z.string().min(24).optional().or(z.literal(''));
 
@@ -324,7 +339,9 @@ export const envSchema = z
       .enum(['', 'openai', 'transformer', 'litellm', 'cascade'])
       .default(''),
     /** Cuánto se espera al clasificador local antes de escalar al LLM. */
-    SEMANTIC_CASCADE_LOCAL_TIMEOUT_MS: z.coerce.number().int().min(200).max(60_000).optional(),
+    SEMANTIC_CASCADE_LOCAL_TIMEOUT_MS: emptyAsUndefined(
+      z.coerce.number().int().min(200).max(60_000).optional(),
+    ),
     /*
      * --- Gateway LiteLLM (SEMANTIC_ANALYSIS_PROVIDER=litellm) --------------
      *
@@ -334,14 +351,18 @@ export const envSchema = z
      * el motor. La única credencial que entra en este proceso es la del gateway:
      * las de OpenAI, Anthropic o Vertex viven en el contenedor de LiteLLM.
      */
-    LITELLM_BASE_URL: z.url().optional(),
-    LITELLM_API_KEY: z.string().trim().min(1).optional(),
-    LITELLM_FAST_MODEL: z.string().trim().min(1).optional(),
-    LITELLM_DEEP_MODEL: z.string().trim().min(1).optional(),
-    LITELLM_EMBEDDING_MODEL: z.string().trim().min(1).optional(),
-    LITELLM_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(600_000).optional(),
-    LITELLM_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).optional(),
-    LITELLM_MAX_OUTPUT_TOKENS: z.coerce.number().int().min(256).max(32_000).optional(),
+    LITELLM_BASE_URL: emptyAsUndefined(z.url().optional()),
+    LITELLM_API_KEY: emptyAsUndefined(z.string().trim().min(1).optional()),
+    LITELLM_FAST_MODEL: emptyAsUndefined(z.string().trim().min(1).optional()),
+    LITELLM_DEEP_MODEL: emptyAsUndefined(z.string().trim().min(1).optional()),
+    LITELLM_EMBEDDING_MODEL: emptyAsUndefined(z.string().trim().min(1).optional()),
+    LITELLM_TIMEOUT_MS: emptyAsUndefined(
+      z.coerce.number().int().min(1_000).max(600_000).optional(),
+    ),
+    LITELLM_MAX_ATTEMPTS: emptyAsUndefined(z.coerce.number().int().min(1).max(10).optional()),
+    LITELLM_MAX_OUTPUT_TOKENS: emptyAsUndefined(
+      z.coerce.number().int().min(256).max(32_000).optional(),
+    ),
     /**
      * Reconocimiento explícito de que el texto analizado SALE del país.
      *

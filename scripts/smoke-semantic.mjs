@@ -189,16 +189,39 @@ async function main() {
     'el resultado declara su estado de clasificación',
     String(clasificacion?.status),
   );
+  /*
+   * Quién decidió cambia QUÉ se puede exigir del resultado, y esto llevaba en rojo desde que
+   * existe el atajo por reglas.
+   *
+   * Cuando una regla determinista lee la glosa —`rule-fast-path`— el motor resuelve ANTES de
+   * recuperar candidatas: no le pregunta al modelo, así que `evaluatedCategoryCodes` viene vacío
+   * con toda la razón. Exigirle candidatas a un camino que existe precisamente para no pedirlas
+   * convertía en fallo el comportamiento que más ahorra, y la comprobación de «no se inventó la
+   * categoría» se caía detrás por el mismo motivo.
+   *
+   * La garantía de que la regla no inventa nada existe, pero es otra y vive en otro sitio:
+   * `semantic-cobertura-categorias.spec.ts` comprueba que todo código que una regla puede proponer
+   * está sembrado como hoja del catálogo.
+   */
+  const decidioElModelo = clasificacion?.decidedBy === 'MODEL';
   check(
     Array.isArray(clasificacion?.evaluatedCategoryCodes) &&
-      clasificacion.evaluatedCategoryCodes.length > 0,
-    'evaluó el catálogo de categorías del tenant',
+      (decidioElModelo ? clasificacion.evaluatedCategoryCodes.length > 0 : true),
+    decidioElModelo
+      ? 'evaluó el catálogo de categorías del tenant'
+      : `resolvió sin preguntar al modelo (decidedBy=${String(clasificacion?.decidedBy)})`,
     String(clasificacion?.evaluatedCategoryCodes?.length),
   );
   check(
     typeof clasificacion?.model === 'string' && clasificacion.model.length > 0,
     'el resultado dice qué modelo decidió',
     String(clasificacion?.model),
+  );
+  check(
+    typeof clasificacion?.decidedBy === 'string' &&
+      ['MODEL', 'RULE', 'BIN'].includes(clasificacion.decidedBy),
+    'el resultado declara QUIÉN decidió',
+    String(clasificacion?.decidedBy),
   );
 
   const primera = clasificacion?.matches?.[0];
@@ -208,11 +231,13 @@ async function main() {
       'la categoría trae una confianza acotada',
       String(primera.confidence),
     );
-    check(
-      clasificacion.evaluatedCategoryCodes.includes(primera.categoryCode),
-      'la decisión recae sobre una categoría propuesta, no sobre una inventada',
-      String(primera.categoryCode),
-    );
+    if (decidioElModelo) {
+      check(
+        clasificacion.evaluatedCategoryCodes.includes(primera.categoryCode),
+        'la decisión del modelo recae sobre una candidata, no sobre una inventada',
+        String(primera.categoryCode),
+      );
+    }
   }
 
   // 5. Texto propio.
