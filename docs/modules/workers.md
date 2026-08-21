@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/workers/`](https://github.com/) · 201 ficheros TypeScript.
+Código: [`src/modules/workers/`](https://github.com/) · 208 ficheros TypeScript.
 
 Etiquetas de API: **Workers · Locución**, **Workers · Extractos bancarios**, **Workers · Entidades financieras**, **Workers · Verificación de identidad**, **Workers · Análisis semántico**, **Workers · Categorías semánticas**, **Workers · Pendientes de clasificación**, **Workers**.
 
@@ -89,6 +89,11 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `BANK_STATEMENT_REVIEW_NOT_FOUND`
 - `BANK_STATEMENT_RUN_NOT_CANCELLABLE`
 - `BANK_STATEMENT_RUN_NOT_FOUND`
+- `IDENTITY_REJECTION_REASON_REQUIRED`
+- `IDENTITY_REVIEW_DOCUMENT_TYPE_REQUIRED`
+- `IDENTITY_REVIEW_NOT_ASSIGNED`
+- `IDENTITY_REVIEW_NOT_CLAIMABLE`
+- `IDENTITY_REVIEW_NOT_FOUND`
 - `IDENTITY_RUN_NOT_CANCELLABLE`
 - `IDENTITY_RUN_NOT_FOUND`
 - `INSTITUTION_INVALID_PATTERN`
@@ -122,6 +127,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 
 ## Clases exportadas
 
+- `AiIdentityArbitrationAdapter`
 - `AudioAssetResolver`
 - `AudioBudgetPolicy`
 - `AudioDomainError`
@@ -178,11 +184,18 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `HeuristicDocumentClassifierAdapter`
 - `HumanFaceDetectorAdapter`
 - `HumanFaceMatchAdapter`
+- `HumanIdentityArbitrationAdapter`
 - `HumanLivenessAdapter`
 - `HybridCandidateRetriever`
 - `IdentityDecisionEngine`
 - `IdentityDomainError`
 - `IdentityPipelineService`
+- `IdentityReviewCategoryDto`
+- `IdentityReviewController`
+- `IdentityReviewItemDto`
+- `IdentityReviewQueryDto`
+- `IdentityReviewResolvedDto`
+- `IdentityReviewService`
 - `IdentityRunWorkerService`
 - `IdentityVerificationController`
 - `IdentityVerificationService`
@@ -212,6 +225,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `ProviderRateGate`
 - `ReevaluationStateDto`
 - `ReevaluationSummaryDto`
+- `ResolveIdentityReviewDto`
 - `ResolveStatementReviewDto`
 - `ResolveUnresolvedDto`
 - `ResolveUnresolvedResultDto`

@@ -32,6 +32,13 @@ export const WORKER_SERVICE_OPERATIONS: Readonly<Record<string, readonly string[
   // locutado. Nombrar la operación por el mecanismo prometería una llamada al
   // proveedor en cada decisión.
   'audio-tts': ['speak'],
+  /*
+   * `verify` y no `identify`: el nodo NO pregunta quién es esta persona —eso es
+   * una búsqueda contra un padrón, que este worker no hace— sino si el carnet y
+   * la selfie que trae la decisión son de la misma persona y si el carnet es
+   * admisible. Nombrarla `identify` prometería una capacidad que no existe.
+   */
+  'identity-verification': ['verify'],
 };
 
 export function validateGraphWorkerCalls(

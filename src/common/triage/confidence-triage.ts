@@ -1,84 +1,70 @@
 /**
- * Triaje por confianza: aceptar, preguntar o rechazar.
+ * Tres desenlaces para una confianza, y las dos fronteras que los separan.
  *
- * ## Por qué vive en `common/` y no dentro de un worker
+ * Nace en el worker de extractos (`bank-statement/core/engine/document-triage.ts`)
+ * y sube aquí sin cambiar de comportamiento porque el worker de identidad
+ * necesitaba exactamente lo mismo: un solo umbral no alcanza para decidir tres
+ * cosas distintas.
  *
- * Es la misma decisión en todos los clasificadores del motor: un número entre 0 y 1 y tres
- * destinos. Cada worker calibra sus propias fronteras —lo que para extractos es duda razonable para
- * identidad no lo es—, pero la REGLA de reparto no cambia, y con una copia por worker basta con que
- * dos se separen para que dos colas de revisión se comporten distinto sin que nadie lo note.
+ * Con una frontera única, «esto no es lo que este worker procesa» y «esto se le
+ * parece pero no estoy seguro» caen del mismo lado y reciben el mismo trato. Los
+ * dos acaban en la misma cola, y una cola de revisión con documentos que nadie
+ * debió subir deja de revisarse: cuesta dinero, esconde los casos que sí
+ * importan y hace imposible medir si el motor mejora.
  *
- * ## La franja de en medio es la que cuesta dinero
+ * **La franja de en medio es la única que PIDE a una persona.** Por debajo el
+ * sistema tiene evidencia suficiente para negarse, y negarse es más útil —y más
+ * barato— que preguntar.
  *
- * Por debajo, el sistema tiene evidencia suficiente para negarse, y negarse es más útil —y más
- * barato— que preguntar. Por encima, procesa. La franja intermedia es la única que **pide a una
- * persona**, así que es la única que consume tiempo humano: abrirla de más llena la cola de casos
- * que el sistema podría haber resuelto solo, y una cola que no se puede vaciar deja de leerse.
+ * Lo que NO vive aquí es cuánto vale cada frontera: eso es política de cada
+ * worker, medida con sus documentos, y por eso los valores por defecto se
+ * declaran en su módulo y no en este archivo.
  */
 
-/** Qué hacer con el documento. */
+/** Qué hacer con el documento, decidido antes de intentar extraer nada. */
 export type DocumentVerdict = 'ACCEPT' | 'REVIEW' | 'REJECT';
 
-/** Las dos fronteras que reparten el rango [0, 1] en los tres destinos. */
 export interface TriageThresholds {
-  /** Desde aquí, inclusive, se procesa sin intervención. */
-  accept: number;
-  /** Desde aquí, inclusive, se pregunta a una persona. Por debajo se rechaza. */
-  review: number;
-}
-
-/** Deja un número dentro de [0, 1]. Lo que no es número se trata como 0. */
-function clamp01(value: number): number {
-  if (!Number.isFinite(value)) return 0;
-  if (value < 0) return 0;
-  if (value > 1) return 1;
-  return value;
+  /** Desde aquí se procesa sin preguntar. */
+  readonly accept: number;
+  /** Desde aquí hay duda razonable; por debajo, no la hay. */
+  readonly review: number;
 }
 
 /**
- * Sanea unos umbrales contra sus valores por defecto.
+ * Ordena las dos fronteras y las acota a `[0, 1]`.
  *
- * Hace dos cosas, y las dos importan:
- *
- * 1. **Acota al rango [0, 1]**, en vez de propagar el valor. Una confianza es una probabilidad; un
- *    umbral de 5 no rechaza «casi todo», rechaza TODO, y el síntoma —una cola vacía— es
- *    indistinguible de que el clasificador vaya perfecto.
- * 2. **Impide una franja de revisión imposible.** Con `review` por encima de `accept` la franja de
- *    duda queda VACÍA y todo documento dudoso pasa a rechazarse sin que nada lo delate: la pantalla
- *    sigue funcionando igual y la cola simplemente no se llena. Se baja `review` hasta `accept` en
- *    lugar de subir `accept`, porque relajar lo que se procesa sin intervención por un error de
- *    configuración sería peor: convertiría una errata en una política de aceptación más laxa.
- *
- * Lo que no venga en `overrides` se toma de `defaults`, que también se saneen: un valor por defecto
- * mal escrito no debería colarse solo por serlo.
+ * Se sanea aquí y no en quien configura porque los valores llegan del entorno
+ * del anfitrión: con `review > accept` la franja de revisión sería vacía y todo
+ * documento dudoso se rechazaría en silencio, que es justo el fallo que este
+ * módulo existe para impedir.
  */
 export function normalizeThresholds(
-  overrides: Partial<TriageThresholds>,
-  defaults: TriageThresholds,
+  thresholds: Partial<TriageThresholds>,
+  porDefecto: TriageThresholds,
 ): TriageThresholds {
-  const accept = clamp01(overrides.accept ?? defaults.accept);
-  const review = clamp01(overrides.review ?? defaults.review);
+  const accept = clamp(thresholds.accept ?? porDefecto.accept);
+  const review = clamp(thresholds.review ?? porDefecto.review);
   return { accept, review: Math.min(review, accept) };
 }
 
 /**
- * El veredicto de una confianza contra unas fronteras.
+ * El veredicto. `>= accept` procesa, `>= review` pregunta, y por debajo rechaza.
  *
- * Ambas fronteras son **inclusivas**: una confianza exactamente igual al umbral de aceptación se
- * procesa, y una igual al de revisión se pregunta. Es lo contrario de lo intuitivo al escribir el
- * `if`, y es deliberado: un umbral se calibra observando dónde empieza a fallar, así que el valor
- * medido debe caer del lado bueno de su propia frontera.
- *
- * Se asume que `thresholds` ya pasó por {@link normalizeThresholds}; si no, una franja invertida
- * haría que `review` no se alcanzara nunca — que es exactamente el fallo silencioso que esa función
- * existe para impedir.
+ * Las comparaciones son inclusivas hacia arriba a propósito: un documento que
+ * cae justo en la frontera se trata como el lado más permisivo de las dos, de
+ * modo que subir un umbral nunca deja un caso sin clasificar.
  */
 export function triageByConfidence(
   confidence: number,
   thresholds: TriageThresholds,
 ): DocumentVerdict {
-  const value = clamp01(confidence);
-  if (value >= thresholds.accept) return 'ACCEPT';
-  if (value >= thresholds.review) return 'REVIEW';
+  if (confidence >= thresholds.accept) return 'ACCEPT';
+  if (confidence >= thresholds.review) return 'REVIEW';
   return 'REJECT';
+}
+
+function clamp(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(1, value));
 }

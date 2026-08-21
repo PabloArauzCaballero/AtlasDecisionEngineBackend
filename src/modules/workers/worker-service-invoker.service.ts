@@ -31,6 +31,9 @@ import {
 import { SemanticAnalysisPipeline } from './semantic-analysis/core/application/semantic-analysis.pipeline';
 import type { SemanticAnalysisResult } from './semantic-analysis/core/domain/semantic-analysis.types';
 import { AudioTtsRuntimeFactory } from './audio-tts/audio-tts.runtime';
+import { IdentityPipelineService } from './identity-verification/identity-pipeline.service';
+import { validateIdentityUpload } from './identity-verification/identity-verification-input';
+import type { IdentityVerificationOutcome } from './identity-verification/identity-result';
 import { buildAudioOutcome } from './audio-tts/audio-tts.result';
 import { AudioDomainError } from './audio-tts/core/domain/errors';
 
@@ -50,6 +53,7 @@ export class WorkerServiceInvokerService {
     private readonly semantic: SemanticAnalysisPipeline,
     private readonly audio: AudioTtsRuntimeFactory,
     private readonly institutions: InstitutionCatalogService,
+    private readonly identity: IdentityPipelineService,
   ) {}
 
   /** Ata el invocador al tenant y al principal de UNA ejecución, para `engine.execute()`. */
@@ -71,6 +75,8 @@ export class WorkerServiceInvokerService {
         return this.classifyText(tenantId, principal, request, started);
       case 'audio-tts.speak':
         return this.speak(tenantId, principal, request, started);
+      case 'identity-verification.verify':
+        return this.verifyIdentity(request, started);
       default:
         // El validador de grafo ya rechaza un servicio desconocido al aprobar el
         // artefacto. Llegar aquí significa que el catálogo del validador y el de este
@@ -185,13 +191,21 @@ export class WorkerServiceInvokerService {
         this.timeoutFor(request, MAX_CALL_TIMEOUT_MS),
         request,
       );
+      /*
+       * El worker ya NO devuelve `UNKNOWN`: una glosa que el modelo no resolvió
+       * sale con la categoría que sus reglas afirman —o con el cajón de su
+       * sentido— y con `requiresReview` puesto. Enrutar por el estado, como se
+       * hacía aquí, habría dejado de desviar el día que dejamos de abstenernos:
+       * todo llegaría como `SUCCEEDED` y el algoritmo no podría distinguir lo
+       * que el modelo entendió de lo que se dedujo de la palabra «TRASPASO».
+       */
+      const dudosa = result.requiresReview;
       return {
-        // El worker degrada a `UNKNOWN` cuando agota el presupuesto del tenant en vez de
-        // fallar. Para la decisión eso NO es un éxito limpio: el algoritmo tiene que poder
-        // distinguirlo y desviarse, y `call.status` es donde lo ve.
-        status: result.status === 'UNKNOWN' ? 'SUCCEEDED_WITH_WARNINGS' : 'SUCCEEDED',
+        status: dudosa ? 'SUCCEEDED_WITH_WARNINGS' : 'SUCCEEDED',
         result: toClassificationResult(result),
-        warnings: result.status === 'UNKNOWN' ? ['No se resolvió ninguna categoría'] : [],
+        warnings: dudosa
+          ? [`Categoría decidida por ${result.decidedBy} y marcada para revisión (${String(result.reviewReason)})`]
+          : [],
         durationMs: Date.now() - started,
       };
     } catch (error) {
@@ -293,11 +307,27 @@ export class WorkerServiceInvokerService {
   }
 
   private decodeDocument(request: WorkerServiceRequest): Buffer {
-    const encoded = stringArgument(request, 'documentBase64');
+    return this.decodeBase64(request, 'documentBase64', 'bank-statement.normalize');
+  }
+
+  /**
+   * Un binario que viaja en base64 dentro de una variable de la decisión.
+   *
+   * Lo comparten los dos servicios que reciben archivos, y comparten también la
+   * comprobación de ida y vuelta: `Buffer.from` con base64 ignora en silencio lo
+   * que no reconoce, así que una cadena que no es base64 produciría un búfer
+   * corto —y una imagen «válida» de trescientos bytes— en vez de un error.
+   */
+  private decodeBase64(
+    request: WorkerServiceRequest,
+    argumento: string,
+    servicio: string,
+  ): Buffer {
+    const encoded = stringArgument(request, argumento);
     if (!encoded) {
       throw new DomainException(
         'WORKER_ARGUMENT_MISSING',
-        `El nodo ${request.nodeKey} llama a bank-statement.normalize sin el argumento documentBase64`,
+        `El nodo ${request.nodeKey} llama a ${servicio} sin el argumento ${argumento}`,
         HttpStatus.UNPROCESSABLE_ENTITY,
       );
     }
@@ -311,11 +341,100 @@ export class WorkerServiceInvokerService {
     ) {
       throw new DomainException(
         'WORKER_ARGUMENT_INVALID',
-        `El documento que el nodo ${request.nodeKey} envía no es base64 válido`,
+        `El argumento ${argumento} que el nodo ${request.nodeKey} envía no es base64 válido`,
         HttpStatus.UNPROCESSABLE_ENTITY,
       );
     }
     return buffer;
+  }
+
+
+  /**
+   * Verifica una identidad con el carnet y la selfie que trae la decisión.
+   *
+   * **Es el núcleo, no la cola.** Igual que los otros tres servicios: la
+   * decisión necesita el veredicto en el instante en que lo pide, y encolar
+   * serviría justo para lo contrario. La cola sigue siendo el camino de las
+   * verificaciones que se piden por HTTP y que nadie está esperando en línea;
+   * las dos comparten este pipeline, que no sabe de ninguna de las dos.
+   *
+   * Qué recibe la decisión: el VEREDICTO y su evidencia, nunca las imágenes.
+   * Una intermedia con una cédula dentro acaba en la traza de la ejecución, y la
+   * traza se conserva años.
+   *
+   * Qué NO hace: derivar a una persona. Un nodo de decisión no puede esperar a
+   * que alguien mire una foto —la decisión se está tomando ahora, con alguien
+   * delante— así que un caso dudoso vuelve como `SUCCEEDED_WITH_WARNINGS` con
+   * `decision: REVIEW_REQUIRED`, y es el ALGORITMO quien decide qué hacer con
+   * eso: pedir otro documento, aprobar con condiciones o abrir un caso. Es la
+   * misma diferencia que el worker de extractos hace entre rechazar y preguntar,
+   * llevada al sitio donde la política de negocio es visible y versionada.
+   */
+  private async verifyIdentity(
+    request: WorkerServiceRequest,
+    started: number,
+  ): Promise<WorkerServiceOutcome> {
+    this.assertAvailable(
+      'identity-verification',
+      this.config.get<boolean>('IDENTITY_VERIFICATION_WORKER_ENABLED') ?? false,
+      request.nodeKey,
+    );
+
+    // La MISMA validación que aplica la subida por HTTP: tamaño, firma real del
+    // contenido y formato. Que las imágenes entren por un nodo en vez de por un
+    // formulario no puede relajar lo que se acepta.
+    const validated = validateIdentityUpload(
+      {
+        document: {
+          originalname: 'carnet.jpg',
+          buffer: this.decodeBase64(request, 'documentBase64', 'identity-verification.verify'),
+        },
+        documentBack: stringArgument(request, 'documentBackBase64')
+          ? {
+              originalname: 'carnet-reverso.jpg',
+              buffer: this.decodeBase64(
+                request,
+                'documentBackBase64',
+                'identity-verification.verify',
+              ),
+            }
+          : undefined,
+        selfie: {
+          originalname: 'selfie.jpg',
+          buffer: this.decodeBase64(request, 'selfieBase64', 'identity-verification.verify'),
+        },
+      },
+      this.config.get<number>('IDENTITY_MAX_UPLOAD_BYTES') ?? 10_485_760,
+      undefined,
+      'nodo',
+    );
+
+    try {
+      const outcome = await this.withTimeout(
+        this.identity.run({
+          documentImage: validated.document.bytes,
+          documentBackImage: validated.documentBack?.bytes ?? null,
+          selfieImage: validated.selfie.bytes,
+          documentCountry:
+            stringArgument(request, 'documentCountry') ??
+            this.config.get<string>('IDENTITY_DEFAULT_DOCUMENT_COUNTRY') ??
+            'BO',
+          correlationId: request.nodeKey,
+        }),
+        this.timeoutFor(request, this.config.get<number>('IDENTITY_TIMEOUT_MS') ?? 90_000),
+        request,
+      );
+
+      const limpio = outcome.decision === 'VERIFIED';
+      return {
+        status: limpio ? 'SUCCEEDED' : 'SUCCEEDED_WITH_WARNINGS',
+        result: toIdentityResult(outcome),
+        warnings: limpio ? [] : [outcome.decision, ...outcome.reasonCodes],
+        durationMs: Date.now() - started,
+      };
+    } catch (error) {
+      throw toDomainException(error, request);
+    }
   }
 
   /** El nodo puede pedir menos tiempo que el servicio, nunca más. */
@@ -431,6 +550,13 @@ function toClassificationResult(result: SemanticAnalysisResult): Record<string, 
     status: result.status,
     categoryCode: best?.categoryCode ?? null,
     confidence: best?.confidence ?? 0,
+    // Quién decidió y si hay que mirarlo. Es lo que un algoritmo necesita para
+    // tratar distinto «el modelo lo entendió» y «lo dedujo una regla»: sin estos
+    // dos campos las dos cosas llegan como una categoría con su confianza y son
+    // indistinguibles justo donde más importa, que es al aprobar un crédito.
+    decidedBy: result.decidedBy,
+    requiresReview: result.requiresReview,
+    reviewReason: result.reviewReason,
     tierUsed: result.tierUsed,
     model: result.model,
     modelVersion: result.modelVersion,
@@ -442,6 +568,35 @@ function toClassificationResult(result: SemanticAnalysisResult): Record<string, 
     categoryPath: best === undefined ? [] : (result.categoryPaths[best.categoryCode] ?? []),
     categoryPaths: result.categoryPaths,
     processingTimeMs: result.processingTimeMs,
+  };
+}
+
+/**
+ * Lo que la decisión ve de una verificación de identidad.
+ *
+ * Se proyecta a mano y no se entrega el desenlace entero por una razón de
+ * privacidad, no de tamaño: el resultado completo trae los campos leídos del
+ * carnet —nombre, fecha de nacimiento, domicilio— y todo lo que un nodo publica
+ * puede acabar en una variable intermedia y, desde ahí, en la traza de la
+ * ejecución, que se conserva años. Un algoritmo de decisión necesita saber si la
+ * persona es quien dice ser, no cómo se llama su madre.
+ */
+function toIdentityResult(outcome: IdentityVerificationOutcome): Record<string, unknown> {
+  return {
+    decision: outcome.decision,
+    reasonCodes: outcome.reasonCodes,
+    documentType: outcome.documentType,
+    documentCountry: outcome.documentCountry,
+    // Las dos confianzas, que responden a preguntas distintas: si es un
+    // documento de identidad, y cuál.
+    documentEvidence: outcome.documentEvidence.confidence,
+    classificationConfidence: outcome.classification.confidence,
+    faceSimilarity: outcome.faceMatch?.similarityScore ?? null,
+    faceDecision: outcome.calibratedFaceDecision,
+    liveness: outcome.liveness.outcome,
+    thresholdProfileVersion: outcome.thresholdProfileVersion,
+    documentExpiresAt: outcome.fields.expirationDate?.value ?? null,
+    riskFlags: outcome.riskFlags,
   };
 }
 

@@ -10,6 +10,9 @@
  * entorno.
  */
 
+import { IdentityDocumentType } from './domain/identity-enums';
+import { DEFAULT_IDENTITY_THRESHOLDS } from './engine/identity-triage';
+
 export const IDENTITY_OPTIONS = Symbol('IDENTITY_OPTIONS');
 export const IDENTITY_OCR_PORT = Symbol('IDENTITY_OCR_PORT');
 export const IDENTITY_CLASSIFIER_PORT = Symbol('IDENTITY_CLASSIFIER_PORT');
@@ -17,6 +20,10 @@ export const IDENTITY_FACE_DETECTOR_PORT = Symbol('IDENTITY_FACE_DETECTOR_PORT')
 export const IDENTITY_FACE_MATCH_PORT = Symbol('IDENTITY_FACE_MATCH_PORT');
 export const IDENTITY_LIVENESS_PORT = Symbol('IDENTITY_LIVENESS_PORT');
 export const IDENTITY_NORMALIZER_PORT = Symbol('IDENTITY_NORMALIZER_PORT');
+export const IDENTITY_ARBITRATION_PORT = Symbol('IDENTITY_ARBITRATION_PORT');
+
+/** Quién arbitra la franja de duda de la puerta de documentos. */
+export type IdentityArbitrationMode = 'HUMAN' | 'AI';
 
 export interface IdentityOptions {
   /**
@@ -84,6 +91,27 @@ export interface IdentityOptions {
   readonly livenessProvider: string;
 
   /** Tamaño máximo por imagen, en bytes. Lo publica el catálogo. */
+  /**
+   * Qué tipos de documento admite este despliegue.
+   *
+   * Por omisión, sólo el carnet boliviano: es el único con analizador verificado
+   * y es lo que el flujo móvil pide. Un pasaporte legítimo se rechaza —con ese
+   * motivo y no con «no es un documento»— hasta que alguien lo habilite aquí.
+   */
+  readonly acceptedDocumentTypes: readonly IdentityDocumentType[];
+  /**
+   * Fronteras de la evidencia de identidad: por encima de `accept` se procesa,
+   * entre las dos se pregunta a un factor externo, y por debajo se rechaza.
+   */
+  readonly documentAcceptConfidence: number;
+  readonly documentReviewConfidence: number;
+  /**
+   * Quién resuelve la franja de duda. `HUMAN` la manda a la bandeja del portal;
+   * `AI` a un modelo, cuando lo haya. Es una decisión de despliegue, no de
+   * código: la elige el entorno y el pipeline no sabe cuál está puesta.
+   */
+  readonly arbitrationMode: IdentityArbitrationMode;
+
   readonly maxUploadBytes: number;
   /** País de emisión asumido cuando quien llama no declara otro. */
   readonly defaultDocumentCountry: string;
@@ -117,6 +145,12 @@ export const IDENTITY_DEFAULTS: IdentityOptions = {
   ocrProvider: 'tesseract',
   faceProvider: 'human',
   livenessProvider: 'human',
+  acceptedDocumentTypes: [IdentityDocumentType.BOLIVIA_CI],
+  documentAcceptConfidence: DEFAULT_IDENTITY_THRESHOLDS.accept,
+  documentReviewConfidence: DEFAULT_IDENTITY_THRESHOLDS.review,
+  // Humana mientras no haya un modelo calibrado para esto. El seam existe desde
+  // hoy para que enchufarlo sea cambiar una variable, no reescribir el pipeline.
+  arbitrationMode: 'HUMAN',
   maxUploadBytes: 10_485_760,
   defaultDocumentCountry: 'BO',
 };

@@ -8,6 +8,7 @@ import { seedCalculatedFields } from './data/calculated-field-catalog.data';
 import { seedCollectionsDemoArtifact } from './data/collections-demo.seed';
 import { seedContractDemoArtifact } from './data/contract-demo.seed';
 import { seedStatementWorkerDemoArtifact } from './data/statement-worker-demo.seed';
+import { seedIdentityMobileArtifact } from './data/identity-mobile.seed';
 import { seedGovernanceScenarios } from './data/governance-scenarios.seed';
 import { seedFinancialInstitutions } from './data/financial-institutions.data';
 import { seedApprovedLibraries } from './data/library-catalog.data';
@@ -262,6 +263,10 @@ export async function runMockupSeeds(prisma: PrismaClient, context: BootstrapCon
   // Tercer algoritmo: el único con un nodo WORKER, que llama al servicio de extractos
   // bancarios durante la decisión y proyecta su respuesta a variables intermedias.
   await seedStatementWorkerDemoArtifact(prisma);
+  // El artefacto que consume el front móvil. Va junto al demo de extractos
+  // porque es el mismo mecanismo —un nodo que llama a un worker— aplicado a un
+  // caso real y no a una demostración.
+  await seedIdentityMobileArtifact(prisma);
   // Escenarios negativos de gobierno (§11): ciclo, versión no disponible, contrato
   // incompatible y una corrida de QA con su contraejemplo.
   await seedGovernanceScenarios(prisma);

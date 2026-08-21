@@ -12,7 +12,7 @@ import { CatalogCache } from './catalog-cache';
 import { CachedClassification, ClassificationCache } from './classification-cache';
 import { EntityResolver } from './entity-resolver';
 import { Decision, DecisionEngine } from './decision-engine';
-import { GlosaFallbackClassifier } from './glosa-fallback';
+import { GlosaFallbackClassifier, type DecisionPorRegla } from './glosa-fallback';
 import { TenantBudgetGuard } from './tenant-budget.guard';
 import { TextNormalizer } from './text-normalizer';
 import {
@@ -20,6 +20,7 @@ import {
   CategoryCandidate,
   ModelClassification,
   ModelClassificationInput,
+  ResolvedEntity,
   SemanticAnalysisRequest,
   SemanticAnalysisResult,
   SemanticCategory,
@@ -28,6 +29,7 @@ import { semanticAnalysisRequestSchema } from '../domain/semantic-analysis.schem
 import { leavesOf } from '../domain/category-tree';
 import { SemanticWorkerConfig } from '../config/semantic-worker.config';
 import { SemanticTimeoutError } from '../domain/semantic-analysis.errors';
+import { MOTIVOS_DE_REVISION } from '../domain/review-reason';
 import { TracingService } from '../../../../../common/observability/tracing.service';
 import { SEMANTIC_ATTRIBUTES, SPAN_NAMES } from '../observability/telemetry.constants';
 import {
@@ -39,8 +41,25 @@ import { SemanticAnalysisResultBuilder } from './semantic-analysis.result-builde
 
 const NO_CATEGORIES_MODEL = 'none';
 const BUDGET_EXHAUSTED_MODEL = 'budget-exhausted';
+/**
+ * Se publica como «modelo» cuando decidió una regla y no hubo llamada.
+ *
+ * No es un adorno: los tableros agrupan por `model`, y dejar ahí el nombre del
+ * proveedor haría que un atajo que nunca lo invocó contara como una llamada suya
+ * —inflando su volumen y falseando su latencia media hacia abajo—.
+ */
+const RULE_MODEL = 'rule-fast-path';
+/** Se publica como «modelo» cuando el reloj se agotó y decidieron las reglas. */
+const TIMEOUT_MODEL = 'timeout-rescue';
 
-const UNRESOLVED: Decision = { status: 'UNKNOWN', matches: [], requiresDeepAnalysis: false };
+const UNRESOLVED: Decision = {
+  status: 'UNKNOWN',
+  matches: [],
+  requiresDeepAnalysis: false,
+  decidedBy: 'MODEL',
+  requiresReview: true,
+  reviewReason: MOTIVOS_DE_REVISION.LOW_CONFIDENCE,
+};
 
 /**
  * Orquesta el análisis semántico completo: catálogo, normalización, entidades, presupuesto,
@@ -78,28 +97,59 @@ export class SemanticAnalysisPipeline {
    * La decisión final, con la red de seguridad puesta.
    *
    * Si el modelo resolvió, manda el modelo y aquí no pasa nada. Si no —umbral no
-   * alcanzado, empate, o ni siquiera hubo candidatas—, la glosa se lee por
-   * REGLAS de instrumento: `TRASPASO`, `QR`, `RETIRO DE EFECTIVO` y compañía son
+   * alcanzado, empate, contradicción, o ni siquiera hubo candidatas—, la glosa
+   * se lee por REGLAS: el rubro (`ELFEC`, `YPFB`, `ALQUILER`) primero y el
+   * instrumento (`TRASPASO`, `QR`, `RETIRO DE EFECTIVO`) después. Los dos son
    * literales, están en todos los extractos bolivianos y no necesitan modelo.
    *
    * Lo que se gana no es precisión, es COBERTURA honesta: «salió dinero por
    * transferencia» consta en la glosa; «sin determinar» no dice nada y obliga a
    * quien recibe el informe a resolverlo por su cuenta, fila por fila.
+   *
+   * **Y lo que se publica lleva su procedencia.** Una decisión rescatada por
+   * regla no se disfraza de acierto del modelo: `decidedBy` lo dice y, salvo que
+   * el rubro fuera literal e inequívoco, `requiresReview` manda el caso a la
+   * bandeja igualmente. No abstenerse nunca sólo es defendible si se distingue
+   * lo que se supo de lo que se dedujo.
    */
-  private conRedDeSeguridad(
+  private garantizarCategoria(
     decision: Decision,
     normalizedText: string,
     categories: readonly SemanticCategory[],
+    motivo: string | null = null,
   ): Decision {
-    if (decision.status !== 'UNKNOWN' && decision.status !== 'AMBIGUOUS') return decision;
+    if (this.yaResolvio(decision) && motivo === null) return decision;
     const disponibles = new Set(leavesOf(categories).map((categoria) => categoria.code));
     const regla = this.fallback.clasificar(normalizedText, disponibles);
     if (regla === null) return decision;
 
-    this.logger.debug(`Glosa resuelta por regla como ${regla.categoryCode}.`);
+    this.logger.debug(`Glosa resuelta por ${regla.origen} como ${regla.categoryCode}.`);
+    return this.desdeRegla(regla, motivo);
+  }
+
+  /** Una decisión ya publicable: el modelo eligió algo y lo sostiene. */
+  private yaResolvio(decision: Decision): boolean {
+    return decision.status === 'MATCH' || decision.status === 'MULTI_MATCH';
+  }
+
+  /**
+   * Traduce una regla a la decisión que se publica.
+   *
+   * El único caso que NO va a la bandeja es el rubro literal e inequívoco: ahí
+   * la regla no está supliendo al modelo, está leyendo un nombre propio que el
+   * modelo no habría leído mejor. Todo lo demás —instrumento, cajón, rubro
+   * degradado por catálogo— se publica Y se revisa.
+   */
+  private desdeRegla(regla: DecisionPorRegla, motivo: string | null): Decision {
+    const inequivoca = regla.origen === 'RUBRO' && regla.certeza === 'ALTA' && !regla.degradado;
+    const razon =
+      motivo ?? (inequivoca ? null : MOTIVOS_DE_REVISION.LOW_CONFIDENCE);
     return {
       status: 'MATCH',
       requiresDeepAnalysis: false,
+      decidedBy: regla.origen === 'CAJON' ? 'BIN' : 'RULE',
+      requiresReview: razon !== null,
+      reviewReason: razon as Decision['reviewReason'],
       matches: [
         {
           categoryCode: regla.categoryCode,
@@ -111,6 +161,32 @@ export class SemanticAnalysisPipeline {
         },
       ],
     };
+  }
+
+  /**
+   * El atajo: resolver sin preguntarle a nadie cuando la glosa se explica sola.
+   *
+   * Sólo lo activan los rubros de certeza ALTA —nombres propios de empresas y
+   * trámites bolivianos— y sólo si la hoja existe tal cual en el catálogo del
+   * tenant. Ahí el modelo no puede aportar nada: `SAGUAPAC` es agua, y una
+   * similitud coseno sobre esa palabra es un rodeo caro para llegar al mismo
+   * sitio.
+   *
+   * El ahorro no es teórico. Un extracto de trescientos movimientos trae más de
+   * la mitad de sus filas con el rubro rotulado; sin atajo son trescientas
+   * llamadas al proveedor compitiendo por el mismo reloj, y las últimas son las
+   * que agotan el presupuesto y acaban en la bandeja por lentitud.
+   */
+  private atajoPorRubro(
+    normalizedText: string,
+    categories: readonly SemanticCategory[],
+  ): Decision | null {
+    if (!this.config.ruleFastPathEnabled) return null;
+    const disponibles = new Set(leavesOf(categories).map((categoria) => categoria.code));
+    const regla = this.fallback.clasificar(normalizedText, disponibles);
+    if (regla === null) return null;
+    if (regla.origen !== 'RUBRO' || regla.certeza !== 'ALTA' || regla.degradado) return null;
+    return this.desdeRegla(regla, null);
   }
 
   /**
@@ -179,18 +255,57 @@ export class SemanticAnalysisPipeline {
       });
     }
 
+    /*
+     * El atajo va DESPUÉS de la caché y ANTES del presupuesto, por el mismo
+     * motivo que la caché: no llama al proveedor, así que reservar cuota por él
+     * cobraría un gasto que no se produce. Y va antes de recuperar candidatas
+     * porque también se ahorra esa consulta.
+     */
+    const atajo = this.atajoPorRubro(normalizedText, categories);
+    if (atajo !== null) {
+      this.logger.debug(
+        `Glosa de ${request.requestId} resuelta por rubro literal sin invocar al modelo.`,
+      );
+      return this.resultBuilder.build({
+        request,
+        normalizedText,
+        entities,
+        categories,
+        startedAt,
+        ...this.recuerda(request.tenantId, signature, normalizedText, {
+          candidates: [],
+          decision: atajo,
+          tier: 'FAST',
+          model: RULE_MODEL,
+          modelVersion: RULE_MODEL,
+          escalated: false,
+        }),
+      });
+    }
+
     const allowance = await this.budget.reserve(request.tenantId);
     if (!allowance.allowed) {
       // Degradar en lugar de fallar: un error haría que la cola reintentara y gastara justo la
       // cuota que el presupuesto pretende proteger.
-      this.logger.warn(`Solicitud ${request.requestId} degradada a UNKNOWN: ${allowance.reason}.`);
+      //
+      // Degradar YA NO ES quedarse sin categoría. Las reglas no consultan al
+      // proveedor, así que aplicarlas aquí no gasta la cuota que el presupuesto
+      // protege: el movimiento sale clasificado por lo que la glosa afirma y
+      // marcado para revisión, en vez de salir vacío por una razón que no tiene
+      // nada que ver con su texto.
+      this.logger.warn(`Solicitud ${request.requestId} degradada por cuota: ${allowance.reason}.`);
       return this.resultBuilder.build({
         request,
         normalizedText,
         entities,
         candidates: [],
         categories,
-        decision: UNRESOLVED,
+        decision: this.garantizarCategoria(
+          UNRESOLVED,
+          normalizedText,
+          categories,
+          MOTIVOS_DE_REVISION.PROCESSING_ERROR,
+        ),
         tier: 'FAST',
         model: BUDGET_EXHAUSTED_MODEL,
         modelVersion: BUDGET_EXHAUSTED_MODEL,
@@ -213,7 +328,7 @@ export class SemanticAnalysisPipeline {
         startedAt,
         ...this.recuerda(request.tenantId, signature, normalizedText, {
           candidates,
-          decision: this.conRedDeSeguridad(UNRESOLVED, normalizedText, categories),
+          decision: this.garantizarCategoria(UNRESOLVED, normalizedText, categories),
           tier: 'FAST',
           model: NO_CATEGORIES_MODEL,
           modelVersion: NO_CATEGORIES_MODEL,
@@ -228,6 +343,82 @@ export class SemanticAnalysisPipeline {
       entities,
       candidates,
     };
+
+    /*
+     * El rescate por lentitud envuelve SÓLO la parte que habla con el proveedor.
+     *
+     * Agotar el reloj deja de ser un fallo terminal: la glosa se lee por reglas
+     * —que responden en microsegundos y sin salir del proceso— y se publica con
+     * el motivo `TIMEOUT` puesto, que es exactamente lo que pasó. Antes moría la
+     * ejecución, la cola reintentaba y el mismo texto volvía a tardar lo mismo;
+     * el movimiento no llegaba nunca al informe.
+     *
+     * Lo que NO se rescata es un error del proveedor: ahí no se sabe si el
+     * modelo habría dicho otra cosa, así que sigue fallando y reintentándose. Un
+     * corte del proveedor escondido detrás de miles de «otros gastos» es peor
+     * que un corte visible.
+     */
+    try {
+      return await this.clasificarConModelo({
+        request,
+        normalizedText,
+        entities,
+        categories,
+        candidates,
+        modelInput,
+        signature,
+        startedAt,
+        budget,
+      });
+    } catch (error: unknown) {
+      if (!this.config.timeoutRescueEnabled || !(error instanceof SemanticTimeoutError)) throw error;
+      this.logger.warn(
+        `Solicitud ${request.requestId} agotó el reloj; se resuelve por reglas y se marca para revisión.`,
+      );
+      return this.resultBuilder.build({
+        request,
+        normalizedText,
+        entities,
+        candidates,
+        categories,
+        decision: this.garantizarCategoria(
+          UNRESOLVED,
+          normalizedText,
+          categories,
+          MOTIVOS_DE_REVISION.TIMEOUT,
+        ),
+        tier: 'FAST',
+        model: TIMEOUT_MODEL,
+        modelVersion: TIMEOUT_MODEL,
+        startedAt,
+        escalated: false,
+      });
+    }
+  }
+
+  /**
+   * Las dos pasadas del modelo y su decisión, aparte para poder envolverlas.
+   *
+   * Vive fuera de `runAnalysis` únicamente porque el rescate por lentitud
+   * necesita un `try` que abarque las llamadas al proveedor y nada más: dentro
+   * de `runAnalysis` ese `try` habría cubierto también el catálogo, la caché y
+   * el presupuesto, y un fallo de la base se habría publicado como si el modelo
+   * hubiera tardado.
+   */
+  private async clasificarConModelo(input: {
+    request: SemanticAnalysisRequest;
+    normalizedText: string;
+    entities: readonly ResolvedEntity[];
+    categories: readonly SemanticCategory[];
+    candidates: readonly CategoryCandidate[];
+    modelInput: ModelClassificationInput;
+    signature: string;
+    startedAt: number;
+    budget: AbortSignal;
+  }): Promise<SemanticAnalysisResult> {
+    const { request, normalizedText, entities, categories, candidates, modelInput, signature } =
+      input;
+    const { startedAt, budget } = input;
     const candidateCategories = candidates.map((candidate) => candidate.category);
 
     const fast = await this.classify(modelInput, 'FAST', budget);
@@ -248,7 +439,7 @@ export class SemanticAnalysisPipeline {
         startedAt,
         ...this.recuerda(request.tenantId, signature, normalizedText, {
           candidates,
-          decision: this.conRedDeSeguridad(fastDecision, normalizedText, categories),
+          decision: this.garantizarCategoria(fastDecision, normalizedText, categories),
           tier: 'FAST',
           model: fast.model,
           modelVersion: fast.modelVersion,
@@ -274,7 +465,7 @@ export class SemanticAnalysisPipeline {
       startedAt,
       ...this.recuerda(request.tenantId, signature, normalizedText, {
         candidates,
-        decision: this.conRedDeSeguridad(deepDecision, normalizedText, categories),
+        decision: this.garantizarCategoria(deepDecision, normalizedText, categories),
         tier: 'DEEP',
         model: deep.model,
         modelVersion: deep.modelVersion,

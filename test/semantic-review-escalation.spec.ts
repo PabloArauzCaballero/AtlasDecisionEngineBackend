@@ -41,9 +41,19 @@ const PETICION: SemanticAnalysisRequest = {
   requestedBy: 'pruebas',
 };
 
+/**
+ * Un veredicto que el modelo NO resolvió, tal como sale hoy del pipeline.
+ *
+ * Ojo al detalle que cambió: el estado publicado ya no es `UNKNOWN` a secas ni
+ * es lo que decide el escalado. El worker rescata la glosa por reglas —aquí,
+ * `GASTOS.TRANSFERENCIAS`, que es lo que `TRASPASO` afirma por sí solo— y marca
+ * el caso con `requiresReview`. La bandeja se llena por esa bandera, no por el
+ * estado, y eso es justo lo que este fichero vigila: dejar de abstenerse no
+ * puede significar dejar de escalar.
+ */
 const RESULTADO: SemanticAnalysisResult = {
   requestId: 'req-lenta',
-  status: 'UNKNOWN',
+  status: 'MATCH',
   normalizedText: 'TRASPASO CA/CC CON QR (MOVIL)',
   entities: [],
   matches: [{ categoryCode: 'GASTOS.TRASPASO', confidence: 0.41 }],
@@ -51,6 +61,17 @@ const RESULTADO: SemanticAnalysisResult = {
   categoryPaths: { 'GASTOS.TRASPASO': ['Gastos', 'Traspaso'] },
   tierUsed: 'FAST',
   processingTimeMs: 120,
+  decidedBy: 'RULE',
+  requiresReview: true,
+  reviewReason: 'LOW_CONFIDENCE',
+} as unknown as SemanticAnalysisResult;
+
+/** El mismo veredicto pero resuelto de verdad: nadie tiene que mirarlo. */
+const RESUELTO: SemanticAnalysisResult = {
+  ...RESULTADO,
+  decidedBy: 'MODEL',
+  requiresReview: false,
+  reviewReason: null,
 } as unknown as SemanticAnalysisResult;
 
 interface Montaje {
@@ -188,7 +209,7 @@ describe('la abstención sigue escalando, ahora con su motivo escrito', () => {
 
     expect(contextoEscrito(bandeja)).toMatchObject({
       reason: 'LOW_CONFIDENCE',
-      status: 'UNKNOWN',
+      decidedBy: 'RULE',
     });
     // Las candidatas evaluadas viajan aunque ninguna alcanzara su umbral: son
     // la recomendación que permite decidir de un vistazo.
@@ -198,9 +219,7 @@ describe('la abstención sigue escalando, ahora con su motivo escrito', () => {
   });
 
   it('un veredicto resuelto no abre ningún pendiente', async () => {
-    const { procesador, bandeja } = montar(
-      jest.fn().mockResolvedValue({ ...RESULTADO, status: 'MATCH' }),
-    );
+    const { procesador, bandeja } = montar(jest.fn().mockResolvedValue(RESUELTO));
 
     await procesador.execute(PETICION);
 

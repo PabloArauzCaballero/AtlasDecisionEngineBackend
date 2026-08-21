@@ -209,6 +209,61 @@ importan y hace imposible medir si el motor mejora.
   rechazo es el veredicto del clasificador de ese día, y si no lo fuera ninguna recalibración
   alcanzaría jamás a los documentos que la motivaron.
 
+## Ninguna glosa sin categoría (worker semántico)
+
+Manual: [docs/workers/semantic-sin-desconocido.md](docs/workers/semantic-sin-desconocido.md).
+
+El worker se abstenía por tres motivos que no se parecen —el modelo no alcanzó umbral, se
+agotó la cuota del tenant, se agotó el reloj— y los tres producían la misma fila vacía. Los
+tres se cierran con las reglas deterministas de `glosa-fallback.ts`, y cerrarlos es honesto
+porque el resultado dice **quién** decidió.
+
+- **`decidedBy` + `requiresReview` sustituyen a `UNKNOWN` como señal.** El estado ya no se
+  queda en `UNKNOWN`, así que quien filtraba por él para saber qué revisar tiene que mirar
+  la bandera. El procesador escala por `requiresReview`; con el filtro viejo, el día que
+  dejamos de abstenernos la bandeja se habría vaciado sin resolver un caso más.
+- **Dos capas de reglas, y el orden manda.** RUBRO (`ELFEC`, `YPFB`, `ALQUILER`) gana a
+  INSTRUMENTO (`TRASPASO`, `QR`, `POS`): «PAGO SERVICIO ELFEC» es electricidad antes que
+  «un pago». Sólo el rubro literal e inequívoco puede saltarse el modelo, y sólo él sale sin
+  marcar para revisión.
+- **Una regla que no cabe en el catálogo del tenant no descarta a las demás.** Se prueban
+  sus ancestros por la ruta punteada y, si no hay, sigue la capa siguiente. Bajar de rubro a
+  instrumento es peor clasificación; desplomarse al cajón es ninguna.
+- **El rescate por lentitud sólo cubre la LENTITUD.** Un `SEMANTIC_TIMEOUT` se resuelve por
+  reglas con motivo `TIMEOUT`; un error del proveedor sigue fallando y reintentándose. Una
+  caída escondida detrás de miles de «otros gastos» es peor que una caída visible.
+- **El invariante que más protege**: `semantic-cobertura-categorias.spec.ts` comprueba que
+  todo código que una regla puede proponer existe como hoja sembrada. Una regla mal escrita
+  compila, no rompe nada, y sólo se nota como movimientos que caen al cajón sin explicación.
+
+## La puerta de documentos de identidad y su arbitraje
+
+Manual: [docs/workers/identity-document-gate.md](docs/workers/identity-document-gate.md).
+
+Mismo defecto que tenía el worker de extractos, una capa más adentro: **una sola salida**
+para toda imagen sin tipo reconocible, así que la cédula fotografiada de noche y la foto de
+un recibo recibían la misma respuesta.
+
+- **Dos confianzas, no una.** `document_type_confidence` mide si la imagen ES un documento
+  de identidad; `classification.confidence`, cuál es. Colapsarlas hacía que «es una cédula,
+  no sé de qué país» y «esto es una factura» se leyeran igual.
+- **Los contraindicadores CIERRAN el caso, no restan.** El código de control de una factura
+  o el «saldo anterior» de un extracto ponen la evidencia en cero: no son evidencia en
+  contra, son la respuesta. Sin eso, la factura boliviana —que imprime nombre, fecha y
+  número del cliente— acumulaba señales legítimas hasta colarse en la franja de duda.
+- **El tipo admitido es política del despliegue** (`IDENTITY_ACCEPTED_DOCUMENT_TYPES`, por
+  omisión sólo `BOLIVIA_CI`). Un pasaporte legítimo se rechaza con SU motivo y no con «no es
+  un documento»: son dos instrucciones distintas para quien está delante del móvil.
+- **El arbitraje es un puerto con dos adaptadores** elegidos por `IDENTITY_ARBITRATION_MODE`.
+  El de IA está declarado y **falla hacia la cola humana**, nunca hacia la aceptación, y lo
+  dice en su `health()`.
+- **Confirmar exige nombrar el tipo.** Sin él, reencolar devolvería el caso a la misma cola
+  por el mismo motivo; el bucle es lo que ese campo impide. Al reanudar, la puerta no vuelve
+  a preguntar y queda `DOCUMENT_ARBITRATED` en las marcas de riesgo.
+- **`DOCUMENT_REJECTED` es terminal y fuera de la cola**, con dos `CHECK` en la base que lo
+  sostienen. Un pendiente, en cambio, **conserva las imágenes**: no está cerrado, y sin
+  ellas la pestaña ofrecería «resolver» sobre una fila sin nada que mirar.
+
 ## Campos calculados, librerías y QA Lab (§5–§10)
 
 - `src/modules/calculated-fields/` — catálogo cerrado de operaciones visuales, guardián

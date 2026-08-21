@@ -81,7 +81,7 @@ esquema, que es la fuente que las migraciones aplican.
 | [`DecisionVersionStatusHistory`](#decisionversionstatushistory) | `decision_version_status_history` | 8 | 1 | 1 |
 | [`ExposureLimit`](#exposurelimit) | `exposure_limit` | 10 | 2 | 0 |
 | [`FinancialInstitution`](#financialinstitution) | `decision_financial_institution` | 14 | 3 | 0 |
-| [`IdentityVerificationRun`](#identityverificationrun) | `decision_identity_verification_run` | 30 | 4 | 0 |
+| [`IdentityVerificationRun`](#identityverificationrun) | `decision_identity_verification_run` | 41 | 5 | 0 |
 | [`IntegrationClient`](#integrationclient) | `integration_client` | 10 | 1 | 0 |
 | [`IntegrationCredential`](#integrationcredential) | `integration_credential` | 11 | 2 | 1 |
 | [`IntegrationScope`](#integrationscope) | `integration_scope` | 4 | 1 | 1 |
@@ -1901,6 +1901,17 @@ Tabla `decision_identity_verification_run`.
 | `decision` | `String?` | @db.VarChar(30) |
 | `documentType` | `String?` | @map("document_type") @db.VarChar(30) |
 | `similarityScore` | `Decimal?` | @map("similarity_score") @db.Decimal(4, 3) |
+| `documentTypeConfidence` | `Decimal?` | @map("document_type_confidence") @db.Decimal(4, 3) |
+| `reviewReason` | `IdentityReviewReason?` | @map("review_reason") |
+| `rejectionReason` | `IdentityRejectionReason?` | @map("rejection_reason") |
+| `arbitrationMode` | `IdentityArbitrationMode?` | @map("arbitration_mode") |
+| `reviewPriority` | `Int?` | @map("review_priority") |
+| `reviewOpenedAt` | `DateTime?` | @map("review_opened_at") @db.Timestamptz(6) |
+| `reviewClaimedBy` | `String?` | @map("review_claimed_by") @db.VarChar(160) |
+| `reviewClaimedAt` | `DateTime?` | @map("review_claimed_at") @db.Timestamptz(6) |
+| `reviewResolvedBy` | `String?` | @map("review_resolved_by") @db.VarChar(160) |
+| `reviewResolvedAt` | `DateTime?` | @map("review_resolved_at") @db.Timestamptz(6) |
+| `reviewNotes` | `String?` | @map("review_notes") @db.Text |
 | `errorCode` | `String?` | @map("error_code") @db.VarChar(120) |
 | `errorMessage` | `String?` | @map("error_message") @db.Text |
 | `attemptCount` | `Int` | @default(0) @map("attempt_count") |
@@ -1918,6 +1929,7 @@ Tabla `decision_identity_verification_run`.
 - `unique([tenantId, requestId])`
 - `index([status, queuedAt])`
 - `index([tenantId, queuedAt])`
+- `index([tenantId, status, reviewReason, reviewPriority, reviewOpenedAt], map: "decision_identity_verification_run_review_queue_idx")`
 
 ## IntegrationClient
 

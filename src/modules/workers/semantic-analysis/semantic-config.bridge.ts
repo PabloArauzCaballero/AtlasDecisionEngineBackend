@@ -1,5 +1,6 @@
 import type { ConfigService } from '@nestjs/config';
 import type { SemanticWorkerConfig } from './core/config/semantic-worker.config';
+import { booleanoDeConfig } from '../../../common/config/config-coercion.util';
 
 /**
  * Traduce la configuración del motor a la que espera el núcleo semántico.
@@ -100,6 +101,11 @@ export function buildSemanticWorkerConfig(config: ConfigService): SemanticWorker
     analysisTimeoutSeconds: Math.max(worstCaseSeconds, leaseSeconds - 10),
     candidateLimit: config.get<number>('SEMANTIC_ANALYSIS_CANDIDATE_LIMIT') ?? 8,
     ambiguityMargin: config.get<number>('SEMANTIC_ANALYSIS_AMBIGUITY_MARGIN') ?? 0.08,
+    // Encendidos por defecto y apagables por entorno. Los dos existen para que
+    // una glosa NUNCA se quede sin categoría: uno resuelve antes de preguntar,
+    // el otro resuelve cuando preguntar tardó demasiado.
+    ruleFastPathEnabled: booleanoDeConfig(config, 'SEMANTIC_ANALYSIS_RULE_FAST_PATH_ENABLED', true),
+    timeoutRescueEnabled: booleanoDeConfig(config, 'SEMANTIC_ANALYSIS_TIMEOUT_RESCUE_ENABLED', true),
     catalogCacheTtlSeconds: config.get<number>('SEMANTIC_ANALYSIS_CATALOG_TTL_SECONDS') ?? 300,
     // Una hora y cinco mil glosas: un extracto largo trae unas ciento veinte
     // distintas, así que caben decenas de tandas seguidas sin desalojar nada. La

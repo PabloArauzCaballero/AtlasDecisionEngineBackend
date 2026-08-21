@@ -66,6 +66,9 @@ export class SemanticAnalysisResultBuilder {
       model: input.model,
       modelVersion: input.modelVersion,
       processingTimeMs,
+      decidedBy: input.decision.decidedBy,
+      requiresReview: input.decision.requiresReview,
+      reviewReason: input.decision.reviewReason,
     };
 
     this.metrics.recordAnalysis({

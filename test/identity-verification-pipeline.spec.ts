@@ -24,6 +24,7 @@
 import { createHash } from 'node:crypto';
 import sharp from 'sharp';
 import { HeuristicDocumentClassifierAdapter } from '../src/modules/workers/identity-verification/core/adapters/local-providers.adapter';
+import { HumanIdentityArbitrationAdapter } from '../src/modules/workers/identity-verification/core/adapters/identity-arbitration.adapter';
 import {
   HumanFaceDetectorAdapter,
   HumanFaceMatchAdapter,
@@ -166,6 +167,9 @@ function buildPipeline(options: IdentityOptions = OPTIONS): IdentityPipelineServ
     new HumanFaceDetectorAdapter(options),
     new HumanFaceMatchAdapter(options),
     new HumanLivenessAdapter(options),
+    // Árbitro humano: deja el caso en la cola y no finge un veredicto, que es
+    // exactamente lo que hace en producción.
+    new HumanIdentityArbitrationAdapter(),
     parsers,
     new ImageQualityAssessmentService(options),
   );
@@ -406,9 +410,15 @@ describe('escenarios del worker de verificación de identidad', () => {
      * de identidad— que además se corta ANTES de comparar ningún rostro.
      */
     await expect(runFixture('imagen-cualquiera')).rejects.toMatchObject({
-      code: 'IDENTITY_DOCUMENT_UNSUPPORTED',
+      // El código dice QUÉ pasó, y ya no es el mismo con el que se contestaba a
+      // una cédula mal fotografiada: «lo que subiste no es un documento» y «ese
+      // tipo de documento no está soportado» mandan a hacer cosas distintas.
+      code: 'IDENTITY_DOCUMENT_NOT_IDENTITY',
       category: 'VALIDATION',
       retryable: false,
+      // Ninguna señal PROPIA de un documento: la proporción rectangular no
+      // cuenta, y por eso el motivo es «no es un documento» y no «no se leyó».
+      details: { rejectionReason: 'NOT_AN_IDENTITY_DOCUMENT' },
     });
     // Y el mensaje distingue «no leí nada» de «leí algo que no es un documento»:
     // no se arreglan igual.

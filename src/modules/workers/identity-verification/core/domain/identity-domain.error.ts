@@ -25,6 +25,16 @@ export class IdentityDomainError extends Error {
     message: string,
     public readonly category: IdentityErrorCategory,
     public readonly retryable = false,
+    /**
+     * Lo que el desenlace necesita saber y el mensaje no puede llevar.
+     *
+     * Concretamente: el motivo de revisión o de rechazo con el vocabulario
+     * cerrado de la cola. Va aquí y no incrustado en el texto porque el texto lo
+     * lee una persona y el motivo lo lee un `GROUP BY`; extraerlo del mensaje
+     * con una expresión regular es exactamente el acoplamiento que este campo
+     * evita.
+     */
+    public readonly details: Readonly<Record<string, unknown>> = {},
   ) {
     super(message);
     this.name = 'IdentityDomainError';
@@ -103,6 +113,50 @@ export const identityErrors = {
     ),
   unsupportedDocument: (message = 'Ese tipo de documento no está soportado.') =>
     new IdentityDomainError('IDENTITY_DOCUMENT_UNSUPPORTED', message, 'VALIDATION'),
+  /**
+   * Lo que se subió no es un documento de identidad, y hay evidencia para decirlo.
+   *
+   * Tiene código propio —y no reutiliza `IDENTITY_DOCUMENT_UNSUPPORTED`— porque
+   * las dos frases mandan a quien está delante del móvil a hacer cosas
+   * distintas. «Ese tipo de documento no está soportado» le dice que busque otro
+   * documento; esto le dice que la foto que envió era de otra cosa. Durante
+   * meses se contestó lo primero a quien fotografiaba un recibo Y a quien
+   * fotografiaba su cédula de noche.
+   */
+  notAnIdentityDocument: (detail: string, rejectionReason: string) =>
+    new IdentityDomainError(
+      'IDENTITY_DOCUMENT_NOT_IDENTITY',
+      `La imagen no se reconoce como un documento de identidad. ${detail} Envía una foto de tu carnet, completo y enfocado.`,
+      'VALIDATION',
+      false,
+      { rejectionReason },
+    ),
+  /** Es un documento de identidad válido, pero no de los que este flujo admite. */
+  documentTypeNotAccepted: (detail: string) =>
+    new IdentityDomainError(
+      'IDENTITY_DOCUMENT_TYPE_NOT_ACCEPTED',
+      `Ese documento no es el que este trámite admite. ${detail}`,
+      'VALIDATION',
+      false,
+      { rejectionReason: 'UNSUPPORTED_DOCUMENT_TYPE' },
+    ),
+  /**
+   * Hay duda razonable y la resuelve un factor externo. **No es un fallo.**
+   *
+   * Viaja por el canal de error por lo mismo que en el worker de extractos: el
+   * pipeline tiene que interrumpirse aquí —seguir gastaría la biometría, que es
+   * la parte cara, sobre un documento que quizá no lo sea— y el desenlace lo
+   * decide un solo sitio (`identity-outcome.ts`) leyendo el código. No se
+   * reintenta: el segundo intento produciría exactamente la misma duda.
+   */
+  arbitrationPending: (detail: string, reviewReason: string, arbitrationMode: string) =>
+    new IdentityDomainError(
+      'IDENTITY_ARBITRATION_PENDING',
+      `La verificación quedó a la espera de una revisión. ${detail}`,
+      'VALIDATION',
+      false,
+      { reviewReason, arbitrationMode },
+    ),
   faceNotFound: () =>
     new IdentityDomainError(
       'IDENTITY_FACE_NOT_FOUND',
