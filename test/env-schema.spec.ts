@@ -47,9 +47,7 @@ describe('variables opcionales que llegan vacías desde Docker', () => {
   });
 
   it('con un valor de verdad, se sigue validando igual', () => {
-    expect(() =>
-      validateEnvironment({ ...base, LITELLM_TIMEOUT_MS: '5' }),
-    ).toThrow(); // por debajo del mínimo de 1000 ms
+    expect(() => validateEnvironment({ ...base, LITELLM_TIMEOUT_MS: '5' })).toThrow(); // por debajo del mínimo de 1000 ms
     const ok = validateEnvironment({ ...base, LITELLM_TIMEOUT_MS: '5000' });
     expect(ok.LITELLM_TIMEOUT_MS).toBe(5000);
   });
