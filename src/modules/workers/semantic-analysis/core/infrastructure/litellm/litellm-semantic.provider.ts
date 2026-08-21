@@ -23,7 +23,7 @@ import {
   OpenAiCompatibleTransport,
   normalizeBaseUrl,
   parseStructuredOutput,
-  readErrorCode,
+  readErrorDetail,
   readRetryAfterMs,
 } from '../http/openai-compatible-transport';
 
@@ -144,10 +144,12 @@ export class LiteLlmSemanticProvider implements SemanticModelProvider {
     });
 
     if (!response.ok) {
+      const detail = await readErrorDetail(response);
       throw new HttpProviderError(
         response.status,
         readRetryAfterMs(response),
-        await readErrorCode(response),
+        detail.code,
+        detail.quotaExhausted,
       );
     }
 

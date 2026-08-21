@@ -403,6 +403,71 @@ describe('LiteLlmSemanticProvider — todo lo que acaba en revisión humana', ()
     expect(llamadas).toHaveLength(1);
   });
 
+  /**
+   * El cuerpo REAL de un LiteLLM con la cuenta de OpenAI sin fondos.
+   *
+   * Capturado del circuito de verdad, no imaginado: el gateway aplana el error estructurado del
+   * proveedor y no deja `insufficient_quota` en ninguna parte —`code` es el propio estado y `type`
+   * viene vacío—, así que la única señal es la prosa. Las pruebas de más abajo imitaban la forma
+   * NATIVA de OpenAI y por eso no veían este caso: el adaptador daba el saldo agotado por
+   * transitorio y gastaba los tres intentos con su retroceso en CADA glosa.
+   */
+  const CUERPO_SIN_SALDO = {
+    error: {
+      message:
+        'litellm.RateLimitError: RateLimitError: OpenAIException - You exceeded your current ' +
+        'quota, please check your plan and billing details. For more information on this error, ' +
+        'read the docs: https://platform.openai.com/docs/guides/error-codes/api-errors.. ' +
+        'Received Model Group=semantic-classifier-fast\nAvailable Model Group Fallbacks=None',
+      type: null,
+      code: '429',
+    },
+  };
+
+  it('NO reintenta el saldo agotado tal como lo aplana el gateway (cuerpo real)', async () => {
+    const { provider, llamadas } = proveedor(
+      [
+        () =>
+          new Response(JSON.stringify(CUERPO_SIN_SALDO), {
+            status: 429,
+            headers: { 'content-type': 'application/json', 'retry-after': '30' },
+          }),
+      ],
+      { maxAttempts: 3 },
+    );
+
+    await expect(provider.classify(ENTRADA, 'FAST')).rejects.toMatchObject({
+      code: 'SEMANTIC_PROVIDER_ERROR',
+      retryable: false,
+    });
+    // Una sola llamada: con tres, una cuenta sin saldo quemaría 3 intentos por glosa y para siempre.
+    expect(llamadas).toHaveLength(1);
+  });
+
+  it('un límite de tasa DE VERDAD sigue reintentándose', async () => {
+    // La contrapartida: sólo se degrada a permanente lo inequívoco. Un 429 sin la firma del saldo
+    // es transitorio y debe reintentarse, o se mandaría a revisión algo que iba a resolverse solo.
+    const respuestas = [
+      () =>
+        new Response(
+          JSON.stringify({
+            error: { message: 'Rate limit reached for gpt-4.1-mini', code: '429' },
+          }),
+          {
+            status: 429,
+            headers: { 'content-type': 'application/json', 'retry-after': '0' },
+          },
+        ),
+      () => respuestaOk(),
+    ];
+    const { provider, llamadas } = proveedor(respuestas, { maxAttempts: 3 });
+
+    const resultado = await provider.classify(ENTRADA, 'FAST');
+
+    expect(llamadas).toHaveLength(2);
+    expect(resultado.assessments).toHaveLength(1);
+  });
+
   it('NO reintenta el saldo agotado, que viaja como 429', async () => {
     const { provider, llamadas } = proveedor([() => errorHttp(429, 'insufficient_quota')], {
       maxAttempts: 3,

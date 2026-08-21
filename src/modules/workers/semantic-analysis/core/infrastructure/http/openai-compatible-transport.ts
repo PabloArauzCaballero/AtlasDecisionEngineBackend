@@ -56,6 +56,35 @@ export const DEFAULT_TIMEOUT_MS = 30_000;
 export const DEFAULT_MAX_OUTPUT_TOKENS = 2_048;
 
 /**
+ * Frases con las que un proveedor dice «no te queda saldo», tal como sobreviven al gateway.
+ *
+ * Mirar la PROSA es lo último que uno quiere hacer, y aquí es lo único que queda. Verificado
+ * contra un LiteLLM real con una cuenta de OpenAI sin fondos: el gateway aplana el error
+ * estructurado del proveedor y lo que llega es
+ *
+ *     { "error": { "code": "429", "type": null,
+ *                  "message": "litellm.RateLimitError: ... OpenAIException -
+ *                              You exceeded your current quota, ..." } }
+ *
+ * Ni rastro de `insufficient_quota`: el código es el propio estado HTTP y el tipo viene vacío.
+ * Sin esta comprobación, una cuenta sin saldo consume los tres intentos y su retroceso **en cada
+ * glosa y para siempre**, que es exactamente el fallo que `PERMANENT_ERROR_CODES` existe para
+ * impedir y que las pruebas con dobles no veían, porque imitaban la forma NATIVA de OpenAI y no
+ * la que produce el gateway.
+ *
+ * La lista se mantiene corta y sin ambigüedad a propósito: un límite de tasa de verdad SÍ debe
+ * reintentarse, así que sólo se degrada a permanente lo que no puede ser otra cosa.
+ */
+const QUOTA_EXHAUSTED_SIGNATURES: readonly string[] = [
+  'exceeded your current quota',
+  'insufficient_quota',
+  'insufficient quota',
+  'credit balance is too low',
+  'billing hard limit',
+  'exceeded your monthly',
+];
+
+/**
  * Error interno para transportar el código HTTP, su `Retry-After` y el código de
  * error del proveedor hasta la clasificación.
  */
@@ -64,6 +93,8 @@ export class HttpProviderError extends Error {
     public readonly status: number,
     public readonly retryAfterMs: number | undefined,
     public readonly code: string | undefined,
+    /** El cuerpo delata saldo agotado, aunque el estado diga «vuelve a intentarlo». */
+    public readonly quotaExhausted: boolean = false,
   ) {
     super(code === undefined ? `HTTP ${status}` : `HTTP ${status} (${code})`);
     this.name = 'HttpProviderError';
@@ -155,7 +186,8 @@ export class OpenAiCompatibleTransport {
     if (error instanceof HttpProviderError) {
       const retryable =
         RETRYABLE_STATUS_CODES.has(error.status) &&
-        !(error.code !== undefined && PERMANENT_ERROR_CODES.has(error.code));
+        !(error.code !== undefined && PERMANENT_ERROR_CODES.has(error.code)) &&
+        !error.quotaExhausted;
       const detail = error.code === undefined ? '' : ` (${error.code})`;
       return new SemanticProviderError(
         `${this.providerLabel} respondió con HTTP ${String(error.status)}${detail}.`,
@@ -245,23 +277,46 @@ function isTimeout(error: unknown): boolean {
  * HTTP. Perder el código degrada la precisión; hacer fallar la lectura perdería
  * además el error real del proveedor.
  */
-export async function readErrorCode(response: Response): Promise<string | undefined> {
+export interface ProviderErrorDetail {
+  /** Identificador del error, si el proveedor publicó uno utilizable. */
+  readonly code: string | undefined;
+  /** El cuerpo dice que se acabó el saldo, con independencia del estado HTTP. */
+  readonly quotaExhausted: boolean;
+}
+
+export async function readErrorDetail(response: Response): Promise<ProviderErrorDetail> {
+  const nothing: ProviderErrorDetail = { code: undefined, quotaExhausted: false };
   let body: unknown;
   try {
     body = await response.json();
   } catch {
-    return undefined;
+    return nothing;
   }
   if (typeof body !== 'object' || body === null) {
-    return undefined;
+    return nothing;
   }
   const error: unknown = (body as { error?: unknown }).error;
   if (typeof error !== 'object' || error === null) {
-    return undefined;
+    return nothing;
   }
-  const { code, type } = error as { code?: unknown; type?: unknown };
+  const { code, type, message } = error as { code?: unknown; type?: unknown; message?: unknown };
   const candidate = typeof code === 'string' ? code : type;
-  return typeof candidate === 'string' && ERROR_CODE_SHAPE.test(candidate) ? candidate : undefined;
+  return {
+    code: typeof candidate === 'string' && ERROR_CODE_SHAPE.test(candidate) ? candidate : undefined,
+    quotaExhausted: saysQuotaExhausted(message),
+  };
+}
+
+/**
+ * Reconoce el saldo agotado en el texto del proveedor.
+ *
+ * Se compara en minúsculas y por subcadena porque el gateway antepone su propia envoltura
+ * (`litellm.RateLimitError: RateLimitError: OpenAIException - …`) al mensaje original.
+ */
+function saysQuotaExhausted(message: unknown): boolean {
+  if (typeof message !== 'string') return false;
+  const normalized = message.toLowerCase();
+  return QUOTA_EXHAUSTED_SIGNATURES.some((signature) => normalized.includes(signature));
 }
 
 export function readRetryAfterMs(response: Response): number | undefined {
