@@ -341,9 +341,7 @@ export class IdentityRunWorkerService implements OnModuleInit, OnModuleDestroy, 
         reviewOpenedAt: enRevision ? new Date() : null,
         finishedAt: enRevision ? null : new Date(),
         leaseExpiresAt: null,
-        ...(enRevision
-          ? {}
-          : { documentBytes: null, documentBackBytes: null, selfieBytes: null }),
+        ...(enRevision ? {} : { documentBytes: null, documentBackBytes: null, selfieBytes: null }),
       },
     });
     this.logger.log(

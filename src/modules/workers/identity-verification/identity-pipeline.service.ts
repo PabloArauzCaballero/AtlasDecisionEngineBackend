@@ -361,10 +361,7 @@ export class IdentityPipelineService {
       });
 
       if (veredicto.outcome === 'REJECT_DOCUMENT') {
-        throw identityErrors.notAnIdentityDocument(
-          veredicto.rationale,
-          'NOT_AN_IDENTITY_DOCUMENT',
-        );
+        throw identityErrors.notAnIdentityDocument(veredicto.rationale, 'NOT_AN_IDENTITY_DOCUMENT');
       }
       /*
        * Aceptar sin poder nombrar el tipo no es aceptar: sin tipo no hay

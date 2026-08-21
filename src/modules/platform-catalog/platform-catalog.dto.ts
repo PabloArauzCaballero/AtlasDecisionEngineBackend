@@ -26,16 +26,25 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CatalogManifestBlockDto {
-  @ApiProperty({ example: 'DECISION_ENGINE', description: 'Código estable del bloque dentro del ecosistema ATLAS.' })
+  @ApiProperty({
+    example: 'DECISION_ENGINE',
+    description: 'Código estable del bloque dentro del ecosistema ATLAS.',
+  })
   code!: string;
 
   @ApiProperty({ example: 'ATLAS Decision Engine', description: 'Nombre legible del bloque.' })
   name!: string;
 
-  @ApiProperty({ example: 'AtlasDecisionEngineBackend', description: 'Repositorio que contiene el bloque.' })
+  @ApiProperty({
+    example: 'AtlasDecisionEngineBackend',
+    description: 'Repositorio que contiene el bloque.',
+  })
   repository!: string;
 
-  @ApiProperty({ example: 'atlas-decision-engine-backend', description: 'Nombre del servicio que responde.' })
+  @ApiProperty({
+    example: 'atlas-decision-engine-backend',
+    description: 'Nombre del servicio que responde.',
+  })
   service!: string;
 
   @ApiProperty({ example: '2.0.0', description: 'Versión de build que produjo este manifiesto.' })
@@ -44,15 +53,24 @@ export class CatalogManifestBlockDto {
   @ApiProperty({ example: 'local', description: 'Commit de la build que produjo este manifiesto.' })
   commit!: string;
 
-  @ApiProperty({ example: '/v1', description: 'Prefijo global de rutas del servicio, vacío si no lo tiene.' })
+  @ApiProperty({
+    example: '/v1',
+    description: 'Prefijo global de rutas del servicio, vacío si no lo tiene.',
+  })
   routePrefix!: string;
 
-  @ApiProperty({ example: '2026-08-20T11:00:00.000Z', description: 'Instante en el que se calculó el manifiesto.' })
+  @ApiProperty({
+    example: '2026-08-20T11:00:00.000Z',
+    description: 'Instante en el que se calculó el manifiesto.',
+  })
   generatedAt!: string;
 }
 
 export class CatalogManifestEndpointDto {
-  @ApiProperty({ example: 'DE_GET_V1_ARTIFACTS', description: 'Código estable y único del endpoint dentro del bloque.' })
+  @ApiProperty({
+    example: 'DE_GET_V1_ARTIFACTS',
+    description: 'Código estable y único del endpoint dentro del bloque.',
+  })
   code!: string;
 
   @ApiProperty({ example: 'artifacts', description: 'Módulo del bloque que lo expone.' })
@@ -61,7 +79,10 @@ export class CatalogManifestEndpointDto {
   @ApiProperty({ example: 'GET' })
   method!: string;
 
-  @ApiProperty({ example: '/v1/artifacts', description: 'Ruta completa tal y como la sirve el proceso.' })
+  @ApiProperty({
+    example: '/v1/artifacts',
+    description: 'Ruta completa tal y como la sirve el proceso.',
+  })
   fullPath!: string;
 
   @ApiProperty({ example: 'ArtifactController', nullable: true })
@@ -70,16 +91,30 @@ export class CatalogManifestEndpointDto {
   @ApiProperty({ example: 'list', nullable: true })
   handlerName!: string | null;
 
-  @ApiProperty({ example: 'Lista de artefactos de decisión.', description: 'Resumen declarado en el contrato OpenAPI.' })
+  @ApiProperty({
+    example: 'Lista de artefactos de decisión.',
+    description: 'Resumen declarado en el contrato OpenAPI.',
+  })
   summary!: string;
 
-  @ApiProperty({ example: true, description: 'Falso sólo cuando la ruta está marcada como pública.' })
+  @ApiProperty({
+    example: true,
+    description: 'Falso sólo cuando la ruta está marcada como pública.',
+  })
   requiresAuth!: boolean;
 
-  @ApiProperty({ type: [String], example: ['RISK_ANALYST', 'AUDITOR'], description: 'Roles que el guard acepta.' })
+  @ApiProperty({
+    type: [String],
+    example: ['RISK_ANALYST', 'AUDITOR'],
+    description: 'Roles que el guard acepta.',
+  })
   allowedRoles!: string[];
 
-  @ApiProperty({ example: 'management', nullable: true, description: 'Plano de la API al que pertenece la ruta.' })
+  @ApiProperty({
+    example: 'management',
+    nullable: true,
+    description: 'Plano de la API al que pertenece la ruta.',
+  })
   audience!: string | null;
 
   /**
@@ -97,10 +132,18 @@ export class CatalogManifestEndpointDto {
   })
   minPayloadSchema?: Record<string, string>;
 
-  @ApiPropertyOptional({ type: 'object', additionalProperties: { type: 'string' }, description: 'Parámetros de query.' })
+  @ApiPropertyOptional({
+    type: 'object',
+    additionalProperties: { type: 'string' },
+    description: 'Parámetros de query.',
+  })
   queryParamsSchema?: Record<string, string>;
 
-  @ApiPropertyOptional({ type: 'object', additionalProperties: { type: 'string' }, description: 'Parámetros de ruta.' })
+  @ApiPropertyOptional({
+    type: 'object',
+    additionalProperties: { type: 'string' },
+    description: 'Parámetros de ruta.',
+  })
   pathParamsSchema?: Record<string, string>;
 
   /** Códigos de éxito DECLARADOS. Ausente significa «no se declara», no «devuelve 200». */
@@ -110,7 +153,10 @@ export class CatalogManifestEndpointDto {
   @ApiProperty({ example: true, description: 'Verdadero para GET y HEAD: no muta estado.' })
   isReadonly!: boolean;
 
-  @ApiProperty({ example: false, description: 'Verdadero para DELETE: destruye estado de forma no recuperable.' })
+  @ApiProperty({
+    example: false,
+    description: 'Verdadero para DELETE: destruye estado de forma no recuperable.',
+  })
   isDestructive!: boolean;
 
   @ApiProperty({ example: 'LOW', enum: ['LOW', 'MEDIUM', 'HIGH'] })
@@ -124,10 +170,16 @@ export class CatalogManifestDataEntityDto {
   @ApiProperty({ example: 'decision_artifact' })
   tableName!: string;
 
-  @ApiProperty({ example: 'Decision artifact', description: 'Nombre legible derivado del nombre de tabla.' })
+  @ApiProperty({
+    example: 'Decision artifact',
+    description: 'Nombre legible derivado del nombre de tabla.',
+  })
   entityName!: string;
 
-  @ApiProperty({ example: 'artifacts', description: 'Módulo del bloque al que se atribuye la tabla.' })
+  @ApiProperty({
+    example: 'artifacts',
+    description: 'Módulo del bloque al que se atribuye la tabla.',
+  })
   module!: string;
 
   @ApiProperty({ example: 12 })
@@ -136,19 +188,34 @@ export class CatalogManifestDataEntityDto {
   @ApiProperty({ type: [String], example: ['id'] })
   primaryKeyColumns!: string[];
 
-  @ApiProperty({ example: false, description: 'Heurística por nombre de columna: datos personales identificables.' })
+  @ApiProperty({
+    example: false,
+    description: 'Heurística por nombre de columna: datos personales identificables.',
+  })
   containsPii!: boolean;
 
-  @ApiProperty({ example: false, description: 'Heurística por nombre de columna: importes, saldos o límites.' })
+  @ApiProperty({
+    example: false,
+    description: 'Heurística por nombre de columna: importes, saldos o límites.',
+  })
   containsFinancialData!: boolean;
 
-  @ApiProperty({ example: true, description: 'Heurística por nombre de columna: puntajes, decisiones o políticas.' })
+  @ApiProperty({
+    example: true,
+    description: 'Heurística por nombre de columna: puntajes, decisiones o políticas.',
+  })
   containsRiskData!: boolean;
 
-  @ApiProperty({ example: true, description: 'La tabla sostiene evidencia que una auditoría necesita leer.' })
+  @ApiProperty({
+    example: true,
+    description: 'La tabla sostiene evidencia que una auditoría necesita leer.',
+  })
   isAuditCritical!: boolean;
 
-  @ApiProperty({ example: 'Guarda el artefacto versionado que decide.', description: 'Propósito de negocio inferido.' })
+  @ApiProperty({
+    example: 'Guarda el artefacto versionado que decide.',
+    description: 'Propósito de negocio inferido.',
+  })
   businessPurpose!: string;
 }
 

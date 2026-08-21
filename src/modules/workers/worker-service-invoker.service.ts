@@ -204,7 +204,9 @@ export class WorkerServiceInvokerService {
         status: dudosa ? 'SUCCEEDED_WITH_WARNINGS' : 'SUCCEEDED',
         result: toClassificationResult(result),
         warnings: dudosa
-          ? [`Categoría decidida por ${result.decidedBy} y marcada para revisión (${String(result.reviewReason)})`]
+          ? [
+              `Categoría decidida por ${result.decidedBy} y marcada para revisión (${String(result.reviewReason)})`,
+            ]
           : [],
         durationMs: Date.now() - started,
       };
@@ -318,11 +320,7 @@ export class WorkerServiceInvokerService {
    * que no reconoce, así que una cadena que no es base64 produciría un búfer
    * corto —y una imagen «válida» de trescientos bytes— en vez de un error.
    */
-  private decodeBase64(
-    request: WorkerServiceRequest,
-    argumento: string,
-    servicio: string,
-  ): Buffer {
+  private decodeBase64(request: WorkerServiceRequest, argumento: string, servicio: string): Buffer {
     const encoded = stringArgument(request, argumento);
     if (!encoded) {
       throw new DomainException(
@@ -347,7 +345,6 @@ export class WorkerServiceInvokerService {
     }
     return buffer;
   }
-
 
   /**
    * Verifica una identidad con el carnet y la selfie que trae la decisión.

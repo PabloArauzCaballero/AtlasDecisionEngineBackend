@@ -16,7 +16,11 @@
 import { Injectable, RequestMethod } from '@nestjs/common';
 import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { DiscoveryService, MetadataScanner } from '@nestjs/core';
-import { PUBLIC_ROUTE, REQUIRED_ROLES, REQUIRED_AUDIENCE } from '../../common/security/security.decorators';
+import {
+  PUBLIC_ROUTE,
+  REQUIRED_ROLES,
+  REQUIRED_AUDIENCE,
+} from '../../common/security/security.decorators';
 import { CatalogManifestEndpointDto } from './platform-catalog.dto';
 import { OpenApiDocumentRegistry } from './openapi-document.registry';
 import {
@@ -44,12 +48,16 @@ export class RouteInventoryService {
     const contracts = this.contractIndex();
     for (const wrapper of this.discovery.getControllers()) {
       const controller = wrapper.metatype as (new (...args: never[]) => object) | undefined;
-      if (!controller?.prototype) continue;
+      // El prototipo se estrecha UNA vez y se reutiliza. `Function.prototype` es `any`, así que
+      // pasarlo directo al escáner metía un `any` en la firma —y con él, silencio del compilador
+      // sobre todo lo que se hiciera después con lo que devuelve—. Tiparlo aquí es también lo que
+      // evita repetir la misma aserción dentro del bucle.
+      const prototype = controller?.prototype as Record<string, unknown> | undefined;
+      if (controller === undefined || prototype === undefined) continue;
       const controllerPath = this.normalize(Reflect.getMetadata(PATH_METADATA, controller));
       const moduleName = this.moduleNameOf(controller.name);
 
-      for (const methodName of this.scanner.getAllMethodNames(controller.prototype)) {
-        const prototype = controller.prototype as Record<string, unknown>;
+      for (const methodName of this.scanner.getAllMethodNames(prototype)) {
         const handler = prototype[methodName];
         if (typeof handler !== 'function') continue;
         const verb = Reflect.getMetadata(METHOD_METADATA, handler) as number | undefined;
@@ -139,7 +147,8 @@ export class RouteInventoryService {
   private summaryOf(handler: object, method: string, fullPath: string): string {
     // `@ApiOperation({ summary })` de Swagger. Si la ruta no lo declara, se compone uno legible
     // en vez de dejar el hueco: el catálogo se lee en una tabla y una celda vacía no informa.
-    const operation = Reflect.getMetadata('swagger/apiOperation', handler) as { summary?: string } | undefined;
+    const operation = Reflect.getMetadata('swagger/apiOperation', handler) as
+      { summary?: string } | undefined;
     return operation?.summary?.trim() || `${method} ${fullPath}`;
   }
 

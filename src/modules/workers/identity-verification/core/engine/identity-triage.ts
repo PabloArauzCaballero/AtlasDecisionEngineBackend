@@ -43,14 +43,16 @@ export type IdentityReviewReason =
 
 /** Por qué un documento se rechaza sin preguntar a nadie. */
 export type IdentityRejectionReason =
-  | 'NOT_AN_IDENTITY_DOCUMENT'
-  | 'UNSUPPORTED_DOCUMENT_TYPE'
-  | 'UNREADABLE_DOCUMENT';
+  'NOT_AN_IDENTITY_DOCUMENT' | 'UNSUPPORTED_DOCUMENT_TYPE' | 'UNREADABLE_DOCUMENT';
 
 export type IdentityGateOutcome =
   | { readonly verdict: 'ACCEPT'; readonly documentType: IdentityDocumentType }
   | { readonly verdict: 'REVIEW'; readonly reason: IdentityReviewReason; readonly detail: string }
-  | { readonly verdict: 'REJECT'; readonly reason: IdentityRejectionReason; readonly detail: string };
+  | {
+      readonly verdict: 'REJECT';
+      readonly reason: IdentityRejectionReason;
+      readonly detail: string;
+    };
 
 /**
  * Fronteras por defecto de la evidencia de identidad.

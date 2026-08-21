@@ -39,19 +39,53 @@ type ColumnRow = {
 };
 
 /** Fragmentos de nombre que delatan datos personales identificables. */
-const PII_HINTS = ['email', 'phone', 'msisdn', 'document', 'dni', 'nit', 'address', 'birth', 'full_name', 'first_name', 'last_name', 'ip_address'];
+const PII_HINTS = [
+  'email',
+  'phone',
+  'msisdn',
+  'document',
+  'dni',
+  'nit',
+  'address',
+  'birth',
+  'full_name',
+  'first_name',
+  'last_name',
+  'ip_address',
+];
 /** Fragmentos que delatan importes, saldos o límites. */
-const FINANCIAL_HINTS = ['amount', 'balance', 'limit', 'price', 'currency', 'interest', 'payment', 'invoice', 'credit'];
+const FINANCIAL_HINTS = [
+  'amount',
+  'balance',
+  'limit',
+  'price',
+  'currency',
+  'interest',
+  'payment',
+  'invoice',
+  'credit',
+];
 /** Fragmentos que delatan puntajes, políticas o decisiones. */
 const RISK_HINTS = ['score', 'risk', 'decision', 'policy', 'rule', 'fraud', 'threshold', 'outcome'];
 /** Fragmentos que delatan evidencia que una auditoría necesita leer entera. */
-const AUDIT_HINTS = ['audit', 'log', 'event', 'trace', 'approval', 'deployment', 'version', 'signature'];
+const AUDIT_HINTS = [
+  'audit',
+  'log',
+  'event',
+  'trace',
+  'approval',
+  'deployment',
+  'version',
+  'signature',
+];
 
 @Injectable()
 export class SchemaInventoryService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async collect(moduleResolver: (tableName: string) => string): Promise<CatalogManifestDataEntityDto[]> {
+  async collect(
+    moduleResolver: (tableName: string) => string,
+  ): Promise<CatalogManifestDataEntityDto[]> {
     const rows = await this.prisma.$queryRaw<ColumnRow[]>`
 SELECT n.nspname::text  AS "schemaName",
        c.relname::text  AS "tableName",
@@ -86,7 +120,8 @@ SELECT n.nspname::text  AS "schemaName",
     const names = columns.map((column) => column.columnName.toLowerCase());
     const tableName = first.tableName;
     const entityName = humanize(tableName);
-    const containsRiskData = matchesAny(names, RISK_HINTS) || matchesAny([tableName.toLowerCase()], RISK_HINTS);
+    const containsRiskData =
+      matchesAny(names, RISK_HINTS) || matchesAny([tableName.toLowerCase()], RISK_HINTS);
 
     return {
       schemaName: first.schemaName,
@@ -94,7 +129,9 @@ SELECT n.nspname::text  AS "schemaName",
       entityName,
       module: moduleResolver(tableName),
       columnCount: columns.length,
-      primaryKeyColumns: columns.filter((column) => column.isPrimaryKey).map((column) => column.columnName),
+      primaryKeyColumns: columns
+        .filter((column) => column.isPrimaryKey)
+        .map((column) => column.columnName),
       containsPii: matchesAny(names, PII_HINTS),
       containsFinancialData: matchesAny(names, FINANCIAL_HINTS),
       containsRiskData,

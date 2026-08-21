@@ -46,7 +46,11 @@ describe('contrato del manifiesto de bloque', () => {
 
   it('resuelve `$ref` hasta el esquema apuntado', () => {
     const document = documentWith({
-      SimulateDto: { type: 'object', properties: { input: { type: 'object' } }, required: ['input'] },
+      SimulateDto: {
+        type: 'object',
+        properties: { input: { type: 'object' } },
+        required: ['input'],
+      },
     });
 
     expect(contractFromSchema(document, { $ref: '#/components/schemas/SimulateDto' })).toEqual({
@@ -57,11 +61,18 @@ describe('contrato del manifiesto de bloque', () => {
   /** Nest compone la herencia de DTOs con `allOf`; sin aplanarlo el cuerpo sale sin campos. */
   it('aplana `allOf`', () => {
     const document = documentWith({
-      Base: { type: 'object', properties: { tenantId: { type: 'string' } }, required: ['tenantId'] },
+      Base: {
+        type: 'object',
+        properties: { tenantId: { type: 'string' } },
+        required: ['tenantId'],
+      },
     });
 
     const contract = contractFromSchema(document, {
-      allOf: [{ $ref: '#/components/schemas/Base' }, { type: 'object', properties: { nota: { type: 'string' } } }],
+      allOf: [
+        { $ref: '#/components/schemas/Base' },
+        { type: 'object', properties: { nota: { type: 'string' } } },
+      ],
     });
 
     expect(contract).toEqual({ tenantId: 'string|required', nota: 'string|optional' });
@@ -80,7 +91,11 @@ describe('contrato del manifiesto de bloque', () => {
 
   it('lee el cuerpo `application/json`', () => {
     const contract = contractFromRequestBody(documentWith(), {
-      content: { 'application/json': { schema: { type: 'object', properties: { seed: { type: 'string' } } } } },
+      content: {
+        'application/json': {
+          schema: { type: 'object', properties: { seed: { type: 'string' } } },
+        },
+      },
     });
 
     expect(contract).toEqual({ seed: 'string|optional' });

@@ -15,7 +15,10 @@
  * decir lo mismo. El camino completo con imágenes lo cubre
  * `identity-verification-pipeline.spec.ts`.
  */
-import { medirEvidenciaDeIdentidad, parsearTiposAceptados } from '../src/modules/workers/identity-verification/core/engine/identity-evidence';
+import {
+  medirEvidenciaDeIdentidad,
+  parsearTiposAceptados,
+} from '../src/modules/workers/identity-verification/core/engine/identity-evidence';
 import {
   DEFAULT_IDENTITY_THRESHOLDS,
   normalizeIdentityThresholds,
@@ -78,9 +81,11 @@ describe('un carnet pasa', () => {
   });
 
   it('una MRZ basta para sostener el documento aunque el frente se lea mal', () => {
-    const mrz = ['IDBOL8291134<<<<<<<<<<<<<<<<<<', '9403149M3107204BOL<<<<<<<<<<<8', 'ARAUZ<<PABLO'].join(
-      '\n',
-    );
+    const mrz = [
+      'IDBOL8291134<<<<<<<<<<<<<<<<<<',
+      '9403149M3107204BOL<<<<<<<<<<<8',
+      'ARAUZ<<PABLO',
+    ].join('\n');
     const { evidence } = puerta(mrz);
 
     expect(evidence.signals).toContain('machine-readable-zone');

@@ -16,7 +16,12 @@ import { SchemaInventoryService } from './schema-inventory.service';
 @Module({
   imports: [DiscoveryModule],
   controllers: [PlatformCatalogController],
-  providers: [PlatformCatalogService, RouteInventoryService, SchemaInventoryService, OpenApiDocumentRegistry],
+  providers: [
+    PlatformCatalogService,
+    RouteInventoryService,
+    SchemaInventoryService,
+    OpenApiDocumentRegistry,
+  ],
   // Se exporta para que el arranque pueda depositar el documento OpenAPI ya construido.
   exports: [OpenApiDocumentRegistry],
 })

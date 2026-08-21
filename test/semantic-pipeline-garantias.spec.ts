@@ -102,7 +102,9 @@ function montar(
       retrieve: (_texto: string, categorias: readonly SemanticCategory[]) =>
         Promise.resolve(categorias.map((category) => ({ category, retrievalScore: 0.5 }))),
     } as never,
-    { load: () => Promise.resolve({ categories: CATEGORIAS, aliases: [], signature: 'v1' }) } as never,
+    {
+      load: () => Promise.resolve({ categories: CATEGORIAS, aliases: [], signature: 'v1' }),
+    } as never,
     { read: () => undefined, write: () => undefined } as never,
     {
       reserve: () =>

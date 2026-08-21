@@ -69,7 +69,9 @@ function flatten(document: OpenAPIObject, schema: SchemaLike, depth = 0): Schema
 function typeOf(document: OpenAPIObject, value: unknown, depth = 0): string {
   if (!isRecord(value)) return 'unknown';
   const schema = flatten(document, value as SchemaLike, depth);
-  const raw = Array.isArray(schema.type) ? schema.type.find((entry) => entry !== 'null') : schema.type;
+  const raw = Array.isArray(schema.type)
+    ? schema.type.find((entry) => entry !== 'null')
+    : schema.type;
   if (raw === 'integer') return 'integer';
   if (raw === 'number') return 'number';
   if (raw === 'boolean') return 'boolean';
@@ -90,12 +92,19 @@ export function contractFromSchema(document: OpenAPIObject, schema: unknown): Co
   const required = new Set(Array.isArray(flat.required) ? flat.required.map(String) : []);
   const contract: ContractMap = {};
   for (const [name, definition] of Object.entries(properties)) {
-    contract[name] = `${typeOf(document, definition, 1)}|${required.has(name) ? 'required' : 'optional'}`;
+    contract[name] =
+      `${typeOf(document, definition, 1)}|${required.has(name) ? 'required' : 'optional'}`;
   }
   return contract;
 }
 
-type ParameterLike = { in?: string; name?: string; required?: boolean; schema?: unknown; $ref?: string };
+type ParameterLike = {
+  in?: string;
+  name?: string;
+  required?: boolean;
+  schema?: unknown;
+  $ref?: string;
+};
 
 /**
  * Los parámetros de una operación, separados por dónde viajan. Se mezclan los de la ruta con los de
@@ -115,7 +124,9 @@ export function contractsFromParameters(
     if (!Array.isArray(source)) continue;
     for (const entry of source) {
       if (!isRecord(entry)) continue;
-      const parameter = (entry.$ref ? resolveRef(document, entry as SchemaLike) : entry) as ParameterLike;
+      const parameter = (
+        entry.$ref ? resolveRef(document, entry as SchemaLike) : entry
+      ) as ParameterLike;
       const name = parameter.name;
       if (!name) continue;
       const declared = `${typeOf(document, parameter.schema, 1)}|${parameter.required ? 'required' : 'optional'}`;
@@ -130,9 +141,14 @@ export function contractsFromParameters(
 }
 
 /** El cuerpo `application/json` de una operación. Es el único medio que el catálogo describe. */
-export function contractFromRequestBody(document: OpenAPIObject, requestBody: unknown): ContractMap {
+export function contractFromRequestBody(
+  document: OpenAPIObject,
+  requestBody: unknown,
+): ContractMap {
   if (!isRecord(requestBody)) return {};
-  const resolved = requestBody.$ref ? (resolveRef(document, requestBody as SchemaLike) as unknown as Record<string, unknown>) : requestBody;
+  const resolved = requestBody.$ref
+    ? (resolveRef(document, requestBody as SchemaLike) as unknown as Record<string, unknown>)
+    : requestBody;
   const content = resolved.content;
   if (!isRecord(content)) return {};
   const json = content['application/json'];

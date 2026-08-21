@@ -80,7 +80,10 @@ const CONTRAINDICADORES: ReadonlyArray<{ tipo: string; patron: RegExp }> = [
     patron: /CERTIFICADO\s+DE\s+(?:NACIMIENTO|MATRIMONIO|DEFUNCION)|PARTIDA\s+DE\s+NACIMIENTO/u,
   },
   { tipo: 'SCREENSHOT', patron: /HTTPS?:\/\/|WWW\.[A-Z0-9-]+\.[A-Z]{2,}/u },
-  { tipo: 'ACADEMIC', patron: /DIPLOMA\s+DE|TITULO\s+(?:PROFESIONAL|ACADEMICO)|CERTIFICADO\s+DE\s+NOTAS/u },
+  {
+    tipo: 'ACADEMIC',
+    patron: /DIPLOMA\s+DE|TITULO\s+(?:PROFESIONAL|ACADEMICO)|CERTIFICADO\s+DE\s+NOTAS/u,
+  },
 ];
 
 /** Campos que un documento de identidad rotula y casi ningún otro papel junta. */

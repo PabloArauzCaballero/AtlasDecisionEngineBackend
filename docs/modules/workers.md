@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/workers/`](https://github.com/) · 208 ficheros TypeScript.
+Código: [`src/modules/workers/`](https://github.com/) · 212 ficheros TypeScript.
 
 Etiquetas de API: **Workers · Locución**, **Workers · Extractos bancarios**, **Workers · Entidades financieras**, **Workers · Verificación de identidad**, **Workers · Análisis semántico**, **Workers · Categorías semánticas**, **Workers · Pendientes de clasificación**, **Workers**.
 
@@ -149,6 +149,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `BnbStatementParser`
 - `BoliviaCiDocumentParser`
 - `Bulkhead`
+- `CascadingSemanticProvider`
 - `CatalogCache`
 - `CircuitBreaker`
 - `ClassificationCache`
@@ -182,6 +183,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `GenericStatementStrategy`
 - `GlosaFallbackClassifier`
 - `HeuristicDocumentClassifierAdapter`
+- `HttpProviderError`
 - `HumanFaceDetectorAdapter`
 - `HumanFaceMatchAdapter`
 - `HumanIdentityArbitrationAdapter`
@@ -206,8 +208,10 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `InvalidProfileError`
 - `LayoutPdfReader`
 - `LexicalCandidateRetriever`
+- `LiteLlmSemanticProvider`
 - `LocalAudioStorageAdapter`
 - `MercantilStatementParser`
+- `OpenAiCompatibleTransport`
 - `OpenAiEmbeddingProvider`
 - `OpenAiSemanticProvider`
 - `PassportDocumentParser`
