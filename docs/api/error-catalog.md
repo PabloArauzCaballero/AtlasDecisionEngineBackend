@@ -3,7 +3,7 @@
 
 # Catálogo de códigos de error
 
-227 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
+237 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
 el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 
 | Código | Mensaje de referencia | Origen |
@@ -92,14 +92,24 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `IDEMPOTENCY_IN_PROGRESS` | An identical request is still being processed | `src/modules/runtime/idempotency.service.ts` |
 | `IDEMPOTENCY_PAYLOAD_MISMATCH` | The idempotency key was already used with a different request payload | `src/modules/runtime/idempotency.service.ts` |
 | `IDENTITY_PROVIDER_ERROR` | Identity provider rejected the request | `src/common/security/identity-provider.client.ts` |
-| `IDENTITY_PROVIDER_INVALID_RESPONSE` | Identity provider returned a profile that does not match the expected contract | `src/common/security/identity-provider.client.ts` |
+| `IDENTITY_PROVIDER_INVALID_RESPONSE` | Identity provider did not return ${what} matching the expected contract | `src/common/security/identity-provider.client.ts` |
 | `IDENTITY_PROVIDER_NOT_CONFIGURED` | Identity provider is not configured | `src/common/security/identity-provider.client.ts` |
 | `IDENTITY_PROVIDER_UNAVAILABLE` | Identity provider is unavailable | `src/common/security/identity-provider.client.ts` |
 | `IDENTITY_RATE_LIMITED` | Too many authentication attempts | `src/common/security/identity-provider.client.ts` |
+| `IDENTITY_REJECTION_REASON_REQUIRED` | Rechazar un documento exige declarar el motivo: un rechazo sin motivo no es medible. | `src/modules/workers/identity-verification/review/identity-review.service.ts` |
 | `IDENTITY_REQUEST_INVALID` | Invalid identity request | `src/common/security/identity-provider.client.ts` |
+| `IDENTITY_REQUEST_REJECTED` | — | `src/common/security/identity-provider.client.ts` |
+| `IDENTITY_REVIEW_DOCUMENT_TYPE_REQUIRED` | Confirmar el documento exige declarar cuál es: sin tipo no hay analizador y el caso volvería a la misma cola. | `src/modules/workers/identity-verification/review/identity-review.service.ts` |
+| `IDENTITY_REVIEW_NOT_ASSIGNED` | Sólo quien reclamó el caso puede cerrarlo. Recláma1o primero. | `src/modules/workers/identity-verification/review/identity-review.service.ts` |
+| `IDENTITY_REVIEW_NOT_CLAIMABLE` | — | `src/modules/workers/identity-verification/review/identity-review.service.ts` |
+| `IDENTITY_REVIEW_NOT_FOUND` | No hay ningún caso de arbitraje con ese identificador. | `src/modules/workers/identity-verification/review/identity-review.service.ts` |
 | `IDENTITY_RUN_NOT_CANCELLABLE` | — | `src/modules/workers/identity-verification/identity-verification.service.ts` |
 | `IDENTITY_RUN_NOT_FOUND` | No existe esa verificación. | `src/modules/workers/identity-verification/identity-verification.service.ts` |
 | `IF_MATCH_REQUIRED` | If-Match header with current lock_version is required | `src/common/http/id.ts` |
+| `INSTITUTION_INVALID_PATTERN` | El patrón de ${field} «${source}» ${reason}. | `src/modules/workers/bank-statement/institutions/financial-institution.service.ts` |
+| `INSTITUTION_NOTE_REQUIRED` | Una entidad sin licencia vigente necesita un motivo escrito: es lo único que quien revise el caso podrá leer. | `src/modules/workers/bank-statement/institutions/financial-institution.service.ts` |
+| `INSTITUTION_NOT_FOUND` | No hay ninguna entidad con código ${code} en el padrón. | `src/modules/workers/bank-statement/institutions/financial-institution.service.ts` |
+| `INSTITUTION_WITHOUT_MARKERS` | Una entidad sin marcadores no puede atribuir ningún documento. | `src/modules/workers/bank-statement/institutions/financial-institution.service.ts` |
 | `INTERMEDIATE_ACCUMULATE_UNSUPPORTED` | La variable intermedia ${code} no admite acumulación para este tipo de valor | `src/modules/graph/intermediate-scope.ts` |
 | `INTERMEDIATE_ALREADY_WRITTEN` | La variable intermedia ${code} es de escritura única y ya tiene valor | `src/modules/graph/intermediate-scope.ts` |
 | `INTERMEDIATE_NOT_DECLARED` | El nodo ${nodeKey} intenta escribir la variable intermedia ${code}, que no está declarada | `src/modules/graph/intermediate-scope.ts` |
@@ -224,7 +234,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `VERSION_NOT_FOUND` | Artifact version not found | `src/modules/artifacts/artifact-graph-reader.service.ts` |
 | `VERSION_NOT_REVIEWABLE` | Version must be COMPILED before review | `src/modules/governance/governance.service.ts` |
 | `VERSION_NOT_VALIDATABLE` | Version in state ${version.status} cannot be validated | `src/modules/artifacts/artifact-lifecycle.service.ts` |
-| `WORKER_ARGUMENT_INVALID` | El documento que el nodo ${request.nodeKey} envía no es base64 válido | `src/modules/workers/worker-service-invoker.service.ts` |
+| `WORKER_ARGUMENT_INVALID` | El argumento ${argumento} que el nodo ${request.nodeKey} envía no es base64 válido | `src/modules/workers/worker-service-invoker.service.ts` |
 | `WORKER_ARGUMENT_MISSING` | El nodo ${request.nodeKey} llama a semantic-analysis.classify sin el argumento text | `src/modules/workers/worker-service-invoker.service.ts` |
 | `WORKER_ARGUMENT_TOO_LONG` | El texto que el nodo ${request.nodeKey} envía a clasificar supera los ${maxLength} caracteres | `src/modules/workers/worker-service-invoker.service.ts` |
 | `WORKER_FIXTURES_DISABLED` | Los escenarios de prueba están deshabilitados en este entorno. | `src/modules/workers/audio-tts/audio-tts.controller.ts` |

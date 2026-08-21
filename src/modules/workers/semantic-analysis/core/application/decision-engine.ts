@@ -1,14 +1,53 @@
 import { Injectable } from '@nestjs/common';
 import {
   CategoryAssessment,
+  DecidedBy,
   DecisionStatus,
   SemanticCategory,
 } from '../domain/semantic-analysis.types';
+import type { MotivoDeRevision } from '../domain/review-reason';
 
 export interface Decision {
   readonly status: DecisionStatus;
   readonly matches: readonly CategoryAssessment[];
   readonly requiresDeepAnalysis: boolean;
+  /**
+   * Quién produjo la categoría que se publica.
+   *
+   * Existe porque el resultado dejó de tener un solo autor. Desde que la red de
+   * seguridad garantiza que SIEMPRE hay categoría, «tiene categoría» ya no
+   * significa «el modelo la entendió», y sin este campo las dos cosas se leen
+   * igual en el informe, en la métrica y en la bandeja. Un `MATCH` del modelo y
+   * un cajón por sentido no se pueden sumar en el mismo número.
+   */
+  readonly decidedBy: DecidedBy;
+  /**
+   * Si el caso debe pasar por la bandeja **aunque tenga categoría**.
+   *
+   * Es la contrapartida honesta de no abstenerse nunca: se publica algo útil y
+   * se dice, en el mismo objeto, que alguien debería mirarlo. Sin esto, dejar de
+   * emitir `UNKNOWN` habría vaciado la bandeja de revisión sin haber resuelto un
+   * solo caso más.
+   */
+  readonly requiresReview: boolean;
+  /** Por qué hay que revisarlo, con el vocabulario cerrado de la bandeja. */
+  readonly reviewReason: MotivoDeRevision | null;
+}
+
+/** Una decisión del modelo, que es la única que no necesita revisión por origen. */
+function delModelo(
+  status: DecisionStatus,
+  matches: readonly CategoryAssessment[],
+  requiresDeepAnalysis: boolean,
+): Decision {
+  return {
+    status,
+    matches,
+    requiresDeepAnalysis,
+    decidedBy: 'MODEL',
+    requiresReview: false,
+    reviewReason: null,
+  };
 }
 
 @Injectable()
@@ -39,22 +78,18 @@ export class DecisionEngine {
 
     // Una contradicción unánime es concluyente en cualquier tier: escalarla sólo duplica el coste.
     if (unanimouslyContradicted) {
-      return { status: 'CONTRADICTED', matches: [], requiresDeepAnalysis: false };
+      return delModelo('CONTRADICTED', [], false);
     }
     if (tier === 'FAST' && (accepted.length === 0 || ambiguous)) {
-      return { status: 'AMBIGUOUS', matches: accepted, requiresDeepAnalysis: true };
+      return delModelo('AMBIGUOUS', accepted, true);
     }
     if (accepted.length > 1) {
-      return { status: 'MULTI_MATCH', matches: accepted, requiresDeepAnalysis: false };
+      return delModelo('MULTI_MATCH', accepted, false);
     }
     if (accepted.length === 1 && !ambiguous) {
-      return { status: 'MATCH', matches: accepted, requiresDeepAnalysis: false };
+      return delModelo('MATCH', accepted, false);
     }
-    return {
-      status: ambiguous ? 'AMBIGUOUS' : 'UNKNOWN',
-      matches: [],
-      requiresDeepAnalysis: false,
-    };
+    return delModelo(ambiguous ? 'AMBIGUOUS' : 'UNKNOWN', [], false);
   }
 
   private hasAmbiguousTopScores(

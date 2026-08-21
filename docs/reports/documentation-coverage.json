@@ -4,16 +4,16 @@
     "documented": 30
   },
   "apiTags": {
-    "total": 36,
-    "documented": 36
+    "total": 37,
+    "documented": 37
   },
   "operations": {
-    "total": 212,
-    "documented": 212
+    "total": 221,
+    "documented": 221
   },
   "environmentVariables": {
-    "total": 250,
-    "documented": 250
+    "total": 258,
+    "documented": 258
   },
   "runbooks": 4,
   "failures": 0

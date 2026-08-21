@@ -378,6 +378,10 @@ enum WorkerRunStatus {
   /// para afirmarlo. Es terminal y **nunca entra en la cola de revisión**: una
   /// cola con facturas dentro deja de revisarse.
   PDF_INVALID
+  /// Lo mismo que `PDF_INVALID` pero para el worker de identidad, cuyo rechazo no
+  /// habla de un PDF: la imagen no es un documento de identidad, o es uno que este
+  /// flujo no admite. Terminal y fuera de la cola, por la misma razón.
+  DOCUMENT_REJECTED
 }
 
 /// Por qué un documento espera a una persona. Va SEPARADO del estado: el estado
@@ -418,6 +422,33 @@ enum StatementRejectionReason {
   CORRUPTED_PDF
   /// El PDF se abre y no se puede leer: cifrado o protegido por contraseña.
   UNREADABLE_DOCUMENT
+}
+
+/// Tipo de entidad de intermediación financiera, con la clasificación que usa
+/// ASFI en su nómina de licencias. No es una etiqueta descriptiva: separa a
+/// quien capta depósitos del público de quien no, y esa diferencia es lo que
+/// explica por qué un "extracto del BDP" a nombre de una persona merece que
+/// alguien lo mire.
+enum FinancialInstitutionKind {
+  MULTIPLE_BANK
+  PYME_BANK
+  STATE_BANK
+  DEVELOPMENT_BANK
+  HOUSING_ENTITY
+  COOPERATIVE
+  DEVELOPMENT_IFD
+}
+
+/// Situación de la licencia de funcionamiento. `REVOKED` NO se borra del padrón:
+/// un extracto de una entidad intervenida es un documento auténtico y su
+/// historial sigue siendo cierto, pero quien lo recibe hoy tiene que enterarse
+/// de que la entidad ya no opera. Borrar la fila convertiría ese caso en
+/// "entidad desconocida", que se lee como un fallo del motor y no como el hecho
+/// que es.
+enum InstitutionLicenseStatus {
+  LICENSED
+  SUSPENDED
+  REVOKED
 }
 
 /// De dónde salió la entrada de una ejecución. Separar el fixture del dato real
@@ -469,22 +500,22 @@ model DecisionEnvironment {
 }
 
 model DecisionArtifact {
-  id              BigInt   @id @default(autoincrement())
-  tenantId        BigInt   @map("tenant_id")
-  artifactCode    String   @map("artifact_code") @db.VarChar(100)
-  artifactType    String   @map("artifact_type") @db.VarChar(50)
-  name            String   @db.VarChar(160)
-  description     String?  @db.Text
-  ownerTeam       String   @map("owner_team") @db.VarChar(100)
-  businessPurpose String   @map("business_purpose") @db.Text
-  riskDomain      String   @map("risk_domain") @db.VarChar(50)
+  id              BigInt       @id @default(autoincrement())
+  tenantId        BigInt       @map("tenant_id")
+  artifactCode    String       @map("artifact_code") @db.VarChar(100)
+  artifactType    String       @map("artifact_type") @db.VarChar(50)
+  name            String       @db.VarChar(160)
+  description     String?      @db.Text
+  ownerTeam       String       @map("owner_team") @db.VarChar(100)
+  businessPurpose String       @map("business_purpose") @db.Text
+  riskDomain      String       @map("risk_domain") @db.VarChar(50)
   /// Qué clase de decisión toma. Determina qué contexto es obligatorio, qué ventanas de
   /// desenlace aplican y contra qué línea base se mide. `ORIGINATION` por omisión porque es
   /// lo único que el motor modelaba antes de esta migración.
   decisionKind    DecisionKind @default(ORIGINATION) @map("decision_kind")
-  isActive        Boolean  @default(true) @map("is_active")
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  isActive        Boolean      @default(true) @map("is_active")
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   versions DecisionArtifactVersion[]
 
@@ -517,27 +548,27 @@ model DecisionArtifactVersion {
   /// Sólo tiene sentido endurecerla o declarar `NOT_APPLICABLE`; relajar una exigencia de
   /// producción desde el artefacto sería una puerta trasera al control, y por eso
   /// `subject-policy.ts` sólo deja que la versión sea igual o más estricta que su ambiente.
-  subjectReferencePolicy      SubjectReferencePolicy? @map("subject_reference_policy")
+  subjectReferencePolicy     SubjectReferencePolicy? @map("subject_reference_policy")
   /// Por qué esta decisión no tiene sujeto. Obligatoria con `NOT_APPLICABLE`: una exención
   /// sin motivo escrito no es una decisión, es un descuido que nadie puede revisar.
-  subjectPolicyJustification  String?                 @map("subject_policy_justification") @db.Text
+  subjectPolicyJustification String?                 @map("subject_policy_justification") @db.Text
 
   /// Expediente del modelo (SR 11-7 §V; CMN 4.557 art. 40). El material estaba disperso entre
   /// `DecisionApprovalEvidence`, `BusinessObjective` y `PolicyRequirement`; lo que faltaba era
   /// reunirlo y ponerle VENCIMIENTO. Una validación sin fecha de caducidad se convierte en un
   /// papel de hace tres años que nadie vuelve a mirar.
-  validatedBy        String?   @map("validated_by") @db.VarChar(160)
-  validatedAt        DateTime? @map("validated_at") @db.Timestamptz(6)
+  validatedBy       String?   @map("validated_by") @db.VarChar(160)
+  validatedAt       DateTime? @map("validated_at") @db.Timestamptz(6)
   /// Cuándo toca revalidar. Vencido NO bloquea la ejecución —cortar el crédito de una financiera
   /// por un papel vencido es peor que el papel vencido— pero se marca y no se puede ignorar.
-  revalidationDueAt  DateTime? @map("revalidation_due_at") @db.Timestamptz(6)
+  revalidationDueAt DateTime? @map("revalidation_due_at") @db.Timestamptz(6)
   /// Limitaciones declaradas: población para la que NO sirve, supuestos, datos que no vio.
-  limitationsNotes   String?   @map("limitations_notes") @db.Text
-  createdBy         String                @map("created_by") @db.VarChar(160)
-  createdAt         DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
-  submittedAt       DateTime?             @map("submitted_at") @db.Timestamptz(6)
-  approvedAt        DateTime?             @map("approved_at") @db.Timestamptz(6)
-  retiredAt         DateTime?             @map("retired_at") @db.Timestamptz(6)
+  limitationsNotes  String?   @map("limitations_notes") @db.Text
+  createdBy         String    @map("created_by") @db.VarChar(160)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  submittedAt       DateTime? @map("submitted_at") @db.Timestamptz(6)
+  approvedAt        DateTime? @map("approved_at") @db.Timestamptz(6)
+  retiredAt         DateTime? @map("retired_at") @db.Timestamptz(6)
 
   artifact              DecisionArtifact                     @relation(fields: [artifactId], references: [id], onDelete: Cascade)
   sourceVersion         DecisionArtifactVersion?             @relation("VersionSource", fields: [sourceVersionId], references: [id], onDelete: SetNull)
@@ -725,13 +756,13 @@ model DecisionVariableValidationRule {
 }
 
 model DecisionArtifactVariableDependency {
-  id                BigInt  @id @default(autoincrement())
-  artifactVersionId BigInt  @map("artifact_version_id")
-  variableVersionId BigInt  @map("variable_version_id")
-  usageType         String  @map("usage_type") @db.VarChar(50)
-  isRequired        Boolean @default(true) @map("is_required")
-  fallbackPolicy    String  @map("fallback_policy") @db.VarChar(50)
-  dependencyPath    String  @map("dependency_path") @db.VarChar(500)
+  id                BigInt          @id @default(autoincrement())
+  artifactVersionId BigInt          @map("artifact_version_id")
+  variableVersionId BigInt          @map("variable_version_id")
+  usageType         String          @map("usage_type") @db.VarChar(50)
+  isRequired        Boolean         @default(true) @map("is_required")
+  fallbackPolicy    String          @map("fallback_policy") @db.VarChar(50)
+  dependencyPath    String          @map("dependency_path") @db.VarChar(500)
   /// Qué hacer si el dato llega más viejo que su SLA. `DEGRADE` en la migración porque subir
   /// todo a `REJECT` de golpe rompería decisiones vivas; se endurece variable por variable.
   freshnessPolicy   FreshnessPolicy @default(DEGRADE) @map("freshness_policy")
@@ -1129,19 +1160,19 @@ model DecisionRuntimeBinding {
 }
 
 model DecisionExecution {
-  id                   BigInt          @id @default(autoincrement())
-  tenantId             BigInt          @map("tenant_id")
-  deploymentId         BigInt          @map("deployment_id")
-  artifactVersionId    BigInt          @map("artifact_version_id")
-  environmentId        BigInt          @map("environment_id")
-  requestId            String          @map("request_id") @db.VarChar(120)
-  correlationId        String?         @map("correlation_id") @db.VarChar(120)
-  idempotencyKey       String          @map("idempotency_key") @db.VarChar(160)
-  subjectReferenceHash String?         @map("subject_reference_hash") @db.VarChar(128)
+  id                   BigInt                  @id @default(autoincrement())
+  tenantId             BigInt                  @map("tenant_id")
+  deploymentId         BigInt                  @map("deployment_id")
+  artifactVersionId    BigInt                  @map("artifact_version_id")
+  environmentId        BigInt                  @map("environment_id")
+  requestId            String                  @map("request_id") @db.VarChar(120)
+  correlationId        String?                 @map("correlation_id") @db.VarChar(120)
+  idempotencyKey       String                  @map("idempotency_key") @db.VarChar(160)
+  subjectReferenceHash String?                 @map("subject_reference_hash") @db.VarChar(128)
   /// El mismo sujeto, ya resuelto a fila. La columna HMAC se conserva: es la que responde a
   /// una solicitud de titular sin necesidad de tocar `decision_subject`, y las ejecuciones
   /// anteriores a esta migración sólo tienen esa.
-  subjectId            BigInt?         @map("subject_id")
+  subjectId            BigInt?                 @map("subject_id")
   /// Por qué esta ejecución no lleva sujeto. `WARN` (el integrador no lo mandó) o
   /// `NOT_APPLICABLE` (la versión declara que no lo tiene). Nulo cuando sí lo lleva.
   /// Sin esta columna, «faltó» y «no aplica» se confundían y la cobertura mentía.
@@ -1149,12 +1180,12 @@ model DecisionExecution {
   /// Alguna variable entró más vieja que su SLA y su política era `DEGRADE`. La decisión es
   /// válida; lo que no vale es que no se pueda distinguir de una tomada con datos frescos.
   degradedInputs       Boolean                 @default(false) @map("degraded_inputs")
-  inputSnapshotJson    Json            @map("input_snapshot_json")
-  outputJson           Json?           @map("output_json")
-  decisionStatus       ExecutionStatus @map("decision_status")
-  businessOutcome      String?         @map("business_outcome") @db.VarChar(80)
-  durationMs           Int             @map("duration_ms")
-  executedAt           DateTime        @default(now()) @map("executed_at") @db.Timestamptz(6)
+  inputSnapshotJson    Json                    @map("input_snapshot_json")
+  outputJson           Json?                   @map("output_json")
+  decisionStatus       ExecutionStatus         @map("decision_status")
+  businessOutcome      String?                 @map("business_outcome") @db.VarChar(80)
+  durationMs           Int                     @map("duration_ms")
+  executedAt           DateTime                @default(now()) @map("executed_at") @db.Timestamptz(6)
 
   deployment           DecisionDeployment            @relation(fields: [deploymentId], references: [id], onDelete: Restrict)
   artifactVersion      DecisionArtifactVersion       @relation(fields: [artifactVersionId], references: [id], onDelete: Restrict)
@@ -1200,9 +1231,9 @@ model DecisionSubject {
   /// la verdad sigue siendo `decision_execution`.
   decisionCount        Int      @default(0) @map("decision_count")
 
-  executions      DecisionExecution[]
-  facilities      CreditFacility[]
-  consents        SubjectConsent[]
+  executions        DecisionExecution[]
+  facilities        CreditFacility[]
+  consents          SubjectConsent[]
   reidentifications ReidentificationRequest[]
 
   @@unique([tenantId, subjectReferenceHash])
@@ -1280,29 +1311,29 @@ model OutcomeWindowSchedule {
 /// `@@unique` por ejecución y ventana: se admite observar el mismo caso a 30, 90 y 180 días
 /// —el comportamiento de un crédito depende del plazo— pero no dos veces la misma ventana.
 model DecisionOutcomeObservation {
-  id          BigInt               @id @default(autoincrement())
-  tenantId    BigInt               @map("tenant_id")
-  executionId BigInt               @map("execution_id")
+  id              BigInt               @id @default(autoincrement())
+  tenantId        BigInt               @map("tenant_id")
+  executionId     BigInt               @map("execution_id")
   /// El crédito al que pertenece, cuando lo hay. Un rechazo no tiene préstamo y sigue siendo
   /// una observación válida —de hecho la mitad del análisis que casi nadie mide.
-  facilityId  BigInt?              @map("facility_id")
+  facilityId      BigInt?              @map("facility_id")
   /// Días transcurridos desde la decisión. Es parte de la identidad de la observación.
-  windowDays  Int                  @map("window_days")
-  label       ObservedOutcomeLabel
+  windowDays      Int                  @map("window_days")
+  label           ObservedOutcomeLabel
   /// Magnitud asociada, cuando la hay: importe perdido, días de mora. Sin unidad impuesta.
-  amount      Decimal?             @db.Decimal(18, 4)
+  amount          Decimal?             @db.Decimal(18, 4)
   /// De dónde salió: sistema de cobranza, confirmación de fraude, carga manual.
-  source      String               @db.VarChar(120)
+  source          String               @db.VarChar(120)
   /// Cómo se supo, cuando NO se observó directamente: `BUREAU_LOOKUP`, `PROXY_MODEL`…
   ///
   /// Nulo significa observado. La distinción no es un detalle: un desenlace inferido sobre un
   /// rechazado (`reject inference`) mezclado con los observados calibra el modelo contra la
   /// población que ya aprobó y lo hace parecer perfecto. Se guardan juntos y se cuentan
   /// aparte.
-  inferenceMethod String?          @map("inference_method") @db.VarChar(60)
-  notes       String?              @db.Text
-  observedAt  DateTime             @default(now()) @map("observed_at") @db.Timestamptz(6)
-  recordedBy  String               @map("recorded_by") @db.VarChar(160)
+  inferenceMethod String?              @map("inference_method") @db.VarChar(60)
+  notes           String?              @db.Text
+  observedAt      DateTime             @default(now()) @map("observed_at") @db.Timestamptz(6)
+  recordedBy      String               @map("recorded_by") @db.VarChar(160)
 
   execution DecisionExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
   facility  CreditFacility?   @relation(fields: [facilityId], references: [id], onDelete: SetNull)
@@ -1464,20 +1495,20 @@ model PortfolioState {
 /// un artefacto: la regla se copia, se edita y el límite desaparece sin que nadie lo decida. Como
 /// restricción del motor, un artefacto nuevo lo hereda por existir.
 model ExposureLimit {
-  id         BigInt   @id @default(autoincrement())
-  tenantId   BigInt   @map("tenant_id")
+  id           BigInt   @id @default(autoincrement())
+  tenantId     BigInt   @map("tenant_id")
   /// `SUBJECT_TOTAL`, `SEGMENT_CONCENTRATION`, `PERIOD_ORIGINATION_BUDGET`.
-  limitCode  String   @map("limit_code") @db.VarChar(60)
+  limitCode    String   @map("limit_code") @db.VarChar(60)
   /// Cadena vacía = toda la cartera. Mismo criterio que `PortfolioState.segment`.
-  segment    String   @default("") @db.VarChar(120)
-  maxValue   Decimal  @map("max_value") @db.Decimal(18, 4)
-  currencyCode String @map("currency_code") @db.VarChar(3)
+  segment      String   @default("") @db.VarChar(120)
+  maxValue     Decimal  @map("max_value") @db.Decimal(18, 4)
+  currencyCode String   @map("currency_code") @db.VarChar(3)
   /// Si es falso, se mide y se avisa pero no se rechaza. La forma de estrenar un límite sin
   /// romper la originación el primer día.
-  enforced   Boolean  @default(false)
-  isActive   Boolean  @default(true) @map("is_active")
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  createdBy  String   @map("created_by") @db.VarChar(160)
+  enforced     Boolean  @default(false)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy    String   @map("created_by") @db.VarChar(160)
 
   @@unique([tenantId, limitCode, segment])
   @@index([tenantId, isActive])
@@ -2180,13 +2211,13 @@ model DecisionOutputContractField {
 
   /// Origen declarado del valor: nodo productor, expresiÃ³n, intermedia, constante o
   /// artefacto referenciado. `sourceRef` se interpreta segÃºn el tipo.
-  sourceKind       OutputSourceKind @map("source_kind")
-  sourceRef        String           @map("source_ref") @db.VarChar(500)
+  sourceKind       OutputSourceKind   @map("source_kind")
+  sourceRef        String             @map("source_ref") @db.VarChar(500)
   /// Qué significa económicamente este campo. Lo valida el motor: una probabilidad fuera de
   /// [0,1] es un defecto, no un valor, y sin el rol declarado nadie podía comprobarlo.
   semanticRole     OutputSemanticRole @default(NONE) @map("semantic_role")
   /// Mapeo desde valores internos: { [valorInterno]: valorPublicado }.
-  valueMappingJson Json?            @map("value_mapping_json")
+  valueMappingJson Json?              @map("value_mapping_json")
 
   /// Motivos vÃ¡lidos por los que el campo puede faltar (solo para campos opcionales).
   absenceReasons   String[]         @map("absence_reasons")
@@ -2559,11 +2590,11 @@ model BankStatementRun {
   /// número de cuenta completo.
   resultJson Json? @map("result_json")
 
-  warningsJson Json? @map("warnings_json")
+  warningsJson           Json?    @map("warnings_json")
   /// Confianza de la EXTRACCIÓN: qué tan bien se leyeron los movimientos.
   /// Conserva el nombre `confidence` porque es la que ya publicaban la API y el
   /// portal, y renombrarla rompería a los dos por una mejora de vocabulario.
-  confidence       Decimal? @db.Decimal(4, 3)
+  confidence             Decimal? @db.Decimal(4, 3)
   /// Confianza de la CLASIFICACIÓN: qué tan seguro es que el documento sea un
   /// extracto. Es una pregunta distinta de la anterior y por eso es otra columna:
   /// el motor puede estar al 99 % de que es un extracto y al 60 % de algunos
@@ -2577,22 +2608,22 @@ model BankStatementRun {
   errorMessage String? @map("error_message") @db.Text
 
   /// Presente sólo con `status` en PENDING_REVIEW o IN_REVIEW.
-  reviewReason StatementReviewReason? @map("review_reason")
+  reviewReason     StatementReviewReason?    @map("review_reason")
   /// Presente sólo con `status = PDF_INVALID`.
-  rejectionReason StatementRejectionReason? @map("rejection_reason")
+  rejectionReason  StatementRejectionReason? @map("rejection_reason")
   /// 1 alta · 2 media · 3 baja. Se deriva del motivo al entrar en la cola, no se
   /// teclea: una prioridad que se pone a mano se pone a «alta» siempre.
-  reviewPriority Int?      @map("review_priority")
+  reviewPriority   Int?                      @map("review_priority")
   /// Cuándo entró en la cola. Es el origen del «tiempo pendiente», que no se
   /// puede derivar de `queuedAt` —ése es el de la cola del worker, otra espera—.
-  reviewOpenedAt DateTime? @map("review_opened_at") @db.Timestamptz(6)
-  reviewClaimedBy String?  @map("review_claimed_by") @db.VarChar(160)
-  reviewClaimedAt DateTime? @map("review_claimed_at") @db.Timestamptz(6)
-  reviewResolvedBy String?  @map("review_resolved_by") @db.VarChar(160)
-  reviewResolvedAt DateTime? @map("review_resolved_at") @db.Timestamptz(6)
+  reviewOpenedAt   DateTime?                 @map("review_opened_at") @db.Timestamptz(6)
+  reviewClaimedBy  String?                   @map("review_claimed_by") @db.VarChar(160)
+  reviewClaimedAt  DateTime?                 @map("review_claimed_at") @db.Timestamptz(6)
+  reviewResolvedBy String?                   @map("review_resolved_by") @db.VarChar(160)
+  reviewResolvedAt DateTime?                 @map("review_resolved_at") @db.Timestamptz(6)
   /// Lo que decidió quien revisó, en sus palabras. Se conserva aunque el caso se
   /// cierre: es lo único que explica por qué un documento dudoso se aprobó.
-  reviewNotes String? @map("review_notes") @db.Text
+  reviewNotes      String?                   @map("review_notes") @db.Text
 
   attemptCount   Int       @default(0) @map("attempt_count")
   leaseExpiresAt DateTime? @map("lease_expires_at") @db.Timestamptz(6)
@@ -2618,11 +2649,98 @@ model BankStatementRun {
   @@map("decision_bank_statement_run")
 }
 
+/// El padrón de entidades de intermediación financiera contra el que el motor
+/// atribuye un extracto.
+///
+/// Se siembra con la nómina oficial de ASFI y **se administra desde el portal**,
+/// que es la razón de que sea una tabla y no una constante compilada: una
+/// licencia se revoca por resolución del regulador, y esperar a un despliegue
+/// para dejar de procesar los documentos de una entidad intervenida sería
+/// exactamente el fallo que esta compuerta existe para impedir.
+model FinancialInstitution {
+  id       BigInt @id @default(autoincrement())
+  tenantId BigInt @map("tenant_id")
+
+  /// Sigla ASFI. Es la clave con la que el regulador nombra a la entidad, así
+  /// que `institution_id` de una ejecución se cruza con cualquier reporte suyo
+  /// sin una tabla de traducción.
+  code String @db.VarChar(16)
+  name String @db.VarChar(200)
+
+  kind          FinancialInstitutionKind
+  licenseStatus InstitutionLicenseStatus @default(LICENSED) @map("license_status")
+
+  /// Si capta depósitos del público y por tanto emite extractos de cuenta.
+  /// Informativo, no motivo de rechazo: una IFD emite estados de cuenta de
+  /// crédito y la banca de segundo piso no atiende ventanilla.
+  retailDeposits Boolean @default(true) @map("retail_deposits")
+
+  /// Expresiones que, impresas en la carátula, atribuyen el documento a esta
+  /// entidad; y las que ANULAN la atribución aunque un marcador coincida.
+  /// Se guardan como fuente de expresión regular en un arreglo JSON porque son
+  /// datos que se editan, no código: quien administra el padrón añade la marca
+  /// nueva de un banco sin desplegar nada.
+  markers    Json
+  exclusions Json
+
+  /// Por qué la licencia no está vigente, cuando no lo está.
+  note String? @db.Text
+
+  /// Baja lógica. La fila no se borra porque las ejecuciones ya hechas citan el
+  /// código con el que se atribuyó el documento, y una traza que apunte al vacío
+  /// no se puede auditar.
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy String?  @map("updated_by") @db.VarChar(160)
+
+  @@unique([tenantId, code])
+  @@index([tenantId, isActive])
+  @@index([tenantId, licenseStatus])
+  @@map("decision_financial_institution")
+}
+
 /// Ejecución del worker de verificación de identidad.
 ///
 /// Tabla propia por lo mismo que las otras dos: su entrada son IMÁGENES y su
 /// resultado una decisión con la evidencia que la sostiene, que no se parece ni
 /// a un texto clasificado ni a un extracto normalizado.
+/// Por qué una verificación de identidad espera a un factor externo. Separado del
+/// estado por lo mismo que en extractos: el estado dice dónde está el caso y el
+/// motivo qué hay que resolver.
+enum IdentityReviewReason {
+  /// Se parece a un documento de identidad y las señales no bastaron.
+  DOUBTFUL_DOCUMENT
+  /// Hay evidencia sobrada de que es un documento, pero no se supo cuál.
+  UNRECOGNIZED_DOCUMENT_TYPE
+  /// El parecido biométrico cayó entre los dos umbrales calibrados.
+  AMBIGUOUS_FACE_MATCH
+  /// La captura tiene defectos que no impidieron leer, pero sí decidir.
+  LOW_IMAGE_QUALITY
+  /// El proceso superó su presupuesto de tiempo. El documento sigue siendo válido.
+  TIMEOUT
+  /// Alguien pidió la revisión a mano.
+  MANUAL_REQUEST
+}
+
+/// Por qué se rechaza una imagen sin preguntar a nadie.
+enum IdentityRejectionReason {
+  /// No hay ninguna señal de documento, o hay evidencia de otro documento.
+  NOT_AN_IDENTITY_DOCUMENT
+  /// ES un documento de identidad, pero no de los que este flujo admite.
+  UNSUPPORTED_DOCUMENT_TYPE
+  /// Se reconocieron señales sueltas y no bastan para afirmar nada.
+  UNREADABLE_DOCUMENT
+}
+
+/// Quién arbitró la franja de duda. Se anota por caso para poder comparar el
+/// acierto de la persona y el del modelo el día que convivan.
+enum IdentityArbitrationMode {
+  HUMAN
+  AI
+}
+
 model IdentityVerificationRun {
   id       BigInt @id @default(autoincrement())
   tenantId BigInt @map("tenant_id")
@@ -2661,6 +2779,24 @@ model IdentityVerificationRun {
   documentType    String?  @map("document_type") @db.VarChar(30)
   similarityScore Decimal? @map("similarity_score") @db.Decimal(4, 3)
 
+  /// Confianza de que la imagen SEA un documento de identidad, que es una
+  /// pregunta distinta de cuál es. Con una sola confianza, «es claramente una
+  /// cédula, no sé de qué país» y «esto no es un documento» se leían igual.
+  documentTypeConfidence Decimal? @map("document_type_confidence") @db.Decimal(4, 3)
+
+  reviewReason    IdentityReviewReason?    @map("review_reason")
+  rejectionReason IdentityRejectionReason? @map("rejection_reason")
+  arbitrationMode IdentityArbitrationMode? @map("arbitration_mode")
+
+  /// 1 alta · 2 media · 3 baja. `null` cuando el caso no entra en la cola.
+  reviewPriority   Int?      @map("review_priority")
+  reviewOpenedAt   DateTime? @map("review_opened_at") @db.Timestamptz(6)
+  reviewClaimedBy  String?   @map("review_claimed_by") @db.VarChar(160)
+  reviewClaimedAt  DateTime? @map("review_claimed_at") @db.Timestamptz(6)
+  reviewResolvedBy String?   @map("review_resolved_by") @db.VarChar(160)
+  reviewResolvedAt DateTime? @map("review_resolved_at") @db.Timestamptz(6)
+  reviewNotes      String?   @map("review_notes") @db.Text
+
   errorCode    String? @map("error_code") @db.VarChar(120)
   errorMessage String? @map("error_message") @db.Text
 
@@ -2679,6 +2815,7 @@ model IdentityVerificationRun {
   @@unique([tenantId, requestId])
   @@index([status, queuedAt])
   @@index([tenantId, queuedAt])
+  @@index([tenantId, status, reviewReason, reviewPriority, reviewOpenedAt], map: "decision_identity_verification_run_review_queue_idx")
   @@map("decision_identity_verification_run")
 }
 

@@ -7,6 +7,9 @@ import { AudioTtsService } from './audio-tts/audio-tts.service';
 import { BankStatementController } from './bank-statement/bank-statement.controller';
 import { BankStatementRunWorkerService } from './bank-statement/bank-statement-run-worker.service';
 import { BankStatementService } from './bank-statement/bank-statement.service';
+import { FinancialInstitutionController } from './bank-statement/institutions/financial-institution.controller';
+import { FinancialInstitutionService } from './bank-statement/institutions/financial-institution.service';
+import { InstitutionCatalogService } from './bank-statement/institutions/institution-catalog.service';
 import { StatementReviewController } from './bank-statement/review/statement-review.controller';
 import { StatementReviewService } from './bank-statement/review/statement-review.service';
 import {
@@ -20,8 +23,13 @@ import {
 } from './identity-verification/core/adapters/human-face.adapter';
 import { TesseractOcrAdapter } from './identity-verification/core/adapters/tesseract-ocr.adapter';
 import { SharpImageAdapter } from './identity-verification/core/adapters/sharp-image.adapter';
+import {
+  AiIdentityArbitrationAdapter,
+  HumanIdentityArbitrationAdapter,
+} from './identity-verification/core/adapters/identity-arbitration.adapter';
 import { ImageQualityAssessmentService } from './identity-verification/core/image-quality-assessment.service';
 import {
+  IDENTITY_ARBITRATION_PORT,
   IDENTITY_CLASSIFIER_PORT,
   IDENTITY_FACE_DETECTOR_PORT,
   IDENTITY_FACE_MATCH_PORT,
@@ -39,6 +47,8 @@ import {
 import { DocumentParserRegistry } from './identity-verification/core/parsers/document-parser.registry';
 import { buildIdentityOptions } from './identity-verification/identity-config.bridge';
 import { IdentityPipelineService } from './identity-verification/identity-pipeline.service';
+import { IdentityReviewController } from './identity-verification/review/identity-review.controller';
+import { IdentityReviewService } from './identity-verification/review/identity-review.service';
 import { IdentityRunWorkerService } from './identity-verification/identity-run-worker.service';
 import { IdentityVerificationController } from './identity-verification/identity-verification.controller';
 import { IdentityVerificationService } from './identity-verification/identity-verification.service';
@@ -125,12 +135,19 @@ import { WorkerServiceInvokerService } from './worker-service-invoker.service';
     AudioTtsController,
     BankStatementController,
     StatementReviewController,
+    FinancialInstitutionController,
     IdentityVerificationController,
+    IdentityReviewController,
     SemanticAnalysisController,
     SemanticCategoryController,
     UnresolvedClassificationController,
   ],
   providers: [
+    // El padrón de entidades: la tabla que decide a quién se atribuye un
+    // extracto. El catálogo va antes que el CRUD porque éste lo invalida en cada
+    // escritura, y antes que el worker porque el motor lo lee en cada documento.
+    InstitutionCatalogService,
+    FinancialInstitutionService,
     SemanticCategoryService,
     UnresolvedClassificationService,
     UnresolvedResolutionService,
@@ -175,6 +192,7 @@ import { WorkerServiceInvokerService } from './worker-service-invoker.service';
     IdentityVerificationService,
     IdentityRunWorkerService,
     IdentityPipelineService,
+    IdentityReviewService,
     // Núcleo absorbido: analizadores, medida de calidad y proveedores.
     BoliviaCiDocumentParser,
     PassportDocumentParser,
@@ -231,6 +249,25 @@ import { WorkerServiceInvokerService } from './worker-service-invoker.service';
           ? new HumanLivenessAdapter(options)
           : new DisabledLivenessAdapter(),
       inject: [ConfigService, IDENTITY_OPTIONS],
+    },
+    /*
+     * Quién arbitra la franja de duda de la puerta de documentos.
+     *
+     * El puerto tiene dos implementaciones y la elige el ENTORNO, no el código:
+     * es lo que hace que enchufar un modelo de arbitraje sea cambiar una
+     * variable. Hoy la humana está puesta por omisión porque es la única con un
+     * destinatario real —la pestaña del portal—; la de IA está declarada, falla
+     * hacia la cola humana y lo dice en su `health()`, de modo que un despliegue
+     * que la seleccione sin modelo detrás se ve en el estado del worker y no
+     * como una cola que crece sin explicación.
+     */
+    {
+      provide: IDENTITY_ARBITRATION_PORT,
+      useFactory: (options: IdentityOptions) =>
+        options.arbitrationMode === 'AI'
+          ? new AiIdentityArbitrationAdapter()
+          : new HumanIdentityArbitrationAdapter(),
+      inject: [IDENTITY_OPTIONS],
     },
 
     // --- Worker A: análisis semántico --------------------------------------

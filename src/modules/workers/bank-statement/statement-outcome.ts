@@ -42,6 +42,16 @@ const REJECTION_BY_CODE: Readonly<Record<string, StatementRejectionReason>> = {
   INVALID_PDF: StatementRejectionReason.UNSUPPORTED_FILE,
   PDF_TOO_COMPLEX: StatementRejectionReason.UNSUPPORTED_FILE,
   NOT_A_FINANCIAL_STATEMENT: StatementRejectionReason.NOT_BANK_STATEMENT,
+  /*
+   * Los dos del emisor comparten motivo con el anterior a propósito. Para quien
+   * subió el archivo, «esto es de una telefónica» y «esto no reúne señales de
+   * ser un extracto» son el mismo hecho —no es un extracto bancario— y la misma
+   * acción: subir el documento correcto. El detalle de QUIÉN lo emitió viaja en
+   * los `details` del error, que es donde se puede medir sin multiplicar un
+   * enum del que cuelga el ciclo de vida entero.
+   */
+  NON_BANKING_ISSUER: StatementRejectionReason.NOT_BANK_STATEMENT,
+  UNRECOGNIZED_ISSUER: StatementRejectionReason.NOT_BANK_STATEMENT,
   PDF_EXTRACTION_FAILED: StatementRejectionReason.CORRUPTED_PDF,
   ENCRYPTED_PDF: StatementRejectionReason.UNREADABLE_DOCUMENT,
 };
@@ -50,6 +60,7 @@ const REJECTION_BY_CODE: Readonly<Record<string, StatementRejectionReason>> = {
 const REVIEW_BY_CODE: Readonly<Record<string, StatementReviewReason>> = {
   DOUBTFUL_DOCUMENT: StatementReviewReason.DOUBTFUL_DOCUMENT,
   UNSUPPORTED_INSTITUTION: StatementReviewReason.UNKNOWN_BANK,
+  UNLICENSED_INSTITUTION: StatementReviewReason.UNKNOWN_BANK,
   UNSUPPORTED_STATEMENT_FORMAT: StatementReviewReason.UNKNOWN_BANK,
   NO_TRANSACTIONS: StatementReviewReason.PARTIAL_EXTRACTION,
   SCANNED_PDF_UNSUPPORTED: StatementReviewReason.OCR_ERROR,

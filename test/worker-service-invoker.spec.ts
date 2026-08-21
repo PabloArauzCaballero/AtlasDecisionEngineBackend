@@ -1,8 +1,10 @@
 import { ConfigService } from '@nestjs/config';
+import { InstitutionCatalogService } from '../src/modules/workers/bank-statement/institutions/institution-catalog.service';
 import { WorkerServiceInvokerService } from '../src/modules/workers/worker-service-invoker.service';
 import { findBankStatementFixture } from '../src/modules/workers/bank-statement/fixtures/bank-statement-fixtures';
 import type { SemanticAnalysisPipeline } from '../src/modules/workers/semantic-analysis/core/application/semantic-analysis.pipeline';
 import type { AudioTtsRuntimeFactory } from '../src/modules/workers/audio-tts/audio-tts.runtime';
+import type { IdentityPipelineService } from '../src/modules/workers/identity-verification/identity-pipeline.service';
 import type { AuthenticatedPrincipal } from '../src/common/security/security.types';
 import type { WorkerServiceRequest } from '../src/modules/graph/graph.types';
 
@@ -47,7 +49,24 @@ function build(overrides: Record<string, unknown> = {}) {
     forTenant: jest.fn(),
     coreConfig: jest.fn(),
   } as unknown as AudioTtsRuntimeFactory;
-  return new WorkerServiceInvokerService(config, semantic, audio).bind(1n, principal);
+  /*
+   * El padrón se dobla por el mismo motivo que la fábrica de locución: estas
+   * pruebas se detienen antes de construir el motor, así que nunca se consulta.
+   */
+  const institutions = {
+    registryFor: jest.fn(),
+    invalidate: jest.fn(),
+  } as unknown as InstitutionCatalogService;
+  /*
+   * Y el pipeline de identidad por lo mismo: construirlo arrastra `sharp`,
+   * Tesseract y las cinco redes de `@vladmandic/human`, que son medio minuto de
+   * arranque para una suite que nunca llega a llamarlo.
+   */
+  const identity = { run: jest.fn() } as unknown as IdentityPipelineService;
+  return new WorkerServiceInvokerService(config, semantic, audio, institutions, identity).bind(
+    1n,
+    principal,
+  );
 }
 
 const statement = findBankStatementFixture('valid-complete')!;

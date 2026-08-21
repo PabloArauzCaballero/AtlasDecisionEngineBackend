@@ -58,6 +58,57 @@ export interface DocumentClassifierPort {
   classify(input: DocumentClassificationInput): Promise<DocumentClassificationResult>;
 }
 
+// --- Arbitraje de la duda ---------------------------------------------------
+
+/**
+ * Quién resuelve lo que la puerta de documentos no supo resolver sola.
+ *
+ * Es un PUERTO y no una llamada directa a la bandeja por una razón concreta: el
+ * factor que decide va a cambiar. Hoy es una persona mirando la foto en el
+ * portal; mañana puede ser un modelo que la clasifique en un segundo, y el día
+ * que eso ocurra el pipeline no debería enterarse. Lo único que el pipeline sabe
+ * es que hay una duda razonable y que alguien —humano o no— tiene que cerrarla.
+ *
+ * Nótese que un veredicto puede ser DIFERIDO, y no es un fallo del adaptador: un
+ * humano no contesta dentro de la petición HTTP que le pregunta. El adaptador
+ * humano deja el caso en la cola y contesta `DEFERRED`; el resultado del worker
+ * queda en `REVIEW_REQUIRED` y se cierra más tarde, desde la pestaña. Un
+ * adaptador de IA sí podría contestar en línea, y por eso el contrato admite las
+ * dos formas en vez de obligar a la más pobre.
+ */
+export interface IdentityArbitrationRequest {
+  readonly correlationId: string;
+  /** Por qué se pregunta, con el vocabulario cerrado de la cola. */
+  readonly reason: string;
+  /** Qué vio la puerta, en una frase que una persona pueda leer. */
+  readonly detail: string;
+  readonly documentType: IdentityDocumentType;
+  readonly evidenceConfidence: number;
+  readonly signals: readonly string[];
+}
+
+export type IdentityArbitrationOutcome =
+  /** Sí es un documento admisible: el worker sigue. */
+  | 'ACCEPT_DOCUMENT'
+  /** No lo es: el worker rechaza, con el motivo del árbitro. */
+  | 'REJECT_DOCUMENT'
+  /** Nadie ha contestado todavía. El caso queda abierto en la cola. */
+  | 'DEFERRED';
+
+export interface IdentityArbitrationVerdict {
+  readonly outcome: IdentityArbitrationOutcome;
+  readonly decidedBy: 'HUMAN' | 'AI';
+  /** Adaptador concreto que contestó, para la traza y el tablero. */
+  readonly provider: string;
+  readonly rationale: string;
+}
+
+export interface IdentityArbitrationPort {
+  readonly mode: 'HUMAN' | 'AI';
+  arbitrate(request: IdentityArbitrationRequest): Promise<IdentityArbitrationVerdict>;
+  health(): Promise<{ ready: boolean; detail?: string }>;
+}
+
 // --- Imagen ----------------------------------------------------------------
 
 export interface FaceBoundingBox {

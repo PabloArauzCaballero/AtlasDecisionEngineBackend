@@ -1,5 +1,23 @@
 export type DecisionStatus = 'MATCH' | 'MULTI_MATCH' | 'UNKNOWN' | 'AMBIGUOUS' | 'CONTRADICTED';
 
+/**
+ * Quién decidió la categoría publicada.
+ *
+ * `UNKNOWN` sigue existiendo en `DecisionStatus` porque el motor de decisión lo
+ * produce internamente —es su forma de decir «ninguna candidata alcanzó su
+ * umbral»— pero **ya no sale del worker**: la red de seguridad lo convierte en
+ * una categoría por regla o en un cajón por sentido antes de publicar. Lo que
+ * viaja al consumidor es este campo, que distingue las tres cosas que antes se
+ * confundían en un mismo `MATCH`.
+ *
+ * - `MODEL`: una candidata superó el umbral de su categoría.
+ * - `RULE`: la glosa nombra el rubro o el instrumento, y una regla determinista
+ *   lo leyó. Más fiable que el modelo cuando el nombre es literal.
+ * - `BIN`: el último escalón, `GASTOS.OTROS` / `INGRESOS.OTROS`. Afirma el signo
+ *   del movimiento y nada más, y siempre va marcado para revisión.
+ */
+export type DecidedBy = 'MODEL' | 'RULE' | 'BIN';
+
 export type AnalysisTier = 'FAST' | 'DEEP';
 
 export interface SemanticCategory {
@@ -81,6 +99,17 @@ export interface SemanticAnalysisResult {
   readonly model: string;
   readonly modelVersion: string;
   readonly processingTimeMs: number;
+  /** Quién decidió: el modelo, una regla determinista o el cajón por sentido. */
+  readonly decidedBy: DecidedBy;
+  /**
+   * El caso tiene categoría **y** debería mirarlo alguien.
+   *
+   * Los consumidores que antes filtraban por `status === 'UNKNOWN'` para saber
+   * qué revisar deben mirar esto: el estado ya no se queda en `UNKNOWN`.
+   */
+  readonly requiresReview: boolean;
+  /** Motivo de revisión con el vocabulario cerrado de la bandeja, o `null`. */
+  readonly reviewReason: string | null;
 }
 
 export interface ModelClassificationInput {

@@ -16,6 +16,9 @@ const VEREDICTO: CachedClassification = {
   decision: {
     status: 'MATCH',
     requiresDeepAnalysis: false,
+    decidedBy: 'MODEL',
+    requiresReview: false,
+    reviewReason: null,
     matches: [
       {
         categoryCode: 'GASTOS.ALIMENTACION.SUPERMERCADO',

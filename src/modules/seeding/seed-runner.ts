@@ -7,7 +7,9 @@ import { seedCalculatedFields } from './data/calculated-field-catalog.data';
 import { seedCollectionsDemoArtifact } from './data/collections-demo.seed';
 import { seedContractDemoArtifact } from './data/contract-demo.seed';
 import { seedStatementWorkerDemoArtifact } from './data/statement-worker-demo.seed';
+import { seedIdentityMobileArtifact } from './data/identity-mobile.seed';
 import { seedGovernanceScenarios } from './data/governance-scenarios.seed';
+import { seedFinancialInstitutions } from './data/financial-institutions.data';
 import { seedApprovedLibraries } from './data/library-catalog.data';
 import { seedDemoArtifact } from './data/demo-artifact';
 import { ensureEnvironment, ensureReason, ensureVariable, TENANT_ID } from './data/helpers';
@@ -154,6 +156,7 @@ export interface BootstrapContext {
     calculatedFields: number;
     semanticCategories: number;
     semanticEntityAliases: number;
+    financialInstitutions: number;
   };
 }
 
@@ -195,6 +198,14 @@ export async function runBootstrapSeeds(prisma: PrismaClient): Promise<Bootstrap
   // demo porque sin categorías ese worker responde `UNKNOWN` a todo: no es un
   // dato de demostración, es lo mínimo para que la capacidad exista.
   const semanticCatalog = await seedSemanticCatalog(prisma);
+  /*
+   * Padrón de entidades del worker de extractos, por el mismo criterio que el
+   * catálogo semántico: sin él ese worker no puede atribuir NINGÚN documento, y
+   * desde que la compuerta de emisor exige atribución, un padrón vacío rechaza
+   * todos los extractos a la vez. No es dato de demostración: es lo mínimo para
+   * que la capacidad exista.
+   */
+  const financialInstitutions = await seedFinancialInstitutions(prisma);
 
   return {
     environments: { dev, staging, test, prod },
@@ -208,6 +219,7 @@ export async function runBootstrapSeeds(prisma: PrismaClient): Promise<Bootstrap
       calculatedFields: calculatedFields.length,
       semanticCategories: semanticCatalog.categories,
       semanticEntityAliases: semanticCatalog.aliases,
+      financialInstitutions: financialInstitutions.length,
     },
   };
 }
@@ -230,6 +242,10 @@ export async function runMockupSeeds(prisma: PrismaClient, context: BootstrapCon
   // Tercer algoritmo: el único con un nodo WORKER, que llama al servicio de extractos
   // bancarios durante la decisión y proyecta su respuesta a variables intermedias.
   await seedStatementWorkerDemoArtifact(prisma);
+  // El artefacto que consume el front móvil. Va junto al demo de extractos
+  // porque es el mismo mecanismo —un nodo que llama a un worker— aplicado a un
+  // caso real y no a una demostración.
+  await seedIdentityMobileArtifact(prisma);
   // Escenarios negativos de gobierno (§11): ciclo, versión no disponible, contrato
   // incompatible y una corrida de QA con su contraejemplo.
   await seedGovernanceScenarios(prisma);

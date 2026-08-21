@@ -19,7 +19,11 @@ import {
   IdentityPasswordChangeConfirmDto,
   IdentityPasswordChangeRequestDto,
 } from './identity-session.dto';
-import { LogoutResultDto } from './identity-session.response.dto';
+import {
+  IdentityPasswordChangedDto,
+  IdentityPinChallengeDto,
+  LogoutResultDto,
+} from './identity-session.response.dto';
 import { IdentitySessionService, isChallengeResult } from './identity-session.service';
 import { SessionCookieService } from './session-cookie.service';
 import { SessionOriginService } from './session-origin.service';
@@ -76,6 +80,10 @@ export class IdentitySessionController {
    */
   @Post('password/change/request')
   @ApiOperation({ summary: 'Request the mailed code that confirms a password change' })
+  @ApiOkResponse({
+    description: 'Second-factor challenge; the code travels by mail.',
+    type: IdentityPinChallengeDto,
+  })
   @HttpCode(HttpStatus.OK)
   async requestPasswordChange(
     @Headers('origin') origin: string | undefined,
@@ -88,6 +96,7 @@ export class IdentitySessionController {
 
   @Post('password/change/confirm')
   @ApiOperation({ summary: 'Confirm a password change with the mailed code' })
+  @ApiOkResponse({ description: 'Password changed.', type: IdentityPasswordChangedDto })
   @HttpCode(HttpStatus.OK)
   async confirmPasswordChange(
     @Headers('origin') origin: string | undefined,

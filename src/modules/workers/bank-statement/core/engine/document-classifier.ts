@@ -67,7 +67,43 @@ const DOCUMENT_TYPES: ReadonlyArray<{ type: string; pattern: RegExp }> = [
 
 /** Documentos que se parecen a un extracto pero no lo son. */
 const COUNTER_INDICATORS =
-  /\bfactura\b|\binvoice\b|nota\s+fiscal|\bcontrato\b|\bcertificad[oa]\b|\bp[oó]liza\b|\bcurr[ií]culum\b|informe\s+de\s+laboratorio|\brecibo\s+de\s+(?:sueldo|haberes)\b/i;
+  /\bfactura\b|\binvoice\b|nota\s+fiscal|\bcontrato\b|\bcertificad[oa]\b|\bp[oó]liza\b|\bcurr[ií]culum\b|informe\s+de\s+laboratorio|\brecibo\s+de\s+(?:sueldo|haberes)\b|\bcotizaci[oó]n\b|\bpresupuesto\b|\borden\s+de\s+compra\b|\bnota\s+de\s+remisi[oó]n\b|\bdeclaraci[oó]n\s+jurada\b|\bplan\s+de\s+(?:pagos|amortizaci[oó]n)\b|\bkardex\b/i;
+
+/**
+ * Lo que un extracto bancario NO lleva jamás, y por tanto cierra la pregunta.
+ *
+ * La penalización de 0.35 es una opinión sobre cuánta evidencia resta un rótulo
+ * ambiguo, y para el documento ambiguo está bien calibrada. Pero hay documentos
+ * que no son ambiguos en absoluto y aun así superaban el umbral, porque suman
+ * todas las señales legítimas a la vez: **la factura boliviana** —que imprime
+ * «Estado de Cuenta» del cliente, número de cuenta, saldo, columna de importes y
+ * una tabla de consumos fechados— alcanza 1.00 sobre 1.00 y se quedaba en 0.65
+ * después de restar. Se procesaba.
+ *
+ * Lo que hay aquí no son palabras que «suenan» a otra cosa: son marcas que sólo
+ * existen en ese otro documento. El código de control y el número de
+ * autorización los pone el SIN en cada factura; la leyenda de la Ley 453 la
+ * imprime la propia factura; una cláusula numerada o un testimonio notarial sólo
+ * están en un contrato. Ningún banco los imprime en un extracto, así que
+ * encontrarlos en la carátula no es evidencia en contra: es la respuesta.
+ */
+const DECISIVE_COUNTER_INDICATORS: ReadonlyArray<{ type: string; pattern: RegExp }> = [
+  {
+    type: 'TAX_INVOICE',
+    pattern:
+      /C[OÓ]DIGO\s+DE\s+CONTROL|N[UÚ]MERO\s+DE\s+AUTORIZACI[OÓ]N|ESTA\s+FACTURA\s+CONTRIBUYE|FACTURA\s+(?:ELECTR[OÓ]NICA|COMPUTARIZADA)|LEY\s+N[°º.]?\s*453/i,
+  },
+  {
+    type: 'CONTRACT',
+    pattern:
+      /CL[AÁ]USULA\s+(?:PRIMERA|SEGUNDA|TERCERA)|TESTIMONIO\s+N[°º]|MINUTA\s+DE\s+(?:COMPRA|VENTA|PR[EÉ]STAMO|CONTRATO)/i,
+  },
+  { type: 'RESUME', pattern: /HOJA\s+DE\s+VIDA|CURR[IÍ]CULUM\s+VITAE/i },
+  {
+    type: 'PAYROLL_SLIP',
+    pattern: /BOLETA\s+DE\s+PAGO|PLANILLA\s+DE\s+(?:SUELDOS|HABERES)|APORTES\s+PATRONALES/i,
+  },
+];
 
 const AMOUNT = /(?<![\d.,])-?(?:Bs|\$us|USD)?\s?\d{1,3}(?:[.,]\d{3})*[.,]\d{2}\b/;
 const DATE =
@@ -173,6 +209,25 @@ export class DocumentClassifier {
 
   classify(pdf: ExtractedPdf): DocumentClassification {
     const evidence = this.collect(pdf);
+    const decisive = DECISIVE_COUNTER_INDICATORS.find((candidate) =>
+      candidate.pattern.test(evidence.header),
+    );
+    if (decisive) {
+      /*
+       * Se sale antes de sumar nada. No es un atajo de rendimiento: sumar las
+       * señales y restar después dejaría un número entre 0 y 1 que invita a
+       * recalibrarlo, y aquí no hay nada que calibrar. El documento trae impresa
+       * la marca de otro documento.
+       */
+      return {
+        documentType: decisive.type,
+        isFinancialStatement: false,
+        confidence: 0,
+        detectedSignals: [`documento-de-otra-clase:${decisive.type}`],
+        verdict: 'REJECT',
+      };
+    }
+
     const detectedSignals: string[] = [];
     let score = 0;
 
