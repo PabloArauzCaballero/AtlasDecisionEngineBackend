@@ -175,6 +175,10 @@ export class ArtifactGraphReaderService {
         contractVersion: field.contractVersion,
         sensitivityClass: field.sensitivityClass,
         tracePolicy: field.tracePolicy,
+        // Sin esto el editor perdía el rol económico en cada ida y vuelta: cargaba el contrato,
+        // lo guardaba de nuevo sin el campo y lo dejaba en `NONE`. Un dato que sólo se escribe y
+        // nunca se relee se borra solo la primera vez que alguien toca otra cosa.
+        semanticRole: field.semanticRole,
       })),
       conditions: version.conditions.map((condition) => ({
         id: condition.id.toString(),

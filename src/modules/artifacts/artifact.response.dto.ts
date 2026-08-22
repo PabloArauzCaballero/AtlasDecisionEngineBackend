@@ -290,6 +290,24 @@ class OutputContractFieldSnapshotDto {
   @ApiProperty({ example: '1.0' }) contractVersion!: string;
   @ApiProperty({ example: 'INTERNAL' }) sensitivityClass!: string;
   @ApiProperty({ enum: ['FULL', 'MASKED', 'REDACTED', 'EXCLUDED'] }) tracePolicy!: string;
+  @ApiProperty({
+    enum: [
+      'NONE',
+      'PROBABILITY_OF_DEFAULT',
+      'LOSS_GIVEN_DEFAULT',
+      'EXPOSURE_AT_DEFAULT',
+      'EXPECTED_LOSS',
+      'RISK_GRADE',
+      'PRICED_RATE',
+      'APPROVED_LIMIT',
+      'APPROVED_TERM',
+    ],
+    example: 'PROBABILITY_OF_DEFAULT',
+    description:
+      'Qué representa el campo en términos de riesgo. Un artefacto de originación necesita declarar ' +
+      'su PROBABILITY_OF_DEFAULT para poder desplegarse en producción.',
+  })
+  semanticRole!: string;
 }
 
 class GraphConditionDto {

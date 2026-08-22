@@ -5,6 +5,7 @@
 import { createHash } from 'node:crypto';
 import { HttpStatus, Injectable } from '@nestjs/common';
 import {
+  OutputSemanticRole,
   OutputSourceKind,
   Prisma,
   SensitivityClass,
@@ -173,6 +174,13 @@ export class ArtifactGraphWriterService {
             contractVersion: field.contractVersion,
             sensitivityClass: field.sensitivityClass as SensitivityClass,
             tracePolicy: field.tracePolicy as TracePolicy,
+            /*
+             * El significado económico del campo. Faltaba: la columna existía, el gate de despliegue
+             * la leía y el guardián de decisiones la validaba, pero ningún camino de autoría la
+             * escribía — así que TODO contrato quedaba en `NONE` y ningún artefacto de originación
+             * podía llegar a producción, por un requisito que no había forma de cumplir.
+             */
+            semanticRole: (field.semanticRole ?? 'NONE') as OutputSemanticRole,
           })),
           select: { id: true, fieldCode: true },
         });
