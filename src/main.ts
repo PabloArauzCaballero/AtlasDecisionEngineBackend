@@ -19,6 +19,7 @@ import { randomUUID } from 'node:crypto';
 import { json, type NextFunction, type Request, type Response, urlencoded } from 'express';
 import { SwaggerModule } from '@nestjs/swagger';
 import { buildOpenApiDocument } from './common/openapi/openapi-document';
+import { OpenApiDocumentRegistry } from './modules/platform-catalog/openapi-document.registry';
 import { mountApiReference } from './common/openapi/api-reference';
 import compression from 'compression';
 import helmet from 'helmet';
@@ -167,6 +168,12 @@ async function bootstrap(): Promise<void> {
     });
     // Served at a version-pinned path so a consumer can fetch the contract it was built
     // against. `docs/openapi.json` stays as the unversioned alias for existing tooling.
+    // El manifiesto de bloque publica el CONTRATO de cada endpoint (qué campos recibe y cuáles son
+    // obligatorios) y esos campos sólo existen aquí: el router vivo conoce la ruta y los roles, no
+    // los esquemas. Sin este depósito, ATLAS cataloga los endpoints de este bloque sin un solo
+    // campo y su laboratorio de QA no puede generar un payload de prueba.
+    app.get(OpenApiDocumentRegistry).set(document);
+
     SwaggerModule.setup(`docs/${apiVersion}`, app, document, {
       jsonDocumentUrl: `docs/${apiVersion}/openapi.json`,
       swaggerOptions: { persistAuthorization: true, displayRequestDuration: true },

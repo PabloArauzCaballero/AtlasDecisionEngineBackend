@@ -3,7 +3,7 @@
 
 # Variables de entorno
 
-258 variables declaradas. El esquema se valida al arrancar: un valor ausente o
+267 variables declaradas. El esquema se valida al arrancar: un valor ausente o
 fuera de rango impide el arranque en vez de degradar el comportamiento en caliente.
 
 | Variable | Obligatoria | Valor por defecto | Para qué |
@@ -118,7 +118,16 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `SEMANTIC_ANALYSIS_MAX_TEXT_LENGTH` | no | `8_000` | — |
 | `SEMANTIC_ANALYSIS_RULE_FAST_PATH_ENABLED` | no | `true` | — |
 | `SEMANTIC_ANALYSIS_TIMEOUT_RESCUE_ENABLED` | no | `true` | — |
-| `SEMANTIC_ANALYSIS_PROVIDER` | no | `''` | Vacío ⇒ el worker NO se registra, y lo dice en el log. Es preferible a arrancar y fallar en cada job por falta de credenciales. |
+| `SEMANTIC_ANALYSIS_PROVIDER` | **sí** | — | — |
+| `SEMANTIC_CASCADE_LOCAL_TIMEOUT_MS` | no | — | — |
+| `LITELLM_BASE_URL` | no | — | — |
+| `LITELLM_API_KEY` | no | — | — |
+| `LITELLM_FAST_MODEL` | no | — | — |
+| `LITELLM_DEEP_MODEL` | no | — | — |
+| `LITELLM_EMBEDDING_MODEL` | no | — | — |
+| `LITELLM_TIMEOUT_MS` | no | — | — |
+| `LITELLM_MAX_ATTEMPTS` | no | — | — |
+| `LITELLM_MAX_OUTPUT_TOKENS` | no | — | — |
 | `SEMANTIC_ALLOW_INTERNATIONAL_TRANSFER` | no | `false` | — |
 | `SEMANTIC_ANALYSIS_BUDGET_WINDOW_SECONDS` | **sí** | — | — |
 | `SEMANTIC_ANALYSIS_BUDGET_MAX_ANALYSES` | **sí** | — | — |
@@ -228,7 +237,7 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `WORKERS_FIXTURES_ENABLED` | no | `false` | Los escenarios de prueba son sintéticos, pero crean ejecuciones reales. En producción están apagados para que no contaminen la operación. |
 | `SCRIPT_NODES_ENABLED` | no | `false` | — |
 | `SCRIPT_RUNNER_MODE` | no | `'IN_PROCESS'` | — |
-| `PYTHON_EXECUTABLE` | no | `'python'` | Interpreter used by the in-process runner and the Code->Flow Python syntax checker. The SIDECAR image ships only `python3`, so that container sets this explicitly; the default matches the usual development install where the launcher is named `python`. |
+| `PYTHON_EXECUTABLE` | no | `'python3'` | — |
 | `SCRIPT_RUNNER_SOCKET_PATH` | no | `'/var/run/atlas-runner/runner.sock'` | — |
 | `SCRIPT_NODE_TIMEOUT_MS` | no | `250` | — |
 | `SCRIPT_NODE_MAX_SOURCE_BYTES` | no | `16_384` | — |

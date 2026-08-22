@@ -80,7 +80,7 @@ class LazySemanticModelProvider implements SemanticModelProvider {
       // No retryable a propósito: reintentar no va a hacer aparecer la
       // configuración, y cada intento gastaría un lease de la ejecución.
       throw new SemanticConfigurationError(
-        'No hay proveedor de modelo semántico configurado: defina SEMANTIC_ANALYSIS_PROVIDER (openai | transformer).',
+        'No hay proveedor de modelo semántico configurado: defina SEMANTIC_ANALYSIS_PROVIDER (transformer | cascade | litellm | openai).',
       );
     }
 

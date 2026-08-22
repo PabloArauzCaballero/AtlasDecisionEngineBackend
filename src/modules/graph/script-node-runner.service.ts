@@ -182,7 +182,11 @@ export class ScriptNodeRunnerService {
     // la recibe en el payload y la aplica con RLIMIT_AS. Mismo techo para los dos.
     this.maxMemoryBytes =
       ScriptNodeRunnerService.intOption(config, 'SCRIPT_NODE_MAX_MEMORY_MB', 32) * 1024 * 1024;
-    this.pythonExecutable = config.get<string>('PYTHON_EXECUTABLE') ?? 'python';
+    // El mismo defecto que declara `env.schema.ts`. Estaban en `python` aquí y en `python3` en el
+    // compose, así que el intérprete dependía de por dónde se hubiera construido el servicio: en
+    // los contenedores funcionaba y en cualquier proceso que no pasara por el esquema —una prueba,
+    // un script— fallaba. `python3` es el único nombre que PEP 394 garantiza.
+    this.pythonExecutable = config.get<string>('PYTHON_EXECUTABLE') ?? 'python3';
   }
 
   async execute(
@@ -362,10 +366,21 @@ export class ScriptNodeRunnerService {
     if (execution.error || execution.status !== 0) {
       // Do not reflect stderr: it can contain source lines or sensitive values.
       const errorCode = (execution.error as NodeJS.ErrnoException | undefined)?.code;
+      /*
+       * `ENOENT` es «el intérprete no está», y merece decirlo así.
+       *
+       * Sin este caso el fallo salía como `exited with status unknown`, que describe un script que
+       * se ejecutó y terminó mal —justo lo contrario de lo que pasó—. Quien lo lee busca el error
+       * en el código importado y no en la máquina, y el mensaje no menciona en ningún momento la
+       * variable que lo arregla. Es el mismo defecto que el guard de metadata de decoradores
+       * existe para evitar: fallar antes y decir la verdad.
+       */
       const reason =
         errorCode === 'ETIMEDOUT'
           ? 'timed out'
-          : `exited with status ${execution.status ?? 'unknown'}`;
+          : errorCode === 'ENOENT'
+            ? `interpreter "${command}" not found (set PYTHON_EXECUTABLE)`
+            : `exited with status ${execution.status ?? 'unknown'}`;
       throw new DomainException('SCRIPT_EXECUTION_FAILED', `RESULT ${language} script ${reason}`);
     }
     let result: unknown;

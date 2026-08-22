@@ -6,16 +6,30 @@ import {
   loadOpenAiProviderOptions,
 } from './openai-provider.config';
 import { loadTransformerProviderOptions } from './transformer-provider.config';
+import { loadLiteLlmEmbeddingOptions, loadLiteLlmProviderOptions } from './litellm-provider.config';
 import { OpenAiSemanticProvider } from '../infrastructure/openai/openai-semantic.provider';
 import { OpenAiEmbeddingProvider } from '../infrastructure/openai/openai-embedding.provider';
 import { TransformerSemanticProvider } from '../infrastructure/transformer/transformer-semantic.provider';
 import { TransformerEmbeddingProvider } from '../infrastructure/transformer/transformer-embedding.provider';
+import { LiteLlmSemanticProvider } from '../infrastructure/litellm/litellm-semantic.provider';
+import { CascadingSemanticProvider } from '../infrastructure/cascade/cascading-semantic.provider';
 
 const selectionSchema = z.object({
-  SEMANTIC_MODEL_PROVIDER: z.enum(['openai', 'transformer']).default('openai'),
+  SEMANTIC_MODEL_PROVIDER: z
+    .enum(['openai', 'transformer', 'litellm', 'cascade'])
+    .default('openai'),
+  /**
+   * Cuánto se le espera al clasificador local antes de escalar al modelo remoto.
+   *
+   * Dos segundos porque un codificador local resuelve en decenas de milisegundos:
+   * pasar de ahí no significa «va a tardar un poco más», significa que algo va mal
+   * —el servidor de embeddings caído, el modelo recargándose, la CPU saturada— y
+   * seguir esperando sólo retrasa una respuesta que el escalón siguiente puede dar.
+   */
+  SEMANTIC_CASCADE_LOCAL_TIMEOUT_MS: z.coerce.number().int().min(200).max(60_000).default(2_000),
   // Se resuelve por separado para permitir la adopción por etapas: embeddings locales sobre un
   // clasificador alojado es una configuración deliberada, no una inconsistencia.
-  SEMANTIC_EMBEDDING_PROVIDER: z.enum(['openai', 'transformer']).optional(),
+  SEMANTIC_EMBEDDING_PROVIDER: z.enum(['openai', 'transformer', 'litellm']).optional(),
   NODE_ENV: z.string().optional(),
   SEMANTIC_ALLOW_INTERNATIONAL_TRANSFER: z
     .string()
@@ -36,12 +50,25 @@ const selectionSchema = z.object({
  * `openai` envía a `api.openai.com` el texto que clasifica, que procede de extractos y
  * descripciones de movimientos: dato personal cruzando la frontera. LGPD art. 33 y, para una
  * institución financiera brasileña, Res. BACEN 4.658 arts. 11-15.
+ *
+ * **`litellm` cuenta igual, y el gateway propio no es la excepción que parece.** El proxy
+ * corre dentro del perímetro, pero lo que hay detrás de sus alias son despliegues de OpenAI,
+ * Anthropic o Vertex, y el texto sale por ahí exactamente igual. Además el motor ya no puede
+ * verlo: los destinos viven en `config.yaml` del gateway, así que si la guarda tratara a
+ * `litellm` como local bastaría con añadir un despliegue remoto a ESE fichero para transferir
+ * datos al exterior sin tocar nada del motor y sin que nadie lo declarase. Un despliegue con
+ * el gateway apuntado sólo a modelos dentro del perímetro declara la variable igualmente —una
+ * afirmación de más—; lo contrario sería una transferencia de menos.
  */
 function assertTransferAllowed(
-  kind: 'openai' | 'transformer',
+  kind: ProviderKind,
   selection: { NODE_ENV?: string; SEMANTIC_ALLOW_INTERNATIONAL_TRANSFER: boolean },
 ): void {
-  if (kind !== 'openai') return;
+  // `cascade` NO se exime por empezar en local: su escalón siguiente es el gateway, y
+  // basta con que una glosa no la resuelva el codificador para que su texto salga
+  // fuera. Eximirlo haría que la declaración dependiera de cuántas glosas resulten
+  // difíciles, que no es una propiedad del despliegue sino de los extractos del día.
+  if (kind === 'transformer') return;
   if (selection.NODE_ENV !== 'production') return;
   if (selection.SEMANTIC_ALLOW_INTERNATIONAL_TRANSFER) return;
   throw new Error(
@@ -51,6 +78,8 @@ function assertTransferAllowed(
       '`transformer`, que se ejecuta dentro del perímetro.',
   );
 }
+
+type ProviderKind = 'openai' | 'transformer' | 'litellm' | 'cascade';
 
 export interface ResolvedModelProviders {
   readonly modelProvider: SemanticModelProvider;
@@ -84,21 +113,56 @@ export function loadModelProviders(
   assertTransferAllowed(selection.SEMANTIC_MODEL_PROVIDER, selection);
   if (wantsEmbeddings) assertTransferAllowed(embeddingKind, selection);
 
-  const modelProvider =
-    selection.SEMANTIC_MODEL_PROVIDER === 'transformer'
-      ? buildTransformerModelProvider(environment)
-      : buildOpenAiModelProvider(environment, config);
+  const modelProvider = buildModelProvider(selection.SEMANTIC_MODEL_PROVIDER, environment, config);
 
   if (!wantsEmbeddings) {
     return { modelProvider };
   }
-  return {
-    modelProvider,
-    embeddingProvider:
-      embeddingKind === 'transformer'
-        ? buildTransformerEmbeddingProvider(environment)
-        : buildOpenAiEmbeddingProvider(environment),
-  };
+  return { modelProvider, embeddingProvider: buildEmbeddingProvider(embeddingKind, environment) };
+}
+
+function buildModelProvider(
+  kind: ProviderKind,
+  environment: NodeJS.ProcessEnv,
+  config: SemanticWorkerConfig,
+): SemanticModelProvider {
+  if (kind === 'transformer') return buildTransformerModelProvider(environment);
+  if (kind === 'litellm') return buildLiteLlmModelProvider(environment, config);
+  if (kind === 'cascade') return buildCascadeModelProvider(environment, config);
+  return buildOpenAiModelProvider(environment, config);
+}
+
+/**
+ * Local primero, LLM sólo si aquél no puede o tarda demasiado.
+ *
+ * Los dos adaptadores se construyen aquí y no dentro del compuesto para que ÉSTE no
+ * conozca proveedores concretos: recibe dos puertos y no sabe que uno habla con un
+ * servidor de embeddings y el otro con un gateway. Cambiar cualquiera de los dos no
+ * toca la lógica de la cascada.
+ */
+function buildCascadeModelProvider(
+  environment: NodeJS.ProcessEnv,
+  config: SemanticWorkerConfig,
+): SemanticModelProvider {
+  const { SEMANTIC_CASCADE_LOCAL_TIMEOUT_MS: localTimeoutMs } = selectionSchema.parse(environment);
+  return new CascadingSemanticProvider({
+    local: buildTransformerModelProvider(environment),
+    remote: buildLiteLlmModelProvider(environment, config),
+    localTimeoutMs,
+  });
+}
+
+function buildEmbeddingProvider(
+  kind: ProviderKind,
+  environment: NodeJS.ProcessEnv,
+): EmbeddingProvider {
+  // `cascade` recupera candidatas con el codificador LOCAL, por coherencia con su
+  // propia tesis: la recuperación se ejecuta en TODAS las glosas, así que pagarla
+  // por embeddings remotos anularía el ahorro que justifica la cascada.
+  if (kind === 'transformer' || kind === 'cascade')
+    return buildTransformerEmbeddingProvider(environment);
+  if (kind === 'litellm') return buildLiteLlmEmbeddingProvider(environment);
+  return buildOpenAiEmbeddingProvider(environment);
 }
 
 /**
@@ -133,6 +197,37 @@ function buildOpenAiModelProvider(
     config.analysisTimeoutSeconds,
   );
   return new OpenAiSemanticProvider(options);
+}
+
+/**
+ * El gateway se comprueba contra el presupuesto igual que el proveedor generativo directo: sus
+ * reintentos tampoco ven el reloj del análisis, y encima el gateway puede sumar los suyos
+ * propios por debajo. El peor caso que se calcula aquí es por tanto un SUELO, no un techo;
+ * `num_retries` en `config.yaml` es la otra mitad de la cuenta y debe mantenerse en 0 o 1.
+ */
+function buildLiteLlmModelProvider(
+  environment: NodeJS.ProcessEnv,
+  config: SemanticWorkerConfig,
+): SemanticModelProvider {
+  const options = loadLiteLlmProviderOptions(environment);
+  assertProviderTimeoutFitsAnalysis(
+    options.timeoutMs ?? 30_000,
+    options.maxAttempts ?? 3,
+    config.analysisTimeoutSeconds,
+  );
+  return new LiteLlmSemanticProvider(options);
+}
+
+/**
+ * Los embeddings del recuperador híbrido también pasan por el gateway.
+ *
+ * Reutiliza el adaptador de OpenAI porque `/embeddings` de LiteLLM ES la interfaz de OpenAI:
+ * escribir un segundo cliente idéntico sólo añadiría un sitio más donde el lote o el plazo
+ * pueden divergir. Lo que cambia es el alias y la credencial, que es justo lo que se le pasa.
+ */
+function buildLiteLlmEmbeddingProvider(environment: NodeJS.ProcessEnv): EmbeddingProvider {
+  const options = loadLiteLlmEmbeddingOptions(environment);
+  return new OpenAiEmbeddingProvider(options);
 }
 
 function buildOpenAiEmbeddingProvider(environment: NodeJS.ProcessEnv): EmbeddingProvider {

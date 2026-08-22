@@ -139,7 +139,11 @@ export function buildIdentityMobileCompiled(
           // `INCONCLUSIVE` por defecto y no `NOT_VERIFIED`: si la llamada no
           // llegó a producir veredicto, afirmar que la persona NO es quien dice
           // ser es afirmar algo que nadie comprobó.
-          { intermediateCode: 'id_decision', path: 'result.decision', defaultValue: 'INCONCLUSIVE' },
+          {
+            intermediateCode: 'id_decision',
+            path: 'result.decision',
+            defaultValue: 'INCONCLUSIVE',
+          },
           { intermediateCode: 'id_parecido', path: 'result.faceSimilarity', defaultValue: 0 },
           { intermediateCode: 'id_evidencia', path: 'result.documentEvidence', defaultValue: 0 },
           {
@@ -158,8 +162,18 @@ export function buildIdentityMobileCompiled(
           'Traduce el veredicto técnico del worker a la decisión de negocio, con la política de este artefacto.',
       },
     }),
-    resultNode('RECHAZAR_DOCUMENTO', 'Rechazar: no es un carnet', 'RECHAZADO', 'DOCUMENTO_NO_VALIDO'),
-    resultNode('RECHAZAR_IDENTIDAD', 'Rechazar: no es la misma persona', 'RECHAZADO', 'IDENTIDAD_NO_COINCIDE'),
+    resultNode(
+      'RECHAZAR_DOCUMENTO',
+      'Rechazar: no es un carnet',
+      'RECHAZADO',
+      'DOCUMENTO_NO_VALIDO',
+    ),
+    resultNode(
+      'RECHAZAR_IDENTIDAD',
+      'Rechazar: no es la misma persona',
+      'RECHAZADO',
+      'IDENTIDAD_NO_COINCIDE',
+    ),
     resultNode('APROBAR', 'Verificado', 'VERIFICADO', 'IDENTIDAD_CONFIRMADA'),
     resultNode('REVISAR', 'A revisión humana', 'REVISION_HUMANA', 'REQUIERE_REVISION'),
   ];
@@ -179,8 +193,22 @@ export function buildIdentityMobileCompiled(
      * 4. Todo lo demás —incluida cualquier situación no contemplada— va a una
      *    persona. La arista por defecto NUNCA aprueba.
      */
-    edge('E_DOC_INVALIDO', 'EVALUAR', 'RECHAZAR_DOCUMENTO', [{ code: 'DOCUMENTO_NO_VALIDO', order: 1 }], false, 1),
-    edge('E_NO_COINCIDE', 'EVALUAR', 'RECHAZAR_IDENTIDAD', [{ code: 'IDENTIDAD_NO_COINCIDE', order: 1 }], false, 2),
+    edge(
+      'E_DOC_INVALIDO',
+      'EVALUAR',
+      'RECHAZAR_DOCUMENTO',
+      [{ code: 'DOCUMENTO_NO_VALIDO', order: 1 }],
+      false,
+      1,
+    ),
+    edge(
+      'E_NO_COINCIDE',
+      'EVALUAR',
+      'RECHAZAR_IDENTIDAD',
+      [{ code: 'IDENTIDAD_NO_COINCIDE', order: 1 }],
+      false,
+      2,
+    ),
     edge('E_APROBAR', 'EVALUAR', 'APROBAR', [{ code: 'IDENTIDAD_CONFIRMADA', order: 1 }], false, 3),
     edge('E_REVISAR', 'EVALUAR', 'REVISAR', [], true, 4),
   ];

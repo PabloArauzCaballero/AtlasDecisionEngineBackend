@@ -304,6 +304,10 @@ export class IdentityProviderClient {
       try {
         response = await fetch(`${baseUrl}${path}`, {
           ...init,
+          // Se identifica al motor en TODAS las llamadas, y no en cada una por separado, porque
+          // quien redacta los correos de código es el proveedor: sin esta cabecera su membrete
+          // lleva un rótulo genérico y quien recibe un PIN no sabe a qué portal está entrando.
+          headers: { ...(init.headers as Record<string, string>), 'x-atlas-product': 'decision-engine' },
           signal: AbortSignal.timeout(timeoutMs),
         });
       } catch (error) {

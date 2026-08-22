@@ -31,4 +31,19 @@ export const modelClassificationSchema = z.object({
   ),
   model: z.string().min(1),
   modelVersion: z.string().min(1),
+  /*
+   * Consumo declarado por el proveedor. Se valida igual que el resto de la
+   * respuesta —viene de fuera— y se descarta si no encaja, porque una métrica
+   * de coste no vale una clasificación perdida: `catch` deja el campo ausente
+   * en vez de hacer fallar el análisis entero por un número mal formado.
+   */
+  usage: z
+    .object({
+      inputTokens: z.number().int().min(0).optional(),
+      outputTokens: z.number().int().min(0).optional(),
+      totalTokens: z.number().int().min(0).optional(),
+      estimatedCost: z.number().min(0).optional(),
+    })
+    .optional()
+    .catch(undefined),
 });

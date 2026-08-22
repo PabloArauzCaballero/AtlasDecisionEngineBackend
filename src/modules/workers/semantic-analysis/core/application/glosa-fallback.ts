@@ -128,7 +128,8 @@ const RUBROS: readonly Regla[] = [
     certeza: 'ALTA',
   },
   {
-    patron: /\b(?:YPFB|EMCOGAS|GAS\s+DOMICILIARIO|GARRAFA)\b(?!.*\b(?:GASOLINA|DIESEL|SURTIDOR)\b)/u,
+    patron:
+      /\b(?:YPFB|EMCOGAS|GAS\s+DOMICILIARIO|GARRAFA)\b(?!.*\b(?:GASOLINA|DIESEL|SURTIDOR)\b)/u,
     salida: ['GASTOS.VIVIENDA.SERVICIOS'],
     entrada: [],
     porque: 'la glosa nombra el suministro de gas domiciliario',
@@ -181,7 +182,8 @@ const RUBROS: readonly Regla[] = [
     certeza: 'ALTA',
   },
   {
-    patron: /\b(?:AFP|GESTORA\s+PUBLICA|FUTURO\s+DE\s+BOLIVIA|PREVISION\s+BBVA|APORTES?\s+JUBILAC)/u,
+    patron:
+      /\b(?:AFP|GESTORA\s+PUBLICA|FUTURO\s+DE\s+BOLIVIA|PREVISION\s+BBVA|APORTES?\s+JUBILAC)/u,
     salida: ['GASTOS.LABORALES.PENSIONES'],
     entrada: [],
     porque: 'la glosa declara un aporte al sistema de pensiones',
@@ -364,7 +366,8 @@ const RUBROS: readonly Regla[] = [
     certeza: 'ALTA',
   },
   {
-    patron: /\b(?:AGENCIA\s+DE\s+VIAJES|BOA\b|AMASZONAS|ECOJET|LATAM|AVIANCA|COPA\s+AIRLINES|HOTEL|HOSTAL|BOOKING|DESPEGAR|PASAJE\s+AEREO|TICKET\s+AEREO)\b/u,
+    patron:
+      /\b(?:AGENCIA\s+DE\s+VIAJES|BOA\b|AMASZONAS|ECOJET|LATAM|AVIANCA|COPA\s+AIRLINES|HOTEL|HOSTAL|BOOKING|DESPEGAR|PASAJE\s+AEREO|TICKET\s+AEREO)\b/u,
     salida: ['GASTOS.OCIO.VIAJES'],
     entrada: [],
     porque: 'la glosa nombra un viaje, un pasaje o un alojamiento',
@@ -540,7 +543,8 @@ const RUBROS: readonly Regla[] = [
     certeza: 'ALTA',
   },
   {
-    patron: /\b(?:AMORTIZACION|CUOTA\s+PRESTAMO|CUOTA\s+CREDITO|CUOTA\s+HIPOTEC|CAPITAL\s+E\s+INTERES|PRESTAMO)\b/u,
+    patron:
+      /\b(?:AMORTIZACION|CUOTA\s+PRESTAMO|CUOTA\s+CREDITO|CUOTA\s+HIPOTEC|CAPITAL\s+E\s+INTERES|PRESTAMO)\b/u,
     salida: ['GASTOS.FINANCIEROS.PRESTAMOS'],
     entrada: ['INGRESOS.PRESTAMO'],
     porque: 'la glosa declara la cuota de un préstamo',
@@ -561,14 +565,16 @@ const RUBROS: readonly Regla[] = [
     certeza: 'ALTA',
   },
   {
-    patron: /\b(?:SEGURO|POLIZA|ASEGURADORA|ALIANZA\s+SEGUROS|BISA\s+SEGUROS|NACIONAL\s+SEGUROS|CREDINFORM)\b/u,
+    patron:
+      /\b(?:SEGURO|POLIZA|ASEGURADORA|ALIANZA\s+SEGUROS|BISA\s+SEGUROS|NACIONAL\s+SEGUROS|CREDINFORM)\b/u,
     salida: ['GASTOS.FINANCIEROS.SEGUROS'],
     entrada: ['INGRESOS.SEGURO'],
     porque: 'la glosa declara una prima o un siniestro de seguro',
     certeza: 'ALTA',
   },
   {
-    patron: /\b(?:COMPRA\s+VENTA\s+DE\s+MONEDA|CAMBIO\s+DE\s+DIVISA|TIPO\s+DE\s+CAMBIO|MESA\s+DE\s+DINERO|FOREX)\b/u,
+    patron:
+      /\b(?:COMPRA\s+VENTA\s+DE\s+MONEDA|CAMBIO\s+DE\s+DIVISA|TIPO\s+DE\s+CAMBIO|MESA\s+DE\s+DINERO|FOREX)\b/u,
     salida: ['GASTOS.FINANCIEROS.CAMBIO'],
     entrada: ['INGRESOS.CAMBIO'],
     porque: 'la glosa declara una operación de cambio de divisa',
@@ -612,7 +618,8 @@ const RUBROS: readonly Regla[] = [
     certeza: 'ALTA',
   },
   {
-    patron: /\b(?:CEMENTO|FIERRO|LADRILLO|ARIDOS|CONSTRUCCION|MATERIALES\s+DE\s+OBRA|SOBOCE|FANCESA)\b/u,
+    patron:
+      /\b(?:CEMENTO|FIERRO|LADRILLO|ARIDOS|CONSTRUCCION|MATERIALES\s+DE\s+OBRA|SOBOCE|FANCESA)\b/u,
     salida: ['GASTOS.CONSTRUCCION.MATERIALES'],
     entrada: [],
     porque: 'la glosa nombra materiales de construcción',
@@ -685,7 +692,8 @@ const RUBROS: readonly Regla[] = [
  */
 const INSTRUMENTOS: readonly Regla[] = [
   {
-    patron: /\bRETIRO\b.*\b(?:EFECTIVO|FONDOS)\b|\bRETIRO\s+(?:ATM|CAJERO)\b|\bATM\b|\bCAJERO\s+AUTOMATICO\b/u,
+    patron:
+      /\bRETIRO\b.*\b(?:EFECTIVO|FONDOS)\b|\bRETIRO\s+(?:ATM|CAJERO)\b|\bATM\b|\bCAJERO\s+AUTOMATICO\b/u,
     salida: ['GASTOS.EFECTIVO'],
     entrada: [],
     porque: 'la glosa declara un retiro de efectivo',
@@ -713,7 +721,8 @@ const INSTRUMENTOS: readonly Regla[] = [
     certeza: 'MEDIA',
   },
   {
-    patron: /\bCOMERCIO\s+ELECTRONIC|\bECOMMERCE\b|\bCOMPRA\s+WEB\b|\bCOMPRA\s+ONLINE\b|\bINTERNET\s+PURCHASE\b/u,
+    patron:
+      /\bCOMERCIO\s+ELECTRONIC|\bECOMMERCE\b|\bCOMPRA\s+WEB\b|\bCOMPRA\s+ONLINE\b|\bINTERNET\s+PURCHASE\b/u,
     salida: ['GASTOS.COMPRAS.TARJETA'],
     entrada: ['INGRESOS.REVERSO'],
     porque: 'la glosa declara una compra en comercio electrónico',
@@ -742,7 +751,8 @@ const INSTRUMENTOS: readonly Regla[] = [
     certeza: 'MEDIA',
   },
   {
-    patron: /\bDEBITO\s+AUTOMATICO\b|\bPAGO\s+AUTOMATICO\b|\bSERVICIO\s+DE\s+COBRANZA\b|\bRECAUDACION\b/u,
+    patron:
+      /\bDEBITO\s+AUTOMATICO\b|\bPAGO\s+AUTOMATICO\b|\bSERVICIO\s+DE\s+COBRANZA\b|\bRECAUDACION\b/u,
     salida: ['GASTOS.VIVIENDA.SERVICIOS'],
     entrada: [],
     porque: 'la glosa declara un débito automático de servicios',
@@ -789,7 +799,9 @@ const INSTRUMENTOS: readonly Regla[] = [
  */
 export function codigosPropuestosPorReglas(): readonly string[] {
   return [
-    ...new Set([...RUBROS, ...INSTRUMENTOS].flatMap((regla) => [...regla.salida, ...regla.entrada])),
+    ...new Set(
+      [...RUBROS, ...INSTRUMENTOS].flatMap((regla) => [...regla.salida, ...regla.entrada]),
+    ),
   ];
 }
 

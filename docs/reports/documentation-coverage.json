@@ -1,7 +1,7 @@
 {
   "modules": {
-    "total": 30,
-    "documented": 30
+    "total": 31,
+    "documented": 31
   },
   "apiTags": {
     "total": 37,
@@ -12,8 +12,8 @@
     "documented": 221
   },
   "environmentVariables": {
-    "total": 258,
-    "documented": 258
+    "total": 267,
+    "documented": 267
   },
   "runbooks": 4,
   "failures": 0

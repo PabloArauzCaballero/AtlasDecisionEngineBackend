@@ -20,6 +20,7 @@ import {
   CategoryCandidate,
   ModelClassification,
   ModelClassificationInput,
+  ProviderUsage,
   ResolvedEntity,
   SemanticAnalysisRequest,
   SemanticAnalysisResult,
@@ -142,8 +143,7 @@ export class SemanticAnalysisPipeline {
    */
   private desdeRegla(regla: DecisionPorRegla, motivo: string | null): Decision {
     const inequivoca = regla.origen === 'RUBRO' && regla.certeza === 'ALTA' && !regla.degradado;
-    const razon =
-      motivo ?? (inequivoca ? null : MOTIVOS_DE_REVISION.LOW_CONFIDENCE);
+    const razon = motivo ?? (inequivoca ? null : MOTIVOS_DE_REVISION.LOW_CONFIDENCE);
     return {
       status: 'MATCH',
       requiresDeepAnalysis: false,
@@ -371,7 +371,8 @@ export class SemanticAnalysisPipeline {
         budget,
       });
     } catch (error: unknown) {
-      if (!this.config.timeoutRescueEnabled || !(error instanceof SemanticTimeoutError)) throw error;
+      if (!this.config.timeoutRescueEnabled || !(error instanceof SemanticTimeoutError))
+        throw error;
       this.logger.warn(
         `Solicitud ${request.requestId} agotó el reloj; se resuelve por reglas y se marca para revisión.`,
       );
@@ -539,6 +540,14 @@ export class SemanticAnalysisPipeline {
       async (span) => {
         const classification = await this.callProvider(input, tier, budget);
         span.setAttribute(SEMANTIC_ATTRIBUTES.model, classification.model);
+        // Sólo lo que el proveedor declaró: un atributo ausente dice «no lo
+        // dijo», y un cero puesto por nosotros diría «no gastó». Con un gateway
+        // que factura por token esa diferencia es la única pista de que la
+        // contabilidad de coste dejó de llegar.
+        if (classification.modelVersion !== classification.model) {
+          span.setAttribute(SEMANTIC_ATTRIBUTES.resolvedModel, classification.modelVersion);
+        }
+        setUsageAttributes(span, classification.usage);
         return classification;
       },
     );
@@ -581,5 +590,20 @@ export class SemanticAnalysisPipeline {
       }
       throw error;
     }
+  }
+}
+
+/** Vuelca el consumo declarado sobre el span, omitiendo lo que no llegó. */
+function setUsageAttributes(
+  span: { setAttribute: (key: string, value: number) => unknown },
+  usage: ProviderUsage | undefined,
+): void {
+  if (usage === undefined) return;
+  const { inputTokens, outputTokens, totalTokens, estimatedCost } = usage;
+  if (inputTokens !== undefined) span.setAttribute(SEMANTIC_ATTRIBUTES.inputTokens, inputTokens);
+  if (outputTokens !== undefined) span.setAttribute(SEMANTIC_ATTRIBUTES.outputTokens, outputTokens);
+  if (totalTokens !== undefined) span.setAttribute(SEMANTIC_ATTRIBUTES.totalTokens, totalTokens);
+  if (estimatedCost !== undefined) {
+    span.setAttribute(SEMANTIC_ATTRIBUTES.estimatedCost, estimatedCost);
   }
 }

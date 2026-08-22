@@ -41,6 +41,23 @@ export const SEMANTIC_ATTRIBUTES = {
   candidateCount: 'semantic.candidate.count',
   retrievalMode: 'semantic.retrieval.mode',
   model: 'semantic.model',
+  /**
+   * El despliegue FÍSICO que atendió la llamada, cuando lo hay detrás de un alias.
+   *
+   * Va en el span y no en una etiqueta de Prometheus a propósito: con un gateway
+   * que reparte entre varios proveedores su cardinalidad la fija `config.yaml`, no
+   * el motor, y una etiqueta que crece con un fichero que este repositorio no
+   * controla es exactamente la que tumba al recolector.
+   */
+  resolvedModel: 'semantic.model.resolved',
+  /*
+   * Consumo y coste por llamada. Numéricos de alta variabilidad: pertenecen a la
+   * traza, donde se leen por llamada, y no a un contador agregado.
+   */
+  inputTokens: 'semantic.usage.input_tokens',
+  outputTokens: 'semantic.usage.output_tokens',
+  totalTokens: 'semantic.usage.total_tokens',
+  estimatedCost: 'semantic.usage.estimated_cost',
   deduplicated: 'semantic.deduplicated',
   claimState: 'semantic.claim.state',
   catalogCacheHit: 'catalog.cache.hit',

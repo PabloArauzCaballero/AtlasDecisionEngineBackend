@@ -36,6 +36,24 @@ export type MotivoDeRevision = (typeof MOTIVOS_DE_REVISION)[keyof typeof MOTIVOS
 const CODIGOS_DE_LATENCIA: ReadonlySet<string> = new Set(['SEMANTIC_TIMEOUT']);
 
 /**
+ * Códigos que significan «el proveedor incumplió», y que SÍ se revisan aunque
+ * no sean reintentables.
+ *
+ * Es la distinción que faltaba, y la separa del error de configuración con el
+ * que estaba mezclada. Un modelo que devuelve una categoría que nadie le propuso,
+ * un JSON truncado o una respuesta que no respeta el esquema son fallos
+ * PERMANENTES —repetirlos da lo mismo, así que no se reintentan— pero la glosa
+ * sigue siendo perfectamente legible: una persona la clasifica en dos segundos.
+ * Tratarlos como una credencial ausente los sacaba del circuito, y el movimiento
+ * desaparecía del informe sin que nadie pudiera recuperarlo.
+ *
+ * La regla que las separa es «¿puede resolverlo quien mira la bandeja?». Ante un
+ * `SEMANTIC_PROVIDER_ERROR` la respuesta es sí: el dato que necesita está en la
+ * glosa. Ante un `SEMANTIC_CONFIGURATION_ERROR` es no, y ése sigue fuera.
+ */
+const CODIGOS_DE_PROVEEDOR: ReadonlySet<string> = new Set(['SEMANTIC_PROVIDER_ERROR']);
+
+/**
  * El motivo con el que un análisis fallido debe escalarse, o `null` si ese fallo
  * NO debe ir a revisión.
  *
@@ -50,5 +68,6 @@ export function motivoDeRevisionPara(
   esReintentable: boolean,
 ): MotivoDeRevision | null {
   if (CODIGOS_DE_LATENCIA.has(errorCode)) return MOTIVOS_DE_REVISION.TIMEOUT;
+  if (CODIGOS_DE_PROVEEDOR.has(errorCode)) return MOTIVOS_DE_REVISION.PROCESSING_ERROR;
   return esReintentable ? MOTIVOS_DE_REVISION.PROCESSING_ERROR : null;
 }

@@ -8,11 +8,7 @@
  * subí?» y «¿qué tengo que decidir?»—.
  */
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IdentityRejectionReason,
-  IdentityReviewReason,
-  WorkerRunStatus,
-} from '@prisma/client';
+import { IdentityRejectionReason, IdentityReviewReason, WorkerRunStatus } from '@prisma/client';
 import { IsEnum, IsIn, IsISO8601, IsOptional, IsString, MaxLength } from 'class-validator';
 import { PaginationQueryDto } from '../../../../common/http/pagination';
 import { IdentityDocumentType } from '../core/domain/identity-enums';

@@ -112,8 +112,14 @@ export function buildIdentityOptions(config: ConfigService): IdentityOptions {
       // vacía y todo documento dudoso se rechazaría en silencio, que es justo el
       // fallo que la puerta existe para impedir.
       const umbrales = normalizeIdentityThresholds({
-        accept: number('IDENTITY_DOCUMENT_ACCEPT_CONFIDENCE', IDENTITY_DEFAULTS.documentAcceptConfidence),
-        review: number('IDENTITY_DOCUMENT_REVIEW_CONFIDENCE', IDENTITY_DEFAULTS.documentReviewConfidence),
+        accept: number(
+          'IDENTITY_DOCUMENT_ACCEPT_CONFIDENCE',
+          IDENTITY_DEFAULTS.documentAcceptConfidence,
+        ),
+        review: number(
+          'IDENTITY_DOCUMENT_REVIEW_CONFIDENCE',
+          IDENTITY_DEFAULTS.documentReviewConfidence,
+        ),
       });
       return {
         documentAcceptConfidence: umbrales.accept,

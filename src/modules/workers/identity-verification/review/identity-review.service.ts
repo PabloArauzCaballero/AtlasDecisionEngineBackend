@@ -334,9 +334,7 @@ export class IdentityReviewService {
       // sólo cuesta un sondeo de retraso — nunca debe tumbar la resolución.
       this.jobSignal.notifyDetached(JobName.IdentityVerification);
     }
-    this.logger.log(
-      `Arbitraje de ${requestId} resuelto por ${principal.id} como ${dto.action}.`,
-    );
+    this.logger.log(`Arbitraje de ${requestId} resuelto por ${principal.id} como ${dto.action}.`);
     return {
       requestId,
       status: confirma ? WorkerRunStatus.QUEUED : WorkerRunStatus.DOCUMENT_REJECTED,

@@ -17,6 +17,42 @@ const jwtProduction = {
   METRICS_TOKEN: 'metrics-token-with-enough-entropy-789',
 };
 
+/**
+ * Compose pasa las credenciales opcionales como `${VAR:-}`: cuando no están configuradas, el
+ * contenedor recibe la CADENA VACÍA, no la ausencia de variable. Y `''` no es `undefined`, así que
+ * un `.optional()` con `min(1)` al lado tumbaba el arranque de cualquier despliegue que no usara
+ * el gateway — verificado en caliente, con la API entrando en bucle de reinicio.
+ */
+describe('variables opcionales que llegan vacías desde Docker', () => {
+  const vacias = {
+    LITELLM_API_KEY: '',
+    LITELLM_BASE_URL: '',
+    LITELLM_FAST_MODEL: '',
+    LITELLM_DEEP_MODEL: '',
+    LITELLM_EMBEDDING_MODEL: '',
+    LITELLM_TIMEOUT_MS: '',
+    LITELLM_MAX_ATTEMPTS: '',
+    LITELLM_MAX_OUTPUT_TOKENS: '',
+    SEMANTIC_CASCADE_LOCAL_TIMEOUT_MS: '',
+  };
+
+  it('un despliegue SIN gateway arranca aunque compose le pase las variables vacías', () => {
+    expect(() => validateEnvironment({ ...base, ...vacias })).not.toThrow();
+  });
+
+  it('una variable vacía se lee como ausente, no como cadena vacía', () => {
+    const result = validateEnvironment({ ...base, ...vacias });
+    expect(result.LITELLM_API_KEY).toBeUndefined();
+    expect(result.LITELLM_TIMEOUT_MS).toBeUndefined();
+  });
+
+  it('con un valor de verdad, se sigue validando igual', () => {
+    expect(() => validateEnvironment({ ...base, LITELLM_TIMEOUT_MS: '5' })).toThrow(); // por debajo del mínimo de 1000 ms
+    const ok = validateEnvironment({ ...base, LITELLM_TIMEOUT_MS: '5000' });
+    expect(ok.LITELLM_TIMEOUT_MS).toBe(5000);
+  });
+});
+
 describe('environment validation', () => {
   it('accepts a secure production configuration', () => {
     const result = validateEnvironment(jwtProduction);

@@ -42,3 +42,6 @@ docs/.obsidian/workspace.json
 docs/.obsidian/workspace-mobile.json
 docs/.obsidian/cache
 backups/
+
+# macOS
+.DS_Store

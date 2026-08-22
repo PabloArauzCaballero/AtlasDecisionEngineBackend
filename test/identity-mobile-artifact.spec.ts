@@ -94,7 +94,12 @@ async function decide(serviceInvoker: WorkerServiceInvoker): Promise<Record<stri
       [V.selfie]: '/9j/4AAQSkZJRg==',
       [V.pais]: 'BO',
     },
-    { tenantId: 1n, artifactCode: compiled.artifact.code, requestId: 'seed-check', allowExternal: false },
+    {
+      tenantId: 1n,
+      artifactCode: compiled.artifact.code,
+      requestId: 'seed-check',
+      allowExternal: false,
+    },
   );
   expect(resolution.valid).toBe(true);
   const result = await engine.execute(
@@ -142,7 +147,9 @@ describe('lo que el artefacto decide', () => {
 
   it('rechaza cuando el worker afirma que no es la misma persona', async () => {
     const output = await decide(
-      invoker(worker({ decision: 'NOT_VERIFIED', faceSimilarity: 0.31 }, 'SUCCEEDED_WITH_WARNINGS')),
+      invoker(
+        worker({ decision: 'NOT_VERIFIED', faceSimilarity: 0.31 }, 'SUCCEEDED_WITH_WARNINGS'),
+      ),
     );
 
     expect(output[V.decision]).toBe('RECHAZADO');
@@ -187,7 +194,12 @@ describe('lo que el artefacto decide', () => {
 
   it('deriva a una persona lo que el worker dejó en duda', async () => {
     const output = await decide(
-      invoker(worker({ decision: 'REVIEW_REQUIRED', reasonCodes: ['AMBIGUOUS_MATCH'] }, 'SUCCEEDED_WITH_WARNINGS')),
+      invoker(
+        worker(
+          { decision: 'REVIEW_REQUIRED', reasonCodes: ['AMBIGUOUS_MATCH'] },
+          'SUCCEEDED_WITH_WARNINGS',
+        ),
+      ),
     );
 
     expect(output[V.decision]).toBe('REVISION_HUMANA');
@@ -196,7 +208,12 @@ describe('lo que el artefacto decide', () => {
 
   it('deriva también lo que el worker no pudo concluir', async () => {
     const output = await decide(
-      invoker(worker({ decision: 'INCONCLUSIVE', faceSimilarity: null as unknown as number }, 'SUCCEEDED_WITH_WARNINGS')),
+      invoker(
+        worker(
+          { decision: 'INCONCLUSIVE', faceSimilarity: null as unknown as number },
+          'SUCCEEDED_WITH_WARNINGS',
+        ),
+      ),
     );
 
     expect(output[V.decision]).toBe('REVISION_HUMANA');
