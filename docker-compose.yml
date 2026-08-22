@@ -140,6 +140,16 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-atlas}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-atlas_decision}?schema=public
       MANAGEMENT_API_KEY: ${MANAGEMENT_API_KEY:?set MANAGEMENT_API_KEY in .env}
       RUNTIME_API_KEY: ${RUNTIME_API_KEY:?set RUNTIME_API_KEY in .env}
+      # Una credencial por PASO de aprobacion, con solo el rol de ese paso. Sin ellas el flujo de
+      # gobierno queda sin salida en una instalacion de un solo operador: los pasos exigen
+      # separacion de funciones y `bootstrap-management` es el unico principal que existe. Se
+      # declaran opcionales a proposito: sin definirlas, la instalacion queda como estaba.
+      APPROVER_QA_API_KEY: ${APPROVER_QA_API_KEY:-}
+      APPROVER_RISK_API_KEY: ${APPROVER_RISK_API_KEY:-}
+      APPROVER_COMPLIANCE_API_KEY: ${APPROVER_COMPLIANCE_API_KEY:-}
+      # Quien publica no es quien escribe ni quien aprueba: el despliegue aplica su propia
+      # separacion de funciones y ademas exige PLATFORM_ADMIN.
+      RELEASE_MANAGER_API_KEY: ${RELEASE_MANAGER_API_KEY:-}
       BOOTSTRAP_TENANT_ID: ${BOOTSTRAP_TENANT_ID:-1}
       BOOTSTRAP_MANAGEMENT_ROLES: ${BOOTSTRAP_MANAGEMENT_ROLES:-AUDITOR,COMPLIANCE,FRAUD_ANALYST,OPERATIONS,PLATFORM_ADMIN,QA_ANALYST,RISK_ANALYST,RISK_APPROVER}
       BOOTSTRAP_RUNTIME_ROLES: ${BOOTSTRAP_RUNTIME_ROLES:-DECISION_RUNTIME}
@@ -293,6 +303,16 @@ services:
       AUTH_MODE: API_KEY
       MANAGEMENT_API_KEY: ${MANAGEMENT_API_KEY:?set MANAGEMENT_API_KEY in .env}
       RUNTIME_API_KEY: ${RUNTIME_API_KEY:?set RUNTIME_API_KEY in .env}
+      # Una credencial por PASO de aprobacion, con solo el rol de ese paso. Sin ellas el flujo de
+      # gobierno queda sin salida en una instalacion de un solo operador: los pasos exigen
+      # separacion de funciones y `bootstrap-management` es el unico principal que existe. Se
+      # declaran opcionales a proposito: sin definirlas, la instalacion queda como estaba.
+      APPROVER_QA_API_KEY: ${APPROVER_QA_API_KEY:-}
+      APPROVER_RISK_API_KEY: ${APPROVER_RISK_API_KEY:-}
+      APPROVER_COMPLIANCE_API_KEY: ${APPROVER_COMPLIANCE_API_KEY:-}
+      # Quien publica no es quien escribe ni quien aprueba: el despliegue aplica su propia
+      # separacion de funciones y ademas exige PLATFORM_ADMIN.
+      RELEASE_MANAGER_API_KEY: ${RELEASE_MANAGER_API_KEY:-}
       AUDIT_HASH_SECRET: ${AUDIT_HASH_SECRET:?set AUDIT_HASH_SECRET in .env (at least 32 characters)}
       AUDIT_HASH_KEY_ID: ${AUDIT_HASH_KEY_ID:-v1}
       METRICS_TOKEN: ${METRICS_TOKEN:?set METRICS_TOKEN in .env (at least 24 characters)}
@@ -665,6 +685,16 @@ services:
       IDENTITY_PROVIDER_URL: ${IDENTITY_PROVIDER_URL:-http://host.docker.internal:53005/api/v1}
       MANAGEMENT_API_KEY: ${MANAGEMENT_API_KEY:?set MANAGEMENT_API_KEY in .env}
       RUNTIME_API_KEY: ${RUNTIME_API_KEY:?set RUNTIME_API_KEY in .env}
+      # Una credencial por PASO de aprobacion, con solo el rol de ese paso. Sin ellas el flujo de
+      # gobierno queda sin salida en una instalacion de un solo operador: los pasos exigen
+      # separacion de funciones y `bootstrap-management` es el unico principal que existe. Se
+      # declaran opcionales a proposito: sin definirlas, la instalacion queda como estaba.
+      APPROVER_QA_API_KEY: ${APPROVER_QA_API_KEY:-}
+      APPROVER_RISK_API_KEY: ${APPROVER_RISK_API_KEY:-}
+      APPROVER_COMPLIANCE_API_KEY: ${APPROVER_COMPLIANCE_API_KEY:-}
+      # Quien publica no es quien escribe ni quien aprueba: el despliegue aplica su propia
+      # separacion de funciones y ademas exige PLATFORM_ADMIN.
+      RELEASE_MANAGER_API_KEY: ${RELEASE_MANAGER_API_KEY:-}
       AUDIT_HASH_SECRET: ${AUDIT_HASH_SECRET:?set AUDIT_HASH_SECRET in .env (at least 32 characters)}
       AUDIT_HASH_KEY_ID: ${AUDIT_HASH_KEY_ID:-v1}
       AUDIT_HASH_PREVIOUS_SECRETS: ${AUDIT_HASH_PREVIOUS_SECRETS:-}
@@ -748,6 +778,16 @@ services:
       BASE_URL: http://api:3000
       MANAGEMENT_API_KEY: ${MANAGEMENT_API_KEY:?set MANAGEMENT_API_KEY in .env}
       RUNTIME_API_KEY: ${RUNTIME_API_KEY:?set RUNTIME_API_KEY in .env}
+      # Una credencial por PASO de aprobacion, con solo el rol de ese paso. Sin ellas el flujo de
+      # gobierno queda sin salida en una instalacion de un solo operador: los pasos exigen
+      # separacion de funciones y `bootstrap-management` es el unico principal que existe. Se
+      # declaran opcionales a proposito: sin definirlas, la instalacion queda como estaba.
+      APPROVER_QA_API_KEY: ${APPROVER_QA_API_KEY:-}
+      APPROVER_RISK_API_KEY: ${APPROVER_RISK_API_KEY:-}
+      APPROVER_COMPLIANCE_API_KEY: ${APPROVER_COMPLIANCE_API_KEY:-}
+      # Quien publica no es quien escribe ni quien aprueba: el despliegue aplica su propia
+      # separacion de funciones y ademas exige PLATFORM_ADMIN.
+      RELEASE_MANAGER_API_KEY: ${RELEASE_MANAGER_API_KEY:-}
       TENANT_ID: ${BOOTSTRAP_TENANT_ID:-1}
       DEFAULT_ENVIRONMENT: ${DEFAULT_ENVIRONMENT:-PROD}
       SMOKE_ARTIFACT_CODE: ${SMOKE_ARTIFACT_CODE:-BNPL_CREDIT_DECISION}

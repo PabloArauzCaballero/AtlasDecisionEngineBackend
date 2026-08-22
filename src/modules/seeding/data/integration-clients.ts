@@ -3,8 +3,70 @@ import { createHash } from 'node:crypto';
 // A plain constant array, not a Nest provider, so importing it keeps the seed's
 // no-framework boundary intact while pinning the roles to the same source of truth the
 // guard and mapper use.
-import { PLATFORM_ROLES, RUNTIME_DECISION_ROLE } from '../../../common/security/platform-roles';
+import { PlatformRole, PLATFORM_ROLES, RUNTIME_DECISION_ROLE } from '../../../common/security/platform-roles';
 import { TENANT_ID } from './helpers';
+
+/**
+ * Identidades aprobadoras separadas, una por paso del flujo de gobierno.
+ *
+ * ## El problema que resuelven
+ *
+ * Los pasos de aprobación llevan `separationOfDuties`: quien envía una versión a revisión no puede
+ * aprobarla. Es el control correcto —y el que impide que una sola persona publique una política de
+ * crédito sin que nadie más la mire—. Pero con una única credencial de gestión
+ * (`bootstrap-management`, que además lleva TODOS los roles) el flujo queda sin salida: el mismo
+ * principal que envía es el único que existe para aprobar.
+ *
+ * ## Por qué esto y no relajar el control
+ *
+ * Relajar `separationOfDuties` en desarrollo haría que el entorno donde se prueba el gobierno sea
+ * justamente el que no lo tiene: los flujos se validarían contra un comportamiento que producción no
+ * comparte, y el primer despliegue real fallaría por un control que aquí nunca se ejercitó.
+ *
+ * Con credenciales distintas el control sigue INTACTO —sigue exigiendo principales diferentes— y
+ * además cada una lleva SOLO el rol de su paso: la de QA no puede firmar por riesgo. Un entorno
+ * local operable no tiene por qué ser un entorno sin controles.
+ *
+ * Cada cliente existe solo si su variable está definida. Sin ellas, la instalación queda exactamente
+ * como estaba.
+ */
+const APPROVER_CLIENTS: ReadonlyArray<{ clientKey: string; displayName: string; envVar: string; role: PlatformRole }> = [
+  {
+    clientKey: 'approver-qa',
+    displayName: 'Aprobador de calidad',
+    envVar: 'APPROVER_QA_API_KEY',
+    role: PlatformRole.QA_ANALYST,
+  },
+  {
+    clientKey: 'approver-risk',
+    displayName: 'Aprobador de riesgo',
+    envVar: 'APPROVER_RISK_API_KEY',
+    role: PlatformRole.RISK_APPROVER,
+  },
+  {
+    clientKey: 'approver-compliance',
+    displayName: 'Aprobador de cumplimiento',
+    envVar: 'APPROVER_COMPLIANCE_API_KEY',
+    role: PlatformRole.COMPLIANCE,
+  },
+  /*
+   * Quien PUBLICA no es quien escribe ni quien aprueba.
+   *
+   * El despliegue aplica su propia separación de funciones —«el autor de la versión no puede
+   * desplegarla él solo»— y además exige `PLATFORM_ADMIN`. Sin esta credencial, una versión ya
+   * aprobada por los tres pasos se queda sin poder publicarse en una instalación de un solo
+   * operador: el único principal con el rol es justamente el que la escribió.
+   *
+   * Es el mismo reparto que en cualquier equipo de crédito: quien redacta la política, quienes la
+   * revisan y quien la pone en producción son cuatro personas distintas.
+   */
+  {
+    clientKey: 'release-manager',
+    displayName: 'Responsable de publicación',
+    envVar: 'RELEASE_MANAGER_API_KEY',
+    role: PlatformRole.PLATFORM_ADMIN,
+  },
+];
 
 export interface BootstrapClientSummary {
   clientKey: string;
@@ -60,6 +122,14 @@ export async function seedIntegrationClients(
       secret: process.env.RUNTIME_API_KEY,
       roles: parseList(process.env.BOOTSTRAP_RUNTIME_ROLES, [RUNTIME_DECISION_ROLE]),
     },
+    // Una credencial por paso de aprobación, con SOLO el rol de ese paso.
+    ...APPROVER_CLIENTS.map((approver) => ({
+      clientKey: approver.clientKey,
+      displayName: approver.displayName,
+      audience: 'management',
+      secret: process.env[approver.envVar],
+      roles: [approver.role as string],
+    })),
   ];
 
   const summaries: BootstrapClientSummary[] = [];
