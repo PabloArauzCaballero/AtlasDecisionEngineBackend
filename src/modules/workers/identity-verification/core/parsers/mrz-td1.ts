@@ -102,7 +102,22 @@ export function parseMrzTd1(rawText: string): MrzTd1 | null {
       // sus variantes, así que se toma tal cual. Un espurio delante del nombre
       // no se puede demostrar — y un nombre «corregido» sin prueba sería un
       // dato inventado.
-      const leida = interpretar(v1, v2, variantes(l3)[0] ?? l3);
+      const leida = interpretar(v1.linea, v2.linea, variantes(l3)[0]?.linea ?? l3);
+      /*
+       * Una variante ARRIESGADA sólo se acepta si cuadra el control COMPUESTO.
+       *
+       * Quitar un carácter de en medio genera treinta variantes por renglón, y
+       * con tantas alguna acaba cuadrando un control de un solo dígito por puro
+       * azar —una de cada diez—. Ese acierto casual entregaría un número de
+       * documento inventado con el sello de «validado», que es exactamente lo
+       * que este analizador existe para no hacer.
+       *
+       * El compuesto se calcula sobre los DOS renglones enteros: acertarlo por
+       * casualidad es mucho más difícil, y acertarlo a la vez que el número lo
+       * es todavía más. Las variantes de siempre —tal cual y sin el primer
+       * carácter— no pasan por aquí: ésas ya estaban demostradas.
+       */
+      if ((v1.arriesgada || v2.arriesgada) && !leida.checks.composite) continue;
       const puntos =
         Number(leida.checks.documentNumber) +
         Number(leida.checks.birthDate) +
@@ -118,17 +133,47 @@ export function parseMrzTd1(rawText: string): MrzTd1 | null {
   return mejor;
 }
 
+/** Un renglón candidato: el texto ya ajustado a 30 y si hizo falta inventarse un recorte. */
+interface Variante {
+  linea: string;
+  /** Se quitó un carácter de EN MEDIO. Sólo vale si lo respalda el control compuesto. */
+  arriesgada: boolean;
+}
+
 /**
- * El renglón tal cual, y realineado sin su primer carácter.
+ * El renglón tal cual, realineado sin su primer carácter, y —si sobra longitud—
+ * sin cada uno de sus caracteres.
  *
  * El ajuste a 30 se hace AQUÍ y no al filtrar candidatos: un renglón de 31
  * caracteres —espurio + 30 reales— recortado antes de tiempo ya habría perdido
  * su último carácter real, que es justamente el control compuesto que la
  * variante realineada necesita para demostrarse.
+ *
+ * ## Por qué hace falta quitar de EN MEDIO
+ *
+ * Medido sobre una cédula fotografiada a 445 px: el reconocedor devolvió
+ * `IDBOL1234567<<A4<<<...` — treinta y un caracteres, con una `A` colada entre
+ * el relleno y el dígito de control. El número estaba impreso, era legible y se
+ * leyó entero; lo que se perdió fue su control, corrido una posición. Ni el
+ * renglón tal cual ni el realineado por delante recuperan eso, así que el
+ * expediente se quedaba sin número de documento por un glifo de más.
+ *
+ * Sólo se generan cuando el renglón MIDE de más: un renglón de treinta ya está
+ * completo y quitarle algo sólo puede empeorarlo.
  */
-function variantes(linea: string): string[] {
+function variantes(linea: string): Variante[] {
   const ajustar = (texto: string): string => texto.padEnd(LINE_LENGTH, '<').slice(0, LINE_LENGTH);
-  return [ajustar(linea), ajustar(linea.slice(1))];
+  const seguras: Variante[] = [
+    { linea: ajustar(linea), arriesgada: false },
+    { linea: ajustar(linea.slice(1)), arriesgada: false },
+  ];
+  if (linea.length <= LINE_LENGTH) return seguras;
+
+  const sinUno: Variante[] = [];
+  for (let i = 1; i < linea.length; i += 1) {
+    sinUno.push({ linea: ajustar(`${linea.slice(0, i)}${linea.slice(i + 1)}`), arriesgada: true });
+  }
+  return [...seguras, ...sinUno];
 }
 
 function interpretar(l1: string, l2: string, l3: string): MrzTd1 {
