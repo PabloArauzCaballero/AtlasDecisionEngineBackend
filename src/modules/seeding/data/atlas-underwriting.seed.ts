@@ -118,13 +118,22 @@ export interface AtlasUnderwritingSummary {
 
 export async function seedAtlasUnderwritingArtifact(
   prisma: PrismaClient,
-  environments: { dev: { id: bigint }; staging: { id: bigint }; test: { id: bigint }; prod: { id: bigint } },
+  environments: {
+    dev: { id: bigint };
+    staging: { id: bigint };
+    test: { id: bigint };
+    prod: { id: bigint };
+  },
 ): Promise<AtlasUnderwritingSummary | undefined> {
   const existing = await prisma.decisionArtifact.findUnique({
-    where: { tenantId_artifactCode: { tenantId: TENANT_ID, artifactCode: ATLAS_UNDERWRITING_CODE } },
+    where: {
+      tenantId_artifactCode: { tenantId: TENANT_ID, artifactCode: ATLAS_UNDERWRITING_CODE },
+    },
     include: { versions: { select: { semanticVersion: true } } },
   });
-  if (existing?.versions.some((version) => version.semanticVersion === ATLAS_UNDERWRITING_VERSION)) {
+  if (
+    existing?.versions.some((version) => version.semanticVersion === ATLAS_UNDERWRITING_VERSION)
+  ) {
     logger.log(`Ya sembrado: ${ATLAS_UNDERWRITING_CODE} ${ATLAS_UNDERWRITING_VERSION}`);
     return undefined;
   }
@@ -150,7 +159,9 @@ export async function seedAtlasUnderwritingArtifact(
 
   const seededVariables = Object.fromEntries(
     await Promise.all(
-      CONTRACT_VARIABLES.map(async (seed) => [seed.code, await ensureVariable(prisma, seed)] as const),
+      CONTRACT_VARIABLES.map(
+        async (seed) => [seed.code, await ensureVariable(prisma, seed)] as const,
+      ),
     ),
   );
 
@@ -385,7 +396,12 @@ async function deployToAllEnvironments(
   prisma: PrismaClient,
   artifactVersionId: bigint,
   compiledArtifactId: bigint,
-  environments: { dev: { id: bigint }; staging: { id: bigint }; test: { id: bigint }; prod: { id: bigint } },
+  environments: {
+    dev: { id: bigint };
+    staging: { id: bigint };
+    test: { id: bigint };
+    prod: { id: bigint };
+  },
 ) {
   let production!: Awaited<ReturnType<typeof prisma.decisionDeployment.create>>;
   for (const environment of [

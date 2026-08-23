@@ -3,7 +3,11 @@ import { createHash } from 'node:crypto';
 // A plain constant array, not a Nest provider, so importing it keeps the seed's
 // no-framework boundary intact while pinning the roles to the same source of truth the
 // guard and mapper use.
-import { PlatformRole, PLATFORM_ROLES, RUNTIME_DECISION_ROLE } from '../../../common/security/platform-roles';
+import {
+  PlatformRole,
+  PLATFORM_ROLES,
+  RUNTIME_DECISION_ROLE,
+} from '../../../common/security/platform-roles';
 import { TENANT_ID } from './helpers';
 
 /**
@@ -30,7 +34,12 @@ import { TENANT_ID } from './helpers';
  * Cada cliente existe solo si su variable está definida. Sin ellas, la instalación queda exactamente
  * como estaba.
  */
-const APPROVER_CLIENTS: ReadonlyArray<{ clientKey: string; displayName: string; envVar: string; role: PlatformRole }> = [
+const APPROVER_CLIENTS: ReadonlyArray<{
+  clientKey: string;
+  displayName: string;
+  envVar: string;
+  role: PlatformRole;
+}> = [
   {
     clientKey: 'approver-qa',
     displayName: 'Aprobador de calidad',
