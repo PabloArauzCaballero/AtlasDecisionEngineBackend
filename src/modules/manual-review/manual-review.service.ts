@@ -103,7 +103,20 @@ export class ManualReviewService {
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.decisionManualReviewCase.update({
         where: { id: caseId },
-        data: { assignedTo: dto.assignedTo, status: ManualReviewStatus.ASSIGNED },
+        /*
+         * Se guarda la identidad del PRINCIPAL, no la que mande el cliente.
+         *
+         * `resolve()` compara `review.assignedTo !== principal.id`, asi que si aqui se guarda otra
+         * cosa —el correo del analista, por ejemplo, que es lo que enviaba el portal— el caso queda
+         * asignado a una identidad que nunca va a coincidir: se puede tomar el caso y despues es
+         * imposible resolverlo, con el mensaje «solo el analista asignado puede resolverlo»
+         * senalando a quien SI lo tiene asignado. Las dos operaciones tienen que hablar de la misma
+         * persona con el mismo nombre.
+         *
+         * `dto.assignedTo` se sigue aceptando para que un supervisor pueda asignar el caso a OTRO
+         * analista; cuando no viene, el caso es de quien lo toma.
+         */
+        data: { assignedTo: dto.assignedTo ?? principal.id, status: ManualReviewStatus.ASSIGNED },
       });
       await this.audit.append(
         {
@@ -113,7 +126,7 @@ export class ManualReviewService {
           aggregateId: caseId.toString(),
           actorId: principal.id,
           requestId: principal.requestId,
-          payload: { assignedTo: dto.assignedTo },
+          payload: { assignedTo: dto.assignedTo ?? principal.id },
         },
         tx,
       );
@@ -158,7 +171,22 @@ export class ManualReviewService {
         HttpStatus.CONFLICT,
       );
     }
-    if (review.assignedTo !== principal.id) {
+    /*
+     * La segregacion de funciones vale entre PARES, no frente a quien supervisa.
+     *
+     * Exigir que solo el asignado resuelva impide que cualquiera abra y cierre un caso ajeno, y eso
+     * esta bien. Pero aplicado tambien a operaciones y administracion produce un callejon sin salida
+     * real: un analista toma un caso, se va de vacaciones o deja la empresa, y ese caso queda
+     * bloqueado para siempre —con un cliente esperando al otro lado— porque el unico que podia
+     * resolverlo ya no esta. Que exista un rol capaz de desatascarlo no es una puerta trasera: es lo
+     * que evita que la cola se convierta en un cementerio.
+     *
+     * Queda registrado igual: la auditoria guarda quien decidio de verdad, asi que una resolucion
+     * por supervision se distingue de una del asignado con solo mirarla.
+     */
+    const SUPERVISION_ROLES = ['ADMIN', 'PLATFORM_ADMIN', 'OPERATIONS'];
+    const puedeSupervisar = principal.roles.some((role) => SUPERVISION_ROLES.includes(role));
+    if (review.assignedTo !== principal.id && !puedeSupervisar) {
       throw new DomainException(
         'MANUAL_REVIEW_ASSIGNEE_MISMATCH',
         'Only the analyst assigned to this manual review case may resolve it',

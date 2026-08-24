@@ -4,7 +4,16 @@ import { ManualReviewStatus } from '@prisma/client';
 import { PaginationQueryDto } from '../../common/http/pagination';
 
 export class AssignManualReviewDto {
-  @IsString() @MaxLength(160) assignedTo!: string;
+  /*
+   * Opcional: sin el, el caso queda a nombre de quien lo toma.
+   *
+   * Era obligatorio, asi que «Asignarmelo» —el gesto normal de un analista, que no nombra a nadie
+   * porque se nombra a si mismo— moria en un 400 «assignedTo must be a string». El caso no se podia
+   * tomar desde la pantalla, y sin tomarlo no se puede resolver: la cola entera era inoperable.
+   *
+   * Se mantiene para que un supervisor pueda asignar el caso a OTRO analista.
+   */
+  @IsOptional() @IsString() @MaxLength(160) assignedTo?: string;
 }
 
 export class ResolveManualReviewDto {
