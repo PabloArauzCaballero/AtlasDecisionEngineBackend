@@ -586,6 +586,12 @@ services:
       script-runner:
         condition: service_started
     environment:
+      # ── Tamaño máximo del cuerpo ─────────────────────────────────────────
+      # El carril de identidad recibe las TRES imágenes en base64 dentro del JSON
+      # —anverso, reverso y selfie—, y base64 infla un tercio: con el millón de
+      # bytes de serie, un carnet legible se rechaza con «request entity too
+      # large» y el veredicto sale UNAVAILABLE sin que nada diga que fue el tamaño.
+      BODY_LIMIT_BYTES: '${BODY_LIMIT_BYTES:-8388608}'
       # ── Administración de templates por API ──────────────────────────────
       # Apagada de serie porque es la ÚNICA superficie que acepta plantillas del
       # exterior. Aquí se enciende para desarrollo, con clave propia: sin clave

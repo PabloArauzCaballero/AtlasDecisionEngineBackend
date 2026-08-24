@@ -177,6 +177,31 @@ export class ExecutionEngineService {
           );
         }
         if (node.type === 'MANUAL_REVIEW') {
+          /*
+           * Un nodo que TERMINA la ejecución tiene que poder escribir las salidas.
+           *
+           * El mapeo de salidas sólo se aplicaba en `RESULT`, así que un artefacto que
+           * derivaba a una persona terminaba sin sus salidas obligatorias y el motor lo
+           * rechazaba con `REQUIRED_OUTPUT_MISSING`: quien llamaba recibía un error, no
+           * un «esto lo ve un humano». Encolar el caso y contestar al que llama son dos
+           * cosas distintas y hacen falta las dos.
+           *
+           * Se reutiliza `evaluateResultNode` en vez de duplicar el mapeo, y sólo cuando
+           * el nodo declara `MAPPING`: un `MANUAL_REVIEW` sin salidas declaradas sigue
+           * comportándose como antes.
+           */
+          if (node.config.mode === 'MAPPING') {
+            await this.evaluateResultNode(
+              node,
+              compiled,
+              variables,
+              state,
+              evaluation,
+              referenceResolver,
+              cursor,
+              nestedExecutions,
+            );
+          }
           state.outcome = 'MANUAL_REVIEW';
           state.manualReview = {
             queueCode: String(node.config.queueCode ?? 'CREDIT_REVIEW'),

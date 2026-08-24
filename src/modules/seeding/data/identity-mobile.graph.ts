@@ -44,7 +44,16 @@ import type {
 } from '../../graph/graph.types';
 
 export const IDENTITY_MOBILE_CODE = 'IDENTIDAD_CARNET_MOVIL';
-export const IDENTITY_MOBILE_VERSION = '1.0.0';
+/*
+ * 1.1.0: el nodo REVISAR pasa de resultado terminal a `MANUAL_REVIEW`.
+ *
+ * Hasta 1.0.0 el artefacto decía «revisión humana» y no creaba la revisión: el caso
+ * no entraba en ninguna cola y el expediente esperaba a un analista al que nadie
+ * avisó. Cambiar el grafo cambia la decisión, así que va con versión propia —el
+ * sembrado sólo publica cuando la versión semántica es nueva, y así queda registrado
+ * contra qué versión se decidió cada expediente.
+ */
+export const IDENTITY_MOBILE_VERSION = '1.1.1';
 
 /** Nodo que hace la llamada. Se nombra aquí porque lo referencian las intermedias. */
 const CALL_NODE = 'VERIFICAR_IDENTIDAD';
@@ -175,7 +184,69 @@ export function buildIdentityMobileCompiled(
       'IDENTIDAD_NO_COINCIDE',
     ),
     resultNode('APROBAR', 'Verificado', 'VERIFICADO', 'IDENTIDAD_CONFIRMADA'),
-    resultNode('REVISAR', 'A revisión humana', 'REVISION_HUMANA', 'REQUIERE_REVISION'),
+    /*
+     * «A revisión humana» tiene que CREAR la revisión humana.
+     *
+     * Este nodo era un resultado terminal como los otros tres: escribía
+     * `REVISION_HUMANA` en la salida y ahí terminaba. La consecuencia es que el
+     * veredicto decía «que lo mire una persona» y no había nada que mirar — el caso
+     * no entraba en ninguna cola, así que el expediente se quedaba esperando a un
+     * analista al que nadie avisó. Medido: la ejecución 28 salió REVISION_HUMANA y
+     * `decision_manual_review_case` siguió con los cuatro casos sembrados.
+     *
+     * `MANUAL_REVIEW` es el tipo de nodo que el motor traduce a un caso encolado
+     * (`execution-writer.service.ts`). La cola es IDENTIDAD, que es la que ya existe
+     * y la que la pantalla de revisión filtra.
+     *
+     * El SLA de 240 minutos es el mismo que el resto de identidad: un alta detenida
+     * es una persona esperando, no un expediente en un cajón.
+     */
+    node('REVISAR', 'MANUAL_REVIEW', {
+      label: 'A revisión humana',
+      terminal: true,
+      config: {
+        /*
+         * Las salidas se siguen escribiendo AQUÍ.
+         *
+         * Al convertir este nodo de `RESULT` a `MANUAL_REVIEW` se perdieron las
+         * asignaciones que hacía el resultado terminal, y la ejecución terminaba sin
+         * `identidad_resultado` —salida obligatoria del artefacto—, así que el motor
+         * la rechazaba con `REQUIRED_OUTPUT_MISSING` y el móvil veía UNAVAILABLE.
+         * Encolar el caso y responder al que llama son dos cosas distintas: hay que
+         * hacer las dos.
+         */
+        mode: 'MAPPING',
+        assignments: [
+          { outputCode: V.decision, source: 'LITERAL', value: 'REVISION_HUMANA' },
+          { outputCode: V.motivo, source: 'LITERAL', value: 'REQUIERE_REVISION' },
+          {
+            outputCode: V.parecido,
+            source: 'EXPRESSION',
+            expression: { var: 'intermediate.id_parecido' },
+          },
+          {
+            outputCode: V.evidencia,
+            source: 'EXPRESSION',
+            expression: { var: 'intermediate.id_evidencia' },
+          },
+        ],
+        queueCode: 'IDENTIDAD',
+        priority: 50,
+        slaMinutes: 240,
+        /*
+         * La evidencia viaja con el caso para que quien lo abra vea POR QUÉ llegó sin
+         * tener que reconstruirlo: el parecido medido, qué documento se reconoció y
+         * qué dijo la prueba de vida.
+         */
+        evidence: {
+          motivo: 'REQUIERE_REVISION',
+          parecido: '{{intermediate.id_parecido}}',
+          tipoDocumento: '{{intermediate.id_tipo_documento}}',
+          pruebaDeVida: '{{intermediate.id_liveness}}',
+          decisionDelWorker: '{{intermediate.id_decision}}',
+        },
+      },
+    }),
   ];
 
   const edges: GraphEdgeSnapshot[] = [
