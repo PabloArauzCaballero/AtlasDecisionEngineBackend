@@ -15,24 +15,62 @@ import type {
  * protege es sencilla y por eso fácil de romper sin querer:
  *
  *  1. hace falta un `assign()` **previo y explícito** — resolver nunca se auto-asigna;
- *  2. solo el analista asignado puede resolver;
- *  3. un caso ya cerrado no se reabre por la vía de volver a resolverlo.
+ *  2. sólo el analista asignado puede resolver;
+ *  3. un caso ya cerrado no se reabre por la vía de volver a resolverlo;
+ *  4. y la regla 2 no se esquiva por `assign()`: un caso ajeno sólo lo mueve quien supervisa.
  *
  * Sin la primera, cualquier principal con el rol de revisión abriría y cerraría un caso en una
- * sola llamada, que es exactamente lo que la segregación existe para impedir.
+ * sola llamada, que es exactamente lo que la segregación existe para impedir. Sin la cuarta, las
+ * tres anteriores son decorativas: dos llamadas —reasignarse el caso ajeno y resolverlo— bastaban.
+ *
+ * La excepción de supervisión existe porque un analista que se va deja su caso bloqueado para
+ * siempre, y se comprueba aquí que quede REGISTRADA: permitirla sin poder contarla después es lo
+ * mismo que no tener la regla.
  */
 describe('ManualReviewService — segregación de funciones', () => {
   const TENANT = 9n;
   const CASE = 77n;
-  const analista = { id: 'ana', requestId: 'req-1' } as AuthenticatedPrincipal;
-  const otro = { id: 'beto', requestId: 'req-2' } as AuthenticatedPrincipal;
+  // `roles` va siempre: lo rellena `AuthenticationGuard` antes de que el servicio vea nada, y las
+  // reglas de supervisión lo leen. Un fixture sin roles probaría un principal que no existe.
+  const analista = {
+    id: 'ana',
+    requestId: 'req-1',
+    roles: ['FRAUD_ANALYST'],
+  } as AuthenticatedPrincipal;
+  const otro = {
+    id: 'beto',
+    requestId: 'req-2',
+    roles: ['FRAUD_ANALYST'],
+  } as AuthenticatedPrincipal;
+  const supervisora = {
+    id: 'olga',
+    requestId: 'req-3',
+    roles: ['OPERATIONS'],
+    authMethod: 'jwt',
+  } as AuthenticatedPrincipal;
+  // `PLATFORM_ADMIN` es un comodín global: vale sobre identidad firmada y NO sobre una clave de
+  // API, que ningún humano custodia. Los dos principales de abajo sólo se diferencian en eso.
+  const adminFirmada = {
+    id: 'raiz',
+    requestId: 'req-4',
+    roles: ['PLATFORM_ADMIN', 'FRAUD_ANALYST'],
+    authMethod: 'identity_provider',
+  } as AuthenticatedPrincipal;
+  const claveApiAdmin = {
+    id: 'integracion',
+    requestId: 'req-5',
+    roles: ['PLATFORM_ADMIN', 'FRAUD_ANALYST'],
+    authMethod: 'api_key',
+  } as AuthenticatedPrincipal;
 
   function make(review: Record<string, unknown> | null) {
     const audited: string[] = [];
+    const payloads: Array<Record<string, unknown>> = [];
     const updates: Array<Record<string, unknown>> = [];
     const audit = {
-      append: (input: { eventType: string }) => {
+      append: (input: { eventType: string; payload?: Record<string, unknown> }) => {
         audited.push(input.eventType);
+        payloads.push(input.payload ?? {});
         return Promise.resolve({});
       },
     } as unknown as AuditService;
@@ -51,6 +89,7 @@ describe('ManualReviewService — segregación de funciones', () => {
     return {
       service: new ManualReviewService(prisma, audit, new ConfigService({})),
       audited,
+      payloads,
       updates,
     };
   }
@@ -76,12 +115,45 @@ describe('ManualReviewService — segregación de funciones', () => {
       expect(audited).toEqual(['MANUAL_REVIEW_ASSIGNED']);
     });
 
-    it('permite reasignar un caso que ya estaba asignado', async () => {
-      // Un analista de baja tiene que poder ceder su caso; lo que no se permite es tocarlo
-      // una vez cerrado.
+    it('sin `assignedTo` el caso queda a nombre de quien lo toma', async () => {
+      // «Asignármelo» no nombra a nadie. Cuando el campo era obligatorio este gesto moría en un
+      // 400 y el caso no se podía tomar desde la pantalla, con la cola entera inoperable detrás.
+      const { service, updates } = make({ id: CASE, status: 'OPEN', assignedTo: null });
+      await service.assign(TENANT, CASE, {} as AssignManualReviewDto, analista);
+      expect(updates[0]).toMatchObject({ assignedTo: 'ana', status: 'ASSIGNED' });
+    });
+
+    it('un analista puede ceder su propio caso a un compañero', async () => {
+      // Ceder ENTREGA la decisión, no se la apropia: no hay nada que proteger aquí.
       const { service, updates } = make({ id: CASE, status: 'ASSIGNED', assignedTo: 'beto' });
-      await service.assign(TENANT, CASE, assignDto, analista);
+      await service.assign(TENANT, CASE, { assignedTo: 'ana' } as AssignManualReviewDto, otro);
       expect(updates[0]).toMatchObject({ assignedTo: 'ana' });
+    });
+
+    it('un analista NO puede quitarle el caso a otro y quedárselo', async () => {
+      // Este es el atajo que dejaba en nada la segregación de `resolve()`: reasignarse el caso
+      // ajeno y cerrarlo a continuación son dos llamadas que el rol de revisión ya permitía.
+      const { service, audited } = make({ id: CASE, status: 'ASSIGNED', assignedTo: 'beto' });
+      const error = await service
+        .assign(TENANT, CASE, assignDto, analista)
+        .catch((caught: unknown) => caught);
+      expect((error as DomainException).code).toBe('MANUAL_REVIEW_ASSIGN_FORBIDDEN');
+      expect((error as DomainException).status).toBe(403);
+      expect(audited).toEqual([]);
+    });
+
+    it('supervisión sí puede reasignar el caso de otro, y consta de quién venía', async () => {
+      // El caso del analista que se fue de vacaciones tiene que poder desatascarse. Y como la
+      // escritura pisa `assignedTo`, si el asignado anterior no se guarda en la auditoría deja de
+      // existir: «a quién se lo quitaron» pasa a ser una pregunta sin respuesta.
+      const { service, updates, payloads } = make({
+        id: CASE,
+        status: 'ASSIGNED',
+        assignedTo: 'beto',
+      });
+      await service.assign(TENANT, CASE, assignDto, supervisora);
+      expect(updates[0]).toMatchObject({ assignedTo: 'ana' });
+      expect(payloads[0]).toMatchObject({ assignedTo: 'ana', previousAssignee: 'beto' });
     });
 
     it('un caso ya resuelto no se puede reasignar', async () => {
@@ -158,8 +230,47 @@ describe('ManualReviewService — segregación de funciones', () => {
         decision: 'DECLINE',
         reason: 'motivo',
         resolvedBy: 'ana',
+        assignedTo: 'ana',
+        supervisorOverride: false,
       });
       expect(updates[0].resolvedAt).toBeInstanceOf(Date);
+    });
+
+    it('supervisión puede cerrar un caso ajeno y queda marcado como tal', async () => {
+      // Sin `supervisorOverride` en la fila, un cierre por supervisión y uno normal se leen igual:
+      // habría que ir a buscar a quién estaba asignado el caso, y esta misma escritura acaba de
+      // sobrescribir ese dato. La excepción sólo es aceptable si después se puede contar.
+      const { service, updates, audited } = make({
+        id: CASE,
+        status: 'ASSIGNED',
+        assignedTo: 'ana',
+      });
+      await service.resolve(TENANT, CASE, resolveDto('APPROVE'), supervisora);
+      expect(updates[0].resolutionJson).toMatchObject({
+        resolvedBy: 'olga',
+        assignedTo: 'ana',
+        supervisorOverride: true,
+      });
+      expect(audited).toEqual(['MANUAL_REVIEW_RESOLVED']);
+    });
+
+    it('el comodín PLATFORM_ADMIN vale sobre identidad firmada', async () => {
+      const { service, updates } = make({ id: CASE, status: 'ASSIGNED', assignedTo: 'ana' });
+      await service.resolve(TENANT, CASE, resolveDto('APPROVE'), adminFirmada);
+      expect(updates[0].resolutionJson).toMatchObject({ supervisorOverride: true });
+    });
+
+    it('el comodín PLATFORM_ADMIN NO vale sobre una clave de API', async () => {
+      // `RolesGuard` se niega a honrar el comodín en una clave, así que la clave entra a la ruta
+      // por `FRAUD_ANALYST` —un rol concreto— y aquí no puede recoger por la puerta de atrás la
+      // supervisión que el guard le acaba de negar. Sin esta comprobación, la condición replicada
+      // en el servicio se pierde en el primer refactor y nadie se entera.
+      const { service } = make({ id: CASE, status: 'ASSIGNED', assignedTo: 'ana' });
+      const error = await service
+        .resolve(TENANT, CASE, resolveDto('APPROVE'), claveApiAdmin)
+        .catch((caught: unknown) => caught);
+      expect((error as DomainException).code).toBe('MANUAL_REVIEW_ASSIGNEE_MISMATCH');
+      expect((error as DomainException).status).toBe(403);
     });
   });
 });

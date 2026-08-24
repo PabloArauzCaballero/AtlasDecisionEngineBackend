@@ -3,7 +3,7 @@
 
 # Catálogo de códigos de error
 
-237 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
+238 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
 el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 
 | Código | Mensaje de referencia | Origen |
@@ -133,6 +133,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `LIVE_EXECUTION_VARIABLES_INVALID` | variables must be a JSON object | `src/modules/live-execution/live-execution.controller.ts` |
 | `LOCK_CONFLICT` | The version was modified by another actor | `src/modules/artifacts/artifact-graph-writer.service.ts` |
 | `MANUAL_REVIEW_ASSIGNEE_MISMATCH` | Only the analyst assigned to this manual review case may resolve it | `src/modules/manual-review/manual-review.service.ts` |
+| `MANUAL_REVIEW_ASSIGN_FORBIDDEN` | Only a supervisor may reassign a case already held by another analyst | `src/modules/manual-review/manual-review.service.ts` |
 | `MANUAL_REVIEW_CLOSED` | Manual review case is already closed | `src/modules/manual-review/manual-review.service.ts` |
 | `MANUAL_REVIEW_NOT_ASSIGNED` | Manual review case must be assigned before it can be resolved | `src/modules/manual-review/manual-review.service.ts` |
 | `MANUAL_REVIEW_NOT_FOUND` | Manual review case not found | `src/modules/manual-review/manual-review.service.ts` |

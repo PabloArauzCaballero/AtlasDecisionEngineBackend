@@ -1,8 +1,8 @@
 {
   "modules": 31,
-  "endpoints": 221,
+  "endpoints": 227,
   "entities": 99,
   "events": 6,
-  "errorCodes": 237,
+  "errorCodes": 238,
   "environmentVariables": 267
 }

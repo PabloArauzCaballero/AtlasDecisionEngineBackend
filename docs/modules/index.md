@@ -26,16 +26,16 @@ real: sus controladores, sus etiquetas de API, sus roles exigidos y sus códigos
 | [`notifications`](notifications.md) | 4 | — | 6 |
 | [`outbox-relay`](outbox-relay.md) | 0 | — | 2 |
 | [`outcome-ingestion`](outcome-ingestion.md) | 4 | AUDITOR, COMPLIANCE, OPERATIONS, RISK_ANALYST, RISK_APPROVER | 6 |
-| [`platform-catalog`](platform-catalog.md) | 0 | AUDITOR, COMPLIANCE, OPERATIONS, PLATFORM_ADMIN | 8 |
+| [`platform-catalog`](platform-catalog.md) | 1 | AUDITOR, COMPLIANCE, OPERATIONS, PLATFORM_ADMIN | 8 |
 | [`qa-lab`](qa-lab.md) | 7 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 14 |
 | [`risk-governance`](risk-governance.md) | 12 | AUDITOR, COMPLIANCE, OPERATIONS, RISK_ANALYST, RISK_APPROVER | 9 |
 | [`runtime`](runtime.md) | 3 | FRAUD_ANALYST, QA_ANALYST, RISK_ANALYST | 13 |
 | [`security-review`](security-review.md) | 2 | — | 4 |
-| [`seeding`](seeding.md) | 0 | — | 43 |
+| [`seeding`](seeding.md) | 0 | — | 45 |
 | [`sql-console`](sql-console.md) | 4 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, RISK_ANALYST, RISK_APPROVER | 13 |
 | [`testing`](testing.md) | 7 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, QA_ANALYST, RISK_ANALYST | 8 |
 | [`traceability`](traceability.md) | 6 | AUDITOR, COMPLIANCE, QA_ANALYST, RISK_ANALYST | 5 |
 | [`tutorials`](tutorials.md) | 2 | — | 5 |
 | [`variables`](variables.md) | 9 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, OPERATIONS, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 8 |
 | [`views`](views.md) | 9 | — | 5 |
-| [`workers`](workers.md) | 50 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, OPERATIONS, QA_ANALYST, RISK_ANALYST | 212 |
+| [`workers`](workers.md) | 55 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, OPERATIONS, QA_ANALYST, RISK_ANALYST | 212 |
