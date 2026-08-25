@@ -591,6 +591,13 @@ services:
       # —anverso, reverso y selfie—, y base64 infla un tercio: con el millón de
       # bytes de serie, un carnet legible se rechaza con «request entity too
       # large» y el veredicto sale UNAVAILABLE sin que nada diga que fue el tamaño.
+      # ── Vuelta hacia el backend de identidad ─────────────────────────────
+      # Cuando un analista resuelve una revision de la cola IDENTIDAD, el motor se
+      # lo dice a AtlasBackend para que el cliente quede verificado. Sin estas dos
+      # variables el aviso no sale: la resolucion se guarda igual y el fallo queda
+      # anotado en la auditoria, pero el cliente se queda esperando sin saberlo.
+      ATLAS_BACKEND_BASE_URL: ${ATLAS_BACKEND_BASE_URL:-}
+      ENGINE_CALLBACK_API_KEY: ${ENGINE_CALLBACK_API_KEY:-}
       BODY_LIMIT_BYTES: '${BODY_LIMIT_BYTES:-8388608}'
       # ── Administración de templates por API ──────────────────────────────
       # Apagada de serie porque es la ÚNICA superficie que acepta plantillas del

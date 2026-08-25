@@ -1,5 +1,5 @@
 /** Enforces tenant ownership and assignee-only resolution with transactional audit evidence. */
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ManualReviewStatus, Prisma } from '@prisma/client';
 import { AuditService } from '../../common/audit/audit.service';
@@ -13,8 +13,13 @@ import {
 } from './manual-review.dto';
 import { pageResult, paginationArgs } from '../../common/http/pagination';
 
+/** La cola cuyas resoluciones tienen que volver al backend de identidad. */
+const COLA_DE_IDENTIDAD = 'IDENTIDAD';
+
 @Injectable()
 export class ManualReviewService {
+  private readonly logger = new Logger(ManualReviewService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
@@ -100,7 +105,7 @@ export class ManualReviewService {
         HttpStatus.CONFLICT,
       );
     }
-    return this.prisma.$transaction(async (tx) => {
+    const resuelto = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.decisionManualReviewCase.update({
         where: { id: caseId },
         /*
@@ -199,7 +204,7 @@ export class ManualReviewService {
         : dto.decision === 'DECLINE'
           ? ManualReviewStatus.RESOLVED_DECLINED
           : ManualReviewStatus.CANCELLED;
-    return this.prisma.$transaction(async (tx) => {
+    const resuelto = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.decisionManualReviewCase.update({
         where: { id: caseId },
         data: {
@@ -228,5 +233,81 @@ export class ManualReviewService {
       );
       return updated;
     });
+
+    /*
+     * Y se le dice a AtlasBackend, que es donde vive la identidad del cliente.
+     *
+     * Va FUERA de la transaccion y despues de que haya confirmado: la decision del analista ya esta
+     * tomada y no puede perderse porque otro servicio no conteste. Si el aviso falla, la resolucion
+     * se mantiene y el fallo queda en la auditoria —con su motivo— en vez de desaparecer: un
+     * circuito que se rompe en silencio es exactamente lo que este codigo existe para evitar.
+     */
+    if (review.queueCode === COLA_DE_IDENTIDAD) {
+      await this.avisarIdentidadResuelta(tenantId, review.executionId, dto, principal, resuelto);
+    }
+
+    return resuelto;
+  }
+
+  /**
+   * Devuelve al backend de identidad la resolucion de una revision de identidad.
+   *
+   * El motor no sabe de que CLIENTE es el caso, y no tiene por que: solo sabe de que ejecucion. El
+   * puente es `executionId`, que AtlasBackend guarda en el intento cuando pide la decision.
+   *
+   * Antes esto no existia. El analista aprobaba aqui, el caso quedaba `RESOLVED_APPROVED`, y alla el
+   * cliente seguia `IN_REVIEW` para siempre: no podia pedir credito y nada avisaba de que faltaba
+   * un paso que alguien tenia que dar a mano.
+   */
+  private async avisarIdentidadResuelta(
+    tenantId: bigint,
+    executionId: bigint,
+    dto: ResolveManualReviewDto,
+    principal: AuthenticatedPrincipal,
+    caso: { id: bigint },
+  ): Promise<void> {
+    const base = this.config.get<string>('ATLAS_BACKEND_BASE_URL');
+    const clave = this.config.get<string>('ENGINE_CALLBACK_API_KEY');
+    if (!base || !clave) {
+      this.logger.warn(
+        `Revision ${caso.id} resuelta sin avisar a identidad: falta ATLAS_BACKEND_BASE_URL o ENGINE_CALLBACK_API_KEY`,
+      );
+      return;
+    }
+
+    try {
+      const respuesta = await fetch(`${base.replace(/\/+$/, '')}/internal/identity/manual-review-callback`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-tenant-id': tenantId.toString(),
+          'x-engine-callback-key': clave,
+        },
+        body: JSON.stringify({
+          executionId: executionId.toString(),
+          decision: dto.decision,
+          reason: dto.reason,
+          resolvedByInternalUserId: principal.id,
+        }),
+        signal: AbortSignal.timeout(10_000),
+      });
+
+      if (!respuesta.ok) {
+        throw new Error(`HTTP ${respuesta.status}: ${(await respuesta.text()).slice(0, 300)}`);
+      }
+      this.logger.log(`Identidad actualizada en AtlasBackend para la ejecucion ${executionId}`);
+    } catch (error) {
+      const motivo = error instanceof Error ? error.message : String(error);
+      this.logger.error(`No se pudo avisar a identidad de la revision ${caso.id}: ${motivo}`);
+      await this.audit.append({
+        tenantId,
+        eventType: 'MANUAL_REVIEW_CALLBACK_FAILED',
+        aggregateType: 'ManualReviewCase',
+        aggregateId: caso.id.toString(),
+        actorId: principal.id,
+        requestId: principal.requestId,
+        payload: { executionId: executionId.toString(), decision: dto.decision, motivo },
+      });
+    }
   }
 }
