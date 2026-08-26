@@ -2,6 +2,17 @@ module.exports = {
   moduleFileExtensions: ['js', 'json', 'ts'],
   rootDir: '.',
   testRegex: '.*\\.spec\\.ts$',
+  /*
+    Los worktrees de git NO son código de esta rama.
+    `rootDir` es la raíz del repositorio y `testRegex` no discrimina, así que jest recorría
+    `.claude/worktrees/` —donde vive una copia COMPLETA del repositorio apuntando a otra rama— y
+    sumaba sus `.spec.ts` a esta suite. Se vio al fusionar `worktree-manual-review-supervision`:
+    la misma prueba corría dos veces, una desde `test/` y otra desde el worktree.
+    El problema no es que se duplique: es que el día que esa otra rama esté a medias, esta suite
+    se pone roja por código que no está ni siquiera en el árbol, y el fallo apunta a un archivo
+    que nadie encuentra en su editor.
+  */
+  testPathIgnorePatterns: ['/node_modules/', '/\\.claude/worktrees/'],
   transform: { '^.+\\.(t|j)s$': ['ts-jest', { tsconfig: 'tsconfig.json' }] },
   // Loads .env for every spec so the DATABASE_URL-gated integration suites cannot silently
   // skip depending on which database driver they happen to import. See test/setup-env.ts.
