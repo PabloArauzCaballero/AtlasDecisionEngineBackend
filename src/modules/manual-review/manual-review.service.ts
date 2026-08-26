@@ -3,6 +3,7 @@ import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ManualReviewStatus, Prisma } from '@prisma/client';
 import { AuditService } from '../../common/audit/audit.service';
+import { PlatformRole } from '../../common/security/platform-roles';
 import { DomainException } from '../../common/errors/domain-exception';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
@@ -12,6 +13,39 @@ import {
   ResolveManualReviewDto,
 } from './manual-review.dto';
 import { pageResult, paginationArgs } from '../../common/http/pagination';
+
+/**
+ * Quién puede intervenir sobre el caso de OTRO analista.
+ *
+ * La segregación de funciones vale entre PARES, no frente a quien supervisa. Exigir que sólo el
+ * asignado resuelva impide que cualquiera abra y cierre un caso ajeno, y eso está bien; aplicado
+ * también a supervisión produce un callejón sin salida real: un analista toma un caso, se va de
+ * vacaciones o deja la empresa, y ese caso queda bloqueado para siempre —con un cliente esperando
+ * al otro lado— porque el único que podía resolverlo ya no está.
+ *
+ * **Los nombres salen de `PlatformRole`, no de literales sueltos.** La lista decía
+ * `['ADMIN', 'PLATFORM_ADMIN', 'OPERATIONS']` y `ADMIN` **no existe en esta plataforma**: no rompía
+ * la compilación ni ninguna prueba, simplemente no lo tiene nadie y el permiso que este fichero
+ * creía conceder no se concedía jamás. Es el fallo silencioso contra el que avisa
+ * `platform-roles.ts`, y sólo el tipo lo atrapa.
+ */
+const SUPERVISION_ROLES: readonly string[] = [PlatformRole.OPERATIONS];
+
+/**
+ * `PLATFORM_ADMIN` cuenta aparte y sólo sobre identidad firmada, igual que en `RolesGuard`.
+ *
+ * Es un comodín global y el guard se niega a honrarlo en una clave de API, que ningún humano
+ * custodia. Repetir aquí esa condición no es paranoia: sin ella, una clave con `PLATFORM_ADMIN` y
+ * un rol concreto de la ruta entra por el rol concreto y recoge la supervisión por el comodín —
+ * exactamente lo que el guard acaba de negarle una capa más arriba.
+ */
+function supervisa(principal: AuthenticatedPrincipal): boolean {
+  const roles = principal.roles ?? [];
+  const comodinFirmado =
+    roles.includes(PlatformRole.PLATFORM_ADMIN) &&
+    (principal.authMethod === 'jwt' || principal.authMethod === 'identity_provider');
+  return comodinFirmado || roles.some((role) => SUPERVISION_ROLES.includes(role));
+}
 
 /** La cola cuyas resoluciones tienen que volver al backend de identidad. */
 const COLA_DE_IDENTIDAD = 'IDENTIDAD';
@@ -105,6 +139,25 @@ export class ManualReviewService {
         HttpStatus.CONFLICT,
       );
     }
+    /*
+     * Un caso que YA es de otra persona sólo lo mueve quien supervisa.
+     *
+     * Sin esta comprobación la segregación de `resolve()` es decorativa: bastaba con reasignarse el
+     * caso ajeno y resolverlo a continuación —dos llamadas que cualquier rol de la ruta podía
+     * hacer—. El comentario de abajo ya decía «para que un SUPERVISOR pueda asignar el caso a otro
+     * analista» y nada comprobaba que quien llamaba lo fuera.
+     *
+     * Lo que se prohíbe es QUITAR, no dar: ceder el caso propio a un compañero y repartir un caso
+     * que todavía no es de nadie siguen abiertos a cualquiera, porque los dos entregan la decisión
+     * en vez de apropiársela.
+     */
+    if (review.assignedTo && review.assignedTo !== principal.id && !supervisa(principal)) {
+      throw new DomainException(
+        'MANUAL_REVIEW_ASSIGN_FORBIDDEN',
+        'Only a supervisor may reassign a case already held by another analyst',
+        HttpStatus.FORBIDDEN,
+      );
+    }
     const resuelto = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.decisionManualReviewCase.update({
         where: { id: caseId },
@@ -176,40 +229,7 @@ export class ManualReviewService {
         HttpStatus.CONFLICT,
       );
     }
-    /*
-     * La segregacion de funciones vale entre PARES, no frente a quien supervisa.
-     *
-     * Exigir que solo el asignado resuelva impide que cualquiera abra y cierre un caso ajeno, y eso
-     * esta bien. Pero aplicado tambien a operaciones y administracion produce un callejon sin salida
-     * real: un analista toma un caso, se va de vacaciones o deja la empresa, y ese caso queda
-     * bloqueado para siempre —con un cliente esperando al otro lado— porque el unico que podia
-     * resolverlo ya no esta. Que exista un rol capaz de desatascarlo no es una puerta trasera: es lo
-     * que evita que la cola se convierta en un cementerio.
-     *
-     * Queda registrado igual: la auditoria guarda quien decidio de verdad, asi que una resolucion
-     * por supervision se distingue de una del asignado con solo mirarla.
-     */
-    const SUPERVISION_ROLES = ['ADMIN', 'PLATFORM_ADMIN', 'OPERATIONS'];
-    /*
-     * `?? []` y no `principal.roles` a secas.
-     *
-     * El tipo declara `roles` obligatorio y el guardia de autenticacion lo rellena, asi que la
-     * lectura directa parece segura — y no lo es. `principal` llega de un decorador que lo saca de
-     * la peticion, y cualquier camino que construya uno sin lista (una integracion por clave, un
-     * doble, un modo de autenticacion futuro) hace que `.some` lance un `TypeError` ANTES del `if`.
-     *
-     * El sintoma es el peor posible para este control: `resolve()` deja de lanzar
-     * `MANUAL_REVIEW_ASSIGNEE_MISMATCH` y lanza un error sin codigo, que sube como 500. La
-     * segregacion de funciones no se estaria negando a nadie — se estaria cayendo, y un 500 se lee
-     * como una averia y no como «no te toca a ti».
-     *
-     * Sin lista de roles NO hay supervision: es la lectura segura de un dato ausente, y deja la
-     * regla estricta —solo el asignado— en pie.
-     */
-    const puedeSupervisar = (principal.roles ?? []).some((role) =>
-      SUPERVISION_ROLES.includes(role),
-    );
-    if (review.assignedTo !== principal.id && !puedeSupervisar) {
+    if (review.assignedTo !== principal.id && !supervisa(principal)) {
       throw new DomainException(
         'MANUAL_REVIEW_ASSIGNEE_MISMATCH',
         'Only the analyst assigned to this manual review case may resolve it',

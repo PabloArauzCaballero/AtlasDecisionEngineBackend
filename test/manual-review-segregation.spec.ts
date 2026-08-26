@@ -39,6 +39,21 @@ describe('ManualReviewService — segregación de funciones', () => {
     id: 'carla',
     requestId: 'req-3',
     roles: ['OPERATIONS'],
+    authMethod: 'jwt',
+  } as unknown as AuthenticatedPrincipal;
+  /**
+   * Una CLAVE DE API con el comodín global.
+   *
+   * `RolesGuard` se niega a honrar `PLATFORM_ADMIN` sobre una clave de API —ningún humano la
+   * custodia— y este servicio tiene que negarse igual. Sin repetir la condición, una clave con el
+   * comodín entraba por su rol concreto en la ruta y recogía la supervisión por el comodín, justo
+   * lo que el guard acababa de negarle una capa más arriba.
+   */
+  const claveConComodin = {
+    id: 'integracion',
+    requestId: 'req-5',
+    roles: ['PLATFORM_ADMIN', 'FRAUD_ANALYST'],
+    authMethod: 'api_key',
   } as unknown as AuthenticatedPrincipal;
   /** Un principal SIN lista de roles: el que hacía estallar el control. */
   const sinRoles = { id: 'dani', requestId: 'req-4' } as unknown as AuthenticatedPrincipal;
@@ -92,11 +107,18 @@ describe('ManualReviewService — segregación de funciones', () => {
       expect(audited).toEqual(['MANUAL_REVIEW_ASSIGNED']);
     });
 
-    it('permite reasignar un caso que ya estaba asignado', async () => {
-      // Un analista de baja tiene que poder ceder su caso; lo que no se permite es tocarlo
-      // una vez cerrado.
+    it('permite CEDER un caso que ya estaba asignado', async () => {
+      /*
+       * El comentario de esta prueba siempre dijo «un analista de baja tiene que poder ceder su
+       * caso», y su cuerpo hacía lo contrario: Ana le QUITABA el caso a Beto. Escrita así fijaba
+       * como correcto justo el camino que esquivaba la segregación —reasignarse el caso ajeno y
+       * resolverlo—, y por eso el agujero podía convivir con la batería en verde.
+       *
+       * Ahora hace lo que dice: Beto cede SU caso a Ana. La intención era legítima; lo que estaba
+       * mal era el sujeto.
+       */
       const { service, updates } = make({ id: CASE, status: 'ASSIGNED', assignedTo: 'beto' });
-      await service.assign(TENANT, CASE, assignDto, analista);
+      await service.assign(TENANT, CASE, assignDto, otro);
       expect(updates[0]).toMatchObject({ assignedTo: 'ana' });
     });
 
@@ -112,6 +134,55 @@ describe('ManualReviewService — segregación de funciones', () => {
       expect((error as DomainException).code).toBe('MANUAL_REVIEW_CLOSED');
       expect((error as DomainException).status).toBe(409);
       expect(audited).toEqual([]);
+    });
+  });
+
+  describe('assign() · quitarle el caso a otro', () => {
+    /*
+     * Sin este control, la segregación de `resolve()` es DECORATIVA.
+     *
+     * Bastaban dos llamadas que cualquier rol de la ruta podía hacer: reasignarse el caso ajeno y
+     * resolverlo a continuación. La prueba de «sólo el analista asignado puede resolver» seguía en
+     * verde mientras el camino para esquivarla estaba abierto al lado.
+     */
+    it('un caso que ya es de otra persona NO lo mueve un par', async () => {
+      const { service, updates } = make({ id: CASE, status: 'ASSIGNED', assignedTo: 'ana' });
+      const error = await service
+        .assign(TENANT, CASE, { assignedTo: 'beto' } as AssignManualReviewDto, otro)
+        .catch((caught: unknown) => caught);
+
+      expect((error as DomainException).code).toBe('MANUAL_REVIEW_ASSIGN_FORBIDDEN');
+      expect((error as DomainException).status).toBe(403);
+      expect(updates).toEqual([]);
+    });
+
+    it('quien supervisa SÍ puede reasignarlo', async () => {
+      const { service, updates } = make({ id: CASE, status: 'ASSIGNED', assignedTo: 'ana' });
+
+      await service.assign(TENANT, CASE, { assignedTo: 'beto' } as AssignManualReviewDto, supervisora);
+
+      expect(updates[0]?.assignedTo).toBe('beto');
+    });
+
+    it('CEDER el caso propio sigue abierto a cualquiera', async () => {
+      /*
+       * Lo que se prohíbe es QUITAR, no dar. Ceder el caso propio a un compañero entrega la
+       * decisión en vez de apropiársela, así que no hay nada que proteger — y prohibirlo obligaría
+       * a molestar a un supervisor para el gesto más normal de una cola.
+       */
+      const { service, updates } = make({ id: CASE, status: 'ASSIGNED', assignedTo: 'ana' });
+
+      await service.assign(TENANT, CASE, { assignedTo: 'beto' } as AssignManualReviewDto, analista);
+
+      expect(updates[0]?.assignedTo).toBe('beto');
+    });
+
+    it('un caso de NADIE lo toma cualquiera', async () => {
+      const { service, updates } = make({ id: CASE, status: 'OPEN', assignedTo: null });
+
+      await service.assign(TENANT, CASE, {} as AssignManualReviewDto, otro);
+
+      expect(updates[0]?.assignedTo).toBe('beto');
     });
   });
 
@@ -169,6 +240,20 @@ describe('ManualReviewService — segregación de funciones', () => {
       const { service } = make({ id: CASE, status: 'ASSIGNED', assignedTo: 'ana' });
       const error = await service
         .resolve(TENANT, CASE, resolveDto('APPROVE'), sinRoles)
+        .catch((caught: unknown) => caught);
+
+      expect((error as DomainException).code).toBe('MANUAL_REVIEW_ASSIGNEE_MISMATCH');
+      expect((error as DomainException).status).toBe(403);
+    });
+
+    it('una CLAVE DE API con el comodín global no supervisa', async () => {
+      /*
+       * `PLATFORM_ADMIN` es comodín sólo sobre identidad firmada. Honrarlo aquí sobre una clave de
+       * API le devolvería por la puerta de atrás el permiso que `RolesGuard` acaba de negarle.
+       */
+      const { service } = make({ id: CASE, status: 'ASSIGNED', assignedTo: 'ana' });
+      const error = await service
+        .resolve(TENANT, CASE, resolveDto('APPROVE'), claveConComodin)
         .catch((caught: unknown) => caught);
 
       expect((error as DomainException).code).toBe('MANUAL_REVIEW_ASSIGNEE_MISMATCH');
