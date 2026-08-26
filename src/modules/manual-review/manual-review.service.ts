@@ -190,7 +190,25 @@ export class ManualReviewService {
      * por supervision se distingue de una del asignado con solo mirarla.
      */
     const SUPERVISION_ROLES = ['ADMIN', 'PLATFORM_ADMIN', 'OPERATIONS'];
-    const puedeSupervisar = principal.roles.some((role) => SUPERVISION_ROLES.includes(role));
+    /*
+     * `?? []` y no `principal.roles` a secas.
+     *
+     * El tipo declara `roles` obligatorio y el guardia de autenticacion lo rellena, asi que la
+     * lectura directa parece segura — y no lo es. `principal` llega de un decorador que lo saca de
+     * la peticion, y cualquier camino que construya uno sin lista (una integracion por clave, un
+     * doble, un modo de autenticacion futuro) hace que `.some` lance un `TypeError` ANTES del `if`.
+     *
+     * El sintoma es el peor posible para este control: `resolve()` deja de lanzar
+     * `MANUAL_REVIEW_ASSIGNEE_MISMATCH` y lanza un error sin codigo, que sube como 500. La
+     * segregacion de funciones no se estaria negando a nadie — se estaria cayendo, y un 500 se lee
+     * como una averia y no como «no te toca a ti».
+     *
+     * Sin lista de roles NO hay supervision: es la lectura segura de un dato ausente, y deja la
+     * regla estricta —solo el asignado— en pie.
+     */
+    const puedeSupervisar = (principal.roles ?? []).some((role) =>
+      SUPERVISION_ROLES.includes(role),
+    );
     if (review.assignedTo !== principal.id && !puedeSupervisar) {
       throw new DomainException(
         'MANUAL_REVIEW_ASSIGNEE_MISMATCH',

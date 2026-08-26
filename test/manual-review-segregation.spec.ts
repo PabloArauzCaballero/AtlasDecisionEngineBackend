@@ -24,8 +24,24 @@ import type {
 describe('ManualReviewService — segregación de funciones', () => {
   const TENANT = 9n;
   const CASE = 77n;
-  const analista = { id: 'ana', requestId: 'req-1' } as AuthenticatedPrincipal;
-  const otro = { id: 'beto', requestId: 'req-2' } as AuthenticatedPrincipal;
+  /*
+   * Los principales llevan su lista de roles, aunque esté vacía.
+   *
+   * Se escribían sin ella y el `as` la tapaba. `resolve()` la lee para decidir si quien llama puede
+   * SUPERVISAR, así que sobre un principal sin lista lanzaba un `TypeError` antes de llegar al
+   * control: la prueba de segregación recibía un error sin código y el propio control quedaba sin
+   * ejercer. Un doble que no se parece al dato real no prueba nada — sólo que el `as` compila.
+   */
+  const analista = { id: 'ana', requestId: 'req-1', roles: [] } as unknown as AuthenticatedPrincipal;
+  const otro = { id: 'beto', requestId: 'req-2', roles: [] } as unknown as AuthenticatedPrincipal;
+  /** Quien puede desatascar la cola: operaciones, administración o plataforma. */
+  const supervisora = {
+    id: 'carla',
+    requestId: 'req-3',
+    roles: ['OPERATIONS'],
+  } as unknown as AuthenticatedPrincipal;
+  /** Un principal SIN lista de roles: el que hacía estallar el control. */
+  const sinRoles = { id: 'dani', requestId: 'req-4' } as unknown as AuthenticatedPrincipal;
 
   function make(review: Record<string, unknown> | null) {
     const audited: string[] = [];
@@ -117,6 +133,45 @@ describe('ManualReviewService — segregación de funciones', () => {
         .catch((caught: unknown) => caught);
       expect((error as DomainException).code).toBe('MANUAL_REVIEW_ASSIGNEE_MISMATCH');
       // 403 y no 404: el caso existe y el solicitante puede verlo; lo que no puede es cerrarlo.
+      expect((error as DomainException).status).toBe(403);
+    });
+
+    /*
+     * La supervisión existe y NO tenía ni una prueba.
+     *
+     * Se añadió para que un caso asignado a quien se fue de vacaciones —o de la empresa— no quede
+     * bloqueado para siempre con un cliente esperando al otro lado. Es una decisión razonable y es
+     * también un DEBILITAMIENTO deliberado de la segregación de funciones: exactamente la clase de
+     * regla que no puede vivir sin cobertura, porque el día que alguien amplíe `SUPERVISION_ROLES`
+     * nada se pondrá rojo.
+     */
+    it('quien supervisa SÍ puede resolver un caso asignado a otra persona', async () => {
+      const { service, updates } = make({ id: CASE, status: 'ASSIGNED', assignedTo: 'ana' });
+
+      await service.resolve(TENANT, CASE, resolveDto('APPROVE'), supervisora);
+
+      /*
+       * El caso se cierra Y queda registrado quién decidió DE VERDAD: una resolución por
+       * supervisión tiene que distinguirse de una del asignado con sólo mirar la fila. `assignedTo`
+       * NO cambia — el caso siguió siendo de Ana; lo que cambió es quién lo cerró.
+       */
+      expect(updates[0]?.status).toBe('RESOLVED_APPROVED');
+      expect(updates[0]?.resolutionJson).toMatchObject({ resolvedBy: 'carla' });
+      expect(updates[0]?.assignedTo).toBe('ana');
+    });
+
+    it('un principal SIN lista de roles no supervisa: la regla estricta sigue en pie', async () => {
+      /*
+       * La lectura segura de un dato ausente. Antes esto no devolvía «no te toca»: estallaba con un
+       * `TypeError` y subía como 500, que se lee como una avería y no como una negativa — y deja sin
+       * ejercer el único control que impide que cualquiera cierre el caso de cualquiera.
+       */
+      const { service } = make({ id: CASE, status: 'ASSIGNED', assignedTo: 'ana' });
+      const error = await service
+        .resolve(TENANT, CASE, resolveDto('APPROVE'), sinRoles)
+        .catch((caught: unknown) => caught);
+
+      expect((error as DomainException).code).toBe('MANUAL_REVIEW_ASSIGNEE_MISMATCH');
       expect((error as DomainException).status).toBe(403);
     });
 
