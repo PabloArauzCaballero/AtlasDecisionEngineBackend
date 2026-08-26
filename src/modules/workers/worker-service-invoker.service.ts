@@ -593,6 +593,22 @@ function toIdentityResult(outcome: IdentityVerificationOutcome): Record<string, 
     liveness: outcome.liveness.outcome,
     thresholdProfileVersion: outcome.thresholdProfileVersion,
     documentExpiresAt: outcome.fields.expirationDate?.value ?? null,
+    /*
+     * La AUTENTICIDAD del documento, en dos escalares.
+     *
+     * Sube el veredicto y el riesgo, no el desglose entero: el desglose es
+     * evidencia para quien revisa el caso —y viaja en `result_json` de la
+     * ejecución del worker, que es donde el portal lo lee— mientras que lo que un
+     * algoritmo de decisión necesita para enrutar son estos dos números. Publicar
+     * el desglose aquí lo metería en variables intermedias y, desde ahí, en una
+     * traza que se conserva años.
+     *
+     * `null` cuando la detección está apagada, y ese `null` es información: el
+     * artefacto puede distinguir «se comprobó y salió limpio» de «no se
+     * comprobó», que son cosas opuestas y que un `0` fundiría en una.
+     */
+    fraudVerdict: outcome.fraud?.veredicto ?? null,
+    fraudRisk: outcome.fraud?.riesgo ?? null,
     riskFlags: outcome.riskFlags,
   };
 }

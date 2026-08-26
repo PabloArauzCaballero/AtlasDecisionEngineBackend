@@ -618,6 +618,38 @@ export const envSchema = z
     IDENTITY_FACE_PROVIDER: z.enum(['human']).default('human'),
     IDENTITY_LIVENESS_PROVIDER: z.enum(['disabled', 'human']).default('human'),
 
+    /*
+     * ── Detección de fraude documental ──────────────────────────────────────
+     *
+     * La puerta de documentos contesta «¿es un carnet?»; esto contesta la
+     * siguiente, que es la que separa el fraude: «¿es un carnet AUTÉNTICO?». Se
+     * configura aparte porque se calibra contra otra población —documentos
+     * falsificados, no documentos mal fotografiados— y porque un despliegue
+     * puede querer la primera sin la segunda mientras monta el servidor de
+     * embeddings.
+     *
+     * `IDENTITY_FRAUD_STRICT` es la variable que hay que entender antes de
+     * tocar ninguna otra: en estricto, una prueba que NO se pudo ejecutar
+     * —servidor de embeddings caído, `sharp` incapaz de leer la imagen— escala
+     * el caso a una persona en vez de dejarlo pasar. Es lo que debe estar puesto
+     * en producción, y el refinamiento de más abajo lo exige allí: sin ella una
+     * caída de un servicio auxiliar se convierte en una puerta abierta, que es
+     * el fallo que un flujo de identidad no puede permitirse.
+     */
+    IDENTITY_FRAUD_DETECTION_ENABLED: booleanFromString.default(true),
+    IDENTITY_FRAUD_STRICT: booleanFromString.default(false),
+    IDENTITY_FRAUD_TEMPLATE_COVERAGE_MIN: z.coerce.number().min(0).max(1).default(0.55),
+    IDENTITY_FRAUD_REVIEW_RISK: z.coerce.number().min(0).max(1).default(0.3),
+    IDENTITY_FRAUD_SUSPICION_RISK: z.coerce.number().min(0).max(1).default(0.6),
+    /*
+     * Los dos umbrales del codificador son propiedad del MODELO servido, no del
+     * dominio: al cambiar de `multilingual-e5-small` a un BGE hay que volver a
+     * medirlos en vez de heredarlos. La medición está documentada en
+     * `UmbralesSemanticos` (core/forensics/identity-semantic.classifier.ts).
+     */
+    IDENTITY_FRAUD_SEMANTIC_FLOOR: z.coerce.number().min(0).max(1).default(0.8),
+    IDENTITY_FRAUD_SEMANTIC_MARGIN: z.coerce.number().min(0).max(1).default(0.015),
+
     // --- Worker D: locución (ADR-0026) --------------------------------------
     //
     // El único de los cuatro que puede COSTAR DINERO por ejecución, y eso marca
@@ -1311,6 +1343,50 @@ export const envSchema = z
               'de su titular pasa la comparación 1:1. Enciende IDENTITY_LIVENESS_ENABLED o, ' +
               'para aceptar ese riesgo a sabiendas, declara ' +
               'IDENTITY_ACCEPT_NO_LIVENESS_RISK=true y documenta la excepción.',
+          });
+        }
+        /*
+         * La detección de fraude documental, ENCENDIDA y ESTRICTA en producción.
+         *
+         * Son dos exigencias y responden a dos fallos distintos. Apagarla deja el
+         * worker contestando sólo «¿es un carnet?», que es la pregunta que una
+         * falsificación bien hecha aprueba: el texto de un montaje es el de un
+         * documento auténtico porque se copió de uno.
+         *
+         * No ponerla estricta es peor, porque no se nota: el flujo funciona, los
+         * casos salen VERIFICADOS y lo único que ha pasado es que el servidor de
+         * embeddings dejó de contestar hace tres días y desde entonces nadie
+         * comprueba la conformidad semántica de nada. Una prueba que falta no es
+         * una prueba superada, y en estricto el caso escala a una persona.
+         */
+        if (!value.IDENTITY_FRAUD_DETECTION_ENABLED) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['IDENTITY_FRAUD_DETECTION_ENABLED'],
+            message:
+              'Sin detección de fraude documental el worker sólo comprueba que la imagen sea ' +
+              'un carnet, y el texto de una falsificación es el de un documento auténtico ' +
+              'porque se copió de uno. Enciende IDENTITY_FRAUD_DETECTION_ENABLED.',
+          });
+        }
+        if (value.IDENTITY_FRAUD_DETECTION_ENABLED && !value.IDENTITY_FRAUD_STRICT) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['IDENTITY_FRAUD_STRICT'],
+            message:
+              'IDENTITY_FRAUD_STRICT=true es obligatorio en producción: sin él, una caída del ' +
+              'servidor de embeddings deja de comprobar la conformidad del documento sin que ' +
+              'nada lo delate, y los casos siguen saliendo verificados.',
+          });
+        }
+        if (value.IDENTITY_FRAUD_REVIEW_RISK >= value.IDENTITY_FRAUD_SUSPICION_RISK) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['IDENTITY_FRAUD_REVIEW_RISK'],
+            message:
+              'IDENTITY_FRAUD_REVIEW_RISK tiene que ser MENOR que ' +
+              'IDENTITY_FRAUD_SUSPICION_RISK: entre los dos vive la franja que se delega a una ' +
+              'persona, y con el orden invertido esa franja queda vacía.',
           });
         }
       }

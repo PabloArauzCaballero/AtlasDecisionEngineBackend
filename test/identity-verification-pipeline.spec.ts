@@ -170,6 +170,16 @@ function buildPipeline(options: IdentityOptions = OPTIONS): IdentityPipelineServ
     // Árbitro humano: deja el caso en la cola y no finge un veredicto, que es
     // exactamente lo que hace en producción.
     new HumanIdentityArbitrationAdapter(),
+    /*
+     * Sin codificador: la batería corre sin servidor de embeddings levantado.
+     *
+     * No es un atajo, es el caso que hay que probar. `null` significa «esa prueba
+     * no se pudo hacer», y con `fraudStrictMode` apagado —que es como está en
+     * desarrollo— el fusor lo anota y sigue. Lo que ejercitan estos escenarios es
+     * el resto del análisis: la plantilla del catálogo y la física de la imagen,
+     * que sí corren en local y sin red.
+     */
+    null,
     parsers,
     new ImageQualityAssessmentService(options),
   );

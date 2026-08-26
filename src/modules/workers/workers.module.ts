@@ -31,6 +31,7 @@ import { ImageQualityAssessmentService } from './identity-verification/core/imag
 import {
   IDENTITY_ARBITRATION_PORT,
   IDENTITY_CLASSIFIER_PORT,
+  IDENTITY_EMBEDDER_PORT,
   IDENTITY_FACE_DETECTOR_PORT,
   IDENTITY_FACE_MATCH_PORT,
   IDENTITY_LIVENESS_PORT,
@@ -45,6 +46,7 @@ import {
   PassportDocumentParser,
 } from './identity-verification/core/parsers/document-parser';
 import { DocumentParserRegistry } from './identity-verification/core/parsers/document-parser.registry';
+import { TransformerIdentityEmbedderAdapter } from './identity-verification/core/adapters/transformer-identity.adapter';
 import { buildIdentityOptions } from './identity-verification/identity-config.bridge';
 import { IdentityPipelineService } from './identity-verification/identity-pipeline.service';
 import { IdentityReviewController } from './identity-verification/review/identity-review.controller';
@@ -268,6 +270,40 @@ import { WorkerServiceInvokerService } from './worker-service-invoker.service';
           ? new AiIdentityArbitrationAdapter()
           : new HumanIdentityArbitrationAdapter(),
       inject: [IDENTITY_OPTIONS],
+    },
+    /*
+     * El codificador que sostiene la detección de fraude documental.
+     *
+     * Se registra como `null` cuando la detección está apagada, y ese `null` es
+     * parte del diseño: el clasificador lo trata como PRUEBA AUSENTE —no como
+     * prueba superada— y en modo estricto eso escala el caso a una persona. Lo
+     * que no puede pasar es que un despliegue sin servidor de embeddings
+     * apruebe identidades como si las hubiera comprobado.
+     *
+     * La conexión NO se verifica aquí. Levantar el módulo depende de que el
+     * servidor de embeddings esté arriba sería atar el arranque del motor entero
+     * a un servicio auxiliar; el fallo se descubre en la primera verificación,
+     * se registra como prueba ausente y se ve en el resultado.
+     */
+    {
+      provide: IDENTITY_EMBEDDER_PORT,
+      useFactory: (config: ConfigService, options: IdentityOptions) => {
+        if (!options.fraudDetectionEnabled) return null;
+        return new TransformerIdentityEmbedderAdapter({
+          baseUrl: config.get<string>('TRANSFORMER_BASE_URL') ?? 'http://127.0.0.1:8080',
+          ...(config.get<string>('TRANSFORMER_API_KEY')
+            ? { apiKey: config.get<string>('TRANSFORMER_API_KEY') as string }
+            : {}),
+          model:
+            config.get<string>('SEMANTIC_TRANSFORMER_MODEL') ?? 'intfloat/multilingual-e5-small',
+          timeoutMs: config.get<number>('SEMANTIC_TRANSFORMER_TIMEOUT_MS') ?? 15_000,
+          maxAttempts: config.get<number>('SEMANTIC_TRANSFORMER_MAX_ATTEMPTS') ?? 3,
+          retryBackoffMs: config.get<number>('SEMANTIC_TRANSFORMER_RETRY_BACKOFF_MS') ?? 250,
+          queryPrefix: config.get<string>('SEMANTIC_TRANSFORMER_QUERY_PREFIX') ?? 'query: ',
+          passagePrefix: config.get<string>('SEMANTIC_TRANSFORMER_PASSAGE_PREFIX') ?? 'passage: ',
+        });
+      },
+      inject: [ConfigService, IDENTITY_OPTIONS],
     },
 
     // --- Worker A: análisis semántico --------------------------------------

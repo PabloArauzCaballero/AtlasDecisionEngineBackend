@@ -63,6 +63,35 @@ const VERIFICADO = {
   thresholdProfileVersion: 'sintetico-60x3',
   documentExpiresAt: '2031-07-20',
   riskFlags: [] as string[],
+  /*
+   * `CLEAR` explícito, porque la política 1.2.0 lo EXIGE explícito.
+   *
+   * El intermedio por defecto es `UNKNOWN` —la llamada no llegó a producir
+   * análisis— y `UNKNOWN` no aprueba: cae por la arista por defecto y termina
+   * delante de una persona. Que el doble tenga que declararlo es la prueba de que
+   * la condición no se puede satisfacer por omisión.
+   */
+  fraudVerdict: 'CLEAR',
+  fraudRisk: 0.04,
+};
+
+/**
+ * Las entradas que NO salen de las fotos: el registro estatal y la agenda.
+ *
+ * Se pasan a `decide` por separado para que cada prueba pueda mover UNA y ver qué
+ * cambia. El valor por defecto es el del alta limpia — SEGIP confirma y la agenda
+ * es la de alguien que vive con su teléfono— porque es el caso contra el que se
+ * miden todas las desviaciones.
+ */
+const CONTEXTO_LIMPIO: Record<string, unknown> = {
+  [V.segipEstado]: 'FOUND',
+  [V.segipCoincidencia]: 0.98,
+  [V.agendaDisponible]: true,
+  [V.agendaTotal]: 180,
+  [V.agendaUnicosRatio]: 0.94,
+  [V.agendaBoliviaRatio]: 0.86,
+  [V.agendaReferenciasPresentes]: 2,
+  [V.agendaCoincidenciasRiesgo]: 0,
 };
 
 function invoker(outcome: WorkerServiceOutcome | (() => Promise<never>)): WorkerServiceInvoker {
@@ -83,7 +112,10 @@ const inputContracts = compiled.variables.filter(
   (variable) => !String(variable.usageType ?? 'INPUT').startsWith('OUTPUT'),
 );
 
-async function decide(serviceInvoker: WorkerServiceInvoker): Promise<Record<string, unknown>> {
+async function decide(
+  serviceInvoker: WorkerServiceInvoker,
+  contexto: Record<string, unknown> = CONTEXTO_LIMPIO,
+): Promise<Record<string, unknown>> {
   const resolution = await resolver.resolve(
     inputContracts,
     {
@@ -93,6 +125,7 @@ async function decide(serviceInvoker: WorkerServiceInvoker): Promise<Record<stri
       [V.carnetReverso]: '/9j/4AAQSkZJRg==',
       [V.selfie]: '/9j/4AAQSkZJRg==',
       [V.pais]: 'BO',
+      ...contexto,
     },
     {
       tenantId: 1n,
@@ -232,6 +265,124 @@ describe('la política es del artefacto, no del worker', () => {
 
   it('un VERIFIED con evidencia de documento raspando también va a revisión', async () => {
     const output = await decide(invoker(worker({ documentEvidence: 0.6 })));
+
+    expect(output[V.decision]).toBe('REVISION_HUMANA');
+  });
+});
+
+/**
+ * Las tres fuentes que la versión 1.2.0 añadió, y la razón de añadirlas.
+ *
+ * Hasta 1.1.1 el veredicto salía de UNA fuente —lo que el worker leyó en la foto— y una foto es
+ * exactamente lo que un suplantador puede conseguir. Cada prueba de aquí mueve UNA de las tres
+ * entradas nuevas dejando las otras dos limpias, que es la única forma de demostrar que cada una
+ * hace algo por su cuenta.
+ *
+ * Ninguna aprueba: todas escalan. Sumar fuentes tiene que endurecer la puerta, nunca abrirla.
+ */
+describe('las tres fuentes nuevas', () => {
+  it('un documento con sospecha de fraude va a SU cola, con su propio motivo', async () => {
+    const output = await decide(invoker(worker({ fraudVerdict: 'FRAUD_SUSPECTED', fraudRisk: 0.71 })));
+
+    expect(output[V.decision]).toBe('REVISION_HUMANA');
+    // Motivo propio y no `REQUIERE_REVISION`: un caso que llega porque la foto salió movida y uno
+    // que llega porque el documento parece falsificado necesitan analistas y tiempos distintos.
+    expect(output[V.motivo]).toBe('SOSPECHA_DE_FRAUDE');
+    expect(output[V.fraude]).toBeCloseTo(0.71, 2);
+  });
+
+  it('la autenticidad SIN COMPROBAR tampoco aprueba', async () => {
+    /*
+     * `UNKNOWN` es el valor por defecto del intermedio: la llamada no llegó a producir análisis.
+     * Con `neq FRAUD_SUSPECTED` esto aprobaría, y ahí está la diferencia entre exigir una prueba y
+     * aceptar su ausencia.
+     */
+    const output = await decide(invoker(worker({ fraudVerdict: 'UNKNOWN', fraudRisk: 0 })));
+
+    expect(output[V.decision]).toBe('REVISION_HUMANA');
+    expect(output[V.motivo]).toBe('REQUIERE_REVISION');
+  });
+
+  it('sin confirmación del registro estatal no se aprueba solo, pero TAMPOCO se rechaza', async () => {
+    /*
+     * Un homónimo, una tilde y un apellido compuesto producen coincidencias parciales sobre gente
+     * perfectamente real. Rechazar ahí sería el falso positivo más caro de este flujo: le cierra el
+     * producto a alguien por la ortografía de un registro ajeno.
+     */
+    for (const estado of ['PARTIAL_MATCH', 'NOT_FOUND', 'PROVIDER_UNAVAILABLE', 'NO_CONSULTADO']) {
+      const output = await decide(invoker(worker()), { ...CONTEXTO_LIMPIO, [V.segipEstado]: estado });
+      expect(output[V.decision]).toBe('REVISION_HUMANA');
+    }
+  });
+
+  it('una agenda sospechosa por DOS motivos manda el caso a una persona', async () => {
+    /*
+     * Agenda diminuta (30) y ninguna referencia dentro de ella (25) suman 55… que NO llega al
+     * umbral de 60. Hace falta la tercera: sin arraigo local (20). Es deliberado — el corte está
+     * puesto para que dos señales pequeñas no basten, porque estrenar teléfono no es un delito.
+     */
+    const output = await decide(invoker(worker()), {
+      ...CONTEXTO_LIMPIO,
+      [V.agendaTotal]: 6,
+      [V.agendaBoliviaRatio]: 0.1,
+      [V.agendaReferenciasPresentes]: 0,
+    });
+
+    expect(output[V.decision]).toBe('REVISION_HUMANA');
+    expect(output[V.motivo]).toBe('REQUIERE_REVISION');
+    expect(Number(output[V.riesgoAgenda])).toBeGreaterThanOrEqual(0.6);
+  });
+
+  it('UNA sola señal de la agenda nunca alcanza para escalar', async () => {
+    /*
+     * La afirmación que protege al producto de sí mismo. Tener pocos contactos, o no reconocer una
+     * referencia, o tener la agenda de otro país, son cosas que le pasan a gente que no hizo nada
+     * mal. Si una sola bastara, el alta empezaría a mandar a revisión a quien acaba de estrenar
+     * teléfono — y una cola llena de casos buenos deja de revisarse.
+     */
+    const output = await decide(invoker(worker()), { ...CONTEXTO_LIMPIO, [V.agendaTotal]: 6 });
+
+    expect(output[V.decision]).toBe('VERIFICADO');
+    expect(Number(output[V.riesgoAgenda])).toBeLessThan(0.6);
+  });
+
+  it('no compartir la agenda NO impide aprobar', async () => {
+    /*
+     * Negarse a dar el permiso es un derecho, no una señal de fraude. Suma veinte puntos —hay MENOS
+     * evidencia, no evidencia en contra— y veinte no llegan a sesenta. Puntuarlo alto convertiría un
+     * derecho en una penalización y empujaría a la app a pedir el permiso de formas que no debería.
+     */
+    const output = await decide(invoker(worker()), {
+      ...CONTEXTO_LIMPIO,
+      [V.agendaDisponible]: false,
+      [V.agendaTotal]: 0,
+      [V.agendaUnicosRatio]: 0,
+      [V.agendaBoliviaRatio]: 0,
+      [V.agendaReferenciasPresentes]: 0,
+      [V.agendaCoincidenciasRiesgo]: 0,
+    });
+
+    expect(output[V.decision]).toBe('VERIFICADO');
+    expect(Number(output[V.riesgoAgenda])).toBeCloseTo(0.2, 2);
+  });
+
+  it('un teléfono ya marcado en la agenda, MÁS cualquier otra señal, escala', async () => {
+    const output = await decide(invoker(worker()), {
+      ...CONTEXTO_LIMPIO,
+      [V.agendaCoincidenciasRiesgo]: 2,
+      [V.agendaReferenciasPresentes]: 0,
+    });
+
+    expect(output[V.decision]).toBe('REVISION_HUMANA');
+  });
+
+  it('omitir por completo las entradas nuevas empuja a revisión, nunca a aprobar', async () => {
+    /*
+     * Es la garantía que hace seguro que las ocho entradas sean opcionales: un llamante antiguo
+     * —otra versión de AtlasBackend, el laboratorio, una prueba— sigue obteniendo decisión, y esa
+     * decisión es la cauta.
+     */
+    const output = await decide(invoker(worker()), {});
 
     expect(output[V.decision]).toBe('REVISION_HUMANA');
   });

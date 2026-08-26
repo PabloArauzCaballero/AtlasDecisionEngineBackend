@@ -12,6 +12,8 @@
 
 import { IdentityDocumentType } from './domain/identity-enums';
 import { DEFAULT_IDENTITY_THRESHOLDS } from './engine/identity-triage';
+import { UMBRALES_DE_FRAUDE_POR_DEFECTO } from './forensics/identity-fraud.scorer';
+import { UMBRALES_SEMANTICOS_POR_DEFECTO } from './forensics/identity-semantic.classifier';
 
 export const IDENTITY_OPTIONS = Symbol('IDENTITY_OPTIONS');
 export const IDENTITY_OCR_PORT = Symbol('IDENTITY_OCR_PORT');
@@ -21,6 +23,16 @@ export const IDENTITY_FACE_MATCH_PORT = Symbol('IDENTITY_FACE_MATCH_PORT');
 export const IDENTITY_LIVENESS_PORT = Symbol('IDENTITY_LIVENESS_PORT');
 export const IDENTITY_NORMALIZER_PORT = Symbol('IDENTITY_NORMALIZER_PORT');
 export const IDENTITY_ARBITRATION_PORT = Symbol('IDENTITY_ARBITRATION_PORT');
+/**
+ * El codificador de textos que sostiene la detección de fraude documental.
+ *
+ * Se declara como PUERTO —y opcional— y no como una dependencia dura por lo que
+ * pasa cuando falta: sin servidor de embeddings el worker tiene que seguir
+ * verificando identidades, sólo que sin una de sus pruebas y sabiendo que le
+ * falta. Un `undefined` inyectado aquí es un despliegue sin transformers, y el
+ * fusor lo trata como prueba ausente — que en producción escala el caso.
+ */
+export const IDENTITY_EMBEDDER_PORT = Symbol('IDENTITY_EMBEDDER_PORT');
 
 /** Quién arbitra la franja de duda de la puerta de documentos. */
 export type IdentityArbitrationMode = 'HUMAN' | 'AI';
@@ -115,6 +127,35 @@ export interface IdentityOptions {
   readonly maxUploadBytes: number;
   /** País de emisión asumido cuando quien llama no declara otro. */
   readonly defaultDocumentCountry: string;
+
+  /*
+   * ── Detección de fraude documental ──────────────────────────────────────
+   *
+   * La puerta de documentos contesta «¿es un carnet?». Esto contesta la
+   * siguiente, que es la que separa el fraude: «¿es un carnet AUTÉNTICO?». Son
+   * ajustes aparte porque se calibran contra otra población —documentos
+   * falsificados, no documentos mal fotografiados— y porque un despliegue puede
+   * querer la primera sin la segunda mientras monta el servidor de embeddings.
+   */
+  /** Si se ejecutan las pruebas forenses. Apagarlo deja el worker como estaba. */
+  readonly fraudDetectionEnabled: boolean;
+  /**
+   * En estricto, una prueba que NO se pudo ejecutar escala el caso a una
+   * persona en vez de dejarlo pasar. Es lo que debe estar puesto en producción:
+   * la alternativa convierte una caída del servidor de embeddings en una puerta
+   * abierta.
+   */
+  readonly fraudStrictMode: boolean;
+  /** Cobertura mínima de la plantilla del catálogo. */
+  readonly fraudTemplateCoverageMin: number;
+  /** Riesgo a partir del cual el caso va a revisión humana. */
+  readonly fraudReviewRisk: number;
+  /** Riesgo a partir del cual el caso se marca como sospecha de fraude. */
+  readonly fraudSuspicionRisk: number;
+  /** Suelo de coseno del clasificador semántico. Propiedad del MODELO servido. */
+  readonly fraudSemanticFloor: number;
+  /** Margen mínimo entre la mejor sonda positiva y la mejor negativa. */
+  readonly fraudSemanticMargin: number;
 }
 
 /**
@@ -153,4 +194,15 @@ export const IDENTITY_DEFAULTS: IdentityOptions = {
   arbitrationMode: 'HUMAN',
   maxUploadBytes: 10_485_760,
   defaultDocumentCountry: 'BO',
+  fraudDetectionEnabled: true,
+  // Apagado por omisión y ENCENDIDO por el esquema de entorno en cuanto el
+  // worker se habilita en producción: en desarrollo no siempre hay servidor de
+  // embeddings, y mandar cada prueba a una cola humana inexistente sólo
+  // impediría recorrer el flujo.
+  fraudStrictMode: false,
+  fraudTemplateCoverageMin: UMBRALES_DE_FRAUDE_POR_DEFECTO.coberturaMinima,
+  fraudReviewRisk: UMBRALES_DE_FRAUDE_POR_DEFECTO.riesgoDeRevision,
+  fraudSuspicionRisk: UMBRALES_DE_FRAUDE_POR_DEFECTO.riesgoDeSospecha,
+  fraudSemanticFloor: UMBRALES_SEMANTICOS_POR_DEFECTO.sueloDeParecido,
+  fraudSemanticMargin: UMBRALES_SEMANTICOS_POR_DEFECTO.margenMinimo,
 };

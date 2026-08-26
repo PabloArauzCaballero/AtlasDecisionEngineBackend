@@ -7,6 +7,7 @@ import { ImageQualityAssessmentService } from './core/image-quality-assessment.s
 import {
   IDENTITY_ARBITRATION_PORT,
   IDENTITY_CLASSIFIER_PORT,
+  IDENTITY_EMBEDDER_PORT,
   IDENTITY_FACE_DETECTOR_PORT,
   IDENTITY_FACE_MATCH_PORT,
   IDENTITY_LIVENESS_PORT,
@@ -18,7 +19,14 @@ import {
 import { DocumentParserRegistry } from './core/parsers/document-parser.registry';
 import { medirEvidenciaDeIdentidad } from './core/engine/identity-evidence';
 import { triageIdentityDocument, type IdentityGateOutcome } from './core/engine/identity-triage';
-import { mrzDiagnostics } from './core/parsers/mrz-td1';
+import { mrzDiagnostics, parseMrzTd1 } from './core/parsers/mrz-td1';
+import { analizarPlantilla } from './core/forensics/template-conformance';
+import { analizarManipulacion } from './core/forensics/image-tamper.analyzer';
+import {
+  clasificarSemanticamente,
+  type IdentityEmbedderPort,
+} from './core/forensics/identity-semantic.classifier';
+import { evaluarFraude, type EvaluacionDeFraude } from './core/forensics/identity-fraud.scorer';
 import { isoDateToUtcDate } from './core/parsers/spanish-date';
 import type { DocumentParser } from './core/parsers/document-parser';
 import type {
@@ -133,6 +141,14 @@ export class IdentityPipelineService {
     @Inject(IDENTITY_LIVENESS_PORT) private readonly liveness: LivenessPort,
     @Inject(IDENTITY_ARBITRATION_PORT)
     private readonly arbitration: IdentityArbitrationPort,
+    /*
+     * El codificador es OPCIONAL, y ese `null` es parte del contrato: un
+     * despliegue sin servidor de embeddings tiene que seguir verificando
+     * identidades, sabiendo que le falta una prueba. Lo que no puede es aprobar
+     * como si la hubiera hecho — de eso se encarga el modo estricto del fusor.
+     */
+    @Inject(IDENTITY_EMBEDDER_PORT)
+    private readonly embedder: IdentityEmbedderPort | null,
     private readonly parsers: DocumentParserRegistry,
     private readonly quality: ImageQualityAssessmentService,
   ) {}
@@ -394,6 +410,41 @@ export class IdentityPipelineService {
     const parsed = await parser.parse({ ocr, context: { type: tipoResuelto, country } });
     if (back) this.assertSidesAgree(parser, front, back, parsed.warnings);
     riskFlags.push(...parsed.warnings);
+
+    /*
+     * --- 3.bis. ¿Es un carnet AUTÉNTICO? ------------------------------------
+     *
+     * La puerta de arriba contestó «¿es un carnet?». Ésta contesta la siguiente,
+     * y es la que separa el fraude: el texto de una falsificación es el de un
+     * documento auténtico —porque se copió de uno—, así que la puerta de
+     * evidencia la aprueba con holgura. Lo que una falsificación NO puede
+     * imitar a la vez es la plantilla completa del SEGIP, la aritmética interna
+     * de sus propios datos y la física de la imagen.
+     *
+     * Va AQUÍ, después del analizador y antes de la biometría, por dos razones.
+     * Necesita los campos ya extraídos —sin ellos no hay aritmética que
+     * comprobar— y la biometría es la etapa cara: si el documento no es
+     * auténtico, comparar su retrato con la selfie sólo respondería a la
+     * pregunta equivocada con precisión.
+     *
+     * Las tres pruebas corren EN PARALELO: son independientes, dos de ellas
+     * salen de la red o del procesador de imagen, y encadenarlas sumaría sus
+     * latencias en el camino caliente de cada verificación.
+     */
+    const fraude = await this.analizarFraude({
+      textoAnverso: front.rawText,
+      textoReverso: back?.rawText ?? '',
+      campos: parsed.fields,
+      rawText: ocr.rawText,
+      documento: document.buffer,
+      entradaGenerada: input.entradaGenerada === true,
+    });
+    if (fraude) {
+      riskFlags.push(...fraude.motivos);
+      if (fraude.veredicto === 'FRAUD_SUSPECTED') riskFlags.push('FRAUD_SUSPECTED');
+      if (fraude.veredicto === 'REVIEW') riskFlags.push('DOCUMENT_AUTHENTICITY_DOUBTFUL');
+    }
+
     await input.onProgress?.(40);
 
     /*
@@ -534,9 +585,30 @@ export class IdentityPipelineService {
      * poder cerrar un VERIFICADO él solo. Escalar conserva la cautela que hacía
      * el rechazo sin negarle un veredicto a quien mandó una foto pequeña.
      */
+    /*
+     * La autenticidad del documento entra por la MISMA puerta.
+     *
+     * El motor de decisión no ve el análisis de fraude —trabaja con calidades,
+     * campos, prueba de vida y parecido—, así que dejarlo sólo como marca de
+     * riesgo permitiría un VERIFICADO sobre un documento del que se sospecha que
+     * está falsificado. Que sea el mismo mecanismo que ya escalaba
+     * `MULTIPLE_FACES` no es casual: son la misma clase de señal —evidencia que
+     * la aritmética biométrica no puede ver— y merecen el mismo trato.
+     *
+     * Y como allí, sólo escala hacia ARRIBA: un rechazo nunca se suaviza a
+     * revisión porque el documento parezca auténtico. Que el carnet sea legítimo
+     * no convierte en la misma persona a las dos caras que se compararon.
+     */
     const escalantes = ['MULTIPLE_FACES', 'FACE_TOO_SMALL'].filter((flag) =>
       riskFlags.includes(flag),
     );
+    if (fraude && fraude.veredicto !== 'CLEAR') {
+      escalantes.push(
+        fraude.veredicto === 'FRAUD_SUSPECTED'
+          ? 'DOCUMENT_FRAUD_SUSPECTED'
+          : 'DOCUMENT_AUTHENTICITY_DOUBTFUL',
+      );
+    }
     const decision =
       escalantes.length > 0 && decided.decision === IdentityDecision.VERIFIED
         ? {
@@ -597,6 +669,17 @@ export class IdentityPipelineService {
           }
         : null,
       riskFlags: [...new Set(riskFlags)],
+      /*
+       * El análisis de autenticidad viaja ENTERO al resultado, con su desglose y
+       * con las pruebas que no se pudieron ejecutar.
+       *
+       * Es lo que convierte «sospecha de fraude» en algo revisable. Quien abre el
+       * caso tiene que poder ver QUÉ saltó —la plantilla incompleta, la MRZ que
+       * no cuadra con el anverso, el muaré de una pantalla— porque su trabajo es
+       * contradecir a la máquina cuando la máquina se equivoca, y un número
+       * suelto no se puede contradecir.
+       */
+      ...(fraude ? { fraud: fraude } : {}),
       framing: {
         recortado: encuadre.recortado,
         areaConservada: Number(encuadre.areaConservada.toFixed(3)),
@@ -614,6 +697,120 @@ export class IdentityPipelineService {
         mrz: mrzDiagnostics(ocr.rawText),
       },
     };
+  }
+
+  /**
+   * Las tres pruebas de autenticidad, en paralelo, y su fusión.
+   *
+   * Devuelve `null` cuando la detección está apagada por configuración: es un
+   * ausente EXPLÍCITO, distinto de un análisis que salió limpio. El resultado no
+   * lleva el bloque `fraud` y quien lo lea sabe que no se preguntó, en vez de
+   * leer un «sin señales» que nadie midió.
+   *
+   * Ninguna de las tres puede tumbar la verificación. `analizarManipulacion` y
+   * `clasificarSemanticamente` capturan sus propios fallos y los devuelven como
+   * prueba ausente; el `catch` de aquí cubre lo que quede —un `parseMrzTd1` sobre
+   * un texto degenerado, un fallo de memoria— porque tirar una verificación ya
+   * calculada por un defecto del análisis forense castigaría al solicitante por
+   * un problema nuestro.
+   */
+  private async analizarFraude(entrada: {
+    textoAnverso: string;
+    textoReverso: string;
+    campos: ExtractedIdentityData;
+    rawText: string;
+    documento: Buffer;
+    entradaGenerada: boolean;
+  }): Promise<EvaluacionDeFraude | null> {
+    if (!this.options.fraudDetectionEnabled) return null;
+
+    try {
+      const plantilla = analizarPlantilla({
+        textoAnverso: entrada.textoAnverso,
+        textoReverso: entrada.textoReverso,
+        campos: entrada.campos,
+        mrz: parseMrzTd1(entrada.rawText),
+        ahora: new Date(),
+      });
+
+      /*
+       * Sobre una imagen FABRICADA no se analizan los píxeles.
+       *
+       * No es una excepción de comodidad: es que la pregunta no aplica. Todas
+       * las señales de `analizarManipulacion` miden la física de una captura
+       * —el grano del sensor, la huella de la compresión, la rejilla de una
+       * pantalla— y una tarjeta que dibujamos nosotros no pasó por ningún
+       * sensor. Correrlas sobre ella no mide manipulación: mide que la imagen
+       * es sintética, cosa que ya sabemos, y convertiría cada escenario del
+       * catálogo en una sospecha de fraude hasta enseñar a quien lo lea que el
+       * color rojo no significa nada.
+       *
+       * Se declara NO APLICABLE en vez de ausente, y la diferencia importa: una
+       * prueba ausente escala el caso en modo estricto, y ésta no debe, porque
+       * no falta —no procede—.
+       */
+      const forense = entrada.entradaGenerada
+        ? Promise.resolve({
+            disponible: true,
+            senales: [],
+            medidas: {
+              periodicidad: null,
+              residuoMaximoRelativo: null,
+              bloquesAtipicos: null,
+              variacionDelRuido: null,
+              marcoUniforme: null,
+            },
+            indisponibilidad: 'NOT_APPLICABLE_GENERATED_INPUT',
+          } as const)
+        : analizarManipulacion(entrada.documento);
+
+      const [semantica, manipulacion] = await Promise.all([
+        clasificarSemanticamente({
+          embedder: this.embedder,
+          texto: `${entrada.textoAnverso}\n${entrada.textoReverso}`,
+          umbrales: {
+            sueloDeParecido: this.options.fraudSemanticFloor,
+            margenMinimo: this.options.fraudSemanticMargin,
+          },
+        }),
+        forense,
+      ]);
+
+      return evaluarFraude({
+        plantilla,
+        semantica,
+        manipulacion,
+        entradaGenerada: entrada.entradaGenerada,
+        umbrales: {
+          coberturaMinima: this.options.fraudTemplateCoverageMin,
+          riesgoDeRevision: this.options.fraudReviewRisk,
+          riesgoDeSospecha: this.options.fraudSuspicionRisk,
+          estricto: this.options.fraudStrictMode,
+        },
+      });
+    } catch {
+      /*
+       * El análisis se cayó entero. Eso NO es un documento limpio.
+       *
+       * Se devuelve una evaluación que dice exactamente lo que pasó y que, en
+       * modo estricto, escala: la regla de este módulo es que una prueba que
+       * falta no es una prueba superada, y vale igual cuando la que falta es
+       * todo el análisis.
+       */
+      return {
+        veredicto: this.options.fraudStrictMode ? 'REVIEW' : 'CLEAR',
+        riesgo: this.options.fraudStrictMode ? this.options.fraudReviewRisk : 0,
+        motivos: ['FRAUD_ANALYSIS_FAILED'],
+        pruebasAusentes: ['ALL:ANALYSIS_THREW'],
+        desglose: {
+          conformidadDePlantilla: 0,
+          generacion: 'UNKNOWN',
+          conformidadSemantica: null,
+          riesgoDeIncoherencias: 0,
+          riesgoDeManipulacion: 0,
+        },
+      };
+    }
   }
 
   /** Lee anverso y, si lo hay, reverso, y clasifica el texto de los dos juntos. */

@@ -135,5 +135,48 @@ export function buildIdentityOptions(config: ConfigService): IdentityOptions {
       'IDENTITY_DEFAULT_DOCUMENT_COUNTRY',
       IDENTITY_DEFAULTS.defaultDocumentCountry,
     ),
+    /*
+     * Detección de fraude documental.
+     *
+     * Los dos umbrales de riesgo se sanean JUNTOS, y por el mismo motivo que los
+     * de la puerta de documentos: con `revision >= sospecha` la franja que se
+     * delega a una persona queda vacía y todo lo dudoso saltaría directamente a
+     * sospecha de fraude, que es la forma más rápida de que el color deje de
+     * significar nada. El esquema de entorno ya lo rechaza en producción; esto
+     * cubre el resto de los ambientes, donde el esquema no refina.
+     */
+    fraudDetectionEnabled: flag(
+      'IDENTITY_FRAUD_DETECTION_ENABLED',
+      IDENTITY_DEFAULTS.fraudDetectionEnabled,
+    ),
+    fraudStrictMode: flag('IDENTITY_FRAUD_STRICT', IDENTITY_DEFAULTS.fraudStrictMode),
+    fraudTemplateCoverageMin: number(
+      'IDENTITY_FRAUD_TEMPLATE_COVERAGE_MIN',
+      IDENTITY_DEFAULTS.fraudTemplateCoverageMin,
+    ),
+    ...(() => {
+      const revision = number('IDENTITY_FRAUD_REVIEW_RISK', IDENTITY_DEFAULTS.fraudReviewRisk);
+      const sospecha = number(
+        'IDENTITY_FRAUD_SUSPICION_RISK',
+        IDENTITY_DEFAULTS.fraudSuspicionRisk,
+      );
+      if (revision < sospecha) return { fraudReviewRisk: revision, fraudSuspicionRisk: sospecha };
+      logger.warn(
+        `IDENTITY_FRAUD_REVIEW_RISK (${String(revision)}) debe ser menor que ` +
+          `IDENTITY_FRAUD_SUSPICION_RISK (${String(sospecha)}); se usan los valores por omisión.`,
+      );
+      return {
+        fraudReviewRisk: IDENTITY_DEFAULTS.fraudReviewRisk,
+        fraudSuspicionRisk: IDENTITY_DEFAULTS.fraudSuspicionRisk,
+      };
+    })(),
+    fraudSemanticFloor: number(
+      'IDENTITY_FRAUD_SEMANTIC_FLOOR',
+      IDENTITY_DEFAULTS.fraudSemanticFloor,
+    ),
+    fraudSemanticMargin: number(
+      'IDENTITY_FRAUD_SEMANTIC_MARGIN',
+      IDENTITY_DEFAULTS.fraudSemanticMargin,
+    ),
   };
 }

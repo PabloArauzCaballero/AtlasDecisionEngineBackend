@@ -140,6 +140,7 @@ nav:
       - Nodos que llaman a un worker: workers/worker-service-nodes.md
       - Triage de extractos y revisión humana: workers/bank-statement-triage.md
       - Puerta de documentos de identidad y arbitraje: workers/identity-document-gate.md
+      - Fraude documental en identidad: workers/identidad-fraude-documental.md
       - Padrón de entidades y compuerta de emisor: workers/bank-statement-institutions.md
       - Catálogo de categorías del worker semántico: workers/semantic-category-catalog.md
       - Ninguna glosa sin categoría: workers/semantic-sin-desconocido.md

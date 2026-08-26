@@ -1,5 +1,6 @@
 import type { ExtractedIdentityData } from './core/domain/extracted-identity.types';
 import type { IdentityDecision, IdentityDocumentType } from './core/domain/identity-enums';
+import type { EvaluacionDeFraude } from './core/forensics/identity-fraud.scorer';
 
 /**
  * Lo que la ejecución publica cuando termina bien.
@@ -59,6 +60,21 @@ export interface IdentityVerificationOutcome {
   framing: { recortado: boolean; areaConservada: number };
 
   riskFlags: string[];
+
+  /**
+   * ¿Es un carnet AUTÉNTICO?
+   *
+   * `documentEvidence` contesta si hay un documento de identidad delante y
+   * `classification` cuál es. Esto contesta la tercera pregunta, que es la única
+   * que separa el fraude: el texto de una falsificación es el de un documento
+   * auténtico —porque se copió de uno—, así que las dos primeras la aprueban.
+   *
+   * Ausente cuando la detección está apagada por configuración, y esa ausencia
+   * es información: significa que NO SE PREGUNTÓ, que no es lo mismo que
+   * preguntarlo y que saliera limpio.
+   */
+  fraud?: EvaluacionDeFraude;
+
   providers: { ocr: string; face: string; liveness: string };
 
   /**

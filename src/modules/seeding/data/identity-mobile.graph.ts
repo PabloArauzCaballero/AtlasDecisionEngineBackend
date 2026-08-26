@@ -53,7 +53,25 @@ export const IDENTITY_MOBILE_CODE = 'IDENTIDAD_CARNET_MOVIL';
  * sembrado sólo publica cuando la versión semántica es nueva, y así queda registrado
  * contra qué versión se decidió cada expediente.
  */
-export const IDENTITY_MOBILE_VERSION = '1.1.1';
+/*
+ * 1.2.0: el artefacto deja de decidir sólo con el carnet.
+ *
+ * Tres piezas nuevas, y las tres responden al mismo agujero: el veredicto salía
+ * de UNA fuente —lo que el worker leyó en la foto— y una foto es exactamente lo
+ * que un suplantador puede conseguir. Ahora entran además:
+ *
+ * - la AUTENTICIDAD del documento medida por el worker (`fraudVerdict`), que es
+ *   otra pregunta que la lectura no contesta;
+ * - el REGISTRO ESTATAL (SEGIP), que es la única fuente que puede afirmar que el
+ *   número existe y corresponde a quien dice;
+ * - la AGENDA del teléfono, en agregados sin datos personales, que es lo que
+ *   distingue un teléfono de una persona de un terminal recién comprado para
+ *   abrir una cuenta.
+ *
+ * Ninguna de las tres puede aprobar por su cuenta y todas pueden escalar. Es
+ * deliberado: sumar fuentes tiene que endurecer la puerta, nunca abrirla.
+ */
+export const IDENTITY_MOBILE_VERSION = '1.2.0';
 
 /** Nodo que hace la llamada. Se nombra aquí porque lo referencian las intermedias. */
 const CALL_NODE = 'VERIFICAR_IDENTIDAD';
@@ -80,19 +98,76 @@ const MIN_PARECIDO = 0.82;
  */
 const MIN_EVIDENCIA = 0.7;
 
+/**
+ * Riesgo de la agenda por encima del cual el alta no se aprueba sola.
+ *
+ * El puntaje lo calcula el nodo `ANALIZAR_AGENDA` sobre cien, y 60 es donde se
+ * juntan al menos dos señales fuertes —una agenda diminuta y ninguna referencia
+ * dentro de ella, por ejemplo—. Una sola señal NUNCA llega: tener pocos
+ * contactos no es un delito, y con un umbral más bajo el producto empezaría a
+ * mandar a revisión a quien acaba de estrenar teléfono.
+ */
+const MAX_RIESGO_AGENDA = 60;
+
+/**
+ * Los estados del registro estatal que se consideran confirmación.
+ *
+ * `FOUND` es el único que afirma algo. `DATA_NOT_AVAILABLE` y
+ * `PROVIDER_UNAVAILABLE` NO son un rechazo —el registro no contestó, que no es
+ * lo mismo que contestar que no— y por eso van a revisión y no a la rama de
+ * rechazo. `NOT_FOUND` y `PARTIAL_MATCH` tampoco se rechazan solos: un
+ * homónimo, una tilde y un apellido compuesto producen coincidencias parciales
+ * sobre personas perfectamente reales, y cerrarle el producto a alguien por la
+ * ortografía de un registro ajeno es el falso positivo más caro de este flujo.
+ */
+const SEGIP_CONFIRMA = 'FOUND';
+
 export const IDENTITY_MOBILE_VARIABLES = {
   carnetFrente: 'identidad_carnet_frente_base64',
   carnetReverso: 'identidad_carnet_reverso_base64',
   selfie: 'identidad_selfie_base64',
   pais: 'identidad_pais_documento',
+  /*
+   * Lo que dice el REGISTRO ESTATAL sobre el número declarado.
+   *
+   * Lo consulta AtlasBackend contra SEGIP antes de pedir la decisión y lo pasa
+   * ya normalizado. No lo consulta el motor: el motor no tiene las credenciales
+   * del proveedor ni debe tenerlas, y una llamada a un tercero dentro del camino
+   * de decisión ataría cada verificación a la disponibilidad de ese tercero.
+   */
+  segipEstado: 'identidad_segip_estado',
+  segipCoincidencia: 'identidad_segip_coincidencia',
+  /*
+   * La AGENDA, en agregados y sin un solo dato personal.
+   *
+   * No entra ni un nombre, ni un teléfono, ni un hash reversible: entran seis
+   * números que describen la FORMA de la agenda. Es la diferencia entre analizar
+   * el riesgo de un alta y copiarse la libreta de direcciones de alguien, y es
+   * la única versión de esta señal que se puede defender ante quien la firma.
+   */
+  agendaDisponible: 'identidad_agenda_disponible',
+  agendaTotal: 'identidad_agenda_total',
+  agendaUnicosRatio: 'identidad_agenda_unicos_ratio',
+  agendaBoliviaRatio: 'identidad_agenda_bolivia_ratio',
+  agendaReferenciasPresentes: 'identidad_agenda_referencias_presentes',
+  agendaCoincidenciasRiesgo: 'identidad_agenda_coincidencias_riesgo',
   decision: 'identidad_resultado',
   motivo: 'identidad_motivo',
   parecido: 'identidad_parecido',
   evidencia: 'identidad_evidencia_documento',
+  fraude: 'identidad_riesgo_fraude',
+  riesgoAgenda: 'identidad_riesgo_agenda',
 } as const;
 
 const V = IDENTITY_MOBILE_VARIABLES;
-const OUTPUT_CODES = new Set<string>([V.decision, V.motivo, V.parecido, V.evidencia]);
+const OUTPUT_CODES = new Set<string>([
+  V.decision,
+  V.motivo,
+  V.parecido,
+  V.evidencia,
+  V.fraude,
+  V.riesgoAgenda,
+]);
 const PRIMARY_OUTPUT = V.decision;
 
 export function isIdentityMobileOutput(code: string): boolean {
@@ -161,6 +236,57 @@ export function buildIdentityMobileCompiled(
             defaultValue: 'UNKNOWN',
           },
           { intermediateCode: 'id_liveness', path: 'result.liveness', defaultValue: 'NOT_RUN' },
+          /*
+           * La AUTENTICIDAD del documento, que es otra pregunta que la lectura
+           * no contesta: el texto de una falsificación es el de un documento
+           * auténtico porque se copió de uno.
+           *
+           * El valor por defecto es `UNKNOWN` y no `CLEAR`, y ahí está toda la
+           * política: si la llamada no llegó a producir análisis, afirmar que el
+           * documento es auténtico sería afirmar algo que nadie comprobó. La
+           * condición de aprobación exige `CLEAR` explícito, así que un `UNKNOWN`
+           * cae por la arista por defecto y termina delante de una persona.
+           */
+          {
+            intermediateCode: 'id_fraude_veredicto',
+            path: 'result.fraudVerdict',
+            defaultValue: 'UNKNOWN',
+          },
+          { intermediateCode: 'id_fraude_riesgo', path: 'result.fraudRisk', defaultValue: 0 },
+        ],
+      },
+    }),
+    /*
+     * El análisis de la AGENDA, dentro del artefacto y no en el backend.
+     *
+     * Podría calcularse antes de llamar, y sería más cómodo. Se hace aquí por lo
+     * mismo que todo lo demás de este archivo: es POLÍTICA. Cuántos contactos son
+     * pocos, cuánto pesa que las referencias declaradas no estén en la agenda y
+     * a partir de qué puntaje deja de aprobarse solo son decisiones de negocio
+     * que cambian, y tienen que cambiar con versión, aprobación y traza en vez de
+     * con un despliegue de AtlasBackend.
+     *
+     * El nodo es de tipo SCORE para que el puntaje y QUÉ componentes se aplicaron
+     * queden en la traza de la ejecución. Un número sin sus componentes no se
+     * puede discutir, y este número puede mandar a una persona a revisar un caso.
+     *
+     * Escala de 0 a 100. Ninguna señal sola llega al umbral (60): tener pocos
+     * contactos no es un delito, y con una sola señal bastando el producto
+     * mandaría a revisión a quien acaba de estrenar teléfono.
+     */
+    node('ANALIZAR_AGENDA', 'SCORE', {
+      label: 'Analizar la agenda del teléfono',
+      config: {
+        description:
+          'Puntúa la forma de la agenda: tamaño, duplicados, arraigo local, si las referencias declaradas están dentro y si hay coincidencias con teléfonos ya marcados.',
+        baseScore: 0,
+        components: [
+          { conditionCode: 'AGENDA_NO_COMPARTIDA', points: 20 },
+          { conditionCode: 'AGENDA_MUY_PEQUENA', points: 30 },
+          { conditionCode: 'AGENDA_DUPLICADA', points: 15 },
+          { conditionCode: 'AGENDA_SIN_ARRAIGO', points: 20 },
+          { conditionCode: 'REFERENCIAS_FUERA_DE_AGENDA', points: 25 },
+          { conditionCode: 'AGENDA_CON_TELEFONOS_MARCADOS', points: 45 },
         ],
       },
     }),
@@ -201,6 +327,64 @@ export function buildIdentityMobileCompiled(
      * El SLA de 240 minutos es el mismo que el resto de identidad: un alta detenida
      * es una persona esperando, no un expediente en un cajón.
      */
+    /*
+     * La sospecha de fraude tiene COLA PROPIA, prioridad y motivo propios.
+     *
+     * Podría caer en `REVISAR` con todo lo demás y sería un error de producto: un
+     * caso que llega ahí porque la foto salió movida y uno que llega porque el
+     * documento parece falsificado necesitan analistas distintos, en tiempos
+     * distintos y con instrucciones distintas. Mezclarlos hace que el segundo
+     * espere detrás del primero, que es exactamente al revés de lo que conviene.
+     *
+     * SLA de 60 minutos frente a los 240 del resto, y prioridad 10 frente a 50.
+     * Nunca se rechaza automáticamente: acusar a alguien de falsificar un
+     * documento es una decisión con consecuencias legales, y la firma una
+     * persona.
+     */
+    node('REVISAR_FRAUDE', 'MANUAL_REVIEW', {
+      label: 'A revisión: sospecha de fraude documental',
+      terminal: true,
+      config: {
+        mode: 'MAPPING',
+        assignments: [
+          { outputCode: V.decision, source: 'LITERAL', value: 'REVISION_HUMANA' },
+          { outputCode: V.motivo, source: 'LITERAL', value: 'SOSPECHA_DE_FRAUDE' },
+          {
+            outputCode: V.parecido,
+            source: 'EXPRESSION',
+            expression: { var: 'intermediate.id_parecido' },
+          },
+          {
+            outputCode: V.evidencia,
+            source: 'EXPRESSION',
+            expression: { var: 'intermediate.id_evidencia' },
+          },
+          {
+            outputCode: V.fraude,
+            source: 'EXPRESSION',
+            expression: { var: 'intermediate.id_fraude_riesgo' },
+          },
+          {
+            outputCode: V.riesgoAgenda,
+            source: 'EXPRESSION',
+            expression: { op: 'div', left: { var: 'decision.score' }, right: { value: 100 } },
+          },
+        ],
+        queueCode: 'IDENTIDAD',
+        priority: 10,
+        slaMinutes: 60,
+        evidence: {
+          motivo: 'SOSPECHA_DE_FRAUDE',
+          veredictoDeFraude: '{{intermediate.id_fraude_veredicto}}',
+          riesgoDeFraude: '{{intermediate.id_fraude_riesgo}}',
+          tipoDocumento: '{{intermediate.id_tipo_documento}}',
+          parecido: '{{intermediate.id_parecido}}',
+          pruebaDeVida: '{{intermediate.id_liveness}}',
+          registroEstatal: '{{identidad_segip_estado}}',
+          riesgoDeAgenda: '{{decision.score}}',
+        },
+      },
+    }),
     node('REVISAR', 'MANUAL_REVIEW', {
       label: 'A revisión humana',
       terminal: true,
@@ -229,6 +413,16 @@ export function buildIdentityMobileCompiled(
             source: 'EXPRESSION',
             expression: { var: 'intermediate.id_evidencia' },
           },
+          {
+            outputCode: V.fraude,
+            source: 'EXPRESSION',
+            expression: { var: 'intermediate.id_fraude_riesgo' },
+          },
+          {
+            outputCode: V.riesgoAgenda,
+            source: 'EXPRESSION',
+            expression: { op: 'div', left: { var: 'decision.score' }, right: { value: 100 } },
+          },
         ],
         queueCode: 'IDENTIDAD',
         priority: 50,
@@ -244,6 +438,10 @@ export function buildIdentityMobileCompiled(
           tipoDocumento: '{{intermediate.id_tipo_documento}}',
           pruebaDeVida: '{{intermediate.id_liveness}}',
           decisionDelWorker: '{{intermediate.id_decision}}',
+          veredictoDeFraude: '{{intermediate.id_fraude_veredicto}}',
+          riesgoDeFraude: '{{intermediate.id_fraude_riesgo}}',
+          registroEstatal: '{{identidad_segip_estado}}',
+          riesgoDeAgenda: '{{decision.score}}',
         },
       },
     }),
@@ -251,7 +449,8 @@ export function buildIdentityMobileCompiled(
 
   const edges: GraphEdgeSnapshot[] = [
     edge('E_START', 'START', CALL_NODE, [], true),
-    edge('E_LLAMADA', CALL_NODE, 'EVALUAR', [], true),
+    edge('E_LLAMADA', CALL_NODE, 'ANALIZAR_AGENDA', [], true),
+    edge('E_AGENDA', 'ANALIZAR_AGENDA', 'EVALUAR', [], true),
     /*
      * El orden es la política, y no es intercambiable.
      *
@@ -280,8 +479,25 @@ export function buildIdentityMobileCompiled(
       false,
       2,
     ),
-    edge('E_APROBAR', 'EVALUAR', 'APROBAR', [{ code: 'IDENTIDAD_CONFIRMADA', order: 1 }], false, 3),
-    edge('E_REVISAR', 'EVALUAR', 'REVISAR', [], true, 4),
+    /*
+     * La sospecha de fraude se desvía ANTES de intentar aprobar.
+     *
+     * Su condición no puede alcanzar nunca a la de aprobación —`CLEAR` explícito
+     * es requisito para aprobar— así que el orden no cambia el resultado; cambia
+     * el MOTIVO y la cola. Sin esta arista, un documento sospechoso caería por la
+     * arista por defecto y llegaría a la bandeja general etiquetado como «hay que
+     * mirarlo», que es cierto y es inútil: no dice qué mirar.
+     */
+    edge(
+      'E_FRAUDE',
+      'EVALUAR',
+      'REVISAR_FRAUDE',
+      [{ code: 'SOSPECHA_DE_FRAUDE', order: 1 }],
+      false,
+      3,
+    ),
+    edge('E_APROBAR', 'EVALUAR', 'APROBAR', [{ code: 'IDENTIDAD_CONFIRMADA', order: 1 }], false, 4),
+    edge('E_REVISAR', 'EVALUAR', 'REVISAR', [], true, 5),
   ];
 
   const ref = (code: string): { code: string; variableVersionId: string } => ({
@@ -333,10 +549,76 @@ export function buildIdentityMobileCompiled(
       ),
       input(ref(V.selfie), 'STRING', {}, { sensitive: true, sensitivityClass: 'RESTRICTED' }),
       input(ref(V.pais), 'STRING', { maxLength: 2 }),
+      /*
+       * Las ocho entradas nuevas son OPCIONALES, y las ocho llevan un valor por
+       * defecto que empeora la decisión en vez de mejorarla.
+       *
+       * Opcionales porque un llamante que todavía no las manda —una versión
+       * anterior de AtlasBackend, una prueba, el laboratorio— tiene que poder
+       * seguir pidiendo una decisión. Con `FAIL_CLOSED` la ejecución entera se
+       * caería y el móvil vería UNAVAILABLE, que es peor que decidir con menos
+       * fuentes.
+       *
+       * Y el valor por defecto no es neutro: `NO_CONSULTADO` NO satisface la
+       * condición de aprobación —que exige `FOUND` explícito— y
+       * `agenda_disponible: false` suma sus veinte puntos. Omitir una entrada
+       * empuja el caso hacia la revisión humana, nunca hacia la aprobación, que
+       * es la única forma segura de que una entrada opcional lo sea.
+       */
+      input(
+        ref(V.segipEstado),
+        'STRING',
+        {},
+        { required: false, nullable: true, fallbackPolicy: 'DEFAULT_VALUE', defaultValue: 'NO_CONSULTADO' },
+      ),
+      input(
+        ref(V.segipCoincidencia),
+        'DECIMAL',
+        {},
+        { required: false, nullable: true, fallbackPolicy: 'DEFAULT_VALUE', defaultValue: 0 },
+      ),
+      input(
+        ref(V.agendaDisponible),
+        'BOOLEAN',
+        {},
+        { required: false, nullable: true, fallbackPolicy: 'DEFAULT_VALUE', defaultValue: false },
+      ),
+      input(
+        ref(V.agendaTotal),
+        'INTEGER',
+        {},
+        { required: false, nullable: true, fallbackPolicy: 'DEFAULT_VALUE', defaultValue: 0 },
+      ),
+      input(
+        ref(V.agendaUnicosRatio),
+        'DECIMAL',
+        {},
+        { required: false, nullable: true, fallbackPolicy: 'DEFAULT_VALUE', defaultValue: 0 },
+      ),
+      input(
+        ref(V.agendaBoliviaRatio),
+        'DECIMAL',
+        {},
+        { required: false, nullable: true, fallbackPolicy: 'DEFAULT_VALUE', defaultValue: 0 },
+      ),
+      input(
+        ref(V.agendaReferenciasPresentes),
+        'INTEGER',
+        {},
+        { required: false, nullable: true, fallbackPolicy: 'DEFAULT_VALUE', defaultValue: 0 },
+      ),
+      input(
+        ref(V.agendaCoincidenciasRiesgo),
+        'INTEGER',
+        {},
+        { required: false, nullable: true, fallbackPolicy: 'DEFAULT_VALUE', defaultValue: 0 },
+      ),
       output(ref(V.decision), 'STRING', 'OUTPUT_PRIMARY'),
       output(ref(V.motivo), 'STRING', 'OUTPUT'),
       output(ref(V.parecido), 'DECIMAL', 'OUTPUT'),
       output(ref(V.evidencia), 'DECIMAL', 'OUTPUT'),
+      output(ref(V.fraude), 'DECIMAL', 'OUTPUT'),
+      output(ref(V.riesgoAgenda), 'DECIMAL', 'OUTPUT'),
     ],
     intermediates: [
       intermediate('id_estado_llamada', 'Estado de la llamada al worker', 'STRING', CALL_NODE),
@@ -346,12 +628,16 @@ export function buildIdentityMobileCompiled(
       intermediate('id_evidencia', 'Evidencia de que la imagen es un carnet', 'DECIMAL', CALL_NODE),
       intermediate('id_tipo_documento', 'Tipo de documento reconocido', 'STRING', CALL_NODE),
       intermediate('id_liveness', 'Desenlace de la prueba de vida', 'STRING', CALL_NODE),
+      intermediate('id_fraude_veredicto', 'Autenticidad del documento', 'STRING', CALL_NODE),
+      intermediate('id_fraude_riesgo', 'Riesgo de fraude documental', 'DECIMAL', CALL_NODE),
     ],
     outputContract: [
       contractField(V.decision, 'Decisión de identidad', 'NODE', 'EVALUAR'),
       contractField(V.motivo, 'Motivo de la decisión', 'NODE', 'EVALUAR'),
       contractField(V.parecido, 'Parecido biométrico', 'INTERMEDIATE', 'id_parecido'),
       contractField(V.evidencia, 'Evidencia de documento', 'INTERMEDIATE', 'id_evidencia'),
+      contractField(V.fraude, 'Riesgo de fraude documental', 'INTERMEDIATE', 'id_fraude_riesgo'),
+      contractField(V.riesgoAgenda, 'Riesgo de la agenda', 'NODE', 'ANALIZAR_AGENDA'),
     ],
     startNodeKey: 'START',
     nodes: Object.fromEntries(nodes.map((entry) => [entry.key, entry])),
@@ -441,14 +727,199 @@ export function buildIdentityMobileCompiled(
               left: { var: 'intermediate.id_evidencia' },
               right: { value: MIN_EVIDENCIA },
             },
+            /*
+             * `CLEAR` EXPLÍCITO, y no «distinto de sospechoso».
+             *
+             * Es la diferencia entre exigir una prueba y aceptar su ausencia. El
+             * valor por defecto del intermedio es `UNKNOWN` —la llamada no llegó a
+             * producir análisis— y con `neq FRAUD_SUSPECTED` ese `UNKNOWN`
+             * aprobaría. Aquí no aprueba: cae por la arista por defecto y termina
+             * delante de una persona, que es lo que hay que hacer con un documento
+             * cuya autenticidad no se comprobó.
+             */
+            {
+              op: 'eq',
+              left: { var: 'intermediate.id_fraude_veredicto' },
+              right: { value: 'CLEAR' },
+            },
+            /*
+             * El registro estatal tiene que CONFIRMAR.
+             *
+             * Cualquier otro estado —no encontrado, coincidencia parcial, registro
+             * caído— manda el caso a una persona en vez de rechazarlo. Un homónimo,
+             * una tilde o un apellido compuesto producen coincidencias parciales
+             * sobre gente perfectamente real, y cerrarle el producto a alguien por
+             * la ortografía de un registro ajeno es el falso positivo más caro de
+             * este flujo.
+             */
+            {
+              op: 'eq',
+              left: { var: V.segipEstado },
+              right: { value: SEGIP_CONFIRMA },
+            },
+            {
+              op: 'lt',
+              left: { var: 'decision.score' },
+              right: { value: MAX_RIESGO_AGENDA },
+            },
           ],
         },
         severity: 'BLOCKING',
         reusable: false,
       },
+      /*
+       * La sospecha de fraude documental, tal como la firma el worker.
+       *
+       * Se enruta por el VEREDICTO y no por el riesgo numérico, aunque los dos
+       * viajen: el umbral que convierte un riesgo en sospecha vive en el worker,
+       * calibrado contra su propia población, y duplicarlo aquí crearía dos
+       * verdades que se separarían en el primer recalibrado. Lo que este artefacto
+       * decide es QUÉ HACER con la sospecha, que es su trabajo.
+       */
+      SOSPECHA_DE_FRAUDE: {
+        code: 'SOSPECHA_DE_FRAUDE',
+        name: 'El worker sospecha que el documento está falsificado',
+        expressionType: 'JSON_AST',
+        expression: {
+          op: 'eq',
+          left: { var: 'intermediate.id_fraude_veredicto' },
+          right: { value: 'FRAUD_SUSPECTED' },
+        },
+        severity: 'BLOCKING',
+        reusable: false,
+      },
+
+      /*
+       * ── Los seis componentes del análisis de la agenda ──────────────────
+       *
+       * Cada uno describe UNA forma de agenda que se ve en las altas
+       * fraudulentas, y ninguno acusa por su cuenta: los puntos están puestos
+       * para que hagan falta dos para llegar al umbral. La justificación de cada
+       * peso va en su propio comentario, porque un puntaje sin justificación se
+       * acaba moviendo hasta que pase el caso que molestó ese día.
+       */
+      AGENDA_NO_COMPARTIDA: {
+        code: 'AGENDA_NO_COMPARTIDA',
+        name: 'La persona no compartió su agenda',
+        expressionType: 'JSON_AST',
+        /*
+         * No compartirla NO es una señal de fraude: es un permiso que se puede
+         * negar, y negarlo es legítimo. Suma 20 —un tercio del umbral, imposible
+         * de alcanzar sola— porque lo que hay es MENOS EVIDENCIA, no evidencia en
+         * contra. Puntuarlo alto convertiría un derecho en una penalización y
+         * empujaría a la app a pedir el permiso de formas que no debería.
+         */
+        expression: { op: 'eq', left: { var: V.agendaDisponible }, right: { value: false } },
+        severity: 'ADVISORY',
+        reusable: false,
+      },
+      AGENDA_MUY_PEQUENA: {
+        code: 'AGENDA_MUY_PEQUENA',
+        name: 'La agenda tiene muy pocos contactos',
+        expressionType: 'JSON_AST',
+        /*
+         * Quince contactos. Un teléfono comprado para abrir una cuenta tiene los
+         * de la operadora y poco más; uno de una persona que vive con él tiene
+         * decenas. El corte va bajo a propósito: hay gente que estrena teléfono y
+         * no restaura la copia, y por eso esto solo no llega al umbral.
+         */
+        expression: {
+          op: 'and',
+          args: [
+            { op: 'eq', left: { var: V.agendaDisponible }, right: { value: true } },
+            { op: 'lt', left: { var: V.agendaTotal }, right: { value: 15 } },
+          ],
+        },
+        severity: 'ADVISORY',
+        reusable: false,
+      },
+      AGENDA_DUPLICADA: {
+        code: 'AGENDA_DUPLICADA',
+        name: 'La agenda repite los mismos números',
+        expressionType: 'JSON_AST',
+        /*
+         * Menos del 60 % de números distintos. Una agenda inflada a mano para
+         * parecer usada repite el mismo número con nombres distintos; una agenda
+         * real duplica algo —el trabajo y el móvil de la misma persona— pero no
+         * cuatro de cada diez.
+         */
+        expression: {
+          op: 'and',
+          args: [
+            { op: 'eq', left: { var: V.agendaDisponible }, right: { value: true } },
+            { op: 'lt', left: { var: V.agendaUnicosRatio }, right: { value: 0.6 } },
+          ],
+        },
+        severity: 'ADVISORY',
+        reusable: false,
+      },
+      AGENDA_SIN_ARRAIGO: {
+        code: 'AGENDA_SIN_ARRAIGO',
+        name: 'Casi ningún contacto es boliviano',
+        expressionType: 'JSON_AST',
+        /*
+         * Menos del 30 % de números con prefijo boliviano en un alta de un
+         * producto que sólo opera en Bolivia. No prueba nada por sí solo —hay
+         * residentes extranjeros con la agenda de su país— y por eso suma 20; lo
+         * que hace es reforzar a las otras cuando aparecen juntas.
+         */
+        expression: {
+          op: 'and',
+          args: [
+            { op: 'eq', left: { var: V.agendaDisponible }, right: { value: true } },
+            { op: 'lt', left: { var: V.agendaBoliviaRatio }, right: { value: 0.3 } },
+          ],
+        },
+        severity: 'ADVISORY',
+        reusable: false,
+      },
+      REFERENCIAS_FUERA_DE_AGENDA: {
+        code: 'REFERENCIAS_FUERA_DE_AGENDA',
+        name: 'Ninguna referencia declarada está en la agenda',
+        expressionType: 'JSON_AST',
+        /*
+         * La señal más informativa de las seis, y la que justifica pedir la
+         * agenda.
+         *
+         * Quien declara como referencias a dos personas cuyos teléfonos NO tiene
+         * guardados está declarando a gente con la que no habla. En un alta
+         * legítima ocurre —se teclea el número de memoria y sale con un dígito
+         * cambiado— y por eso suma 25 y no más: hace falta una segunda señal.
+         */
+        expression: {
+          op: 'and',
+          args: [
+            { op: 'eq', left: { var: V.agendaDisponible }, right: { value: true } },
+            { op: 'eq', left: { var: V.agendaReferenciasPresentes }, right: { value: 0 } },
+          ],
+        },
+        severity: 'ADVISORY',
+        reusable: false,
+      },
+      AGENDA_CON_TELEFONOS_MARCADOS: {
+        code: 'AGENDA_CON_TELEFONOS_MARCADOS',
+        name: 'La agenda contiene teléfonos ya marcados por riesgo',
+        expressionType: 'JSON_AST',
+        /*
+         * 45 puntos: es la única que se acerca sola al umbral, y aun así no lo
+         * cruza. La coincidencia la calcula AtlasBackend contra sus propios
+         * expedientes —nunca contra una lista comprada— y una coincidencia sola
+         * puede ser el vecino de alguien. Dos, o una con cualquier otra señal, ya
+         * merece que lo mire una persona.
+         */
+        expression: {
+          op: 'and',
+          args: [
+            { op: 'eq', left: { var: V.agendaDisponible }, right: { value: true } },
+            { op: 'gte', left: { var: V.agendaCoincidenciasRiesgo }, right: { value: 1 } },
+          ],
+        },
+        severity: 'ADVISORY',
+        reusable: false,
+      },
     },
     actions: {},
-    totals: { nodes: nodes.length, edges: edges.length, terminalPaths: 4 },
+    totals: { nodes: nodes.length, edges: edges.length, terminalPaths: 5 },
   };
 }
 
@@ -573,6 +1044,24 @@ function resultNode(
           outputCode: V.evidencia,
           source: 'EXPRESSION',
           expression: { var: 'intermediate.id_evidencia' },
+        },
+        {
+          outputCode: V.fraude,
+          source: 'EXPRESSION',
+          expression: { var: 'intermediate.id_fraude_riesgo' },
+        },
+        /*
+         * El puntaje de la agenda se publica NORMALIZADO a `[0, 1]`.
+         *
+         * El nodo SCORE trabaja sobre cien porque es la escala en la que se
+         * escriben y se discuten los componentes; la salida del artefacto va en
+         * la misma escala que los otros dos riesgos que publica, para que quien
+         * la lea no tenga que recordar cuál de los tres estaba en porcentaje.
+         */
+        {
+          outputCode: V.riesgoAgenda,
+          source: 'EXPRESSION',
+          expression: { op: 'div', left: { var: 'decision.score' }, right: { value: 100 } },
         },
       ],
     },
