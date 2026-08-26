@@ -406,6 +406,11 @@ enum StatementReviewReason {
   OCR_ERROR
   /// Alguien lo mandó a revisar a mano. Es el único motivo que no calcula el motor.
   MANUAL_REQUEST
+  /// Hay indicios de que el archivo se tocó después de emitirse y ninguno es
+  /// concluyente. Es la franja donde vive el «Guardar como PDF» del navegador:
+  /// rechazarlo castigaría a clientes honestos, aceptarlo sería mirar a otro
+  /// lado.
+  SUSPECTED_TAMPERING
 }
 
 /// Por qué se rechazó un documento. Los cinco son afirmaciones sobre el ARCHIVO
@@ -422,6 +427,21 @@ enum StatementRejectionReason {
   CORRUPTED_PDF
   /// El PDF se abre y no se puede leer: cifrado o protegido por contraseña.
   UNREADABLE_DOCUMENT
+  /// El contenedor demuestra que el archivo se compuso o se editó con otro
+  /// programa: no es el PDF que emitió el banco. Se separa de
+  /// `NOT_BANK_STATEMENT` porque la acción del cliente es distinta —ahí hay que
+  /// subir otro documento; aquí hay que subir el MISMO documento sin editar— y
+  /// porque es el único motivo de esta lista que mide un intento, no un error.
+  TAMPERED_DOCUMENT
+  /// El PDF lleva JavaScript, acciones de lanzamiento o archivos incrustados.
+  /// No se abre nunca: no es un extracto dudoso, es un archivo que no debe
+  /// llegar al escritorio de nadie.
+  ACTIVE_CONTENT
+  /// El extracto es legítimo y no cubre los meses completos que exige la
+  /// política de capacidad de pago. Ninguna revisión humana rellena los meses
+  /// que faltan, así que la única acción que mueve el caso la tiene quien subió
+  /// el archivo.
+  INSUFFICIENT_PERIOD
 }
 
 /// Tipo de entidad de intermediación financiera, con la clasificación que usa
@@ -2604,6 +2624,26 @@ model BankStatementRun {
   institutionId          String?  @map("institution_id") @db.VarChar(16)
   transactionCount       Int?     @map("transaction_count")
 
+  /// La capacidad de pago completa, tal como la calculó el motor.
+  affordabilityJson        Json?    @map("affordability_json")
+  /// Las cifras por las que se FILTRA y se ORDENA la cola, subidas a columnas.
+  ///
+  /// Están duplicadas respecto de `affordability_json` a propósito, y es la misma
+  /// razón por la que `confidence` no vive dentro de `result_json`: una pantalla
+  /// que pregunta «enséñame los que no llegan a tres meses» sobre un JSON obliga
+  /// a leer y deserializar cada fila para descartarla, y esta tabla guarda una
+  /// por documento subido.
+  monthsComplete           Int?     @map("months_complete") @db.SmallInt
+  affordabilityScore       Int?     @map("affordability_score") @db.SmallInt
+  affordabilityBand        String?  @map("affordability_band") @db.VarChar(16)
+  monthlyIncome            Decimal? @map("monthly_income") @db.Decimal(18, 2)
+  monthlyObligations       Decimal? @map("monthly_obligations") @db.Decimal(18, 2)
+  maxAffordableInstallment Decimal? @map("max_affordable_installment") @db.Decimal(18, 2)
+  /// El veredicto del contenedor. Se guarda incluso cuando es limpio: una traza
+  /// que sólo conserva los rechazos no permite responder «¿esto se comprobó?».
+  authenticityVerdict      String?  @map("authenticity_verdict") @db.VarChar(16)
+  authenticityScore        Int?     @map("authenticity_score") @db.SmallInt
+
   errorCode    String? @map("error_code") @db.VarChar(120)
   errorMessage String? @map("error_message") @db.Text
 
@@ -2646,6 +2686,7 @@ model BankStatementRun {
   /// de eso por motivo (la pestaña elegida), y ordenado por prioridad y
   /// antigüedad. Sin él, cada pestaña recorre la tabla entera para contar.
   @@index([tenantId, status, reviewReason, reviewPriority, reviewOpenedAt])
+  @@index([tenantId, affordabilityBand], map: "decision_bank_statement_run_affordability_idx")
   @@map("decision_bank_statement_run")
 }
 
@@ -2685,6 +2726,33 @@ model FinancialInstitution {
 
   /// Por qué la licencia no está vigente, cuando no lo está.
   note String? @db.Text
+
+  /// Sitio oficial de la entidad. Es de donde sale el logotipo y es lo que
+  /// permite volver a descargarlo cuando la marca cambia.
+  website String? @map("website") @db.VarChar(200)
+
+  /// El logotipo, guardado como BYTES y no como una URL a la web del banco.
+  ///
+  /// Una URL externa haría que el padrón del motor dependa de que el sitio de
+  /// cada entidad siga en pie y no mueva sus rutas: el día que un banco rehace
+  /// su web, la pantalla de entidades del portal se llena de imágenes rotas y
+  /// parece que el padrón está mal. Además obligaría al navegador de quien
+  /// administra el padrón a pedir recursos a sesenta y siete dominios ajenos,
+  /// que es una fuga de comportamiento hacia fuera por un adorno.
+  ///
+  /// Se sirve por un endpoint propio, autenticado como todo lo demás.
+  logoData        Bytes?    @map("logo_data")
+  logoContentType String?   @map("logo_content_type") @db.VarChar(80)
+  /// De dónde salió: `DOWNLOADED` de la web oficial, `GENERATED` cuando no había
+  /// ninguno publicado y el motor compuso un monograma, `UPLOADED` cuando lo
+  /// cargó una persona. No es adorno: distingue «éste es el logotipo del banco»
+  /// de «esto es un marcador de posición», y sin la distinción alguien acabaría
+  /// creyendo que el monograma ES la marca.
+  logoSource      String?   @map("logo_source") @db.VarChar(16)
+  /// La URL exacta de la que se descargó, para poder rehacerlo y para citar la
+  /// fuente.
+  logoSourceUrl   String?   @map("logo_source_url") @db.VarChar(500)
+  logoUpdatedAt   DateTime? @map("logo_updated_at") @db.Timestamptz(6)
 
   /// Baja lógica. La fila no se borra porque las ejecuciones ya hechas citan el
   /// código con el que se atribuyó el documento, y una traza que apunte al vacío

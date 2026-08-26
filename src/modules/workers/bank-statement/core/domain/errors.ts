@@ -15,6 +15,14 @@ export type StatementErrorCode =
   | 'UNLICENSED_INSTITUTION'
   | 'UNSUPPORTED_INSTITUTION'
   | 'UNSUPPORTED_STATEMENT_FORMAT'
+  /** El contenedor demuestra que el archivo se compuso o se editó con otro programa. */
+  | 'TAMPERED_DOCUMENT'
+  /** Hay indicios de edición y ninguno concluyente: lo mira una persona. */
+  | 'SUSPECTED_TAMPERING'
+  /** El PDF lleva JavaScript, acciones de lanzamiento o archivos incrustados. */
+  | 'ACTIVE_CONTENT_IN_DOCUMENT'
+  /** El extracto no cubre los meses completos que exige la política. */
+  | 'INSUFFICIENT_STATEMENT_PERIOD'
   | 'NO_TRANSACTIONS'
   | 'PDF_EXTRACTION_FAILED'
   | 'PDF_TOO_COMPLEX'
@@ -73,6 +81,30 @@ const DEFAULT_DISPOSITION: Readonly<Record<StatementErrorCode, StatementDisposit
   NON_BANKING_ISSUER: 'INVALID',
   UNRECOGNIZED_ISSUER: 'INVALID',
   /*
+   * Los tres del CONTENEDOR. Se rechazan y no se encolan, y el motivo es el
+   * mismo que en `NON_BANKING_ISSUER`: la evidencia es POSITIVA y está en el
+   * archivo, no en su interpretación. Preguntarle a un analista si un PDF
+   * producido con Photoshop es el que emitió el banco sería pedirle que
+   * confirme lo que el archivo declara de sí mismo — y encima con el documento
+   * delante, donde no se ve nada raro: la manipulación vive en la estructura,
+   * no en la página.
+   *
+   * `ACTIVE_CONTENT_IN_DOCUMENT` además no se abre NUNCA: un PDF con JavaScript
+   * incrustado no es un extracto dudoso, es un archivo que no debe llegar al
+   * escritorio de nadie.
+   */
+  TAMPERED_DOCUMENT: 'INVALID',
+  ACTIVE_CONTENT_IN_DOCUMENT: 'INVALID',
+  /*
+   * La cobertura insuficiente se RECHAZA y no se revisa, y es la más discutible
+   * de la tabla. Va aquí porque la acción que resuelve el caso sólo la puede
+   * hacer quien subió el archivo —volver a su banca por internet y pedir el
+   * periodo de tres meses—, y porque ningún analista puede suplir con criterio
+   * los meses que faltan: no es una duda sobre el documento, es una ausencia de
+   * datos que ninguna revisión rellena.
+   */
+  INSUFFICIENT_STATEMENT_PERIOD: 'INVALID',
+  /*
    * Un PDF que pdf.js no consigue abrir, o que pide contraseña, se RECHAZA y no
    * se encola. Es la corrección menos obvia de esta tabla y la que más cola
    * ahorra: mandarlo a revisión pone delante de una persona un archivo que
@@ -91,6 +123,14 @@ const DEFAULT_DISPOSITION: Readonly<Record<StatementErrorCode, StatementDisposit
    * opera, y eso no lo puede resolver quien subió el archivo.
    */
   UNLICENSED_INSTITUTION: 'REVIEW',
+  /*
+   * La sospecha SÍ va a la cola. Es la franja donde vive el «Guardar como PDF»
+   * del navegador y el archivo con una revisión incremental: rechazarlos
+   * castigaría a clientes honestos por la costumbre de su banco, y aceptarlos
+   * sería mirar para otro lado. Es exactamente el caso para el que existe la
+   * revisión humana.
+   */
+  SUSPECTED_TAMPERING: 'REVIEW',
   UNSUPPORTED_INSTITUTION: 'REVIEW',
   UNSUPPORTED_STATEMENT_FORMAT: 'REVIEW',
   NO_TRANSACTIONS: 'REVIEW',

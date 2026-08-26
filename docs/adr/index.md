@@ -19,6 +19,7 @@ alguien entienda por qué algo es como es antes de «simplificarlo».
 | [ADR-0029](ADR-0029-polyglot-persistence-read-write.md) | Persistencia desacoplada con rutas de lectura y escritura | Aceptado |
 | [ADR-0030](ADR-0030-identity-verification-worker.md) | Worker de verificación de identidad | Aceptado |
 | [ADR-0031](ADR-0031-pdf-generator-worker.md) | Generador documental como worker desacoplado | Aceptado |
+| [ADR-0032](ADR-0032-statement-admission-and-affordability.md) | Admisión del extracto y capacidad de pago sobre tres meses | Aceptado |
 
 ## Decisiones estructurales documentadas fuera de un ADR
 

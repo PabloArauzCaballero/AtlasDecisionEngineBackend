@@ -104,4 +104,51 @@ export class UpsertFinancialInstitutionDto {
   @IsString()
   @MaxLength(1_000)
   note?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Sitio oficial de la entidad. Es de donde se descarga el logotipo y lo que permite rehacerlo cuando la marca cambia.',
+    example: 'https://www.bnb.com.bo',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  website?: string;
+}
+
+/**
+ * El logotipo que se carga a mano sobre una entidad.
+ *
+ * Llega en base64 y no como `multipart/form-data` porque es la ÚNICA carga de
+ * archivo de esta superficie y montar un interceptor de ficheros para una imagen
+ * de 256 KiB añade una ruta de subida —con su tamaño, su tipo y su temporal— que
+ * después hay que vigilar. El tope está en el servicio, que es donde se puede
+ * explicar.
+ */
+export class UploadInstitutionLogoDto {
+  @ApiProperty({
+    description: 'La imagen en base64. Se admite el prefijo `data:` y se ignora.',
+  })
+  @IsString()
+  @MaxLength(400_000, {
+    message:
+      'El logotipo excede el tope. En base64 los bytes crecen un tercio, así que 256 KiB de imagen son unos 350.000 caracteres.',
+  })
+  base64!: string;
+
+  @ApiProperty({
+    description: 'Tipo de la imagen. Sólo `image/svg+xml`, `image/png` o `image/jpeg`.',
+    example: 'image/png',
+  })
+  @IsString()
+  @MaxLength(80)
+  contentType!: string;
+
+  @ApiPropertyOptional({
+    description: 'De dónde salió, para poder citarlo y volver a descargarlo.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  sourceUrl?: string;
 }

@@ -20,6 +20,7 @@ import {
   APP_ATTRIBUTES,
   MESSAGING_SYSTEM,
 } from '../../../common/observability/telemetry.constants';
+import type { NormalizedBankStatement } from './core/engine/normalized/normalized-model';
 
 /**
  * Worker de conversión de extractos bancarios.
@@ -209,6 +210,15 @@ export class BankStatementRunWorkerService implements OnModuleInit, OnModuleDest
         return;
       }
 
+      /*
+       * El padrón del tenant, cargado ANTES de analizar y sólo la primera vez.
+       *
+       * Sin esto, el primer documento de cada proceso encuentra el padrón sin cargar, la compuerta
+       * de emisor lo toma —correctamente— como «no pude comprobar la licencia» y lo manda a la cola
+       * con un motivo que apunta a la entidad. Se curaba solo en el siguiente documento, que es lo
+       * que hacía imposible diagnosticarlo: pasaba una vez por despliegue y no volvía.
+       */
+      await this.institutions.ensureLoaded(run.tenantId);
       await this.setProgress(runId, 25);
       // El `correlationId` viaja al motor para que sus trazas se puedan unir a
       // la petición que originó la conversión. El motor lo sanea antes de
@@ -238,6 +248,7 @@ export class BankStatementRunWorkerService implements OnModuleInit, OnModuleDest
           documentTypeConfidence: normalized.quality.documentConfidence,
           institutionId: normalized.institution.id,
           transactionCount: normalized.transactions.length,
+          ...affordabilityColumns(normalized),
           leaseExpiresAt: null,
         },
       });
@@ -554,4 +565,41 @@ function describeError(error: unknown): string {
 interface ClaimedRun {
   readonly id: bigint;
   readonly trace_carrier: unknown;
+}
+
+/**
+ * Las columnas de capacidad de pago que acompañan al resultado.
+ *
+ * Se escriben con la MISMA sentencia que el resultado, y no en un segundo
+ * `update`: dos escrituras dejarían un instante en el que la ejecución publica
+ * movimientos sin la evaluación que los interpreta, y una pantalla que lea justo
+ * ahí enseñaría un extracto aceptado con capacidad cero — que se lee como un
+ * rechazo y no lo es.
+ *
+ * `affordabilityJson` guarda la evaluación entera y las demás columnas repiten
+ * lo que se filtra y se ordena. La duplicación es deliberada; ver el modelo.
+ */
+function affordabilityColumns(
+  normalized: NormalizedBankStatement,
+): Prisma.BankStatementRunUpdateInput {
+  const affordability = normalized.affordability;
+  return {
+    affordabilityJson: affordability as unknown as Prisma.InputJsonValue,
+    monthsComplete: affordability.coverage.monthsComplete,
+    /*
+     * Puntaje y banda sólo cuando la evaluación es ELEGIBLE. Un extracto que no
+     * llega a los meses mínimos no tiene capacidad de pago «cero»: no tiene
+     * capacidad de pago medida, y escribir 0 en la columna por la que después se
+     * ordena convertiría una ausencia de dato en la peor calificación posible.
+     */
+    affordabilityScore: affordability.eligible ? affordability.score : null,
+    affordabilityBand: affordability.eligible ? affordability.band : null,
+    monthlyIncome: affordability.eligible ? affordability.income.monthlyRecognized : null,
+    monthlyObligations: affordability.eligible ? affordability.obligations.monthly : null,
+    maxAffordableInstallment: affordability.eligible
+      ? affordability.capacity.maxAffordableInstallment
+      : null,
+    authenticityVerdict: normalized.authenticity.verdict,
+    authenticityScore: normalized.authenticity.suspicionScore,
+  };
 }

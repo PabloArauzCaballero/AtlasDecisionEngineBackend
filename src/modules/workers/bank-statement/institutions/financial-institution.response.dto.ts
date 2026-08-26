@@ -15,6 +15,26 @@ export class FinancialInstitutionDto {
   @ApiProperty({ type: [String] }) markers!: string[];
   @ApiProperty({ type: [String] }) exclusions!: string[];
   @ApiPropertyOptional({ nullable: true }) note!: string | null;
+  @ApiPropertyOptional({ nullable: true }) website!: string | null;
+
+  /*
+   * El logotipo se anuncia, no se incrusta. Sesenta y ocho imágenes en base64
+   * dentro del listado serían varios megabytes de JSON para pintar una tabla; la
+   * imagen se pide por su propia ruta, que además el navegador cachea.
+   */
+  @ApiProperty({ description: 'Si la entidad tiene logotipo cargado.' })
+  hasLogo!: boolean;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'De dónde salió: DOWNLOADED del sitio oficial, GENERATED cuando el motor compuso un monograma con la sigla, UPLOADED cuando lo cargó una persona. Un monograma NO es la marca de la entidad y la pantalla debe decirlo.',
+  })
+  logoSource!: string | null;
+
+  @ApiPropertyOptional({ nullable: true }) logoSourceUrl!: string | null;
+  @ApiPropertyOptional({ nullable: true }) logoUpdatedAt!: string | null;
+
   @ApiProperty() isActive!: boolean;
   @ApiProperty() updatedAt!: string;
   @ApiPropertyOptional({ nullable: true }) updatedBy!: string | null;
@@ -60,6 +80,31 @@ export class FinancialInstitutionSeedSummaryDto {
 
   @ApiProperty({ description: 'Siglas creadas, o que se crearían con dryRun.', type: [String] })
   created!: string[];
+
+  @ApiProperty({ description: 'Si fue un ensayo: nada se escribió.' })
+  dryRun!: boolean;
+}
+
+/**
+ * Lo que dejó —o dejaría— una carga de logotipos.
+ *
+ * Publica por separado los DESCARGADOS y los GENERADOS porque son afirmaciones
+ * distintas: quince entidades de la nómina publican un logotipo utilizable y las
+ * demás llevan un monograma con su sigla. Enseñar sólo el total haría creer que
+ * el padrón tiene sesenta y ocho marcas cargadas.
+ */
+export class InstitutionLogoSyncDto {
+  @ApiProperty({ description: 'Logotipos que trae el motor.' })
+  available!: number;
+
+  @ApiProperty({ description: 'De ellos, descargados del sitio oficial de la entidad.' })
+  downloaded!: number;
+
+  @ApiProperty({ description: 'De ellos, monogramas compuestos con la sigla ASFI.' })
+  generated!: number;
+
+  @ApiProperty({ description: 'Siglas a las que se les cargó el logotipo.', type: [String] })
+  applied!: string[];
 
   @ApiProperty({ description: 'Si fue un ensayo: nada se escribió.' })
   dryRun!: boolean;

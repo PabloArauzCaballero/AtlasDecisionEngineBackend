@@ -1,12 +1,29 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query } from '@nestjs/common';
-import { ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpStatus,
+  Param,
+  Post,
+  Put,
+  Query,
+  Res,
+} from '@nestjs/common';
+import { ApiOkResponse, ApiOperation, ApiProduces, ApiQuery, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
+import { DomainException } from '../../../../common/errors/domain-exception';
 import { CurrentPrincipal, Roles, TenantId } from '../../../../common/security/security.decorators';
 import type { AuthenticatedPrincipal } from '../../../../common/security/security.types';
-import { UpsertFinancialInstitutionDto } from './financial-institution.dto';
+import {
+  UploadInstitutionLogoDto,
+  UpsertFinancialInstitutionDto,
+} from './financial-institution.dto';
 import {
   FinancialInstitutionDto,
   FinancialInstitutionSeedSummaryDto,
   FinancialInstitutionSummaryDto,
+  InstitutionLogoSyncDto,
 } from './financial-institution.response.dto';
 import { FinancialInstitutionService } from './financial-institution.service';
 
@@ -103,6 +120,92 @@ export class FinancialInstitutionController {
     @Param('code') code: string,
   ) {
     return this.institutions.reactivate(tenantId, code, principal.id);
+  }
+
+  // -------------------------------------------------------------- logotipos
+
+  /**
+   * El logotipo de una entidad, como imagen.
+   *
+   * Va por su propia ruta y no dentro del listado: sesenta y ocho imágenes en
+   * base64 serían varios megabytes de JSON para pintar una tabla, y así el
+   * navegador puede cachear cada una por separado.
+   *
+   * Lo puede leer quien opera. Es la misma audiencia que el listado del padrón —
+   * la pantalla que explica por qué se rechazó un documento enseña de qué
+   * entidad hablaba— y una imagen sin datos personales dentro.
+   */
+  @Get(':code/logo')
+  @ApiOperation({ summary: 'Logotipo de una entidad' })
+  @ApiProduces('image/svg+xml', 'image/png', 'image/jpeg')
+  @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST', 'OPERATIONS')
+  async logo(
+    @TenantId() tenantId: bigint,
+    @Param('code') code: string,
+    @Res() response: Response,
+  ): Promise<void> {
+    const logo = await this.institutions.logo(tenantId, code);
+    if (!logo) {
+      throw new DomainException(
+        'INSTITUTION_LOGO_NOT_FOUND',
+        `La entidad ${code} no tiene logotipo cargado.`,
+        HttpStatus.NOT_FOUND,
+        { code },
+      );
+    }
+    /*
+     * `nosniff` y `Content-Disposition: inline` con nombre propio: el logotipo lo
+     * pudo cargar una persona, se sirve desde el mismo origen que el portal, y
+     * sin la cabecera un navegador que decida por su cuenta que el archivo es
+     * HTML lo ejecutaría con la sesión de quien administra el padrón. El SVG ya
+     * se comprueba al escribirlo; esto es la segunda cerradura.
+     */
+    response.setHeader('Content-Type', logo.contentType);
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+    response.setHeader('Content-Disposition', `inline; filename="${code}"`);
+    response.setHeader('Cache-Control', 'private, max-age=300');
+    response.status(HttpStatus.OK).send(logo.data);
+  }
+
+  @Put(':code/logo')
+  @ApiOperation({ summary: 'Carga el logotipo de una entidad' })
+  @ApiOkResponse({ description: 'Entidad con su logotipo.', type: FinancialInstitutionDto })
+  @Roles('RISK_ANALYST', 'FRAUD_ANALYST')
+  setLogo(
+    @TenantId() tenantId: bigint,
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('code') code: string,
+    @Body() dto: UploadInstitutionLogoDto,
+  ) {
+    return this.institutions.setLogo(tenantId, code, dto, principal.id);
+  }
+
+  @Delete(':code/logo')
+  @ApiOperation({ summary: 'Quita el logotipo de una entidad' })
+  @ApiOkResponse({ description: 'Entidad sin logotipo.', type: FinancialInstitutionDto })
+  @Roles('RISK_ANALYST', 'FRAUD_ANALYST')
+  removeLogo(
+    @TenantId() tenantId: bigint,
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('code') code: string,
+  ) {
+    return this.institutions.removeLogo(tenantId, code, principal.id);
+  }
+
+  @Post('logos/sync')
+  @ApiOperation({
+    summary: 'Carga los logotipos que trae el motor en las entidades que no tengan ninguno',
+    description:
+      'Nunca pisa un logotipo cargado a mano. Con dryRun responde qué haría sin escribir.',
+  })
+  @ApiOkResponse({ description: 'Resumen de la carga.', type: InstitutionLogoSyncDto })
+  @Roles('RISK_ANALYST', 'FRAUD_ANALYST')
+  syncLogos(
+    @TenantId() tenantId: bigint,
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() body: { dryRun?: boolean },
+  ) {
+    return this.institutions.syncLogos(tenantId, body?.dryRun === true, principal.id);
   }
 
   @Post('seed')

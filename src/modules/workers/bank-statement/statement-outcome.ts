@@ -54,6 +54,19 @@ const REJECTION_BY_CODE: Readonly<Record<string, StatementRejectionReason>> = {
   UNRECOGNIZED_ISSUER: StatementRejectionReason.NOT_BANK_STATEMENT,
   PDF_EXTRACTION_FAILED: StatementRejectionReason.CORRUPTED_PDF,
   ENCRYPTED_PDF: StatementRejectionReason.UNREADABLE_DOCUMENT,
+  /*
+   * Los tres de ADMISIÓN sí tienen motivo propio, al revés que los del emisor.
+   *
+   * La regla que gobierna esta tabla es «un motivo por cada ACCIÓN distinta del
+   * cliente», y aquí son tres acciones distintas: subir otro documento, subir el
+   * mismo sin editarlo, y subir el mismo con más meses. Colapsarlos en
+   * `NOT_BANK_STATEMENT` le diría a quien manipuló un extracto que su archivo no
+   * era un extracto —cuando lo era— y a quien subió un mes que consiga otro
+   * documento —cuando el suyo servía—.
+   */
+  TAMPERED_DOCUMENT: StatementRejectionReason.TAMPERED_DOCUMENT,
+  ACTIVE_CONTENT_IN_DOCUMENT: StatementRejectionReason.ACTIVE_CONTENT,
+  INSUFFICIENT_STATEMENT_PERIOD: StatementRejectionReason.INSUFFICIENT_PERIOD,
 };
 
 /** Por qué se deriva a una persona cada código. */
@@ -65,6 +78,7 @@ const REVIEW_BY_CODE: Readonly<Record<string, StatementReviewReason>> = {
   NO_TRANSACTIONS: StatementReviewReason.PARTIAL_EXTRACTION,
   SCANNED_PDF_UNSUPPORTED: StatementReviewReason.OCR_ERROR,
   PDF_PROCESSING_TIMEOUT: StatementReviewReason.TIMEOUT,
+  SUSPECTED_TAMPERING: StatementReviewReason.SUSPECTED_TAMPERING,
 };
 
 /**
@@ -78,6 +92,14 @@ const REVIEW_BY_CODE: Readonly<Record<string, StatementReviewReason>> = {
 const PRIORITY_BY_REASON: Readonly<Record<StatementReviewReason, number>> = {
   [StatementReviewReason.TIMEOUT]: 1,
   [StatementReviewReason.AMBIGUOUS_DATA]: 1,
+  /*
+   * La sospecha de manipulación entra ARRIBA, y es el único motivo de la lista
+   * que sube por lo que cuesta acertar y no por quién está esperando. Un
+   * documento con indicios que se queda dos días en la cola se acaba aprobando
+   * por antigüedad —«lleva mucho, será que está bien»—, que es exactamente la
+   * forma en que una cola de fraude deja de servir para nada.
+   */
+  [StatementReviewReason.SUSPECTED_TAMPERING]: 1,
   [StatementReviewReason.LOW_CONFIDENCE]: 2,
   [StatementReviewReason.PARTIAL_EXTRACTION]: 2,
   [StatementReviewReason.OCR_ERROR]: 2,

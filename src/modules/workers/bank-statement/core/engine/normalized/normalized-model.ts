@@ -1,5 +1,6 @@
 import type { ExtractionMethod } from '../statement-context';
 import type { ConfidenceBand } from '../quality/confidence';
+import type { AffordabilityAssessment } from '../affordability/affordability-model';
 
 /**
  * Contrato único de salida del motor, común a las tres estrategias.
@@ -25,6 +26,34 @@ export interface NormalizedBankStatement {
   readonly processing: NormalizedProcessing;
   readonly transactions: readonly NormalizedTransaction[];
   readonly quality: NormalizedQuality;
+  /**
+   * Qué dijo el contenedor del archivo. Va en el contrato de salida —y no sólo
+   * en la traza— porque un consumidor que recibe movimientos tiene derecho a
+   * saber con qué garantía llegan: los mismos números pesan distinto si el
+   * documento se aceptó limpio o se aceptó con indicios.
+   */
+  readonly authenticity: NormalizedAuthenticity;
+  /**
+   * La capacidad de pago derivada del extracto.
+   *
+   * Está en el contrato normalizado y no en un endpoint aparte a propósito: el
+   * cálculo depende de los movimientos de ESTE documento y de la ventana que
+   * cubre, así que separarlos invitaría a combinar la capacidad de un extracto
+   * con los movimientos de otro. Van juntos porque son la misma afirmación.
+   */
+  readonly affordability: AffordabilityAssessment;
+}
+
+/** El veredicto del contenedor, proyectado al contrato de salida. */
+export interface NormalizedAuthenticity {
+  readonly verdict: 'AUTHENTIC' | 'SUSPECT' | 'TAMPERED';
+  /** 0..100. */
+  readonly suspicionScore: number;
+  readonly producer: string | null;
+  readonly creator: string | null;
+  readonly incrementalUpdates: number;
+  /** Códigos de las señales encontradas. El detalle queda en la traza. */
+  readonly signals: readonly string[];
 }
 
 export interface NormalizedSource {

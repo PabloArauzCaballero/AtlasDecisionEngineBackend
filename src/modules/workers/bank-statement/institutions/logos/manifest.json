@@ -1,0 +1,546 @@
+[
+  {
+    "code": "BNB",
+    "file": "BNB.svg",
+    "contentType": "image/svg+xml",
+    "source": "DOWNLOADED",
+    "sourceUrl": "https://www.bnb.com.bo/PortalBNB/Images/PNG_BNB_Blanco.png",
+    "website": "https://www.bnb.com.bo"
+  },
+  {
+    "code": "BME",
+    "file": "BME.svg",
+    "contentType": "image/svg+xml",
+    "source": "DOWNLOADED",
+    "sourceUrl": "https://www.bmsc.com.bo/_nuxt/img/header-logo.96143ea.svg",
+    "website": "https://www.bmsc.com.bo"
+  },
+  {
+    "code": "BIS",
+    "file": "BIS.png",
+    "contentType": "image/png",
+    "source": "DOWNLOADED",
+    "sourceUrl": "https://www.bisa.com/assets/icon/favicon-114.png",
+    "website": "https://www.bisa.com"
+  },
+  {
+    "code": "BCR",
+    "file": "BCR.svg",
+    "contentType": "image/svg+xml",
+    "source": "DOWNLOADED",
+    "sourceUrl": "https://www.bcp.com.bo/Content/images/principal/Logo_BCP.svg",
+    "website": "https://www.bcp.com.bo"
+  },
+  {
+    "code": "BEC",
+    "file": "BEC.png",
+    "contentType": "image/png",
+    "source": "DOWNLOADED",
+    "sourceUrl": "https://www.baneco.com.bo/images/metaicono.png",
+    "website": "https://www.baneco.com.bo"
+  },
+  {
+    "code": "BGA",
+    "file": "BGA.png",
+    "contentType": "image/png",
+    "source": "DOWNLOADED",
+    "sourceUrl": "https://prodbgwebportal.blob.core.windows.net/assets/bg-seo-meta.png",
+    "website": "https://www.bg.com.bo"
+  },
+  {
+    "code": "BSO",
+    "file": "BSO.svg",
+    "contentType": "image/svg+xml",
+    "source": "DOWNLOADED",
+    "sourceUrl": "https://cdn.modyo.cloud/uploads/58dd57da-031f-42e8-ba3c-c5d78bffc7fb/original/logo_bancosol.svg",
+    "website": "https://www.bancosol.com.bo"
+  },
+  {
+    "code": "BNA",
+    "file": "BNA.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": "https://www.bna.com.ar"
+  },
+  {
+    "code": "BIE",
+    "file": "BIE.svg",
+    "contentType": "image/svg+xml",
+    "source": "DOWNLOADED",
+    "sourceUrl": "https://www.bancofie.com.bo/logo-fie.svg",
+    "website": "https://www.bancofie.com.bo"
+  },
+  {
+    "code": "BFO",
+    "file": "BFO.svg",
+    "contentType": "image/svg+xml",
+    "source": "DOWNLOADED",
+    "sourceUrl": "https://www.bancofortaleza.com.bo/assets/svg/78d918bcfafa7a9cab960ad9ec79e3fe.svg",
+    "website": "https://www.bancofortaleza.com.bo"
+  },
+  {
+    "code": "BPR",
+    "file": "BPR.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": "https://www.prodem.com.bo"
+  },
+  {
+    "code": "PCO",
+    "file": "PCO.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": "https://www.bancomunidad.com.bo"
+  },
+  {
+    "code": "PEF",
+    "file": "PEF.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": "https://www.bancoecofuturo.com.bo"
+  },
+  {
+    "code": "BDR",
+    "file": "BDR.svg",
+    "contentType": "image/svg+xml",
+    "source": "DOWNLOADED",
+    "sourceUrl": "https://www.bdp.com.bo/wp-content/uploads/2022/04/BDP_Logo-SVG.svg",
+    "website": "https://www.bdp.com.bo"
+  },
+  {
+    "code": "BUN",
+    "file": "BUN.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": "https://www.bancounion.com.bo"
+  },
+  {
+    "code": "VL1",
+    "file": "VL1.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "VPR",
+    "file": "VPR.png",
+    "contentType": "image/png",
+    "source": "DOWNLOADED",
+    "sourceUrl": "https://www.lapromotora.com.bo/wp-content/uploads/2023/11/180.png",
+    "website": "https://www.lapromotora.com.bo"
+  },
+  {
+    "code": "VPG",
+    "file": "VPG.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CJN",
+    "file": "CJN.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CFA",
+    "file": "CFA.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CSM",
+    "file": "CSM.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CSA",
+    "file": "CSA.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CIH",
+    "file": "CIH.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CQC",
+    "file": "CQC.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CJP",
+    "file": "CJP.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CMM",
+    "file": "CMM.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CLY",
+    "file": "CLY.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CPX",
+    "file": "CPX.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CCR",
+    "file": "CCR.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CSP",
+    "file": "CSP.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CCP",
+    "file": "CCP.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CCM",
+    "file": "CCM.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CTR",
+    "file": "CTR.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CEC",
+    "file": "CEC.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CST",
+    "file": "CST.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CMG",
+    "file": "CMG.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CMR",
+    "file": "CMR.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CJB",
+    "file": "CJB.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CJO",
+    "file": "CJO.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CSR",
+    "file": "CSR.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CAS",
+    "file": "CAS.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CCA",
+    "file": "CCA.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CME",
+    "file": "CME.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CCB",
+    "file": "CCB.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CCF",
+    "file": "CCF.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CPG",
+    "file": "CPG.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CLS",
+    "file": "CLS.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CMD",
+    "file": "CMD.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CSN",
+    "file": "CSN.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CSQ",
+    "file": "CSQ.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CVE",
+    "file": "CVE.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CLO",
+    "file": "CLO.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CLC",
+    "file": "CLC.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "COO",
+    "file": "COO.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CEY",
+    "file": "CEY.png",
+    "contentType": "image/png",
+    "source": "DOWNLOADED",
+    "sourceUrl": "https://cristorey.com.bo/wp-content/uploads/2022/04/cropped-4-180x180.png",
+    "website": "https://www.cristorey.com.bo"
+  },
+  {
+    "code": "CPS",
+    "file": "CPS.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CUM",
+    "file": "CUM.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CAE",
+    "file": "CAE.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "CHO",
+    "file": "CHO.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "ICI",
+    "file": "ICI.png",
+    "contentType": "image/png",
+    "source": "DOWNLOADED",
+    "sourceUrl": "https://cidre.org.bo/wp-content/uploads/2022/06/cropped-favicon-300x300.png",
+    "website": "https://www.cidre.org.bo"
+  },
+  {
+    "code": "ICR",
+    "file": "ICR.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "IDI",
+    "file": "IDI.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "IFO",
+    "file": "IFO.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "IFU",
+    "file": "IFU.png",
+    "contentType": "image/png",
+    "source": "DOWNLOADED",
+    "sourceUrl": "https://www.fubode.org/templates/fubode/images/logo.png",
+    "website": "https://www.fubode.org"
+  },
+  {
+    "code": "IID",
+    "file": "IID.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": "https://www.idepro.org"
+  },
+  {
+    "code": "IIM",
+    "file": "IIM.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  },
+  {
+    "code": "IPM",
+    "file": "IPM.svg",
+    "contentType": "image/svg+xml",
+    "source": "DOWNLOADED",
+    "sourceUrl": "https://promujer.org/wp-content/uploads/2023/09/Logo_PM.svg",
+    "website": "https://www.promujer.org"
+  },
+  {
+    "code": "BFS",
+    "file": "BFS.svg",
+    "contentType": "image/svg+xml",
+    "source": "GENERATED",
+    "sourceUrl": null,
+    "website": null
+  }
+]

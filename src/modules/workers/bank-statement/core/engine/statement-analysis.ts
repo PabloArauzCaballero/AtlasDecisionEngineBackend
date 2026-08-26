@@ -1,4 +1,6 @@
 import type { ParsedStatement } from '../domain/models';
+import type { AffordabilityAssessment } from './affordability/affordability-model';
+import type { AuthenticityAssessment } from './authenticity/authenticity-gate';
 import type { ParserDetectionResult, StrategyKind } from './parser-strategy';
 import type { ConfidenceBreakdown } from './quality/confidence';
 import type { ValidationReport } from './quality/financial-validations';
@@ -22,6 +24,21 @@ export interface StatementAnalysis {
     readonly version: string;
   };
   readonly detection: ParserDetectionResult;
+  /**
+   * Qué dijo el CONTENEDOR del archivo. Viaja aunque el veredicto sea limpio:
+   * quien audita un documento aceptado necesita ver por qué se aceptó, y una
+   * traza que sólo guarda los rechazos no permite responder «¿esto se comprobó?».
+   */
+  readonly authenticity: AuthenticityAssessment;
+  /**
+   * La capacidad de pago derivada del extracto.
+   *
+   * Se calcula DENTRO de la conversión y no después porque depende de los
+   * movimientos ya normalizados y de la ventana observada, y porque la exigencia
+   * de tres meses es una condición de admisión del documento — no un análisis
+   * posterior que alguien pueda saltarse llamando a otro método.
+   */
+  readonly affordability: AffordabilityAssessment;
   readonly quality: ConfidenceBreakdown;
   readonly validation: ValidationReport;
   readonly warnings: readonly string[];

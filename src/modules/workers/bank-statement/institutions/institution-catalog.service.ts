@@ -67,6 +67,33 @@ export class InstitutionCatalogService {
     return this.snapshots.get(tenantId.toString())?.institutions ?? [];
   }
 
+  /**
+   * Espera a la PRIMERA carga del padrón de un tenant, y sólo a ésa.
+   *
+   * ## El defecto que cierra
+   *
+   * En frío no hay instantánea, así que `snapshotFor` devuelve `undefined`, el padrón cae a la
+   * nómina compilada y `isAuthoritative()` responde `false`. La compuerta de emisor se lo toma en
+   * serio —con razón: «licencia vigente» sería entonces una afirmación que nadie comprobó— y manda
+   * el documento a revisión humana con `padron-no-vigente`.
+   *
+   * El resultado medido: **el primer extracto después de cada despliegue acababa en la cola**, con
+   * un motivo que apunta a la entidad cuando lo que pasó fue que el proceso acababa de arrancar. Y
+   * como se cura solo en el siguiente documento, es de los defectos que nadie llega a diagnosticar:
+   * se mira el caso, se aprueba a mano, y no vuelve a pasar hasta el despliegue siguiente.
+   *
+   * ## Por qué esto NO reintroduce la espera que el diseño evita
+   *
+   * Con instantánea —aunque esté vencida— devuelve al instante y deja que el refresco ocurra por
+   * detrás. Lo que se espera es únicamente la carga inicial, que ocurre una vez por tenant y por
+   * proceso. La decisión de preferir un padrón de hace un minuto a hacer esperar a un extracto
+   * sigue intacta; lo que cambia es que «hace un minuto» ahora existe desde el primer documento.
+   */
+  async ensureLoaded(tenantId: bigint): Promise<void> {
+    if (this.snapshots.has(tenantId.toString())) return;
+    await this.load(tenantId);
+  }
+
   private snapshotFor(tenantId: bigint): readonly BoliviaInstitution[] | undefined {
     const key = tenantId.toString();
     const snapshot = this.snapshots.get(key);

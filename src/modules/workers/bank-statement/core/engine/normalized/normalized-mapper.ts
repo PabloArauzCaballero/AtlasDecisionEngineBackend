@@ -80,6 +80,15 @@ export function toNormalizedStatement(analysis: StatementAnalysis): NormalizedBa
     transactions: statement.transactions.map((transaction, index) =>
       toNormalizedTransaction(transaction, index, context.source.fileHash),
     ),
+    authenticity: {
+      verdict: analysis.authenticity.verdict,
+      suspicionScore: analysis.authenticity.report.suspicionScore,
+      producer: blankToNull(analysis.authenticity.report.provenance.producer ?? undefined),
+      creator: blankToNull(analysis.authenticity.report.provenance.creator ?? undefined),
+      incrementalUpdates: analysis.authenticity.report.provenance.incrementalUpdates,
+      signals: analysis.authenticity.report.signals.map((signal) => signal.code),
+    },
+    affordability: analysis.affordability,
     quality: {
       documentConfidence: quality.documentConfidence,
       institutionConfidence: quality.institutionConfidence,

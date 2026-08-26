@@ -6,10 +6,20 @@
     "deleteOutDir": true,
     "watchAssets": true,
     "assets": [
-      { "include": "pdf-worker/templates/**/*.hbs", "outDir": "dist" },
-      { "include": "pdf-worker/templates/**/*.css", "outDir": "dist" },
+      {
+        "include": "pdf-worker/templates/**/*.hbs",
+        "outDir": "dist"
+      },
+      {
+        "include": "pdf-worker/templates/**/*.css",
+        "outDir": "dist"
+      },
       {
         "include": "pdf-worker/templates/**/*.{svg,png,jpg,jpeg,webp,gif,woff2,woff,ttf}",
+        "outDir": "dist"
+      },
+      {
+        "include": "modules/workers/bank-statement/institutions/logos/**/*.{svg,png,jpg,jpeg,json}",
         "outDir": "dist"
       }
     ],

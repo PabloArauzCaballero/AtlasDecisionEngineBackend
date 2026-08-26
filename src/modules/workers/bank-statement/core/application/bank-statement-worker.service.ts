@@ -14,6 +14,22 @@ import {
   type IssuerGateOptions,
 } from '../engine/issuer-gate';
 import {
+  assessAuthenticity,
+  DEFAULT_AUTHENTICITY_OPTIONS,
+  tamperingMessage,
+  type AuthenticityAssessment,
+  type AuthenticityGateOptions,
+} from '../engine/authenticity/authenticity-gate';
+import {
+  assessAffordability,
+  type AffordabilityInput,
+} from '../engine/affordability/affordability-engine';
+import {
+  DEFAULT_AFFORDABILITY_POLICY,
+  type AffordabilityPolicy,
+} from '../engine/affordability/affordability-policy';
+import type { AffordabilityAssessment } from '../engine/affordability/affordability-model';
+import {
   StatementExtractor,
   type ExtractionOutcome,
 } from '../engine/extraction/statement-extractor';
@@ -49,6 +65,10 @@ export class BankStatementWorkerService {
     private readonly metrics: ConversionMetrics,
     /** Exigencia sobre el EMISOR. Ver `issuer-gate.ts`. */
     private readonly issuerGate: IssuerGateOptions = DEFAULT_ISSUER_GATE_OPTIONS,
+    /** Exigencia sobre el CONTENEDOR. Ver `authenticity/authenticity-gate.ts`. */
+    private readonly authenticityGate: AuthenticityGateOptions = DEFAULT_AUTHENTICITY_OPTIONS,
+    /** Política de capacidad de pago, con la exigencia de meses dentro. */
+    private readonly affordabilityPolicy: AffordabilityPolicy = DEFAULT_AFFORDABILITY_POLICY,
   ) {}
 
   /**
@@ -144,6 +164,22 @@ export class BankStatementWorkerService {
       this.buildContext(buffer, processing, extraction),
     );
     /*
+     * La compuerta del CONTENEDOR va antes que la del emisor y que la del
+     * contenido, y ese orden es la mitad del arreglo. Las otras dos se contestan
+     * leyendo el texto que el PDF imprime, y ese texto lo escribe quien fabrica
+     * el archivo: un documento compuesto en Word con la carátula de un banco
+     * copiada las pasa las dos y llega al análisis con una tabla de movimientos
+     * que redactó el propio solicitante. «Con qué se produjo este archivo» es la
+     * única de las tres preguntas que no se puede responder escribiendo el texto
+     * correcto.
+     */
+    const authenticity = timeSync(stageDurations, 'autenticidad', () =>
+      assessAuthenticity(buffer, textPageRatio(extraction), this.authenticityGate),
+    );
+    if (authenticity.disposition !== 'ACCEPT') {
+      throw this.rejectedAuthenticity(authenticity, correlation);
+    }
+    /*
      * La compuerta de emisor va ANTES de la cascada, y esa posición es el
      * arreglo. Estaba —sólo a medias— dentro de `unsupported()`, que únicamente
      * corre cuando NINGUNA estrategia acepta el documento; y el motor generalista
@@ -187,9 +223,26 @@ export class BankStatementWorkerService {
         checksRun: validation.checksRun,
       });
 
+      /*
+       * La capacidad de pago se calcula AQUÍ, con la estrategia ya elegida y los
+       * movimientos ya extraídos, y su exigencia de meses puede tirar el
+       * documento. Ponerla después de la conversión —en un servicio que lea el
+       * resultado— la convertiría en un análisis opcional que cualquier consumidor
+       * puede saltarse; el mínimo de tres meses es una condición de ADMISIÓN, no
+       * un informe.
+       */
+      const affordability = timeSync(stageDurations, 'capacidad', () =>
+        assessAffordability(toAffordabilityInput(statement), this.affordabilityPolicy),
+      );
+      if (!affordability.coverage.satisfied && this.affordabilityPolicy.enforceMinimumMonths) {
+        throw this.insufficientPeriod(affordability, correlation);
+      }
+
       return {
         statement,
         context,
+        authenticity,
+        affordability,
         strategy: {
           id: candidate.strategy.id,
           kind: candidate.strategy.kind,
@@ -428,6 +481,142 @@ export class BankStatementWorkerService {
       evidence,
     );
   }
+
+  /**
+   * El error del CONTENEDOR.
+   *
+   * El mensaje que viaja es el de `tamperingMessage`, sin el detalle técnico:
+   * decirle a quien subió el archivo qué señal exacta lo delató es enseñarle qué
+   * evitar la próxima vez, y a un cliente honesto no le sirve de nada. El detalle
+   * va en `details`, que es lo que se guarda y se audita.
+   */
+  private rejectedAuthenticity(
+    authenticity: AuthenticityAssessment,
+    correlation: string,
+  ): StatementProcessingError {
+    this.logger.warn(
+      `Documento rechazado por autenticidad: veredicto=${authenticity.verdict} ` +
+        `puntaje=${String(authenticity.report.suspicionScore)} ` +
+        `senales=${authenticity.report.signals.map((signal) => signal.code).join('|')}${correlation}`,
+    );
+    const evidence = {
+      authenticityVerdict: authenticity.verdict,
+      suspicionScore: authenticity.report.suspicionScore,
+      signals: authenticity.report.signals.map((signal) => signal.code),
+      producer: authenticity.report.provenance.producer,
+      creator: authenticity.report.provenance.creator,
+      incrementalUpdates: authenticity.report.provenance.incrementalUpdates,
+    };
+
+    const active = authenticity.report.signals.some(
+      (signal) => signal.code === 'CONTENIDO_ACTIVO' || signal.code === 'ARCHIVOS_INCRUSTADOS',
+    );
+    if (active) {
+      return new StatementProcessingError(
+        'ACTIVE_CONTENT_IN_DOCUMENT',
+        'El PDF contiene contenido ejecutable o archivos incrustados. No se procesa.',
+        422,
+        evidence,
+      );
+    }
+    if (authenticity.verdict === 'TAMPERED') {
+      return new StatementProcessingError(
+        'TAMPERED_DOCUMENT',
+        tamperingMessage('TAMPERED'),
+        422,
+        evidence,
+      );
+    }
+    return new StatementProcessingError(
+      'SUSPECTED_TAMPERING',
+      tamperingMessage('SUSPECT'),
+      422,
+      evidence,
+    );
+  }
+
+  /** El extracto se leyó bien y no alcanza los meses que la política exige. */
+  private insufficientPeriod(
+    affordability: AffordabilityAssessment,
+    correlation: string,
+  ): StatementProcessingError {
+    const { coverage } = affordability;
+    this.logger.warn(
+      `Extracto con periodo insuficiente: completos=${String(coverage.monthsComplete)} ` +
+        `exigidos=${String(coverage.minimumMonthsRequired)} ` +
+        `ventana=${coverage.from ?? '?'}..${coverage.to ?? '?'}${correlation}`,
+    );
+    return new StatementProcessingError(
+      'INSUFFICIENT_STATEMENT_PERIOD',
+      `El extracto cubre ${String(coverage.monthsComplete)} mes(es) completo(s) y se necesitan ` +
+        `${String(coverage.minimumMonthsRequired)}. Descarga de tu banca por internet el extracto ` +
+        `de los últimos ${String(coverage.minimumMonthsRequired)} meses completos y vuelve a subirlo.`,
+      422,
+      {
+        monthsComplete: coverage.monthsComplete,
+        monthsObserved: coverage.monthsObserved,
+        minimumMonthsRequired: coverage.minimumMonthsRequired,
+        periodFrom: coverage.from,
+        periodTo: coverage.to,
+        gapMonths: coverage.gapMonths,
+      },
+    );
+  }
+}
+
+/**
+ * Proporción de páginas con capa de texto.
+ *
+ * Se calcula sobre lo que la extracción ya sabe, y sirve para que la compuerta de
+ * autenticidad no penalice a un escaneado por ausencias que en una imagen no
+ * significan nada: en una página sin texto no hay fuentes que incrustar ni
+ * anotaciones que superponer.
+ */
+function textPageRatio(extraction: ExtractionOutcome): number {
+  const total = extraction.pdf.pageCount;
+  if (total <= 0) return 0;
+  return Math.max(0, (total - extraction.ocrPages.length) / total);
+}
+
+/**
+ * Reduce el extracto interno a lo que la capacidad de pago necesita.
+ *
+ * Los importes pasan de cadena a número aquí y sólo aquí para este consumidor.
+ * El núcleo sigue trabajando con cadenas exactas por [ADR-0006]; la evaluación
+ * necesita aritmética, y hacer la conversión en el borde deja claro dónde se
+ * pierde la exactitud decimal en vez de repartirlo por el módulo.
+ */
+function toAffordabilityInput(statement: ParsedStatement): AffordabilityInput {
+  return {
+    transactions: statement.transactions.map((transaction) => ({
+      date: normalizeDate(transaction.transactionDate),
+      description: transaction.description,
+      debit: toNumberOrNull(transaction.debit),
+      credit: toNumberOrNull(transaction.credit),
+      balance: toNumberOrNull(transaction.balance),
+    })),
+    periodFrom: normalizeDate(statement.metadata.periodStart),
+    periodTo: normalizeDate(statement.metadata.periodEnd),
+    currency:
+      statement.metadata.accountCurrency === 'UNKNOWN' ? null : statement.metadata.accountCurrency,
+    closingBalance: toNumberOrNull(statement.metadata.closingBalance),
+  };
+}
+
+/** `AAAA-MM-DD`, o `null`. El núcleo ya normaliza las fechas; esto es la red. */
+function normalizeDate(value: string | undefined): string | null {
+  if (!value) return null;
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(value.trim());
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const local = /^(\d{2})[/-](\d{2})[/-](\d{4})/.exec(value.trim());
+  if (local) return `${local[3]}-${local[2]}-${local[1]}`;
+  return null;
+}
+
+function toNumberOrNull(value: string | undefined): number | null {
+  if (value === undefined || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 /**

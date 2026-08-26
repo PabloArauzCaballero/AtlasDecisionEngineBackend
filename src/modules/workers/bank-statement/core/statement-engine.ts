@@ -9,6 +9,14 @@ import { StatementExtractor } from './engine/extraction/statement-extractor';
 import { GenericStatementStrategy } from './engine/generic/generic-statement.strategy';
 import { InstitutionDetector } from './engine/institution-detector';
 import { DEFAULT_ISSUER_GATE_OPTIONS, type IssuerGateOptions } from './engine/issuer-gate';
+import {
+  DEFAULT_AUTHENTICITY_OPTIONS,
+  type AuthenticityGateOptions,
+} from './engine/authenticity/authenticity-gate';
+import {
+  normalizeAffordabilityPolicy,
+  type AffordabilityPolicy,
+} from './engine/affordability/affordability-policy';
 import { ASFI_SEED_REGISTRY, type InstitutionRegistry } from './institutions/institution-registry';
 import { toNormalizedStatement } from './engine/normalized/normalized-mapper';
 import type { NormalizedBankStatement } from './engine/normalized/normalized-model';
@@ -47,6 +55,17 @@ export interface StatementEngineOptions {
   readonly institutions?: InstitutionRegistry;
   /** Exigencia sobre el emisor del documento. Ver `engine/issuer-gate.ts`. */
   readonly issuerGate?: Partial<IssuerGateOptions>;
+  /**
+   * Exigencia sobre el CONTENEDOR: si el archivo es el que emitió un banco o lo
+   * fabricó alguien. Ver `engine/authenticity/authenticity-gate.ts`.
+   */
+  readonly authenticityGate?: Partial<AuthenticityGateOptions>;
+  /**
+   * Política de capacidad de pago, con la exigencia de meses completos dentro.
+   * El mínimo de tres no se puede bajar por configuración; ver
+   * `engine/affordability/affordability-policy.ts`.
+   */
+  readonly affordability?: Partial<AffordabilityPolicy>;
   /** Reconocimiento óptico, si el anfitrión lo aporta. */
   readonly ocr?: StatementOcrPort;
   /** Perfiles de formato en JSON, validados al construir el motor. */
@@ -121,6 +140,8 @@ export function createStatementEngine(options: StatementEngineOptions = {}): Sta
     new InstitutionDetector(options.institutions ?? ASFI_SEED_REGISTRY),
     metrics,
     { ...DEFAULT_ISSUER_GATE_OPTIONS, ...options.issuerGate },
+    { ...DEFAULT_AUTHENTICITY_OPTIONS, ...options.authenticityGate },
+    normalizeAffordabilityPolicy(options.affordability),
   );
 
   return {
