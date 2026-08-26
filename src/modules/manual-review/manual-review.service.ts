@@ -184,7 +184,18 @@ export class ManualReviewService {
           aggregateId: caseId.toString(),
           actorId: principal.id,
           requestId: principal.requestId,
-          payload: { assignedTo: dto.assignedTo ?? principal.id },
+          /*
+            `previousAssignee` es la mitad que faltaba.
+
+            Sin él, reasignar un caso deja en la auditoría «ahora es de Ana» y ningún rastro de que
+            antes era de Luis. Justo la operación que sólo un supervisor puede hacer —quitarle un
+            caso a otro analista— era la que menos evidencia dejaba. Va `null` cuando el caso no
+            era de nadie, que es el gesto normal de tomarlo.
+          */
+          payload: {
+            assignedTo: dto.assignedTo ?? principal.id,
+            previousAssignee: review.assignedTo ?? null,
+          },
         },
         tx,
       );
@@ -236,6 +247,13 @@ export class ManualReviewService {
         HttpStatus.FORBIDDEN,
       );
     }
+    /*
+      Que quien resuelve NO sea el asignado es exactamente lo que la segregación de funciones
+      permite sólo a supervisión, y hasta ahora no se distinguía de una resolución corriente:
+      el guard de arriba la dejaba pasar y la auditoría escribía la misma fila que en el caso
+      normal. Auditar un override exige poder encontrarlo, y para encontrarlo hay que marcarlo.
+    */
+    const porSupervision = review.assignedTo !== principal.id;
     const status =
       dto.decision === 'APPROVE'
         ? ManualReviewStatus.RESOLVED_APPROVED
@@ -265,7 +283,12 @@ export class ManualReviewService {
           aggregateId: caseId.toString(),
           actorId: principal.id,
           requestId: principal.requestId,
-          payload: { decision: dto.decision, reason: dto.reason },
+          payload: {
+            decision: dto.decision,
+            reason: dto.reason,
+            assignedTo: review.assignedTo,
+            supervisorOverride: porSupervision,
+          },
         },
         tx,
       );
