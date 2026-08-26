@@ -3,7 +3,7 @@
 
 # Catálogo de endpoints
 
-Contrato **v1** · 197 rutas · 221 operaciones.
+Contrato **v1** · 203 rutas · 227 operaciones.
 
 La referencia interactiva completa —con esquemas, ejemplos y la posibilidad de probar cada
 llamada— está en `/docs/{API_VERSION}/reference` del propio backend. Esta página existe para
@@ -175,7 +175,7 @@ Cola de casos derivados a revisión humana y su resolución.
 | --- | --- | --- | --- |
 | `GET` | `/v1/manual-reviews` | `manualReviewList` | List manual-review cases visible to the tenant |
 | `GET` | `/v1/manual-reviews/{caseId}` | `manualReviewGet` | Get one manual-review case and decision context |
-| `POST` | `/v1/manual-reviews/{caseId}/assign` | `manualReviewAssign` | Assign an open case to an analyst |
+| `POST` | `/v1/manual-reviews/{caseId}/assign` | `manualReviewAssign` | Take an open case, or assign it to another analyst |
 | `POST` | `/v1/manual-reviews/{caseId}/resolve` | `manualReviewResolve` | Resolve a case as its assigned analyst |
 
 ## Model Monitoring
@@ -252,6 +252,12 @@ Bandeja persistente alimentada por el outbox transaccional.
 | `GET` | `/pdf/errors` | `pdfTemplateAdminErrorCatalog` | Catálogo completo de errores del generador documental |
 | `GET` | `/pdf/template-format/example` | `pdfTemplateAdminExampleBundle` | Descarga un paquete de template de EJEMPLO, completo y funcional |
 | `GET` | `/pdf/template-format/schema` | `pdfTemplateAdminFormatSchema` | JSON Schema del paquete que el backend acepta |
+
+## Platform Catalog
+
+| Método | Ruta | Operación | Resumen |
+| --- | --- | --- | --- |
+| `GET` | `/v1/platform/catalog-manifest` | `platformCatalogManifest` | Describe this block: the routes it serves and the tables it owns |
 
 ## Portal Session
 
@@ -460,6 +466,11 @@ Conversión de un extracto bancario en PDF a movimientos normalizados. Asíncron
 | Método | Ruta | Operación | Resumen |
 | --- | --- | --- | --- |
 | `GET` | `/v1/workers/identity-verification/fixtures` | `identityVerificationListFixtures` | Escenarios de prueba disponibles |
+| `GET` | `/v1/workers/identity-verification/reviews` | `identityReviewList` | Cola de documentos a la espera de arbitraje |
+| `GET` | `/v1/workers/identity-verification/reviews/{requestId}` | `identityReviewGet` | Un caso, con la evidencia que lo trajo a la cola |
+| `POST` | `/v1/workers/identity-verification/reviews/{requestId}/claim` | `identityReviewClaim` | Reclama el caso para arbitrarlo |
+| `POST` | `/v1/workers/identity-verification/reviews/{requestId}/resolve` | `identityReviewResolve` | Cierra el caso: confirmar el documento y reanudar, o rechazarlo |
+| `GET` | `/v1/workers/identity-verification/reviews/categories` | `identityReviewCategories` | Contadores por categoría de la cola de arbitraje |
 | `POST` | `/v1/workers/identity-verification/runs` | `identityVerificationCreateRun` | Encola una verificación de identidad |
 | `GET` | `/v1/workers/identity-verification/runs` | `identityVerificationListRuns` | Verificaciones del tenant |
 | `GET` | `/v1/workers/identity-verification/runs/{requestId}` | `identityVerificationGetRun` | Estado, progreso y veredicto de una verificación |

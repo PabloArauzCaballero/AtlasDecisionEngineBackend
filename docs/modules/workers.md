@@ -43,6 +43,11 @@ Etiquetas de API: **Workers · Locución**, **Workers · Extractos bancarios**, 
 | `POST` | `/v1/workers/bank-statement/runs/{requestId}/cancel` | `bankStatementCancelRun` | Cancela una ejecución que nadie ha reclamado todavía |
 | `GET` | `/v1/workers/bank-statement/runs/{requestId}/download` | `bankStatementDownload` | Descarga el resultado en CSV o JSON |
 | `GET` | `/v1/workers/identity-verification/fixtures` | `identityVerificationListFixtures` | Escenarios de prueba disponibles |
+| `GET` | `/v1/workers/identity-verification/reviews` | `identityReviewList` | Cola de documentos a la espera de arbitraje |
+| `GET` | `/v1/workers/identity-verification/reviews/{requestId}` | `identityReviewGet` | Un caso, con la evidencia que lo trajo a la cola |
+| `POST` | `/v1/workers/identity-verification/reviews/{requestId}/claim` | `identityReviewClaim` | Reclama el caso para arbitrarlo |
+| `POST` | `/v1/workers/identity-verification/reviews/{requestId}/resolve` | `identityReviewResolve` | Cierra el caso: confirmar el documento y reanudar, o rechazarlo |
+| `GET` | `/v1/workers/identity-verification/reviews/categories` | `identityReviewCategories` | Contadores por categoría de la cola de arbitraje |
 | `POST` | `/v1/workers/identity-verification/runs` | `identityVerificationCreateRun` | Encola una verificación de identidad |
 | `GET` | `/v1/workers/identity-verification/runs` | `identityVerificationListRuns` | Verificaciones del tenant |
 | `GET` | `/v1/workers/identity-verification/runs/{requestId}` | `identityVerificationGetRun` | Estado, progreso y veredicto de una verificación |

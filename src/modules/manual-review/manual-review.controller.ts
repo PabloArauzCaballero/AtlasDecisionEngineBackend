@@ -40,7 +40,13 @@ export class ManualReviewController {
   }
 
   @Post(':caseId/assign')
-  @ApiOperation({ summary: 'Assign an open case to an analyst' })
+  @ApiOperation({
+    summary: 'Take an open case, or assign it to another analyst',
+    description:
+      'Sin `assignedTo` el caso queda a nombre de quien llama. Reasignar un caso que ya pertenece ' +
+      'a otro analista exige un rol de supervisión (`OPERATIONS`, o `PLATFORM_ADMIN` sobre ' +
+      'identidad firmada); en otro caso responde 403 `MANUAL_REVIEW_ASSIGN_FORBIDDEN`.',
+  })
   @ApiCreatedResponse({ description: 'Caso asignado.', type: ManualReviewWriteResultDto })
   assign(
     @TenantId() tenantId: bigint,
@@ -52,7 +58,13 @@ export class ManualReviewController {
   }
 
   @Post(':caseId/resolve')
-  @ApiOperation({ summary: 'Resolve a case as its assigned analyst' })
+  @ApiOperation({
+    summary: 'Resolve a case as its assigned analyst',
+    description:
+      'Sólo el analista asignado, o un rol de supervisión cuando el asignado no está disponible. ' +
+      'La resolución guarda `assignedTo` y `supervisorOverride`, así que un cierre por supervisión ' +
+      'se distingue de uno normal sin reconstruirlo.',
+  })
   @ApiCreatedResponse({ description: 'Caso resuelto.', type: ManualReviewWriteResultDto })
   resolve(
     @TenantId() tenantId: bigint,

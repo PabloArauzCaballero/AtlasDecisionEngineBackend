@@ -3793,7 +3793,8 @@
                 "CANCELLED",
                 "PENDING_REVIEW",
                 "IN_REVIEW",
-                "PDF_INVALID"
+                "PDF_INVALID",
+                "DOCUMENT_REJECTED"
               ]
             },
             "description": "Filtra por estado exacto del recurso."
@@ -4098,7 +4099,8 @@
                 "CANCELLED",
                 "PENDING_REVIEW",
                 "IN_REVIEW",
-                "PDF_INVALID"
+                "PDF_INVALID",
+                "DOCUMENT_REJECTED"
               ]
             },
             "description": "Filtra por estado exacto del recurso."
@@ -5096,7 +5098,8 @@
                 "CANCELLED",
                 "PENDING_REVIEW",
                 "IN_REVIEW",
-                "PDF_INVALID"
+                "PDF_INVALID",
+                "DOCUMENT_REJECTED"
               ]
             },
             "description": "Filtra por estado exacto del recurso."
@@ -5247,6 +5250,298 @@
         ]
       }
     },
+    "/v1/workers/identity-verification/reviews": {
+      "get": {
+        "operationId": "identityReviewList",
+        "parameters": [
+          {
+            "name": "category",
+            "required": false,
+            "in": "query",
+            "description": "La pestaña. Omitirlo es «Todos».",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "DOUBTFUL_DOCUMENT",
+                "UNRECOGNIZED_DOCUMENT_TYPE",
+                "AMBIGUOUS_FACE_MATCH",
+                "LOW_IMAGE_QUALITY",
+                "TIMEOUT",
+                "MANUAL_REQUEST"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Sin reclamar o ya reclamado. Omitirlo trae los dos.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING_REVIEW",
+                "IN_REVIEW"
+              ]
+            }
+          },
+          {
+            "name": "dateFrom",
+            "required": false,
+            "in": "query",
+            "description": "Desde cuándo entró en la cola (ISO-8601).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "dateTo",
+            "required": false,
+            "in": "query",
+            "description": "Hasta cuándo entró en la cola (ISO-8601).",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de casos, por prioridad y antigüedad. Nunca incluye documentos rechazados.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/PageMetaDto"
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "items"
+                      ],
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/IdentityReviewItemDto"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Cola de documentos a la espera de arbitraje",
+        "tags": [
+          "Workers · Verificación de identidad"
+        ]
+      }
+    },
+    "/v1/workers/identity-verification/reviews/categories": {
+      "get": {
+        "operationId": "identityReviewCategories",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Una fila por categoría con trabajo, más la fila «Todos». Los contadores son del total, no de la página.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IdentityReviewCategoryDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Contadores por categoría de la cola de arbitraje",
+        "tags": [
+          "Workers · Verificación de identidad"
+        ]
+      }
+    },
+    "/v1/workers/identity-verification/reviews/{requestId}": {
+      "get": {
+        "operationId": "identityReviewGet",
+        "parameters": [
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Identificador de correlación de la petición; el mismo que viaja en la cabecera `x-request-id`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityReviewItemDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Un caso, con la evidencia que lo trajo a la cola",
+        "tags": [
+          "Workers · Verificación de identidad"
+        ]
+      }
+    },
+    "/v1/workers/identity-verification/reviews/{requestId}/claim": {
+      "post": {
+        "operationId": "identityReviewClaim",
+        "parameters": [
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Identificador de correlación de la petición; el mismo que viaja en la cabecera `x-request-id`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityReviewItemDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Reclama el caso para arbitrarlo",
+        "tags": [
+          "Workers · Verificación de identidad"
+        ]
+      }
+    },
+    "/v1/workers/identity-verification/reviews/{requestId}/resolve": {
+      "post": {
+        "operationId": "identityReviewResolve",
+        "parameters": [
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Identificador de correlación de la petición; el mismo que viaja en la cabecera `x-request-id`."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveIdentityReviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityReviewResolvedDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Cierra el caso: confirmar el documento y reanudar, o rechazarlo",
+        "tags": [
+          "Workers · Verificación de identidad"
+        ]
+      }
+    },
     "/v1/workers/semantic-analysis/fixtures": {
       "get": {
         "operationId": "semanticAnalysisListFixtures",
@@ -5348,7 +5643,8 @@
                 "CANCELLED",
                 "PENDING_REVIEW",
                 "IN_REVIEW",
-                "PDF_INVALID"
+                "PDF_INVALID",
+                "DOCUMENT_REJECTED"
               ]
             },
             "description": "Filtra por estado exacto del recurso."
@@ -6635,6 +6931,40 @@
         "summary": "Volver a ejecutar un contraejemplo archivado",
         "tags": [
           "QA Lab"
+        ]
+      }
+    },
+    "/v1/platform/catalog-manifest": {
+      "get": {
+        "operationId": "platformCatalogManifest",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Manifiesto del bloque con sus endpoints y sus entidades de datos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogManifestDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Describe this block: the routes it serves and the tables it owns",
+        "tags": [
+          "Platform Catalog"
         ]
       }
     },
@@ -8599,6 +8929,7 @@
     },
     "/v1/manual-reviews/{caseId}/assign": {
       "post": {
+        "description": "Sin `assignedTo` el caso queda a nombre de quien llama. Reasignar un caso que ya pertenece a otro analista exige un rol de supervisión (`OPERATIONS`, o `PLATFORM_ADMIN` sobre identidad firmada); en otro caso responde 403 `MANUAL_REVIEW_ASSIGN_FORBIDDEN`.",
         "operationId": "manualReviewAssign",
         "parameters": [
           {
@@ -8648,7 +8979,7 @@
             "$ref": "#/components/responses/Error500"
           }
         },
-        "summary": "Assign an open case to an analyst",
+        "summary": "Take an open case, or assign it to another analyst",
         "tags": [
           "Manual Review"
         ]
@@ -8656,6 +8987,7 @@
     },
     "/v1/manual-reviews/{caseId}/resolve": {
       "post": {
+        "description": "Sólo el analista asignado, o un rol de supervisión cuando el asignado no está disponible. La resolución guarda `assignedTo` y `supervisorOverride`, así que un cierre por supervisión se distingue de uno normal sin reconstruirlo.",
         "operationId": "manualReviewResolve",
         "parameters": [
           {
@@ -12277,6 +12609,9 @@
     },
     {
       "name": "pdf-templates"
+    },
+    {
+      "name": "Platform Catalog"
     },
     {
       "name": "Portal Session",
@@ -16748,6 +17083,22 @@
               "REDACTED",
               "EXCLUDED"
             ]
+          },
+          "semanticRole": {
+            "type": "string",
+            "enum": [
+              "NONE",
+              "PROBABILITY_OF_DEFAULT",
+              "LOSS_GIVEN_DEFAULT",
+              "EXPOSURE_AT_DEFAULT",
+              "EXPECTED_LOSS",
+              "RISK_GRADE",
+              "PRICED_RATE",
+              "APPROVED_LIMIT",
+              "APPROVED_TERM"
+            ],
+            "example": "PROBABILITY_OF_DEFAULT",
+            "description": "Qué representa el campo en términos de riesgo. Un artefacto de originación necesita declarar su PROBABILITY_OF_DEFAULT para poder desplegarse en producción."
           }
         },
         "required": [
@@ -16759,7 +17110,8 @@
           "reasonCodes",
           "contractVersion",
           "sensitivityClass",
-          "tracePolicy"
+          "tracePolicy",
+          "semanticRole"
         ]
       },
       "GraphConditionDto": {
@@ -17834,6 +18186,21 @@
               "MASKED",
               "REDACTED",
               "EXCLUDED"
+            ]
+          },
+          "semanticRole": {
+            "type": "string",
+            "description": "Qué representa este campo en términos de riesgo.\n\nOpcional y con `NONE` por defecto: la inmensa mayoría de las salidas de un artefacto no son\nmagnitudes económicas —un motivo, una etiqueta, un identificador— y obligar a clasificarlas\ntodas convertiría una declaración significativa en un trámite que se rellena sin mirar.\n\nPero un artefacto de ORIGINACIÓN sí tiene que declarar su `PROBABILITY_OF_DEFAULT` antes de\nllegar a producción, y hasta ahora no había manera de hacerlo: la columna sólo se leía.",
+            "enum": [
+              "NONE",
+              "PROBABILITY_OF_DEFAULT",
+              "LOSS_GIVEN_DEFAULT",
+              "EXPOSURE_AT_DEFAULT",
+              "EXPECTED_LOSS",
+              "RISK_GRADE",
+              "PRICED_RATE",
+              "APPROVED_LIMIT",
+              "APPROVED_TERM"
             ]
           }
         },
@@ -19605,7 +19972,8 @@
               "CANCELLED",
               "PENDING_REVIEW",
               "IN_REVIEW",
-              "PDF_INVALID"
+              "PDF_INVALID",
+              "DOCUMENT_REJECTED"
             ],
             "type": "string"
           },
@@ -19924,7 +20292,8 @@
               "CANCELLED",
               "PENDING_REVIEW",
               "IN_REVIEW",
-              "PDF_INVALID"
+              "PDF_INVALID",
+              "DOCUMENT_REJECTED"
             ],
             "type": "string"
           },
@@ -20467,6 +20836,212 @@
             "description": "Clave de deduplicación. Sin ella se deriva del contenido de las imágenes, de modo que reenviar las mismas fotos no crea una segunda verificación."
           }
         }
+      },
+      "IdentityReviewItemDto": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "requestedBy": {
+            "type": "string",
+            "description": "Quién pidió la verificación."
+          },
+          "status": {
+            "enum": [
+              "PENDING_REVIEW",
+              "IN_REVIEW"
+            ],
+            "type": "string"
+          },
+          "reviewReason": {
+            "enum": [
+              "DOUBTFUL_DOCUMENT",
+              "UNRECOGNIZED_DOCUMENT_TYPE",
+              "AMBIGUOUS_FACE_MATCH",
+              "LOW_IMAGE_QUALITY",
+              "TIMEOUT",
+              "MANUAL_REQUEST"
+            ],
+            "type": "string"
+          },
+          "reviewPriority": {
+            "type": "number",
+            "nullable": true,
+            "description": "1 alta · 2 media · 3 baja."
+          },
+          "arbitrationMode": {
+            "type": "string",
+            "nullable": true,
+            "description": "Quién arbitra este caso: HUMAN o AI."
+          },
+          "documentType": {
+            "type": "string",
+            "nullable": true,
+            "description": "Tipo de documento reconocido, si se reconoció alguno."
+          },
+          "documentCountry": {
+            "type": "string"
+          },
+          "documentTypeConfidence": {
+            "type": "number",
+            "nullable": true,
+            "description": "Confianza de que la imagen SEA un documento de identidad. Es la medida que lo trajo aquí."
+          },
+          "errorCode": {
+            "type": "string",
+            "nullable": true,
+            "description": "Código técnico que originó la derivación."
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true,
+            "description": "Qué vio la puerta, en una frase legible."
+          },
+          "reviewOpenedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "description": "Cuándo entró en la cola."
+          },
+          "pendingMs": {
+            "type": "number",
+            "nullable": true,
+            "description": "Milisegundos que lleva esperando. Lo calcula el motor: derivarlo en el cliente lo deja congelado en la hora de su reloj."
+          },
+          "reviewClaimedBy": {
+            "type": "string",
+            "nullable": true
+          },
+          "reviewClaimedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "queuedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId",
+          "requestedBy",
+          "status",
+          "reviewReason",
+          "reviewPriority",
+          "arbitrationMode",
+          "documentType",
+          "documentCountry",
+          "documentTypeConfidence",
+          "errorCode",
+          "errorMessage",
+          "reviewOpenedAt",
+          "pendingMs",
+          "reviewClaimedBy",
+          "reviewClaimedAt",
+          "queuedAt"
+        ]
+      },
+      "IdentityReviewCategoryDto": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "nullable": true,
+            "enum": [
+              "DOUBTFUL_DOCUMENT",
+              "UNRECOGNIZED_DOCUMENT_TYPE",
+              "AMBIGUOUS_FACE_MATCH",
+              "LOW_IMAGE_QUALITY",
+              "TIMEOUT",
+              "MANUAL_REQUEST"
+            ],
+            "type": "string",
+            "description": "`null` = «Todos»."
+          },
+          "total": {
+            "type": "number"
+          },
+          "claimed": {
+            "type": "number",
+            "description": "De ese total, cuántos ya tienen a alguien encima."
+          },
+          "oldestPendingMs": {
+            "type": "number",
+            "nullable": true,
+            "description": "Antigüedad del más viejo, en milisegundos."
+          }
+        },
+        "required": [
+          "category",
+          "total",
+          "claimed",
+          "oldestPendingMs"
+        ]
+      },
+      "ResolveIdentityReviewDto": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "enum": [
+              "CONFIRM_DOCUMENT",
+              "REJECT_DOCUMENT"
+            ],
+            "type": "string",
+            "description": "CONFIRM_DOCUMENT afirma que sí es el documento y devuelve la ejecución a la cola del worker · REJECT_DOCUMENT la cierra afirmando que no lo era."
+          },
+          "documentType": {
+            "type": "string",
+            "enum": [
+              "BOLIVIA_CI",
+              "PASSPORT",
+              "DRIVER_LICENSE"
+            ],
+            "description": "Obligatorio con CONFIRM_DOCUMENT: es lo que elige el analizador cuando la ejecución se reanude."
+          },
+          "rejectionReason": {
+            "enum": [
+              "NOT_AN_IDENTITY_DOCUMENT",
+              "UNSUPPORTED_DOCUMENT_TYPE",
+              "UNREADABLE_DOCUMENT"
+            ],
+            "type": "string",
+            "description": "Obligatorio con REJECT_DOCUMENT: un rechazo sin motivo no es medible."
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 2000,
+            "description": "Por qué. Queda en la fila y en la auditoría."
+          }
+        },
+        "required": [
+          "action",
+          "notes"
+        ]
+      },
+      "IdentityReviewResolvedDto": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "QUEUED",
+              "DOCUMENT_REJECTED"
+            ],
+            "type": "string",
+            "description": "`QUEUED` si se confirmó —el worker retoma desde el principio con el tipo ya decidido— o `DOCUMENT_REJECTED` si se rechazó."
+          },
+          "resolvedBy": {
+            "type": "string",
+            "description": "Quién lo resolvió."
+          }
+        },
+        "required": [
+          "requestId",
+          "status",
+          "resolvedBy"
+        ]
       },
       "CreateSemanticAnalysisRunDto": {
         "type": "object",
@@ -21649,6 +22224,291 @@
           "input",
           "observation",
           "violations"
+        ]
+      },
+      "CatalogManifestBlockDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "DECISION_ENGINE",
+            "description": "Código estable del bloque dentro del ecosistema ATLAS."
+          },
+          "name": {
+            "type": "string",
+            "example": "ATLAS Decision Engine",
+            "description": "Nombre legible del bloque."
+          },
+          "repository": {
+            "type": "string",
+            "example": "AtlasDecisionEngineBackend",
+            "description": "Repositorio que contiene el bloque."
+          },
+          "service": {
+            "type": "string",
+            "example": "atlas-decision-engine-backend",
+            "description": "Nombre del servicio que responde."
+          },
+          "version": {
+            "type": "string",
+            "example": "2.0.0",
+            "description": "Versión de build que produjo este manifiesto."
+          },
+          "commit": {
+            "type": "string",
+            "example": "local",
+            "description": "Commit de la build que produjo este manifiesto."
+          },
+          "routePrefix": {
+            "type": "string",
+            "example": "/v1",
+            "description": "Prefijo global de rutas del servicio, vacío si no lo tiene."
+          },
+          "generatedAt": {
+            "type": "string",
+            "example": "2026-08-20T11:00:00.000Z",
+            "description": "Instante en el que se calculó el manifiesto."
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "repository",
+          "service",
+          "version",
+          "commit",
+          "routePrefix",
+          "generatedAt"
+        ]
+      },
+      "CatalogManifestEndpointDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "DE_GET_V1_ARTIFACTS",
+            "description": "Código estable y único del endpoint dentro del bloque."
+          },
+          "module": {
+            "type": "string",
+            "example": "artifacts",
+            "description": "Módulo del bloque que lo expone."
+          },
+          "method": {
+            "type": "string",
+            "example": "GET"
+          },
+          "fullPath": {
+            "type": "string",
+            "example": "/v1/artifacts",
+            "description": "Ruta completa tal y como la sirve el proceso."
+          },
+          "controllerName": {
+            "type": "string",
+            "nullable": true,
+            "example": "ArtifactController"
+          },
+          "handlerName": {
+            "type": "string",
+            "nullable": true,
+            "example": "list"
+          },
+          "summary": {
+            "type": "string",
+            "example": "Lista de artefactos de decisión.",
+            "description": "Resumen declarado en el contrato OpenAPI."
+          },
+          "requiresAuth": {
+            "type": "boolean",
+            "example": true,
+            "description": "Falso sólo cuando la ruta está marcada como pública."
+          },
+          "allowedRoles": {
+            "example": [
+              "RISK_ANALYST",
+              "AUDITOR"
+            ],
+            "description": "Roles que el guard acepta.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "audience": {
+            "type": "string",
+            "nullable": true,
+            "example": "management",
+            "description": "Plano de la API al que pertenece la ruta."
+          },
+          "minPayloadSchema": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Campos del cuerpo con su tipo y obligatoriedad.",
+            "example": {
+              "artifactCode": "string|required",
+              "environmentCode": "string|required"
+            }
+          },
+          "queryParamsSchema": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Parámetros de query."
+          },
+          "pathParamsSchema": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Parámetros de ruta."
+          },
+          "expectedStatusCodes": {
+            "description": "Códigos de éxito DECLARADOS. Ausente significa «no se declara», no «devuelve 200».",
+            "example": [
+              200,
+              201
+            ],
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "isReadonly": {
+            "type": "boolean",
+            "example": true,
+            "description": "Verdadero para GET y HEAD: no muta estado."
+          },
+          "isDestructive": {
+            "type": "boolean",
+            "example": false,
+            "description": "Verdadero para DELETE: destruye estado de forma no recuperable."
+          },
+          "riskLevel": {
+            "type": "string",
+            "example": "LOW",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "module",
+          "method",
+          "fullPath",
+          "controllerName",
+          "handlerName",
+          "summary",
+          "requiresAuth",
+          "allowedRoles",
+          "audience",
+          "isReadonly",
+          "isDestructive",
+          "riskLevel"
+        ]
+      },
+      "CatalogManifestDataEntityDto": {
+        "type": "object",
+        "properties": {
+          "schemaName": {
+            "type": "string",
+            "example": "public"
+          },
+          "tableName": {
+            "type": "string",
+            "example": "decision_artifact"
+          },
+          "entityName": {
+            "type": "string",
+            "example": "Decision artifact",
+            "description": "Nombre legible derivado del nombre de tabla."
+          },
+          "module": {
+            "type": "string",
+            "example": "artifacts",
+            "description": "Módulo del bloque al que se atribuye la tabla."
+          },
+          "columnCount": {
+            "type": "number",
+            "example": 12
+          },
+          "primaryKeyColumns": {
+            "example": [
+              "id"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "containsPii": {
+            "type": "boolean",
+            "example": false,
+            "description": "Heurística por nombre de columna: datos personales identificables."
+          },
+          "containsFinancialData": {
+            "type": "boolean",
+            "example": false,
+            "description": "Heurística por nombre de columna: importes, saldos o límites."
+          },
+          "containsRiskData": {
+            "type": "boolean",
+            "example": true,
+            "description": "Heurística por nombre de columna: puntajes, decisiones o políticas."
+          },
+          "isAuditCritical": {
+            "type": "boolean",
+            "example": true,
+            "description": "La tabla sostiene evidencia que una auditoría necesita leer."
+          },
+          "businessPurpose": {
+            "type": "string",
+            "example": "Guarda el artefacto versionado que decide.",
+            "description": "Propósito de negocio inferido."
+          }
+        },
+        "required": [
+          "schemaName",
+          "tableName",
+          "entityName",
+          "module",
+          "columnCount",
+          "primaryKeyColumns",
+          "containsPii",
+          "containsFinancialData",
+          "containsRiskData",
+          "isAuditCritical",
+          "businessPurpose"
+        ]
+      },
+      "CatalogManifestDto": {
+        "type": "object",
+        "properties": {
+          "block": {
+            "$ref": "#/components/schemas/CatalogManifestBlockDto"
+          },
+          "endpoints": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogManifestEndpointDto"
+            }
+          },
+          "dataEntities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogManifestDataEntityDto"
+            }
+          }
+        },
+        "required": [
+          "block",
+          "endpoints",
+          "dataEntities"
         ]
       },
       "ApprovalStepRefDto": {
@@ -24347,12 +25207,11 @@
         "properties": {
           "assignedTo": {
             "type": "string",
-            "maxLength": 160
+            "minLength": 1,
+            "maxLength": 160,
+            "description": "Analista al que se reparte el caso. Omitido, el caso queda a nombre de quien llama. Un caso que ya pertenece a otra persona sólo lo mueve un rol de supervisión."
           }
-        },
-        "required": [
-          "assignedTo"
-        ]
+        }
       },
       "ManualReviewWriteResultDto": {
         "type": "object",

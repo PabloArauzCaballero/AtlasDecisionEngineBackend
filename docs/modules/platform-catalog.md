@@ -10,6 +10,12 @@ Código: [`src/modules/platform-catalog/`](https://github.com/) · 8 ficheros Ty
 
 Etiquetas de API: **Platform Catalog**.
 
+## Endpoints
+
+| Método | Ruta | Operación | Resumen |
+| --- | --- | --- | --- |
+| `GET` | `/v1/platform/catalog-manifest` | `platformCatalogManifest` | Describe this block: the routes it serves and the tables it owns |
+
 ## Autorización
 
 Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `OPERATIONS`, `PLATFORM_ADMIN`. La decisión es del servidor (`RolesGuard`), nunca del frontend.
