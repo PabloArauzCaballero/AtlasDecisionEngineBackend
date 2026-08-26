@@ -19,6 +19,7 @@ import { Prisma, type PrismaClient } from '@prisma/client';
 import { AUDIT_CAST, CARTERA_DEMO, VENTANAS_DEMO, type CasoDemo } from './audit-demo.data';
 import { canSignAuditSeed, seedHmac } from './audit-hash';
 import { sha256, TENANT_ID } from './helpers';
+import { DEMO_REQUEST_PREFIX } from '../../../common/seeding/demo-marker';
 
 const logger = new Logger('SeedAuditDemo');
 
@@ -30,8 +31,13 @@ const ARTIFACT_CODE = 'BNPL_CREDIT_DECISION';
  * Es lo que hace la siembra idempotente sin una tabla de control, y —más importante— lo
  * que permite BORRARLA sin tocar las decisiones que alguien haya ejecutado a mano en su
  * máquina. Un `deleteMany` por artefacto se habría llevado por delante las pruebas del día.
+ *
+ * La constante se MUDÓ a `common/seeding/demo-marker.ts` porque el monitoreo de cobertura
+ * también la necesita —para poder decir qué parte de la población medida es inventada— y dos
+ * copias se desincronizarían en la dirección peor: el sembrador seguiría borrando bien y el
+ * aviso de siembra se apagaría. Se reexporta para no romper a quien ya la importaba de aquí.
  */
-export const DEMO_REQUEST_PREFIX = 'bnpl-cartera-demo';
+export { DEMO_REQUEST_PREFIX } from '../../../common/seeding/demo-marker';
 
 const DIA_MS = 24 * 60 * 60 * 1000;
 

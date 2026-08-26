@@ -19,6 +19,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { MetricsService } from '../../common/observability/metrics.service';
 import type { CoverageQueryDto } from './model-monitoring.dto';
+import { DEMO_REQUEST_LIKE } from '../../common/seeding/demo-marker';
 
 /** Techo de la serie diaria. Medio año de puntos es todo lo que una gráfica puede decir. */
 const MAX_SERIES_DAYS = 180;
@@ -27,6 +28,7 @@ interface CoverageTotalsRow {
   executions: bigint;
   with_subject: bigint;
   not_applicable: bigint;
+  seeded: bigint;
 }
 
 interface WindowTotalsRow {
@@ -65,7 +67,8 @@ export class DecisionCoverageService {
           COUNT(*)::bigint                                                        AS executions,
           COUNT(*) FILTER (WHERE "subject_id" IS NOT NULL)::bigint                AS with_subject,
           COUNT(*) FILTER (WHERE "subject_absence_reason" = 'NOT_APPLICABLE')::bigint
-                                                                                  AS not_applicable
+                                                                                  AS not_applicable,
+          COUNT(*) FILTER (WHERE "request_id" LIKE ${DEMO_REQUEST_LIKE})::bigint   AS seeded
         FROM "decision_execution"
         WHERE "tenant_id" = ${tenantId}
           AND "executed_at" >= ${from}
@@ -108,6 +111,8 @@ export class DecisionCoverageService {
     const dueWindows = Number(windows?.due ?? 0);
     const observedWindows = Number(windows?.observed ?? 0);
 
+    const seededExecutions = Number(totals?.seeded ?? 0);
+
     const subjectCoverageRatio = ratio(withSubject, eligible);
     const outcomeCoverageRatio = ratio(observedWindows, dueWindows);
     if (subjectCoverageRatio !== null) this.metrics.setSubjectCoverage(subjectCoverageRatio);
@@ -116,6 +121,28 @@ export class DecisionCoverageService {
     return {
       from: from.toISOString(),
       to: to.toISOString(),
+      /**
+       * Qué parte de lo que se acaba de medir es población INVENTADA.
+       *
+       * Las semillas de demostración escriben decisiones en el ambiente de PRODUCCIÓN a
+       * propósito —es la única forma de que el monitoreo, que sólo mide producción, tenga algo
+       * que enseñar en una instalación recién levantada—. El efecto colateral es que un
+       * `BAD_RATE` o un `ADVERSE_IMPACT_RATIO` calculados sobre esa población se leen
+       * exactamente igual que los reales: el cálculo es honesto y la población no.
+       *
+       * Se publica el CONTEO junto a la proporción por la misma razón que los otros dos
+       * indicadores llevan su denominador: «85 % sembrado» sobre 29 decisiones y sobre 29.000
+       * son dos noticias distintas.
+       *
+       * En una base sin semillas de demostración (`SEED_INCLUDE_MOCKUP=false`, que es lo que
+       * fija `docker-compose.prod.yml`) no hay ninguna fila con este prefijo: sale 0 y el
+       * portal no enseña ningún aviso. No hace falta apagarlo por configuración.
+       */
+      seeded: {
+        executions: seededExecutions,
+        /** Nulo, no cero, cuando no hubo decisiones: es lo mismo que hacen los otros ratios. */
+        share: ratio(seededExecutions, executions),
+      },
       subject: {
         executions,
         /** Decisiones que declaran no tener sujeto. Fuera del denominador, no restadas del acierto. */

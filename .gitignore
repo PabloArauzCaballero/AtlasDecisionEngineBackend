@@ -45,3 +45,11 @@ backups/
 
 # macOS
 .DS_Store
+
+# Árboles de trabajo de git creados por las herramientas de agente.
+#
+# `.claude/` SÍ se versiona —ahí viven las reglas del repositorio— pero esta carpeta no es
+# configuración: es un `git worktree` vivo, es decir, una copia completa del repositorio
+# apuntando a otra rama. Versionarla mete un repositorio dentro de otro, y a partir de ahí `git
+# status` empieza a informar del árbol equivocado.
+.claude/worktrees/

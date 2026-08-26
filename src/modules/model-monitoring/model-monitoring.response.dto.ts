@@ -4,6 +4,27 @@ export class MonitoringWriteResultDto {
   @ApiProperty({ example: 250 }) recorded!: number;
 }
 
+/**
+ * Qué parte de la población medida es siembra de DEMOSTRACIÓN.
+ *
+ * Se publica en el contrato y no sólo en la pantalla porque el consumidor de esta respuesta
+ * puede ser un tablero externo o un informe, y ahí el dato de que el 85 % de las decisiones
+ * son inventadas cambia la lectura de todo lo demás.
+ */
+class SeededCoverageDto {
+  @ApiProperty({
+    example: 24,
+    description: 'Decisiones de la ventana escritas por las semillas de demostración.',
+  })
+  executions!: number;
+  @ApiProperty({
+    example: 0.827586,
+    nullable: true,
+    description: 'Proporción sobre el total medido. Nulo si no hubo decisiones que medir.',
+  })
+  share!: number | null;
+}
+
 class SubjectCoverageDto {
   @ApiProperty({ example: 18420 }) executions!: number;
   @ApiProperty({
@@ -56,6 +77,7 @@ class CoverageDayDto {
 export class DecisionCoverageDto {
   @ApiProperty({ example: '2026-07-12T00:00:00.000Z' }) from!: string;
   @ApiProperty({ example: '2026-08-11T00:00:00.000Z' }) to!: string;
+  @ApiProperty({ type: SeededCoverageDto }) seeded!: SeededCoverageDto;
   @ApiProperty({ type: SubjectCoverageDto }) subject!: SubjectCoverageDto;
   @ApiProperty({ type: OutcomeCoverageDto }) outcome!: OutcomeCoverageDto;
   @ApiProperty({ type: [CoverageDayDto] }) daily!: CoverageDayDto[];
