@@ -201,6 +201,10 @@ export class ManualReviewService {
       );
       return updated;
     });
+
+    // El controlador hace `return this.reviews.assign(...)`, así que sin esto la respuesta del
+    // endpoint salía vacía: el portal reasignaba el caso y no recibía el caso reasignado.
+    return resuelto;
   }
 
   async resolve(
