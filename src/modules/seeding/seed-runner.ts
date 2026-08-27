@@ -9,6 +9,7 @@ import { seedCollectionsDemoArtifact } from './data/collections-demo.seed';
 import { seedContractDemoArtifact } from './data/contract-demo.seed';
 import { seedStatementWorkerDemoArtifact } from './data/statement-worker-demo.seed';
 import { seedIdentityMobileArtifact } from './data/identity-mobile.seed';
+import { seedPartnerKybArtifact } from './data/partner-kyb.seed';
 import { seedGovernanceScenarios } from './data/governance-scenarios.seed';
 import { seedFinancialInstitutions } from './data/financial-institutions.data';
 import { seedApprovedLibraries } from './data/library-catalog.data';
@@ -267,6 +268,12 @@ export async function runMockupSeeds(prisma: PrismaClient, context: BootstrapCon
   // porque es el mismo mecanismo —un nodo que llama a un worker— aplicado a un
   // caso real y no a una demostración.
   await seedIdentityMobileArtifact(prisma);
+  /*
+   * Verificación del expediente del comercio (KYB). Es el primero que decide sobre un
+   * COMERCIO y no sobre una persona: hasta ahora esa decisión vivía dentro del backend de
+   * altas —una lista de requisitos que nadie podía ejecutar, versionar ni auditar—.
+   */
+  await seedPartnerKybArtifact(prisma);
   // Escenarios negativos de gobierno (§11): ciclo, versión no disponible, contrato
   // incompatible y una corrida de QA con su contraejemplo.
   await seedGovernanceScenarios(prisma);
