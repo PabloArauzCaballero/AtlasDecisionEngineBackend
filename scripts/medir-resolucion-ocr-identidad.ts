@@ -34,8 +34,8 @@
  * Cuando termines, BORRA las fotos. No pertenecen a esta máquina más tiempo del que dure la
  * medición.
  */
-import { readdirSync, readFileSync } from 'node:fs';
-import { basename, extname, join } from 'node:path';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { basename, extname, join, resolve } from 'node:path';
 import sharp from 'sharp';
 import { TesseractOcrAdapter } from '../src/modules/workers/identity-verification/core/adapters/tesseract-ocr.adapter';
 import { SharpImageAdapter } from '../src/modules/workers/identity-verification/core/adapters/sharp-image.adapter';
@@ -78,12 +78,40 @@ function ejemplares(
       }));
   }
 
-  const archivos = readdirSync(directorio).filter((f) => EXTENSIONES.has(extname(f).toLowerCase()));
+  /*
+   * El directorio se comprueba ANTES de tocarlo, y el error se escribe entero.
+   *
+   * `readdirSync` sobre algo que no existe lanza un ENOENT con su volcado de
+   * pila, y eso obliga a quien corre el comando a leer diez líneas de rutas de
+   * `node:fs` para enterarse de que se equivocó de carpeta. Lo que hay que
+   * decirle es qué buscaba, dónde, y qué tiene que hacer.
+   */
+  const ruta = resolve(directorio);
+  let esDirectorio: boolean;
+  try {
+    esDirectorio = statSync(ruta).isDirectory();
+  } catch {
+    throw new Error(
+      `No existe la carpeta ${ruta}.\n` +
+        `Crea una FUERA del repositorio, mete ahí las fotos y vuelve a llamarme con su ruta:\n` +
+        `  mkdir -p ~/fotos-cedulas   # y copia ahí las fotos\n` +
+        `  yarn ts-node scripts/medir-resolucion-ocr-identidad.ts ~/fotos-cedulas\n` +
+        `Sin argumento mido la cédula sintética, que sirve para comprobar que esto funciona y ` +
+        `NO para elegir el tope.`,
+    );
+  }
+  if (!esDirectorio) {
+    throw new Error(`${ruta} es un archivo, y lo que necesito es la CARPETA que lo contiene.`);
+  }
+
+  const archivos = readdirSync(ruta).filter((f) => EXTENSIONES.has(extname(f).toLowerCase()));
   const anversos = archivos.filter((f) => !basename(f, extname(f)).endsWith(SUFIJO_REVERSO));
   if (anversos.length === 0) {
     throw new Error(
-      `No hay imágenes en ${directorio}. Se admiten ${[...EXTENSIONES].join(', ')}, ` +
-        `y el reverso se empareja por nombre: foto.jpg + foto${SUFIJO_REVERSO}.jpg.`,
+      `La carpeta ${ruta} existe pero no tiene imágenes que yo sepa leer.\n` +
+        `Admito ${[...EXTENSIONES].join(', ')}, y el reverso se empareja por nombre: ` +
+        `foto.jpg + foto${SUFIJO_REVERSO}.jpg.` +
+        (readdirSync(ruta).length === 0 ? '' : `\nLo que hay ahí: ${readdirSync(ruta).join(', ')}`),
     );
   }
   return anversos.map((archivo) => {
@@ -93,8 +121,8 @@ function ejemplares(
       nombre: `${archivo}${reverso === undefined ? ' · SIN REVERSO, no mide la MRZ' : ''}`,
       cargar: () =>
         Promise.resolve({
-          document: readFileSync(join(directorio, archivo)),
-          documentBack: reverso === undefined ? null : readFileSync(join(directorio, reverso)),
+          document: readFileSync(join(ruta, archivo)),
+          documentBack: reverso === undefined ? null : readFileSync(join(ruta, reverso)),
         }),
     };
   });
@@ -106,14 +134,18 @@ async function main() {
   const parser = new BoliviaCiDocumentParser();
 
   const directorio = process.argv[2];
+  // La lista se resuelve ANTES de anunciar nada: anunciar «midiendo X» y fallar
+  // en la línea siguiente es peor que no anunciar.
+  const lista = ejemplares(directorio);
   console.log(
     directorio === undefined
       ? 'Midiendo la cédula SINTÉTICA. Es un SVG nítido: aguanta más de lo que aguantará una foto.\n' +
-          'Para lo que de verdad decide el tope, pásale un directorio con fotos reales.'
-      : `Midiendo fotos reales de ${directorio}. Este comando sólo LEE; nada se copia al repositorio.`,
+          'Para lo que de verdad decide el tope, pásale una carpeta con fotos reales.'
+      : `Midiendo ${String(lista.length)} foto(s) de ${resolve(directorio)}. ` +
+          'Este comando sólo LEE; nada se copia al repositorio.',
   );
 
-  for (const ejemplar of ejemplares(directorio)) {
+  for (const ejemplar of lista) {
     const imgs = await ejemplar.cargar();
     const doc = await images.normalize(imgs.document);
     const enc = await images.frame(doc.buffer);
@@ -150,7 +182,9 @@ async function main() {
   await ocr.onModuleDestroy?.();
 }
 
-main().catch((error) => {
-  console.error(error);
+main().catch((error: unknown) => {
+  // Un mensaje que YO escribí se imprime tal cual; lo demás sí lleva su volcado,
+  // porque ahí el fallo es de verdad inesperado y la pila es lo único que ayuda.
+  console.error(error instanceof Error ? `\n${error.message}\n` : error);
   process.exit(1);
 });
