@@ -79,6 +79,7 @@ export function buildIdentityOptions(config: ConfigService): IdentityOptions {
       'IDENTITY_MIN_READABLE_SHORT_EDGE',
       IDENTITY_DEFAULTS.minReadableShortEdge,
     ),
+    ocrMaxLongEdge: number('IDENTITY_OCR_MAX_LONG_EDGE', IDENTITY_DEFAULTS.ocrMaxLongEdge),
     faceCropPaddingRatio: number(
       'IDENTITY_FACE_CROP_PADDING_RATIO',
       IDENTITY_DEFAULTS.faceCropPaddingRatio,

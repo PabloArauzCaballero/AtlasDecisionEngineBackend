@@ -178,6 +178,21 @@ export interface DocumentFramerPort {
    * hay que recortar el retrato de esa misma imagen.
    */
   rotate(input: Buffer, degrees: 90 | 180 | 270): Promise<Buffer>;
+  /**
+   * Reduce la imagen a un lado largo dado, sin ampliarla nunca.
+   *
+   * Existe para las SONDAS: los intentos que sólo tienen que contestar «¿esto
+   * clasifica?» y cuyo texto no se usa para rellenar ningún campo. El coste del
+   * reconocedor crece con los píxeles y la pregunta de la sonda no los necesita
+   * —el rótulo de una cédula es lo más grande que hay impreso en ella—, así que
+   * pagarlos es tiempo que se le cobra a quien está esperando una respuesta.
+   *
+   * Medido sobre una foto de móvil que NO es un documento: 6516 ms a 1350x1800,
+   * 1038 ms a 600x800. El mismo texto que decide la clasificación sobrevive: la
+   * cédula sintética reducida a 1000 px de lado largo entrega las mismas señales
+   * y la misma evidencia (0,75) que a tamaño completo.
+   */
+  downscale(input: Buffer, longEdge: number): Promise<Buffer>;
 }
 
 // --- Rostros ---------------------------------------------------------------

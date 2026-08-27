@@ -85,6 +85,42 @@ export interface IdentityOptions {
    */
   readonly minReadableLongEdge: number;
   readonly minReadableShortEdge: number;
+  /**
+   * Tope del lado largo de lo que se le entrega al RECONOCEDOR, en píxeles.
+   *
+   * No es un mínimo de calidad ni una puerta: es cuánta imagen vale la pena
+   * pagar. Y lo que se paga NO es proporcional a los píxeles: el coste de
+   * Tesseract lo marca cuántos candidatos a texto encuentra, así que sobre una
+   * foto que no es un documento hay un ACANTILADO. Medido sobre ruido de 12 MP,
+   * con el reconocedor ya caliente y dos pasadas por tamaño:
+   *
+   *   1350x1800  18205 / 21333 ms   719 caracteres de ruido
+   *   1050x1400   7938 /  7764 ms   344
+   *    900x1200   5569 /  5200 ms   156
+   *    750x1000   5872 /  5617 ms   197
+   *    600x800    4753 /  4527 ms   167
+   *    450x600     513 /   382 ms    11   <- aquí deja de ver texto donde no lo hay
+   *
+   * Por eso 600 y no 800: entre esas dos filas hay un factor de nueve, y no lo
+   * compra la resolución sino dejar de perseguir fantasmas. El sitio exacto del
+   * acantilado es de ESTA imagen —ruido puro, el peor caso—; con una foto real
+   * cae en otro punto, y por eso el número es configurable y no una constante.
+   *
+   * **Este valor es una CONCESIÓN, y hay que saber a cambio de qué.** Los campos
+   * —número, nombre, nacimiento, caducidad— sobreviven hasta 600 px en la cédula
+   * sintética de `fixtures/`, que es un SVG nítido que no pasó por ningún
+   * sensor. Una foto real se degrada antes, y lo que primero se pierde es la
+   * MRZ, que es la letra más pequeña de la tarjeta y de donde salen el número y
+   * las fechas. Cuando eso pasa el caso NO se aprueba mal: le faltan campos y
+   * cae en la bandeja de revisión. O sea, el precio de este número lo paga quien
+   * hace las cosas bien, en forma de espera humana.
+   *
+   * Súbelo —o ponlo en 0 para no topar nada— en cuanto haya un corpus real
+   * medido. Se mide con `scripts/medir-resolucion-ocr-identidad.ts`, que mira
+   * los CAMPOS y no la clasificación: un tope que clasifica igual y se come el
+   * número de la cédula no es una optimización, es una avería.
+   */
+  readonly ocrMaxLongEdge: number;
   readonly faceCropPaddingRatio: number;
   readonly minDocumentFacePx: number;
 
@@ -177,6 +213,7 @@ export const IDENTITY_DEFAULTS: IdentityOptions = {
   minImagePixels: 230_400,
   minReadableLongEdge: 240,
   minReadableShortEdge: 150,
+  ocrMaxLongEdge: 600,
   faceCropPaddingRatio: 0.25,
   minDocumentFacePx: 80,
   livenessEnabled: true,

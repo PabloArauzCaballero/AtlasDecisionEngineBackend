@@ -199,6 +199,21 @@ export class SharpImageAdapter implements ImageNormalizerPort, FaceCropPort, Doc
   }
 
   /**
+   * `withoutEnlargement` es la mitad del contrato: reducir nunca debe AMPLIAR.
+   * Una sonda que agrandara una imagen pequeña costaría más que el intento que
+   * viene a abaratar, que es justo lo contrario de para lo que existe.
+   */
+  async downscale(input: Buffer, longEdge: number): Promise<Buffer> {
+    return sharp(input, {
+      limitInputPixels: this.options.maxImagePixels,
+      failOn: 'warning',
+    })
+      .resize({ width: longEdge, height: longEdge, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 88, mozjpeg: true })
+      .toBuffer();
+  }
+
+  /**
    * Recorta un rostro detectado con margen alrededor de la caja del proveedor.
    *
    * Los comparadores aciertan bastante más con contexto alrededor de la cabeza

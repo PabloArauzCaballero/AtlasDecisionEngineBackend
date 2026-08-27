@@ -60,6 +60,15 @@ export class HumanIdentityArbitrationAdapter implements IdentityArbitrationPort 
  * vez de dejar pasar un documento que nadie miró. Y lo dice en `health()`, para
  * que un despliegue mal configurado se vea en el estado del worker y no sólo
  * como una cola humana que crece sin que nadie sepa por qué.
+ *
+ * **Y cuando haya modelo, seguirá sin poder aprobar.** Quien impone eso no es
+ * este adaptador sino el pipeline, y ahí está el punto: un `ACCEPT_DOCUMENT`
+ * firmado por un árbitro automático se degrada a «sigue en la bandeja», venga
+ * del adaptador que venga. La razón es que la duda que llega aquí no se cierra
+ * con lo que un árbitro de texto ve: lo que separa una cédula legítima de una
+ * falsificada está en los píxeles —`core/forensics/`—, y el texto de una
+ * falsificación es el de un documento auténtico porque se copió de uno.
+ * Escalar sí puede, y ahí es donde un modelo descarga trabajo de verdad.
  */
 @Injectable()
 export class AiIdentityArbitrationAdapter implements IdentityArbitrationPort {

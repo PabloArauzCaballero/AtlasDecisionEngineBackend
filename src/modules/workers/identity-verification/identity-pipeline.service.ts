@@ -47,6 +47,24 @@ import type {
   NormalizedImage,
 } from './core/ports/identity.ports';
 
+/**
+ * Lado largo de las SONDAS de orientación, en píxeles.
+ *
+ * No es el tamaño con el que se lee un documento: es el tamaño con el que se
+ * decide si hay que leerlo. Va en 800 porque ahí sigue habiendo de sobra para
+ * la parte del texto que clasifica —el rótulo es lo más grande impreso en la
+ * tarjeta— y porque es donde el coste deja de doler.
+ *
+ * Medido con `scripts/medir-rechazo-identidad.ts` sobre una foto de móvil que
+ * no es un documento: 6516 ms a 1350x1800, 2435 ms a 900x1200, 1038 ms a
+ * 600x800. Y en el otro lado, la cédula sintética reducida a 1000 px de lado
+ * largo entrega LAS MISMAS señales y la misma evidencia (0,75) que entera.
+ *
+ * Bajarlo más no compra casi nada —de 600x800 a 450x600 son 140 ms— y empieza a
+ * arriesgar el rótulo de una cédula fotografiada pequeña dentro del encuadre.
+ */
+const ORIENTATION_PROBE_LONG_EDGE = 600;
+
 /** Lo que sale de leer una o las dos caras y clasificarlas juntas. */
 interface Lectura {
   ocr: DocumentOcrResult;
@@ -248,7 +266,7 @@ export class IdentityPipelineService {
       lectura = await this.leerCaras(document.buffer, reverso, input, clasificar);
     }
     if (lectura.classification.type === IdentityDocumentType.UNKNOWN) {
-      const enderezado = await this.buscarOrientacion(input, clasificar);
+      const enderezado = await this.buscarOrientacion(input, clasificar, encuadre.buffer);
       if (enderezado) {
         ({ document, encuadre, reverso, lectura } = enderezado);
       }
@@ -378,6 +396,48 @@ export class IdentityPipelineService {
 
       if (veredicto.outcome === 'REJECT_DOCUMENT') {
         throw identityErrors.notAnIdentityDocument(veredicto.rationale, 'NOT_AN_IDENTITY_DOCUMENT');
+      }
+
+      /*
+       * UN ÁRBITRO QUE NO ES UNA PERSONA PUEDE ESCALAR, NUNCA APROBAR.
+       *
+       * No es desconfianza genérica hacia los modelos: es que la pregunta que
+       * llega hasta aquí no se contesta con lo que un árbitro de texto ve. La
+       * franja de duda se abre cuando hay evidencia de un documento y no basta
+       * para afirmar cuál es, y lo que separa una cédula legítima de una
+       * falsificada NO está en el texto —el texto de una falsificación es el de
+       * un documento auténtico, porque se copió de uno— sino en los píxeles, que
+       * es lo que mira `core/forensics/`. Un árbitro que aprobara leyendo el
+       * texto estaría dando por buena justamente la parte que el falsificador
+       * copia bien.
+       *
+       * Así que el `ACCEPT_DOCUMENT` de un árbitro que no es humano se degrada a
+       * «sigue en la cola». Escalar sí puede —`REJECT_DOCUMENT` sigue valiendo—:
+       * negarse no aprueba nada, y ahí un modelo sí descarga trabajo de la
+       * bandeja.
+       *
+       * Que ocurrió se cuenta en el MOTIVO del error, y no en una marca de
+       * riesgo: las marcas viajan dentro del resultado, y aquí no va a haber
+       * resultado —esto termina en una excepción y el caso queda abierto—. Una
+       * marca empujada justo antes de un `throw` no la lee nadie.
+       *
+       * Se mira `mode` Y `decidedBy`: el primero es lo que el despliegue
+       * configuró y el segundo lo que el adaptador dice de sí mismo. Con
+       * cualquiera de los dos basta, porque un adaptador con un fallo podría
+       * firmar como humano y la regla tiene que aguantar eso.
+       *
+       * Cuando exista un árbitro automático que MIRE los píxeles, esta regla
+       * cambia aquí y en un solo sitio, deliberadamente y no por descuido.
+       */
+      const arbitroAutomatico = this.arbitration.mode === 'AI' || veredicto.decidedBy === 'AI';
+      if (arbitroAutomatico && veredicto.outcome === 'ACCEPT_DOCUMENT') {
+        throw identityErrors.arbitrationPending(
+          `El árbitro automático (${veredicto.provider}) dio el documento por bueno, y eso no ` +
+            `aprueba por sí solo: la autenticidad se decide sobre la imagen y no sobre el texto. ` +
+            `El caso sigue en la bandeja. Motivo del árbitro: ${veredicto.rationale}`,
+          puerta.reason,
+          this.options.arbitrationMode,
+        );
       }
       /*
        * Aceptar sin poder nombrar el tipo no es aceptar: sin tipo no hay
@@ -814,6 +874,21 @@ export class IdentityPipelineService {
   }
 
   /** Lee anverso y, si lo hay, reverso, y clasifica el texto de los dos juntos. */
+  /**
+   * El tope de resolución del reconocedor, aplicado en el ÚNICO sitio por el que
+   * pasan todas las lecturas.
+   *
+   * Va aquí y no en el adaptador porque es una decisión del flujo —cuánto vale
+   * la pena pagar por leer— y no del reconocedor. La imagen de tamaño completo
+   * sigue viva para todo lo demás: el recorte del retrato, la comparación
+   * biométrica y el análisis de píxeles del fraude siguen viendo cada píxel.
+   * Aquí sólo se abarata el TEXTO.
+   */
+  private async paraLeer(imagen: Buffer): Promise<Buffer> {
+    if (this.options.ocrMaxLongEdge <= 0) return imagen;
+    return this.images.downscale(imagen, this.options.ocrMaxLongEdge);
+  }
+
   private async leerCaras(
     anverso: Buffer,
     reverso: Buffer | null,
@@ -821,11 +896,14 @@ export class IdentityPipelineService {
     clasificar: (texto: string) => Promise<DocumentClassificationResult>,
   ): Promise<Lectura> {
     const front = await this.ocr.extract({
-      image: anverso,
+      image: await this.paraLeer(anverso),
       correlationId: input.correlationId,
     });
     const back = reverso
-      ? await this.ocr.extract({ image: reverso, correlationId: input.correlationId })
+      ? await this.ocr.extract({
+          image: await this.paraLeer(reverso),
+          correlationId: input.correlationId,
+        })
       : null;
     // Las dos caras de una cédula llevan campos distintos; el análisis corre
     // sobre las dos juntas.
@@ -885,21 +963,74 @@ export class IdentityPipelineService {
   private async buscarOrientacion(
     input: IdentityPipelineInput,
     clasificar: (texto: string) => Promise<DocumentClassificationResult>,
+    yaEncuadrada: Buffer,
   ): Promise<{
     document: NormalizedImage;
     encuadre: DocumentFraming;
     reverso: Buffer | null;
     lectura: Lectura;
   } | null> {
+    /*
+     * La base de las sondas se reduce UNA vez y se gira en pequeño.
+     *
+     * Es la mitad del ahorro y no se ve en el reloj del reconocedor. Preparar
+     * cada giro a partir del original —girar 12 MP, volver a normalizar,
+     * encuadrar— costaba unos 1250 ms por vuelta, o sea casi cuatro segundos de
+     * `sharp` para tres preguntas que se contestan con una imagen de 600 px.
+     * Partiendo de la imagen que YA está normalizada y encuadrada, girar es
+     * trabajo de milisegundos.
+     *
+     * Lo que se pierde al girar algo ya codificado en JPEG —los artefactos
+     * cruzados sobre las cifras, medidos en `rotate`— aquí da igual: la sonda no
+     * lee cifras, sólo tiene que reconocer el rótulo. Y cuando acierta, el giro
+     * bueno se rehace desde el original, que es donde ese detalle sí importa.
+     */
+    const baseSonda = await this.images.downscale(yaEncuadrada, ORIENTATION_PROBE_LONG_EDGE);
+
     for (const grados of [90, 180, 270] as const) {
+      /*
+       * La SONDA: se pregunta primero en pequeño, y sólo se paga el tamaño
+       * completo cuando la respuesta ha sido que sí.
+       *
+       * El reverso ni siquiera entra aquí. La sonda contesta una única pregunta
+       * —«¿este giro clasifica?»— y esa la contesta el anverso, que es donde
+       * está el rótulo; leer la otra cara para tirarla es pagar el doble por la
+       * misma respuesta.
+       */
+      const sonda = await this.leerCaras(
+        await this.images.rotate(baseSonda, grados),
+        null,
+        input,
+        clasificar,
+      );
+      if (sonda.classification.type === IdentityDocumentType.UNKNOWN) continue;
+
+      /*
+       * A partir de aquí se paga lo caro, y se paga sobre el ORIGINAL: girar la
+       * foto tal como llegó y volver a normalizarla es lo que deja el documento
+       * como si se hubiera fotografiado derecho. Esto sólo ocurre una vez por
+       * ejecución y sólo cuando ya se sabe que hay un documento.
+       */
       const document = await this.images.normalize(
         await this.images.rotate(input.documentImage, grados),
       );
+      const encuadre = await this.images.frame(document.buffer);
+
+      /*
+       * Clasificó. Ahora sí se lee entero: el texto de la sonda decidió una
+       * orientación y NADA más. Los campos —número, nombre, caducidad, MRZ— se
+       * rellenan con la lectura de tamaño completo, que es la única calibrada
+       * contra los cortes de resolución medidos.
+       *
+       * Si a tamaño completo no clasifica, este giro no vale: se sigue
+       * probando. La postcondición no ha cambiado desde que esto se escribió
+       * —nunca se devuelve una lectura sin clasificar— y por eso una sonda que
+       * se equivoque cuesta tiempo pero no puede cambiar ningún veredicto.
+       */
       const reverso = input.documentBackImage
         ? (await this.images.normalize(await this.images.rotate(input.documentBackImage, grados)))
             .buffer
         : null;
-      const encuadre = await this.images.frame(document.buffer);
       const lectura = await this.leerCaras(encuadre.buffer, reverso, input, clasificar);
       if (lectura.classification.type !== IdentityDocumentType.UNKNOWN) {
         return { document, encuadre, reverso, lectura };

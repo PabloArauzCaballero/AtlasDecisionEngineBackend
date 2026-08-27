@@ -571,6 +571,15 @@ export const envSchema = z
      */
     IDENTITY_MIN_READABLE_LONG_EDGE: z.coerce.number().int().min(120).max(4_000).default(240),
     IDENTITY_MIN_READABLE_SHORT_EDGE: z.coerce.number().int().min(80).max(4_000).default(150),
+    /*
+     * Tope de la imagen que se le da al reconocedor. `0` = sin tope.
+     *
+     * Es la palanca de VELOCIDAD del worker, y no es gratis: por debajo de cierto
+     * tamaño se pierde la MRZ, y con ella el número y las fechas, así que el caso
+     * termina en la bandeja humana en vez de verificarse solo. Se mide con
+     * `scripts/medir-resolucion-ocr-identidad.ts` mirando los CAMPOS.
+     */
+    IDENTITY_OCR_MAX_LONG_EDGE: z.coerce.number().int().min(0).max(6_000).default(600),
     IDENTITY_FACE_CROP_PADDING_RATIO: z.coerce.number().min(0).max(1).default(0.25),
     IDENTITY_MIN_DOCUMENT_FACE_PX: z.coerce.number().int().min(40).max(2_000).default(80),
     IDENTITY_LIVENESS_ENABLED: booleanFromString.default(true),

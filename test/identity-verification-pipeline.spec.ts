@@ -25,6 +25,10 @@ import { createHash } from 'node:crypto';
 import sharp from 'sharp';
 import { HeuristicDocumentClassifierAdapter } from '../src/modules/workers/identity-verification/core/adapters/local-providers.adapter';
 import { HumanIdentityArbitrationAdapter } from '../src/modules/workers/identity-verification/core/adapters/identity-arbitration.adapter';
+import type {
+  IdentityArbitrationPort,
+  IdentityArbitrationVerdict,
+} from '../src/modules/workers/identity-verification/core/ports/identity.ports';
 import {
   HumanFaceDetectorAdapter,
   HumanFaceMatchAdapter,
@@ -152,7 +156,16 @@ afterAll(async () => {
   await ocr.onModuleDestroy();
 });
 
-function buildPipeline(options: IdentityOptions = OPTIONS): IdentityPipelineService {
+function buildPipeline(
+  options: IdentityOptions = OPTIONS,
+  /*
+   * El árbitro es inyectable porque la REGLA que lo gobierna es del pipeline, no
+   * suya: un árbitro automático puede escalar y no puede aprobar. Para probar
+   * eso hace falta un árbitro que diga que sí, y ninguno de los dos de
+   * producción lo dice.
+   */
+  arbitration: IdentityArbitrationPort = new HumanIdentityArbitrationAdapter(),
+): IdentityPipelineService {
   const images = new SharpImageAdapter(options);
   const parsers = new DocumentParserRegistry(
     new BoliviaCiDocumentParser(),
@@ -167,9 +180,7 @@ function buildPipeline(options: IdentityOptions = OPTIONS): IdentityPipelineServ
     new HumanFaceDetectorAdapter(options),
     new HumanFaceMatchAdapter(options),
     new HumanLivenessAdapter(options),
-    // Árbitro humano: deja el caso en la cola y no finge un veredicto, que es
-    // exactamente lo que hace en producción.
-    new HumanIdentityArbitrationAdapter(),
+    arbitration,
     /*
      * Sin codificador: la batería corre sin servidor de embeddings levantado.
      *
@@ -636,5 +647,138 @@ describe('escenarios del worker de verificación de identidad', () => {
     expect(progreso.length).toBeGreaterThanOrEqual(5);
     expect([...progreso].sort((a, b) => a - b)).toEqual(progreso);
     expect(Math.max(...progreso)).toBeLessThanOrEqual(100);
+  });
+});
+
+/*
+ * Un árbitro que no es una persona puede ESCALAR y no puede APROBAR.
+ *
+ * El escenario se fabrica subiendo el umbral de aceptación por encima de la
+ * evidencia de una cédula buena: así la puerta manda a arbitrar un documento
+ * cuyo tipo SÍ se reconoce, que es el único caso en el que un `ACCEPT_DOCUMENT`
+ * llegaría a aprobar de verdad. Sin tipo reconocible el pipeline ya se negaba
+ * antes por otro motivo, y una prueba que pasara por ahí estaría verde sin
+ * comprobar nada.
+ */
+describe('el árbitro automático', () => {
+  /*
+   * Un umbral de aceptación INALCANZABLE, a propósito.
+   *
+   * Lo que hay que probar es la regla del árbitro, y para eso hace falta que la
+   * puerta arbitre un documento cuyo TIPO sí se reconoce: es el único caso en el
+   * que un `ACCEPT_DOCUMENT` llegaría a aprobar de verdad —sin tipo, el pipeline
+   * ya se negaba antes por otro motivo, y una prueba que pasara por ahí estaría
+   * verde sin comprobar nada—. Con 0,9 no bastaba: una cédula con sus DOS caras
+   * trae también la MRZ, y con ella la evidencia se va por encima. Poniéndolo
+   * por encima del máximo posible, la franja de duda queda garantizada pase lo
+   * que pase con los pesos de las señales, que no es lo que se está midiendo
+   * aquí.
+   */
+  const DUDA: IdentityOptions = { ...OPTIONS, documentAcceptConfidence: 1.01 };
+
+  function arbitro(outcome: IdentityArbitrationVerdict['outcome']): IdentityArbitrationPort & {
+    llamadas: number;
+  } {
+    return {
+      mode: 'AI' as const,
+      llamadas: 0,
+      arbitrate(): Promise<IdentityArbitrationVerdict> {
+        this.llamadas += 1;
+        return Promise.resolve({
+          outcome,
+          decidedBy: 'AI',
+          provider: 'modelo-de-prueba',
+          rationale: 'lo dice el modelo',
+        });
+      },
+      health: () => Promise.resolve({ ready: true }),
+    };
+  }
+
+  it('NO aprueba: su «sí» deja el caso en la bandeja', async () => {
+    const juez = arbitro('ACCEPT_DOCUMENT');
+    const fixture = findIdentityFixture('identidad-aprobada')!;
+    const images = await buildIdentityFixtureImages(fixture);
+
+    const fallo = await buildPipeline(DUDA, juez)
+      .run({
+        documentImage: images.document,
+        documentBackImage: images.documentBack ?? undefined,
+        selfieImage: images.selfie,
+        documentCountry: 'BO',
+        correlationId: 'prueba-arbitro-ia',
+      })
+      .then(
+        () => null,
+        (error: unknown) => error,
+      );
+
+    // Que se le preguntara es parte de lo que se comprueba: si la puerta no
+    // hubiera llegado a arbitrar, el resto de la prueba no diría nada.
+    expect(juez.llamadas).toBe(1);
+    expect(fallo).toBeInstanceOf(IdentityDomainError);
+    expect((fallo as IdentityDomainError).code).toBe('IDENTITY_ARBITRATION_PENDING');
+    expect((fallo as IdentityDomainError).message).toContain('modelo-de-prueba');
+  });
+
+  it('SÍ escala: su «no» rechaza, que es lo que un modelo puede aportar', async () => {
+    const juez = arbitro('REJECT_DOCUMENT');
+    const fixture = findIdentityFixture('identidad-aprobada')!;
+    const images = await buildIdentityFixtureImages(fixture);
+
+    const fallo = await buildPipeline(DUDA, juez)
+      .run({
+        documentImage: images.document,
+        documentBackImage: images.documentBack ?? undefined,
+        selfieImage: images.selfie,
+        documentCountry: 'BO',
+        correlationId: 'prueba-arbitro-ia',
+      })
+      .then(
+        () => null,
+        (error: unknown) => error,
+      );
+
+    expect(juez.llamadas).toBe(1);
+    expect(fallo).toBeInstanceOf(IdentityDomainError);
+    expect((fallo as IdentityDomainError).code).toBe('IDENTITY_DOCUMENT_NOT_IDENTITY');
+  });
+
+  it('un árbitro HUMANO sí puede aprobar: la regla es sólo para los automáticos', async () => {
+    const persona: IdentityArbitrationPort = {
+      mode: 'HUMAN',
+      arbitrate: () =>
+        Promise.resolve({
+          outcome: 'ACCEPT_DOCUMENT' as const,
+          decidedBy: 'HUMAN' as const,
+          provider: 'bandeja',
+          rationale: 'lo miró una persona',
+        }),
+      health: () => Promise.resolve({ ready: true }),
+    };
+    const fixture = findIdentityFixture('identidad-aprobada')!;
+    const images = await buildIdentityFixtureImages(fixture);
+
+    const outcome = await buildPipeline(DUDA, persona).run({
+      documentImage: images.document,
+      documentBackImage: images.documentBack ?? undefined,
+      selfieImage: images.selfie,
+      documentCountry: 'BO',
+      correlationId: 'prueba-arbitro-humano',
+    });
+
+    /*
+     * Lo que se comprueba es que la puerta LO DEJÓ PASAR: hubo veredicto en vez
+     * de terminar en la bandeja como en la prueba de arriba, y se llegó a
+     * comparar los rostros, que es la etapa siguiente a la puerta.
+     *
+     * El veredicto final es REVIEW_REQUIRED y no VERIFIED, y no es un fallo: el
+     * umbral de aceptación está puesto por encima de lo alcanzable para forzar
+     * la franja de duda, así que el motor de decisión anota la confianza baja
+     * del documento. Afirmar VERIFIED aquí sería afirmar algo del umbral
+     * artificial y no de la regla que se está probando.
+     */
+    expect(outcome.decision).not.toBe(IdentityDecision.INCONCLUSIVE);
+    expect(outcome.faceMatch?.comparable).toBe(true);
   });
 });
