@@ -9,6 +9,7 @@ import { InstitutionCatalogService } from './institution-catalog.service';
 import {
   institutionLogoSeed,
   readInstitutionLogo,
+  type InstitutionLogoSeed,
   type InstitutionLogoSource,
 } from './institution-logo-seed';
 
@@ -300,13 +301,24 @@ export class FinancialInstitutionService {
   }
 
   /**
-   * Carga los logotipos que viajan con el código en las entidades que no tengan
-   * ninguno.
+   * Carga los logotipos que viajan con el código.
+   *
+   * Escribe en dos casos, y la diferencia entre ellos importa:
+   *
+   * - **La entidad no tiene ningún logotipo.** Se le pone el de la semilla, sea
+   *   el oficial o el monograma.
+   * - **La entidad tiene un MONOGRAMA y la semilla ya trae el logotipo
+   *   oficial.** Se reemplaza. Sin esta segunda regla, conseguir la marca de una
+   *   cooperativa no servía de nada: la sincronización sólo miraba si había
+   *   bytes, encontraba el cuadrado de tres letras que ella misma había puesto y
+   *   se saltaba la fila para siempre. La única salida era borrar el logotipo a
+   *   mano, entidad por entidad, para que volviera a entrar por el primer caso.
    *
    * **Nunca pisa uno cargado a mano.** Quien sube el logotipo bueno de una
    * cooperativa lo hace porque el monograma no le sirve, y una sincronización que
    * lo sobreescribiera convertiría ese trabajo en algo que se deshace solo — la
-   * misma regla que gobierna `syncSeed` con los marcadores.
+   * misma regla que gobierna `syncSeed` con los marcadores. Un monograma, en
+   * cambio, no es trabajo de nadie: lo compuso el motor a falta de algo mejor.
    */
   async syncLogos(tenantId: bigint, dryRun: boolean, actor: string) {
     const seeds = institutionLogoSeed();
@@ -316,12 +328,15 @@ export class FinancialInstitutionService {
     });
     const byCode = new Map(rows.map((row) => [row.code, row]));
 
+    const mejora = (seed: InstitutionLogoSeed, row: { logoSource: string | null }): boolean =>
+      row.logoSource === 'GENERATED' && seed.source === 'DOWNLOADED';
+
     const pending = seeds.filter((seed) => {
       const row = byCode.get(seed.code);
       if (!row) return false;
       // Un logotipo cargado a mano manda sobre la semilla, siempre.
       if (row.logoSource === 'UPLOADED') return false;
-      return !row.logoData;
+      return !row.logoData || mejora(seed, row);
     });
 
     if (!dryRun) {
@@ -352,6 +367,17 @@ export class FinancialInstitutionService {
       downloaded: seeds.filter((seed) => seed.source === 'DOWNLOADED').length,
       generated: seeds.filter((seed) => seed.source === 'GENERATED').length,
       applied: pending.map((seed) => seed.code),
+      /*
+       * Los que CAMBIARON de monograma a logotipo oficial, aparte. Contarlos con
+       * los demás diría «cargados 12» sobre un padrón que ya enseñaba doce
+       * imágenes, y quien lo lee no sabría si pasó algo.
+       */
+      upgraded: pending
+        .filter((seed) => {
+          const row = byCode.get(seed.code);
+          return row ? mejora(seed, row) : false;
+        })
+        .map((seed) => seed.code),
       dryRun,
     };
   }

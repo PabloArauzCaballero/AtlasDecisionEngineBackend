@@ -106,6 +106,13 @@ export class InstitutionLogoSyncDto {
   @ApiProperty({ description: 'Siglas a las que se les cargó el logotipo.', type: [String] })
   applied!: string[];
 
+  @ApiProperty({
+    description:
+      'De ellas, las que tenían un monograma y pasaron a llevar el logotipo oficial de la entidad.',
+    type: [String],
+  })
+  upgraded!: string[];
+
   @ApiProperty({ description: 'Si fue un ensayo: nada se escribió.' })
   dryRun!: boolean;
 }

@@ -194,9 +194,10 @@ export class FinancialInstitutionController {
 
   @Post('logos/sync')
   @ApiOperation({
-    summary: 'Carga los logotipos que trae el motor en las entidades que no tengan ninguno',
+    summary:
+      'Carga los logotipos que trae el motor y reemplaza los monogramas por la marca oficial',
     description:
-      'Nunca pisa un logotipo cargado a mano. Con dryRun responde qué haría sin escribir.',
+      'Escribe donde no hay logotipo, y donde hay un monograma que la semilla ya puede sustituir por el logotipo oficial. Nunca pisa uno cargado a mano. Con dryRun responde qué haría sin escribir.',
   })
   @ApiOkResponse({ description: 'Resumen de la carga.', type: InstitutionLogoSyncDto })
   @Roles('RISK_ANALYST', 'FRAUD_ANALYST')

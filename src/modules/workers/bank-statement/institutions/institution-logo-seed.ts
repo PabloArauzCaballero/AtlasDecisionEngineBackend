@@ -15,11 +15,19 @@
  *
  * ## Descargado ≠ generado, y la diferencia se publica
  *
- * De las sesenta y ocho entidades de la nómina de ASFI, quince publican un
- * logotipo utilizable en su sitio. Las demás —la mayoría de las cuarenta y una
- * cooperativas y varias IFD— no tienen sitio, lo tienen caído, o no publican
- * ninguna imagen aprovechable. Para ésas el motor compone un **monograma** con
- * la sigla de ASFI sobre el color de su tipo de entidad.
+ * De las sesenta y ocho entidades de la nómina de ASFI, **sesenta y una** traen
+ * hoy su logotipo real: se localizó el sitio de cada cooperativa y de cada IFD y
+ * se bajó la marca de su propia portada. Siete siguen con **monograma** —el
+ * cuadrado con la sigla de ASFI sobre el color de su tipo— y no por descuido:
+ * Punata no responde, Pío X y Loyola sirven sus imágenes tras un muro que
+ * rechaza a cualquiera que no sea un navegador, Asunción y Monseñor Félix Gainza
+ * no publican ninguna imagen de marca en su sitio, y Progreso y Fassil no tienen
+ * sitio que consultar. Ésas se revisan de vez en cuando; mientras tanto el
+ * monograma es lo honesto.
+ *
+ * Un logotipo blanco sobre transparente —el que varias entidades sirven para su
+ * cabecera oscura— no se guarda tal cual: desaparecería sobre el fondo claro de
+ * la tabla. Se envuelve en un cuadro de color, igual que el del BNB.
  *
  * El monograma NO se presenta como si fuera la marca: cada fila lleva
  * `logoSource`, y la pantalla lo rotula. Sin esa distinción alguien acabaría

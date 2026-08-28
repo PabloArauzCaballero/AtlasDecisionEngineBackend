@@ -267,6 +267,12 @@ export class BankStatementRunWorkerService implements OnModuleInit, OnModuleDest
    *   marcarlo cerrado haría que el «tiempo pendiente» de la cola contara desde
    *   un final que no ocurrió, y que las métricas de latencia del worker
    *   promediaran esperas humanas con tiempos de máquina.
+   * - **Una ejecución que TERMINA deja el progreso al 100.** El motor lo dejaba
+   *   donde estuviera al decidir el desenlace —25 % en un PDF rechazado, que es
+   *   lo que había avanzado al leer la carátula— y la consola pintaba esa barra
+   *   a un cuarto, quieta, bajo la insignia del rechazo: se leía como un worker
+   *   colgado cuando lo que hubo fue un fallo rápido y deliberado. Un pendiente
+   *   NO lo toca: ahí todavía queda trabajo, sólo que lo hace una persona.
    * - **El documento se conserva mientras alguien tenga que mirarlo.** La regla
    *   de privacidad del módulo es borrar el PDF en la misma transacción que
    *   cierra la ejecución, y sigue intacta: un caso en revisión no está cerrado.
@@ -282,6 +288,7 @@ export class BankStatementRunWorkerService implements OnModuleInit, OnModuleDest
       reviewPriority: outcome.reviewPriority,
       reviewOpenedAt: enRevision ? new Date() : null,
       finishedAt: enRevision ? null : new Date(),
+      progress: enRevision ? undefined : 100,
       fileBytes: enRevision ? undefined : null,
     };
   }
@@ -429,6 +436,7 @@ export class BankStatementRunWorkerService implements OnModuleInit, OnModuleDest
         errorCode: 'BANK_STATEMENT_RETRIES_EXHAUSTED',
         errorMessage: 'La conversión se interrumpió y ya no quedaban reintentos.',
         finishedAt: new Date(),
+        progress: 100,
         leaseExpiresAt: null,
         fileBytes: null,
       },

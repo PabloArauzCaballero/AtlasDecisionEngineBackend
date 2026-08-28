@@ -60,6 +60,7 @@ import { ValidatePayloadUseCase } from './application/use-cases/validate-templat
 import { NullArtifactContractAdapter } from './infrastructure/artifacts/null-artifact-contract.adapter';
 import { FilesystemAssetResolverAdapter } from './infrastructure/assets/filesystem-asset-resolver.adapter';
 import { FontRegistryAdapter } from './infrastructure/assets/font-registry.adapter';
+import { brandCatalog } from './infrastructure/config/brand-catalog';
 import { brandFromEnv } from './infrastructure/config/default-brand';
 import { loadPdfWorkerEnv, type PdfWorkerEnv } from './infrastructure/config/pdf-worker.env';
 import { PdfWorkerLifecycle } from './infrastructure/config/pdf-worker.lifecycle';
@@ -179,7 +180,9 @@ export class PdfWorkerModule {
         useFactory: () => {
           const registry = new BrandRegistry();
           registry.register(brandFromEnv(env));
-          for (const brand of options.brands ?? []) registry.register(brand);
+          for (const brand of [...brandCatalog(env), ...(options.brands ?? [])]) {
+            registry.register(brand);
+          }
           // Explícito aunque la del entorno se registre primero: si mañana el orden cambia,
           // la marca por defecto debe seguir siendo la que dice la configuración.
           registry.setDefault(env.PDF_BRAND_ID);

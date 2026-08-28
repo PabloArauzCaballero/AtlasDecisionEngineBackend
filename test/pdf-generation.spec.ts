@@ -78,7 +78,7 @@ describe('GeneratePdfUseCase', () => {
       expect(footerHtml).toContain('class="totalPages"');
       // El texto institucional lo pone el TEMPLATE, que en la precedencia va por delante de la
       // marca. La marca de este arnés declara otro; el que gana es el del contrato.
-      expect(footerHtml).toContain('Documento generado automáticamente por el motor de decisión');
+      expect(footerHtml).toContain('Documento generado automáticamente por la plataforma ATLAS.');
 
       // Autocontenido (§25): ni hojas externas, ni scripts, ni una sola URL remota.
       expect(html).not.toMatch(/<link\b/);

@@ -28,7 +28,13 @@ export const GenericResultReportTemplate = defineTemplate({
   classification: 'INTERNAL',
   page: { format: 'A4', orientation: 'portrait' },
   footer: {
-    institutionalText: 'Documento generado automáticamente por el motor de decisión ATLAS.',
+    /*
+     * Neutro a propósito: esta plantilla es la GENÉRICA y la usan varios productos de la casa
+     * —el motor de decisión y el ERP—. Nombrar aquí al motor ponía su firma al pie de facturas
+     * que no habían pasado por él. Quién firma el documento lo dice la marca (`brandId`), no la
+     * plantilla; esto es sólo la nota de que el documento se generó solo.
+     */
+    institutionalText: 'Documento generado automáticamente por la plataforma ATLAS.',
     showGeneratedAt: true,
     showDocumentId: true,
     showPageNumbers: true,
