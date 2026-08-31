@@ -67,6 +67,16 @@ const REJECTION_BY_CODE: Readonly<Record<string, StatementRejectionReason>> = {
   TAMPERED_DOCUMENT: StatementRejectionReason.TAMPERED_DOCUMENT,
   ACTIVE_CONTENT_IN_DOCUMENT: StatementRejectionReason.ACTIVE_CONTENT,
   INSUFFICIENT_STATEMENT_PERIOD: StatementRejectionReason.INSUFFICIENT_PERIOD,
+  /*
+   * El extracto vencido tiene motivo propio y no comparte el del corto, aunque
+   * los dos hablen del periodo. La regla de esta tabla es «un motivo por cada
+   * ACCIÓN distinta del cliente», y aquí son dos: al corto le faltan meses hacia
+   * atrás —hay que pedir un rango más ancho—; al vencido le falta el presente
+   * —hay que volver a descargarlo hoy—. Con un solo motivo, a quien subió un
+   * extracto de doce meses cerrado en marzo se le pediría «más meses», que es
+   * justo lo que no le falta.
+   */
+  STALE_STATEMENT: StatementRejectionReason.STALE_PERIOD,
 };
 
 /** Por qué se deriva a una persona cada código. */
@@ -79,6 +89,15 @@ const REVIEW_BY_CODE: Readonly<Record<string, StatementReviewReason>> = {
   SCANNED_PDF_UNSUPPORTED: StatementReviewReason.OCR_ERROR,
   PDF_PROCESSING_TIMEOUT: StatementReviewReason.TIMEOUT,
   SUSPECTED_TAMPERING: StatementReviewReason.SUSPECTED_TAMPERING,
+  /*
+   * Los dos de la vigencia que NO son un rechazo caen en `AMBIGUOUS_DATA`, que
+   * es exactamente lo que son: fechas que el motor leyó y no puede sostener. No
+   * se les inventa un motivo propio porque la acción de quien revisa es la misma
+   * —abrir el documento y mirar qué dice la carátula— y multiplicar categorías
+   * que se resuelven igual hace ilegible la cola.
+   */
+  FUTURE_DATED_STATEMENT: StatementReviewReason.AMBIGUOUS_DATA,
+  UNDATED_STATEMENT: StatementReviewReason.AMBIGUOUS_DATA,
 };
 
 /**

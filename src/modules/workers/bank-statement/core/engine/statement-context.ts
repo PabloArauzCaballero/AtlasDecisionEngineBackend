@@ -5,6 +5,7 @@ import type {
   InstitutionLicenseStatus,
 } from '../institutions/bolivia-institutions';
 import type { NonBankingIssuerKind } from '../institutions/non-banking-issuers';
+import type { InstitutionSignalDescriptor } from './similarity/institution-signals';
 import type { DocumentVerdict } from './document-triage';
 
 /**
@@ -74,6 +75,15 @@ export interface InstitutionDetection {
   readonly registryAuthoritative?: boolean;
   /** Por qué la licencia no está vigente, cuando no lo está. */
   readonly licenseNote?: string;
+  /**
+   * El descriptor de señales de la entidad atribuida, si el padrón lo tiene.
+   *
+   * Viaja con la detección y no se busca aparte porque la atribución y su
+   * descriptor son la misma lectura del padrón: resolverlos en dos momentos
+   * abriría la posibilidad de medir el parecido contra una entidad distinta de la
+   * que se atribuyó.
+   */
+  readonly signalDescriptor?: InstitutionSignalDescriptor;
   /**
    * Quién emitió el documento, cuando NO es una entidad del padrón y sí se
    * reconoce como otra cosa: una telefónica, una aseguradora, un banco

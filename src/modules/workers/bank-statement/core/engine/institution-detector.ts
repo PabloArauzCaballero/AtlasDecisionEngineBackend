@@ -3,6 +3,7 @@ import type { ExtractedPdf } from '../domain/models';
 import { countMarkerHits, type BoliviaInstitution } from '../institutions/bolivia-institutions';
 import { ASFI_SEED_REGISTRY, type InstitutionRegistry } from '../institutions/institution-registry';
 import { detectNonBankingIssuer } from '../institutions/non-banking-issuers';
+import { COMPILED_SIGNAL_DESCRIPTORS } from '../institutions/signal-descriptors';
 import {
   coverText,
   UNKNOWN_INSTITUTION_CODE,
@@ -107,6 +108,15 @@ export class InstitutionDetector {
       retailDeposits: institution.retailDeposits,
       licenseNote: institution.note,
       registryAuthoritative,
+      /*
+       * El padrón administrado manda sobre la deducción, y la deducción es la
+       * red. Es el mismo reparto que ya rige el padrón entero: una entidad
+       * calibrada desde el portal describe sus extractos mejor que un descriptor
+       * deducido de un analizador, pero sin base de datos —o sin haber calibrado
+       * todavía— el motor no se queda ciego.
+       */
+      signalDescriptor:
+        institution.expectedSignals ?? COMPILED_SIGNAL_DESCRIPTORS.get(institution.code),
     };
   }
 

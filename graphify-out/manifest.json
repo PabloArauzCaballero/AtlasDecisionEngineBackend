@@ -80,8 +80,8 @@
     "semantic_hash": "7a820394f9c2cb16733989ec131a250a"
   },
   "prisma/seed.ts": {
-    "mtime": 1787225953.534373,
-    "ast_hash": "8dbf8bbe64eca2600bc4197efc3ebc94",
+    "mtime": 1788180042.5349646,
+    "ast_hash": "c0ed1d3e9908b36a4d1934ab8b08e7ac",
     "semantic_hash": ""
   },
   "runner/server.mjs": {
@@ -135,8 +135,8 @@
     "semantic_hash": ""
   },
   "src/common/config/env.schema.ts": {
-    "mtime": 1787788366.4129698,
-    "ast_hash": "4f8a0d38d08967f61c43c934ae78da84",
+    "mtime": 1788179940.1089091,
+    "ast_hash": "85ef0e6f892cf1a8de9863240238354e",
     "semantic_hash": ""
   },
   "src/common/context/request-context.service.ts": {
@@ -535,8 +535,8 @@
     "semantic_hash": ""
   },
   "src/modules/manual-review/manual-review.service.ts": {
-    "mtime": 1787772547.5715148,
-    "ast_hash": "12f45d7daef7d702e9da2fe83c18bbcb",
+    "mtime": 1787836580.0708723,
+    "ast_hash": "ac451da65f5d16a8e0a556e7eb6d643a",
     "semantic_hash": ""
   },
   "src/modules/runtime/execution-writer.service.ts": {
@@ -725,8 +725,8 @@
     "semantic_hash": ""
   },
   "test/e2e/runtime.e2e-spec.ts": {
-    "mtime": 1786913184.5786536,
-    "ast_hash": "4f25440faefa5e2e3b683339cc412540",
+    "mtime": 1788179903.7269962,
+    "ast_hash": "8c65da998a5c195e4b52c0057910a274",
     "semantic_hash": ""
   },
   "test/e2e/security.e2e-spec.ts": {
@@ -910,8 +910,8 @@
     "semantic_hash": ""
   },
   "deploy/kubernetes/migration-job.yaml": {
-    "mtime": 1787225953.503623,
-    "ast_hash": "67355bdbf088b89a36bb7c3e7747d95f",
+    "mtime": 1788180119.1078317,
+    "ast_hash": "9e9aa209b81994df1b4b37b90370d378",
     "semantic_hash": ""
   },
   "deploy/kubernetes/network-policy.yaml": {
@@ -930,8 +930,8 @@
     "semantic_hash": ""
   },
   "docker-compose.yml": {
-    "mtime": 1787626533.117279,
-    "ast_hash": "ddcfd283e225dd326e5ba43c2b27f555",
+    "mtime": 1788180074.9737391,
+    "ast_hash": "735aea37d7a5e57f00dc714a09e4d5f0",
     "semantic_hash": ""
   },
   "docs/API_EXAMPLES.md": {
@@ -1154,74 +1154,14 @@
     "ast_hash": "c495ee965ca7a26c4030cacf87927013",
     "semantic_hash": ""
   },
-  "src/modules/seeding/data/atlas-backend-catalog.data.ts": {
-    "mtime": 1786913184.5630157,
-    "ast_hash": "c0d1b97303d427f8bb986010dae1fe80",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/demo-artifact.ts": {
-    "mtime": 1787225953.5900147,
-    "ast_hash": "3166bdaaa74d0097a0e1fcb714622d39",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/demo-graph.ts": {
-    "mtime": 1786913184.5636346,
-    "ast_hash": "4459a76b5bb7aaf50fcea0f42cd81ec3",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/demo-snapshots.ts": {
-    "mtime": 1786913184.5637398,
-    "ast_hash": "f03fdde5883a12d095f1d4f927b9f995",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/demo-workflow.ts": {
-    "mtime": 1787225953.5901785,
-    "ast_hash": "bffd1a9545b5d0e9ceb6ce2f132d2ab5",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/helpers.ts": {
-    "mtime": 1787225953.5919456,
-    "ast_hash": "a707608a88bd4c3e26bfb931695cca54",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/integration-clients.ts": {
-    "mtime": 1787444257.0521076,
-    "ast_hash": "e542205c3bb3389bfb4be51a8e6653e8",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/reason-code-catalog.data.ts": {
-    "mtime": 1786913184.5642388,
-    "ast_hash": "b73070b57e9e784764ff8c449385e809",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/scoring-catalog.data.ts": {
-    "mtime": 1786913184.5643044,
-    "ast_hash": "ac9df480f554f8f83cb64488827cc262",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/types.ts": {
-    "mtime": 1786913184.5644367,
-    "ast_hash": "c354caf7f28ffc96822246f1025e0f8b",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/variable-catalog.data.ts": {
-    "mtime": 1786913184.5645192,
-    "ast_hash": "eabcbc63e37bf34b2c1ccaa93b8af0c7",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/seed-runner.ts": {
-    "mtime": 1787829848.2238345,
-    "ast_hash": "cfe3a8801af95a299018f95d43c57aa9",
-    "semantic_hash": ""
-  },
   "src/modules/seeding/seeding.module.ts": {
     "mtime": 1786913184.5646467,
     "ast_hash": "fd1fd300a7a5497aa0c6e3708c628418",
     "semantic_hash": ""
   },
   "src/modules/seeding/seeding.service.ts": {
-    "mtime": 1787225953.5931144,
-    "ast_hash": "29ec24fd7f20845bd62a2ed77db28a30",
+    "mtime": 1788180042.5350957,
+    "ast_hash": "853f07521b501bda4bb7d99d0a2d3aad",
     "semantic_hash": ""
   },
   ".prettierrc.json": {
@@ -1699,11 +1639,6 @@
     "ast_hash": "1da131d8a55dd9af6cc6e7d62f46b87c",
     "semantic_hash": ""
   },
-  "test/demo-seed-graph.spec.ts": {
-    "mtime": 1787225953.61862,
-    "ast_hash": "f92c643d5f18fcb3bb8a8a276b8443c2",
-    "semantic_hash": ""
-  },
   "test/manual-review-sod.spec.ts": {
     "mtime": 1787225953.6229715,
     "ast_hash": "9a671d9b5096ffc17f3572c7fcd2fa85",
@@ -1740,8 +1675,8 @@
     "semantic_hash": ""
   },
   "prisma/clean-test-data-core.ts": {
-    "mtime": 1787225953.5312693,
-    "ast_hash": "b9dfabb5172f7c6b0344cad236408a53",
+    "mtime": 1788179815.4230776,
+    "ast_hash": "bcfa18f632b7100f6c1ef83d030bb382",
     "semantic_hash": ""
   },
   "test/e2e/support/global-teardown.ts": {
@@ -1782,16 +1717,6 @@
   "src/modules/code-import/expression-parser.ts": {
     "mtime": 1786913184.554078,
     "ast_hash": "8a9394b49861554f1ab9560791b6cf7b",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/demo-reset.ts": {
-    "mtime": 1786913184.5636919,
-    "ast_hash": "cd2b9b6f998bf00424780b99fd2663de",
-    "semantic_hash": ""
-  },
-  "test/demo-applicant-fixture.spec.ts": {
-    "mtime": 1786913184.5776799,
-    "ast_hash": "4d7ac1d1dd2167d67f745554532e6ceb",
     "semantic_hash": ""
   },
   "test/deployment-resolver.spec.ts": {
@@ -2182,11 +2107,6 @@
   "src/modules/seeding/README.md": {
     "mtime": 1786913184.5628953,
     "ast_hash": "863f03955828e2c5bdc9822735ba389a",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/README.md": {
-    "mtime": 1786913184.562966,
-    "ast_hash": "e32965f7072da056c3ac10d9c589e8ad",
     "semantic_hash": ""
   },
   "src/modules/testing/README.md": {
@@ -2619,31 +2539,6 @@
     "ast_hash": "194a8093bd23cb3c8e6dbc85e655e2c1",
     "semantic_hash": ""
   },
-  "src/modules/seeding/data/calculated-field-catalog.data.ts": {
-    "mtime": 1786913184.5630956,
-    "ast_hash": "acde232af147a289afce2f659e8145af",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/contract-demo.graph.ts": {
-    "mtime": 1786913184.5634391,
-    "ast_hash": "7d09b2d70604710f419c0ce093ef277b",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/contract-demo.seed.ts": {
-    "mtime": 1787225953.589907,
-    "ast_hash": "2793f90ff1d23e3509d16826c8ced5c8",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/governance-scenarios.seed.ts": {
-    "mtime": 1787225953.5917482,
-    "ast_hash": "3dd6d16b2e2251d110ec289e79cf0503",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/library-catalog.data.ts": {
-    "mtime": 1787225953.5922043,
-    "ast_hash": "740584d622947375bf4dc9aebc90219a",
-    "semantic_hash": ""
-  },
   "src/modules/testing/testing.response.dto.ts": {
     "mtime": 1786913184.5654423,
     "ast_hash": "ea9cd9d16f764ec973b72e506be7aa64",
@@ -2704,11 +2599,6 @@
     "ast_hash": "744058ba5cb4599219e3e02af91b8f00",
     "semantic_hash": ""
   },
-  "test/contract-demo-seed.spec.ts": {
-    "mtime": 1786913184.5775902,
-    "ast_hash": "3f9eaf2c01e015ab99b275dbd32ac88a",
-    "semantic_hash": ""
-  },
   "test/dependency-graph-bounded.spec.ts": {
     "mtime": 1786913184.5778177,
     "ast_hash": "25546b8c9d92cd70f858037b70195955",
@@ -2727,11 +2617,6 @@
   "test/engine-intermediate-properties.spec.ts": {
     "mtime": 1786913184.5793748,
     "ast_hash": "ae9168e94d1a93f09aff873980c39f75",
-    "semantic_hash": ""
-  },
-  "test/governance-scenarios.integration.spec.ts": {
-    "mtime": 1786913184.5798373,
-    "ast_hash": "b8c7dd4bb66c89c6a9b39d56dc032fdb",
     "semantic_hash": ""
   },
   "test/graph-calculated-fields.spec.ts": {
@@ -2830,8 +2715,8 @@
     "semantic_hash": ""
   },
   "docker-compose.prod.yml": {
-    "mtime": 1787225953.5039759,
-    "ast_hash": "f535db7d58f90257792eef713f1afda7",
+    "mtime": 1788180083.6162527,
+    "ast_hash": "330ddef0a7b715bf8a978e9331be6d2d",
     "semantic_hash": ""
   },
   "docs/PENDIENTES-ampliacion-contratos.md": {
@@ -3535,8 +3420,8 @@
     "semantic_hash": ""
   },
   "docs/pdf-worker/visual-baseline.json": {
-    "mtime": 1787225953.5247002,
-    "ast_hash": "0da88bd7a254140ad8ad765a5a8c6fcd",
+    "mtime": 1787878503.3932135,
+    "ast_hash": "6ed9feacde3848299b6bd99675e9d773",
     "semantic_hash": ""
   },
   "eslint.config.mjs": {
@@ -3547,31 +3432,6 @@
   "openapi/pdf-worker.openapi.json": {
     "mtime": 1787225953.530735,
     "ast_hash": "d74491c14a28bbaea496b5060a373157",
-    "semantic_hash": ""
-  },
-  "prisma/dev-seeds/deploy-demo-all-envs.ts": {
-    "mtime": 1787225953.5314374,
-    "ast_hash": "29f9b3652deaabb5c9d8478b90680980",
-    "semantic_hash": ""
-  },
-  "prisma/dev-seeds/qa-bank-statement.fixture.ts": {
-    "mtime": 1787225953.5315192,
-    "ast_hash": "d80e02b080c93c0d8d5aa56fa9e79043",
-    "semantic_hash": ""
-  },
-  "prisma/dev-seeds/seed-chain-example.ts": {
-    "mtime": 1787225953.5315983,
-    "ast_hash": "83e3d1252cbf1ab8553ebb10f6d78a8a",
-    "semantic_hash": ""
-  },
-  "prisma/dev-seeds/seed-pdf-artifact-binding.sql": {
-    "mtime": 1787225953.531691,
-    "ast_hash": "ee9df3a1dd0ce41293077e385c58cf0d",
-    "semantic_hash": ""
-  },
-  "prisma/dev-seeds/seed-statement-worker-decision.ts": {
-    "mtime": 1787225953.5317447,
-    "ast_hash": "4d9c9d5f234db7c3eea807c220db5fe3",
     "semantic_hash": ""
   },
   "prisma/migrations/20260802100000_output_contract_reason_codes/migration.sql": {
@@ -4150,8 +4010,8 @@
     "semantic_hash": ""
   },
   "src/modules/model-monitoring/decision-coverage.service.ts": {
-    "mtime": 1787682203.648537,
-    "ast_hash": "a05563d96329b2acc98d121582ada0ba",
+    "mtime": 1788179940.1138554,
+    "ast_hash": "369151f548e5d74fe2c5dd3f802dcf74",
     "semantic_hash": ""
   },
   "src/modules/model-monitoring/discrimination.ts": {
@@ -4342,121 +4202,6 @@
   "src/modules/runtime/subject-policy.ts": {
     "mtime": 1787225953.58861,
     "ast_hash": "7a216c026af3111016ac50edc3b73e34",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/audit-chain.seed.ts": {
-    "mtime": 1787225953.588884,
-    "ast_hash": "621a611a7fd1e929158ceb67d99ea915",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/audit-demo.data.ts": {
-    "mtime": 1787225953.5889766,
-    "ast_hash": "5400fe5aedbb820cf7359731fcd3e25f",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/audit-demo.seed.ts": {
-    "mtime": 1787682186.626835,
-    "ast_hash": "daf327b122262b96fab31ebba242cc5a",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/audit-hash.ts": {
-    "mtime": 1787225953.5891373,
-    "ast_hash": "36df0d007046a685890afeecd589dcc7",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/bank-dialect.data.ts": {
-    "mtime": 1787225953.5892599,
-    "ast_hash": "8a92d23a4777c43e8154722efda74f5c",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/bolivian-merchants.data.ts": {
-    "mtime": 1787225953.5894778,
-    "ast_hash": "7e57fa977d4b4488256028c56a331885",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/business-categories.data.ts": {
-    "mtime": 1787225953.5896738,
-    "ast_hash": "0f8b095bc67184eaacd8939dcd9fbb3d",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/collections-demo.graph.ts": {
-    "mtime": 1786913184.5632877,
-    "ast_hash": "b060d01d48ed9deb1ae6f00d9c67258b",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/collections-demo.seed.ts": {
-    "mtime": 1786913184.5633602,
-    "ast_hash": "e343715ea673a7a141fb41d7234a3adc",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/expense-category-tree.data.ts": {
-    "mtime": 1787225953.590319,
-    "ast_hash": "6235a9d7d7060f0b92f26bb3a4f8e26b",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/financial-categories.data.ts": {
-    "mtime": 1787225953.5904486,
-    "ast_hash": "7501ad478d397520c883fc82e1995066",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/financial-institutions.data.ts": {
-    "mtime": 1787278165.6598716,
-    "ast_hash": "a8f7d17e2daec4304c2014211553bdb0",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/glosa-vocabulary.data.ts": {
-    "mtime": 1787225953.590853,
-    "ast_hash": "4e9975a11e860b81de40136f45d80003",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/governance-observability.seed.ts": {
-    "mtime": 1787225953.5916233,
-    "ast_hash": "e5610d6255db20480a468d681450640f",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/graph-rows.ts": {
-    "mtime": 1787225953.5918436,
-    "ast_hash": "951eae5a3fe8488bfe19b3c17a2c78fd",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/household-categories.data.ts": {
-    "mtime": 1787225953.5920217,
-    "ast_hash": "8cb3ca1599a9ff334cbcb56e4b189216",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/identity-mobile.graph.ts": {
-    "mtime": 1787763025.659776,
-    "ast_hash": "65d1e1d93f4351259bb0ff2d5fd31483",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/identity-mobile.seed.ts": {
-    "mtime": 1787278165.6600406,
-    "ast_hash": "78451ed3d2501fca363f81a49e1e082c",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/semantic-catalog.data.ts": {
-    "mtime": 1787225953.5923243,
-    "ast_hash": "9d6725232c33f24859f8e43a4251daf7",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/statement-vocabulary.data.ts": {
-    "mtime": 1787225953.592396,
-    "ast_hash": "32253bbfc48a0812dd63cfe2cad4cc6e",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/statement-worker-demo.graph.ts": {
-    "mtime": 1787225953.5924904,
-    "ast_hash": "9e67965337e31196dc29e7b4f4cd96e3",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/statement-worker-demo.seed.ts": {
-    "mtime": 1787225953.592808,
-    "ast_hash": "92e1e2ac484c5dc3becc4c86bf16a1f6",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/mockup-policy.ts": {
-    "mtime": 1787225953.5928679,
-    "ast_hash": "945213d0fd7b567ecc713865b24c3ac0",
     "semantic_hash": ""
   },
   "src/modules/sql-console/catalog/catalog-discovery.service.ts": {
@@ -4770,8 +4515,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/bank-statement-run-worker.service.ts": {
-    "mtime": 1787765507.905541,
-    "ast_hash": "5014d6ebcf56f3ac991bc9275c357c19",
+    "mtime": 1788179767.4526393,
+    "ast_hash": "8ce754c9fd29c54b956cc0f9199dc7fa",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/bank-statement.controller.ts": {
@@ -4785,8 +4530,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/application/bank-statement-worker.service.ts": {
-    "mtime": 1787760709.0688808,
-    "ast_hash": "731d473b8830b19d056e12f0e63c1503",
+    "mtime": 1788180006.033799,
+    "ast_hash": "7b4e708c50907d1ca34a6d8a73cf167c",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/application/file-validation.service.ts": {
@@ -4795,8 +4540,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/domain/errors.ts": {
-    "mtime": 1787760653.4788384,
-    "ast_hash": "d89472a24312a57b9f6bbb1f438c118b",
+    "mtime": 1788177906.9382663,
+    "ast_hash": "b9edbf5dd77b9b98e41221eae9361cb7",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/domain/models.ts": {
@@ -4890,8 +4635,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/engine/institution-detector.ts": {
-    "mtime": 1787278165.6619701,
-    "ast_hash": "33aad51fc2018f27cd5a453f78fe3f3b",
+    "mtime": 1788179948.5325167,
+    "ast_hash": "2fa7fdf408ab018fae1915ee96dcf291",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/engine/issuer-gate.ts": {
@@ -4900,13 +4645,13 @@
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/engine/normalized/normalized-mapper.ts": {
-    "mtime": 1787760782.0476644,
-    "ast_hash": "8c00bc291d0d27849479f1614ed058bf",
+    "mtime": 1788179687.7995403,
+    "ast_hash": "47d8361ab19365546371fd4c61fc4885",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/engine/normalized/normalized-model.ts": {
-    "mtime": 1787760782.0472772,
-    "ast_hash": "127fc5cbbef8d3e153a7ce1592772cfe",
+    "mtime": 1788179687.7991023,
+    "ast_hash": "23444ad2247aa291efb65d52e6cee349",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/engine/normalized/transaction-descriptions.ts": {
@@ -4950,13 +4695,13 @@
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/engine/statement-analysis.ts": {
-    "mtime": 1787760663.7631993,
-    "ast_hash": "8aa4e4589cdcc0a1b7efcd5713bf1d6c",
+    "mtime": 1788179663.959925,
+    "ast_hash": "c9dc6d00f6e099de05ab737ff77d4932",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/engine/statement-context.ts": {
-    "mtime": 1787278165.6622372,
-    "ast_hash": "75013bc11ae42f3132a427fdee6f090d",
+    "mtime": 1788179458.2985802,
+    "ast_hash": "6735c8548582fafcc55181601c04225d",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/engine/telemetry/conversion-metrics.ts": {
@@ -4965,8 +4710,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/institutions/bolivia-institutions.ts": {
-    "mtime": 1787278165.662429,
-    "ast_hash": "b3803d83a1f0e9a15d41d0147ea2bfdf",
+    "mtime": 1788179458.2941248,
+    "ast_hash": "420fb5bde3d93af84532a9c10d0eeddc",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/institutions/institution-registry.ts": {
@@ -5040,13 +4785,13 @@
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/statement-engine.ts": {
-    "mtime": 1787760767.6771574,
-    "ast_hash": "6970b54fb40f66279a198dcb648094b3",
+    "mtime": 1788179700.0906992,
+    "ast_hash": "4b09baea96ab1c6c64b3ae985e442c0a",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/fixtures/bank-statement-fixtures.ts": {
-    "mtime": 1787765508.862225,
-    "ast_hash": "6515dc7bddb8e5031194981b90c59239",
+    "mtime": 1788178828.8601754,
+    "ast_hash": "00ee9ee89c51ce716fbbda5ae16f0ed7",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/fixtures/synthetic-pdf.ts": {
@@ -5055,28 +4800,28 @@
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/institutions/financial-institution.controller.ts": {
-    "mtime": 1787761930.9584813,
-    "ast_hash": "880add78bb8962ed5db2965e3e97e71b",
+    "mtime": 1787854725.819673,
+    "ast_hash": "7b9d42827ed7fda80805cb748670907d",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/institutions/financial-institution.dto.ts": {
-    "mtime": 1787761901.145354,
-    "ast_hash": "0d0e66cc0a8934a68af7a9106b3b954a",
+    "mtime": 1788179739.845854,
+    "ast_hash": "be1dcfd46e0522db91b58cf3d50bcf80",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/institutions/financial-institution.response.dto.ts": {
-    "mtime": 1787761901.1468656,
-    "ast_hash": "24e39a0ce65a343ada97ecfce6be243a",
+    "mtime": 1788179739.8461986,
+    "ast_hash": "8bb0732d943f1c118f36329d30d323f2",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/institutions/financial-institution.service.ts": {
-    "mtime": 1787766948.8534324,
-    "ast_hash": "853821fde1c0dc3b545cacf5e101bba0",
+    "mtime": 1788179739.845531,
+    "ast_hash": "29fa1931f389eb16692d799fec5097e3",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/institutions/institution-catalog.service.ts": {
-    "mtime": 1787764779.3323615,
-    "ast_hash": "af9c9ed8d238bd5adced71c567712df0",
+    "mtime": 1788179739.8451693,
+    "ast_hash": "14fbf6104737f11a012afb03cc0e3b94",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/review/statement-review.controller.ts": {
@@ -5100,8 +4845,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/statement-outcome.ts": {
-    "mtime": 1787760866.6395473,
-    "ast_hash": "67758c6d9e69005ef7a5f2fc578404b0",
+    "mtime": 1788177942.7045896,
+    "ast_hash": "d44c8db7ed021742734c63e9c2b2117f",
     "semantic_hash": ""
   },
   "src/modules/workers/identity-verification/core/adapters/human-face.adapter.ts": {
@@ -5250,8 +4995,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/identity-verification/identity-run-worker.service.ts": {
-    "mtime": 1787322052.8607965,
-    "ast_hash": "ff3fccd831692bd4149ce94209dd2a42",
+    "mtime": 1787849998.4454758,
+    "ast_hash": "ff93dccaad084b168c268d8af4332336",
     "semantic_hash": ""
   },
   "src/modules/workers/identity-verification/identity-verification-input.ts": {
@@ -5560,8 +5305,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/worker-service-invoker.service.ts": {
-    "mtime": 1787759792.5720572,
-    "ast_hash": "7355a7f30a8caffdc2ccf66a4df6ffb2",
+    "mtime": 1788179784.8742151,
+    "ast_hash": "5942b9b52b63504398a5b37ed2b96f3a",
     "semantic_hash": ""
   },
   "src/modules/workers/workers.controller.ts": {
@@ -5990,8 +5735,8 @@
     "semantic_hash": ""
   },
   "src/pdf-worker/pdf-worker.module.ts": {
-    "mtime": 1787225953.6138222,
-    "ast_hash": "c0d0dfc1459e6c8975f4b9bf8d4e79f8",
+    "mtime": 1787878002.6462817,
+    "ast_hash": "e55007196ae855d00e731fddd124f800",
     "semantic_hash": ""
   },
   "src/pdf-worker/presentation/health/pdf-health.service.ts": {
@@ -6105,8 +5850,8 @@
     "semantic_hash": ""
   },
   "src/pdf-worker/templates/documents/generic-result-report/1.0.0/template.config.ts": {
-    "mtime": 1787225953.6156101,
-    "ast_hash": "1400d30b6bf05a950f7bea320deafb13",
+    "mtime": 1787878045.3337502,
+    "ast_hash": "017fa2c92bb57a31073c0d02010d8e6e",
     "semantic_hash": ""
   },
   "src/pdf-worker/templates/template-catalog.ts": {
@@ -6139,19 +5884,14 @@
     "ast_hash": "73c7518b0867f47b8dc0f28fbf874ea8",
     "semantic_hash": ""
   },
-  "test/audit-seed-hash.spec.ts": {
-    "mtime": 1787225953.6176727,
-    "ast_hash": "68853fff6f361274e2af2626388b0aa1",
-    "semantic_hash": ""
-  },
   "test/bank-statement-dedup.spec.ts": {
     "mtime": 1787225953.617726,
     "ast_hash": "5abe6de23ba74fe46c866542610890fd",
     "semantic_hash": ""
   },
   "test/bank-statement-fixtures.spec.ts": {
-    "mtime": 1787762793.4301944,
-    "ast_hash": "939eb2758a4bcf467d70863cf8ad77f7",
+    "mtime": 1788178844.1020472,
+    "ast_hash": "773ce2e46ba77c8b8812d2ff2ed9f01d",
     "semantic_hash": ""
   },
   "test/bank-statement-multi-account.spec.ts": {
@@ -6272,11 +6012,6 @@
   "test/identity-login-retry.spec.ts": {
     "mtime": 1787225953.6216393,
     "ast_hash": "7f4c4cdf357ff5b91cc331e978c7716d",
-    "semantic_hash": ""
-  },
-  "test/identity-mobile-artifact.spec.ts": {
-    "mtime": 1787763128.7468112,
-    "ast_hash": "efe2995745bb68cddd0d904ce3d7648e",
     "semantic_hash": ""
   },
   "test/identity-mrz-td1.spec.ts": {
@@ -6430,8 +6165,8 @@
     "semantic_hash": ""
   },
   "test/pdf-generation.spec.ts": {
-    "mtime": 1787225953.6245196,
-    "ast_hash": "158277dc471053fefe9bcd55dfb35b58",
+    "mtime": 1787878493.519886,
+    "ast_hash": "3cb4f5d79e571b39e7828232f460fd2b",
     "semantic_hash": ""
   },
   "test/pdf-idempotency.spec.ts": {
@@ -6569,14 +6304,9 @@
     "ast_hash": "fba65ba0988d7d5ed4c5bc92e89136d8",
     "semantic_hash": ""
   },
-  "test/seed-mockup-policy.spec.ts": {
-    "mtime": 1787225953.626926,
-    "ast_hash": "32584c349b788b61bcd4ba1f00c21c09",
-    "semantic_hash": ""
-  },
   "test/seed-tenant-resolution.spec.ts": {
-    "mtime": 1787225953.6269803,
-    "ast_hash": "b6ba6162341f3b3f81dc402adf284016",
+    "mtime": 1788179815.4233608,
+    "ast_hash": "c97acc5df5d863f5b684ce08b1a1478a",
     "semantic_hash": ""
   },
   "test/semantic-audit-claim.spec.ts": {
@@ -6589,19 +6319,9 @@
     "ast_hash": "ee3266c8d3f56a64917139dc5fcc5330",
     "semantic_hash": ""
   },
-  "test/semantic-category-tree.spec.ts": {
-    "mtime": 1787225953.6272142,
-    "ast_hash": "3fae6d82b908f069840fbf20ed8d9c1d",
-    "semantic_hash": ""
-  },
   "test/semantic-classification-cache.spec.ts": {
     "mtime": 1787278165.6684887,
     "ast_hash": "ccc3c30d6e407b728fd7fa22efce9ad3",
-    "semantic_hash": ""
-  },
-  "test/semantic-cobertura-categorias.spec.ts": {
-    "mtime": 1787278165.668556,
-    "ast_hash": "0fe7e1ed2d21d657de4a29f922ee912b",
     "semantic_hash": ""
   },
   "test/semantic-config-bridge.spec.ts": {
@@ -6647,11 +6367,6 @@
   "test/statement-triage.spec.ts": {
     "mtime": 1787225953.627909,
     "ast_hash": "11a6bfdf710dbc36c44de4036e30d344",
-    "semantic_hash": ""
-  },
-  "test/statement-worker-demo-seed.spec.ts": {
-    "mtime": 1787225953.6279705,
-    "ast_hash": "e7b464b274a945b76a64c46b41f260ca",
     "semantic_hash": ""
   },
   "test/subject-policy.spec.ts": {
@@ -6760,8 +6475,8 @@
     "semantic_hash": ""
   },
   "compose.resilience.yml": {
-    "mtime": 1787225953.5034745,
-    "ast_hash": "11e4b59ece0eef97dc3d1e8097a1b483",
+    "mtime": 1788180083.616408,
+    "ast_hash": "4affc6b90c785ffa37cb1c2dae6b20c2",
     "semantic_hash": ""
   },
   "compose.test.yml": {
@@ -7205,8 +6920,8 @@
     "semantic_hash": ""
   },
   "docs/workers/bank-statement-triage.md": {
-    "mtime": 1787225953.5282865,
-    "ast_hash": "d652d2b7c826098cea3387e4f3b44339",
+    "mtime": 1788180127.1565683,
+    "ast_hash": "a30c3f516c43543a6aea4449b9a96a7f",
     "semantic_hash": ""
   },
   "docs/workers/identity-document-gate.md": {
@@ -7242,11 +6957,6 @@
   "infra/otel-collector/otel-collector.config.yml": {
     "mtime": 1787225953.5286672,
     "ast_hash": "a1b98eb9801cda6cf70a873cab6105b9",
-    "semantic_hash": ""
-  },
-  "prisma/dev-seeds/README.md": {
-    "mtime": 1787225953.5313845,
-    "ast_hash": "7dc25eb0de69deb0fa5a9e054eaa13cb",
     "semantic_hash": ""
   },
   "src/common/persistence/README.md": {
@@ -7339,11 +7049,6 @@
     "ast_hash": "3360af5d915cc8382d8c05228ae60003",
     "semantic_hash": ""
   },
-  "prisma/dev-seeds/seed-partner-kyb.ts": {
-    "mtime": 1787829914.2222035,
-    "ast_hash": "5b95fda1af917e65c3844fb770b44be4",
-    "semantic_hash": ""
-  },
   "prisma/migrations/20260826120000_statement_admission_and_logos/migration.sql": {
     "mtime": 1787760830.368111,
     "ast_hash": "995f828feabea6572ac2b8a514e5aad6",
@@ -7369,26 +7074,6 @@
     "ast_hash": "a63b66f4755edc2683ff4e42553502f3",
     "semantic_hash": ""
   },
-  "src/modules/seeding/data/atlas-underwriting.graph.ts": {
-    "mtime": 1787427725.4594474,
-    "ast_hash": "fa4407e5588780218cb1d1ac7cf7863d",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/atlas-underwriting.seed.ts": {
-    "mtime": 1787444257.0517702,
-    "ast_hash": "ee0e99fb7fb6f79e94234df9f0d12b9e",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/partner-kyb.graph.ts": {
-    "mtime": 1787829745.1940086,
-    "ast_hash": "cbc4c039e75d8e578e0b79d89939f4c2",
-    "semantic_hash": ""
-  },
-  "src/modules/seeding/data/partner-kyb.seed.ts": {
-    "mtime": 1787830006.7188869,
-    "ast_hash": "e8ce2c87acac8692aea93a6e91e89ede",
-    "semantic_hash": ""
-  },
   "src/modules/workers/bank-statement/core/engine/affordability/affordability-engine.ts": {
     "mtime": 1787765508.1632423,
     "ast_hash": "46bb4a11bcb99a0ff0bd6fbc551c0692",
@@ -7400,8 +7085,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/engine/affordability/affordability-policy.ts": {
-    "mtime": 1787760401.5325553,
-    "ast_hash": "fd5eac7b9bf8d95cf99da8794dcd45e7",
+    "mtime": 1788177845.918118,
+    "ast_hash": "70dae707005721a1d32300f457bc5b2e",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/engine/affordability/monthly-series.ts": {
@@ -7435,13 +7120,13 @@
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/institutions/institution-logo-seed.ts": {
-    "mtime": 1787761798.8372133,
-    "ast_hash": "6a9efa57cf24dd0670018c2c57300364",
+    "mtime": 1787853625.1424127,
+    "ast_hash": "3841d1273a2b7d7b51bde304783208fe",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/institutions/logos/manifest.json": {
-    "mtime": 1787761378.1331406,
-    "ast_hash": "41f9bb4c0555db7abfcb9a7cb94349ad",
+    "mtime": 1787853497.8368964,
+    "ast_hash": "ce1c1bd1221a60e17c058aaa28672a85",
     "semantic_hash": ""
   },
   "src/modules/workers/identity-verification/core/adapters/transformer-identity.adapter.ts": {
@@ -7474,11 +7159,6 @@
     "ast_hash": "0bd837058621aba680c37881804c166a",
     "semantic_hash": ""
   },
-  "test/atlas-underwriting-seed.spec.ts": {
-    "mtime": 1787427725.4687147,
-    "ast_hash": "60985f41f039b500dd8378eac2fffc1a",
-    "semantic_hash": ""
-  },
   "test/demo-marker-consistency.spec.ts": {
     "mtime": 1787682360.4600627,
     "ast_hash": "98e9b4b74b216b952ea4268768f9f2e3",
@@ -7494,11 +7174,6 @@
     "ast_hash": "bd95dbf64939a22db941b764d918753f",
     "semantic_hash": ""
   },
-  "test/partner-kyb-seed.spec.ts": {
-    "mtime": 1787829772.5512505,
-    "ast_hash": "959467436b85c83305835ec3ae492bf5",
-    "semantic_hash": ""
-  },
   "test/statement-affordability.spec.ts": {
     "mtime": 1787765509.1372287,
     "ast_hash": "7202a6da7e994b6eb81b8d64ff36d9cf",
@@ -7510,8 +7185,8 @@
     "semantic_hash": ""
   },
   "docker-compose.host-expose.yml": {
-    "mtime": 1787427725.444254,
-    "ast_hash": "6c512b6c4fb5e0fb3e89e7da79c410c4",
+    "mtime": 1788175699.4249113,
+    "ast_hash": "1a455578d722dc4d494b05b709825e2a",
     "semantic_hash": ""
   },
   "docs/adr/ADR-0032-statement-admission-and-affordability.md": {
@@ -7580,8 +7255,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/institutions/logos/BNA.svg": {
-    "mtime": 1787761285.769662,
-    "ast_hash": "2937f2a794ef81e1e0266d64f6266f06",
+    "mtime": 1787853001.6263556,
+    "ast_hash": "7a093a25c2dff1c6b331d464f6f7587c",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/institutions/logos/BNB.svg": {
@@ -7589,24 +7264,9 @@
     "ast_hash": "556bb369b581d21dcfdf15ddab05bcb7",
     "semantic_hash": ""
   },
-  "src/modules/workers/bank-statement/institutions/logos/BPR.svg": {
-    "mtime": 1787761285.7792218,
-    "ast_hash": "66c3226cc01cd3366c85e9a7022644f5",
-    "semantic_hash": ""
-  },
   "src/modules/workers/bank-statement/institutions/logos/BSO.svg": {
     "mtime": 1787761285.7640061,
     "ast_hash": "69d540cbea611dd94062ef51825dd43c",
-    "semantic_hash": ""
-  },
-  "src/modules/workers/bank-statement/institutions/logos/BUN.svg": {
-    "mtime": 1787761285.7825193,
-    "ast_hash": "24fb201bd87616828bd6ac877c2927aa",
-    "semantic_hash": ""
-  },
-  "src/modules/workers/bank-statement/institutions/logos/CAE.svg": {
-    "mtime": 1787761285.814469,
-    "ast_hash": "ee0187a3bee235b92ee26abd7627e574",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/institutions/logos/CAS.svg": {
@@ -7614,39 +7274,14 @@
     "ast_hash": "ebc8a0e568c6185f2dc30a866fd3d6e4",
     "semantic_hash": ""
   },
-  "src/modules/workers/bank-statement/institutions/logos/CCA.svg": {
-    "mtime": 1787761285.7992296,
-    "ast_hash": "863c748d47c1bd1d92f90e08188966ee",
-    "semantic_hash": ""
-  },
-  "src/modules/workers/bank-statement/institutions/logos/CCB.svg": {
-    "mtime": 1787761285.7994866,
-    "ast_hash": "57873171a1cdaf4424d9475d58b48948",
-    "semantic_hash": ""
-  },
   "src/modules/workers/bank-statement/institutions/logos/CCF.svg": {
-    "mtime": 1787761285.8010318,
-    "ast_hash": "849a8c2865f1930d87ff3c8207dcdc79",
+    "mtime": 1787853001.6567633,
+    "ast_hash": "8aeeafad8905406bce0095a445e183fb",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/institutions/logos/CCM.svg": {
-    "mtime": 1787761285.7961352,
-    "ast_hash": "7989e415faa54fdcf99ff615ca4dbeee",
-    "semantic_hash": ""
-  },
-  "src/modules/workers/bank-statement/institutions/logos/CCP.svg": {
-    "mtime": 1787761285.7949812,
-    "ast_hash": "5bab9e809ec8a33e854aff01ce1475a7",
-    "semantic_hash": ""
-  },
-  "src/modules/workers/bank-statement/institutions/logos/CCR.svg": {
-    "mtime": 1787761285.7932096,
-    "ast_hash": "a524b3e0fc5683241292aa448926973d",
-    "semantic_hash": ""
-  },
-  "src/modules/workers/bank-statement/institutions/logos/CEC.svg": {
-    "mtime": 1787761285.797527,
-    "ast_hash": "8940f1be891a9183580d74ea14f229b3",
+    "mtime": 1787853001.6594918,
+    "ast_hash": "b2aef84d632e4fafa861b7d9d5969ea1",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/institutions/logos/CEY.png": {
@@ -7654,34 +7289,9 @@
     "ast_hash": "39cb9f2903036df976a0726b8b98d7bb",
     "semantic_hash": ""
   },
-  "src/modules/workers/bank-statement/institutions/logos/CFA.svg": {
-    "mtime": 1787761285.7877145,
-    "ast_hash": "f6eae956bea91f96fab37dd63f50e301",
-    "semantic_hash": ""
-  },
-  "src/modules/workers/bank-statement/institutions/logos/CHO.svg": {
-    "mtime": 1787761285.8153756,
-    "ast_hash": "c891065392cf20a072812b1eaad43f42",
-    "semantic_hash": ""
-  },
   "src/modules/workers/bank-statement/institutions/logos/CIH.svg": {
-    "mtime": 1787761285.788483,
-    "ast_hash": "a7c2e74753f2ea51da83ba918c947e26",
-    "semantic_hash": ""
-  },
-  "src/modules/workers/bank-statement/institutions/logos/CJB.svg": {
-    "mtime": 1787761285.7981625,
-    "ast_hash": "df1acf7ae032871fa07c88f1d0e7a30e",
-    "semantic_hash": ""
-  },
-  "src/modules/workers/bank-statement/institutions/logos/CJN.svg": {
-    "mtime": 1787761285.7873733,
-    "ast_hash": "e7ea12b4706eb6bd42c126fdd138d5e8",
-    "semantic_hash": ""
-  },
-  "src/modules/workers/bank-statement/institutions/logos/CJO.svg": {
-    "mtime": 1787761285.798586,
-    "ast_hash": "19aab41c5df9d156e682cc14580bd233",
+    "mtime": 1787853001.7028942,
+    "ast_hash": "530f8c3fa2b3170922eed462ddba9bfe",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/institutions/logos/CJP.svg": {
@@ -7689,34 +7299,9 @@
     "ast_hash": "4bba4d8bb9fa35d5978caea980405bb1",
     "semantic_hash": ""
   },
-  "src/modules/workers/bank-statement/institutions/logos/CLC.svg": {
-    "mtime": 1787761285.8101919,
-    "ast_hash": "3c1d16ebd0bc10cda1fedbecb871c7d8",
-    "semantic_hash": ""
-  },
-  "src/modules/workers/bank-statement/institutions/logos/CLO.svg": {
-    "mtime": 1787761285.8099651,
-    "ast_hash": "2355fee99a7dc45df9a024c8b2400d92",
-    "semantic_hash": ""
-  },
-  "src/modules/workers/bank-statement/institutions/logos/CLS.svg": {
-    "mtime": 1787761285.8031676,
-    "ast_hash": "656c4f0eb3d581e93ca0580220fff291",
-    "semantic_hash": ""
-  },
   "src/modules/workers/bank-statement/institutions/logos/CLY.svg": {
     "mtime": 1787761285.79208,
     "ast_hash": "2e9e49d3948cfbb30018c3e7f23664fb",
-    "semantic_hash": ""
-  },
-  "src/modules/workers/bank-statement/institutions/logos/CMD.svg": {
-    "mtime": 1787761285.8043191,
-    "ast_hash": "ab4670566d8ada300abfbc64e067be05",
-    "semantic_hash": ""
-  },
-  "src/modules/workers/bank-statement/institutions/logos/CME.svg": {
-    "mtime": 1787761285.799358,
-    "ast_hash": "2527ff167fdc6cd6d3e63d88fbca908e",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/institutions/logos/CMG.svg": {
@@ -7725,18 +7310,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/institutions/logos/CMM.svg": {
-    "mtime": 1787761285.7905972,
-    "ast_hash": "9305c58de520f5c5a0ad06460dcf2671",
-    "semantic_hash": ""
-  },
-  "src/modules/workers/bank-statement/institutions/logos/CMR.svg": {
-    "mtime": 1787761285.79801,
-    "ast_hash": "6744f198c27b0ab726b436d7315db396",
-    "semantic_hash": ""
-  },
-  "src/modules/workers/bank-statement/institutions/logos/COO.svg": {
-    "mtime": 1787761285.8104758,
-    "ast_hash": "e5daef96b40e1b24b43dfcc32de356d1",
+    "mtime": 1787853001.723299,
+    "ast_hash": "a4e525de790b7ed4cf85ea1cfd3d7386",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/institutions/logos/CPG.svg": {
@@ -7744,69 +7319,14 @@
     "ast_hash": "118c6309d796c90988761caa391d1d2e",
     "semantic_hash": ""
   },
-  "src/modules/workers/bank-statement/institutions/logos/CPS.svg": {
-    "mtime": 1787761285.8124778,
-    "ast_hash": "1a7a1775965ade6869be1a587613de8b",
-    "semantic_hash": ""
-  },
   "src/modules/workers/bank-statement/institutions/logos/CPX.svg": {
     "mtime": 1787761285.7927284,
     "ast_hash": "8db3233e7ac4334915e65647393f3696",
     "semantic_hash": ""
   },
-  "src/modules/workers/bank-statement/institutions/logos/CQC.svg": {
-    "mtime": 1787761285.788963,
-    "ast_hash": "d2e5ce0591bc776afff8f295efb92b2f",
-    "semantic_hash": ""
-  },
-  "src/modules/workers/bank-statement/institutions/logos/CSA.svg": {
-    "mtime": 1787761285.788289,
-    "ast_hash": "4ec89f7fa4af1b2aaaba2fb2f2f5b148",
-    "semantic_hash": ""
-  },
-  "src/modules/workers/bank-statement/institutions/logos/CSM.svg": {
-    "mtime": 1787761285.7880702,
-    "ast_hash": "a9d01845fc0850c993ec940224efd912",
-    "semantic_hash": ""
-  },
-  "src/modules/workers/bank-statement/institutions/logos/CSN.svg": {
-    "mtime": 1787761285.8055065,
-    "ast_hash": "13c979d6df3021a84bee04e7a5b2d19b",
-    "semantic_hash": ""
-  },
   "src/modules/workers/bank-statement/institutions/logos/CSP.svg": {
-    "mtime": 1787761285.7934206,
-    "ast_hash": "b16010d9f02acfd40983dde7e080f047",
-    "semantic_hash": ""
-  },
-  "src/modules/workers/bank-statement/institutions/logos/CSQ.svg": {
-    "mtime": 1787761285.8056693,
-    "ast_hash": "3b591e699928618e023354d70cd7896e",
-    "semantic_hash": ""
-  },
-  "src/modules/workers/bank-statement/institutions/logos/CSR.svg": {
-    "mtime": 1787761285.7988503,
-    "ast_hash": "7e423e152bf83bb44d3f5f7986a8c7e7",
-    "semantic_hash": ""
-  },
-  "src/modules/workers/bank-statement/institutions/logos/CST.svg": {
-    "mtime": 1787761285.7977128,
-    "ast_hash": "63cdf043a7ddcaa9496fc5d917155cfc",
-    "semantic_hash": ""
-  },
-  "src/modules/workers/bank-statement/institutions/logos/CTR.svg": {
-    "mtime": 1787761285.796345,
-    "ast_hash": "1ffb6aa1897aec8b9d4ddddf32f66d06",
-    "semantic_hash": ""
-  },
-  "src/modules/workers/bank-statement/institutions/logos/CUM.svg": {
-    "mtime": 1787761285.813708,
-    "ast_hash": "34b237ffe2e01d4465d5d5ca9e8552a2",
-    "semantic_hash": ""
-  },
-  "src/modules/workers/bank-statement/institutions/logos/CVE.svg": {
-    "mtime": 1787761285.8088627,
-    "ast_hash": "14fd0918c2fb0e30fa95b5ba8b850f17",
+    "mtime": 1787853001.7892103,
+    "ast_hash": "62143d8ef599681b4b4045941cb4424f",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/institutions/logos/ICI.png": {
@@ -7814,19 +7334,9 @@
     "ast_hash": "caf715a901a0b8e55b77488b08546c77",
     "semantic_hash": ""
   },
-  "src/modules/workers/bank-statement/institutions/logos/ICR.svg": {
-    "mtime": 1787761285.817681,
-    "ast_hash": "0411fad911bf4dd0a7525b70cdede8d7",
-    "semantic_hash": ""
-  },
   "src/modules/workers/bank-statement/institutions/logos/IDI.svg": {
-    "mtime": 1787761285.817944,
-    "ast_hash": "3d045bda0e90e2da64030dda958c9204",
-    "semantic_hash": ""
-  },
-  "src/modules/workers/bank-statement/institutions/logos/IFO.svg": {
-    "mtime": 1787761285.8182254,
-    "ast_hash": "9bed31b4d00fb896bd0840a6a47f5901",
+    "mtime": 1787853001.8963444,
+    "ast_hash": "d0fa2eaec41b1f209d5fa980954715d7",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/institutions/logos/IFU.png": {
@@ -7834,44 +7344,294 @@
     "ast_hash": "c86386a98f149b44c7892fc938f73a54",
     "semantic_hash": ""
   },
-  "src/modules/workers/bank-statement/institutions/logos/IID.svg": {
-    "mtime": 1787761285.820746,
-    "ast_hash": "a838fcf28193bdb3358357ad46b1e853",
-    "semantic_hash": ""
-  },
-  "src/modules/workers/bank-statement/institutions/logos/IIM.svg": {
-    "mtime": 1787761285.8209085,
-    "ast_hash": "b984aacf7022bca198f0409242f1a018",
-    "semantic_hash": ""
-  },
   "src/modules/workers/bank-statement/institutions/logos/IPM.svg": {
     "mtime": 1787761285.8213913,
     "ast_hash": "739dbf4dafe3e1b0d1a4bdb07f94457b",
     "semantic_hash": ""
   },
-  "src/modules/workers/bank-statement/institutions/logos/PCO.svg": {
-    "mtime": 1787761285.7794116,
-    "ast_hash": "5ce9b250b931783b0a212137850598f2",
-    "semantic_hash": ""
-  },
   "src/modules/workers/bank-statement/institutions/logos/PEF.svg": {
-    "mtime": 1787761285.7795432,
-    "ast_hash": "9b5e119256687053016b028901d1b005",
-    "semantic_hash": ""
-  },
-  "src/modules/workers/bank-statement/institutions/logos/VL1.svg": {
-    "mtime": 1787761285.7835186,
-    "ast_hash": "17c75943d1af9a9da88745676a6d6a1a",
-    "semantic_hash": ""
-  },
-  "src/modules/workers/bank-statement/institutions/logos/VPG.svg": {
-    "mtime": 1787761285.786926,
-    "ast_hash": "ef4a997d6ce4089872c8e65bca8ef8a6",
+    "mtime": 1787853497.8191054,
+    "ast_hash": "900cef5c47a78e3249e280379f735583",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/institutions/logos/VPR.png": {
     "mtime": 1787761285.7864048,
     "ast_hash": "4756908ca36572b33c55fae445cc0d92",
+    "semantic_hash": ""
+  },
+  "scripts/diagnosticar-extractos.ts": {
+    "mtime": 1788178969.4041197,
+    "ast_hash": "a085ca9e5a6fe690131af99c4f32bc6e",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/core/engine/recency/recency-gate.ts": {
+    "mtime": 1788177809.6781986,
+    "ast_hash": "515bfb7c51aeea8c722532fd424e8147",
+    "semantic_hash": ""
+  },
+  "src/pdf-worker/infrastructure/config/brand-catalog.ts": {
+    "mtime": 1787878045.333927,
+    "ast_hash": "c766adce7818a114e94793e570d0b982",
+    "semantic_hash": ""
+  },
+  "test/bank-statement-recency.spec.ts": {
+    "mtime": 1788178246.3915575,
+    "ast_hash": "a64bb4bb60f1655943300098d3ec2705",
+    "semantic_hash": ""
+  },
+  "test/institution-logo-sync.spec.ts": {
+    "mtime": 1787854634.7370956,
+    "ast_hash": "6e6a498ab5854a4989baed7b294bd902",
+    "semantic_hash": ""
+  },
+  "docker-compose.linux.yml": {
+    "mtime": 1788175699.4251757,
+    "ast_hash": "2e40a4c11c33a077517f568ae09cbcd7",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/BPR.png": {
+    "mtime": 1787853001.6294322,
+    "ast_hash": "9d5ef0f53616c62071c93edd956760ac",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/BUN.jpg": {
+    "mtime": 1787853001.6319318,
+    "ast_hash": "2736769d9a864a77f127871b4e951d7e",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/CAE.jpg": {
+    "mtime": 1787853001.6404305,
+    "ast_hash": "a37925d28090f3b6ad926f775f7a8bdf",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/CCA.png": {
+    "mtime": 1787853001.6431732,
+    "ast_hash": "e56bda5d26a54990ef03a68ebd08686b",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/CCB.png": {
+    "mtime": 1787853001.6449916,
+    "ast_hash": "e2217d28707f42a570db1238cd72d096",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/CCP.png": {
+    "mtime": 1787853001.6742454,
+    "ast_hash": "f7a17ceebe58eb780c3fa6b6eda0899e",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/CCR.png": {
+    "mtime": 1787853001.6758673,
+    "ast_hash": "ff6fd9455768ca25b6f2c2d20d6b039f",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/CEC.png": {
+    "mtime": 1787853001.679688,
+    "ast_hash": "ed11fae0d879c23459e5a4507394e15e",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/CFA.png": {
+    "mtime": 1787853001.6920922,
+    "ast_hash": "0a7cb99d62f5f18b3c113939666c77f2",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/CHO.png": {
+    "mtime": 1787853001.696089,
+    "ast_hash": "ad9cb3a111570158f3dd1576d9dc782f",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/CJB.png": {
+    "mtime": 1787853001.7039938,
+    "ast_hash": "f147087201fb3395b2197e5247c578e6",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/CJN.png": {
+    "mtime": 1787853001.7050383,
+    "ast_hash": "f405f708f68b5f8ac4f4e3cef9592abb",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/CJO.png": {
+    "mtime": 1787853001.7073019,
+    "ast_hash": "a80cc55c72a8a0904988bf5882dcd422",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/CLC.png": {
+    "mtime": 1787853001.711564,
+    "ast_hash": "bbd636d9cd83d32c70cbdefb9c449272",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/CLO.png": {
+    "mtime": 1787853001.714261,
+    "ast_hash": "70f580cfa6b95c603641e63625d6a19d",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/CLS.png": {
+    "mtime": 1787853001.7176409,
+    "ast_hash": "f48742380b859f6ea85491f5a0c1be9b",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/CMD.png": {
+    "mtime": 1787853001.7202756,
+    "ast_hash": "23f244ea8c5e8ca1f5af4e031fced406",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/CME.png": {
+    "mtime": 1787853001.722724,
+    "ast_hash": "3f3877885676ab51479fb69654d7ad9e",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/CMR.jpg": {
+    "mtime": 1787853001.7532382,
+    "ast_hash": "928319bb35bc679854506f0e08f17ae4",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/COO.png": {
+    "mtime": 1787853001.7568288,
+    "ast_hash": "0f1f9799eb08461311a11edc853041e0",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/CPS.png": {
+    "mtime": 1787853001.7604263,
+    "ast_hash": "c274937394398489baf533a23e237f1d",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/CQC.png": {
+    "mtime": 1787853001.7642817,
+    "ast_hash": "0731fbea45d0196aecb87617be8991f9",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/CSA.png": {
+    "mtime": 1787853001.7847192,
+    "ast_hash": "5801c4b179a931bdab5da646ca01f65c",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/CSM.png": {
+    "mtime": 1787853001.7858524,
+    "ast_hash": "9551758587492b85209b3ee233010ed2",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/CSN.png": {
+    "mtime": 1787853001.7870233,
+    "ast_hash": "6395cd94ea786930393cc43d4b5c4b6a",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/CSQ.png": {
+    "mtime": 1787853001.7903562,
+    "ast_hash": "1d3d9d98e07e483287c80da43f127a0d",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/CSR.png": {
+    "mtime": 1787853497.8298264,
+    "ast_hash": "283b4cb09ffbf963378fbc887bab07d4",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/CST.png": {
+    "mtime": 1787853001.7911835,
+    "ast_hash": "15f716e28a9043ca0b6bba6af08b2042",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/CTR.png": {
+    "mtime": 1787853001.794625,
+    "ast_hash": "66047199d38e6ea9cd0e50c012cc3953",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/CUM.png": {
+    "mtime": 1787853001.7963772,
+    "ast_hash": "f13dffd4f2eec47f33e10fb3c14e1104",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/CVE.png": {
+    "mtime": 1787853497.8345435,
+    "ast_hash": "5bdef0a2f6abbaf3432c17781ebb5b07",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/ICR.png": {
+    "mtime": 1787853497.8214562,
+    "ast_hash": "4d902cc26b424eaf3864b8eca6205fd9",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/IFO.png": {
+    "mtime": 1787853002.0456088,
+    "ast_hash": "a61f69e259aad72f7c7712f056794b3d",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/IID.jpg": {
+    "mtime": 1787853002.0497692,
+    "ast_hash": "1fb1a130c7b1291909f593aaa0799fd0",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/IIM.png": {
+    "mtime": 1787853497.8257773,
+    "ast_hash": "fb1d2cdadd8b110f78bf13ae3e3dd088",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/PCO.png": {
+    "mtime": 1787853002.0591807,
+    "ast_hash": "35925b8979b659094659215e4195adee",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/VL1.png": {
+    "mtime": 1787853002.0600839,
+    "ast_hash": "5938d6407c869ec1d2b5b4b568d088a5",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/institutions/logos/VPG.png": {
+    "mtime": 1787853002.07422,
+    "ast_hash": "a8094e49e7f05978940cbf5f38308044",
+    "semantic_hash": ""
+  },
+  "prisma/migrations/20260831120000_statement_recency_and_expected_signals/migration.sql": {
+    "mtime": 1788179428.2586002,
+    "ast_hash": "784b1755c86268c7a04a7c44a7267296",
+    "semantic_hash": ""
+  },
+  "src/common/seeding/bootstrap-tenant.ts": {
+    "mtime": 1788179774.9668052,
+    "ast_hash": "8fa29c64090a3705bd039baf8fb71dfb",
+    "semantic_hash": ""
+  },
+  "src/common/seeding/seed-local-clients.ts": {
+    "mtime": 1788180018.0328777,
+    "ast_hash": "9c289311f8f7919b069f0be021350970",
+    "semantic_hash": ""
+  },
+  "src/common/seeding/seed-source.ts": {
+    "mtime": 1788179762.8273747,
+    "ast_hash": "70f55b5e4ff50e2f9c2f62c94bdc0516",
+    "semantic_hash": ""
+  },
+  "src/common/seeding/seed-sync.ts": {
+    "mtime": 1788179762.8276932,
+    "ast_hash": "0d7aba52ea38612d4d4b6f1007206084",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/core/engine/similarity/document-fingerprint.ts": {
+    "mtime": 1788179581.8109114,
+    "ast_hash": "db2db6992083fcd70b83431277e2aac3",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/core/engine/similarity/institution-signals.ts": {
+    "mtime": 1788180005.9666476,
+    "ast_hash": "feceb46478d8635b342ade480accefd1",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/core/engine/similarity/similarity-scorer.ts": {
+    "mtime": 1788180005.9768896,
+    "ast_hash": "726619741201b2dbae62b101bdb06ee0",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/core/institutions/signal-descriptors.ts": {
+    "mtime": 1788179935.552268,
+    "ast_hash": "e6e006bec27452704b56e0089d675ee3",
+    "semantic_hash": ""
+  },
+  "test/bank-statement-similarity.spec.ts": {
+    "mtime": 1788179993.3828988,
+    "ast_hash": "76c7edc0b10157a3b3ae1b4bfb1a4e91",
+    "semantic_hash": ""
+  },
+  "test/fixtures/demo-applicant.ts": {
+    "mtime": 1788179903.72411,
+    "ast_hash": "bfc22649584fca65d4ec89d50a42063a",
     "semantic_hash": ""
   }
 }

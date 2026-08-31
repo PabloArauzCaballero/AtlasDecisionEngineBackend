@@ -342,9 +342,9 @@ export const BANK_STATEMENT_FIXTURES: readonly BankStatementFixture[] = [
     code: 'short-period',
     name: 'Extracto de un solo mes',
     description:
-      'Un extracto perfectamente legítimo de un mes. Se rechaza por periodo insuficiente, y ése es el punto: con un mes, un aguinaldo o una compra grande bastan para falsear el ingreso o el gasto, así que no hay capacidad de pago que calcular. El motivo que se le da al cliente es accionable —pedir tres meses a su banco—, no «no pudimos procesarlo».',
-    preview: 'Banco Nacional de Bolivia · 1 mes · rechazo por periodo insuficiente',
-    expectsFailure: true,
+      'Un extracto perfectamente legítimo de un mes. Se ADMITE con una advertencia de cobertura, y ése es el punto: con un mes, un aguinaldo o una compra grande bastan para desviar la mediana, así que la capacidad de pago se calcula y se marca como menos fiable en vez de tirar el documento. Dejó de rechazarse cuando se midió que la cuenta de meses NATURALES COMPLETOS convertía en «insuficiente» al extracto que la banca por internet entrega como «últimos 3 meses». Con BANK_STATEMENT_ENFORCE_MINIMUM_MONTHS=true vuelve a rechazarse, y es el escenario con el que se comprueba esa palanca.',
+    preview: 'Banco Nacional de Bolivia · 1 mes · se admite con advertencia de cobertura',
+    expectsFailure: false,
     fileName: 'extracto-un-mes.pdf',
     build: () => {
       const { cells } = table(5, 10_000, mesCorriente('03', 0));

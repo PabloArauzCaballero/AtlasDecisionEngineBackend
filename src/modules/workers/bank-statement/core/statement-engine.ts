@@ -17,6 +17,12 @@ import {
   normalizeAffordabilityPolicy,
   type AffordabilityPolicy,
 } from './engine/affordability/affordability-policy';
+import { normalizeRecencyOptions, type RecencyGateOptions } from './engine/recency/recency-gate';
+import {
+  DEFAULT_SIMILARITY_THRESHOLDS,
+  type SimilarityMode,
+  type SimilarityThresholds,
+} from './engine/similarity/similarity-scorer';
 import { ASFI_SEED_REGISTRY, type InstitutionRegistry } from './institutions/institution-registry';
 import { toNormalizedStatement } from './engine/normalized/normalized-mapper';
 import type { NormalizedBankStatement } from './engine/normalized/normalized-model';
@@ -66,6 +72,19 @@ export interface StatementEngineOptions {
    * `engine/affordability/affordability-policy.ts`.
    */
   readonly affordability?: Partial<AffordabilityPolicy>;
+  /**
+   * Exigencia sobre la VIGENCIA: hasta cuándo llega el extracto. Ver
+   * `engine/recency/recency-gate.ts`. Su reloj es inyectable, que es lo que
+   * permite reevaluar una cola atrasada contra la fecha en que cada documento
+   * se recibió en vez de contra la de hoy.
+   */
+  readonly recencyGate?: Partial<RecencyGateOptions>;
+  /**
+   * Umbrales del PARECIDO con el descriptor de señales de la entidad, y qué se
+   * hace con él. Ver `engine/similarity/similarity-scorer.ts`.
+   */
+  readonly similarity?: Partial<SimilarityThresholds>;
+  readonly similarityMode?: SimilarityMode;
   /** Reconocimiento óptico, si el anfitrión lo aporta. */
   readonly ocr?: StatementOcrPort;
   /** Perfiles de formato en JSON, validados al construir el motor. */
@@ -142,6 +161,9 @@ export function createStatementEngine(options: StatementEngineOptions = {}): Sta
     { ...DEFAULT_ISSUER_GATE_OPTIONS, ...options.issuerGate },
     { ...DEFAULT_AUTHENTICITY_OPTIONS, ...options.authenticityGate },
     normalizeAffordabilityPolicy(options.affordability),
+    normalizeRecencyOptions(options.recencyGate),
+    { ...DEFAULT_SIMILARITY_THRESHOLDS, ...options.similarity },
+    options.similarityMode ?? 'CORROBORATE',
   );
 
   return {

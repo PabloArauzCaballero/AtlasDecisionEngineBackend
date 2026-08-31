@@ -42,6 +42,51 @@ export interface NormalizedBankStatement {
    * con los movimientos de otro. Van juntos porque son la misma afirmación.
    */
   readonly affordability: AffordabilityAssessment;
+  /**
+   * Si el extracto describe el presente, y contra qué día se comprobó.
+   *
+   * Viaja en el contrato por lo mismo que la autenticidad: la capacidad de pago
+   * de un extracto cerrado hace cuatro meses es aritmética correcta sobre una
+   * situación que ya no existe, y un consumidor que sólo recibe el número no
+   * tiene forma de saberlo. `evaluatedOn` va dentro porque sin él el veredicto no
+   * es reproducible: el mismo documento caduca solo con el paso de los días.
+   */
+  readonly recency: NormalizedRecency;
+  /**
+   * Cuánto se parece a los extractos que su entidad emite de verdad.
+   *
+   * Se publica con el DENOMINADOR dentro —de dónde salió el patrón y sobre
+   * cuántos documentos se midió— porque un porcentaje suelto se acaba citando
+   * como si fuera una probabilidad. «91 % contra un patrón declarado a mano» y
+   * «91 % contra uno medido sobre doscientos extractos» no autorizan lo mismo.
+   */
+  readonly similarity: NormalizedSimilarity;
+}
+
+/** El parecido con el patrón de la entidad, proyectado al contrato de salida. */
+export interface NormalizedSimilarity {
+  readonly verdict: 'MATCH' | 'PARTIAL' | 'MISMATCH' | 'NO_DESCRIPTOR';
+  /** 0..100. */
+  readonly score: number;
+  readonly descriptorProvenance: string | null;
+  readonly sampleSize: number | null;
+  /** Si este parecido puede sostener un documento que otra señal dejó en duda. */
+  readonly corroborates: boolean;
+  /** Identificadores de las señales que coincidieron. */
+  readonly matched: readonly string[];
+  /** Identificadores de las que se esperaban y no estaban. */
+  readonly missing: readonly string[];
+}
+
+/** El veredicto de la vigencia, proyectado al contrato de salida. */
+export interface NormalizedRecency {
+  readonly verdict: 'CURRENT' | 'STALE' | 'FUTURE_DATED' | 'UNDATED';
+  /** Último día cubierto por la ventana observada. */
+  readonly periodTo: string | null;
+  /** Días entre ese día y aquel contra el que se evaluó. Negativo si es futuro. */
+  readonly ageDays: number | null;
+  /** El día contra el que se midió, para que el veredicto sea reproducible. */
+  readonly evaluatedOn: string;
 }
 
 /** El veredicto del contenedor, proyectado al contrato de salida. */

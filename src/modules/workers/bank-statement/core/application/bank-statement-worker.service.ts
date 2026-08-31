@@ -28,6 +28,22 @@ import {
   DEFAULT_AFFORDABILITY_POLICY,
   type AffordabilityPolicy,
 } from '../engine/affordability/affordability-policy';
+import {
+  assessSimilarity,
+  DEFAULT_SIMILARITY_THRESHOLDS,
+  similarityLabel,
+  type SimilarityAssessment,
+  type SimilarityMode,
+  type SimilarityThresholds,
+} from '../engine/similarity/similarity-scorer';
+import { buildDocumentFingerprint } from '../engine/similarity/document-fingerprint';
+import {
+  assessRecency,
+  stalenessMessage,
+  DEFAULT_RECENCY_OPTIONS,
+  type RecencyAssessment,
+  type RecencyGateOptions,
+} from '../engine/recency/recency-gate';
 import type { AffordabilityAssessment } from '../engine/affordability/affordability-model';
 import {
   StatementExtractor,
@@ -69,6 +85,21 @@ export class BankStatementWorkerService {
     private readonly authenticityGate: AuthenticityGateOptions = DEFAULT_AUTHENTICITY_OPTIONS,
     /** Política de capacidad de pago, con la exigencia de meses dentro. */
     private readonly affordabilityPolicy: AffordabilityPolicy = DEFAULT_AFFORDABILITY_POLICY,
+    /** Exigencia sobre la VIGENCIA. Ver `recency/recency-gate.ts`. */
+    private readonly recencyGate: RecencyGateOptions = DEFAULT_RECENCY_OPTIONS,
+    /** Umbrales del PARECIDO. Ver `similarity/similarity-scorer.ts`. */
+    private readonly similarity: SimilarityThresholds = DEFAULT_SIMILARITY_THRESHOLDS,
+    /**
+     * Qué se hace con el parecido: nada (`OFF`), publicarlo (`MEASURE`) o dejar
+     * que sostenga un documento dudoso (`CORROBORATE`).
+     *
+     * No hay modo que RECHACE por no parecerse, y la ausencia es deliberada: no
+     * parecerse es una ausencia de evidencia con mil causas inocentes —el banco
+     * cambió su maqueta, el descriptor está incompleto, el PDF venía escaneado—
+     * y rechazar por ella castigaría al cliente por lo que no sabemos de su
+     * banco. Ver la cabecera de `similarity-scorer.ts`.
+     */
+    private readonly similarityMode: SimilarityMode = 'CORROBORATE',
   ) {}
 
   /**
@@ -176,8 +207,41 @@ export class BankStatementWorkerService {
     const authenticity = timeSync(stageDurations, 'autenticidad', () =>
       assessAuthenticity(buffer, textPageRatio(extraction), this.authenticityGate),
     );
-    if (authenticity.disposition !== 'ACCEPT') {
+    /*
+     * El PARECIDO se mide aquí, entre evaluar el contenedor y actuar sobre él, y
+     * ese hueco es su razón de estar en este punto exacto: necesita la
+     * procedencia que la autenticidad acaba de leer —el generador declarado es
+     * una de las señales que más cuesta falsificar— y tiene que estar disponible
+     * ANTES de que el veredicto del contenedor tire el documento, porque su único
+     * efecto es sostener lo que ese veredicto dejó en duda.
+     *
+     * Se mide siempre, incluso en `OFF`, salvo que no haya descriptor: medir es
+     * barato —unas decenas de expresiones regulares sobre texto ya extraído— y es
+     * lo que permite responder «¿cuánto rescataríamos?» antes de rescatar nada.
+     */
+    const similarity = timeSync(stageDurations, 'parecido', () =>
+      assessSimilarity(
+        buildDocumentFingerprint(extraction.pdf, authenticity.report.provenance),
+        context.institution.signalDescriptor,
+        this.similarity,
+      ),
+    );
+    const rescatado =
+      this.similarityMode === 'CORROBORATE' &&
+      authenticity.disposition === 'REVIEW' &&
+      similarity.corroborates;
+    if (
+      authenticity.disposition === 'REJECT' ||
+      (authenticity.disposition !== 'ACCEPT' && !rescatado)
+    ) {
       throw this.rejectedAuthenticity(authenticity, correlation);
+    }
+    if (rescatado) {
+      this.logger.log(
+        `Sospecha del contenedor sostenida por el parecido: ` +
+          `puntaje=${String(authenticity.report.suspicionScore)} ` +
+          `${similarityLabel(similarity)}${correlation}`,
+      );
     }
     /*
      * La compuerta de emisor va ANTES de la cascada, y esa posición es el
@@ -238,11 +302,34 @@ export class BankStatementWorkerService {
         throw this.insufficientPeriod(affordability, correlation);
       }
 
+      /*
+       * La vigencia se mide sobre la MISMA ventana que la cobertura, y por eso va
+       * aquí y no antes: `coverage.to` ya reconcilió lo que promete la carátula
+       * con lo que entregan los movimientos. Preguntarle la fecha a la carátula
+       * dejaría pasar el extracto que dice llegar hasta agosto y cuyo último
+       * apunte es de mayo, que es justo el documento que esta compuerta existe
+       * para detener.
+       */
+      const recency = timeSync(stageDurations, 'vigencia', () =>
+        assessRecency(affordability.coverage.to, this.recencyGate),
+      );
+      if (recency.disposition !== 'ACCEPT') {
+        throw this.rejectedRecency(recency, correlation);
+      }
+
+      const warnings = [
+        ...extraction.warnings,
+        ...outcome.warnings,
+        ...this.admissionWarnings(affordability, recency, similarity, rescatado),
+      ];
+
       return {
         statement,
         context,
         authenticity,
         affordability,
+        recency,
+        similarity,
         strategy: {
           id: candidate.strategy.id,
           kind: candidate.strategy.kind,
@@ -251,7 +338,7 @@ export class BankStatementWorkerService {
         detection: candidate.detection,
         quality,
         validation,
-        warnings: [...extraction.warnings, ...outcome.warnings],
+        warnings,
         printedTotals,
         accountType: outcome.accountType ?? '',
         accounts: outcome.accounts ?? [],
@@ -530,6 +617,113 @@ export class BankStatementWorkerService {
     return new StatementProcessingError(
       'SUSPECTED_TAMPERING',
       tamperingMessage('SUSPECT'),
+      422,
+      evidence,
+    );
+  }
+
+  /**
+   * Lo que se admitió CON REPAROS, dicho en la misma lista de advertencias que
+   * ya viaja con el resultado.
+   *
+   * Existe porque bajar una exigencia a advertencia sólo sirve si la advertencia
+   * llega a alguien. Con la cobertura mínima apagada y sin esto, un extracto de
+   * un mes y uno de seis salían idénticos —los dos «procesados», sin ninguna
+   * marca— y la capacidad de pago del primero se leía con la misma confianza que
+   * la del segundo. La exigencia dejó de bloquear; no dejó de importar.
+   */
+  private admissionWarnings(
+    affordability: AffordabilityAssessment,
+    recency: RecencyAssessment,
+    similarity: SimilarityAssessment,
+    rescatado: boolean,
+  ): string[] {
+    const warnings: string[] = [];
+    /*
+     * Un documento sostenido por el parecido SIEMPRE lo dice. Es la advertencia
+     * más importante de la lista: significa que una compuerta lo había dejado en
+     * duda y otra evidencia lo sacó, y quien lea el resultado tiene derecho a
+     * saber que ese documento no entró limpio.
+     */
+    if (rescatado) {
+      warnings.push(
+        `sospecha-sostenida-por-parecido: el contenedor quedó en duda y el documento ` +
+          `coincide al ${String(similarity.score)} % con el patrón medido de ` +
+          `${similarity.institutionCode ?? '?'}.`,
+      );
+    }
+    if (similarity.verdict === 'MISMATCH') {
+      warnings.push(
+        `parecido-bajo: ${similarityLabel(similarity)}. No es motivo de rechazo —puede ser ` +
+          'una maqueta nueva o un descriptor incompleto— pero sí de mirarlo.',
+      );
+    }
+    const { coverage } = affordability;
+    if (!coverage.satisfied) {
+      warnings.push(
+        `cobertura-insuficiente: el extracto cubre ${String(coverage.monthsComplete)} mes(es) ` +
+          `completo(s) y la política pide ${String(coverage.minimumMonthsRequired)}. ` +
+          'La capacidad de pago se calculó igual y es menos fiable: con menos de tres ' +
+          'observaciones, un ingreso extraordinario o un gasto puntual desvían la mediana.',
+      );
+    }
+    if (coverage.gapMonths.length > 0) {
+      warnings.push(`meses-sin-movimientos: ${coverage.gapMonths.join(', ')}`);
+    }
+    if (recency.verdict === 'STALE') {
+      warnings.push(
+        `extracto-no-vigente: cerró hace ${String(recency.ageDays ?? 0)} día(s) ` +
+          `(${recency.periodTo ?? '?'}) y la compuerta de vigencia está en medición.`,
+      );
+    }
+    return warnings;
+  }
+
+  /**
+   * El error de la VIGENCIA.
+   *
+   * Dos códigos, porque son dos hechos distintos y dos acciones distintas: el
+   * extracto vencido lo arregla quien lo subió descargando el periodo actual; el
+   * fechado en el futuro no lo arregla nadie desde fuera, porque probablemente el
+   * defecto sea nuestro al leer el orden de día y mes.
+   */
+  private rejectedRecency(
+    recency: RecencyAssessment,
+    correlation: string,
+  ): StatementProcessingError {
+    this.logger.warn(
+      `Vigencia del extracto: veredicto=${recency.verdict} ` +
+        `cierre=${recency.periodTo ?? '?'} antiguedadDias=${String(recency.ageDays ?? 0)} ` +
+        `evaluadoEl=${recency.evaluatedOn} motivos=${recency.reasons.join('|')}${correlation}`,
+    );
+    const evidence = {
+      recencyVerdict: recency.verdict,
+      periodTo: recency.periodTo,
+      ageDays: recency.ageDays,
+      evaluatedOn: recency.evaluatedOn,
+      recencyReasons: recency.reasons,
+    };
+
+    if (recency.verdict === 'STALE') {
+      return new StatementProcessingError(
+        'STALE_STATEMENT',
+        stalenessMessage(recency),
+        422,
+        evidence,
+      );
+    }
+    if (recency.verdict === 'FUTURE_DATED') {
+      return new StatementProcessingError(
+        'FUTURE_DATED_STATEMENT',
+        stalenessMessage(recency),
+        422,
+        evidence,
+      );
+    }
+    return new StatementProcessingError(
+      'UNDATED_STATEMENT',
+      'No pudimos leer las fechas del extracto, así que no podemos comprobar que esté vigente. ' +
+        'Una persona lo está revisando.',
       422,
       evidence,
     );

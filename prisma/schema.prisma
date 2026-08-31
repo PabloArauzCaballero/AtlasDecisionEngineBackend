@@ -442,6 +442,11 @@ enum StatementRejectionReason {
   /// que faltan, así que la única acción que mueve el caso la tiene quien subió
   /// el archivo.
   INSUFFICIENT_PERIOD
+  /// El extracto es legítimo, completo y describe un momento que ya pasó: su
+  /// último movimiento es anterior a la ventana de vigencia. Motivo propio y no
+  /// `INSUFFICIENT_PERIOD` porque la acción del cliente es la contraria: no le
+  /// faltan meses hacia atrás, le falta el presente.
+  STALE_PERIOD
 }
 
 /// Tipo de entidad de intermediación financiera, con la clasificación que usa
@@ -2753,6 +2758,25 @@ model FinancialInstitution {
   /// fuente.
   logoSourceUrl   String?   @map("logo_source_url") @db.VarChar(500)
   logoUpdatedAt   DateTime? @map("logo_updated_at") @db.Timestamptz(6)
+
+  /// El descriptor de SEÑALES ESPERADAS: qué trae un extracto de esta entidad.
+  ///
+  /// Es la referencia contra la que se mide el PARECIDO de cada documento, y de
+  /// ahí sale el porcentaje de coincidencia. Columna propia y no un `metadata`
+  /// genérico porque este dato SÍ influye en el desenlace: un parecido alto con
+  /// un patrón medido puede sostener un documento que la compuerta del
+  /// contenedor había dejado en duda. Un dato que decide escondido en una bolsa
+  /// de propósito general no se audita ni se versiona.
+  ///
+  /// Su forma y su validación viven en
+  /// `workers/bank-statement/core/engine/similarity/institution-signals.ts`;
+  /// se valida al GUARDAR, para que un patrón mal escrito falle donde alguien lo
+  /// escribió y no a mitad del análisis de un extracto.
+  ///
+  /// `provenance` dentro del JSON es lo que gobierna su autoridad: `DECLARED`
+  /// —escrito a mano— sólo mide; `MEASURED` —derivado de documentos reales, con
+  /// su tamaño de muestra— es el único que puede corroborar.
+  expectedSignals Json? @map("expected_signals")
 
   /// Baja lógica. La fila no se borra porque las ejecuciones ya hechas citan el
   /// código con el que se atribuyó el documento, y una traza que apunte al vacío

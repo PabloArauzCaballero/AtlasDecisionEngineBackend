@@ -89,6 +89,21 @@ export function toNormalizedStatement(analysis: StatementAnalysis): NormalizedBa
       signals: analysis.authenticity.report.signals.map((signal) => signal.code),
     },
     affordability: analysis.affordability,
+    similarity: {
+      verdict: analysis.similarity.verdict,
+      score: analysis.similarity.score,
+      descriptorProvenance: analysis.similarity.descriptorProvenance,
+      sampleSize: analysis.similarity.sampleSize,
+      corroborates: analysis.similarity.corroborates,
+      matched: analysis.similarity.signals.filter((s) => s.matched).map((s) => s.id),
+      missing: analysis.similarity.signals.filter((s) => !s.matched).map((s) => s.id),
+    },
+    recency: {
+      verdict: analysis.recency.verdict,
+      periodTo: analysis.recency.periodTo,
+      ageDays: analysis.recency.ageDays,
+      evaluatedOn: analysis.recency.evaluatedOn,
+    },
     quality: {
       documentConfidence: quality.documentConfidence,
       institutionConfidence: quality.institutionConfidence,

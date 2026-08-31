@@ -82,6 +82,81 @@ responder «¿por qué acabó esto en la cola?» sin leer el worker entero.
 | Entidad o formato sin analizador | `PENDING_REVIEW` · `UNKNOWN_BANK`                       | Es un extracto. Además dice qué formato falta soportar.                                                                           |
 | Saldos o totales que no cuadran  | `PENDING_REVIEW` · `AMBIGUOUS_DATA`                     | Hay dato y CONTRADICE al documento, que es peor que no tenerlo: se publicaría como cierto.                                        |
 | Vencimiento de plazo             | `PENDING_REVIEW` · `TIMEOUT`                            | El documento es válido; lo que se agotó es la paciencia razonable de quien espera.                                                |
+| Extracto correcto pero antiguo   | `PDF_INVALID` · `STALE_PERIOD`                          | El documento es bueno y describe un momento que ya pasó. Sólo lo arregla quien lo subió, volviendo a descargarlo.                 |
+| Fechas posteriores a hoy         | `PENDING_REVIEW` · `AMBIGUOUS_DATA`                     | La causa más probable no es el fraude sino un día y un mes leídos al revés: es un defecto nuestro, no una acusación al cliente.   |
+
+## La vigencia: hasta cuándo sirve un extracto
+
+`core/engine/recency/recency-gate.ts`. Es la cuarta compuerta y la única que mide el
+**tiempo**: se compara el último día de la ventana observada —`coverage.to`, la que
+reconcilia la carátula con los movimientos— contra hoy.
+
+- **Se mide el final de la ventana, no el principio.** Que el extracto empiece hace ocho
+  meses no lo empeora; que termine hace ocho meses lo invalida entero. Medir el inicio
+  castigaría justo al documento más informativo.
+- **Tres días de tolerancia, en los dos sentidos.** «Hasta hoy» no existe en ningún banco:
+  el extracto cierra en el último movimiento, y un fin de semana sin movimientos lo deja tres
+  días atrás sin que el documento tenga nada de malo. Bajarla a cero rechazaría a quien
+  descarga su extracto un lunes por la mañana. Hacia adelante la tolerancia es simétrica
+  porque la misma zona horaria que explica un desfase explica el otro.
+- **El reloj es inyectable** (`RecencyGateOptions.now`). Sin eso la compuerta no se puede
+  probar —la prueba que hoy demuestra la vigencia mañana demostraría la caducidad— y no se
+  puede reevaluar una cola atrasada contra la fecha en que cada documento se recibió.
+- **Los escenarios del laboratorio están fechados en el primer trimestre de 2026.** Con
+  `BANK_STATEMENT_RECENCY_ENFORCE=true` se rechazan todos por vencidos: son deterministas a
+  propósito —su SHA-256 es lo que prueba la deduplicación— y por eso no se mueven solos.
+  Reanclarlos a una ventana móvil es trabajo pendiente; hasta entonces, el entorno de QA
+  necesita la variable en `false`.
+
+## El parecido con el patrón de la entidad
+
+`core/engine/similarity/`. No es una compuerta: es una **medida**, y devuelve un porcentaje.
+
+La atribución de entidad se resuelve con que un marcador coincida en la carátula, así que basta
+escribir «BANCO NACIONAL DE BOLIVIA S.A.» en un documento para que el motor diga que es del BNB.
+El descriptor de señales contesta la pregunta que faltaba: **¿se parece a los extractos que esa
+entidad emite de verdad?**
+
+- **La evidencia se pondera, no se cuenta.** El criterio es cuánto cuesta FALSIFICAR cada señal,
+  no cuán visible es: la razón social se copia y se pega; el generador que declara el archivo hay
+  que producirlo con esa herramienta. Contarlas igual dejaría que un documento compuesto en Word
+  con la carátula copiada puntuara casi como el original.
+- **Cada señal se busca donde corresponde** (`COVER`, `DOCUMENT`, `COLUMNS`, `PRODUCER`). «SALDO»
+  aparece en cualquier extracto; en el encabezado de la tabla significa que esa columna existe.
+- **El parecido puede RESCATAR pero nunca rechazar.** Parecerse mucho es evidencia positiva y
+  sostiene un documento que el contenedor dejó en duda (`SUSPECT`, 30–69). No parecerse es una
+  ausencia con mil causas inocentes —maqueta nueva, descriptor incompleto, PDF escaneado— y
+  rechazar por ella castigaría al cliente por lo que no sabemos de su banco. **No existe un modo
+  que rechace**, y la ausencia es la decisión de diseño del módulo. Un `TAMPERED` (≥70) no se
+  rescata nunca.
+- **`provenance` gobierna la autoridad del descriptor.** `DECLARED` sólo mide; `MEASURED` —con su
+  tamaño de muestra, mínimo 3— es el único que puede corroborar. Un descriptor que se declara
+  medido sin muestra se rechaza al guardarlo: sin esa regla, «lo escribí a mano y puse MEASURED»
+  sería una puerta trasera con permiso.
+- **Los siete descriptores compilados son `DECLARED`**, derivados de los analizadores
+  especializados (`core/institutions/signal-descriptors.ts`). Hoy, por tanto, el parecido se
+  publica y **no cambia ningún desenlace**. El padrón administrado los pisa cuando los trae.
+- **Les faltan a propósito las señales de `PRODUCER`**, que son las que más pesan y las únicas que
+  no se pueden deducir de un analizador: hay que abrir PDF reales de cada banco y leer su
+  diccionario `/Info`. Inventarlas sería peor que no tenerlas —una señal que nunca coincide baja
+  el porcentaje de todos los extractos legítimos de esa entidad—. Añadirlas con su muestra es lo
+  que convierte un descriptor en `MEASURED` y enciende el rescate.
+
+Un documento sostenido por el parecido **siempre lo dice**, con la advertencia
+`sospecha-sostenida-por-parecido`: quien lea el resultado tiene derecho a saber que ese documento
+no entró limpio.
+
+## Los meses completos ya no rechazan
+
+`BANK_STATEMENT_ENFORCE_MINIMUM_MONTHS` por omisión en `false`, y el porqué es una medición:
+`monthsComplete` cuenta meses **naturales completos** —28 días cubiertos dentro del propio
+mes—, así que el extracto que la banca por internet entrega como «últimos 3 meses»
+(31/05 → 31/08) aporta **dos**, no tres. Exigir tres rechazaba a quien había hecho
+exactamente lo que se le pidió, con un mensaje que le pedía repetirlo.
+
+La cobertura se sigue midiendo y viaja como advertencia en el resultado, junto a los meses
+sin movimientos. El mínimo en sí **no** es configurable: `normalizeAffordabilityPolicy` lo
+sostiene en tres. Lo que se configura es si bloquea.
 
 ## El documento se conserva mientras el caso está abierto
 

@@ -11,6 +11,10 @@ import {
   resolvedRegistry,
   type InstitutionRegistry,
 } from '../core/institutions/institution-registry';
+import {
+  parseSignalDescriptor,
+  type InstitutionSignalDescriptor,
+} from '../core/engine/similarity/institution-signals';
 
 /**
  * El padrón administrable, leído por el motor sin salir a la base en cada
@@ -147,7 +151,34 @@ export class InstitutionCatalogService {
       markers: this.compile(row.markers, row.code, 'marcadores'),
       exclusions: this.compile(row.exclusions, row.code, 'exclusiones'),
       note: row.note ?? undefined,
+      expectedSignals: this.descriptor(row),
     };
+  }
+
+  /**
+   * El descriptor de señales de la fila, o nada si no lo tiene o está roto.
+   *
+   * Un descriptor inválido NO tumba la entidad, por lo mismo que un marcador mal
+   * escrito no la tumba: perder el descriptor degrada una MEDIDA —el parecido
+   * pasa a `NO_DESCRIPTOR` y no afecta a ningún desenlace—, mientras que perder
+   * la entidad convierte sus extractos en «emisor no reconocido», que sí es un
+   * rechazo. El fallo pequeño no debe producir la consecuencia grande.
+   *
+   * Se registra en ERROR y no en WARN a propósito: un descriptor que no compila
+   * es trabajo de calibración perdido y nadie lo va a notar por la vía normal,
+   * porque el sistema sigue funcionando exactamente igual.
+   */
+  private descriptor(row: FinancialInstitution): InstitutionSignalDescriptor | undefined {
+    if (row.expectedSignals === null || row.expectedSignals === undefined) return undefined;
+    try {
+      return parseSignalDescriptor(row.expectedSignals);
+    } catch (error) {
+      this.logger.error(
+        `El descriptor de señales de ${row.code} no es válido y se ignora: ` +
+          `${error instanceof Error ? error.message : String(error)}`,
+      );
+      return undefined;
+    }
   }
 
   /**

@@ -38,6 +38,27 @@ describe('escenarios de prueba del worker de extractos', () => {
         maxPageCount: 60,
         processingTimeoutMs: 30_000,
       },
+      /*
+       * El reloj se FIJA, y es la única forma de que estos escenarios sigan
+       * demostrando algo.
+       *
+       * Los fixtures imprimen un periodo fijo —enero a marzo de 2026— porque su
+       * determinismo es lo que permite probar la deduplicación por SHA-256: unas
+       * fechas relativas a hoy cambiarían los bytes cada día. Desde que existe la
+       * compuerta de vigencia eso los convierte en extractos caducados, y sin
+       * fijar el reloj esta suite dejaría de medir el motor para medir el
+       * calendario: los mismos escenarios que hoy pasan fallarían mañana sin que
+       * nadie hubiera tocado una línea.
+       *
+       * Se evalúan contra el 1 de abril de 2026, que es la fecha de creación que
+       * los propios PDF declaran: el día en que el banco los habría emitido.
+       *
+       * Ojo: los fixtures se ejecutan TAMBIÉN desde el laboratorio del portal, y
+       * ahí corren contra el reloj real. Mientras sigan fechados en el primer
+       * trimestre, `BANK_STATEMENT_RECENCY_ENFORCE=true` los rechazará a todos
+       * por vencidos. Reanclarlos a una ventana móvil es lo que cierra ese hueco.
+       */
+      recencyGate: { now: () => new Date('2026-04-01T09:00:00Z') },
     });
   });
 
@@ -146,18 +167,58 @@ describe('escenarios de prueba del worker de extractos', () => {
     expect(affordability.band).not.toBe('SOLIDA');
   });
 
-  it('«short-period» se rechaza por periodo, no por forma', async () => {
-    /*
-     * El extracto es impecable: entidad reconocida, movimientos legibles, saldos
-     * que cuadran. Lo único que le falta son meses, y eso basta — con uno solo,
-     * un aguinaldo o una compra grande falsean el ingreso o el gasto y no hay
-     * estadística que lo corrija.
-     */
+  /*
+   * «short-period» cambió de bando, y el porqué es una medición.
+   *
+   * El extracto es impecable: entidad reconocida, movimientos legibles, saldos que
+   * cuadran. Lo único que le falta son meses. Eso RECHAZABA, y rechazaba de más:
+   * los meses se cuentan naturales y completos, así que el extracto que la banca
+   * por internet entrega como «últimos 3 meses» aporta dos y caía en el mismo
+   * saco que éste. Ahora se admite y se advierte — la capacidad de pago con un
+   * mes es menos fiable, no inexistente.
+   */
+  it('«short-period» se admite con una advertencia de cobertura, no se rechaza', async () => {
+    const fixture = findBankStatementFixture('short-period');
+    const result = await engine.normalize(fixture!.build(), { fileName: fixture!.fileName });
+
+    expect(result.affordability.coverage.satisfied).toBe(false);
+    expect(result.affordability.coverage.monthsComplete).toBeLessThan(3);
+    // La advertencia es lo único que separa «se midió y no alcanza» de «nadie lo
+    // miró»: sin ella, este extracto y uno de seis meses salen idénticos.
+    expect(result.quality.warnings.some((w) => w.startsWith('cobertura-insuficiente'))).toBe(true);
+  });
+
+  it('con la exigencia encendida, ese mismo extracto vuelve a rechazarse', async () => {
+    // La palanca tiene que llegar hasta el desenlace, no sólo hasta la política:
+    // una configuración que se lee y no se aplica es peor que no tenerla.
+    const exigente = createStatementEngine({
+      limits: { maxFileSizeBytes: 10 * 1_048_576, maxPageCount: 60, processingTimeoutMs: 30_000 },
+      affordability: { enforceMinimumMonths: true },
+      recencyGate: { now: () => new Date('2026-04-01T09:00:00Z') },
+    });
     const fixture = findBankStatementFixture('short-period');
 
     await expect(
-      engine.normalize(fixture!.build(), { fileName: fixture!.fileName }),
+      exigente.normalize(fixture!.build(), { fileName: fixture!.fileName }),
     ).rejects.toMatchObject({ code: 'INSUFFICIENT_STATEMENT_PERIOD' });
+  });
+
+  it('rechaza por VIGENCIA el extracto correcto que ya no describe el presente', async () => {
+    /*
+     * Mismo documento que «valid-basic» —el camino feliz— evaluado seis meses
+     * después. Nada del archivo cambia: lo que cambia es el día contra el que se
+     * mide, y eso basta. Es la única compuerta que puede cambiar de veredicto sin
+     * que nadie toque el documento.
+     */
+    const tarde = createStatementEngine({
+      limits: { maxFileSizeBytes: 10 * 1_048_576, maxPageCount: 60, processingTimeoutMs: 30_000 },
+      recencyGate: { now: () => new Date('2026-10-01T09:00:00Z') },
+    });
+    const fixture = findBankStatementFixture('valid-basic');
+
+    await expect(
+      tarde.normalize(fixture!.build(), { fileName: fixture!.fileName }),
+    ).rejects.toMatchObject({ code: 'STALE_STATEMENT' });
   });
 
   it('«tampered-document» se rechaza por su CONTENEDOR, con el mismo contenido que se acepta', async () => {

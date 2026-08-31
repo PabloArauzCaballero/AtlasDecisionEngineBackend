@@ -5,6 +5,7 @@ import {
   IsArray,
   IsBoolean,
   IsEnum,
+  IsObject,
   IsOptional,
   IsString,
   Length,
@@ -114,6 +115,26 @@ export class UpsertFinancialInstitutionDto {
   @IsString()
   @MaxLength(200)
   website?: string;
+
+  @ApiPropertyOptional({
+    type: 'object',
+    additionalProperties: true,
+    description:
+      'Descriptor de las SEÑALES ESPERADAS en un extracto de esta entidad, contra el que se mide el parecido de cada documento. Se valida al guardar: patrones inválidos o con retroceso catastrófico se rechazan aquí, no a mitad de un análisis. `provenance: MEASURED` exige declarar sobre cuántos documentos se midió, y es lo único que autoriza a sostener un documento dudoso.',
+    example: {
+      version: 1,
+      institutionCode: 'BNB',
+      provenance: 'DECLARED',
+      sampleSize: 0,
+      signals: [
+        { id: 'razon-social', scope: 'COVER', pattern: 'BANCO NACIONAL DE BOLIVIA', weight: 10 },
+        { id: 'generador', scope: 'PRODUCER', pattern: 'iText', weight: 35 },
+      ],
+    },
+  })
+  @IsOptional()
+  @IsObject()
+  expectedSignals?: Record<string, unknown>;
 }
 
 /**

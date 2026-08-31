@@ -2,6 +2,8 @@ import type { ParsedStatement } from '../domain/models';
 import type { AffordabilityAssessment } from './affordability/affordability-model';
 import type { AuthenticityAssessment } from './authenticity/authenticity-gate';
 import type { ParserDetectionResult, StrategyKind } from './parser-strategy';
+import type { RecencyAssessment } from './recency/recency-gate';
+import type { SimilarityAssessment } from './similarity/similarity-scorer';
 import type { ConfidenceBreakdown } from './quality/confidence';
 import type { ValidationReport } from './quality/financial-validations';
 import type { StatementContext } from './statement-context';
@@ -39,6 +41,25 @@ export interface StatementAnalysis {
    * posterior que alguien pueda saltarse llamando a otro método.
    */
   readonly affordability: AffordabilityAssessment;
+  /**
+   * Si la ventana del extracto describe el presente.
+   *
+   * Viaja igual que la autenticidad y por lo mismo: un documento aceptado tiene
+   * que poder decir CONTRA QUÉ DÍA se comprobó su vigencia. Sin `evaluatedOn` en
+   * la traza, un extracto admitido hoy y el mismo extracto reprocesado en un mes
+   * son dos afirmaciones distintas que se leen igual.
+   */
+  readonly recency: RecencyAssessment;
+  /**
+   * Cuánto se parece el documento a los extractos que su entidad emite de verdad.
+   *
+   * Es una MEDIDA y no un veredicto: viaja con su porcentaje, su denominador y la
+   * lista de señales encontradas y ausentes. Está en el análisis porque es lo que
+   * permite auditar un documento sostenido por el parecido —hay que poder ver
+   * QUÉ coincidió— y porque sin publicarla no habría forma de calibrar los
+   * umbrales sobre documentos ya procesados.
+   */
+  readonly similarity: SimilarityAssessment;
   readonly quality: ConfidenceBreakdown;
   readonly validation: ValidationReport;
   readonly warnings: readonly string[];

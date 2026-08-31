@@ -1,9 +1,11 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
-import type { FinancialInstitution, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import type { FinancialInstitution } from '@prisma/client';
 import { DomainException } from '../../../../common/errors/domain-exception';
 import { PrismaService } from '../../../../common/prisma/prisma.service';
 import { isPotentiallyCatastrophic } from '../../../../common/validation/safe-regex';
 import { BOLIVIA_INSTITUTIONS } from '../core/institutions/bolivia-institutions';
+import { parseSignalDescriptor } from '../core/engine/similarity/institution-signals';
 import { UpsertFinancialInstitutionDto } from './financial-institution.dto';
 import { InstitutionCatalogService } from './institution-catalog.service';
 import {
@@ -69,6 +71,22 @@ export class FinancialInstitutionService {
       exclusions: exclusions as unknown as Prisma.InputJsonValue,
       note,
       website: dto.website?.trim() || null,
+      /*
+       * El descriptor se VALIDA al guardar, no al usarlo. Sus patrones acaban
+       * ejecutándose contra el texto de un PDF, así que uno con retroceso
+       * catastrófico bloquearía el hilo del worker; y un descriptor incompleto
+       * fallaría a mitad del análisis de un extracto, donde el error se leería
+       * como un defecto del documento. Aquí el fallo sale donde alguien lo
+       * escribió.
+       *
+       * `Prisma.DbNull` y no `null` a secas: en una columna JSONB, `null` de
+       * JavaScript es el valor JSON `null` —un dato presente que dice «nada»— y
+       * `DbNull` es la ausencia de dato. Guardar el primero haría que
+       * `expected_signals IS NULL` no encontrara nunca a las entidades sin
+       * descriptor, que es justo la consulta con la que se planifica la
+       * calibración.
+       */
+      expectedSignals: this.validateDescriptor(dto.expectedSignals, dto.code),
       isActive: true,
       updatedBy: actor,
     };
@@ -450,6 +468,31 @@ export class FinancialInstitutionService {
     this.logger.log(`Padrón de entidades del tenant ${tenantId.toString()}: ${what}`);
   }
 
+  /**
+   * Comprueba el descriptor antes de escribirlo, y explica el fallo.
+   *
+   * Se rechaza la fila entera y no se guarda «lo que se pueda»: un descriptor a
+   * medias mide un parecido que nadie declaró, y el resultado —un porcentaje—
+   * no delata que le faltaban señales.
+   */
+  private validateDescriptor(
+    raw: Record<string, unknown> | undefined,
+    code: string,
+  ): Prisma.InputJsonValue | typeof Prisma.DbNull {
+    if (raw === undefined) return Prisma.DbNull;
+    try {
+      parseSignalDescriptor(raw);
+    } catch (error) {
+      throw new DomainException(
+        'INVALID_SIGNAL_DESCRIPTOR',
+        error instanceof Error ? error.message : 'El descriptor de señales no es válido.',
+        HttpStatus.BAD_REQUEST,
+        { code },
+      );
+    }
+    return raw as Prisma.InputJsonValue;
+  }
+
   private present(row: FinancialInstitution) {
     return {
       code: row.code,
@@ -461,6 +504,7 @@ export class FinancialInstitutionService {
       exclusions: Array.isArray(row.exclusions) ? (row.exclusions as string[]) : [],
       note: row.note,
       website: row.website,
+      expectedSignals: (row.expectedSignals ?? null) as Record<string, unknown> | null,
       /*
        * Se publica si HAY logotipo y de dónde salió, nunca los bytes. Una lista
        * de sesenta y ocho entidades con su imagen en base64 dentro son varios

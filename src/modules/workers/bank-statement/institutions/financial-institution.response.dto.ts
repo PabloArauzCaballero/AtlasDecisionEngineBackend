@@ -17,6 +17,15 @@ export class FinancialInstitutionDto {
   @ApiPropertyOptional({ nullable: true }) note!: string | null;
   @ApiPropertyOptional({ nullable: true }) website!: string | null;
 
+  @ApiPropertyOptional({
+    type: 'object',
+    additionalProperties: true,
+    nullable: true,
+    description:
+      'Descriptor de las señales esperadas en un extracto de esta entidad. `null` mientras no se haya calibrado: sin él, el parecido no se mide y no afecta a ningún desenlace.',
+  })
+  expectedSignals!: Record<string, unknown> | null;
+
   /*
    * El logotipo se anuncia, no se incrusta. Sesenta y ocho imágenes en base64
    * dentro del listado serían varios megabytes de JSON para pintar una tabla; la

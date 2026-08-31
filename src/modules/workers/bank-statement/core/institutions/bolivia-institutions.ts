@@ -1,3 +1,4 @@
+import type { InstitutionSignalDescriptor } from '../engine/similarity/institution-signals';
 /**
  * El padrón de entidades de intermediación financiera de Bolivia.
  *
@@ -90,6 +91,16 @@ export interface BoliviaInstitution {
   readonly exclusions?: readonly RegExp[];
   /** Por qué la entidad no está vigente, cuando no lo está. */
   readonly note?: string;
+  /**
+   * Las señales que un extracto suyo debería traer, contra las que se mide el
+   * parecido de cada documento.
+   *
+   * Opcional y ausente en la nómina compilada a propósito: describir cómo son los
+   * extractos de sesenta y ocho entidades es trabajo de calibración con documentos
+   * reales, no algo que se pueda escribir de memoria. Sin descriptor, la medida de
+   * parecido devuelve `NO_DESCRIPTOR` y no afecta a nada.
+   */
+  readonly expectedSignals?: InstitutionSignalDescriptor;
 }
 
 /** Prefijo común de las cooperativas: el nombre entrecomillado es lo distintivo. */

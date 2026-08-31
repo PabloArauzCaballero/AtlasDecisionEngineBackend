@@ -23,6 +23,12 @@ export type StatementErrorCode =
   | 'ACTIVE_CONTENT_IN_DOCUMENT'
   /** El extracto no cubre los meses completos que exige la política. */
   | 'INSUFFICIENT_STATEMENT_PERIOD'
+  /** El extracto es auténtico y ya no está vigente: cerró hace demasiado. */
+  | 'STALE_STATEMENT'
+  /** La ventana del extracto termina en el futuro. Se mira antes de decidir. */
+  | 'FUTURE_DATED_STATEMENT'
+  /** No se pudo fechar la ventana del extracto: no hay contra qué medir vigencia. */
+  | 'UNDATED_STATEMENT'
   | 'NO_TRANSACTIONS'
   | 'PDF_EXTRACTION_FAILED'
   | 'PDF_TOO_COMPLEX'
@@ -105,6 +111,16 @@ const DEFAULT_DISPOSITION: Readonly<Record<StatementErrorCode, StatementDisposit
    */
   INSUFFICIENT_STATEMENT_PERIOD: 'INVALID',
   /*
+   * El extracto VENCIDO se rechaza por la misma razón que el corto: la acción
+   * que lo resuelve sólo la tiene quien subió el archivo —volver a su banca por
+   * internet y descargar el periodo hasta hoy— y ningún analista puede suplir
+   * con criterio los movimientos que todavía no ocurrieron cuando se emitió.
+   *
+   * No es una duda sobre el documento: el documento es bueno y describe otro
+   * momento. Por eso es rechazo y no revisión.
+   */
+  STALE_STATEMENT: 'INVALID',
+  /*
    * Un PDF que pdf.js no consigue abrir, o que pide contraseña, se RECHAZA y no
    * se encola. Es la corrección menos obvia de esta tabla y la que más cola
    * ahorra: mandarlo a revisión pone delante de una persona un archivo que
@@ -131,6 +147,20 @@ const DEFAULT_DISPOSITION: Readonly<Record<StatementErrorCode, StatementDisposit
    * revisión humana.
    */
   SUSPECTED_TAMPERING: 'REVIEW',
+  /*
+   * Una ventana que termina en el futuro va a la cola y no al rechazo porque su
+   * causa más frecuente no es el fraude: es `03/04/2026` leído como 3 de abril
+   * cuando el banco quiso decir 4 de marzo. Rechazar convertiría un defecto de
+   * lectura del motor en una acusación al cliente.
+   */
+  FUTURE_DATED_STATEMENT: 'REVIEW',
+  /*
+   * Sin fechas legibles no hay afirmación posible —ni vigente ni caducado— y esa
+   * es la definición del caso que mira una persona. Además nunca llega solo: un
+   * extracto cuyas fechas no se leen produce una capacidad de pago vacía, así que
+   * lo que la cola recibe es un documento que de verdad hay que mirar.
+   */
+  UNDATED_STATEMENT: 'REVIEW',
   UNSUPPORTED_INSTITUTION: 'REVIEW',
   UNSUPPORTED_STATEMENT_FORMAT: 'REVIEW',
   NO_TRANSACTIONS: 'REVIEW',

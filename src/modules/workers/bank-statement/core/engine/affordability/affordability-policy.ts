@@ -106,10 +106,22 @@ export interface AffordabilityPolicy {
   /**
    * Si el incumplimiento de la cobertura mínima RECHAZA el documento.
    *
-   * Igual que en las compuertas de emisor y autenticidad: encender una exigencia
-   * nueva sobre un motor en marcha rechaza documentos que ayer pasaban, y esa
-   * decisión es de quien opera. Con `false` la cobertura se mide, se publica y no
-   * bloquea.
+   * **Por defecto NO.** Estuvo en `true` y el efecto medido fue el contrario del
+   * buscado: `monthsComplete` cuenta meses naturales COMPLETOS —28 días cubiertos
+   * dentro del propio mes, ver `monthly-series.ts`— así que el extracto que la
+   * banca por internet entrega como «últimos 3 meses» (31/05 → 31/08) aporta dos
+   * meses completos, no tres, y se rechazaba. Para pasar un mínimo de tres hacían
+   * falta cuatro meses de documento, y quien lo subía recibía «consigue el
+   * periodo de los últimos 3 meses» habiendo hecho exactamente eso.
+   *
+   * La cobertura sigue midiéndose y ahora viaja como ADVERTENCIA: la evaluación
+   * dice con cuántos meses se calculó, y quien decide sabe cuánto pesa. Un
+   * extracto corto produce una capacidad de pago menos fiable, no un documento
+   * inadmisible.
+   *
+   * Se puede volver a exigir con `BANK_STATEMENT_ENFORCE_MINIMUM_MONTHS=true`,
+   * que es la forma correcta de endurecerlo: una decisión de quien opera, visible
+   * en la configuración del despliegue.
    */
   readonly enforceMinimumMonths: boolean;
 }
@@ -123,7 +135,7 @@ export const DEFAULT_AFFORDABILITY_POLICY: AffordabilityPolicy = {
   maximumIncomeHaircut: 0.35,
   subsistenceFloor: 2750,
   cashCushionTargetDays: 15,
-  enforceMinimumMonths: true,
+  enforceMinimumMonths: false,
 };
 
 /**
