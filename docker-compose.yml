@@ -166,6 +166,10 @@ services:
       SEED_SOURCE_USER: ${SEED_SOURCE_USER:-}
       SEED_SOURCE_PASSWORD: ${SEED_SOURCE_PASSWORD:-}
       SEED_SOURCE_SSL: ${SEED_SOURCE_SSL:-true}
+      # Traer semillas VACÍA las tablas del manifiesto, y este Job corre en cada `docker compose up`.
+      # Sin esta guarda, levantar el stack por la mañana reemplazaría el catálogo con el que se
+      # estuvo trabajando. Para rehacerlo a propósito: `yarn prisma:seed` desde el anfitrión.
+      SEED_ONLY_IF_EMPTY: ${SEED_ONLY_IF_EMPTY:-true}
       # La cadena de auditoría que trae la rama viene firmada con el HMAC de la instalación que
       # capturó la instantánea. Tiene que ser el MISMO secreto y el MISMO identificador de clave
       # que reciben `api` y `worker`: una cadena firmada con otro secreto verifica como

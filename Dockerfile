@@ -40,10 +40,10 @@ COPY tsconfig.json ./
 COPY prisma.config.ts ./
 COPY prisma ./prisma
 COPY scripts ./scripts
-# prisma/seed.ts imports src/modules/seeding/seed-runner, which pulls in the catalog data
-# plus a handful of common/ helpers (advisory locks, Prisma service, contracts). That
-# dependency tree grows with the product, so the whole tree is copied rather than a curated
-# subset that silently breaks the next time a seed file gains one more import.
+# prisma/seed.ts ya no arrastra el catálogo -eso lo publica ahora la rama de semillas-, pero sí
+# importa common/seeding y, a través de él, contratos y roles de plataforma. Esa dependencia crece
+# con el producto, así que se copia el árbol entero en lugar de un subconjunto escogido a mano que
+# se rompe en silencio la próxima vez que el cargador gane un import más.
 COPY src ./src
 COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 ENTRYPOINT ["npx", "prisma"]

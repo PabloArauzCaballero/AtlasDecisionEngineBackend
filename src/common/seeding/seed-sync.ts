@@ -123,7 +123,19 @@ async function readColumns(
   return byTable;
 }
 
-/** Claves foráneas declaradas EN las tablas del manifiesto, con su definición para recrearlas. */
+/**
+ * Claves foráneas que TOCAN el manifiesto, en cualquiera de los dos sentidos.
+ *
+ * Las que salen de una tabla del manifiesto hay que retirarlas para poder cargar en cualquier orden.
+ * Las que ENTRAN —una tabla de runtime que apunta a una sembrada— hay que retirarlas por una razón
+ * distinta y menos evidente: sin ellas, vaciar exigiría `TRUNCATE ... CASCADE`, y CASCADE alcanza a
+ * esas tablas de runtime y las vacía también. Es un fallo caro y silencioso: al traer 8 840 filas de
+ * catálogo se llevó por delante 390 000 de bitácora de auditoría, que no son semilla de nadie.
+ *
+ * Retirándolas se puede truncar SIN cascade, y al recrearlas se valida que las filas de runtime
+ * siguen apuntando a algo que existe. Si la rama trae un catálogo incompatible con lo que ya hay
+ * escrito, el `ALTER` falla y la carga entera se revierte — que es exactamente lo que debe pasar.
+ */
 async function readForeignKeys(
   client: Client,
   tables: readonly TableRef[],
@@ -134,8 +146,11 @@ async function readForeignKeys(
        FROM pg_constraint co
        JOIN pg_class c ON c.oid = co.conrelid
        JOIN pg_namespace n ON n.oid = c.relnamespace
+       JOIN pg_class pc ON pc.oid = co.confrelid
+       JOIN pg_namespace pn ON pn.oid = pc.relnamespace
       WHERE co.contype = 'f'
-        AND n.nspname || '.' || c.relname = ANY($1::text[])
+        AND (n.nspname || '.' || c.relname = ANY($1::text[])
+             OR pn.nspname || '.' || pc.relname = ANY($1::text[]))
       ORDER BY 1, 2, 3`,
     [tables.map(tableKey)],
   );
@@ -201,14 +216,26 @@ async function resyncSequences(
     column: string;
     seq: string;
   }>(
-    `SELECT n.nspname AS schema, c.relname AS "table", a.attname AS column,
-            pg_get_serial_sequence(format('%I.%I', n.nspname, c.relname), a.attname) AS seq
-       FROM pg_attribute a
-       JOIN pg_class c ON c.oid = a.attrelid
-       JOIN pg_namespace n ON n.oid = c.relnamespace
-      WHERE a.attnum > 0 AND NOT a.attisdropped
-        AND n.nspname || '.' || c.relname = ANY($1::text[])
-        AND pg_get_serial_sequence(format('%I.%I', n.nspname, c.relname), a.attname) IS NOT NULL`,
+    // El CTE es MATERIALIZED a propósito. Sin él, el planificador puede evaluar
+    // `pg_get_serial_sequence` ANTES de aplicar el filtro de nombres, y entonces la llama sobre
+    // relaciones que no son del manifiesto —incluidas las de `pg_toast`—, que un rol no
+    // superusuario no puede leer: la carga entera moría con «permission denied for schema
+    // pg_toast». Con un superusuario no se nota, que es exactamente por lo que conviene fijarlo.
+    `WITH columnas AS MATERIALIZED (
+       SELECT n.nspname AS schema, c.relname AS "table", a.attname AS col
+         FROM pg_attribute a
+         JOIN pg_class c ON c.oid = a.attrelid
+         JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relkind = 'r' AND a.attnum > 0 AND NOT a.attisdropped
+          AND n.nspname || '.' || c.relname = ANY($1::text[])
+     )
+     SELECT schema, "table", col AS "column", seq
+       FROM (
+         SELECT schema, "table", col,
+                pg_get_serial_sequence(format('%I.%I', schema, "table"), col) AS seq
+           FROM columnas
+       ) resueltas
+      WHERE seq IS NOT NULL`,
     [tables.map(tableKey)],
   );
 
@@ -265,7 +292,9 @@ export async function syncSeedData(options: {
       await target.query(`ALTER TABLE ${quoteTable(table)} DISABLE TRIGGER USER`);
 
     await target.query(
-      `TRUNCATE TABLE ${tables.map(quoteTable).join(', ')} RESTART IDENTITY CASCADE`,
+      // Sin CASCADE, y eso es el punto: CASCADE vaciaría también las tablas de runtime que
+      // apuntan al catálogo. Se puede prescindir de él porque las claves que entran ya se retiraron.
+      `TRUNCATE TABLE ${tables.map(quoteTable).join(', ')} RESTART IDENTITY`,
     );
 
     let copied = 0;

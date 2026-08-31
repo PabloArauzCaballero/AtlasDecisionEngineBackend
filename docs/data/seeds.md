@@ -70,6 +70,32 @@ las tablas del manifiesto, copia y lo restituye todo. Tres detalles que no son o
   textual de PostgreSQL es la inversa de su entrada, así que el copiado no depende de cómo el driver
   traduzca cada tipo a JavaScript.
 
+## Qué se reemplaza exactamente, y qué no
+
+El manifiesto son **las tablas que el conjunto publicado trae con filas**, y un pull las vacía antes
+de cargarlas. Todo lo demás —lo que sólo escribe el runtime: bitácoras, entregas de notificación,
+tokens, ejecuciones de trabajos— se queda intacto.
+
+Ese límite hay que mirarlo una vez, porque no siempre cae donde uno espera. Una tabla en la que la
+semilla pone tres filas y el runtime escribe cientos de miles **está en el manifiesto**, así que el
+pull se lleva las del runtime con ella. En este proyecto ocurre con `audit.operational_audit_logs`
+y con las de `telemetry.*`. Consultar el manifiesto vigente antes de traer semillas sobre una base
+con historia:
+
+```sql
+SELECT table_schema, table_name, row_count FROM atlas_seed.manifest ORDER BY 1, 2;
+```
+
+Por eso el pull NO se dispara solo. El job de arranque lleva `--if-empty` y no toca una base que ya
+tenga datos; el pull sin bandera es un acto deliberado de una persona que quiere justamente ese
+reemplazo.
+
+**Nota de implementación**: el vaciado es `TRUNCATE` sin `CASCADE`, y no es un detalle. Con `CASCADE`
+la orden alcanza a cualquier tabla que apunte al catálogo y la vacía también — traer 8 840 filas de
+catálogo se llevaba por delante 390 000 de bitácora—. Para poder truncar sin él, la carga retira
+también las claves foráneas que ENTRAN al manifiesto, y al recrearlas comprueba que las filas de
+runtime siguen apuntando a algo que existe.
+
 ## Al arrancar
 
 `STARTUP_SEED_ENABLED=true` trae las semillas **sólo si la base está vacía**. `runSeeds` era
