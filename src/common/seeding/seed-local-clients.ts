@@ -3,12 +3,21 @@ import { createHash } from 'node:crypto';
 // A plain constant array, not a Nest provider, so importing it keeps the seed's
 // no-framework boundary intact while pinning the roles to the same source of truth the
 // guard and mapper use.
-import {
-  PlatformRole,
-  PLATFORM_ROLES,
-  RUNTIME_DECISION_ROLE,
-} from '../../../common/security/platform-roles';
-import { TENANT_ID } from './helpers';
+import { PlatformRole, PLATFORM_ROLES, RUNTIME_DECISION_ROLE } from '../security/platform-roles';
+import { resolveBootstrapTenantId } from './bootstrap-tenant';
+
+/**
+ * Las credenciales de integración NO viajan en la rama de semillas.
+ *
+ * Todo lo demás que sembraba este módulo se movió a una rama de PostgreSQL gestionado y ahora se
+ * copia tal cual. Esto no puede: una clave de API es un secreto DEL ENTORNO, y copiarla de una rama
+ * significaría instalar en producción la credencial de desarrollo de quien capturó la instantánea.
+ * Por eso este registro sobrevive como código y corre DESPUÉS de la copia, leyendo `process.env` en
+ * la máquina donde se instala, igual que hacía antes.
+ *
+ * Sigue valiendo la regla de siempre: cada cliente existe sólo si su variable está definida, así que
+ * sin ellas la instalación queda exactamente como estaba.
+ */
 
 /**
  * Identidades aprobadoras separadas, una por paso del flujo de gobierno.
@@ -109,10 +118,10 @@ function parseList(value: string | undefined, fallback: string[]): string[] {
 export async function seedIntegrationClients(
   prisma: PrismaClient,
 ): Promise<BootstrapClientSummary[]> {
-  // El MISMO tenant que el resto del catálogo (`helpers.ts`). Esta función leía
+  // El MISMO tenant que el resto del catálogo (`bootstrap-tenant.ts`). Esta función leía
   // `BOOTSTRAP_TENANT_ID` por su cuenta mientras todo lo demás iba fijo al 1, así que la
   // variable movía al llamante y dejaba atrás el catálogo que ese llamante necesita.
-  const tenantId = TENANT_ID;
+  const tenantId = resolveBootstrapTenantId();
   const definitions = [
     {
       clientKey: 'bootstrap-management',

@@ -1,4 +1,4 @@
-import { resolveBootstrapTenantId } from '../src/modules/seeding/data/helpers';
+import { resolveBootstrapTenantId } from '../src/common/seeding/bootstrap-tenant';
 
 /**
  * A qué tenant pertenece lo que siembra el módulo.

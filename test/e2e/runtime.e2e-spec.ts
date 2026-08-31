@@ -1,6 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { DEMO_BASE_APPLICANT } from '../../src/modules/seeding/data/demo-workflow';
+import { DEMO_BASE_APPLICANT } from '../fixtures/demo-applicant';
 import { createTestApp } from './support/test-app';
 import { runtimeHeaders } from './support/headers';
 

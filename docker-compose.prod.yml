@@ -92,8 +92,10 @@ services:
       DATABASE_POOL_MAX: ${WORKER_DATABASE_POOL_MAX:-5}
       # La siembra de arranque es trabajo de fondo, así que el worker —y sólo él— la
       # ejecuta. Se le pone el mismo tope que al Job: en producción, catálogo base y nada
-      # más, aunque alguien deje un `SEED_INCLUDE_MOCKUP=true` suelto en el `.env`.
-      SEED_INCLUDE_MOCKUP: "false"
+      # El perfil lo fija la RAMA de semillas, no una variable: se apunta SEED_SOURCE_* a la rama
+      # de produccion, que no publica artefactos de demostracion. Antes esto era
+      # SEED_INCLUDE_MOCKUP="false", una guarda que habia que acordarse de poner en cada archivo.
+      SEED_SOURCE_DATABASE_URL: ${SEED_SOURCE_DATABASE_URL:?apunta a la rama de semillas de produccion}
     cpus: ${WORKER_CPUS:-1}
     mem_limit: ${WORKER_MEMORY:-1g}
 
@@ -112,7 +114,6 @@ services:
     logging: *json-logging
     environment:
       # Producción siembra el catálogo BASE y NADA más. El fichero base pone
-      # `SEED_INCLUDE_MOCKUP: ${SEED_INCLUDE_MOCKUP:-true}` porque describe el portátil, y
       # una superposición que no diga nada HEREDA ese `true`: la pila de producción sembraba
       # los artefactos de demostración —con despliegue ACTIVO en PROD incluido— sobre la
       # base real. Aquí se fija, no se hereda.
@@ -120,4 +121,7 @@ services:
       # No se deduce de `NODE_ENV`: la imagen del migrador lo fija en `production` también
       # en desarrollo, así que como guarda no distingue nada. La distinción tiene que ser
       # esta línea, que además deja la decisión a la vista de quien lea el compose.
-      SEED_INCLUDE_MOCKUP: "false"
+      # El perfil lo fija la RAMA de semillas, no una variable: se apunta SEED_SOURCE_* a la rama
+      # de produccion, que no publica artefactos de demostracion. Antes esto era
+      # SEED_INCLUDE_MOCKUP="false", una guarda que habia que acordarse de poner en cada archivo.
+      SEED_SOURCE_DATABASE_URL: ${SEED_SOURCE_DATABASE_URL:?apunta a la rama de semillas de produccion}

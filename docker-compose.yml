@@ -153,22 +153,25 @@ services:
       BOOTSTRAP_TENANT_ID: ${BOOTSTRAP_TENANT_ID:-1}
       BOOTSTRAP_MANAGEMENT_ROLES: ${BOOTSTRAP_MANAGEMENT_ROLES:-AUDITOR,COMPLIANCE,FRAUD_ANALYST,OPERATIONS,PLATFORM_ADMIN,QA_ANALYST,RISK_ANALYST,RISK_APPROVER}
       BOOTSTRAP_RUNTIME_ROLES: ${BOOTSTRAP_RUNTIME_ROLES:-DECISION_RUNTIME}
-      # Este compose es el de desarrollo: siembra también el algoritmo de demostración
-      # con su versión compilada y su despliegue activo. Sin esto la base queda con
-      # catálogos pero sin un solo artefacto ejecutable, y cualquier prueba responde
-      # «no active deployment». No se deduce de NODE_ENV porque la imagen es la misma
-      # que se despliega y lo fija en `production`.
-      SEED_INCLUDE_MOCKUP: ${SEED_INCLUDE_MOCKUP:-true}
-      # La siembra de demostración escribe la CADENA de auditoría y seudonimiza al
-      # solicitante, y las dos cosas son el mismo HMAC que usa el motor. Tiene que ser el
-      # MISMO secreto y el MISMO identificador de clave que reciben `api` y `worker`: una
-      # cadena firmada con otro secreto verifica como manipulada, y un sujeto seudonimizado
-      # con otro secreto no lo encuentra nunca la pantalla de solicitudes de titular.
-      #
-      # Sin esto la siembra no se cae —se salta la cartera y la bitácora y lo dice en el
-      # registro—, que es peor: la base queda con el artefacto desplegado y las siete
-      # pantallas de auditoría vacías, exactamente el estado que no se distingue de un
-      # motor apagado.
+      # De dónde se trae el conjunto sembrado. La RAMA decide el perfil: la de desarrollo trae
+      # también el algoritmo de demostración con su despliegue activo —sin él la base queda con
+      # catálogos pero sin un artefacto ejecutable y cualquier prueba responde «no active
+      # deployment»—, y la de producción no lo trae. Antes esto era `SEED_INCLUDE_MOCKUP`, que no
+      # era una guarda fiable: la imagen del migrador fija NODE_ENV=production también en un
+      # portátil, así que la decisión colgaba de una variable que había que acordarse de poner.
+      SEED_SOURCE_DATABASE_URL: ${SEED_SOURCE_DATABASE_URL:-}
+      SEED_SOURCE_HOST: ${SEED_SOURCE_HOST:-}
+      SEED_SOURCE_PORT: ${SEED_SOURCE_PORT:-5432}
+      SEED_SOURCE_DB: ${SEED_SOURCE_DB:-atlas_decision}
+      SEED_SOURCE_USER: ${SEED_SOURCE_USER:-}
+      SEED_SOURCE_PASSWORD: ${SEED_SOURCE_PASSWORD:-}
+      SEED_SOURCE_SSL: ${SEED_SOURCE_SSL:-true}
+      # La cadena de auditoría que trae la rama viene firmada con el HMAC de la instalación que
+      # capturó la instantánea. Tiene que ser el MISMO secreto y el MISMO identificador de clave
+      # que reciben `api` y `worker`: una cadena firmada con otro secreto verifica como
+      # manipulada, y un sujeto seudonimizado con otro secreto no lo encuentra nunca la pantalla
+      # de solicitudes de titular. Si no coinciden, las siete pantallas de auditoría quedan
+      # vacías o en rojo, que es el estado que no se distingue de un motor apagado.
       AUDIT_HASH_SECRET: ${AUDIT_HASH_SECRET:?set AUDIT_HASH_SECRET in .env (at least 32 characters)}
       AUDIT_HASH_KEY_ID: ${AUDIT_HASH_KEY_ID:-v1}
     networks: [atlas_data]

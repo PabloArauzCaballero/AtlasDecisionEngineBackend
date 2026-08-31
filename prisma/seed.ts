@@ -1,39 +1,65 @@
 /**
- * Prisma CLI entrypoint for idempotent bootstrap data. Production excludes demo records while
- * retaining structural catalogs and explicitly configured integration clients.
+ * Prisma CLI entrypoint: trae el conjunto sembrado que publica la rama de semillas.
+ *
+ * Sustituye a `runSeeds`, que recorría los catálogos escritos como código bajo
+ * `src/modules/seeding/data/`. Ese conjunto ya no vive en el repositorio: vive en una RAMA de
+ * PostgreSQL gestionado (`SEED_SOURCE_*`), y la rama ES el perfil —la de desarrollo publica también
+ * el artefacto de demostración; la de producción, no—. Por eso desaparece `SEED_INCLUDE_MOCKUP`: a
+ * la rama de producción no se le puede PEDIR lo que no tiene.
+ *
+ * Es DESTRUCTIVO sobre las tablas del manifiesto: las vacía antes de cargarlas, para que el
+ * resultado sea el conjunto publicado y no una mezcla con lo que hubiera antes.
+ *
+ * Lo único que NO viene de la rama son las credenciales de integración: una clave de API es un
+ * secreto del entorno, así que se registran después, leyendo `process.env` en esta máquina.
  */
+import { Client } from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
-import { describeMockupDecision, resolveMockupPolicy } from '../src/modules/seeding/mockup-policy';
-import { runSeeds } from '../src/modules/seeding/seed-runner';
+import { seedIntegrationClients } from '../src/common/seeding/seed-local-clients';
+import { requireSeedSource } from '../src/common/seeding/seed-source';
+import { syncSeedData } from '../src/common/seeding/seed-sync';
 
-// Thin CLI wrapper around the shared seed runner (see src/modules/seeding). The same logic
-// runs at application startup through SeedingService; this entrypoint exists for
-// `prisma db seed`, the one-shot migration/seed Job and local development.
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error('DATABASE_URL is required to seed the database');
-const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 
-// Los datos base se siembran siempre; los de demostración sólo cuando se piden. La regla
-// vive entera en `mockup-policy.ts`, compartida con el arranque de la aplicación, para que
-// el Job y el proceso no puedan decidir cosas distintas sobre la misma base.
-const decision = resolveMockupPolicy();
-console.log(describeMockupDecision(decision));
+const seedSource = requireSeedSource();
+const source = new Client({ connectionString: seedSource.connectionString, ssl: seedSource.ssl });
+const target = new Client({ connectionString });
 
-runSeeds(prisma, { includeMockup: decision.includeMockup })
-  .then((summary) => {
+async function main(): Promise<void> {
+  await source.connect();
+  await target.connect();
+  try {
+    console.log(`Rama de semillas: ${seedSource.describe}`);
+    const summary = await syncSeedData({ source, target });
+
+    const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
+    let clients: { clientKey: string }[] = [];
+    try {
+      clients = await seedIntegrationClients(prisma);
+    } finally {
+      await prisma.$disconnect();
+    }
+
     console.log(
       JSON.stringify(
-        summary,
-        (_key, value) => (typeof value === 'bigint' ? value.toString() : value),
+        {
+          source: seedSource.describe,
+          ...summary,
+          integrationClients: clients.map((c) => c.clientKey),
+        },
+        null,
         2,
       ),
     );
-  })
-  .catch((error) => {
-    console.error(error);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+  } finally {
+    await source.end();
+    await target.end();
+  }
+}
+
+main().catch((error: unknown) => {
+  console.error(error);
+  process.exitCode = 1;
+});

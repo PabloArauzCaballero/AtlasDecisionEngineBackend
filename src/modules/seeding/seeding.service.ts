@@ -1,11 +1,13 @@
 import { Injectable, Logger, type OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Client } from 'pg';
 import { Prisma } from '@prisma/client';
 import { runsBackgroundJobs, workerRoleOf } from '../../common/config/worker-role';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AdvisoryLockDomain, advisoryLockKey } from '../../common/prisma/advisory-lock';
-import { describeMockupDecision, resolveMockupPolicy } from './mockup-policy';
-import { runSeeds } from './seed-runner';
+import { seedIntegrationClients } from '../../common/seeding/seed-local-clients';
+import { resolveSeedSource } from '../../common/seeding/seed-source';
+import { listSeededTables, syncSeedData } from '../../common/seeding/seed-sync';
 
 // Stable key for the Postgres session-level advisory lock that serializes startup seeding
 // across replicas. Only the holder seeds; the rest skip immediately. Namespaced by domain
@@ -13,31 +15,37 @@ import { runSeeds } from './seed-runner';
 const SEED_ADVISORY_LOCK_KEY = advisoryLockKey(AdvisoryLockDomain.Seeding);
 
 /**
- * Injects the seeds at application startup, idempotently.
+ * Trae el conjunto sembrado al arrancar, cuando la base está VACÍA.
  *
- * - BOOTSTRAP seeds (environments, the full variable catalog — domain inputs, scoring targets
- *   and the AtlasBackend-injected variables —, reason codes and integration clients) run in
- *   EVERY environment, so a fresh database is usable the moment the API accepts traffic.
- * - MOCKUP seeds (the BNPL demo artifact) run ONLY in development.
+ * Antes esto ejecutaba `runSeeds`: ~800 KB de catálogos escritos como código TypeScript bajo
+ * `modules/seeding/data/` que se recorrían en cada arranque haciendo upserts. Ese conjunto ya no
+ * vive en el repositorio sino en una RAMA de PostgreSQL gestionado, y aquí sólo se copia.
  *
- * A Postgres advisory lock serializes seeding when several replicas boot together; every
- * operation is an upsert, so a second run converges on the same state either way. Enabled by
- * default outside `test`; override with STARTUP_SEED_ENABLED. Kept out of the CLI seed path
- * so `prisma db seed` and the startup injector share the exact same {@link runSeeds} logic.
+ * El cambio trae una condición nueva que antes no hacía falta. `runSeeds` era idempotente por
+ * construcción —todo eran upserts—, así que correrlo en cada arranque no destruía nada; la copia,
+ * en cambio, VACÍA las tablas del manifiesto antes de escribirlas. Por eso este servicio comprueba
+ * primero si la base tiene datos y, si los tiene, no toca nada: reiniciar un proceso no puede ser
+ * la forma de perder el trabajo de la sesión anterior. Para rehacer la siembra a propósito está
+ * `yarn prisma:seed`, que es un acto deliberado de una persona.
+ *
+ * También desaparece la distinción bootstrap/mockup (`SEED_INCLUDE_MOCKUP`): lo que llega es lo que
+ * la rama publica. La rama de desarrollo trae el artefacto de demostración; la de producción, no.
+ *
+ * Lo único que NO viene de la rama son las credenciales de integración: una clave de API es un
+ * secreto del entorno, y copiarla significaría instalar en producción la credencial de desarrollo
+ * de quien capturó la instantánea. Se registran aparte, leyendo el entorno de esta instalación, y
+ * se hace SIEMPRE —no sólo con la base vacía— porque rotar una clave en el entorno tiene que poder
+ * aplicarse sin volver a sembrar.
  *
  * **Es trabajo de fondo, y por eso solo corre donde corren los trabajos de fondo**
- * (`WORKER_ROLE` ∈ ALL, WORKER). Una réplica de API que sembraba al arrancar pagaba una
- * ronda completa de upserts sobre el catálogo antes de aceptar su primera petición, y
- * escalar la API a N réplicas convertía cada despliegue en N intentos compitiendo por el
- * mismo bloqueo consultivo para hacer exactamente el mismo trabajo. En un despliegue
- * orquestado la fuente de verdad siguen siendo los Jobs de migración y semilla; esto es la
- * red de seguridad del proceso de fondo y el camino cómodo de desarrollo (`WORKER_ROLE=ALL`).
+ * (`WORKER_ROLE` ∈ ALL, WORKER). Una réplica de API que sembraba al arrancar pagaba una ronda
+ * completa antes de aceptar su primera petición, y escalar la API a N réplicas convertía cada
+ * despliegue en N intentos compitiendo por el mismo bloqueo consultivo para hacer el mismo trabajo.
  */
 @Injectable()
 export class SeedingService implements OnApplicationBootstrap {
   private readonly logger = new Logger(SeedingService.name);
   private readonly enabled: boolean;
-  private readonly mockup: ReturnType<typeof resolveMockupPolicy>;
   private readonly role: string;
 
   constructor(
@@ -50,15 +58,17 @@ export class SeedingService implements OnApplicationBootstrap {
     this.enabled =
       runsBackgroundJobs(config) &&
       (config.get<boolean>('STARTUP_SEED_ENABLED') ?? nodeEnv !== 'test');
-    // Misma regla que el Job de siembra (`prisma/seed.ts`): una sola función decide, y
-    // `SEED_INCLUDE_MOCKUP` también se honra aquí. Cuando no está declarada, el valor sigue
-    // saliendo de `NODE_ENV`, así que el comportamiento por defecto no cambia.
-    this.mockup = resolveMockupPolicy({ ...process.env, NODE_ENV: nodeEnv });
   }
 
   async onApplicationBootstrap(): Promise<void> {
     if (!this.enabled) {
       this.logger.log(`Startup seeding not run in this process (WORKER_ROLE=${this.role})`);
+      return;
+    }
+
+    const seedSource = resolveSeedSource();
+    if (!seedSource) {
+      this.logger.log('Startup seeding skipped: no SEED_SOURCE_* configured');
       return;
     }
 
@@ -70,15 +80,41 @@ export class SeedingService implements OnApplicationBootstrap {
       return;
     }
 
+    const source = new Client({
+      connectionString: seedSource.connectionString,
+      ssl: seedSource.ssl,
+    });
+    const target = new Client({ connectionString: process.env.DATABASE_URL });
     try {
-      this.logger.log(describeMockupDecision(this.mockup));
-      const summary = await runSeeds(this.prisma, { includeMockup: this.mockup.includeMockup });
-      this.logger.log(
-        `Startup seeding complete: ${summary.bootstrap.variables} variables, ` +
-          `${summary.bootstrap.reasonCodes} reason codes, ` +
-          `${summary.bootstrap.integrationClients} integration client(s); ` +
-          `mockup ${summary.mockupSkipped ? 'skipped (non-development)' : 'applied'}`,
-      );
+      await source.connect();
+      await target.connect();
+
+      const existing = await listSeededTables(target);
+      if (existing.length > 0) {
+        this.logger.log(
+          `Startup seeding skipped: the database already holds data (${existing.length} populated tables). ` +
+            'Run `yarn prisma:seed` to replace it with what the branch publishes.',
+        );
+      } else {
+        this.logger.log(
+          `Empty database: pulling the published seed set from ${seedSource.describe}`,
+        );
+        const summary = await syncSeedData({
+          source,
+          target,
+          log: (message) => this.logger.debug(message),
+        });
+        this.logger.log(
+          `Startup seeding complete: ${summary.rows} rows across ${summary.tables} tables`,
+        );
+      }
+
+      const clients = await seedIntegrationClients(this.prisma);
+      if (clients.length > 0) {
+        this.logger.log(
+          `Integration clients registered from this environment: ${clients.map((c) => c.clientKey).join(', ')}`,
+        );
+      }
     } catch (error) {
       // A seeding failure must not silently leave the platform running against an empty
       // catalog, so it is surfaced and rethrown to abort startup.
@@ -87,6 +123,8 @@ export class SeedingService implements OnApplicationBootstrap {
       );
       throw error;
     } finally {
+      await source.end().catch(() => undefined);
+      await target.end().catch(() => undefined);
       await this.prisma.$queryRaw(Prisma.sql`SELECT pg_advisory_unlock(${SEED_ADVISORY_LOCK_KEY})`);
     }
   }

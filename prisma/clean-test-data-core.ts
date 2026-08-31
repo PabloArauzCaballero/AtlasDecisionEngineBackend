@@ -1,5 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
-import { resolveBootstrapTenantId } from '../src/modules/seeding/data/helpers';
+import { resolveBootstrapTenantId } from '../src/common/seeding/bootstrap-tenant';
 
 /** Codes that must NEVER be removed (the real demo + the documented logic algos). */
 export const KEEP_ARTIFACT_CODES = new Set([

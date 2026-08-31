@@ -41,16 +41,19 @@ spec:
             - secretRef:
                 name: atlas-decision-secrets
           env:
-            # Producción siembra el catálogo BASE y nada más. Los datos de demostración
-            # traen despliegues ACTIVOS —uno en PROD— y en una base real son basura con
+            # Producción siembra el catálogo BASE y nada más, y ahora eso lo decide LA RAMA a la
+            # que apunta este Job, no una variable que hubiera que acordarse de poner: la rama de
+            # producción sencillamente no publica artefactos de demostración, así que no hay forma
+            # de pedirle unos despliegues ACTIVOS de ejemplo que en una base real son basura con
             # aspecto de política aprobada.
             #
-            # Se declara aquí y no se deduce de `NODE_ENV`: la imagen del migrador lo fija
-            # en `production` también en un portátil, así que como guarda no distingue nada.
-            # Además, `envFrom` puede traer un `SEED_INCLUDE_MOCKUP` heredado del Secret;
-            # `env` gana sobre `envFrom`, de modo que esta línea es la que manda.
-            - name: SEED_INCLUDE_MOCKUP
-              value: "false"
+            # `env` gana sobre `envFrom`, de modo que esta línea manda sobre cualquier
+            # `SEED_SOURCE_DATABASE_URL` heredado del Secret.
+            - name: SEED_SOURCE_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: atlas-decision-secrets
+                  key: SEED_SOURCE_PRODUCTION_DATABASE_URL
           securityContext:
             allowPrivilegeEscalation: false
             runAsNonRoot: true

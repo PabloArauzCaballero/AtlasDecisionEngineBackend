@@ -134,7 +134,7 @@ export class DecisionCoverageService {
        * indicadores llevan su denominador: «85 % sembrado» sobre 29 decisiones y sobre 29.000
        * son dos noticias distintas.
        *
-       * En una base sin semillas de demostración (`SEED_INCLUDE_MOCKUP=false`, que es lo que
+       * En una base sembrada desde la rama de producción (sin datos de demostración, que es lo que
        * fija `docker-compose.prod.yml`) no hay ninguna fila con este prefijo: sale 0 y el
        * portal no enseña ningún aviso. No hace falta apagarlo por configuración.
        */

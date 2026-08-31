@@ -1,115 +1,89 @@
-# Semillas
+# Semillas del motor
 
-## Dos conjuntos con propósitos distintos
+## Dónde viven los datos de semilla
 
-| Conjunto | Cuándo corre | Qué siembra |
-| --- | --- | --- |
-| **BOOTSTRAP** | Todos los ambientes, siempre | Ambientes, catálogo completo de variables, códigos de razón, clientes de integración, librerías aprobadas, campos calculados y el catálogo semántico |
-| **MOCKUP** | Solo donde se pide | Artefactos de demostración completos —grafo, snapshot compilado, suite de regresión, escenarios de gobierno— y sus **despliegues ACTIVOS**, uno de ellos en PROD |
-
-Separarlos no es cosmético: sin BOOTSTRAP una instalación nueva no tiene ni ambientes ni
-llamantes registrados y **no puede operar**. MOCKUP, en cambio, son datos de ejemplo que en
-producción serían basura —y basura con aspecto de política aprobada y desplegada.
-
-## Quién decide si va el MOCKUP
-
-Una sola función: `src/modules/seeding/mockup-policy.ts`. La usan las dos entradas —el Job
-(`prisma db seed`) y la siembra de arranque (`SeedingService`)— porque decidían distinto y
-la misma base podía recibir una cosa u otra según quién sembrara.
-
-1. `SEED_INCLUDE_MOCKUP` si está declarada (`true/false`, `1/0`, `yes/no`). Un valor que no
-   sea ninguno de ésos **falla**: degradarlo a `false` en silencio deja la base con
-   catálogos y sin un solo artefacto ejecutable, y el motor responde «no active deployment»
-   sin decir por qué.
-2. Si no está declarada, `NODE_ENV === 'development'`.
-
-**`NODE_ENV` no sirve como guarda de producción.** La imagen del migrador lo fija en
-`production` —es la misma que se despliega—, así que también vale `production` en un
-portátil. Por eso la guarda es explícita y visible en el compose: `docker-compose.prod.yml`
-fija `SEED_INCLUDE_MOCKUP: "false"` en el Job `seed` y en el `worker` (el único proceso que
-siembra al arrancar). Sin esa línea, la superposición **hereda** el `:-true` del fichero
-base, que describe el portátil: la pila de producción sembraba el demo sobre la base real.
-
-`test/seed-mockup-policy.spec.ts` fija la regla.
-
-## Cómo corre
-
-`SeedingService` se ejecuta en `OnApplicationBootstrap`, antes de servir tráfico, protegido por
-un **bloqueo consultivo de PostgreSQL**: N réplicas pueden arrancar a la vez y solo una siembra.
-Todo es idempotente; un segundo arranque registra «Seed already present».
-
-`STARTUP_SEED_ENABLED` fuerza el comportamiento; sin declarar está activo en todas partes
-excepto en `NODE_ENV=test`, donde cada suite provisiona sus propios datos.
-
-## A qué tenant va
-
-A uno solo, el que resuelve `resolveBootstrapTenantId()` (`seeding/data/helpers.ts`):
-`BOOTSTRAP_TENANT_ID`, o `SEED_TENANT_ID` como sinónimo, o `1` si no hay ninguna. Un valor
-que no sea un entero >= 1 **falla**, en vez de caer al 1 en silencio.
-
-Había tres respuestas conviviendo: `BOOTSTRAP_TENANT_ID` lo leían sólo los clientes de
-integración, los guiones de `prisma/` leían `SEED_TENANT_ID`, y el catálogo entero iba a un
-`1n` fijo —con una segunda copia de la constante en el catálogo semántico—. Con
-`BOOTSTRAP_TENANT_ID=7`, una instalación nueva quedaba con la API key habilitada para el
-tenant 7 y las variables, motivos, librerías y campos calculados en el 1: el único llamante
-registrado no veía nada y el motor rechazaba toda decisión por variable inexistente.
-
-`test/seed-tenant-resolution.spec.ts` fija la regla.
-
-## Dónde corre en un despliegue
-
-| Despliegue | Quién siembra |
-| --- | --- |
-| Docker Compose | El servicio `seed` (un disparo), tras `migrate` |
-| Kubernetes | El Job `migration-job.yaml`: `migrate` como initContainer y `seed` como container, en ese orden |
-| Arranque de la aplicación | `SeedingService`, sólo donde corren los trabajos de fondo (`WORKER_ROLE` ∈ ALL, WORKER). Es la **red de seguridad**, no la fuente de verdad |
-
-El Job de Kubernetes corría sólo `migrate deploy` aunque esta página y `.env.example` ya lo
-nombraban como fuente de verdad: en la práctica el catálogo mínimo dependía de la red de
-seguridad, y un worker con `STARTUP_SEED_ENABLED=false` dejaba la instalación sin operar.
-Son initContainer y container, y no dos containers, porque los containers de un Pod arrancan
-a la vez: sembrar en paralelo a la migración corre contra un esquema a medio migrar.
-
-## Clientes de integración
-
-La identidad de un llamante por API key vive en la base de datos, así que sin esta siembra una
-instalación con API keys no tiene ningún llamante registrado.
-
-- El secreto se toma de `MANAGEMENT_API_KEY` / `RUNTIME_API_KEY` y se guarda **hasheado**.
-- Los roles salen de `BOOTSTRAP_MANAGEMENT_ROLES` / `BOOTSTRAP_RUNTIME_ROLES`, nunca de la petición.
-- **Rotar el secreto invalida el anterior**: la siembra borra las credenciales previas del cliente.
-- Al cliente de gestión se le conceden explícitamente todos los roles de plataforma, porque `PLATFORM_ADMIN` como comodín **no** se honra en una API key.
-
-## Escenarios de gobierno
-
-MOCKUP siembra cuatro escenarios; tres de ellos son **rechazos**, así que lo que se siembra es
-el escenario que los provoca:
-
-| Escenario | Rechazo demostrado |
-| --- | --- |
-| Ciclo detectado | `CIRCULAR_ARTIFACT_REFERENCE` |
-| Versión no disponible | `CHILD_VERSION_NOT_COMPILED` |
-| Contrato incompatible | `VARIABLE_CONTRACT_INCOMPATIBLE` |
-| Caso de QA | Corrida archivada con contraejemplo mínimo y semilla |
-
-El hijo del ciclo tiene una **segunda versión en borrador**: solo un borrador es editable y, sin
-ella, el escenario fallaba por `VERSION_IMMUTABLE` sin llegar a ejercitar el ciclo.
-
-## Ejecutar a mano
+**Fuera del repositorio.** El catálogo —variables, códigos de motivo, librerías aprobadas, campos
+calculados, categorías semánticas, entidades financieras— y el artefacto de demostración con su
+despliegue activo se publican en una **rama** de PostgreSQL gestionado, y se traen con un comando:
 
 ```bash
-yarn prisma:seed                                   # mismo runSeeds que el arranque
-SEED_INCLUDE_MOCKUP=false yarn prisma:seed         # sólo el catálogo base
-NODE_ENV=test STARTUP_SEED_ENABLED=true node dist/main.js   # bootstrap sí, mockup no
+yarn prisma:migrate   # el esquema lo siguen definiendo las migraciones versionadas
+yarn prisma:seed      # los datos los trae la rama
 ```
 
-## Verificar
+Antes eran ~800 KB de TypeScript bajo `src/modules/seeding/data/`: 44 archivos que `runSeeds`
+recorría haciendo upserts en cada arranque. Escribir catálogos como código tiene un coste que no se
+ve hasta que se mira: cada cambio de un umbral era un commit de código, cada revisión de PR era
+leer literales, y el conjunto se recorría entero en cada arranque de cada réplica de worker.
 
-```sql
-select count(*) from decision_variable;         -- catálogo sembrado
-select count(*) from integration_client;        -- llamantes registrados
-select code from decision_environment;          -- DEV, STAGING, TEST, PROD
-```
+## La rama es el perfil
 
-Un arranque sano registra algo como: `Startup seeding complete: 279 variables, 95 reason
-codes, 2 integration client(s); mockup applied`.
+Ya no existe `SEED_INCLUDE_MOCKUP`. Lo que antes decidía una variable —¿entra el artefacto de
+demostración?— ahora lo decide **a qué rama se apunta**:
+
+| Rama       | Qué publica                                                                     |
+| ---------- | ------------------------------------------------------------------------------- |
+| desarrollo | Catálogo base **más** el artefacto de demostración con despliegues activos.      |
+| producción | Sólo el catálogo base.                                                           |
+
+La diferencia no es cosmética. `SEED_INCLUDE_MOCKUP` nunca fue una guarda fiable: se deducía de
+`NODE_ENV`, y la imagen del migrador fija `NODE_ENV=production` también en un portátil, así que
+había que declararla explícitamente en `docker-compose.prod.yml`, en `compose.resilience.yml` y en
+el Job de Kubernetes —tres sitios donde acordarse—. A la rama de producción, en cambio, **no se le
+puede pedir** un artefacto de demostración: no lo tiene.
+
+## Configuración
+
+Dos formas, en este orden de precedencia (ver `src/common/seeding/seed-source.ts`):
+
+1. `SEED_SOURCE_DATABASE_URL` — cadena completa. Gana sobre todo lo demás.
+2. `SEED_SOURCE_HOST` + `SEED_SOURCE_DB` + `SEED_SOURCE_USER` + `SEED_SOURCE_PASSWORD` — la vía
+   cómoda cuando **sólo cambia la rama**.
+
+## Lo que NO viene de la rama
+
+**Las credenciales de integración.** `MANAGEMENT_API_KEY`, `RUNTIME_API_KEY`, `APPROVER_QA_API_KEY`,
+`APPROVER_RISK_API_KEY`, `APPROVER_COMPLIANCE_API_KEY` y `RELEASE_MANAGER_API_KEY` son secretos
+**del entorno**: copiarlas de una rama significaría instalar en producción la credencial de
+desarrollo de quien capturó la instantánea. Se registran aparte
+(`src/common/seeding/seed-local-clients.ts`), leyendo el entorno de esta instalación, y se aplican
+**siempre** —no sólo con la base vacía— porque rotar una clave tiene que poder hacerse sin volver a
+sembrar. Sigue valiendo la regla de antes: cada cliente existe sólo si su variable está definida.
+
+**El secreto de auditoría.** La cadena que trae la rama viene firmada con el HMAC de la instalación
+que capturó la instantánea, así que `AUDIT_HASH_SECRET` y `AUDIT_HASH_KEY_ID` tienen que ser los
+mismos que reciben `api` y `worker`. Una cadena firmada con otro secreto verifica como manipulada, y
+un sujeto seudonimizado con otro secreto no lo encuentra nunca la pantalla de solicitudes de titular
+— las siete pantallas de auditoría quedan vacías o en rojo, que es el estado que no se distingue de
+un motor apagado.
+
+## Cómo carga
+
+Dentro de **una transacción**: retira las claves foráneas, apaga los disparadores de usuario, vacía
+las tablas del manifiesto, copia y lo restituye todo. Tres detalles que no son opcionales:
+
+- **Recrear las restricciones es lo que valida el resultado.** Una fila huérfana aborta el `ALTER` y
+  revierte la carga completa, así que la base nunca queda a medias ni sin restricciones.
+- **Los disparadores se apagan** porque `decision_audit_event` es append-only y rechaza `TRUNCATE`,
+  y porque un `BEFORE INSERT` que recalcule hashes reescribiría filas que ya vienen calculadas.
+- **Los valores viajan como texto** (`col::text` al leer, `$n::tipo` al escribir): la representación
+  textual de PostgreSQL es la inversa de su entrada, así que el copiado no depende de cómo el driver
+  traduzca cada tipo a JavaScript.
+
+## Al arrancar
+
+`STARTUP_SEED_ENABLED=true` trae las semillas **sólo si la base está vacía**. `runSeeds` era
+idempotente por construcción —todo eran upserts—, así que correrlo en cada arranque no destruía
+nada; la copia, en cambio, es un reemplazo. Reiniciar un proceso no puede ser la forma de perder el
+trabajo de la sesión anterior, así que ahora la salvaguarda es explícita. Para rehacerla a propósito
+está `yarn prisma:seed`.
+
+Sigue siendo trabajo de fondo: sólo corre donde `WORKER_ROLE` ∈ `ALL`, `WORKER`. Una réplica de API
+nunca siembra, aunque la variable esté en `true`.
+
+## Publicar una instantánea nueva
+
+Cuando cambie el catálogo, se actualiza **la rama**, no el repositorio: base limpia, migraciones,
+cargar los datos por el medio que corresponda, y empujar esa base a la rama con la misma lógica de
+copia en sentido inverso. La rama lleva un esquema `atlas_seed` con `manifest` (tablas y filas) y
+`snapshot` (fecha, backend y `git sha` con el que se capturó).
