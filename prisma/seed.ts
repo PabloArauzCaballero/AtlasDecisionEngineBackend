@@ -21,7 +21,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 import { seedIntegrationClients } from '../src/common/seeding/seed-local-clients';
 import { requireSeedSource } from '../src/common/seeding/seed-source';
-import { listSeededTables, syncSeedData } from '../src/common/seeding/seed-sync';
+import { hasSeedLoad, syncSeedData } from '../src/common/seeding/seed-sync';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error('DATABASE_URL is required to seed the database');
@@ -39,21 +39,23 @@ async function main(): Promise<void> {
   try {
     console.log(`Rama de semillas: ${seedSource.describe}`);
 
-    if (onlyIfEmpty) {
-      const existing = await listSeededTables(target);
-      if (existing.length > 0) {
-        console.log(
-          JSON.stringify(
-            { skipped: true, reason: 'la base ya tiene datos', populatedTables: existing.length },
-            null,
-            2,
-          ),
-        );
-        return;
-      }
+    // La guarda mira la MARCA de carga, no el número de filas: una base recién migrada ya puede
+    // tener datos, y contarlos hacía que el Job se saltara la siembra en una base virgen.
+    if (onlyIfEmpty && (await hasSeedLoad(target))) {
+      console.log(
+        JSON.stringify(
+          {
+            skipped: true,
+            reason: 'esta base ya trajo el conjunto sembrado (atlas_seed.load_log)',
+          },
+          null,
+          2,
+        ),
+      );
+      return;
     }
 
-    const summary = await syncSeedData({ source, target });
+    const summary = await syncSeedData({ source, target, sourceLabel: seedSource.describe });
 
     const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
     let clients: { clientKey: string }[] = [];

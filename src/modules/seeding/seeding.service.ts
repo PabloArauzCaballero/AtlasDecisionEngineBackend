@@ -7,7 +7,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { AdvisoryLockDomain, advisoryLockKey } from '../../common/prisma/advisory-lock';
 import { seedIntegrationClients } from '../../common/seeding/seed-local-clients';
 import { resolveSeedSource } from '../../common/seeding/seed-source';
-import { listSeededTables, syncSeedData } from '../../common/seeding/seed-sync';
+import { hasSeedLoad, syncSeedData } from '../../common/seeding/seed-sync';
 
 // Stable key for the Postgres session-level advisory lock that serializes startup seeding
 // across replicas. Only the holder seeds; the rest skip immediately. Namespaced by domain
@@ -89,10 +89,9 @@ export class SeedingService implements OnApplicationBootstrap {
       await source.connect();
       await target.connect();
 
-      const existing = await listSeededTables(target);
-      if (existing.length > 0) {
+      if (await hasSeedLoad(target)) {
         this.logger.log(
-          `Startup seeding skipped: the database already holds data (${existing.length} populated tables). ` +
+          'Startup seeding skipped: this database already pulled the published seed set. ' +
             'Run `yarn prisma:seed` to replace it with what the branch publishes.',
         );
       } else {
@@ -102,6 +101,7 @@ export class SeedingService implements OnApplicationBootstrap {
         const summary = await syncSeedData({
           source,
           target,
+          sourceLabel: seedSource.describe,
           log: (message) => this.logger.debug(message),
         });
         this.logger.log(
