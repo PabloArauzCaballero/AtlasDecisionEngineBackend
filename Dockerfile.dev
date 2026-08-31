@@ -1,0 +1,141 @@
+# syntax=docker/dockerfile:1.7
+# Imagen de PRUEBAS del motor de decisión, pensada para el VPS de testing (Ubuntu, Contabo).
+#
+# No sustituye a `Dockerfile`, que es la imagen de producción y está partida en siete etapas para
+# que lo que se despliega no contenga ni el CLI de Prisma, ni el arnés de pruebas, ni Chromium.
+# Aquí el objetivo es el contrario: que en el VPS haya UNA imagen capaz de hacerlo todo —servir la
+# API, correr los trabajos de fondo, migrar, traer semillas y ejecutar el smoke—, porque en un VPS
+# de pruebas no hay una máquina de operador con Node 22, yarn y `psql` a mano.
+#
+# Dos objetivos, no uno:
+#
+#   app         API + worker + migraciones + semillas + smoke. Es lo que se usa a diario.
+#   pdf-worker  El generador documental. Va APARTE y no por gusto: su base es la imagen oficial
+#               de Playwright y ocupa ~4,4 GB con Chromium dentro. En un VPS con el disco contado
+#               eso es la diferencia entre caber y no caber, así que el compose lo deja detrás de
+#               un perfil y sólo se construye cuando se van a probar PDFs.
+#
+# Construcción:
+#   docker build -f Dockerfile.dev --target app        -t atlas-decision:dev .
+#   docker build -f Dockerfile.dev --target pdf-worker -t atlas-decision-pdf:dev .
+
+# ---------------------------------------------------------------------------------------------
+FROM node:22-bookworm-slim AS deps
+WORKDIR /app
+ENV CI=true
+# `openssl` lo sondea la generación del cliente de Prisma aunque las consultas salgan por el
+# adaptador JS. Instalarlo aquí mantiene alineados el build y los motores del migrador con
+# bookworm (OpenSSL 3); sin él la generación elige un binario que no existe en esta base.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssl \
+  && rm -rf /var/lib/apt/lists/*
+COPY package.json yarn.lock ./
+RUN --mount=type=cache,id=atlas-yarn-dev,target=/usr/local/share/.cache/yarn \
+    yarn install --frozen-lockfile
+
+# ---------------------------------------------------------------------------------------------
+FROM node:22-bookworm-slim AS app
+WORKDIR /app
+
+# `python3` lo invoca el comprobador de sintaxis de «Importar código» DENTRO del proceso de la API:
+# analiza el script del analista antes de aceptarlo. Sin él, subir un algoritmo Python falla con
+# `spawnSync python ENOENT` — un error de sistema donde se esperaba un análisis.
+#
+# `fonts-dejavu-core` no es decoración: `sharp` compone el SVG de los escenarios del worker de
+# identidad a través de fontconfig, y en una imagen sin ninguna fuente el texto se dibuja vacío. La
+# tarjeta sale en blanco, el lector no encuentra una letra y el escenario falla con «no se pudo leer
+# el documento» — un fallo que parece del OCR y en realidad es una fuente que falta.
+#
+# `postgresql-client` es el añadido propio de esta imagen: en un VPS sin herramientas, tener un
+# `psql` es la diferencia entre diagnosticar la base y adivinar.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+       ca-certificates dumb-init openssl python3 fonts-dejavu-core postgresql-client \
+  && rm -rf /var/lib/apt/lists/*
+
+# V8 dimensiona su heap por la memoria de la MÁQUINA, no por el límite del contenedor: sin cota
+# explícita, un contenedor de 768 MiB planifica recolecciones como si tuviera la RAM del VPS entero
+# y el OOM killer lo mata antes de que el GC decida actuar. Se declara aquí para que la cota exista
+# incluso en un `docker run` sin argumentos.
+ENV NODE_ENV=development \
+    NODE_OPTIONS=--max-old-space-size=512
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+# El cliente de Prisma se genera ANTES de compilar: `nest build` compila código que ya lo importa.
+RUN yarn prisma generate && yarn build
+
+# `runner/` y `smoke/` se conservan: el sidecar de scripts se arranca desde ahí y el smoke lee
+# `demo-applicant.json` del disco por ruta. En la imagen de producción viven en otras etapas; aquí
+# no hay otras etapas.
+RUN chown -R node:node /app/dist /app/node_modules/.prisma
+USER node
+
+ENV PORT=3000 \
+    WORKER_HEALTH_PORT=3001
+EXPOSE 3000 3001
+
+# `start-period` de 45 s: el arranque abre el pool de Postgres —que aquí es Neon, o sea a través de
+# Internet—, conecta Redis y monta el AppModule completo. Con 20 s, un primer sondeo contaba fallos
+# contra `--retries` durante un arranque perfectamente normal.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
+  CMD ["node", "docker/healthcheck.mjs"]
+
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["node", "dist/main.js"]
+
+# ---------------------------------------------------------------------------------------------
+# Generador documental. Imagen SEPARADA, y la separación es el punto entero.
+#
+# Chromium y sus dependencias pesan ~450 MiB y rasterizar consume memoria en ráfagas. Meterlos en
+# la imagen de la API significaría engordarla para todas las réplicas —incluidas las que nunca
+# imprimen un PDF— y hacer que un informe de doscientas páginas compita por memoria con el camino
+# que atiende decisiones. Con dos imágenes, el generador se escala, se limita y se cae por su cuenta.
+#
+# Base OFICIAL de Playwright, no `node:slim` + descarga del navegador: la etiqueta CLAVA la pareja
+# navegador/biblioteca. `v1.61.1-noble` trae exactamente `chromium-1228`, que es el que pide el
+# `playwright@1.61.1` del `package.json`. **Al subir `playwright` hay que subir esta etiqueta a la
+# vez**: la comprobación del final falla al construir si se desincronizan, que es infinitamente
+# mejor que descubrirlo al renderizar.
+# ---------------------------------------------------------------------------------------------
+FROM mcr.microsoft.com/playwright:v1.61.1-noble AS pdf-worker
+WORKDIR /app
+ENV NODE_ENV=production \
+    NODE_OPTIONS=--max-old-space-size=768 \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+COPY package.json yarn.lock ./
+# `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD`: el postinstall volvería a bajarse el navegador que la base ya
+# trae — 177 MiB y varios minutos para nada.
+RUN --mount=type=cache,id=atlas-yarn-pdf-dev,target=/usr/local/share/.cache/yarn \
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 yarn install --frozen-lockfile --production \
+    && rm -rf node_modules/prisma node_modules/typescript \
+              node_modules/.bin/prisma node_modules/.bin/tsc node_modules/.bin/tsserver \
+              node_modules/@prisma/engines node_modules/@prisma/fetch-engine
+# `dumb-init` es lo único que le falta a la base. Sin un init que reparta las señales, `SIGTERM` no
+# llega a Node, el apagado ordenado no corre y cada reinicio deja un Chromium huérfano.
+#
+# La comprobación final resuelve la ruta del ejecutable con el MISMO `playwright` que usará el
+# worker: si alguien sube la dependencia y olvida la etiqueta de la base, esto falla al construir.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends dumb-init \
+  && rm -rf /var/lib/apt/lists/* \
+  && node -e "const {chromium}=require('playwright');const p=chromium.executablePath();require('node:fs').accessSync(p);console.log('Chromium verificado: '+p)"
+COPY --from=app /app/dist ./dist
+COPY docker/healthcheck.mjs ./docker/healthcheck.mjs
+# `/dev/shm` son 64 MiB por omisión y Chromium los agota rasterizando una página grande. El
+# adaptador ya pasa `--disable-dev-shm-usage`, así que usa `/tmp`: este directorio tiene que existir
+# y ser escribible por el usuario del proceso. `pwuser` lo trae la base de Playwright; el usuario
+# `node` de las imágenes de Node no existe aquí.
+RUN mkdir -p /app/var/pdf-worker /tmp/pdf && chown -R pwuser:pwuser /app/var /tmp/pdf
+USER pwuser
+ENV PORT=3100 \
+    PDF_WORKER_PORT=3100 \
+    PDF_SWAGGER_ENABLED=false
+EXPOSE 3100
+# `start-period` amplio: el primer arranque monta el módulo y NO lanza Chromium —el pool es
+# perezoso—, pero la primera sonda de `/pdf/health` sí lo lanza.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=45s --retries=3 \
+  CMD ["node", "-e", "fetch('http://127.0.0.1:'+(process.env.PDF_WORKER_PORT||3100)+'/pdf/health').then(r=>r.json()).then(b=>process.exit(b.status==='ok'?0:1)).catch(()=>process.exit(1))"]
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["node", "dist/pdf-worker.js"]
