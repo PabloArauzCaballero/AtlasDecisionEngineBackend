@@ -1,0 +1,174 @@
+# Despliegue de PRUEBAS del motor de decisión en el VPS de Contabo (Ubuntu).
+#
+# Va aparte de `docker-compose.yml` —que describe el stack LOCAL con su Postgres, su Redis, el
+# sidecar de scripts, LiteLLM y el transformador— porque en el VPS no cabe ni hace falta casi nada
+# de eso. Aquí quedan tres cosas: la API, el worker y, sólo si se van a probar PDFs, el generador
+# documental.
+#
+# ## Lo que este archivo NO trae, y por qué
+#
+# **PostgreSQL y Redis.** La base vive en Neon; el Redis lo pone el compose de AtlasBackend y se
+# comparte por la red externa. Un segundo Redis para un motor que cabe en 256 MB sería disco y RAM
+# gastados en tener dos cosas que mantener.
+#
+# **`script-runner`, `litellm` y `transformer`.** El sidecar de scripts sólo es tolerable bajo
+# gVisor (`runsc`), que no está instalado en un VPS de Contabo; los otros dos son imágenes de varios
+# gigas para un análisis semántico que un entorno de pruebas puede vivir sin él. Consecuencia que
+# hay que conocer antes de reportar un fallo: los nodos de script están APAGADOS en `motor.env` y el
+# análisis semántico responde «proveedor no configurado». Es lo esperado de este despliegue.
+#
+# ## Red compartida entre bloques
+#
+#   docker network create atlas_vps     # una sola vez, en el VPS
+#
+# Es lo que permite que este motor alcance a AtlasBackend como `http://atlas-backend:3005` sin
+# publicar puertos ni usar `host.docker.internal`, que en Docker Engine sobre Linux no existe: su
+# fallo (EAI_AGAIN) se lee como «el bloque está caído» y es sólo un nombre que no se resuelve.
+#
+# ## Cómo se levanta
+#
+#   docker compose -f docker-compose.dev.yml up -d --build
+#   docker compose -f docker-compose.dev.yml --profile pdf up -d --build   # ~4,4 GB, ver abajo
+
+name: atlas-motor-vps
+
+x-common: &common
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: '10m'
+      max-file: '3'
+
+x-build: &build
+  image: atlas-decision:dev
+  build:
+    context: .
+    dockerfile: Dockerfile.dev
+    target: app
+    cache_from: ['atlas-decision:dev']
+
+services:
+  # -------------------------------------------------------------------------------------------
+  # Job ONE-SHOT: migra y siembra. Las dos órdenes son IDEMPOTENTES, y por eso corre en cada `up`.
+  #
+  #   `prisma migrate deploy`  aplica sólo las migraciones que faltan; las aplicadas constan en
+  #                            `_prisma_migrations` y se saltan.
+  #   `prisma db seed`         con `SEED_ONLY_IF_EMPTY=true`, la guarda mira la MARCA
+  #                            `atlas_seed.load_log` del destino, no el número de filas. La carga
+  #                            escribe esa marca; una base que ya la tiene no se toca. Contar filas
+  #                            NO servía: una base recién migrada ya trae permisos internos y
+  #                            plantillas, así que con «¿hay alguna tabla poblada?» el arranque se
+  #                            saltaba la siembra en una base virgen y dejaba el motor sin catálogo
+  #                            de artefactos — es decir, sin nada que decidir.
+  #
+  # La única vez que esto no es inocuo es la PRIMERA contra una base de Neon que ya tenga datos
+  # puestos por otra vía y ninguna marca: la guarda la considera virgen y el pull vacía las tablas
+  # del manifiesto antes de cargarlas. Ver el README del paquete de despliegue.
+  # -------------------------------------------------------------------------------------------
+  migrate:
+    <<: *build
+    env_file: ['${ATLAS_ENV_DIR:-/opt/atlas/env}/motor.env']
+    command: >
+      sh -c "npx prisma migrate deploy &&
+             npx prisma db seed"
+    networks: [atlas_vps]
+    restart: 'no'
+
+  api:
+    <<: [*common, *build]
+    env_file: ['${ATLAS_ENV_DIR:-/opt/atlas/env}/motor.env']
+    environment:
+      WORKER_ROLE: API
+      PORT: '3000'
+      # El planificador vive en el worker. Encenderlo también aquí duplicaría cada trabajo de fondo.
+      JOB_SCHEDULER_ENABLED: 'false'
+    ports:
+      # Bucle local: quien llama al motor es su portal (por el proxy de Next, dentro de la red) y
+      # AtlasBackend (por nombre de servicio). Publicarlo fuera no habilita nada y expone la API de
+      # gestión de artefactos en una máquina con IP pública.
+      - '127.0.0.1:3020:3000'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      atlas_vps:
+        aliases: [motor]
+    stop_grace_period: 25s
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  worker:
+    <<: [*common, *build]
+    env_file: ['${ATLAS_ENV_DIR:-/opt/atlas/env}/motor.env']
+    environment:
+      WORKER_ROLE: WORKER
+      WORKER_HEALTH_PORT: '3001'
+      JOB_SCHEDULER_ENABLED: 'true'
+      # Pool más pequeño que el de la API: la concurrencia del worker la fija el número de trabajos,
+      # no el tráfico. Y en Neon las conexiones se cuentan — dos procesos con 15 cada uno agotan el
+      # cupo del proyecto y el fallo aparece en el que llegue tarde, no en el que las gastó.
+      DATABASE_POOL_MAX: '5'
+    ports:
+      - '127.0.0.1:3021:3001'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      atlas_vps:
+        aliases: [motor-worker]
+    command: ['node', 'dist/worker.js']
+    stop_grace_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 768m
+
+  # -------------------------------------------------------------------------------------------
+  # Generador documental (perfil `pdf`)
+  #
+  # Su imagen son ~4,4 GB: lleva Chromium dentro, y la base oficial de Playwright trae además
+  # Firefox y WebKit que este worker no abre nunca. Borrarlos NO adelgaza la imagen —están en la
+  # capa de la base y un `rm` posterior sólo escribe una anulación—, así que la única forma de tener
+  # un generador más pequeño es reconstruir la base, no podarla. En un VPS con el disco contado eso
+  # es la diferencia entre caber y no caber, y por eso es un perfil.
+  #
+  # Lo usan el portal del motor (informes de decisión) y el ERP (facturas): un solo generador, no
+  # dos, porque dos serían dos maquetaciones y dos pies de página institucionales.
+  # -------------------------------------------------------------------------------------------
+  pdf-worker:
+    <<: *common
+    profiles: ['pdf']
+    image: atlas-decision-pdf:dev
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      target: pdf-worker
+    env_file: ['${ATLAS_ENV_DIR:-/opt/atlas/env}/pdf-worker.env']
+    ports:
+      - '127.0.0.1:3100:3100'
+    volumes:
+      - pdf-documents:/app/var/pdf-worker
+    networks:
+      atlas_vps:
+        aliases: [pdf-worker]
+    # `/dev/shm` son 64 MiB por omisión y Chromium los agota rasterizando una hoja grande. El
+    # adaptador ya pasa `--disable-dev-shm-usage` (usa /tmp), así que esto es el cinturón sobre los
+    # tirantes: con ambos, ni la memoria compartida ni el disco temporal se quedan cortos.
+    shm_size: '512mb'
+    security_opt:
+      - seccomp:unconfined
+    deploy:
+      resources:
+        limits:
+          # 4 carriles × ~180 MiB de pico por pestaña, más el heap de Node y el propio navegador.
+          memory: 2g
+
+networks:
+  atlas_vps:
+    external: true
+
+volumes:
+  pdf-documents:

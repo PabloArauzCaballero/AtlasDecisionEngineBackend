@@ -53,18 +53,21 @@ RUN apt-get update \
        ca-certificates dumb-init openssl python3 fonts-dejavu-core postgresql-client \
   && rm -rf /var/lib/apt/lists/*
 
-# V8 dimensiona su heap por la memoria de la MÁQUINA, no por el límite del contenedor: sin cota
-# explícita, un contenedor de 768 MiB planifica recolecciones como si tuviera la RAM del VPS entero
-# y el OOM killer lo mata antes de que el GC decida actuar. Se declara aquí para que la cota exista
-# incluso en un `docker run` sin argumentos.
-ENV NODE_ENV=development \
-    NODE_OPTIONS=--max-old-space-size=512
+ENV NODE_ENV=development
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # El cliente de Prisma se genera ANTES de compilar: `nest build` compila código que ya lo importa.
-RUN yarn prisma generate && yarn build
+#
+# `--max-old-space-size=2048` SÓLO para esta orden, y es la corrección de un fallo real: la cota de
+# ejecución (512 MiB, más abajo) declarada antes de este `RUN` también la heredaba el build, y
+# `prisma generate` moría con «JavaScript heap out of memory» y `exit code 134` — un aborto de V8
+# que no menciona la memoria en su primera línea y que parece un fallo del generador de Prisma.
+# Compilar y ejecutar tienen necesidades opuestas: el compilador carga el programa entero en
+# memoria una vez, el servidor no.
+RUN NODE_OPTIONS=--max-old-space-size=2048 yarn prisma generate \
+ && NODE_OPTIONS=--max-old-space-size=2048 yarn build
 
 # `runner/` y `smoke/` se conservan: el sidecar de scripts se arranca desde ahí y el smoke lee
 # `demo-applicant.json` del disco por ruta. En la imagen de producción viven en otras etapas; aquí
@@ -72,7 +75,12 @@ RUN yarn prisma generate && yarn build
 RUN chown -R node:node /app/dist /app/node_modules/.prisma
 USER node
 
-ENV PORT=3000 \
+# V8 dimensiona su heap por la memoria de la MÁQUINA, no por el límite del contenedor: sin cota
+# explícita, un contenedor de 768 MiB planifica recolecciones como si tuviera la RAM del VPS entero
+# y el OOM killer lo mata antes de que el GC decida actuar. Va DESPUÉS del build a propósito — ver
+# la nota de arriba. Cualquier despliegue puede subirla sobrescribiendo NODE_OPTIONS.
+ENV NODE_OPTIONS=--max-old-space-size=512 \
+    PORT=3000 \
     WORKER_HEALTH_PORT=3001
 EXPOSE 3000 3001
 
