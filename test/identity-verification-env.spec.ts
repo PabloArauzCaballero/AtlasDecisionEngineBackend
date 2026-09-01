@@ -1,4 +1,6 @@
-import { validateEnvironment } from '../src/common/config/env.schema';
+import { z } from 'zod';
+import { envSchema, validateEnvironment } from '../src/common/config/env.schema';
+import { IDENTITY_DEFAULTS } from '../src/modules/workers/identity-verification/core/identity-options';
 
 /**
  * Lo que el worker de identidad NO puede dejar salir a producción.
@@ -176,5 +178,45 @@ describe('coherencia de los umbrales, en cualquier entorno', () => {
         IDENTITY_LIVENESS_FAIL_SCORE: '0.6',
       }),
     ).toThrow(/MENOR que IDENTITY_LIVENESS_PASS_SCORE/);
+  });
+});
+
+/**
+ * El esquema de entorno y las constantes del worker tienen que decir LO MISMO.
+ *
+ * No es purismo: el puente resuelve cada ajuste como `config.get(clave) ??
+ * IDENTITY_DEFAULTS.x`, y como el esquema SIEMPRE entrega su valor por omisión,
+ * el `??` no se dispara nunca. Un número distinto en los dos sitios significa
+ * que el de la constante es decorativo y que el despliegue corre con el otro
+ * —en silencio, y sin que ninguna prueba lo note—.
+ *
+ * Se descubrió al bajar la cobertura mínima de plantilla de 0,55 a 0,40 tras
+ * medirla contra cédulas reales: la constante quedó en 0,40 y el esquema en
+ * 0,55, así que todo despliegue habría seguido acusando de plantilla incompleta
+ * a los documentos auténticos.
+ */
+describe('los valores por omisión del esquema y del worker coinciden', () => {
+  const pares: ReadonlyArray<readonly [string, number]> = [
+    ['IDENTITY_FRAUD_TEMPLATE_COVERAGE_MIN', IDENTITY_DEFAULTS.fraudTemplateCoverageMin],
+    ['IDENTITY_FRAUD_REVIEW_RISK', IDENTITY_DEFAULTS.fraudReviewRisk],
+    ['IDENTITY_FRAUD_SUSPICION_RISK', IDENTITY_DEFAULTS.fraudSuspicionRisk],
+    ['IDENTITY_OCR_MAX_LONG_EDGE', IDENTITY_DEFAULTS.ocrMaxLongEdge],
+    ['IDENTITY_OCR_FINE_LONG_EDGE', IDENTITY_DEFAULTS.ocrFineLongEdge],
+    ['IDENTITY_DOCUMENT_ACCEPT_CONFIDENCE', IDENTITY_DEFAULTS.documentAcceptConfidence],
+    ['IDENTITY_DOCUMENT_REVIEW_CONFIDENCE', IDENTITY_DEFAULTS.documentReviewConfidence],
+    ['IDENTITY_MIN_DOCUMENT_QUALITY', IDENTITY_DEFAULTS.minDocumentQuality],
+    ['IDENTITY_MIN_SELFIE_QUALITY', IDENTITY_DEFAULTS.minSelfieQuality],
+    ['IDENTITY_MIN_READABLE_LONG_EDGE', IDENTITY_DEFAULTS.minReadableLongEdge],
+    ['IDENTITY_MIN_READABLE_SHORT_EDGE', IDENTITY_DEFAULTS.minReadableShortEdge],
+    ['IDENTITY_MIN_DOCUMENT_FACE_PX', IDENTITY_DEFAULTS.minDocumentFacePx],
+    ['IDENTITY_FACE_CROP_PADDING_RATIO', IDENTITY_DEFAULTS.faceCropPaddingRatio],
+    ['IDENTITY_LIVENESS_PASS_SCORE', IDENTITY_DEFAULTS.livenessPassScore],
+    ['IDENTITY_LIVENESS_FAIL_SCORE', IDENTITY_DEFAULTS.livenessFailScore],
+  ];
+
+  it.each(pares)('%s', (clave, enElCodigo) => {
+    const campo = (envSchema as unknown as { shape: Record<string, z.ZodTypeAny> }).shape[clave];
+    expect(campo).toBeDefined();
+    expect(campo.parse(undefined)).toBe(enElCodigo);
   });
 });

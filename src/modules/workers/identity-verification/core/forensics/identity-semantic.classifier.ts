@@ -154,7 +154,9 @@ export async function clasificarSemanticamente(input: {
     const mejorNegativa = mejor(parecidos.filter((p) => !p.positiva));
     if (!mejorPositiva) return noDisponible('NO_POSITIVE_PROBES');
 
-    const margen = mejorNegativa ? mejorPositiva.parecido - mejorNegativa.parecido : mejorPositiva.parecido;
+    const margen = mejorNegativa
+      ? mejorPositiva.parecido - mejorNegativa.parecido
+      : mejorPositiva.parecido;
 
     return {
       disponible: true,

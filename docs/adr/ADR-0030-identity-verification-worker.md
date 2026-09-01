@@ -183,6 +183,149 @@ que se llama `sintetico-…` y el esquema de entorno lo **rechaza en producción
 Para producción se recalibra con el mismo comando apuntado a un corpus real, que
 nunca se versiona.
 
+### Las dos caras se preparan IGUAL antes de compararse
+
+Durante mucho tiempo no. El retrato del documento entraba recortado al rostro y
+remuestreado a 480 px; la selfie entraba ENTERA. El descriptor sí ve esa
+diferencia, y lo que costaba está medido comparando **el mismo rostro consigo
+mismo** por los dos caminos sobre el retrato de una cédula real: **0,9157**. No
+es la distancia entre dos personas —son los mismos píxeles— y el umbral de
+aprobación del perfil de laboratorio está en 0,8824. El preprocesado se comía
+casi todo el margen antes de que la comparación empezara.
+
+Y lo grave no era la media sino la INESTABILIDAD. Midiendo el mismo rostro contra
+escenas donde ocupa distinta parte del encuadre:
+
+| Rostro en el encuadre | Selfie entera (antes) | Recortada (ahora) |
+| --------------------- | --------------------- | ----------------- |
+| muy ceñida            | 0,9913                | 0,9692            |
+| primer plano          | 0,9782                | 0,9655            |
+| medio cuerpo          | 0,9842                | 0,9671            |
+| brazo extendido       | 0,9454                | 0,9589            |
+| de lejos              | 0,9027                | 0,9762            |
+
+El recorte simétrico cuesta unas centésimas en los encuadres cerrados y a cambio
+**reduce la dispersión cinco veces** (0,089 → 0,017) y sube el peor caso de 0,903
+a 0,959. Un umbral sólo significa algo si la cifra que corta no depende de lo
+lejos que la persona sostuviera el teléfono.
+
+**Excepción medida:** si la caja del rostro toca el borde del encuadre, no se
+recorta. Con la cara cortada por el marco el margen no cabe, `crop` lo acota
+contra los límites y entrega medio rostro ampliado; medido, el parecido caía de
+0,7971 con la imagen entera a 0,6245 con el recorte. Ahí el contexto de alrededor
+es justo lo que le falta al recorte, así que se compara con la imagen entera.
+
+`FACE_CROP_LONG_EDGE` se queda en 480: el barrido 480 / 960 dio 0,9656 contra
+0,9693 de media y 0,9230 contra 0,9205 en el peor caso — un empate, y un empate
+no justifica un cambio.
+
+### La selfie también se endereza
+
+El documento tenía búsqueda de orientación desde el principio y la selfie no
+tenía ninguna, aunque las dos salen de la misma cámara del mismo teléfono.
+Medido con el detector de este worker sobre un rostro que a 0° puntúa 1,000:
+girado 90°, 180° o 270° devuelve **cero rostros** en los tres casos. Una selfie
+tumbada no producía un parecido bajo — producía `IDENTITY_FACE_NOT_FOUND`, un
+fallo duro, sobre una foto en la que la cara está perfectamente visible.
+
+Se prueban los tres giros y gana el de **mayor puntuación del detector**, no el
+primero que encuentre una cara: pararse en el primer acierto elegía el giro que
+deja el rostro boca abajo —el detector todavía encuentra algo ahí— y el parecido
+salía 0,3259 en vez de 0,7970. Es el mismo criterio con el que se endereza el
+documento. Queda constancia en `SELFIE_REORIENTED`.
+
+### El rostro se ALINEA antes de describirlo
+
+`detector.rotation` estaba apagado. Encenderlo hace que Human alinee la cara con
+la malla facial antes de pasarla al descriptor, y es lo único de todo lo que se
+probó que **mejora las dos poblaciones a la vez** — que es el listón que tiene
+que pasar cualquier cambio aquí, porque subir el parecido de un par genuino es
+trivial (basta acercar todos los rostros entre sí) y es también exactamente cómo
+se cuela un impostor.
+
+| `rotation` | Par real documento↔selfie | Genuinas p05 | Impostoras p99 | d'    |
+| ---------- | ------------------------- | ------------ | -------------- | ----- |
+| `false`    | 0,6606                    | 0,8315       | 0,8572         | 3,299 |
+| `true`     | **0,6930**                | **0,8436**   | **0,8460**     | **3,395** |
+
+Las genuinas suben, las impostoras bajan y la separación mejora. Cuesta 16 ms por
+imagen (72 → 88) sobre una verificación de ~3,6 s. Como efecto secundario, el
+antispoof sobre una selfie real subió de 0,610 a 0,750.
+
+Se descartó, en cambio, **normalizar la iluminación de los recortes**: sube el
+par real en las 11 configuraciones probadas (+0,03 a +0,05) pero degrada la
+separación sobre la población con impostores (d' 3,412 → 3,014) y pierde
+detecciones. Un cambio que mejora el único par genuino disponible y empeora lo
+único con impostores medibles es una apuesta, no una mejora.
+
+### Los umbrales de laboratorio se retiran del compose
+
+`docker-compose.yml` inyectaba 0,8824 y 0,7789 por omisión. Medido con una cédula
+boliviana auténtica y una selfie real de su titular, la misma persona puntúa
+**0,693**: por debajo del corte de aceptación y también por debajo del de
+RECHAZO. El motor no dudaba de un solicitante legítimo — lo declaraba impostor
+(`FACE_NO_MATCH`), que es el peor error de este módulo y el único que quien lo
+sufre no puede arreglar de ninguna manera.
+
+Las dos claves quedan **sin valor** en el compose: se toman del entorno de la
+máquina si están puestas y quedan AUSENTES si no. Sin ellas el motor devuelve
+`REVIEW_REQUIRED` con `THRESHOLD_PROFILE_MISSING` y el caso llega a una persona
+con su cifra delante:
+
+| Configuración | Veredicto sobre un par genuino real |
+| --- | --- |
+| umbrales de laboratorio | `NOT_VERIFIED` · `FACE_NO_MATCH` |
+| sin umbrales | `REVIEW_REQUIRED` · `THRESHOLD_PROFILE_MISSING` |
+
+No se ponen otros cortes «provisionales» porque no hay con qué medirlos: bajar el
+de aceptación hasta 0,69 aprobaría también a los impostores, cuyo percentil 99 en
+la población medible está en 0,846.
+
+**Ojo con el vacío**: `IDENTITY_MATCH_THRESHOLD=` (cadena vacía) se convierte en
+0 por la coerción de zod. La regla de orden lo atrapa —el de revisión tendría que
+ser menor que 0, imposible con `.min(0)`— así que la aplicación no arranca en vez
+de aprobar a cualquiera. Aun así, la forma correcta es AUSENTE, no vacío.
+
+### Calibrar con las parejas del tipo correcto
+
+`scripts/calibrar-identidad.mjs` emparejaba varias tomas de la misma persona:
+selfie contra selfie. Ese no es el contraste que este worker hace. La comparación
+real es **retrato impreso de un carnet contra selfie viva**, y son dos dominios:
+el retrato va tras un plastificado que lo lava, le mete velo de color y le come
+contraste. Calibrar selfie↔selfie da un corte alto y perfectamente inútil.
+
+El modo nuevo:
+
+```
+yarn build                       # el comando mide con el motor COMPILADO
+node scripts/calibrar-identidad.mjs --documento-selfie <corpus>
+```
+
+En la carpeta de cada persona, el archivo que empieza por `doc`, `carnet` o
+`cedula` es su documento y el resto son sus selfies. Las parejas genuinas son
+documento↔selfie de la misma persona; las impostoras, documento de una contra
+selfies de las demás — sin simetrizar, porque el flujo nunca compara dos selfies
+ni dos carnets. Y en los dos modos los rostros se **recortan como los recorta el
+pipeline**: un umbral medido sobre imágenes enteras no aplica a un motor que
+compara recortes.
+
+### Un umbral no medido lo dice el propio veredicto
+
+El perfil `sintetico-…` decidía en silencio fuera de producción: quien leía un
+`AMBIGUOUS_MATCH` no tenía cómo saber que la cifra que lo produjo se calibró
+contra rostros dibujados. Ahora la ejecución lleva `THRESHOLD_PROFILE_UNMEASURED`
+cuando el perfil no está medido contra personas. Es una marca, no una escalada:
+escalar por esto mandaría a revisión toda verificación de todo entorno no
+calibrado, que es lo mismo que apagar el worker.
+
+Para depurar un caso concreto —la única forma, porque el motor borra las imágenes
+al cerrar la ejecución— existe `scripts/medir-parecido-identidad.ts`, que recorre
+el mismo camino que el pipeline y publica cada paso con su número:
+
+```
+yarn ts-node scripts/medir-parecido-identidad.ts <documento> <selfie>
+```
+
 ### La prueba de vida es pasiva, y sobre una entrada fabricada NO se ejecuta
 
 `antispoof` y `liveness` se combinan con el **mínimo** de las dos, no con la

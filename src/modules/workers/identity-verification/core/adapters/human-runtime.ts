@@ -172,7 +172,35 @@ async function arrancar(): Promise<HumanLike> {
     debug: false,
     face: {
       enabled: true,
-      detector: { enabled: true, rotation: false, maxDetected: 4, minConfidence: 0.2 },
+      /*
+       * `rotation: true` ALINEA el rostro con la malla antes de describirlo, y
+       * estaba apagado.
+       *
+       * Encenderlo es lo único que mejoró las DOS poblaciones a la vez, que es
+       * el listón que tiene que pasar cualquier cambio en la comparación
+       * biométrica: subir el parecido de un par genuino es fácil —basta con
+       * acercar todos los rostros entre sí— y también es exactamente cómo se
+       * cuela un impostor.
+       *
+       *   | rotation | par real (documento↔selfie) | genuinas p05 | impostoras p99 | d'    |
+       *   | -------- | --------------------------- | ------------ | -------------- | ----- |
+       *   | false    | 0,6606                      | 0,8315       | 0,8572         | 3,299 |
+       *   | true     | 0,6930                      | 0,8436       | 0,8460         | 3,395 |
+       *
+       * Las genuinas suben, las impostoras BAJAN y la separación mejora. Tiene
+       * sentido: el descriptor deja de gastar capacidad en compensar la
+       * inclinación de la cabeza, que es justo lo que distingue una selfie
+       * tomada a pulso de un retrato de estudio pegado a un carnet.
+       *
+       * Cuesta 16 ms por imagen (72 → 88 ms), sobre una verificación completa de
+       * unos 3,6 s. No hay nada que discutir en ese reparto.
+       *
+       * Las impostoras son de la población SINTÉTICA —rostros dibujados— porque
+       * es la única con impostores que este repositorio puede tener. El par real
+       * es uno. Ninguna de las dos poblaciones basta por su cuenta; que las dos
+       * apunten al mismo lado es lo que sostiene el cambio.
+       */
+      detector: { enabled: true, rotation: true, maxDetected: 4, minConfidence: 0.2 },
       mesh: { enabled: true },
       description: { enabled: true },
       antispoof: { enabled: true },

@@ -98,7 +98,12 @@ export async function analizarManipulacion(imagen: Buffer): Promise<AnalisisDeMa
     const ancho = info.width;
     const alto = info.height;
     if (ancho < BLOQUE * 2 || alto < BLOQUE * 2) {
-      return { disponible: false, senales: [], medidas: SIN_MEDIDAS, indisponibilidad: 'IMAGE_TOO_SMALL_FOR_FORENSICS' };
+      return {
+        disponible: false,
+        senales: [],
+        medidas: SIN_MEDIDAS,
+        indisponibilidad: 'IMAGE_TOO_SMALL_FOR_FORENSICS',
+      };
     }
 
     const periodicidad = medirPeriodicidad(data, ancho, alto);
@@ -270,7 +275,8 @@ function medirMarco(data: Buffer, ancho: number, alto: number): number | null {
   for (let y = 0; y < banda; y += 1) for (let x = 0; x < ancho; x += 2) contar(x, y);
   for (let y = alto - banda; y < alto; y += 1) for (let x = 0; x < ancho; x += 2) contar(x, y);
   for (let x = 0; x < banda; x += 1) for (let y = banda; y < alto - banda; y += 2) contar(x, y);
-  for (let x = ancho - banda; x < ancho; x += 1) for (let y = banda; y < alto - banda; y += 2) contar(x, y);
+  for (let x = ancho - banda; x < ancho; x += 1)
+    for (let y = banda; y < alto - banda; y += 2) contar(x, y);
 
   return total === 0 ? null : oscuros / total;
 }

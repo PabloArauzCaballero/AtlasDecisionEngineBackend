@@ -1,4 +1,5 @@
 import { IdentityDocumentType } from '../domain/identity-enums';
+import { casarGrafias, plegarParaCotejo } from '../catalog/approximate-match';
 
 /**
  * ¿Lo que hay en la foto ES un documento de identidad?
@@ -37,16 +38,30 @@ import { IdentityDocumentType } from '../domain/identity-enums';
  * media Bolivia fotografía cosas rectangulares.
  */
 
-/** Una señal, con el peso que justifica lo que demuestra. */
+/**
+ * Una señal, con el peso que justifica lo que demuestra.
+ *
+ * `casa` es la comprobación exacta y `grafias` la tolerante: basta una de las
+ * dos. La segunda existe por lo mismo que en el catálogo de la cédula —los
+ * rótulos de una tarjeta real vuelven mutilados del reconocedor— y con la misma
+ * salvaguarda: sólo se cotean con tolerancia los rótulos de ocho caracteres o
+ * más, y la tolerancia es un error por cada cinco (`approximate-match.ts`).
+ *
+ * Las señales ESTRUCTURALES —la MRZ, la proporción de la tarjeta— no llevan
+ * grafías: no son texto impreso y «parecerse» a ellas no significa nada.
+ */
 interface SenalDeIdentidad {
   readonly id: string;
   readonly peso: number;
   readonly casa: (evidencia: TextoYForma) => boolean;
+  readonly grafias?: readonly string[];
 }
 
 export interface TextoYForma {
   /** Texto leído de las dos caras, ya en mayúsculas y sin tildes. */
   readonly texto: string;
+  /** El mismo texto reducido a `[A-Z0-9]`, para el cotejo tolerante. */
+  readonly cotejo?: string;
   /** Lado largo de la imagen normalizada, en píxeles. */
   readonly anchoLargo: number;
   /** Lado corto de la imagen normalizada, en píxeles. */
@@ -86,18 +101,45 @@ const CONTRAINDICADORES: ReadonlyArray<{ tipo: string; patron: RegExp }> = [
   },
 ];
 
-/** Campos que un documento de identidad rotula y casi ningún otro papel junta. */
-const CAMPOS_PERSONALES: readonly RegExp[] = [
-  /\bAPELLIDOS?\b/u,
-  /\bNOMBRES?\b/u,
-  /FECHA\s+DE\s+NACIMIENTO|NACIDO\s+EL|DATE\s+OF\s+BIRTH/u,
-  /LUGAR\s+DE\s+NACIMIENTO|PLACE\s+OF\s+BIRTH/u,
-  /\bNACIONALIDAD\b|\bNATIONALITY\b/u,
-  /ESTADO\s+CIVIL/u,
-  /\bDOMICILIO\b/u,
-  /FECHA\s+DE\s+(?:EMISION|EXPEDICION)/u,
-  /FECHA\s+DE\s+(?:VENCIMIENTO|CADUCIDAD|EXPIRACION)|VALIDO\s+HASTA|DATE\s+OF\s+EXPIRY/u,
-  /\bSEXO\b|\bSEX\b/u,
+/**
+ * Campos que un documento de identidad rotula y casi ningún otro papel junta.
+ *
+ * Cada uno con su patrón exacto y las grafías que la tarjeta imprime. Sin las
+ * grafías esta señal no se disparaba sobre una cédula real: medido, de los diez
+ * rótulos el reconocedor devolvía `PFrCHA DE MACIMIENTO`, `FECHA DI EMIBION` y
+ * `rca DE FAPIRACIÓN`, ninguno de los cuales casa con su expresión regular. Se
+ * perdían 0,2 de evidencia —la sexta parte del total— sobre un documento que
+ * tenía los tres campos perfectamente impresos y perfectamente leídos.
+ */
+const CAMPOS_PERSONALES: ReadonlyArray<{
+  readonly patron: RegExp;
+  readonly grafias: readonly string[];
+}> = [
+  { patron: /\bAPELLIDOS?\b/u, grafias: ['APELLIDOS'] },
+  { patron: /\bNOMBRES?\b/u, grafias: [] },
+  {
+    patron: /FECHA\s+DE\s+NACIMIENTO|NACIDO\s+EL|DATE\s+OF\s+BIRTH/u,
+    grafias: ['FECHA DE NACIMIENTO', 'NACIMIENTO', 'DATE OF BIRTH'],
+  },
+  {
+    patron: /LUGAR\s+DE\s+NACIMIENTO|PLACE\s+OF\s+BIRTH/u,
+    grafias: ['LUGAR DE NACIMIENTO', 'PLACE OF BIRTH'],
+  },
+  {
+    patron: /\bNACIONALIDAD\b|\bNATIONALITY\b/u,
+    grafias: ['NACIONALIDAD', 'NATIONALITY'],
+  },
+  { patron: /ESTADO\s+CIVIL/u, grafias: ['ESTADO CIVIL'] },
+  { patron: /\bDOMICILIO\b/u, grafias: ['DOMICILIO'] },
+  {
+    patron: /FECHA\s+DE\s+(?:EMISION|EXPEDICION)/u,
+    grafias: ['FECHA DE EMISION', 'FECHA DE EXPEDICION'],
+  },
+  {
+    patron: /FECHA\s+DE\s+(?:VENCIMIENTO|CADUCIDAD|EXPIRACION)|VALIDO\s+HASTA|DATE\s+OF\s+EXPIRY/u,
+    grafias: ['FECHA DE EXPIRACION', 'EXPIRACION', 'VENCIMIENTO', 'CADUCIDAD', 'DATE OF EXPIRY'],
+  },
+  { patron: /\bSEXO\b|\bSEX\b/u, grafias: [] },
 ];
 
 /** Con dos rótulos ya no es casualidad; con uno, todavía puede serlo. */
@@ -132,6 +174,17 @@ const SENALES: readonly SenalDeIdentidad[] = [
       /CEDULA\s+DE\s+IDENTIDAD|DOCUMENTO\s+DE\s+IDENTIDAD|IDENTITY\s+CARD|\bC\.?\s?I\.?\b|PASAPORTE|PASSPORT|LICENCIA\s+(?:DE\s+)?CONDUCIR/u.test(
         texto,
       ),
+    grafias: [
+      'CEDULA DE IDENTIDAD',
+      'DOCUMENTO DE IDENTIDAD',
+      'IDENTITY CARD',
+      // El rótulo suelto: el reconocedor parte «CÉDULA DE IDENTIDAD» en dos
+      // renglones con muchísima frecuencia y sólo sobrevive la segunda mitad.
+      'IDENTIDAD',
+      'PASAPORTE',
+      'PASSPORT',
+      'LICENCIA DE CONDUCIR',
+    ],
   },
   {
     // Quién lo emitió. Sólo un Estado imprime esto en una tarjeta.
@@ -141,6 +194,14 @@ const SENALES: readonly SenalDeIdentidad[] = [
       /\bSEGIP\b|SERVICIO\s+GENERAL\s+DE\s+IDENTIFICACION|ESTADO\s+PLURINACIONAL\s+DE\s+BOLIVIA|DIRECCION\s+GENERAL\s+DE\s+MIGRACION|POLICIA\s+BOLIVIANA/u.test(
         texto,
       ),
+    grafias: [
+      'SERVICIO GENERAL DE IDENTIFICACION',
+      'IDENTIFICACION PERSONAL',
+      'ESTADO PLURINACIONAL DE BOLIVIA',
+      'PLURINACIONAL',
+      'DIRECCION GENERAL DE MIGRACION',
+      'POLICIA BOLIVIANA',
+    ],
   },
   {
     // Formato normalizado por OACI. No aparece por accidente en ningún otro papel.
@@ -151,8 +212,12 @@ const SENALES: readonly SenalDeIdentidad[] = [
   {
     id: 'personal-fields',
     peso: 0.2,
-    casa: ({ texto }) =>
-      CAMPOS_PERSONALES.filter((campo) => campo.test(texto)).length >= MINIMO_CAMPOS_PERSONALES,
+    casa: (evidencia) =>
+      CAMPOS_PERSONALES.filter(
+        (campo) =>
+          campo.patron.test(evidencia.texto) ||
+          casarGrafias(evidencia.cotejo ?? '', campo.grafias) !== null,
+      ).length >= MINIMO_CAMPOS_PERSONALES,
   },
   {
     // Un número de documento suelto: lo lleva cualquier recibo, y pesa como tal.
@@ -210,14 +275,22 @@ export function plegarTexto(texto: string): string {
  * umbrales del despliegue, para que recalibrar no obligue a tocar las señales.
  */
 export function medirEvidenciaDeIdentidad(entrada: TextoYForma): EvidenciaDeIdentidad {
-  const evidencia: TextoYForma = { ...entrada, texto: plegarTexto(entrada.texto) };
+  const plegado = plegarTexto(entrada.texto);
+  const evidencia: TextoYForma = {
+    ...entrada,
+    texto: plegado,
+    cotejo: plegarParaCotejo(plegado),
+  };
 
   const contra = CONTRAINDICADORES.find(({ patron }) => patron.test(evidencia.texto));
   if (contra !== undefined) {
     return { confidence: 0, signals: [], contraindicator: contra.tipo };
   }
 
-  const casadas = SENALES.filter((senal) => senal.casa(evidencia));
+  const casadas = SENALES.filter(
+    (senal) =>
+      senal.casa(evidencia) || casarGrafias(evidencia.cotejo ?? '', senal.grafias ?? []) !== null,
+  );
   const suma = casadas.reduce((total, senal) => total + senal.peso, 0);
   return {
     confidence: Number((suma / PESO_TOTAL).toFixed(3)),

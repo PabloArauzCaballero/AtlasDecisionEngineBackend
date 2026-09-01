@@ -115,12 +115,41 @@ export interface IdentityOptions {
    * cae en la bandeja de revisión. O sea, el precio de este número lo paga quien
    * hace las cosas bien, en forma de espera humana.
    *
-   * Súbelo —o ponlo en 0 para no topar nada— en cuanto haya un corpus real
-   * medido. Se mide con `scripts/medir-resolucion-ocr-identidad.ts`, que mira
-   * los CAMPOS y no la clasificación: un tope que clasifica igual y se come el
-   * número de la cédula no es una optimización, es una avería.
+   * **Ya no es el tope de la lectura, sino el de la primera pasada.** La
+   * concesión de arriba se cobró exactamente donde el comentario avisaba: sobre
+   * una cédula boliviana real, a 600 px el reconocedor lee la `7` del dígito de
+   * control del primer renglón de la MRZ como una `T`, y con el control roto se
+   * descartan el número de documento y la fecha de nacimiento enteros. El caso
+   * no se aprobaba mal: caía en la bandeja de una persona por «campos
+   * ausentes», que es el precio que pagaba quien hacía las cosas bien.
+   *
+   * Este número se queda donde estaba porque su trabajo sigue siendo el mismo
+   * —rechazar barato lo que no es un documento— y quien lee de verdad ahora es
+   * `ocrFineLongEdge`, que sólo se paga cuando ya hay un documento a la vista.
    */
   readonly ocrMaxLongEdge: number;
+  /**
+   * Lado largo de la RELECTURA, cuando el catálogo ya reconoció algo.
+   *
+   * Es la otra mitad del reparto. `ocrMaxLongEdge` está calibrado para dejar de
+   * perseguir texto en el ruido de una foto que no es un documento; éste, para
+   * leer los campos de una que sí lo es. Medido sobre una cédula boliviana
+   * auténtica fotografiada con un móvil, en su orientación correcta:
+   *
+   *   lado   cobertura   ms/cara   qué aparece
+   *    600     0,216      ~235     nada del rótulo, ninguna fecha
+   *    900     0,463      ~240     las tres fechas y sus rótulos
+   *   1200     0,515      ~290     «IDENTIDAD» y el control del número en la MRZ
+   *   1600     0,664      ~400     «IDENTIFICACIÓN PERSONAL», «DOMICILIO»
+   *
+   * 1200 y no 1600 porque lo que hay que comprar es el DÍGITO DE CONTROL de la
+   * MRZ —de ahí salen el número y el nacimiento—, y eso ya se compra en la
+   * tercera fila. La cuarta añade dos rótulos que sólo suben la cobertura, a
+   * cambio de un 38 % más de reloj en el camino caliente de cada verificación.
+   *
+   * Ponlo igual o por debajo de `ocrMaxLongEdge` para desactivar la relectura.
+   */
+  readonly ocrFineLongEdge: number;
   readonly faceCropPaddingRatio: number;
   readonly minDocumentFacePx: number;
 
@@ -214,6 +243,7 @@ export const IDENTITY_DEFAULTS: IdentityOptions = {
   minReadableLongEdge: 240,
   minReadableShortEdge: 150,
   ocrMaxLongEdge: 600,
+  ocrFineLongEdge: 1200,
   faceCropPaddingRatio: 0.25,
   minDocumentFacePx: 80,
   livenessEnabled: true,

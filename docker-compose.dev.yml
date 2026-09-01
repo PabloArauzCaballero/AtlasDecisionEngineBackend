@@ -119,7 +119,23 @@ services:
     deploy:
       resources:
         limits:
-          memory: 768m
+          # 1,25 GB y no 768 MB, y el número sale de MEDIR el worker de identidad.
+          #
+          # Una verificación completa carga Tesseract con el modelo del español, las cinco redes de
+          # Human sobre tfjs-wasm y los búferes de sharp de tres imágenes de móvil: **712 MB de RSS
+          # de pico**, medido. Con el tope en 768 MB quedaban 56 MB de margen, y con
+          # `IDENTITY_WORKER_CONCURRENCY` en su valor por omisión (2) la segunda verificación
+          # simultánea lo cruzaba: el contenedor moría por OOM, Docker lo reiniciaba y el síntoma
+          # —«el worker se reinicia solo»— no menciona la memoria por ninguna parte.
+          #
+          # La concurrencia está en 1 en `motor.env`, así que esto es el margen para UNA
+          # verificación más el resto de trabajos de fondo del motor. Nada de esto es una reserva:
+          # el contenedor sigue usando ~200 MB mientras no haya un carnet que verificar.
+          #
+          # Presupuesto del VPS (8 GB + 4 GB de swap): AtlasBackend 1g+768m, motor 1g+1,25g,
+          # ERP 768m, tres portales 512m = ~6,3 GB de TOPES. Caben, y los portales de Next se
+          # quedan muy por debajo del suyo en reposo.
+          memory: 1250m
 
   # -------------------------------------------------------------------------------------------
   # Generador documental (perfil `pdf`)

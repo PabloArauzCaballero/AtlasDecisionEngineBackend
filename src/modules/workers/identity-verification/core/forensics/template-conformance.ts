@@ -27,25 +27,28 @@
 import {
   MARCAS_DE_FALSIFICACION,
   NOMBRES_DE_DEPARTAMENTO,
-  PLANTILLAS,
   esNumeroDeCedulaValido,
-  type BoliviaCiGeneration,
-  type PlantillaDeCedula,
 } from '../catalog/bolivia-ci.catalog';
+import {
+  reconocerCedulaBoliviana,
+  type ConformidadDePlantilla,
+} from '../catalog/bolivia-ci.recognizer';
 import { plegarTexto } from '../engine/identity-evidence';
 import type { ExtractedIdentityData } from '../domain/extracted-identity.types';
 import type { MrzTd1 } from '../parsers/mrz-td1';
 
-/** El resultado de contrastar una lectura con una plantilla del catálogo. */
-export interface ConformidadDePlantilla {
-  readonly generacion: BoliviaCiGeneration;
-  readonly nombre: string;
-  /** Proporción del peso del catálogo que se encontró, en `[0, 1]`. */
-  readonly cobertura: number;
-  readonly anclajesEncontrados: readonly string[];
-  /** Anclajes marcados obligatorios que no aparecieron. */
-  readonly obligatoriosAusentes: readonly string[];
-}
+/*
+ * La MEDIDA de conformidad vive en `catalog/bolivia-ci.recognizer.ts` y este
+ * archivo la reexporta.
+ *
+ * No es un reparto cosmético: la misma cobertura tiene que servir para NOMBRAR
+ * el documento —el clasificador la usa para decidir si es una cédula— y para
+ * juzgar si su plantilla está completa, que es lo que se hace aquí. Con dos
+ * implementaciones, el día que se separen un documento sería una cédula para la
+ * puerta y una plantilla incompleta para el análisis de fraude, por la misma
+ * foto y en la misma ejecución.
+ */
+export type { ConformidadDePlantilla } from '../catalog/bolivia-ci.recognizer';
 
 /** Una incoherencia entre datos del propio documento. No es una opinión: es aritmética. */
 export interface IncoherenciaEstructural {
@@ -86,16 +89,11 @@ const ANIO_MS = 365.2425 * DIA_MS;
  * de reverso no restan: ausentes por no haberse fotografiado, no por no existir.
  */
 export function analizarPlantilla(entrada: EntradaDePlantilla): AnalisisDePlantilla {
-  const anverso = plegarTexto(entrada.textoAnverso);
-  const reverso = plegarTexto(entrada.textoReverso);
-  const hayReverso = reverso.replace(/\s+/gu, '').length > 0;
-  const completo = `${anverso}\n${reverso}`;
-
-  const todas = PLANTILLAS.map((plantilla) => medir(plantilla, anverso, reverso, hayReverso));
-  // El máximo, y con desempate estable por el orden del catálogo: dos
-  // conformidades idénticas tienen que elegir siempre la misma generación, o el
-  // mismo documento contaría una historia distinta en cada ejecución.
-  const mejor = todas.reduce((a, b) => (b.cobertura > a.cobertura ? b : a));
+  const completo = `${plegarTexto(entrada.textoAnverso)}\n${plegarTexto(entrada.textoReverso)}`;
+  const { mejor, todas } = reconocerCedulaBoliviana({
+    textoAnverso: entrada.textoAnverso,
+    textoReverso: entrada.textoReverso,
+  });
 
   return {
     mejor,
@@ -104,35 +102,6 @@ export function analizarPlantilla(entrada: EntradaDePlantilla): AnalisisDePlanti
     marcasDeFalsificacion: MARCAS_DE_FALSIFICACION.filter((marca) =>
       marca.patron.test(completo),
     ).map((marca) => marca.codigo),
-  };
-}
-
-function medir(
-  plantilla: PlantillaDeCedula,
-  anverso: string,
-  reverso: string,
-  hayReverso: boolean,
-): ConformidadDePlantilla {
-  const aplicables = plantilla.anclajes.filter(
-    (anclaje) => hayReverso || anclaje.cara !== 'REVERSO',
-  );
-  const encontrados = aplicables.filter((anclaje) => {
-    const donde =
-      anclaje.cara === 'ANVERSO' ? anverso : anclaje.cara === 'REVERSO' ? reverso : `${anverso}\n${reverso}`;
-    return anclaje.patron.test(donde);
-  });
-
-  const total = aplicables.reduce((suma, anclaje) => suma + anclaje.peso, 0);
-  const logrado = encontrados.reduce((suma, anclaje) => suma + anclaje.peso, 0);
-
-  return {
-    generacion: plantilla.generacion,
-    nombre: plantilla.nombre,
-    cobertura: total === 0 ? 0 : Number((logrado / total).toFixed(3)),
-    anclajesEncontrados: encontrados.map((anclaje) => anclaje.id),
-    obligatoriosAusentes: aplicables
-      .filter((anclaje) => anclaje.obligatorio && !encontrados.includes(anclaje))
-      .map((anclaje) => anclaje.id),
   };
 }
 
@@ -328,10 +297,13 @@ function buscarIncoherencias(
    * fraude de identidad barato, porque no hace falta tener la tarjeta, sólo una
    * imagen de ella.
    */
-  if (/\b(?:CAPTURA\s+DE\s+PANTALLA|SCREENSHOT|WHATSAPP|TELEGRAM|MESSENGER)\b/u.test(textoCompleto)) {
+  if (
+    /\b(?:CAPTURA\s+DE\s+PANTALLA|SCREENSHOT|WHATSAPP|TELEGRAM|MESSENGER)\b/u.test(textoCompleto)
+  ) {
     fallos.push({
       codigo: 'SCREEN_CAPTURE_ARTIFACTS',
-      detalle: 'El texto leído contiene rótulos de la interfaz de una aplicación, no del documento.',
+      detalle:
+        'El texto leído contiene rótulos de la interfaz de una aplicación, no del documento.',
       peso: 0.3,
     });
   }

@@ -66,7 +66,27 @@ export interface AnclajeDeCatalogo {
   readonly id: string;
   /** Dónde se imprime. `AMBAS` cuando la cara depende de la generación. */
   readonly cara: 'ANVERSO' | 'REVERSO' | 'AMBAS';
+  /**
+   * El patrón EXACTO. Se conserva porque describe el anclaje sin ambigüedad y
+   * porque sobre un texto limpio —los ejemplares sintéticos, una lectura de
+   * calidad— sigue siendo la comprobación más barata y más precisa.
+   */
   readonly patron: RegExp;
+  /**
+   * Lo que la tarjeta IMPRIME, tal cual, para cotejarlo con tolerancia a las
+   * erratas del reconocedor (`approximate-match.ts`).
+   *
+   * Son ALTERNATIVAS de la misma cosa, no sinónimos: basta que case una. La
+   * grafía larga es el rótulo completo y la corta existe porque el reconocedor
+   * parte los rótulos largos con muchísima frecuencia —medido: `CÉDULA DE
+   * IDENTIDAD` vuelve como `CEI 1 DE` en un renglón e `IDENTIDAD` en otro—.
+   *
+   * Vacío para los anclajes ESTRUCTURALES —la MRZ y su emisor—, que no son texto
+   * impreso sino una forma, y cuya expresión regular sí es la comprobación
+   * correcta: una MRZ se reconoce por su alfabeto y su relleno, no por parecerse
+   * a una palabra.
+   */
+  readonly grafias: readonly string[];
   readonly peso: number;
   /**
    * `true` cuando su ausencia, por sí sola, ya es motivo de sospecha: son los
@@ -107,6 +127,7 @@ const ESTADO_EMISOR: AnclajeDeCatalogo = {
   id: 'estado-emisor',
   cara: 'ANVERSO',
   patron: /ESTADO\s+PLURINACIONAL\s+DE\s+BOLIVIA/u,
+  grafias: ['ESTADO PLURINACIONAL DE BOLIVIA', 'PLURINACIONAL', 'DE BOLIVIA'],
   peso: 0.1,
   obligatorio: true,
   descripcion: 'El rótulo del Estado emisor, en la cabecera del anverso.',
@@ -116,6 +137,7 @@ const AUTORIDAD_SEGIP: AnclajeDeCatalogo = {
   id: 'autoridad-segip',
   cara: 'ANVERSO',
   patron: /SERVICIO\s+GENERAL\s+DE\s+IDENTIFICACION\s+PERSONAL|\bSEGIP\b/u,
+  grafias: ['SERVICIO GENERAL DE IDENTIFICACION PERSONAL', 'IDENTIFICACION PERSONAL', 'SEGIP'],
   peso: 0.1,
   obligatorio: true,
   descripcion: 'La autoridad emisora: SEGIP, por su nombre completo o su sigla.',
@@ -125,17 +147,40 @@ const ROTULO_CEDULA: AnclajeDeCatalogo = {
   id: 'rotulo-cedula',
   cara: 'ANVERSO',
   patron: /CEDULA\s+DE\s+IDENTIDAD/u,
+  grafias: ['CEDULA DE IDENTIDAD', 'IDENTIDAD', 'CEDULA'],
   peso: 0.08,
   obligatorio: true,
   descripcion: 'El nombre del documento.',
 };
 
+/*
+ * NOMBRES y APELLIDOS ya NO son obligatorios, y el cambio está medido.
+ *
+ * Lo eran porque toda cédula los imprime —lo cual es cierto— pero «obligatorio»
+ * en este catálogo no significa «la tarjeta lo lleva» sino «que no aparezca ya es
+ * motivo de sospecha», y eso resultó ser falso. Los dos rótulos van impresos en
+ * gris claro, a cuerpo minúsculo, PEGADOS AL RETRATO, que es la peor vecindad
+ * posible para un reconocedor. Medido sobre una cédula boliviana auténtica del
+ * DS 4924 fotografiada con un móvil, a cuatro resoluciones distintas y con la
+ * tarjeta derecha y enfocada, el reconocedor devolvió en su lugar `CMI`, `Priti`
+ * y `PrELLI`: NINGUNA de las cuatro lecturas contenía los rótulos, y en las
+ * cuatro los VALORES —`PABLO`, `ARAUZ CABALLERO`— salieron perfectos.
+ *
+ * O sea que su ausencia no discrimina nada: aparece en la cédula legítima con
+ * la misma facilidad que aparecería en una falsificación. Mantenerlos como
+ * obligatorios convertía cada foto real en `TEMPLATE_REQUIRED_FIELDS_MISSING`,
+ * que es una acusación de plantilla incompleta contra el documento auténtico.
+ *
+ * Siguen en el catálogo y siguen pesando: encontrarlos suma, porque cuando el
+ * reconocedor SÍ los lee, están. Lo que ya no hacen es acusar por faltar.
+ */
 const CAMPO_NOMBRES: AnclajeDeCatalogo = {
   id: 'campo-nombres',
   cara: 'ANVERSO',
   patron: /\bNOMBRES?\b/u,
+  grafias: ['NOMBRES'],
   peso: 0.07,
-  obligatorio: true,
+  obligatorio: false,
   descripcion: 'El rótulo NOMBRES del anverso.',
 };
 
@@ -143,8 +188,9 @@ const CAMPO_APELLIDOS: AnclajeDeCatalogo = {
   id: 'campo-apellidos',
   cara: 'ANVERSO',
   patron: /\bAPELLIDOS?\b/u,
+  grafias: ['APELLIDOS'],
   peso: 0.07,
-  obligatorio: true,
+  obligatorio: false,
   descripcion: 'El rótulo APELLIDOS del anverso.',
 };
 
@@ -152,6 +198,7 @@ const CAMPO_NACIMIENTO: AnclajeDeCatalogo = {
   id: 'campo-fecha-nacimiento',
   cara: 'ANVERSO',
   patron: /FECHA\s+DE\s+NACIMIENTO|NACID[OA]\s+EL/u,
+  grafias: ['FECHA DE NACIMIENTO', 'NACIMIENTO', 'NACIDO EL', 'NACIDA EL'],
   peso: 0.07,
   obligatorio: true,
   descripcion: 'La fecha de nacimiento, rotulada o en la redacción del formato antiguo.',
@@ -161,6 +208,7 @@ const CAMPO_EXPIRACION: AnclajeDeCatalogo = {
   id: 'campo-fecha-expiracion',
   cara: 'ANVERSO',
   patron: /FECHA\s+DE\s+(?:EXPIRACION|VENCIMIENTO|CADUCIDAD)|VALID[AO]\s+HASTA/u,
+  grafias: ['FECHA DE EXPIRACION', 'EXPIRACION', 'VENCIMIENTO', 'CADUCIDAD', 'VALIDA HASTA'],
   peso: 0.07,
   obligatorio: true,
   descripcion: 'La caducidad impresa. Sin ella no se puede afirmar que el documento esté vigente.',
@@ -170,6 +218,7 @@ const CAMPO_EMISION: AnclajeDeCatalogo = {
   id: 'campo-fecha-emision',
   cara: 'ANVERSO',
   patron: /FECHA\s+DE\s+(?:EMISION|EXPEDICION)/u,
+  grafias: ['FECHA DE EMISION', 'EMISION', 'EXPEDICION'],
   peso: 0.04,
   obligatorio: false,
   descripcion: 'La fecha de emisión. El formato antiguo no siempre la rotula.',
@@ -188,6 +237,7 @@ const CAMPO_SERIE: AnclajeDeCatalogo = {
   id: 'campo-serie',
   cara: 'ANVERSO',
   patron: /\bSERIE\b/u,
+  grafias: ['SERIE'],
   peso: 0.05,
   obligatorio: false,
   descripcion: 'El campo SERIE del anverso, administrativo del SEGIP.',
@@ -197,6 +247,7 @@ const CAMPO_SECCION: AnclajeDeCatalogo = {
   id: 'campo-seccion',
   cara: 'ANVERSO',
   patron: /\bSECCION\b/u,
+  grafias: ['SECCION'],
   peso: 0.05,
   obligatorio: false,
   descripcion: 'El campo SECCIÓN del anverso, administrativo del SEGIP.',
@@ -206,6 +257,7 @@ const CAMPO_LUGAR_NACIMIENTO: AnclajeDeCatalogo = {
   id: 'campo-lugar-nacimiento',
   cara: 'REVERSO',
   patron: /LUGAR\s+DE\s+NACIMIENTO/u,
+  grafias: ['LUGAR DE NACIMIENTO'],
   peso: 0.06,
   obligatorio: false,
   descripcion: 'El lugar de nacimiento del reverso: departamento, provincia y localidad.',
@@ -215,6 +267,7 @@ const CAMPO_DOMICILIO: AnclajeDeCatalogo = {
   id: 'campo-domicilio',
   cara: 'REVERSO',
   patron: /\bDOMICILIO\b/u,
+  grafias: ['DOMICILIO'],
   peso: 0.05,
   obligatorio: false,
   descripcion: 'El domicilio declarado, en el reverso.',
@@ -224,6 +277,7 @@ const CAMPO_ESTADO_CIVIL: AnclajeDeCatalogo = {
   id: 'campo-estado-civil',
   cara: 'REVERSO',
   patron: /ESTADO\s+CIVIL/u,
+  grafias: ['ESTADO CIVIL'],
   peso: 0.04,
   obligatorio: false,
   descripcion: 'El estado civil, en el reverso.',
@@ -233,6 +287,7 @@ const CAMPO_OCUPACION: AnclajeDeCatalogo = {
   id: 'campo-ocupacion',
   cara: 'REVERSO',
   patron: /PROFESION\s+U\s+OCUPACION|\bOCUPACION\b/u,
+  grafias: ['PROFESION U OCUPACION', 'OCUPACION'],
   peso: 0.04,
   obligatorio: false,
   descripcion: 'La profesión u ocupación, en el reverso.',
@@ -251,6 +306,7 @@ const CAMPO_GRUPO_SANGUINEO: AnclajeDeCatalogo = {
   id: 'campo-grupo-sanguineo',
   cara: 'REVERSO',
   patron: /GRUPO\s+SANGUINEO/u,
+  grafias: ['GRUPO SANGUINEO'],
   peso: 0.05,
   obligatorio: false,
   descripcion: 'El grupo sanguíneo, opcional para el titular y exclusivo del formato 2023.',
@@ -260,10 +316,78 @@ const CAMPO_NPIOC: AnclajeDeCatalogo = {
   id: 'campo-npioc',
   cara: 'REVERSO',
   patron: /NACION\s+O\s+PUEBLO\s+INDIGENA|\bNPIOC\b/u,
+  grafias: ['NACION O PUEBLO INDIGENA', 'NPIOC'],
   peso: 0.06,
   obligatorio: false,
   descripcion:
     'La nación o pueblo indígena originario campesino. Exclusivo de la normativa boliviana.',
+};
+
+/*
+ * ── Anclajes de VALOR ──────────────────────────────────────────────────────
+ *
+ * Los de arriba buscan RÓTULOS. Éstos buscan lo que la tarjeta imprime GRANDE, y
+ * existen porque el reparto de tamaños de una cédula es exactamente el contrario
+ * del que un catálogo de rótulos supone: los rótulos van en gris a 1,2 mm y los
+ * valores en negro al doble de cuerpo. Medido sobre una cédula real, el
+ * reconocedor pierde `NOMBRES` y `SERIE` y en cambio entrega `N° 7689658`,
+ * `07/12/2001` y `SANTA CRUZ` sin un solo error a las cuatro resoluciones
+ * probadas.
+ *
+ * No sustituyen a los rótulos: comprueban otra cosa. Un rótulo dice que la
+ * PLANTILLA es la del SEGIP; un valor con la forma correcta dice que lo escrito
+ * encima de esa plantilla también lo es. Los dos juntos son lo que un montaje
+ * tiene que acertar a la vez.
+ *
+ * Pesan poco a propósito, por lo mismo que la proporción ID-1 en
+ * `identity-evidence.ts`: una fecha y un número de siete cifras los lleva
+ * cualquier papel, así que su valor está en SUMAR sobre una plantilla ya
+ * reconocida, nunca en reconocer una por su cuenta.
+ */
+
+const NUMERO_IMPRESO: AnclajeDeCatalogo = {
+  id: 'numero-de-cedula-impreso',
+  cara: 'ANVERSO',
+  // `N°` con las grafías que el reconocedor le da (`N*`, `N”`, `Nº`, `No`) y el
+  // número con la forma del SEGIP. Es el dato más grande del anverso.
+  patron: /\bN\s*[°º*"'”\u00B0]?\s*\.?\s*(?!0)\d{5,8}\b/u,
+  grafias: [],
+  peso: 0.06,
+  obligatorio: false,
+  descripcion: 'El número de cédula impreso en grande en el anverso, precedido de N°.',
+};
+
+const PAR_DE_FECHAS: AnclajeDeCatalogo = {
+  id: 'par-de-fechas-del-anverso',
+  cara: 'ANVERSO',
+  /*
+   * DOS fechas y no una. Una sola la lleva cualquier recibo; el PAR —emisión y
+   * expiración, impresas una al lado de la otra— es de la tarjeta. Y con la
+   * fecha de nacimiento arriba, un anverso legible entrega tres.
+   */
+  patron: /\b\d{1,2}[/\-.]\d{1,2}[/\-.]\d{4}\b[\s\S]{0,120}?\b\d{1,2}[/\-.]\d{1,2}[/\-.]\d{4}\b/u,
+  grafias: [],
+  peso: 0.05,
+  obligatorio: false,
+  descripcion: 'Las fechas del anverso: nacimiento, emisión y expiración en formato DD/MM/AAAA.',
+};
+
+const DEPARTAMENTO_DE_NACIMIENTO: AnclajeDeCatalogo = {
+  id: 'departamento-en-lugar-de-nacimiento',
+  cara: 'REVERSO',
+  /*
+   * El lugar de nacimiento del reverso nombra un departamento de Bolivia, y va
+   * en negro y a buen cuerpo. Es el anclaje del reverso que mejor sobrevive
+   * cuando el rótulo `LUGAR DE NACIMIENTO` se pierde, que es lo habitual.
+   *
+   * El patrón se genera de `NOMBRES_DE_DEPARTAMENTO` más abajo; aquí queda la
+   * alternancia literal para que el anclaje sea legible de un vistazo.
+   */
+  patron: /CHUQUISACA|LA\s+PAZ|COCHABAMBA|ORURO|POTOSI|TARIJA|SANTA\s+CRUZ|\bBENI\b|\bPANDO\b/u,
+  grafias: ['CHUQUISACA', 'COCHABAMBA', 'POTOSI', 'TARIJA', 'SANTA CRUZ', 'ORURO'],
+  peso: 0.05,
+  obligatorio: false,
+  descripcion: 'Un departamento de Bolivia nombrado en el lugar de nacimiento del reverso.',
 };
 
 /**
@@ -277,6 +401,7 @@ const ZONA_MRZ: AnclajeDeCatalogo = {
   id: 'zona-mrz-td1',
   cara: 'REVERSO',
   patron: /(?:^|\n)\s*(?:I|ID)[A-Z<]{2,}[A-Z0-9<]{10,}/u,
+  grafias: [],
   peso: 0.12,
   obligatorio: true,
   descripcion: 'La zona de lectura mecánica TD1 del reverso, obligatoria desde el DS 4924.',
@@ -287,6 +412,7 @@ const MRZ_EMISOR_BOL: AnclajeDeCatalogo = {
   id: 'mrz-emisor-bol',
   cara: 'REVERSO',
   patron: /(?:^|\n)\s*I?D?[A-Z<]{0,2}BOL/u,
+  grafias: [],
   peso: 0.06,
   obligatorio: false,
   descripcion: 'El código de emisor BOL dentro de la MRZ.',
@@ -318,6 +444,9 @@ export const PLANTILLA_DS_4924_2023: PlantillaDeCedula = {
     CAMPO_OCUPACION,
     CAMPO_GRUPO_SANGUINEO,
     CAMPO_NPIOC,
+    NUMERO_IMPRESO,
+    PAR_DE_FECHAS,
+    DEPARTAMENTO_DE_NACIMIENTO,
     ZONA_MRZ,
     MRZ_EMISOR_BOL,
   ],
@@ -344,6 +473,9 @@ export const PLANTILLA_PRE_2023: PlantillaDeCedula = {
     CAMPO_DOMICILIO,
     CAMPO_ESTADO_CIVIL,
     CAMPO_OCUPACION,
+    NUMERO_IMPRESO,
+    PAR_DE_FECHAS,
+    DEPARTAMENTO_DE_NACIMIENTO,
   ],
 };
 

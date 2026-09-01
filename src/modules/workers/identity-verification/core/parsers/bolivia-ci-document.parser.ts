@@ -6,6 +6,8 @@ import type { DocumentParser, DocumentParserInput, ParsedDocument } from './docu
 import { parseMrzTd1, type MrzTd1 } from './mrz-td1';
 import { parseSpanishDate } from './spanish-date';
 import { collapseWhitespace, normalizeForMatch, toLines } from './text-normalization';
+import { casarGrafias, plegarParaCotejo } from '../catalog/approximate-match';
+import { NOMBRES_DE_DEPARTAMENTO } from '../catalog/bolivia-ci.catalog';
 
 /**
  * Analizador de la cédula de identidad boliviana (tarjeta ID-1, dos caras).
@@ -57,6 +59,10 @@ export const BOLIVIA_CI_WARNINGS = {
   nameSplitHeuristic: 'NAME_SPLIT_HEURISTIC',
   /** El anverso y la MRZ del reverso no dicen lo mismo. */
   mrzMismatch: 'DOCUMENT_MRZ_MISMATCH',
+  /** El nombre impreso y el de la MRZ no son el mismo nombre. */
+  nameMrzMismatch: 'NAME_MRZ_MISMATCH',
+  /** El rótulo del nombre se leyó, pero lo que había debajo no era un nombre. */
+  printedNameUnusable: 'PRINTED_NAME_UNUSABLE',
   /** La MRZ se leyó, pero su control compuesto no cuadra. */
   mrzCheckFailed: 'DOCUMENT_MRZ_CHECK_FAILED',
 } as const;
@@ -72,8 +78,18 @@ export const BOLIVIA_CI_WARNINGS = {
  * Es coherente con el propio analizador, que ya tolera distancia de edicion en
  * los nombres de mes por exactamente el mismo motivo.
  */
+/*
+ * `N[O°º*"'”’~^]` y no sólo `N[O°º]`: el ordinal volado de `N°` es el glifo más
+ * pequeño del anverso y el reconocedor lo confunde con casi cualquier cosa.
+ * Medido sobre una cédula boliviana real, el número más grande de la tarjeta
+ * —`N° 7689658`, impreso en negro y a buen cuerpo— volvía como `N* 7689658`, y
+ * sin esta tolerancia el ancla no casaba: el número IMPRESO se perdía, se
+ * resolvía sólo por la MRZ y, al no coincidir el impreso con ella, el analizador
+ * levantaba `DOCUMENT_MRZ_MISMATCH` —una marca de documento compuesto— sobre una
+ * cédula auténtica cuyas dos caras dicen exactamente lo mismo.
+ */
 const DOCUMENT_NUMBER_ANCHOR =
-  /(?:^|\s)(?:N[O°º]\.?|NRO\.?|NUM(?:ERO)?\.?|C\.?\s?[I1L]\.?|N[?¿])\s*[:#-]?\s*(\d{5,10})(?![\d-])/;
+  /(?:^|\s)(?:N\s?[O°º*"'”’~^]\.?|NRO\.?|NUM(?:ERO)?\.?|C\.?\s?[I1L]\.?|N[?¿])\s*[:#-]?\s*(\d{5,10})(?![\d-])/;
 const CONTROL_NUMBER_LINE = /^(\d{5,10})\s+\d{2}\s?-\s?\d{2}$/;
 const STANDALONE_NUMBER_LINE = /^(\d{5,10})$/;
 const NAME_ANCHOR = /^A\s*[:;.,]\s*(.+)$/;
@@ -88,6 +104,59 @@ const LABEL_EXPIRACION =
   /(?:^|\s)FECHA\s+DE\s+(?:EXPIRACION|VENCIMIENTO|CADUCIDAD)\s*[:.]?\s*(.*)$/;
 const LABEL_EMISION = /(?:^|\s)FECHA\s+DE\s+EMISION\s*[:.]?\s*(.*)$/;
 const LABEL_LUGAR = /(?:^|\s)LUGAR\s+DE\s+NACIMIENTO\s*[:.]?\s*(.*)$/;
+
+/**
+ * Las mismas etiquetas, escritas como el TEXTO que la tarjeta imprime, para
+ * cotejarlas con tolerancia cuando su expresión regular no encuentra nada.
+ *
+ * Es la misma corrección que en el catálogo y por el mismo motivo medido: los
+ * rótulos de la cédula van en gris a cuerpo pequeño y el reconocedor los
+ * devuelve mutilados. Sobre una cédula real, `FECHA DE EMISIÓN` volvió como
+ * `FECHA DI EMIBION` y `FECHA DE EXPIRACIÓN` como `rca DE FAPIRACIÓN`: ninguna
+ * de las dos casaba, así que la fecha de emisión salía vacía del expediente aun
+ * estando impresa, legible y CORRECTAMENTE LEÍDA en el renglón de debajo.
+ *
+ * Sólo se cotean con tolerancia los rótulos de ocho caracteres o más y con una
+ * edición por cada cinco (`approximate-match.ts`); los cortos siguen siendo
+ * exactos.
+ */
+const GRAFIAS_NOMBRES = ['NOMBRES'];
+const GRAFIAS_APELLIDOS = ['APELLIDOS'];
+const GRAFIAS_NACIMIENTO = ['FECHA DE NACIMIENTO'];
+/*
+ * `VENCIMIENTO` y `CADUCIDAD` sueltas están FUERA, y la ausencia está medida.
+ *
+ * `VENCIMIENTO` y `NACIMIENTO` comparten ocho de sus once caracteres finales, o
+ * sea que caen dentro de la tolerancia una de la otra. Sobre una cédula real
+ * pasó exactamente eso: la grafía de la caducidad casó con el renglón `FECHA DE
+ * NACIMIENTO` y se llevó la fecha de debajo, así que el documento salía con la
+ * fecha de nacimiento puesta como fecha de expiración —y como la MRZ decía otra
+ * cosa, con `DOCUMENT_MRZ_MISMATCH`, una marca de documento compuesto sobre una
+ * cédula auténtica cuyas dos caras coinciden—.
+ *
+ * Se conservan las formas LARGAS, que llevan `FECHA DE` delante y por tanto más
+ * material que distinguir, y `EXPIRACION`, que no se parece a ningún otro rótulo
+ * de la tarjeta. Las dos palabras sueltas siguen cubiertas por la expresión
+ * regular exacta, que es la comprobación correcta cuando el rótulo se lee bien.
+ */
+const GRAFIAS_EXPIRACION = ['FECHA DE EXPIRACION', 'EXPIRACION'];
+const GRAFIAS_EMISION = ['FECHA DE EMISION', 'FECHA DE EXPEDICION'];
+const GRAFIAS_LUGAR = ['LUGAR DE NACIMIENTO'];
+
+/**
+ * Rótulos que, si aparecen LITERALMENTE en un renglón, impiden que ese renglón
+ * se le adjudique a otro campo por parecido.
+ *
+ * Es la segunda mitad de la corrección anterior y la que la hace general. La
+ * primera quita una colisión concreta; ésta impide la clase entera: un renglón
+ * que dice `NACIMIENTO` sin lugar a dudas no es el rótulo de la caducidad, por
+ * mucho que se le parezca. Y al revés.
+ */
+const EXCLUSIONES: Readonly<Record<string, RegExp>> = {
+  NACIMIENTO: /\b(?:EXPIRACION|VENCIMIENTO|CADUCIDAD|EMISION|EXPEDICION)\b/,
+  EXPIRACION: /\bNACIMIENTO\b/,
+  EMISION: /\bNACIMIENTO\b/,
+};
 
 /**
  * Un renglón que es sólo un rótulo. Sirve para no tomar el rótulo siguiente
@@ -132,6 +201,44 @@ function pareceValor(texto: string): boolean {
  * con 60, 83 y 94 —está seguro de lo que ve— mientras que el `N°` que precede al
  * número llega con 28. El corte tiraba un anclaje bueno y dejaba pasar el ruido.
  */
+/**
+ * ¿Esto puede ser el nombre de una persona?
+ *
+ * Flojo a propósito: tres letras o más en total y al menos una palabra de dos,
+ * sin cifras. Un apellido puede ser prácticamente cualquier cosa, así que lo
+ * único que se descarta es lo que NO puede serlo — los glifos sueltos que el
+ * reconocedor saca del retrato (`í Y`, `CMI`, `Priti`) y las tiras con números.
+ */
+function pareceNombre(valor: string | null | undefined): boolean {
+  if (!valor) return false;
+  const texto = valor.trim();
+  if (/\d/u.test(texto)) return false;
+  const letras = (texto.match(/\p{L}/gu) ?? []).length;
+  if (letras < 3) return false;
+  return texto.split(/\s+/).some((palabra) => (palabra.match(/\p{L}/gu) ?? []).length >= 2);
+}
+
+/**
+ * ¿Estos dos textos nombran a la misma persona?
+ *
+ * La MRZ trunca a treinta caracteres y sustituye los espacios por `<`, así que
+ * la comparación tiene que ser por PREFIJO sobre las letras sueltas: el impreso
+ * `MARIA RENEE` y el de la MRZ `MARIA<RENE` son el mismo nombre, y exigir
+ * igualdad exacta convertiría la norma de la ICAO en una discrepancia.
+ */
+function mismoNombre(izquierda: string, derecha: string): boolean {
+  const plegar = (valor: string): string =>
+    valor
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/gu, '')
+      .toUpperCase()
+      .replace(/[^A-Z]/gu, '');
+  const a = plegar(izquierda);
+  const b = plegar(derecha);
+  if (!a || !b) return true;
+  return a.startsWith(b) || b.startsWith(a);
+}
+
 function sinColaDeRuido(texto: string): string {
   const trozos = texto.split(/\s+/).filter(Boolean);
   while (trozos.length > 1 && !/[\p{L}\p{N}]{3,}/u.test(trozos[trozos.length - 1] ?? '')) {
@@ -167,13 +274,20 @@ export class BoliviaCiDocumentParser implements DocumentParser {
 
     // Impreso: se buscan los anclajes de los DOS formatos y gana el que aparezca.
     const documentNumber = this.documentNumber(lines);
-    const nombres = this.labelled(lines, LABEL_NOMBRES);
-    const apellidos = this.labelled(lines, LABEL_APELLIDOS);
+    const nombres = this.labelled(lines, LABEL_NOMBRES, GRAFIAS_NOMBRES);
+    const apellidos = this.labelled(lines, LABEL_APELLIDOS, GRAFIAS_APELLIDOS);
     const fullName = this.fullName(lines);
-    const birth = this.labelled(lines, LABEL_NACIMIENTO) ?? this.anchored(lines, BIRTH_ANCHOR);
-    const expiry = this.labelled(lines, LABEL_EXPIRACION) ?? this.anchored(lines, EXPIRY_ANCHOR);
-    const issue = this.labelled(lines, LABEL_EMISION);
-    const placeOfBirth = this.labelled(lines, LABEL_LUGAR) ?? this.placeOfBirth(lines);
+    const birth =
+      this.labelled(lines, LABEL_NACIMIENTO, GRAFIAS_NACIMIENTO, EXCLUSIONES.NACIMIENTO) ??
+      this.anchored(lines, BIRTH_ANCHOR);
+    const expiry =
+      this.labelled(lines, LABEL_EXPIRACION, GRAFIAS_EXPIRACION, EXCLUSIONES.EXPIRACION) ??
+      this.anchored(lines, EXPIRY_ANCHOR);
+    const issue = this.labelled(lines, LABEL_EMISION, GRAFIAS_EMISION, EXCLUSIONES.EMISION);
+    const placeOfBirth =
+      this.labelled(lines, LABEL_LUGAR, GRAFIAS_LUGAR) ??
+      this.placeOfBirth(lines) ??
+      this.placeOfBirthPorDepartamento(lines);
 
     const dateOfBirth = this.normalizedDate(birth);
     // La ÚLTIMA de las fechas del renglón: la emisión va antes que la expiración.
@@ -202,6 +316,8 @@ export class BoliviaCiDocumentParser implements DocumentParser {
      */
     const partes = this.resolverNombre(mrz, nombres, apellidos, fullName);
     if (partes.heuristico) warnings.push(BOLIVIA_CI_WARNINGS.nameSplitHeuristic);
+    if (partes.rotuloIlegible) warnings.push(BOLIVIA_CI_WARNINGS.printedNameUnusable);
+    if (partes.discrepaConMrz) warnings.push(BOLIVIA_CI_WARNINGS.nameMrzMismatch);
 
     if (!numero.valor) warnings.push(BOLIVIA_CI_WARNINGS.documentNumberNotFound);
     if (!partes.firstNames && !partes.lastNames && !partes.fullName) {
@@ -264,8 +380,23 @@ export class BoliviaCiDocumentParser implements DocumentParser {
          * cédula boliviana la nacionalidad se implica del emisor con más
          * seguridad que de tres letras sueltas sin verificar.
          */
+        /*
+         * Ya no se exige el control COMPUESTO para decir «BOLIVIANA».
+         *
+         * La condición era `checks.composite && issuingState === 'BOL'`, y sobre
+         * una cédula real el compuesto falla con facilidad —basta un glifo de
+         * más al principio de un renglón— así que el campo caía al código crudo
+         * de la MRZ y la pantalla enseñaba cosas como `B0L`. Exigir un control
+         * que no cubre este campo para decidir este campo nunca tuvo sentido: el
+         * compuesto abarca el número y las dos fechas, y la nacionalidad vive
+         * fuera de su alcance.
+         *
+         * Basta con que ALGUNO de los dos códigos de la MRZ diga BOL —ya
+         * normalizados a letras, que es lo que la norma garantiza que son—. Y
+         * sigue siendo DERIVED: es una deducción del emisor, no un dato leído.
+         */
         nationality: this.field(
-          mrz?.checks.composite && mrz.issuingState === 'BOL'
+          mrz?.nationality === 'BOL' || mrz?.issuingState === 'BOL'
             ? 'BOLIVIANA'
             : (mrz?.nationality ?? 'BOLIVIANA'),
           1,
@@ -305,6 +436,10 @@ export class BoliviaCiDocumentParser implements DocumentParser {
     fullName: string | null;
     deMrz: boolean;
     heuristico: boolean;
+    /** Se leyó el rótulo del nombre y lo que había debajo no era un nombre. */
+    rotuloIlegible: boolean;
+    /** Lo impreso y la MRZ nombran a personas distintas. */
+    discrepaConMrz: boolean;
   } {
     /*
      * Para el NOMBRE manda lo impreso, al revés que para el número y las fechas.
@@ -316,14 +451,56 @@ export class BoliviaCiDocumentParser implements DocumentParser {
      * control es más fiable que uno impreso sólo mientras el dato esté ENTERO;
      * en cuanto la MRZ lo recorta, el rótulo del anverso dice más.
      */
-    if (nombres || apellidos) {
-      const completo = [nombres?.value, apellidos?.value].filter(Boolean).join(' ').trim() || null;
+    /*
+     * Lo impreso sólo manda si lo impreso PARECE UN NOMBRE.
+     *
+     * La regla de arriba —lo impreso gana a la MRZ— sigue siendo la correcta por
+     * la truncatura de los treinta caracteres, pero daba por bueno lo que
+     * hubiera bajo el rótulo pasara lo que pasara. Y el rótulo del nombre es
+     * justo el que va PEGADO AL RETRATO: medido sobre una cédula real, el
+     * reconocedor devuelve ahí `CMI`, `Priti`, `PrELLI` y renglones de letras
+     * sueltas. Cuando uno de esos cae en la posición del valor, el expediente se
+     * queda con un nombre inventado con toda la pinta de uno leído —que es
+     * exactamente la peor clase de dato en una verificación de identidad— y
+     * encima descarta la MRZ, que en esa misma foto trae el nombre entero y
+     * limpio.
+     *
+     * `pareceNombre` es el filtro, y es deliberadamente flojo: letras, un mínimo
+     * de tres, y ninguna cifra. No valida ortografía —un apellido puede ser
+     * cualquier cosa— sólo descarta lo que no puede ser un nombre de persona.
+     */
+    const nombreImpreso = pareceNombre(nombres?.value) ? (nombres?.value ?? null) : null;
+    const apellidoImpreso = pareceNombre(apellidos?.value) ? (apellidos?.value ?? null) : null;
+    const hayRotuloIlegible =
+      (nombres !== null && nombreImpreso === null) ||
+      (apellidos !== null && apellidoImpreso === null);
+
+    if (nombreImpreso || apellidoImpreso) {
+      const completo = [nombreImpreso, apellidoImpreso].filter(Boolean).join(' ').trim() || null;
+      /*
+       * Y si además hay MRZ y dice OTRO nombre, se avisa.
+       *
+       * No se corrige —la truncatura hace que discrepar sea normal cuando el
+       * nombre es largo— pero un anverso y un reverso que nombran a dos personas
+       * distintas es la firma de un documento compuesto, y callarlo sería
+       * quedarse con el dato y tirar la señal. Es el mismo trato que ya reciben
+       * el número y las fechas.
+       */
+      const discrepa =
+        (nombreImpreso !== null &&
+          mrz?.firstNames != null &&
+          !mismoNombre(nombreImpreso, mrz.firstNames)) ||
+        (apellidoImpreso !== null &&
+          mrz?.lastNames != null &&
+          !mismoNombre(apellidoImpreso, mrz.lastNames));
       return {
-        firstNames: nombres?.value ?? null,
-        lastNames: apellidos?.value ?? null,
+        firstNames: nombreImpreso,
+        lastNames: apellidoImpreso,
         fullName: completo,
         deMrz: false,
         heuristico: false,
+        rotuloIlegible: hayRotuloIlegible,
+        discrepaConMrz: discrepa,
       };
     }
     if (mrz?.firstNames || mrz?.lastNames) {
@@ -334,6 +511,8 @@ export class BoliviaCiDocumentParser implements DocumentParser {
         fullName: completo,
         deMrz: true,
         heuristico: false,
+        rotuloIlegible: hayRotuloIlegible,
+        discrepaConMrz: false,
       };
     }
     const partes = fullName ? this.splitName(fullName.value) : null;
@@ -343,6 +522,8 @@ export class BoliviaCiDocumentParser implements DocumentParser {
       fullName: fullName?.value ?? null,
       deMrz: false,
       heuristico: Boolean(partes),
+      rotuloIlegible: hayRotuloIlegible,
+      discrepaConMrz: false,
     };
   }
 
@@ -481,7 +662,12 @@ export class BoliviaCiDocumentParser implements DocumentParser {
    * Descartarlo hace que se lea el renglón de debajo, que es donde está el
    * valor de verdad.
    */
-  private labelled(lines: SourceLine[], etiqueta: RegExp): Extraction | null {
+  private labelled(
+    lines: SourceLine[],
+    etiqueta: RegExp,
+    grafias: readonly string[] = [],
+    excluye?: RegExp,
+  ): Extraction | null {
     for (const [indice, line] of lines.entries()) {
       const match = etiqueta.exec(line.normalized);
       if (!match) continue;
@@ -497,6 +683,71 @@ export class BoliviaCiDocumentParser implements DocumentParser {
         value: sinColaDeRuido(collapseWhitespace(siguiente.text)),
         confidence: siguiente.confidence,
       };
+    }
+
+    /*
+     * El rótulo, cotejado con tolerancia. Segundo intento y no primero: cuando
+     * la expresión regular encuentra el rótulo también sabe dónde ACABA, y con
+     * eso puede tomar el valor de la misma línea. El cotejo aproximado no
+     * devuelve posiciones, así que aquí sólo se puede mirar el renglón de
+     * DEBAJO — que es donde la cédula vigente imprime el valor de todos modos,
+     * porque el rótulo va encima y no delante.
+     */
+    for (const [indice, line] of lines.entries()) {
+      /*
+       * Un renglón que lleva LITERALMENTE el rótulo de otro campo no se
+       * adjudica por parecido. Es lo que impide que `FECHA DE NACIMIENTO`, que
+       * está a dos ediciones de `FECHA DE VENCIMIENTO`, se lleve la caducidad —y
+       * con ella la fecha de nacimiento puesta en el campo equivocado—.
+       */
+      if (excluye?.test(line.normalized)) continue;
+      if (casarGrafias(plegarParaCotejo(line.normalized), grafias) === null) continue;
+      const siguiente = lines[indice + 1];
+      if (!siguiente || ES_ROTULO.test(siguiente.normalized)) continue;
+      const valor = sinColaDeRuido(collapseWhitespace(siguiente.text));
+      if (!pareceValor(valor)) continue;
+      return { value: valor, confidence: siguiente.confidence };
+    }
+    return null;
+  }
+
+  /**
+   * El lugar de nacimiento por su VALOR, cuando su rótulo no se dejó leer.
+   *
+   * `LUGAR DE NACIMIENTO` es el rótulo más pequeño del reverso y el que peor
+   * sobrevive: medido sobre una cédula real, a ninguna de las cuatro
+   * resoluciones apareció ni entero ni mutilado. Lo que sí aparece limpio, y a
+   * buen cuerpo, es el valor —`SANTA CRUZ - ANDRES IBAÑEZ - SANTA CRUZ DE LA
+   * SIERRA`—, porque nombra un departamento de Bolivia y viene con la estructura
+   * `departamento - provincia - localidad` que no tiene ningún otro renglón de
+   * la tarjeta.
+   *
+   * Se exige el guion además del departamento. Sin él, `SANTA CRUZ` suelto lo
+   * lleva también el domicilio, y el lugar de nacimiento acabaría siendo una
+   * dirección — un dato equivocado en el sitio de uno correcto, que es peor que
+   * dejarlo vacío.
+   *
+   * Y se recorta por delante hasta el departamento: el reconocedor deja restos
+   * del código QR y del sello a la izquierda del renglón (`OF AO!`, `[RO]`), y
+   * arrastrarlos al expediente sería guardar ruido con forma de dato.
+   */
+  private placeOfBirthPorDepartamento(lines: SourceLine[]): Extraction | null {
+    for (const line of lines) {
+      if (!line.normalized.includes('-')) continue;
+      const departamento = NOMBRES_DE_DEPARTAMENTO.map((nombre) => ({
+        nombre,
+        posicion: line.normalized.indexOf(nombre),
+      })).find(({ posicion }) => posicion >= 0);
+      if (!departamento) continue;
+      // Y por detrás se quitan los signos que el reconocedor cuelga del final
+      // del renglón (`SANTA”`, `SANTA pr`): son del borde de la tarjeta, no del
+      // lugar de nacimiento.
+      const valor = collapseWhitespace(line.text.slice(departamento.posicion)).replace(
+        /[^\p{L}\p{N}]+$/u,
+        '',
+      );
+      if (valor.length < 6) continue;
+      return { value: sinColaDeRuido(valor), confidence: line.confidence };
     }
     return null;
   }

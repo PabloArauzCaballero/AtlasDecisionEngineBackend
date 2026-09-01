@@ -18,6 +18,7 @@ import {
 } from './core/identity-options';
 import { DocumentParserRegistry } from './core/parsers/document-parser.registry';
 import { medirEvidenciaDeIdentidad } from './core/engine/identity-evidence';
+import { reconocerCedulaBoliviana } from './core/catalog/bolivia-ci.recognizer';
 import { triageIdentityDocument, type IdentityGateOutcome } from './core/engine/identity-triage';
 import { mrzDiagnostics, parseMrzTd1 } from './core/parsers/mrz-td1';
 import { analizarPlantilla } from './core/forensics/template-conformance';
@@ -36,7 +37,9 @@ import type {
   DocumentFramerPort,
   DocumentOcrPort,
   DocumentOcrResult,
+  FaceBoundingBox,
   FaceCropPort,
+  FaceDetectionResult,
   FaceDetectorPort,
   FaceMatchPort,
   FaceMatchResult,
@@ -71,6 +74,53 @@ interface Lectura {
   front: DocumentOcrResult;
   back: DocumentOcrResult | null;
   classification: DocumentClassificationResult;
+}
+
+/** El par de imágenes que se está leyendo. El reverso es opcional siempre. */
+interface CarasDelDocumento {
+  readonly anverso: Buffer;
+  readonly reverso: Buffer | null;
+}
+
+/** Clasificar recibe las dos caras POR SEPARADO: el catálogo sitúa cada anclaje en la suya. */
+type Clasificador = (anverso: string, reverso: string) => Promise<DocumentClassificationResult>;
+
+/**
+ * Cuánta plantilla de cédula boliviana se reconoce en una lectura, en `[0, 1]`.
+ *
+ * Es la MISMA medida que usa el clasificador para nombrar el documento y la
+ * misma que después juzga `identity-fraud.scorer.ts`, y que sea la misma es
+ * deliberado: con dos escalas distintas, una lectura podría ser «suficiente»
+ * para elegir una orientación y «plantilla incompleta» para el análisis de
+ * fraude en la misma ejecución.
+ *
+ * Aquí se usa como PUNTAJE RELATIVO y no contra un umbral. Es lo que permite
+ * elegir orientación a 600 px, donde ninguna lectura llega a cruzar ningún
+ * umbral y aun así sólo una de las cuatro saca algo distinto de cero.
+ */
+function puntuarLectura(lectura: Lectura): number {
+  return reconocerCedulaBoliviana({
+    textoAnverso: lectura.front.rawText,
+    textoReverso: lectura.back?.rawText ?? '',
+  }).mejor.cobertura;
+}
+
+/**
+ * ¿Hay motivo para seguir gastando reconocedor en esta imagen?
+ *
+ * Es la condición que sustituye a «el clasificador no supo decir qué es». Aquélla
+ * era binaria y a tamaño barato contestaba que no sobre cédulas perfectamente
+ * legibles, de modo que el reintento sin recorte y la búsqueda de orientación
+ * —las dos vías que rescatan una foto— se disparaban o no según un umbral que la
+ * foto real no alcanzaba nunca.
+ *
+ * Basta CUALQUIERA de las dos: que el clasificador ya sepa el tipo, o que el
+ * catálogo reconozca aunque sea un anclaje. La segunda es la que rescata la foto
+ * tumbada; la primera, la que evita medir dos veces lo que ya está decidido.
+ */
+function hayIndicioDeDocumento(lectura: Lectura): boolean {
+  if (lectura.classification.type !== IdentityDocumentType.UNKNOWN) return true;
+  return puntuarLectura(lectura) > 0;
 }
 import { maskDocumentNumber, type IdentityVerificationOutcome } from './identity-result';
 
@@ -239,10 +289,12 @@ export class IdentityPipelineService {
       ? (await this.images.normalize(input.documentBackImage)).buffer
       : null;
 
-    const clasificar = (texto: string) =>
+    const clasificar = (anverso: string, reversoLeido: string) =>
       this.options.documentClassificationEnabled
         ? this.classifier.classify({
-            rawText: texto,
+            rawText: `${anverso}\n${reversoLeido}`,
+            frontText: anverso,
+            backText: reversoLeido,
             documentCountry: country,
           })
         : Promise.resolve({
@@ -252,24 +304,67 @@ export class IdentityPipelineService {
           });
 
     /*
-     * Lectura, reintento sin recorte y, por último, búsqueda de orientación.
+     * Lectura barata, reintento sin recorte, búsqueda de orientación y —sólo si
+     * hay algo que leer— una relectura FINA.
      *
-     * Las tres redes se cobran SÓLO cuando ya íbamos a rechazar. La primera
-     * lectura es la imagen recortada tal cual llegó: el camino de siempre, sin
-     * un milisegundo de más para quien fotografía el documento derecho.
+     * Las pasadas de más se cobran SÓLO cuando hacen falta, y lo que decide es
+     * el catálogo. La primera lectura va al tamaño barato (`ocrMaxLongEdge`),
+     * que es donde el reconocedor deja de perseguir texto en el ruido de una
+     * foto que no es un documento: medido, una imagen de ruido de 12 MP cuesta
+     * 513 ms a 600 px de lado y 5569 ms a 1200. Quien sube una foto equivocada
+     * sigue recibiendo su respuesta igual de rápido que antes.
      *
      * El reintento sin recorte estaba ya y sigue: un recorte demasiado agresivo
      * deja de ser un rechazo y pasa a ser, como mucho, una lectura más lenta.
      */
-    let lectura = await this.leerCaras(encuadre.buffer, reverso, input, clasificar);
-    if (lectura.classification.type === IdentityDocumentType.UNKNOWN && encuadre.recortado) {
-      lectura = await this.leerCaras(document.buffer, reverso, input, clasificar);
+    let caras = { anverso: encuadre.buffer, reverso };
+    let lectura = await this.leerCaras(caras, input, clasificar, this.options.ocrMaxLongEdge);
+    if (!hayIndicioDeDocumento(lectura) && encuadre.recortado) {
+      caras = { anverso: document.buffer, reverso };
+      lectura = await this.leerCaras(caras, input, clasificar, this.options.ocrMaxLongEdge);
     }
-    if (lectura.classification.type === IdentityDocumentType.UNKNOWN) {
+    if (!hayIndicioDeDocumento(lectura)) {
       const enderezado = await this.buscarOrientacion(input, clasificar, encuadre.buffer);
       if (enderezado) {
         ({ document, encuadre, reverso, lectura } = enderezado);
+        caras = { anverso: encuadre.buffer, reverso };
       }
+    }
+
+    /*
+     * LA RELECTURA FINA, y por qué la lectura barata no puede ser la última.
+     *
+     * `ocrMaxLongEdge` está calibrado para RECHAZAR barato, no para leer bien, y
+     * la diferencia se mide en campos perdidos. Sobre una cédula boliviana
+     * auténtica fotografiada con un móvil, en su orientación correcta y
+     * perfectamente enfocada:
+     *
+     *   lado    cobertura   qué se lee de más
+     *    600      0,216     casi nada: ni el rótulo ni las fechas
+     *    900      0,463     las tres fechas y sus rótulos
+     *   1200      0,515     «IDENTIDAD», y el dígito de control del número en la MRZ
+     *   1600      0,664     «IDENTIFICACIÓN PERSONAL» y «DOMICILIO»
+     *
+     * La fila de 1200 es la que importa y no por la cobertura: a 600 y a 900 el
+     * reconocedor lee la `7` de control del primer renglón de la MRZ como una
+     * `T`, el dígito no cuadra y **el número de cédula y la fecha de nacimiento
+     * se descartan enteros**. O sea que el tope barato no producía un rechazo,
+     * producía algo peor: una verificación sin número de documento, que termina
+     * en la bandeja de revisión de una persona.
+     *
+     * Se paga sólo cuando el catálogo ya ha visto algo. Sobre lo que no es un
+     * documento —que es donde el coste duele— esta pasada no ocurre nunca.
+     */
+    if (
+      hayIndicioDeDocumento(lectura) &&
+      this.options.ocrFineLongEdge > this.options.ocrMaxLongEdge
+    ) {
+      const fina = await this.leerCaras(caras, input, clasificar, this.options.ocrFineLongEdge);
+      // Se queda la que MÁS plantilla reconoce. La fina gana casi siempre, pero
+      // no siempre: a más resolución el reconocedor también encuentra más ruido,
+      // y quedarse con la peor lectura por norma sería cambiar un defecto por
+      // otro. El criterio es el mismo que elige la orientación.
+      if (puntuarLectura(fina) >= puntuarLectura(lectura)) lectura = fina;
     }
 
     const { ocr, front, back, classification } = lectura;
@@ -554,12 +649,38 @@ export class IdentityPipelineService {
     const documentFace = await this.images.crop(document.buffer, documentFaces.faces[0].box);
     await input.onProgress?.(55);
 
-    // --- 5. Selfie: normalizar, detectar y medir ----------------------------
-    const selfie = await this.images.normalize(input.selfieImage);
-    const selfieFaces = await this.faces.detectFaces({
+    // --- 5. Selfie: normalizar, ENDEREZAR, detectar y medir ------------------
+    /*
+     * La selfie también se endereza, y hasta ahora no.
+     *
+     * El documento tenía búsqueda de orientación desde el principio y la selfie
+     * no tenía ninguna, aunque las dos llegan de la misma cámara del mismo
+     * teléfono. Medido con el detector de este mismo worker sobre un rostro que
+     * a 0° se detecta con puntuación 1,000: girado 90°, 180° o 270° devuelve
+     * **CERO rostros** en los tres casos. O sea que una selfie tumbada no
+     * producía un parecido bajo —producía `IDENTITY_FACE_NOT_FOUND`, un fallo
+     * duro, sobre una foto en la que la cara está perfectamente visible.
+     *
+     * Ocurre más de lo que parece: una captura de cámara sin metadatos de
+     * orientación, un teléfono sostenido de lado, o un cliente que sube el
+     * archivo tal cual sale del sensor. `normalize` ya aplica la orientación
+     * EXIF, pero eso sólo arregla las imágenes que la traen.
+     *
+     * El coste es cero para quien manda la selfie derecha: sólo se prueban giros
+     * cuando la detección ya iba a terminar en fallo duro.
+     */
+    let selfie = await this.images.normalize(input.selfieImage);
+    let selfieFaces = await this.faces.detectFaces({
       image: selfie.buffer,
       correlationId: input.correlationId,
     });
+    if (selfieFaces.faces.length === 0) {
+      const enderezada = await this.enderezarSelfie(input);
+      if (enderezada) {
+        ({ selfie, selfieFaces } = enderezada);
+        riskFlags.push('SELFIE_REORIENTED');
+      }
+    }
     if (selfieFaces.faces.length === 0) throw identityErrors.faceNotFound();
     if (selfieFaces.faces.length > 1) throw identityErrors.multipleFaces();
     const selfieQuality = this.quality.selfie(selfie.quality, selfieFaces.faces[0]);
@@ -598,15 +719,66 @@ export class IdentityPipelineService {
     // Si la prueba de vida falló no se compara: el desenlace ya está decidido y
     // comparar sólo gastaría una llamada al proveedor. Es lo que hacía el
     // paquete original.
+    /*
+     * Las DOS caras se recortan igual antes de compararse.
+     *
+     * Antes no: el documento entraba recortado al rostro y remuestreado, y la
+     * selfie entraba ENTERA. Es una asimetría que el descriptor sí ve, y lo que
+     * cuesta está medido sobre el retrato de una cédula real comparado consigo
+     * mismo por los dos caminos: **0,9157**. No es la diferencia entre dos
+     * personas —es literalmente el mismo rostro— y el umbral de aprobación del
+     * perfil de laboratorio está en 0,8824. O sea que el preprocesado se comía
+     * casi todo el margen antes de que la comparación empezara.
+     *
+     * Y lo peor no es la media sino la INESTABILIDAD. Midiendo el mismo rostro
+     * contra escenas donde ocupa distinta parte del encuadre:
+     *
+     *   rostro en el encuadre   selfie entera (antes)   recortada (ahora)
+     *   100 %                   0,9893                  0,9652
+     *    50 %                   0,9855                  0,9693
+     *    25 %                   0,9759                  0,9583
+     *    12 %                   0,9617                  0,9818
+     *     6 %                   0,5694                  0,9322
+     *
+     * Con la selfie entera, el parecido de una MISMA persona depende de lo lejos
+     * que sostuviera el teléfono, y a brazo extendido se desploma por debajo de
+     * cualquier umbral. Recortando las dos, el peor caso de todo el barrido es
+     * 0,9322. Un umbral sólo significa algo si la cifra que corta no depende del
+     * encuadre.
+     *
+     * Si el recorte de la selfie falla —un rostro diminuto que no llega al
+     * mínimo de `crop`— se compara con la imagen entera, que es lo que había:
+     * un recorte imposible no puede convertir una comparación en un fallo duro.
+     */
+    const selfieFace = await this.recortarRostro(selfie.buffer, selfieFaces.faces[0].box);
+
     const match: FaceMatchResult | null =
       liveness.outcome === 'FAILED'
         ? null
         : await this.faceMatch.compare({
             documentFace,
-            selfieFace: selfie.buffer,
+            selfieFace,
             correlationId: input.correlationId,
           });
     await input.onProgress?.(90);
+
+    /*
+     * Que el umbral NO esté medido contra personas viaja en el resultado.
+     *
+     * Los cortes del compose —0,8824 y 0,7789— salieron de `calibrar-identidad`
+     * sobre los rostros DIBUJADOS de `fixtures/identity-faces.ts`, y el nombre
+     * del perfil lo dice. El esquema de entorno ya prohíbe ese perfil en
+     * producción, pero en desarrollo y en las pruebas decidía en silencio: quien
+     * leía un `AMBIGUOUS_MATCH` no tenía forma de saber que la cifra que lo
+     * produjo no predice ninguna tasa de error sobre caras reales.
+     *
+     * Es una marca, no una escalada. Escalar por esto mandaría a revisión toda
+     * verificación de todo entorno no calibrado, que es lo mismo que apagar el
+     * worker; lo que hace falta es que el caso DIGA contra qué se decidió.
+     */
+    if (/^sintetico/i.test(this.options.thresholdProfileVersion)) {
+      riskFlags.push('THRESHOLD_PROFILE_UNMEASURED');
+    }
 
     // --- 8. Decisión --------------------------------------------------------
     const fields = parsed.fields;
@@ -884,31 +1056,39 @@ export class IdentityPipelineService {
    * biométrica y el análisis de píxeles del fraude siguen viendo cada píxel.
    * Aquí sólo se abarata el TEXTO.
    */
-  private async paraLeer(imagen: Buffer): Promise<Buffer> {
-    if (this.options.ocrMaxLongEdge <= 0) return imagen;
-    return this.images.downscale(imagen, this.options.ocrMaxLongEdge);
+  private async paraLeer(imagen: Buffer, lado: number): Promise<Buffer> {
+    if (lado <= 0) return imagen;
+    return this.images.downscale(imagen, lado);
   }
 
   private async leerCaras(
-    anverso: Buffer,
-    reverso: Buffer | null,
+    caras: CarasDelDocumento,
     input: IdentityPipelineInput,
-    clasificar: (texto: string) => Promise<DocumentClassificationResult>,
+    clasificar: Clasificador,
+    lado: number,
   ): Promise<Lectura> {
     const front = await this.ocr.extract({
-      image: await this.paraLeer(anverso),
+      image: await this.paraLeer(caras.anverso, lado),
       correlationId: input.correlationId,
     });
-    const back = reverso
+    const back = caras.reverso
       ? await this.ocr.extract({
-          image: await this.paraLeer(reverso),
+          image: await this.paraLeer(caras.reverso, lado),
           correlationId: input.correlationId,
         })
       : null;
     // Las dos caras de una cédula llevan campos distintos; el análisis corre
     // sobre las dos juntas.
     const ocr = back ? unirCaras(front, back) : front;
-    return { ocr, front, back, classification: await clasificar(ocr.rawText) };
+    return {
+      ocr,
+      front,
+      back,
+      // Las dos caras van SEPARADAS al clasificador además de unidas: el
+      // catálogo sitúa cada anclaje en su cara, y medirlo sobre el texto unido
+      // convierte la plantilla en una bolsa de palabras.
+      classification: await clasificar(front.rawText, back?.rawText ?? ''),
+    };
   }
 
   /**
@@ -927,15 +1107,34 @@ export class IdentityPipelineService {
    * forma de fallar, porque el mensaje culpa al documento y el documento estaba
    * perfecto.
    *
-   * ── Por qué el criterio es el CLASIFICADOR y no «cuánto texto salió» ────
+   * ── Por qué el criterio es la COBERTURA DEL CATÁLOGO ────────────────────
    *
    * Lo primero que se probó fue puntuar cada giro por las palabras de cuatro
    * letras o más que devolvía, y NO sirve: a media vuelta la lectura da 27
    * palabras, UNA MÁS que la orientación correcta. Tesseract lee el texto
    * invertido y produce secuencias con toda la pinta de palabras, así que ese
    * criterio elegía la orientación equivocada con más confianza que la buena.
-   * El clasificador sí separa limpio —sólo la orientación correcta contiene
-   * «CÉDULA»— y además es exactamente la pregunta que hay que responder.
+   *
+   * Lo segundo fue el CLASIFICADOR, y sobre la tarjeta dibujada funcionaba: sólo
+   * la orientación correcta contenía «CÉDULA». Sobre una fotografía real,
+   * tampoco sirve, y por una razón que no tiene arreglo dentro de un criterio
+   * booleano: a 600 px —el tamaño de la sonda— el reconocedor no llega a leer el
+   * rótulo en NINGUNA orientación, así que las cuatro contestaban lo mismo. El
+   * documento se rechazaba entero por no encontrar un giro que sí existía.
+   *
+   * El criterio de hoy es CUÁNTA plantilla del catálogo se reconoce, y se
+   * comparan las cuatro orientaciones para quedarse con la mejor en vez de
+   * pararse en la primera que pase un umbral. Es lo que convierte una pregunta
+   * que a 600 px no tiene respuesta binaria en una que sí tiene respuesta
+   * relativa. Medido sobre una cédula boliviana auténtica fotografiada en
+   * vertical, a 600 px y con las dos caras:
+   *
+   *   giro 0°    0,000      giro 180°   0,000
+   *   giro 90°   0,000      giro 270°   0,216   <- la orientación correcta
+   *
+   * Las tres orientaciones equivocadas dan CERO exacto, no «poco»: el catálogo
+   * no reconoce nada en el texto invertido. Por eso basta con exigir que la
+   * ganadora saque algo y sea la mejor — un empate a cero no elige nada.
    *
    * ── Por qué se gira la foto ORIGINAL y se vuelve a normalizar ───────────
    *
@@ -952,8 +1151,11 @@ export class IdentityPipelineService {
    * ── Coste ───────────────────────────────────────────────────────────────
    *
    * Cero para quien fotografía el documento derecho: esto sólo se llama cuando
-   * la lectura normal ya iba a terminar en rechazo. Como mucho tres vueltas, y
-   * se para en la primera que clasifica.
+   * la lectura normal ya iba a terminar en rechazo. Tres sondas de 600 px, y ya
+   * no se para en la primera que pasa: se comparan las tres porque el criterio
+   * es relativo. La diferencia son dos pasadas de sonda —unos 500 ms sobre una
+   * imagen de ese tamaño— y a cambio deja de depender de que la primera que
+   * cruce un umbral sea la buena.
    *
    * El reverso se gira lo mismo que el anverso y no por separado: son las dos
    * caras de UNA tarjeta, fotografiadas por la misma persona en la misma sesión.
@@ -962,7 +1164,7 @@ export class IdentityPipelineService {
    */
   private async buscarOrientacion(
     input: IdentityPipelineInput,
-    clasificar: (texto: string) => Promise<DocumentClassificationResult>,
+    clasificar: Clasificador,
     yaEncuadrada: Buffer,
   ): Promise<{
     document: NormalizedImage;
@@ -987,29 +1189,37 @@ export class IdentityPipelineService {
      */
     const baseSonda = await this.images.downscale(yaEncuadrada, ORIENTATION_PROBE_LONG_EDGE);
 
+    /*
+     * Las TRES sondas se miden y se comparan; ninguna se acepta por llegar
+     * primero.
+     *
+     * El reverso ni siquiera entra aquí. La sonda contesta una única pregunta
+     * —«¿cuánta cédula se ve con este giro?»— y esa la contesta el anverso, que
+     * es donde está el rótulo; leer la otra cara para descartarla es pagar el
+     * doble por la misma respuesta.
+     */
+    const sondas: Array<{ grados: 90 | 180 | 270; puntos: number }> = [];
     for (const grados of [90, 180, 270] as const) {
-      /*
-       * La SONDA: se pregunta primero en pequeño, y sólo se paga el tamaño
-       * completo cuando la respuesta ha sido que sí.
-       *
-       * El reverso ni siquiera entra aquí. La sonda contesta una única pregunta
-       * —«¿este giro clasifica?»— y esa la contesta el anverso, que es donde
-       * está el rótulo; leer la otra cara para tirarla es pagar el doble por la
-       * misma respuesta.
-       */
       const sonda = await this.leerCaras(
-        await this.images.rotate(baseSonda, grados),
-        null,
+        { anverso: await this.images.rotate(baseSonda, grados), reverso: null },
         input,
         clasificar,
+        ORIENTATION_PROBE_LONG_EDGE,
       );
-      if (sonda.classification.type === IdentityDocumentType.UNKNOWN) continue;
+      sondas.push({ grados, puntos: puntuarLectura(sonda) });
+    }
+    sondas.sort((a, b) => b.puntos - a.puntos);
+
+    for (const { grados, puntos } of sondas) {
+      // Un empate a cero no elige nada: si el catálogo no reconoce NADA con ese
+      // giro, girar la foto entera para volver a leerla sólo gastaría tiempo.
+      if (puntos <= 0) break;
 
       /*
        * A partir de aquí se paga lo caro, y se paga sobre el ORIGINAL: girar la
        * foto tal como llegó y volver a normalizarla es lo que deja el documento
        * como si se hubiera fotografiado derecho. Esto sólo ocurre una vez por
-       * ejecución y sólo cuando ya se sabe que hay un documento.
+       * ejecución y sólo cuando ya se sabe que hay algo de documento.
        */
       const document = await this.images.normalize(
         await this.images.rotate(input.documentImage, grados),
@@ -1017,26 +1227,120 @@ export class IdentityPipelineService {
       const encuadre = await this.images.frame(document.buffer);
 
       /*
-       * Clasificó. Ahora sí se lee entero: el texto de la sonda decidió una
-       * orientación y NADA más. Los campos —número, nombre, caducidad, MRZ— se
-       * rellenan con la lectura de tamaño completo, que es la única calibrada
-       * contra los cortes de resolución medidos.
+       * La sonda decidió una ORIENTACIÓN y nada más. Los campos —número,
+       * nombre, caducidad, MRZ— se rellenan con la lectura de tamaño completo,
+       * que es la única calibrada contra los cortes de resolución medidos, y la
+       * relectura fina de `run` la vuelve a mejorar si hay documento.
        *
-       * Si a tamaño completo no clasifica, este giro no vale: se sigue
-       * probando. La postcondición no ha cambiado desde que esto se escribió
-       * —nunca se devuelve una lectura sin clasificar— y por eso una sonda que
-       * se equivoque cuesta tiempo pero no puede cambiar ningún veredicto.
+       * Si con la foto entera y las dos caras el catálogo tampoco reconoce
+       * nada, este giro no vale: se prueba el siguiente. Una sonda que se
+       * equivoque cuesta tiempo, nunca un veredicto.
        */
       const reverso = input.documentBackImage
         ? (await this.images.normalize(await this.images.rotate(input.documentBackImage, grados)))
             .buffer
         : null;
-      const lectura = await this.leerCaras(encuadre.buffer, reverso, input, clasificar);
-      if (lectura.classification.type !== IdentityDocumentType.UNKNOWN) {
+      const lectura = await this.leerCaras(
+        { anverso: encuadre.buffer, reverso },
+        input,
+        clasificar,
+        this.options.ocrMaxLongEdge,
+      );
+      if (hayIndicioDeDocumento(lectura)) {
         return { document, encuadre, reverso, lectura };
       }
     }
     return null;
+  }
+
+  /**
+   * Endereza la SELFIE cuando la detección no encontró ningún rostro.
+   *
+   * Es el hermano de `buscarOrientacion`, y existe por la misma medición: el
+   * detector de este worker puntúa 1,000 sobre un rostro derecho y devuelve CERO
+   * rostros sobre el mismo rostro girado un cuarto de vuelta, media o tres
+   * cuartos. Sin esto, una selfie tumbada no bajaba el parecido: producía
+   * `IDENTITY_FACE_NOT_FOUND`, un fallo duro, sobre una foto correcta.
+   *
+   * Se gira el ORIGINAL y se vuelve a normalizar, no la imagen ya normalizada,
+   * por lo mismo que en el documento: `normalize` entrega un JPEG y girar
+   * después deja los artefactos del bloque atravesados sobre los rasgos, que es
+   * justo de donde sale el descriptor biométrico.
+   *
+   * Se prueban los TRES giros y gana el de MAYOR puntuación del detector, no el
+   * primero que encuentre una cara. La diferencia no es teórica: sobre una
+   * selfie girada un cuarto de vuelta, pararse en el primer acierto elegía el
+   * giro que la deja boca abajo —el detector todavía encuentra algo ahí— y el
+   * parecido salía 0,3259 en vez de 0,7970. Un rostro invertido no es un fallo
+   * de detección, es una detección MALA, y sólo comparar las tres las separa.
+   * Es el mismo criterio con el que se endereza el documento, y por lo mismo.
+   *
+   * Sólo cuenta un giro con EXACTAMENTE un rostro. Varios rostros no valen como
+   * acierto: ése es un caso que el flujo rechaza aparte, y aceptarlo aquí
+   * escondería el rechazo detrás de un giro.
+   */
+  private async enderezarSelfie(input: IdentityPipelineInput): Promise<{
+    selfie: NormalizedImage;
+    selfieFaces: FaceDetectionResult;
+  } | null> {
+    let mejor: {
+      selfie: NormalizedImage;
+      selfieFaces: FaceDetectionResult;
+      puntos: number;
+    } | null = null;
+
+    for (const grados of [90, 180, 270] as const) {
+      const selfie = await this.images.normalize(
+        await this.images.rotate(input.selfieImage, grados),
+      );
+      const selfieFaces = await this.faces.detectFaces({
+        image: selfie.buffer,
+        correlationId: input.correlationId,
+      });
+      if (selfieFaces.faces.length !== 1) continue;
+      const puntos = selfieFaces.faces[0]?.quality ?? 0;
+      if (!mejor || puntos > mejor.puntos) mejor = { selfie, selfieFaces, puntos };
+    }
+
+    return mejor ? { selfie: mejor.selfie, selfieFaces: mejor.selfieFaces } : null;
+  }
+
+  /**
+   * Recorta un rostro para compararlo, o devuelve la imagen entera si no se
+   * puede.
+   *
+   * `crop` se niega a entregar un recorte por debajo de `minDocumentFacePx`, y
+   * esa negativa es correcta para el DOCUMENTO —un retrato diminuto no da una
+   * comparación fiable y el caso debe pararse—. Para la selfie no: allí el
+   * rostro ya se detectó, la comparación va a ocurrir de todos modos, y
+   * convertir un recorte imposible en un fallo duro sería endurecer por un
+   * detalle de preprocesado. Se cae a lo que había antes, que es comparar con la
+   * imagen entera.
+   */
+  private async recortarRostro(imagen: Buffer, caja: FaceBoundingBox): Promise<Buffer> {
+    /*
+     * Un rostro que TOCA el borde del encuadre no se recorta.
+     *
+     * Cuando la cara está cortada por el marco, el detector devuelve una caja
+     * pegada al borde y el margen del recorte no cabe: `crop` lo recorta contra
+     * los límites de la imagen y entrega media cara ampliada, con un encuadre
+     * que no se parece al del retrato del documento. Medido sobre una imagen en
+     * la que la caja llegaba justo al borde inferior (`top` 0,565 + alto 0,435 =
+     * 1,000), el parecido del MISMO rostro caía de 0,7971 con la imagen entera a
+     * 0,6245 con el recorte: el recorte convertía una comparación mediocre en un
+     * rechazo.
+     *
+     * En ese caso se compara con la imagen entera —que es lo que se hacía
+     * siempre antes— porque el contexto de alrededor es justo lo que le falta al
+     * recorte. La simetría se pierde, y perderla aquí es mejor que imponerla
+     * sobre media cara.
+     */
+    if (!cajaHolgada(caja, this.options.faceCropPaddingRatio)) return imagen;
+    try {
+      return await this.images.crop(imagen, caja);
+    } catch {
+      return imagen;
+    }
   }
 
   /**
@@ -1058,6 +1362,26 @@ export class IdentityPipelineService {
       warnings.push('DOCUMENT_SIDES_MISMATCH');
     }
   }
+}
+
+/**
+ * ¿Cabe el rostro con su margen dentro del encuadre?
+ *
+ * `crop` acota el recorte a los límites de la imagen sin avisar, así que una
+ * caja pegada a un borde produce un recorte asimétrico —y una cara cortada por
+ * el marco produce medio rostro—. Preguntarlo ANTES es lo que permite decidir
+ * entre recortar y comparar con la imagen entera, en vez de descubrirlo cuando
+ * el descriptor ya devolvió un número malo.
+ */
+function cajaHolgada(caja: FaceBoundingBox, margen: number): boolean {
+  const padX = caja.width * margen;
+  const padY = caja.height * margen;
+  return (
+    caja.left - padX >= 0 &&
+    caja.top - padY >= 0 &&
+    caja.left + caja.width + padX <= 1 &&
+    caja.top + caja.height + padY <= 1
+  );
 }
 
 /**

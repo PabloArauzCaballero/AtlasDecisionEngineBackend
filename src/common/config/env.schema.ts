@@ -655,6 +655,14 @@ export const envSchema = z
      * `scripts/medir-resolucion-ocr-identidad.ts` mirando los CAMPOS.
      */
     IDENTITY_OCR_MAX_LONG_EDGE: z.coerce.number().int().min(0).max(6_000).default(600),
+    /**
+     * Lado largo de la RELECTURA del documento, una vez que el catálogo ya
+     * reconoció una cédula. Por debajo o igual a `IDENTITY_OCR_MAX_LONG_EDGE`
+     * desactiva la relectura y deja la lectura barata como definitiva — que es
+     * lo que había antes, y lo que descartaba el número de cédula por un dígito
+     * de control mal leído.
+     */
+    IDENTITY_OCR_FINE_LONG_EDGE: z.coerce.number().int().min(0).max(6_000).default(1_200),
     IDENTITY_FACE_CROP_PADDING_RATIO: z.coerce.number().min(0).max(1).default(0.25),
     IDENTITY_MIN_DOCUMENT_FACE_PX: z.coerce.number().int().min(40).max(2_000).default(80),
     IDENTITY_LIVENESS_ENABLED: booleanFromString.default(true),
@@ -722,7 +730,23 @@ export const envSchema = z
      */
     IDENTITY_FRAUD_DETECTION_ENABLED: booleanFromString.default(true),
     IDENTITY_FRAUD_STRICT: booleanFromString.default(false),
-    IDENTITY_FRAUD_TEMPLATE_COVERAGE_MIN: z.coerce.number().min(0).max(1).default(0.55),
+    /*
+     * 0,4 y no 0,55, y el número está medido contra CÉDULAS REALES.
+     *
+     * El 0,55 salía de los ejemplares sintéticos, que están dibujados con los
+     * rótulos del catálogo y por construcción puntúan cerca de 1. Una cédula
+     * boliviana auténtica fotografiada con un móvil llega como mucho a 0,66 y
+     * normalmente a 0,52, así que aquel corte marcaba `TEMPLATE_COVERAGE_LOW`
+     * —plantilla incompleta— en todas. Ver `identity-fraud.scorer.ts`, que lleva
+     * la tabla de las cuatro resoluciones.
+     *
+     * Tiene que coincidir con `UMBRALES_DE_FRAUDE_POR_DEFECTO.coberturaMinima`:
+     * el puente lee `config.get(...) ?? IDENTITY_DEFAULTS...`, y como este
+     * esquema SIEMPRE entrega su valor por omisión, el de la constante nunca se
+     * aplica. Dos números distintos aquí y allí significan que el de la
+     * constante es decorativo.
+     */
+    IDENTITY_FRAUD_TEMPLATE_COVERAGE_MIN: z.coerce.number().min(0).max(1).default(0.4),
     IDENTITY_FRAUD_REVIEW_RISK: z.coerce.number().min(0).max(1).default(0.3),
     IDENTITY_FRAUD_SUSPICION_RISK: z.coerce.number().min(0).max(1).default(0.6),
     /*

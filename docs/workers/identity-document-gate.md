@@ -64,6 +64,85 @@ evidencia en contra, es la respuesta. Sin esto, una factura boliviana —que imp
 fecha y número del cliente— acumulaba señales legítimas hasta colarse en la franja de duda
 y ocupar el tiempo de una persona.
 
+## La fotografía real, y por qué el texto exacto no sirve
+
+Todo lo de arriba se calibró contra los ejemplares sintéticos de `fixtures/identity-card.ts`,
+que están **dibujados** con los rótulos del catálogo en una tipografía limpia. Contra ellos la
+puerta acertaba siempre. La primera medición sobre una cédula boliviana auténtica del DS 4924
+fotografiada con un móvil dice otra cosa: los rótulos de la tarjeta van impresos en gris, a
+cuerpo muy pequeño y sobre un guilloché tricolor, y el reconocedor los devuelve mutilados.
+
+| Impreso                 | Leído (medido)          |
+| ----------------------- | ----------------------- |
+| CÉDULA DE IDENTIDAD     | `CEI 1 DE` … `IDENTIDAD`|
+| IDENTIFICACIÓN PERSONAL | `ITIFICACIÓN PERSONA)`  |
+| FECHA DE NACIMIENTO     | `PFrCHA DE MACIMIENTO`  |
+| FECHA DE EMISIÓN        | `FECHA DI EMIBION`      |
+| FECHA DE EXPIRACIÓN     | `rca DE FAPIRACIÓN`     |
+| DOMICILIO               | `DOMICILI`              |
+
+Ninguna de esas lecturas casaba con su expresión regular. La consecuencia no era una nota más
+baja: la cédula se **rechazaba entera** con «la imagen no corresponde a ningún documento de
+identidad soportado», y encima la búsqueda de orientación —que usaba el clasificador como
+criterio de éxito— tampoco encontraba el giro de una tarjeta fotografiada en vertical, porque
+las cuatro orientaciones contestaban lo mismo.
+
+### El catálogo versionado, con su porcentaje de evidencia
+
+`core/catalog/bolivia-ci.catalog.ts` describe **cada generación de la tarjeta** —la del
+DS 4924 y la anterior— como una lista de elementos a comprobar, cada uno con su cara, su peso
+y las grafías que la tarjeta imprime. `core/catalog/bolivia-ci.recognizer.ts` mide una lectura
+contra las dos plantillas y devuelve la **cobertura**: qué proporción del peso del catálogo
+apareció. Es el mismo reparto que el worker de extractos usa con las entidades financieras.
+
+Esa cobertura es una sola medida y la usan tres sitios, deliberadamente:
+
+- el **clasificador** la usa para nombrar el documento (y la publica como su `confidence`);
+- la **búsqueda de orientación** la usa como puntaje para comparar los cuatro giros;
+- el **análisis de fraude** la usa para juzgar si la plantilla está completa.
+
+Con dos implementaciones, el mismo documento sería una cédula para la puerta y una plantilla
+incompleta para el análisis, en la misma ejecución.
+
+El cotejo es tolerante (`core/catalog/approximate-match.ts`): distancia de edición contra la
+subcadena más parecida, con **una edición por cada cinco caracteres** y sólo para rótulos de
+**ocho caracteres o más**. El mínimo de ocho no es estético: con cinco, `SECCIÓN` casaba dentro
+de «DIRECCIÓN DEPARTAMENTAL» a distancia 1 y una licencia de conducir puntuaba más que la
+cédula real.
+
+### Cobertura no basta para nombrar el documento
+
+Todas las tarjetas oficiales bolivianas se parecen —encabezado del Estado, nombres, apellidos,
+dos fechas— y medido, una licencia de conducir alcanza 0,558 de cobertura. Por eso el
+clasificador exige además **un anclaje que sólo lleve una cédula**: el rótulo del documento, la
+MRZ TD1, SERIE, SECCIÓN, el NPIOC o el grupo sanguíneo. Y pregunta antes por el pasaporte y por
+la licencia, que se declaran a sí mismos.
+
+### Dos resoluciones de lectura
+
+`IDENTITY_OCR_MAX_LONG_EDGE` (600) está calibrado para **rechazar barato**: sobre ruido de
+12 MP, Tesseract cuesta 513 ms a ese tamaño y 5569 ms a 1200. Pero a 600 px se pierde el dígito
+de control del número en la MRZ —la `7` se lee como `T`— y con él el número de cédula y la
+fecha de nacimiento enteros. Así que hay un segundo tope, `IDENTITY_OCR_FINE_LONG_EDGE` (1200),
+que **sólo se paga cuando el catálogo ya reconoció algo**. Medido sobre la cédula real:
+
+| Lado del OCR | Cobertura | Qué aparece                                      |
+| ------------ | --------- | ------------------------------------------------ |
+| 600          | 0,216     | ni el rótulo ni ninguna fecha                    |
+| 900          | 0,463     | las tres fechas y sus rótulos                    |
+| 1200         | 0,515     | «IDENTIDAD» y el control del número en la MRZ    |
+| 1600         | 0,664     | «IDENTIFICACIÓN PERSONAL», «DOMICILIO»           |
+
+En las tres orientaciones equivocadas la cobertura es **cero exacto** a las cuatro
+resoluciones, que es lo que permite elegir el giro comparando en vez de por umbral.
+
+Medido de punta a punta con esas dos fotos: la cédula tumbada se resuelve en 3,6 s con
+evidencia 0,917, tipo `BOLIVIA_CI` y todos los campos; la misma derecha, en 2,0 s; el ruido de
+12 MP se sigue rechazando en 2,4 s y una selfie subida como documento en 0,9 s.
+
+Las lecturas degradadas —con datos sintéticos, nunca los de una cédula real— están fijadas en
+`test/identity-degraded-ocr.spec.ts`.
+
 ## Los umbrales, configurables
 
 | Variable                              | Por defecto | Qué gobierna                                |
@@ -72,6 +151,8 @@ y ocupar el tiempo de una persona.
 | `IDENTITY_DOCUMENT_REVIEW_CONFIDENCE` | `0.25`      | Desde aquí hay duda; por debajo, no la hay. |
 | `IDENTITY_ACCEPTED_DOCUMENT_TYPES`    | `BOLIVIA_CI`| Qué tipos admite este despliegue.           |
 | `IDENTITY_ARBITRATION_MODE`           | `HUMAN`     | Quién resuelve la franja de duda.           |
+| `IDENTITY_OCR_MAX_LONG_EDGE`          | `600`       | Lado largo de la primera lectura, la barata.|
+| `IDENTITY_OCR_FINE_LONG_EDGE`         | `1200`      | Lado largo de la relectura, cuando hay documento. |
 
 `normalizeIdentityThresholds` ordena el par: un `review` por encima del `accept` dejaría la
 franja de duda **vacía** y todo documento dudoso se rechazaría en silencio, que es justo el
@@ -136,11 +217,16 @@ En el portal es la pestaña **Revisión** del worker de identidad
 
 | Archivo                                              | Responsabilidad                                  |
 | ---------------------------------------------------- | ------------------------------------------------ |
+| `core/catalog/bolivia-ci.catalog.ts`                | Las dos generaciones de la tarjeta, como dato.   |
+| `core/catalog/approximate-match.ts`                 | Cotejo tolerante a las erratas del reconocedor.  |
+| `core/catalog/bolivia-ci.recognizer.ts`             | La cobertura: cuánta plantilla se reconoce.      |
 | `core/engine/identity-evidence.ts`                   | Mide. No decide nada.                            |
 | `core/engine/identity-triage.ts`                     | Decide entre rechazar, arbitrar y procesar.      |
 | `core/adapters/identity-arbitration.adapter.ts`      | Los dos árbitros.                                |
 | `identity-outcome.ts`                                | El único sitio que fija el estado final.         |
 | `review/identity-review.service.ts`                  | La cola y sus dos acciones.                      |
 
-Pruebas: `test/identity-document-gate.spec.ts` (la política, sin imágenes) y
-`test/identity-verification-pipeline.spec.ts` (el camino completo, con imágenes reales).
+Pruebas: `test/identity-document-gate.spec.ts` (la política, sin imágenes),
+`test/identity-verification-pipeline.spec.ts` (el camino completo, con imágenes generadas) y
+`test/identity-degraded-ocr.spec.ts` (lo que devuelve el reconocedor sobre una fotografía real,
+con datos sintéticos).

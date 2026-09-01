@@ -113,9 +113,7 @@ export class TransformerIdentityEmbedderAdapter implements IdentityEmbedderPort 
     return [primero, ...vectoresDeSondas];
   }
 
-  private async vectoresDeSondas(
-    signal?: AbortSignal,
-  ): Promise<readonly (readonly number[])[]> {
+  private async vectoresDeSondas(signal?: AbortSignal): Promise<readonly (readonly number[])[]> {
     if (this.sondasEnCache) return this.sondasEnCache;
     if (this.calculandoSondas) return this.calculandoSondas;
 

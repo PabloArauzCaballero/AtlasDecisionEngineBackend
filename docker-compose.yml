@@ -413,14 +413,33 @@ services:
       # `ocrProvider: mock` para que la pantalla no lo presente como una
       # verificación contra un proveedor real.
       IDENTITY_VERIFICATION_WORKER_ENABLED: ${IDENTITY_VERIFICATION_WORKER_ENABLED:-true}
-      # Umbrales de la comparación biométrica. El esquema NO les da valor por
-      # omisión a propósito: sin ellos, toda verificación termina en revisión
-      # manual con `THRESHOLD_PROFILE_MISSING`. Los de aquí son de LABORATORIO
-      # —calibrados contra el proveedor sintético, no contra un corpus
-      # etiquetado— y el nombre del perfil lo dice, que es justo lo que un
-      # despliegue real tiene que sustituir por su propia medición.
-      IDENTITY_MATCH_THRESHOLD: ${IDENTITY_MATCH_THRESHOLD:-0.8824}
-      IDENTITY_REVIEW_THRESHOLD: ${IDENTITY_REVIEW_THRESHOLD:-0.7789}
+      # Umbrales de la comparación biométrica. **Sin valor por omisión, y ya no
+      # por elegancia: por un rechazo medido.**
+      #
+      # Aquí ponía 0,8824 y 0,7789, calibrados sobre los rostros DIBUJADOS de
+      # `fixtures/identity-faces.ts`. Medido después con una cédula boliviana
+      # auténtica y una selfie real de su titular, la misma persona puntúa
+      # **0,67**: por debajo del umbral de aceptación y también por debajo del de
+      # RECHAZO. O sea que el motor no dudaba de un solicitante legítimo —lo
+      # declaraba impostor, `FACE_NO_MATCH`, que es el peor error posible de este
+      # módulo y el único que quien lo sufre no puede arreglar de ninguna manera.
+      #
+      # Sin umbrales, el motor de decisión devuelve `REVIEW_REQUIRED` con
+      # `THRESHOLD_PROFILE_MISSING` y el caso llega a una persona con su cifra
+      # delante. Es lo honesto mientras no haya calibración: la alternativa no es
+      # «aprobar más», es decidir con un número que describe otra población.
+      #
+      # Para volver a poner cortes hay que MEDIRLOS, y con parejas del tipo que
+      # este flujo compara de verdad —retrato de carnet contra selfie, no selfie
+      # contra selfie—:
+      #
+      #   node scripts/calibrar-identidad.mjs --documento-selfie <corpus>
+      #
+      # La clave sin valor pasa la variable del entorno de la máquina si está
+      # puesta, y la deja AUSENTE si no. No se puede poner vacía: `""` se
+      # convierte en 0, y un umbral de aceptación en 0 aprobaría a cualquiera.
+      IDENTITY_MATCH_THRESHOLD:
+      IDENTITY_REVIEW_THRESHOLD:
       IDENTITY_THRESHOLD_PROFILE_VERSION: ${IDENTITY_THRESHOLD_PROFILE_VERSION:-sintetico-60x3-fmr1e-3-fnmr1e-2}
       # El de locución se enciende con el proveedor `fake`, que sintetiza un
       # MP3 determinista sin salir a la red y sin coste. El catálogo publica
@@ -686,14 +705,33 @@ services:
       # `ocrProvider: mock` para que la pantalla no lo presente como una
       # verificación contra un proveedor real.
       IDENTITY_VERIFICATION_WORKER_ENABLED: ${IDENTITY_VERIFICATION_WORKER_ENABLED:-true}
-      # Umbrales de la comparación biométrica. El esquema NO les da valor por
-      # omisión a propósito: sin ellos, toda verificación termina en revisión
-      # manual con `THRESHOLD_PROFILE_MISSING`. Los de aquí son de LABORATORIO
-      # —calibrados contra el proveedor sintético, no contra un corpus
-      # etiquetado— y el nombre del perfil lo dice, que es justo lo que un
-      # despliegue real tiene que sustituir por su propia medición.
-      IDENTITY_MATCH_THRESHOLD: ${IDENTITY_MATCH_THRESHOLD:-0.8824}
-      IDENTITY_REVIEW_THRESHOLD: ${IDENTITY_REVIEW_THRESHOLD:-0.7789}
+      # Umbrales de la comparación biométrica. **Sin valor por omisión, y ya no
+      # por elegancia: por un rechazo medido.**
+      #
+      # Aquí ponía 0,8824 y 0,7789, calibrados sobre los rostros DIBUJADOS de
+      # `fixtures/identity-faces.ts`. Medido después con una cédula boliviana
+      # auténtica y una selfie real de su titular, la misma persona puntúa
+      # **0,67**: por debajo del umbral de aceptación y también por debajo del de
+      # RECHAZO. O sea que el motor no dudaba de un solicitante legítimo —lo
+      # declaraba impostor, `FACE_NO_MATCH`, que es el peor error posible de este
+      # módulo y el único que quien lo sufre no puede arreglar de ninguna manera.
+      #
+      # Sin umbrales, el motor de decisión devuelve `REVIEW_REQUIRED` con
+      # `THRESHOLD_PROFILE_MISSING` y el caso llega a una persona con su cifra
+      # delante. Es lo honesto mientras no haya calibración: la alternativa no es
+      # «aprobar más», es decidir con un número que describe otra población.
+      #
+      # Para volver a poner cortes hay que MEDIRLOS, y con parejas del tipo que
+      # este flujo compara de verdad —retrato de carnet contra selfie, no selfie
+      # contra selfie—:
+      #
+      #   node scripts/calibrar-identidad.mjs --documento-selfie <corpus>
+      #
+      # La clave sin valor pasa la variable del entorno de la máquina si está
+      # puesta, y la deja AUSENTE si no. No se puede poner vacía: `""` se
+      # convierte en 0, y un umbral de aceptación en 0 aprobaría a cualquiera.
+      IDENTITY_MATCH_THRESHOLD:
+      IDENTITY_REVIEW_THRESHOLD:
       IDENTITY_THRESHOLD_PROFILE_VERSION: ${IDENTITY_THRESHOLD_PROFILE_VERSION:-sintetico-60x3-fmr1e-3-fnmr1e-2}
       # El de locución se enciende con el proveedor `fake`, que sintetiza un
       # MP3 determinista sin salir a la red y sin coste. El catálogo publica

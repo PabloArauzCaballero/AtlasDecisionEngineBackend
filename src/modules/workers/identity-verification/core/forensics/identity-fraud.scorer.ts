@@ -47,9 +47,28 @@ export interface UmbralesDeFraude {
    * Cobertura mínima de la plantilla del catálogo por debajo de la cual el
    * documento ya no se comporta como una cédula completa.
    *
-   * 0,55: es la cobertura que alcanza una cédula legítima de la que sólo se
-   * fotografió el anverso y cuyo reconocedor perdió dos o tres rótulos. Por
-   * debajo faltan campos que ninguna cédula omite.
+   * **Estaba en 0,55 y nunca se midió contra una cédula real.** El número salía
+   * de los ejemplares sintéticos de `fixtures/identity-card.ts`, que están
+   * dibujados con los rótulos del catálogo en una tipografía limpia y por
+   * construcción puntúan cerca de 1: contra esa población, 0,55 parecía holgado.
+   *
+   * La primera medición sobre una cédula boliviana auténtica del DS 4924
+   * fotografiada con un móvil, en su orientación correcta y perfectamente
+   * enfocada, dice otra cosa —el techo de una cédula real es 0,66, no 1—:
+   *
+   *   lado del OCR   600     900     1200    1600
+   *   cobertura      0,216   0,463   0,515   0,664
+   *
+   * Con el umbral en 0,55, esa cédula levantaba `TEMPLATE_COVERAGE_LOW` a las
+   * cuatro resoluciones: un documento auténtico acusado de plantilla incompleta
+   * por los rótulos que su propio emisor imprime en gris a 1,2 mm.
+   *
+   * 0,40 es el punto medido: por encima de lo que da la cédula real a la
+   * resolución que el pipeline usa (0,515) con margen para una foto peor, y muy
+   * por encima de los controles negativos —un extracto bancario da 0,195 y un
+   * recibo de luz 0,182—. Y no es la única defensa contra un montaje: los
+   * anclajes obligatorios ausentes, las incoherencias aritméticas entre los
+   * datos y el análisis de píxeles se suman aparte.
    */
   readonly coberturaMinima: number;
   /** A partir de aquí el caso va a una persona. */
@@ -67,7 +86,7 @@ export interface UmbralesDeFraude {
 }
 
 export const UMBRALES_DE_FRAUDE_POR_DEFECTO: UmbralesDeFraude = {
-  coberturaMinima: 0.55,
+  coberturaMinima: 0.4,
   riesgoDeRevision: 0.3,
   riesgoDeSospecha: 0.6,
   estricto: false,
@@ -123,7 +142,12 @@ export function evaluarFraude(input: {
      * es que ahí no había una cédula. Un escalón único los trataría igual y
      * llenaría la cola de humanos con la primera clase de caso.
      */
-    riesgos.push(escalar((umbrales.coberturaMinima - cobertura) / Math.max(0.05, umbrales.coberturaMinima), 0.55));
+    riesgos.push(
+      escalar(
+        (umbrales.coberturaMinima - cobertura) / Math.max(0.05, umbrales.coberturaMinima),
+        0.55,
+      ),
+    );
   }
   if (plantilla.mejor.obligatoriosAusentes.length > 0) {
     motivos.push('TEMPLATE_REQUIRED_FIELDS_MISSING');
