@@ -254,16 +254,37 @@ const RUBROS: readonly Regla[] = [
   },
 
   // --- Impuestos, aportes y trámites del Estado ----------------------------
+  /*
+   * El RC-IVA se escribe de CUATRO formas distintas según el banco, y la regla
+   * sólo reconocía dos. Medido sobre 497 movimientos de diez extractos reales:
+   * `RC-IVA` y `RCIVA` casaban; `RC IVA` —con espacio, del Banco Unión— y
+   * `RETENCIONRCIVA` —todo pegado, del BCP— se iban al cajón de «otros gastos».
+   *
+   * Que la retención vaya pegada es lo que rompía el `\b` inicial: en
+   * `RETENCIONRCIVA` no hay frontera de palabra delante de `RC`, así que la
+   * alternativa no llegaba ni a evaluarse. Por eso el prefijo se nombra en vez
+   * de confiar en la frontera.
+   *
+   * Es el mismo impuesto en los tres casos, y va a la misma categoría. Un
+   * separador no cambia lo que es un tributo.
+   */
   {
     patron:
-      /\b(?:IMPUESTOS\s+NACIONALES|SERVICIO\s+DE\s+IMPUESTOS|SIN\b|RC-?IVA|IUE|FORM(?:ULARIO)?\s*\d{3}|BOLETA\s+DE\s+PAGO\s+\d{4}|DECLARACION\s+JURADA)\b/u,
+      /\b(?:IMPUESTOS\s+NACIONALES|SERVICIO\s+DE\s+IMPUESTOS|SIN\b|RETENCION\s*RC[\s.-]?IVA|RC[\s.-]?IVA|IUE|FORM(?:ULARIO)?\s*\d{3}|BOLETA\s+DE\s+PAGO\s+\d{4}|DECLARACION\s+JURADA)\b/u,
     salida: ['GASTOS.IMPUESTOS'],
     entrada: ['INGRESOS.TRIBUTARIO'],
     porque: 'la glosa declara un pago al servicio de impuestos',
     certeza: 'ALTA',
   },
+  /*
+   * `ITFAP` es como el BCP rotula el mismo impuesto —`BT-ITFAP TRA 0000`—, y el
+   * `\b` final impedía reconocerlo: dentro de `ITFAP` no hay frontera después de
+   * `ITF`. Se nombra el sufijo en lugar de aflojar la frontera, que es lo que
+   * habría hecho que la regla saltara con cualquier palabra que llevara «itf»
+   * dentro.
+   */
   {
-    patron: /\b(?:ITF)\b/u,
+    patron: /\bBT[-\s]?ITFAP\b|\bITF(?:AP)?\b/u,
     salida: ['GASTOS.FINANCIEROS.ITF', 'GASTOS.FINANCIEROS.COMISIONES'],
     entrada: ['INGRESOS.REVERSO'],
     porque: 'la glosa declara el impuesto a las transacciones financieras',
