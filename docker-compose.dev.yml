@@ -29,6 +29,28 @@
 #
 #   docker compose -f docker-compose.dev.yml up -d --build
 #   docker compose -f docker-compose.dev.yml --profile pdf up -d --build   # ~4,4 GB, ver abajo
+#
+# ## Con COOLIFY: se monta el `.env`, NO se convierte a variables del compose
+#
+# Coolify también despliega este archivo tal cual. La configuración sigue viniendo de
+# `motor.env` por `env_file`, y ese archivo se le da a Coolify como **fichero montado**
+# (Storages → File mount, destino `/opt/atlas/env/motor.env`) en vez de pegar sus claves una a
+# una en Environment Variables.
+#
+# La alternativa —un ancla `x-atlas-env` con `${VARIABLE}` por clave, como en
+# `AtlasBackend/docker-compose.coolify.yml`— aquí NO se toma, y la razón está medida contra el
+# esquema de este repositorio: de las **156 claves** que `motor.env` define, **108 rechazan la
+# cadena vacía**. `${VAR:-}` no deja una clave ausente, la deja VACÍA, y una clave opcional que
+# llega vacía tumba el arranque con un mensaje que habla del campo y no de la causa. Convertir
+# esto es clasificar 108 claves a mano, y cada error se cobra en un despliegue que no levanta.
+#
+# En AtlasBackend sí compensa —69 claves, 25 delicadas— porque a cambio sus secretos quedan
+# administrables desde la interfaz. Aquí el reparto no sale.
+#
+# Lo que hay que saber igualmente: **lo que no esté en `motor.env` no existe dentro del
+# contenedor**. El worker de identidad estuvo apagado justo por eso —
+# `IDENTITY_VERIFICATION_WORKER_ENABLED` vale `false` por omisión y nadie lo había nombrado—,
+# así que las verificaciones se creaban y esperaban a un trabajador que no existía.
 
 name: atlas-motor-vps
 
