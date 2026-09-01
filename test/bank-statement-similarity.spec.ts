@@ -93,16 +93,46 @@ describe('descriptor de señales esperadas', () => {
 
   /*
    * Los siete descriptores compilados se validan al cargar el módulo, así que si
-   * uno estuviera mal escrito este import ya habría reventado. La prueba fija
-   * además que siguen siendo DECLARED: el día que alguien los pase a MEASURED sin
-   * haber medido nada, el rescate se enciende en silencio.
+   * uno estuviera mal escrito este import ya habría reventado.
+   *
+   * Esta prueba fijaba además que TODOS fueran `DECLARED`, para que nadie los
+   * pasara a `MEASURED` sin haber medido nada y encendiera el rescate en
+   * silencio. Los siete se midieron el 2026-09-01 contra diez extractos reales,
+   * así que la afirmación cambia pero el guardián se queda: lo que ahora se
+   * exige es que «medido» venga con su DENOMINADOR. Un descriptor que se declara
+   * medido sobre cero documentos es exactamente el caso que preocupaba.
    */
-  it('los descriptores compilados son válidos y ninguno se autoproclama medido', () => {
+  it('un descriptor que se dice medido trae la muestra que lo sostiene', () => {
     expect(COMPILED_SIGNAL_DESCRIPTORS.size).toBeGreaterThanOrEqual(7);
     for (const [code, compilado] of COMPILED_SIGNAL_DESCRIPTORS) {
       expect(compilado.institutionCode).toBe(code);
-      expect(compilado.provenance).toBe('DECLARED');
       expect(compilado.signals.length).toBeGreaterThan(0);
+      if (compilado.provenance === 'MEASURED') {
+        expect(`${code}.sampleSize`).toBe(`${code}.sampleSize`);
+        expect(compilado.sampleSize).toBeGreaterThan(0);
+        // La nota es lo que permite auditar la medición meses después.
+        expect(compilado.note ?? '').not.toBe('');
+      } else {
+        expect(compilado.sampleSize).toBe(0);
+      }
+    }
+  });
+
+  /*
+   * El guardián que de verdad protege el rescate, y que es independiente de cómo
+   * se rotule el descriptor: corroborar exige una muestra de tres. Con los dos
+   * documentos por entidad que hay hoy, ninguno corrobora todavía — y eso es lo
+   * correcto: con uno o dos no se sabe qué parte de lo observado es la plantilla
+   * del banco y qué parte es ese cliente.
+   */
+  it('ningún descriptor corrobora con menos de tres documentos medidos', () => {
+    for (const [code, compilado] of COMPILED_SIGNAL_DESCRIPTORS) {
+      if (compilado.sampleSize >= DEFAULT_SIMILARITY_THRESHOLDS.minimumSampleSize) continue;
+      const evaluacion = assessSimilarity(documento(), {
+        ...compilado,
+        signals: [{ id: 'todo', scope: 'DOCUMENT', pattern: /.*/u, weight: 10 }],
+      });
+      expect(`${code}:${String(evaluacion.corroborates)}`).toBe(`${code}:false`);
     }
   });
 });

@@ -10,23 +10,46 @@
  * que trae un extracto de esta entidad». Reusarlos es escribir el descriptor con
  * la única evidencia que el repositorio tiene, en vez de inventarla.
  *
- * ## Por qué todos son `DECLARED`, y por qué eso importa
+ * ## Medidos el 2026-09-01, y qué cambió al medirlos
  *
- * Porque deducir un descriptor de un analizador no es haberlo medido. `MEASURED`
- * es lo único que autoriza a SOSTENER un documento que otra compuerta dejó en
- * duda, y para eso hace falta un corpus, no una deducción. Mientras sean
- * declarados el parecido se publica y no cambia ningún desenlace — que es
- * exactamente lo que se quiere antes de haber visto un solo PDF real.
+ * Hasta esa fecha eran los siete `DECLARED`: deducidos de los analizadores, sin
+ * un solo PDF real detrás. Se midieron contra diez extractos auténticos —dos del
+ * BNB, del BSO y del BUN; uno de las otras cuatro— y la medición encontró que un
+ * descriptor deducido falla de DOS formas opuestas, ninguna visible leyéndolo.
  *
- * ## Lo que deliberadamente NO llevan
+ * **Señales muertas.** Patrones que no coinciden ni con su propio banco:
+ * `encabezado` en cuatro entidades, las razones sociales del Mercantil, el Unión
+ * y el BCP. No describen nada y hunden el porcentaje de todos los extractos
+ * legítimos de esa entidad —el del Unión sacaba 41 % con su propio descriptor—.
  *
- * Señales de `PRODUCER`, que son las que más pesan: el generador que declara un
- * archivo hay que producirlo con esa herramienta, no se copia de una carátula.
- * Son justo las que no se pueden deducir de un analizador —hay que abrir PDF
- * reales y leer su diccionario `/Info`— e inventarlas sería peor que no tenerlas:
- * una señal que nunca coincide baja el porcentaje de todos los extractos
- * legítimos de esa entidad. Añadirlas con su muestra es lo que convierte estos
- * descriptores en `MEASURED` y enciende el rescate.
+ * **Señales genéricas.** Patrones que coinciden MÁS en documentos ajenos que en
+ * los propios. `\bASFI\b` es el ejemplo puro: la supervisión es obligatoria, así
+ * que la lleva impresa todo extracto boliviano y no separa a nadie. La razón
+ * social del Banco Económico coincidía en tres ajenos y en ninguno propio,
+ * porque otros bancos la imprimen en la glosa de una transferencia recibida.
+ *
+ * Las veinte señales que fallaban en una de las dos formas se retiraron. La mención
+ * a ASFI se retiró de las SIETE, incluida aquella en la que parecía discriminar:
+ * una señal que en seis entidades es ruido no puede ser evidencia en la séptima.
+ *
+ * ## Las señales de `PRODUCER`, que antes no existían
+ *
+ * Son las que más pesan: el generador que declara un archivo hay que producirlo
+ * con esa herramienta, no se copia de una carátula. No se pueden deducir de un
+ * analizador —hay que abrir PDF reales y leer su diccionario `/Info`—, y por eso
+ * faltaban por completo. Medidas, resultaron ser el rasgo más estable de todos:
+ * los dos documentos del BNB declaran el mismo `wkhtmltopdf 0.12.2.1`, los dos
+ * del BSO el mismo `PDFsharp 6.1.1`, y el Ganadero y el Unión usan el mismo
+ * Reporting Services con versiones distintas —10.0 y 12.0—, que es justo lo que
+ * los separa. El Banco Económico no declara ninguno: su `/Info` viene vacío.
+ *
+ * ## Qué sigue faltando para que el parecido RESCATE
+ *
+ * Corroborar exige `MEASURED` **y** una muestra de tres documentos
+ * (`minimumSampleSize`), y aquí el máximo es dos. Eso no es un defecto: con uno
+ * o dos no se sabe qué parte de lo observado es la plantilla del banco y qué
+ * parte es ese cliente. Hasta llegar a tres, el parecido se mide y se publica
+ * sin cambiar ningún desenlace.
  *
  * ## Por qué viven aquí y no en la siembra
  *
@@ -46,10 +69,10 @@ export const SIGNAL_DESCRIPTOR_SOURCES: Readonly<Record<string, unknown>> = {
   BNB: {
     version: 1,
     institutionCode: 'BNB',
-    provenance: 'DECLARED',
-    sampleSize: 0,
+    provenance: 'MEASURED',
+    sampleSize: 2,
     dateOrder: 'DMY',
-    note: 'Derivado de bnb.parser.ts, ajustado sobre un extracto real de 102 operaciones.',
+    note: 'Derivado de bnb.parser.ts, ajustado sobre un extracto real de 102 operaciones. Medido el 2026-09-01 sobre 2 PDF(s) real(es): wkhtmltopdf/Qt: los dos documentos medidos lo declaran identico.',
     signals: [
       {
         id: 'razon-social',
@@ -59,81 +82,85 @@ export const SIGNAL_DESCRIPTOR_SOURCES: Readonly<Record<string, unknown>> = {
       },
       { id: 'tabla-depositos', scope: 'DOCUMENT', pattern: 'Dep[oó]sitos', weight: 20 },
       { id: 'tabla-retiros', scope: 'DOCUMENT', pattern: 'Retiros', weight: 20 },
-      { id: 'encabezado', scope: 'COLUMNS', pattern: 'Fecha|Hora|Descripci[oó]n', weight: 25 },
       {
         id: 'totales',
         scope: 'DOCUMENT',
         pattern: 'Total\\s+(?:dep[oó]sitos|retiros)',
         weight: 15,
       },
-      { id: 'supervision', scope: 'DOCUMENT', pattern: '\\bASFI\\b', weight: 10 },
+      {
+        id: 'generador-institucional',
+        scope: 'PRODUCER',
+        pattern: 'wkhtmltopdf|Qt\\s+4\\.8',
+        weight: 30,
+      },
     ],
   },
   BME: {
     version: 1,
     institutionCode: 'BME',
-    provenance: 'DECLARED',
-    sampleSize: 0,
+    provenance: 'MEASURED',
+    sampleSize: 1,
     dateOrder: 'DMY',
-    note: 'Derivado de mercantil.parser.ts. Cubre la marca MAKROBANX además de la razón social.',
+    note: 'Derivado de mercantil.parser.ts. Cubre la marca MAKROBANX además de la razón social. Medido el 2026-09-01 sobre 1 PDF(s) real(es): JasperReports sobre OpenPDF.',
     signals: [
-      {
-        id: 'razon-social',
-        scope: 'COVER',
-        pattern: 'BANCO\\s+MERCANTIL\\s+SANTA\\s+CRUZ|\\bBMSC\\b',
-        weight: 15,
-      },
       { id: 'marca', scope: 'DOCUMENT', pattern: 'MAKROBANX', weight: 20 },
-      { id: 'encabezado', scope: 'COLUMNS', pattern: 'FECHA|HORA|TRANSACCION', weight: 30 },
       { id: 'cod-bca', scope: 'DOCUMENT', pattern: 'COD\\.?\\s*BCA', weight: 25 },
-      { id: 'supervision', scope: 'DOCUMENT', pattern: '\\bASFI\\b', weight: 10 },
+      {
+        id: 'generador-institucional',
+        scope: 'PRODUCER',
+        pattern: 'JasperReports|OpenPDF',
+        weight: 30,
+      },
     ],
   },
   BUN: {
     version: 1,
     institutionCode: 'BUN',
-    provenance: 'DECLARED',
-    sampleSize: 0,
+    provenance: 'MEASURED',
+    sampleSize: 2,
     dateOrder: 'DMY',
-    note: 'Derivado de union.parser.ts. El cuadro de saldos es su rasgo más distintivo.',
+    note: 'Derivado de union.parser.ts. El cuadro de saldos es su rasgo más distintivo. Medido el 2026-09-01 sobre 2 PDF(s) real(es): Reporting Services 12.0. La VERSION lo separa del Ganadero, que usa la 10.0.',
     signals: [
-      { id: 'razon-social', scope: 'COVER', pattern: 'BANCO\\s+UNI[OÓ]N', weight: 10 },
-      { id: 'encabezado', scope: 'COLUMNS', pattern: 'Fecha|Descripci[oó]n|Monto', weight: 30 },
       {
         id: 'cuadro-saldos',
         scope: 'DOCUMENT',
         pattern: 'Tr[aá]nsito\\s+Consultado\\s+Congelado',
         weight: 35,
       },
-      { id: 'supervision', scope: 'DOCUMENT', pattern: '\\bASFI\\b', weight: 10 },
+      {
+        id: 'generador-institucional',
+        scope: 'PRODUCER',
+        pattern: 'Microsoft\\s+Reporting\\s+Services.*\\b12\\.0',
+        weight: 30,
+      },
     ],
   },
   BGA: {
     version: 1,
     institutionCode: 'BGA',
-    provenance: 'DECLARED',
-    sampleSize: 0,
+    provenance: 'MEASURED',
+    sampleSize: 1,
     dateOrder: 'DMY',
-    note: 'Derivado de ganadero.parser.ts.',
+    note: 'Derivado de ganadero.parser.ts. Medido el 2026-09-01 sobre 1 PDF(s) real(es): Reporting Services 10.0. La VERSION lo separa del Union, que usa la 12.0.',
     signals: [
       { id: 'razon-social', scope: 'COVER', pattern: 'BANCO\\s+GANADERO', weight: 15 },
       { id: 'marca', scope: 'DOCUMENT', pattern: 'GANAM[OÓ]VIL', weight: 25 },
       {
-        id: 'encabezado',
-        scope: 'COLUMNS',
-        pattern: 'D[EÉ]BITO|CR[EÉ]DITO|SALDO',
+        id: 'generador-institucional',
+        scope: 'PRODUCER',
+        pattern: 'Microsoft\\s+Reporting\\s+Services.*\\b10\\.0',
         weight: 30,
       },
-      { id: 'supervision', scope: 'DOCUMENT', pattern: '\\bASFI\\b', weight: 10 },
     ],
   },
   BEC: {
     version: 1,
     institutionCode: 'BEC',
-    provenance: 'DECLARED',
-    sampleSize: 0,
+    provenance: 'MEASURED',
+    sampleSize: 1,
     dateOrder: 'DMY',
-    note: 'Derivado de economico.parser.ts.',
+    note: 'Derivado de economico.parser.ts. Medido el 2026-09-01 sobre 1 PDF(s) real(es): Su plantilla NO declara productor ni creador: el diccionario /Info viene vacio, asi que no hay senal de contenedor que anadir. La ausencia ya la penaliza la compuerta de autenticidad (SIN_METADATOS_DE_ORIGEN).',
     signals: [
       { id: 'dominio', scope: 'DOCUMENT', pattern: 'baneco\\.com\\.bo', weight: 30 },
       {
@@ -142,17 +169,15 @@ export const SIGNAL_DESCRIPTOR_SOURCES: Readonly<Record<string, unknown>> = {
         pattern: 'Extracto\\s+de\\s+Caja\\s+de\\s+Ahorros',
         weight: 25,
       },
-      { id: 'razon-social', scope: 'COVER', pattern: 'BANCO\\s+ECON[OÓ]MICO', weight: 15 },
-      { id: 'supervision', scope: 'DOCUMENT', pattern: '\\bASFI\\b', weight: 10 },
     ],
   },
   BSO: {
     version: 1,
     institutionCode: 'BSO',
-    provenance: 'DECLARED',
-    sampleSize: 0,
+    provenance: 'MEASURED',
+    sampleSize: 2,
     dateOrder: 'DMY',
-    note: 'Derivado de bancosol.parser.ts. Fonosol y el dominio son sus marcas de pie de página.',
+    note: 'Derivado de bancosol.parser.ts. Fonosol y el dominio son sus marcas de pie de página. Medido el 2026-09-01 sobre 2 PDF(s) real(es): PDFsharp 6: los dos documentos medidos lo declaran identico.',
     signals: [
       { id: 'dominio', scope: 'DOCUMENT', pattern: 'bancosol\\.com\\.bo', weight: 25 },
       { id: 'fonosol', scope: 'DOCUMENT', pattern: 'Fonosol', weight: 25 },
@@ -163,20 +188,20 @@ export const SIGNAL_DESCRIPTOR_SOURCES: Readonly<Record<string, unknown>> = {
         weight: 20,
       },
       {
-        id: 'pie-supervision',
-        scope: 'DOCUMENT',
-        pattern: 'Esta\\s+entidad\\s+es\\s+supervisada',
-        weight: 20,
+        id: 'generador-institucional',
+        scope: 'PRODUCER',
+        pattern: 'PDFsharp\\s+6\\.',
+        weight: 30,
       },
     ],
   },
   BCR: {
     version: 1,
     institutionCode: 'BCR',
-    provenance: 'DECLARED',
-    sampleSize: 0,
+    provenance: 'MEASURED',
+    sampleSize: 1,
     dateOrder: 'DMY',
-    note: 'Derivado de bcp.parser.ts (Banco de Crédito de Bolivia).',
+    note: 'Derivado de bcp.parser.ts (Banco de Crédito de Bolivia). Medido el 2026-09-01 sobre 1 PDF(s) real(es): iText Core 9 con pdfHTML.',
     signals: [
       {
         id: 'titulo',
@@ -191,8 +216,12 @@ export const SIGNAL_DESCRIPTOR_SOURCES: Readonly<Record<string, unknown>> = {
         pattern: 'Medio\\s+de\\s+Atenci[oó]n',
         weight: 30,
       },
-      { id: 'razon-social', scope: 'COVER', pattern: 'BANCO\\s+DE\\s+CR[EÉ]DITO', weight: 15 },
-      { id: 'supervision', scope: 'DOCUMENT', pattern: '\\bASFI\\b', weight: 10 },
+      {
+        id: 'generador-institucional',
+        scope: 'PRODUCER',
+        pattern: 'iText.*Core\\s+9\\.|pdfHTML',
+        weight: 30,
+      },
     ],
   },
 };
