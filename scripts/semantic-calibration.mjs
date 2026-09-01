@@ -81,9 +81,25 @@ const CASOS = [
   // --- El par difícil: misma rama, mismo vocabulario ----------------------
   ['PAGO CUOTA PRESTAMO HIPOTECARIO VIVIENDA CUOTA 24/180', 'GASTOS.FINANCIEROS.PRESTAMOS'],
 
-  // --- Abstención: no hay categoría que sostener --------------------------
-  ['MOVIMIENTO VARIOS REF 000918237 OP 4471', null],
-  ['AJUSTE CONTABLE INTERNO 99213', null],
+  /*
+   * --- El CAJÓN: no hay concepto que nombrar, pero sí un movimiento ---------
+   *
+   * Estos dos esperaban abstención (`null`), y esa expectativa se escribió antes
+   * de que existiera el último escalón. Hoy el motor NO se abstiene nunca por
+   * diseño: una glosa sin concepto reconocible cae en «otros gastos» del sentido
+   * que corresponda, marcada para revisión y con `decidedBy: BIN`. La razón está
+   * en `glosa-fallback.ts` y se sostiene: «otros gastos» es una categoría que
+   * existe en cualquier contabilidad y se puede sumar, mientras que «sin
+   * determinar» no es nada y deja a quien recibe el informe resolviendo fila por
+   * fila.
+   *
+   * Así que la expectativa se corrige, PERO no se afloja: el tercer elemento
+   * exige que la decisión venga del cajón. Sin él, esta prueba daría por bueno
+   * que el modelo eligiera «Otros gastos» con toda su confianza, que es una
+   * afirmación muy distinta —y la que de verdad habría que vigilar—.
+   */
+  ['MOVIMIENTO VARIOS REF 000918237 OP 4471', 'GASTOS.OTROS', 'BIN'],
+  ['AJUSTE CONTABLE INTERNO 99213', 'GASTOS.OTROS', 'BIN'],
 ];
 
 function items(payload) {
@@ -155,7 +171,7 @@ async function main() {
   let aciertos = 0;
   const confusiones = [];
 
-  for (const [indice, [texto, esperada]] of CASOS.entries()) {
+  for (const [indice, [texto, esperada, decididoPor]] of CASOS.entries()) {
     const { resultado, error } = await clasificar(texto, indice);
     if (error) {
       console.log(` ERROR ${pad(texto, 52)} ${error}`);
@@ -165,9 +181,18 @@ async function main() {
 
     const mejor = ganadora(resultado);
     const obtenida = mejor?.categoryCode ?? null;
-    const acierta = obtenida === esperada;
+    // Un caso puede exigir además QUIÉN decidió: no es lo mismo que el cajón
+    // coloque una glosa sin concepto que el modelo elija «otros» convencido.
+    const decidioBien = decididoPor === undefined || resultado?.decidedBy === decididoPor;
+    const acierta = obtenida === esperada && decidioBien;
     if (acierta) aciertos += 1;
-    else confusiones.push({ texto, esperada, obtenida, rationale: mejor?.rationale });
+    else
+      confusiones.push({
+        texto,
+        esperada: decididoPor === undefined ? esperada : `${esperada} (por ${decididoPor})`,
+        obtenida: decidioBien ? obtenida : `${obtenida} (por ${String(resultado?.decidedBy)})`,
+        rationale: mejor?.rationale,
+      });
 
     const confianza = mejor ? `${(mejor.confidence * 100).toFixed(0)}%` : '  —';
     const ruta = (resultado?.categoryPaths?.[obtenida] ?? []).join(' › ');

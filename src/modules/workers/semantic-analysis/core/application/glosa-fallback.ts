@@ -63,8 +63,23 @@ const CONFIANZA_CAJON = 0.4;
 
 /** Marca de que un movimiento SALIÓ, tal como lo escriben los bancos. */
 const SALIDA = /^(?:DEBITO|CARGO|RETIRO|PAGO|COMPRA|N\/D)\b|\bDEBITO\b/u;
-/** Marca de que un movimiento ENTRÓ. */
-const ENTRADA = /^(?:CREDITO|ABONO|DEPOSITO|N\/C)\b|\bCREDITO\b|\bABONO\b/u;
+/**
+ * Marca de que un movimiento ENTRÓ.
+ *
+ * `COBRO FACTURA` está aquí y `COBRO` a secas NO, y la distinción es medida: quien
+ * emite una factura y la cobra recibe dinero —es el ingreso de un trabajador
+ * independiente—, mientras que «COBRO_SPB_202602» o «COBRO DE COMISIÓN», que
+ * aparecen tal cual en extractos reales del BCP, son cargos que el banco hace.
+ * Sin el anclaje, la misma palabra convertiría esos cargos en ingresos.
+ *
+ * El caso que lo destapó: «COBRO FACTURA 0012 SERVICIOS PROFESIONALES DE
+ * CONSULTORIA» se archivaba como GASTO en servicios profesionales. La regla de
+ * rubro ya distinguía los dos lados —tiene `entrada: INGRESOS.INDEPENDIENTE`—;
+ * lo que fallaba era el sentido, que caía en su supuesto conservador. En una
+ * capacidad de pago ese error cuenta doble: quita ingreso y suma gasto.
+ */
+const ENTRADA =
+  /^(?:CREDITO|ABONO|DEPOSITO|N\/C)\b|\bCREDITO\b|\bABONO\b|^COBRO\s+(?:DE\s+)?FACTURA\b/u;
 
 /**
  * Dónde una palabra contable NO es una marca contable, sino parte de un nombre.
@@ -215,9 +230,22 @@ const RUBROS: readonly Regla[] = [
     porque: 'la glosa nombra a una empresa de agua potable',
     certeza: 'ALTA',
   },
+  /*
+   * YPFB vende las DOS cosas: gas domiciliario y combustible de surtidor. Lo que
+   * decide es si la glosa nombra el surtidor, y por eso la regla lleva una
+   * exclusión.
+   *
+   * Estaba escrita como `(?!...)` DESPUÉS del nombre, así que sólo miraba hacia
+   * adelante: en «COMPRA DE GASOLINA ESPECIAL EN SURTIDOR YPFB» las dos palabras
+   * que la excluyen van ANTES de YPFB y no había nada que mirar detrás. El
+   * repostaje se archivaba como servicio básico de la vivienda.
+   *
+   * El lookahead va ahora anclado al principio, que es lo que hace que examine
+   * la línea entera y no dependa del orden en que cada banco redacte la glosa.
+   */
   {
     patron:
-      /\b(?:YPFB|EMCOGAS|GAS\s+DOMICILIARIO|GARRAFA)\b(?!.*\b(?:GASOLINA|DIESEL|SURTIDOR)\b)/u,
+      /^(?!.*\b(?:GASOLINA|DIESEL|SURTIDOR|ESTACION\s+DE\s+SERVICIO)\b).*\b(?:YPFB|EMCOGAS|GAS\s+DOMICILIARIO|GARRAFA)\b/u,
     salida: ['GASTOS.VIVIENDA.SERVICIOS'],
     entrada: [],
     porque: 'la glosa nombra el suministro de gas domiciliario',
@@ -390,14 +418,26 @@ const RUBROS: readonly Regla[] = [
   },
   {
     patron:
-      /\b(?:RESTAURANT|CHURRASQUERIA|PIZZER|BURGER|POLLOS?\s+COPACABANA|KFC|SUBWAY|PEDIDOSYA|YAIGO|DELIVERY|ALMUERZO)\b/u,
+      /\b(?:RESTAURANT|CHURRASQUERIA|PIZZER|BURGER|POLLOS?\s+COPACABANA|KFC|SUBWAY|PEDIDOSYA|YAIGO|DELIVERY|ALMUERZO|CITRONNELLE|ZUCCHINI|BOLIVIAN\s+FOODS)\b/u,
     salida: ['GASTOS.ALIMENTACION.RESTAURANTES'],
     entrada: [],
     porque: 'la glosa nombra un restaurante o un pedido de comida',
     certeza: 'ALTA',
   },
+  /*
+   * Los nombres que siguen a los genéricos salen de extractos bolivianos reales
+   * (2026-09-01): son las cafeterías que aparecían archivadas como «compra con
+   * tarjeta» porque el catálogo no las conocía y el modelo no llegaba al umbral.
+   *
+   * Van aquí, en el código, y no sólo como ejemplos del catálogo sembrado, por
+   * una razón práctica: el catálogo vive en la base y una instalación limpia lo
+   * pierde, mientras que una regla de rubro viaja con el repositorio y no
+   * depende de que alguien haya sembrado nada. Es la misma decisión que ya
+   * sostenía a HIPERMAXI, FARMACORP o STARBUCKS.
+   */
   {
-    patron: /\b(?:CAFE|CAFETERIA|STARBUCKS|ALEXANDER\s+COFFEE|VAINILLA|HELADERIA|PANADERIA)\b/u,
+    patron:
+      /\b(?:CAFE|CAFETERIA|STARBUCKS|ALEXANDER\s+COFFEE|VAINILLA|HELADERIA|PANADERIA|AGRICAFE|COFI|CAFFE\s+DEL\s+BARRIO|L\s+AROME|LLAO\s+LLAO|DONUTS)\b/u,
     salida: ['GASTOS.ALIMENTACION.CAFETERIA'],
     entrada: [],
     porque: 'la glosa nombra una cafetería o panadería',
