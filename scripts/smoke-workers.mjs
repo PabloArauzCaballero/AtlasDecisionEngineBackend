@@ -128,8 +128,10 @@ check(extractos?.available === true, 'el worker de extractos se declara disponib
 // 2. Los escenarios de prueba se sirven.
 const fixtures = await api('/v1/workers/bank-statement/fixtures');
 check(fixtures.status === 200, 'GET fixtures responde 200', `status=${fixtures.status}`);
-const codigosFixture = items(fixtures.body).map((f) => f.code);
+const escenarios = items(fixtures.body);
+const codigosFixture = escenarios.map((f) => f.code);
 check(codigosFixture.includes('valid-basic'), 'existe el escenario valid-basic');
+const escenario = escenarios.find((f) => f.code === 'valid-basic');
 
 // 3. Se encola una conversión con un escenario.
 const creada = await api('/v1/workers/bank-statement/runs', {
@@ -187,9 +189,20 @@ check(
   'reconoce la institución del escenario',
   String(run.result?.institution?.id),
 );
+/*
+ * El escenario `valid-basic` creció a TRES MESES —ocho movimientos por mes, 24 en
+ * total, y así lo anuncia su propia `preview`— pero esta comprobación seguía
+ * pidiendo los dos de la versión vieja. No se veía porque antes la ejecución ni
+ * llegaba hasta aquí: la compuerta de vigencia rechazaba el escenario, fechado en
+ * el primer trimestre de 2026, y el smoke moría en «termina con éxito».
+ *
+ * Se afirma contra el CONTRATO del escenario y no contra un número escrito a
+ * mano: si mañana el fixture cambia de tamaño, esto sigue diciendo la verdad.
+ */
+const esperados = Number(/(\d+)\s+movimientos/.exec(escenario?.preview ?? '')?.[1] ?? 0);
 check(
-  (run.result?.transactions ?? []).length === 2,
-  'lee los dos movimientos',
+  esperados > 0 && (run.result?.transactions ?? []).length === esperados,
+  `lee los ${esperados} movimientos del escenario`,
   String((run.result?.transactions ?? []).length),
 );
 check(
@@ -213,7 +226,12 @@ check(
   (descarga.headers.get('content-disposition') ?? '').includes('attachment'),
   'se sirve como adjunto y no en línea',
 );
-check(csv.includes('PAGO SERVICIOS'), 'el CSV contiene los movimientos');
+/*
+ * Se busca una glosa que el escenario SÍ imprime hoy. La anterior —«PAGO
+ * SERVICIOS»— era de una versión anterior del fixture y llevaba fallando desde
+ * que sus movimientos se reescribieron, tapada por el mismo rechazo de vigencia.
+ */
+check(csv.includes('PAGO CUOTA PRESTAMO PERSONAL'), 'el CSV contiene los movimientos');
 check(!csv.includes('1234567890'), 'el CSV tampoco filtra el número de cuenta');
 
 // 7. Idempotencia: el mismo escenario no crea una segunda ejecución.

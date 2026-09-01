@@ -12,7 +12,12 @@ import { CatalogCache } from './catalog-cache';
 import { CachedClassification, ClassificationCache } from './classification-cache';
 import { EntityResolver } from './entity-resolver';
 import { Decision, DecisionEngine } from './decision-engine';
-import { GlosaFallbackClassifier, type DecisionPorRegla } from './glosa-fallback';
+import {
+  GlosaFallbackClassifier,
+  ladoDelCodigo,
+  sentidoDeclarado,
+  type DecisionPorRegla,
+} from './glosa-fallback';
 import { TenantBudgetGuard } from './tenant-budget.guard';
 import { TextNormalizer } from './text-normalizer';
 import {
@@ -119,13 +124,56 @@ export class SemanticAnalysisPipeline {
     categories: readonly SemanticCategory[],
     motivo: string | null = null,
   ): Decision {
-    if (this.yaResolvio(decision) && motivo === null) return decision;
+    if (
+      this.yaResolvio(decision) &&
+      motivo === null &&
+      !this.contradiceElLado(decision, normalizedText)
+    )
+      return decision;
     const disponibles = new Set(leavesOf(categories).map((categoria) => categoria.code));
     const regla = this.fallback.clasificar(normalizedText, disponibles);
     if (regla === null) return decision;
 
     this.logger.debug(`Glosa resuelta por ${regla.origen} como ${regla.categoryCode}.`);
-    return this.desdeRegla(regla, motivo);
+    return this.desdeRegla(regla, motivo ?? MOTIVOS_DE_REVISION.LOW_CONFIDENCE);
+  }
+
+  /**
+   * Si el modelo puso el movimiento en el lado del libro que el banco NO dijo.
+   *
+   * Es la única circunstancia en la que una decisión ya resuelta se descarta, y
+   * la razón es que aquí no compiten dos opiniones: compiten una opinión y un
+   * dato. Cuando la glosa empieza por `DEBITO`, el banco no está sugiriendo que
+   * el dinero salió, lo está afirmando; una similitud coseno de 0,73 no es
+   * evidencia contraria de nada.
+   *
+   * Medido sobre los 473 movimientos de siete extractos reales, esto ocurría en
+   * diez: `DEBITO TRANSFERENCIA ACH … CESPEDES VILLARROEL ROMY CECILIA …`
+   * —una transferencia SALIENTE— se publicaba como `INGRESOS.TRANSFERENCIA`. En
+   * un informe de capacidad de pago ese error cuenta doble: infla el ingreso y
+   * descuenta el gasto con el mismo apunte.
+   *
+   * Sólo vetan las marcas CONTABLES (`sentidoDeclarado`), nunca los verbos de
+   * concepto. La diferencia está medida y tiene un caso que la sostiene: «PAGO
+   * DE INTERES» es el banco pagando al cliente, y leer ese `PAGO` como salida
+   * habría estropeado el único movimiento que ya estaba bien clasificado.
+   *
+   * Lo que sigue después no es una categoría inventada: se cae a las reglas, que
+   * leen el sentido del mismo sitio del que salió el veto, y el resultado va a
+   * la bandeja de revisión. El desacuerdo entre el banco y el modelo es
+   * exactamente lo que una persona tiene que mirar.
+   */
+  private contradiceElLado(decision: Decision, normalizedText: string): boolean {
+    const declarado = sentidoDeclarado(normalizedText);
+    if (declarado === null) return false;
+    const elegido = decision.matches[0]?.categoryCode;
+    if (elegido === undefined) return false;
+    const lado = ladoDelCodigo(elegido);
+    if (lado === null || lado === declarado) return false;
+    this.logger.warn(
+      `El modelo situó «${normalizedText.slice(0, 60)}» en ${elegido}, pero el banco la rotuló como ${declarado}: se resuelve por reglas y se manda a revisión.`,
+    );
+    return true;
   }
 
   /** Una decisión ya publicable: el modelo eligió algo y lo sostiene. */

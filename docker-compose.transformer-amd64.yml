@@ -1,0 +1,19 @@
+# Codificador semántico en un anfitrión ARM (Apple Silicon).
+#
+# `ghcr.io/huggingface/text-embeddings-inference` NO publica manifiesto arm64 en
+# ninguna de sus etiquetas de CPU —comprobado sobre cpu-1.6, cpu-1.7, cpu-1.8,
+# cpu-latest y latest: todas son amd64—, así que `--profile transformer up` falla
+# en un Mac con «no matching manifest for linux/arm64/v8» y el worker semántico
+# se queda sin proveedor.
+#
+# Esto fija la plataforma para que corra bajo Rosetta. Es un apaño DE PUESTO DE
+# TRABAJO y no toca el despliegue: en un anfitrión amd64 este fichero sobra, y
+# añadirlo allí no cambia nada. Lo que se paga es latencia —un lote de 32 glosas
+# tarda más que en nativo—; lo que NO cambia es el resultado, porque el modelo y
+# la aritmética son los mismos.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.no-gvisor.yml \
+#     -f docker-compose.transformer-amd64.yml --profile transformer up -d transformer
+services:
+  transformer:
+    platform: linux/amd64

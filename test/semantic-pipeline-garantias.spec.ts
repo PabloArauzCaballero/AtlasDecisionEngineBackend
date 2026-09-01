@@ -51,6 +51,8 @@ const CATEGORIAS: readonly SemanticCategory[] = [
   categoria('GASTOS.OTROS', 'GASTOS'),
   categoria('INGRESOS', null),
   categoria('INGRESOS.OTROS', 'INGRESOS'),
+  categoria('INGRESOS.TRANSFERENCIA', 'INGRESOS'),
+  categoria('INGRESOS.FINANCIERO', 'INGRESOS'),
 ];
 
 /** Traza que no traza: ejecuta la operación y olvida los atributos. */
@@ -226,5 +228,98 @@ describe('tardar demasiado deja de ser un fallo terminal', () => {
     await expect(pipeline.analyze(peticion('TRASPASO CA/CC A TERCEROS'))).rejects.toThrow(
       'el proveedor devolvió 500',
     );
+  });
+});
+
+describe('el banco rotuló el lado del libro y el modelo dijo el contrario', () => {
+  /**
+   * Una decisión del modelo con la que el motor NO se queda.
+   *
+   * Es el único caso en que se descarta un `MATCH` ya resuelto, y no es que se
+   * prefiera una opinión a otra: es que el banco no opina. `DEBITO` al principio
+   * de la glosa es la etiqueta contable del apunte, y contra eso una similitud
+   * de 0,73 no es evidencia de nada.
+   *
+   * El caso está tomado del corpus real: diez movimientos de un extracto del BNB
+   * con esta forma se publicaban como INGRESO. En una capacidad de pago el error
+   * cuenta doble —infla el ingreso y descuenta el gasto con el mismo apunte—.
+   */
+  function modeloDice(categoryCode: string, confidence: number): jest.Mock {
+    return jest.fn().mockResolvedValue({
+      assessments: [
+        {
+          categoryCode,
+          confidence,
+          supported: true,
+          contradicted: false,
+          evidence: [],
+          rationale: 'decidido por el modelo de prueba',
+        },
+      ],
+      model: 'modelo-de-prueba',
+      modelVersion: '1',
+    } satisfies ModelClassification);
+  }
+
+  it('no publica como ingreso lo que el banco rotuló DEBITO', async () => {
+    const { pipeline } = montar({ classify: modeloDice('INGRESOS.TRANSFERENCIA', 0.73) });
+
+    const resultado = await pipeline.analyze(
+      peticion('DEBITO TRANSFERENCIA ACH 70150756452329 CESPEDES VILLARROEL ROMY CECILIA'),
+    );
+
+    expect(resultado.matches[0]?.categoryCode).toBe('GASTOS.TRANSFERENCIAS');
+    expect(resultado.decidedBy).toBe('RULE');
+  });
+
+  it('manda a revisión el desacuerdo en vez de resolverlo en silencio', async () => {
+    const { pipeline } = montar({ classify: modeloDice('INGRESOS.TRANSFERENCIA', 0.73) });
+
+    const resultado = await pipeline.analyze(peticion('DEBITO TRANSFERENCIA ACH 7015075645'));
+
+    expect(resultado.requiresReview).toBe(true);
+    expect(resultado.reviewReason).toBe('LOW_CONFIDENCE');
+  });
+
+  /*
+   * La otra mitad, y la que impide que la compuerta se pase de celosa: sólo
+   * vetan las marcas CONTABLES. «PAGO DE INTERES» es el banco pagando al
+   * cliente —un ingreso— y el modelo lo acierta con 0,9991. Leer ese `PAGO`
+   * como salida habría estropeado el único movimiento que ya estaba bien.
+   */
+  it('deja pasar un ingreso que empieza por PAGO, porque PAGO no es una marca contable', async () => {
+    const { pipeline } = montar({ classify: modeloDice('INGRESOS.FINANCIERO', 0.99) });
+
+    const resultado = await pipeline.analyze(peticion('PAGO DE INTERES - SCZ/AGENCIA CENTRAL'));
+
+    expect(resultado.matches[0]?.categoryCode).toBe('INGRESOS.FINANCIERO');
+    expect(resultado.decidedBy).toBe('MODEL');
+    expect(resultado.requiresReview).toBe(false);
+  });
+
+  it('no toca al modelo cuando coincide con el lado que el banco rotuló', async () => {
+    const { pipeline } = montar({ classify: modeloDice('GASTOS.TRANSFERENCIAS', 0.95) });
+
+    const resultado = await pipeline.analyze(peticion('DEBITO TRANSFERENCIA ACH 7015075645'));
+
+    expect(resultado.matches[0]?.categoryCode).toBe('GASTOS.TRANSFERENCIAS');
+    expect(resultado.decidedBy).toBe('MODEL');
+    expect(resultado.requiresReview).toBe(false);
+  });
+
+  /*
+   * El nombre del banco de la contraparte NO es una marca. Sin esta condición la
+   * compuerta se dispararía en toda transferencia ACH que nombre al BCP, que en
+   * el corpus real son sesenta movimientos.
+   */
+  it('no se dispara porque la glosa nombre al Banco de Crédito', async () => {
+    const { pipeline } = montar({ classify: modeloDice('INGRESOS.TRANSFERENCIA', 0.95) });
+
+    const resultado = await pipeline.analyze(
+      peticion('ABONO TRANSFERENCIA ACH 71329455 BANCO DE CREDITO DE BOLIVIA S.A.'),
+    );
+
+    expect(resultado.matches[0]?.categoryCode).toBe('INGRESOS.TRANSFERENCIA');
+    expect(resultado.decidedBy).toBe('MODEL');
   });
 });

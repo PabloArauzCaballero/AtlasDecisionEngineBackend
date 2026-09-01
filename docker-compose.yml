@@ -386,6 +386,28 @@ services:
       # semántico NO: necesita credenciales de un proveedor de modelos, y
       # encenderlo sin ellas sólo encola trabajo condenado a fallar.
       BANK_STATEMENT_WORKER_ENABLED: ${BANK_STATEMENT_WORKER_ENABLED:-true}
+      # Las CUATRO compuertas de admisión del worker de extractos, y la política
+      # de meses. Existían en `env.schema.ts` y estaban documentadas en
+      # `.env.example`, pero NINGUNA llegaba al contenedor: este fichero no tiene
+      # `env_file`, así que lo que no se nombra aquí no existe dentro. El efecto
+      # era que las cuatro corrían con su valor compilado y no había forma de
+      # calibrarlas sin reconstruir la imagen —y la de vigencia, con su tolerancia
+      # de tres días, rechazaba TODO extracto real: uno descargado hoy cierra en
+      # su último movimiento, que en una cuenta poco usada es de la semana pasada.
+      #
+      # Van en forma desnuda: sin definir, compose omite la variable y manda el
+      # valor por omisión del esquema, que es el que el módulo eligió. Definirlas
+      # en `.env` es lo que las cambia.
+      BANK_STATEMENT_RECENCY_ENFORCE:
+      BANK_STATEMENT_RECENCY_TOLERANCE_DAYS:
+      BANK_STATEMENT_RECENCY_FUTURE_TOLERANCE_DAYS:
+      BANK_STATEMENT_ENFORCE_MINIMUM_MONTHS:
+      BANK_STATEMENT_REQUIRE_LICENSED_ISSUER:
+      BANK_STATEMENT_AUTHENTICITY_ENFORCE:
+      BANK_STATEMENT_AUTHENTICITY_REJECT_SCORE:
+      BANK_STATEMENT_AUTHENTICITY_REVIEW_SCORE:
+      BANK_STATEMENT_DOCUMENT_ACCEPT_CONFIDENCE:
+      BANK_STATEMENT_DOCUMENT_REVIEW_CONFIDENCE:
       # El de identidad también se enciende aquí: sus proveedores son
       # SINTÉTICOS y no dependen de nada externo. El catálogo publica
       # `ocrProvider: mock` para que la pantalla no lo presente como una
@@ -637,6 +659,28 @@ services:
       # procesado funcionando por detras: un desajuste que solo se ve ejerciendo la
       # API de verdad.
       BANK_STATEMENT_WORKER_ENABLED: ${BANK_STATEMENT_WORKER_ENABLED:-true}
+      # Las CUATRO compuertas de admisión del worker de extractos, y la política
+      # de meses. Existían en `env.schema.ts` y estaban documentadas en
+      # `.env.example`, pero NINGUNA llegaba al contenedor: este fichero no tiene
+      # `env_file`, así que lo que no se nombra aquí no existe dentro. El efecto
+      # era que las cuatro corrían con su valor compilado y no había forma de
+      # calibrarlas sin reconstruir la imagen —y la de vigencia, con su tolerancia
+      # de tres días, rechazaba TODO extracto real: uno descargado hoy cierra en
+      # su último movimiento, que en una cuenta poco usada es de la semana pasada.
+      #
+      # Van en forma desnuda: sin definir, compose omite la variable y manda el
+      # valor por omisión del esquema, que es el que el módulo eligió. Definirlas
+      # en `.env` es lo que las cambia.
+      BANK_STATEMENT_RECENCY_ENFORCE:
+      BANK_STATEMENT_RECENCY_TOLERANCE_DAYS:
+      BANK_STATEMENT_RECENCY_FUTURE_TOLERANCE_DAYS:
+      BANK_STATEMENT_ENFORCE_MINIMUM_MONTHS:
+      BANK_STATEMENT_REQUIRE_LICENSED_ISSUER:
+      BANK_STATEMENT_AUTHENTICITY_ENFORCE:
+      BANK_STATEMENT_AUTHENTICITY_REJECT_SCORE:
+      BANK_STATEMENT_AUTHENTICITY_REVIEW_SCORE:
+      BANK_STATEMENT_DOCUMENT_ACCEPT_CONFIDENCE:
+      BANK_STATEMENT_DOCUMENT_REVIEW_CONFIDENCE:
       # El de identidad también se enciende aquí: sus proveedores son
       # SINTÉTICOS y no dependen de nada externo. El catálogo publica
       # `ocrProvider: mock` para que la pantalla no lo presente como una
