@@ -50,28 +50,23 @@ x-build: &build
 
 services:
   # -------------------------------------------------------------------------------------------
-  # Job ONE-SHOT: migra y siembra. Las dos órdenes son IDEMPOTENTES, y por eso corre en cada `up`.
+  # Job ONE-SHOT: migra. Corre en cada `up` porque `prisma migrate deploy` es IDEMPOTENTE — aplica
+  # sólo lo que falta, y lo aplicado consta en `_prisma_migrations`.
   #
-  #   `prisma migrate deploy`  aplica sólo las migraciones que faltan; las aplicadas constan en
-  #                            `_prisma_migrations` y se saltan.
-  #   `prisma db seed`         con `SEED_ONLY_IF_EMPTY=true`, la guarda mira la MARCA
-  #                            `atlas_seed.load_log` del destino, no el número de filas. La carga
-  #                            escribe esa marca; una base que ya la tiene no se toca. Contar filas
-  #                            NO servía: una base recién migrada ya trae permisos internos y
-  #                            plantillas, así que con «¿hay alguna tabla poblada?» el arranque se
-  #                            saltaba la siembra en una base virgen y dejaba el motor sin catálogo
-  #                            de artefactos — es decir, sin nada que decidir.
+  # **No siembra, y es deliberado.** `prisma db seed` ejecuta `ts-node --transpile-only
+  # prisma/seed.ts`, y arrastrar `ts-node` obligaba a hornear el árbol de desarrollo entero en la
+  # imagen. Quien siembra es `SeedingService` al arrancar el WORKER: mismo trabajo, desde código ya
+  # compilado, con el MISMO cerrojo consultivo y la MISMA guarda —la marca `atlas_seed.load_log` del
+  # destino, no el número de filas—. Una base que ya la tiene no se toca; una virgen se siembra. Y
+  # sólo corre donde corren los trabajos de fondo, así que escalar la API no multiplica los intentos.
   #
-  # La única vez que esto no es inocuo es la PRIMERA contra una base de Neon que ya tenga datos
-  # puestos por otra vía y ninguna marca: la guarda la considera virgen y el pull vacía las tablas
-  # del manifiesto antes de cargarlas. Ver el README del paquete de despliegue.
+  # Para rehacer el conjunto a propósito hace falta un árbol con `ts-node`, o sea desde tu máquina:
+  #   yarn prisma:seed
   # -------------------------------------------------------------------------------------------
   migrate:
     <<: *build
     env_file: ['${ATLAS_ENV_DIR:-/opt/atlas/env}/motor.env']
-    command: >
-      sh -c "npx prisma migrate deploy &&
-             npx prisma db seed"
+    command: ['npx', 'prisma', 'migrate', 'deploy']
     networks: [atlas_vps]
     restart: 'no'
 

@@ -9,11 +9,24 @@
 #
 # Dos objetivos, no uno:
 #
-#   app         API + worker + migraciones + semillas + smoke. Es lo que se usa a diario.
-#   pdf-worker  El generador documental. Va APARTE y no por gusto: su base es la imagen oficial
-#               de Playwright y ocupa ~4,4 GB con Chromium dentro. En un VPS con el disco contado
-#               eso es la diferencia entre caber y no caber, así que el compose lo deja detrás de
-#               un perfil y sólo se construye cuando se van a probar PDFs.
+#   app         API + worker + migraciones. Es lo que se usa a diario.
+#   pdf-worker  El generador documental. Va APARTE y no por gusto: su base es la imagen oficial de
+#               Playwright y ocupa ~4,4 GB con Chromium dentro. En un VPS con el disco contado eso
+#               es la diferencia entre caber y no caber, así que el compose lo deja detrás de un
+#               perfil y sólo se construye cuando se van a probar PDFs.
+#
+# ## Cómo se siembra, que determina qué NO lleva esta imagen
+#
+# `prisma db seed` NO se usa aquí. Ejecuta `ts-node --transpile-only prisma/seed.ts`, y `ts-node`
+# es una dependencia de desarrollo: arrastrarla obligaba a hornear el árbol ENTERO —casi 700 MB
+# para una sola orden—. Quien siembra es `SeedingService` al arrancar el WORKER, desde código ya
+# compilado y con la MISMA guarda (`atlas_seed.load_log`) y el mismo cerrojo consultivo. El job de
+# migración se queda sólo con `prisma migrate deploy`.
+#
+# Lo que sí se conserva del árbol de producción, contra lo que hace la imagen de producción, es el
+# CLI de Prisma y `@prisma/engines`: `migrate deploy` necesita el `schema-engine`. Son ~87 MB y sin
+# ellos el job de migración muere con «prisma: not found» en un VPS donde no hay forma de arreglarlo
+# desde fuera. Sí se poda `typescript`, que aquí no compila nada: el código ya viene en `dist/`.
 #
 # Construcción:
 #   docker build -f Dockerfile.dev --target app        -t atlas-decision:dev .
@@ -32,6 +45,22 @@ RUN apt-get update \
 COPY package.json yarn.lock ./
 RUN --mount=type=cache,id=atlas-yarn-dev,target=/usr/local/share/.cache/yarn \
     yarn install --frozen-lockfile
+
+# ---------------------------------------------------------------------------------------------
+FROM node:22-bookworm-slim AS build
+WORKDIR /app
+ENV NODE_ENV=development
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+# El cliente de Prisma se genera ANTES de compilar: `nest build` compila código que ya lo importa.
+#
+# `--max-old-space-size=2048` SÓLO para esta orden, y es la corrección de un fallo real: la cota de
+# ejecución (512 MiB) declarada antes de este `RUN` también la heredaba el build, y `prisma generate`
+# moría con «JavaScript heap out of memory» y `exit code 134` — un aborto de V8 que no menciona la
+# memoria en su primera línea y que parece un fallo del generador. Compilar y ejecutar tienen
+# necesidades opuestas: el compilador carga el programa entero en memoria una vez, el servidor no.
+RUN NODE_OPTIONS=--max-old-space-size=2048 yarn prisma generate \
+ && NODE_OPTIONS=--max-old-space-size=2048 yarn build
 
 # ---------------------------------------------------------------------------------------------
 FROM node:22-bookworm-slim AS app
@@ -53,39 +82,40 @@ RUN apt-get update \
        ca-certificates dumb-init openssl python3 fonts-dejavu-core postgresql-client \
   && rm -rf /var/lib/apt/lists/*
 
-ENV NODE_ENV=development
+COPY package.json yarn.lock ./
+# Dependencias de PRODUCCIÓN, conservando el CLI de Prisma y sus motores —los necesita
+# `migrate deploy`— y podando `typescript`, que aquí no compila nada. La poda va en el MISMO `RUN`
+# que la instalación: un `rm` en otra instrucción deja los ficheros vivos en la capa anterior y la
+# imagen no adelgaza ni un byte.
+RUN --mount=type=cache,id=atlas-yarn-prod-dev,target=/usr/local/share/.cache/yarn \
+    yarn install --frozen-lockfile --production \
+    && rm -rf node_modules/typescript node_modules/.bin/tsc node_modules/.bin/tsserver
 
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+# El cliente GENERADO por la etapa de build. `@prisma/client` no declara dependencias, así que la
+# instalación de producción ya dejó su copia correcta y aquí basta con el resultado de `generate`.
+COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=build /app/dist ./dist
+# El esquema y las migraciones: `prisma migrate deploy` los nombra por ruta. `prisma.config.ts` es
+# quien le dice dónde están; sin él el CLI busca en el sitio por defecto y no encuentra nada.
+COPY prisma.config.ts ./
+COPY prisma/schema.prisma ./prisma/schema.prisma
+COPY prisma/migrations ./prisma/migrations
+COPY docker/healthcheck.mjs ./docker/healthcheck.mjs
 
-# El cliente de Prisma se genera ANTES de compilar: `nest build` compila código que ya lo importa.
-#
-# `--max-old-space-size=2048` SÓLO para esta orden, y es la corrección de un fallo real: la cota de
-# ejecución (512 MiB, más abajo) declarada antes de este `RUN` también la heredaba el build, y
-# `prisma generate` moría con «JavaScript heap out of memory» y `exit code 134` — un aborto de V8
-# que no menciona la memoria en su primera línea y que parece un fallo del generador de Prisma.
-# Compilar y ejecutar tienen necesidades opuestas: el compilador carga el programa entero en
-# memoria una vez, el servidor no.
-RUN NODE_OPTIONS=--max-old-space-size=2048 yarn prisma generate \
- && NODE_OPTIONS=--max-old-space-size=2048 yarn build
-
-# `runner/` y `smoke/` se conservan: el sidecar de scripts se arranca desde ahí y el smoke lee
-# `demo-applicant.json` del disco por ruta. En la imagen de producción viven en otras etapas; aquí
-# no hay otras etapas.
-RUN chown -R node:node /app/dist /app/node_modules/.prisma
 USER node
 
 # V8 dimensiona su heap por la memoria de la MÁQUINA, no por el límite del contenedor: sin cota
 # explícita, un contenedor de 768 MiB planifica recolecciones como si tuviera la RAM del VPS entero
 # y el OOM killer lo mata antes de que el GC decida actuar. Va DESPUÉS del build a propósito — ver
-# la nota de arriba. Cualquier despliegue puede subirla sobrescribiendo NODE_OPTIONS.
-ENV NODE_OPTIONS=--max-old-space-size=512 \
+# la nota de la etapa `build`. Cualquier despliegue puede subirla sobrescribiendo NODE_OPTIONS.
+ENV NODE_ENV=development \
+    NODE_OPTIONS=--max-old-space-size=512 \
     PORT=3000 \
     WORKER_HEALTH_PORT=3001
 EXPOSE 3000 3001
 
 # `start-period` de 45 s: el arranque abre el pool de Postgres —que aquí es Neon, o sea a través de
-# Internet—, conecta Redis y monta el AppModule completo. Con 20 s, un primer sondeo contaba fallos
+# Internet— conecta Redis y monta el AppModule completo. Con 20 s, un primer sondeo contaba fallos
 # contra `--retries` durante un arranque perfectamente normal.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
   CMD ["node", "docker/healthcheck.mjs"]
@@ -129,7 +159,7 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends dumb-init \
   && rm -rf /var/lib/apt/lists/* \
   && node -e "const {chromium}=require('playwright');const p=chromium.executablePath();require('node:fs').accessSync(p);console.log('Chromium verificado: '+p)"
-COPY --from=app /app/dist ./dist
+COPY --from=build /app/dist ./dist
 COPY docker/healthcheck.mjs ./docker/healthcheck.mjs
 # `/dev/shm` son 64 MiB por omisión y Chromium los agota rasterizando una página grande. El
 # adaptador ya pasa `--disable-dev-shm-usage`, así que usa `/tmp`: este directorio tiene que existir
