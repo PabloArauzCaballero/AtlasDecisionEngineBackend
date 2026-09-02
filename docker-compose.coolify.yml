@@ -136,6 +136,13 @@ services:
     environment:
       WORKER_ROLE: API
       PORT: '3000'
+      # La sonda del HEALTHCHECK elige puerto con `HEALTHCHECK_PORT ?? WORKER_HEALTH_PORT ??
+      # PORT`, y la IMAGEN fija `WORKER_HEALTH_PORT=3001` para el worker. Sin esta línea, el
+      # contenedor de la API hereda ese 3001 y se sondea a sí mismo en un puerto donde no
+      # escucha nadie: queda `unhealthy` para siempre aunque responda 200 en el 3000, y Coolify
+      # lo pinta como «degraded». El worker sí está sano, que es lo que despista — usan la misma
+      # imagen y la misma sonda, y sólo difieren en el puerto.
+      HEALTHCHECK_PORT: '3000'
       # La API no ejecuta trabajos de fondo: de eso se encarga `worker`. Dos planificadores
       # compitiendo por el mismo cerrojo son trabajo duplicado y contención en la base.
       JOB_SCHEDULER_ENABLED: 'false'
