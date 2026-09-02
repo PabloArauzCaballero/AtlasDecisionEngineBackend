@@ -1,0 +1,120 @@
+# Auto-despliegue de `dev` hacia Coolify, entrando por Tailscale.
+#
+#   git push origin dev  →  GitHub Actions  →  Tailscale  →  Coolify  →  build y deploy
+#
+# ## Por qué pasa por Tailscale y no por una URL pública
+#
+# Coolify vive en `http://100.101.207.88:8000`, una dirección de la red privada Tailscale. Un
+# runner de GitHub no la alcanza desde fuera, así que se une a la tailnet durante el trabajo con
+# una credencial efímera y sale de ella al terminar. La alternativa —publicar Coolify en internet
+# para que GitHub pueda llamarlo— expondría el panel que controla TODOS los despliegues a cambio
+# de ahorrar treinta segundos de configuración.
+#
+# ## Este workflow NO construye nada, y es deliberado
+#
+# No hay `yarn install`, ni `docker build`, ni `docker push`. Lo único que hace es AVISAR a
+# Coolify; quien clona la rama, construye la imagen y levanta los contenedores es Coolify, con el
+# mismo `docker-compose.coolify.yml` que se usa al desplegar a mano. Construir aquí además
+# significaría mantener dos rutas de build que se separan en cuanto una cambie, y el día que se
+# separen el artefacto que se prueba deja de ser el que se despliega.
+#
+# ## Los secrets, y por qué se llaman así
+#
+# Los nombres NO son los genéricos del manual: son los que ya existían en este repositorio
+# (`gh secret list`), y cambiarlos habría dejado el workflow apuntando a secrets vacíos sin un
+# solo error visible hasta el primer despliegue.
+#
+#   PABLO_H310_TAILSCALE_AUTHKEY   credencial efímera para unirse a la tailnet
+#   PABLO_H310_COOLIFY_TOKEN       API token de Coolify con permiso de despliegue
+#   PABLO_H310_COOLIFY_WEBHOOK     URL de despliegue de ESTA aplicación
+#
+# El webhook lleva el UUID del recurso, así que **es distinto en cada repositorio**. El token sí
+# puede repetirse mientras tenga permiso sobre todos los recursos.
+#
+# Ninguno de los tres se imprime nunca: `${{ secrets.* }}` sólo se referencia dentro de `env:`, y
+# no hay `echo`, `env` ni `set` que pudieran volcarlos al log.
+
+name: Deploy DEV to Coolify
+
+on:
+  push:
+    branches:
+      - dev
+
+# Un grupo por repositorio: dos empujones seguidos no deben encolar dos despliegues, y el que
+# importa es siempre el último. `cancel-in-progress` descarta el anterior en cuanto llega uno nuevo.
+concurrency:
+  group: atlas-decision-engine-backend-deploy-dev
+  cancel-in-progress: true
+
+# Sólo lectura: este trabajo no escribe en el repositorio ni publica paquetes.
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy DEV
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          authkey: ${{ secrets.PABLO_H310_TAILSCALE_AUTHKEY }}
+
+      # Se comprueba la conectividad ANTES de disparar, y separado, porque los dos fallos se
+      # arreglan en sitios distintos: si esto falla el problema es Tailscale o que Coolify no está
+      # escuchando; si falla el paso siguiente, el problema es el token o el UUID del webhook.
+      # Juntarlos daría un único error ambiguo.
+      - name: Verify Coolify connectivity
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --connect-timeout 10 \
+            --max-time 20 \
+            http://100.101.207.88:8000/api/health \
+            >/dev/null
+
+      - name: Trigger Coolify deployment
+        shell: bash
+        env:
+          COOLIFY_DEPLOY_WEBHOOK: ${{ secrets.PABLO_H310_COOLIFY_WEBHOOK }}
+          COOLIFY_API_TOKEN: ${{ secrets.PABLO_H310_COOLIFY_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # Un secret ausente llega como cadena VACÍA, no como error: sin estas dos guardas el
+          # `curl` saldría contra una URL vacía y el trabajo podría acabar en verde sin haber
+          # desplegado nada. Se comprueba que existen, nunca se imprime su valor.
+          if [ -z "${COOLIFY_DEPLOY_WEBHOOK:-}" ]; then
+            echo "::error::Falta el secret del webhook de despliegue de Coolify."
+            exit 1
+          fi
+
+          if [ -z "${COOLIFY_API_TOKEN:-}" ]; then
+            echo "::error::Falta el secret del API token de Coolify."
+            exit 1
+          fi
+
+          # `--fail-with-body` y no `--fail` a secas: ante un 401 o un 404 queremos leer lo que
+          # Coolify responde, que es lo que distingue «el token no vale» de «ese UUID no existe».
+          curl \
+            --fail-with-body \
+            --silent \
+            --show-error \
+            --connect-timeout 10 \
+            --max-time 60 \
+            --request GET \
+            "${COOLIFY_DEPLOY_WEBHOOK}" \
+            --header "Authorization: Bearer ${COOLIFY_API_TOKEN}"
+
+          echo
+          echo "Despliegue solicitado a Coolify."
+          echo "OJO: esto confirma que Coolify RECIBIÓ la orden, no que la aplicación haya"
+          echo "terminado de desplegarse. Eso se mira en Deployment Logs."
