@@ -86,6 +86,11 @@ services:
   #   yarn prisma:seed
   # -------------------------------------------------------------------------------------------
   migrate:
+    # `init: true` sustituye al `dumb-init` que iba como ENTRYPOINT en la imagen: ahora es un
+    # paquete opcional (el espejo de Debian puede no responder) y apuntar a un binario que quizá
+    # no está deja el contenedor sin arrancar. Docker trae su propio init y hace lo mismo: sin él,
+    # `SIGTERM` no llega a Node y el apagado ordenado no corre nunca.
+    init: true
     <<: *build
     env_file: ['${ATLAS_ENV_DIR:-/opt/atlas/env}/motor.env']
     command: ['npx', 'prisma', 'migrate', 'deploy']
@@ -93,6 +98,11 @@ services:
     restart: 'no'
 
   api:
+    # `init: true` sustituye al `dumb-init` que iba como ENTRYPOINT en la imagen: ahora es un
+    # paquete opcional (el espejo de Debian puede no responder) y apuntar a un binario que quizá
+    # no está deja el contenedor sin arrancar. Docker trae su propio init y hace lo mismo: sin él,
+    # `SIGTERM` no llega a Node y el apagado ordenado no corre nunca.
+    init: true
     <<: [*common, *build]
     env_file: ['${ATLAS_ENV_DIR:-/opt/atlas/env}/motor.env']
     environment:
@@ -118,6 +128,11 @@ services:
           memory: 1g
 
   worker:
+    # `init: true` sustituye al `dumb-init` que iba como ENTRYPOINT en la imagen: ahora es un
+    # paquete opcional (el espejo de Debian puede no responder) y apuntar a un binario que quizá
+    # no está deja el contenedor sin arrancar. Docker trae su propio init y hace lo mismo: sin él,
+    # `SIGTERM` no llega a Node y el apagado ordenado no corre nunca.
+    init: true
     <<: [*common, *build]
     env_file: ['${ATLAS_ENV_DIR:-/opt/atlas/env}/motor.env']
     environment:

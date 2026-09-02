@@ -77,10 +77,42 @@ WORKDIR /app
 #
 # `postgresql-client` es el añadido propio de esta imagen: en un VPS sin herramientas, tener un
 # `psql` es la diferencia entre diagnosticar la base y adivinar.
+#
+# El `apt` va en DOS pasos, y la separación es el arreglo: lo que la imagen no puede perder,
+# aparte de lo que sólo ayuda.
+#
+# En un despliegue de AtlasBackend esta misma clase de línea tumbó el build dos veces con `exit
+# code: 100`, y la causa no estaba en el Dockerfile: el demonio de Docker no tenía DNS —Ubuntu
+# apunta `/etc/resolv.conf` a `127.0.0.53`, que dentro de un contenedor es el propio contenedor—.
+# Se arregla en el host, pero una imagen no debería quedarse sin arrancar porque un espejo de
+# Debian no conteste.
+#
+# IMPRESCINDIBLES: `openssl` lo sondea la generación del cliente de Prisma y sin él elige un
+# binario que no existe en esta base; `fonts-dejavu-core` es lo que impide que las tarjetas
+# sintéticas salgan EN BLANCO —sin una sola fuente el texto se dibuja vacío, el lector no
+# encuentra una letra y el escenario falla con «no se pudo leer el documento», que parece un fallo
+# del OCR—. Si estos no se pueden instalar, el build DEBE fallar.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssl fonts-dejavu-core \
+  && rm -rf /var/lib/apt/lists/*
+
+# PRESCINDIBLES, y por eso van en su propio `RUN` con `|| echo`:
+#
+#   dumb-init          se sustituye por `init: true` en el compose, que es el init que trae Docker
+#                      y no depende de descargar nada. Por eso ya NO es el ENTRYPOINT.
+#   ca-certificates    Node trae su propio almacén de CA compilado dentro; verificado en la imagen
+#                      hermana: un `fetch` a https devuelve 200 sin el paquete.
+#   python3            sólo lo usa `PYTHON_EXECUTABLE` para los nodos de script, que este
+#                      despliegue tiene APAGADOS.
+#   postgresql-client  diagnosticar la base desde dentro del contenedor, y sólo eso.
+#
+# Si el espejo responde, la imagen se los lleva; si no, el despliegue SIGUE. Una herramienta de
+# diagnóstico no puede ser el motivo de que no haya nada que diagnosticar.
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
-       ca-certificates dumb-init openssl python3 fonts-dejavu-core postgresql-client \
-  && rm -rf /var/lib/apt/lists/*
+       ca-certificates dumb-init python3 postgresql-client \
+  && rm -rf /var/lib/apt/lists/* \
+  || echo 'AVISO: no se pudieron instalar los paquetes opcionales (psql, python3, dumb-init); la imagen funciona igual'
 
 COPY package.json yarn.lock ./
 # Dependencias de PRODUCCIÓN, conservando el CLI de Prisma y sus motores —los necesita
@@ -120,7 +152,9 @@ EXPOSE 3000 3001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
   CMD ["node", "docker/healthcheck.mjs"]
 
-ENTRYPOINT ["dumb-init", "--"]
+# Sin `ENTRYPOINT` con dumb-init: ahora es un paquete opcional, y apuntar a un binario que puede
+# no estar deja el contenedor sin arrancar —que es peor que no tener init—. Lo pone el compose con
+# `init: true`, y hace el mismo trabajo: repartir SIGTERM para que el apagado ordenado corra.
 CMD ["node", "dist/main.js"]
 
 # ---------------------------------------------------------------------------------------------

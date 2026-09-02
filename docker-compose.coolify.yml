@@ -1,0 +1,153 @@
+# Despliegue del motor de decisión gestionado por COOLIFY.
+#
+# Va aparte de `docker-compose.dev.yml` —el del VPS operado a mano, con los `.env` en
+# `/opt/atlas/env`— porque las dos formas de configurar son incompatibles.
+#
+# ## La configuración NO se declara aquí, y eso es deliberado
+#
+# Coolify añade `env_file: - .env` a CADA servicio por su cuenta, con las variables de
+# **Application → Environment Variables** dentro. Se comprobó leyendo el compose ya resuelto que
+# publica su propio panel. Eso tiene dos consecuencias que ahorran mucho trabajo y un error:
+#
+# 1. **No hay que nombrar las variables una a una.** El `motor.env` de este despliegue define 156
+#    claves; declararlas en un ancla `x-` sería copiarlas a mano y mantener dos listas.
+# 2. **Una clave que no pongas llega AUSENTE, no vacía.** Es la diferencia que tumbó el
+#    despliegue de AtlasBackend: con un ancla, `${VAR:-}` escribe la cadena vacía, y de las 156
+#    claves del motor **108 la rechazan** —el arranque muere hablando del campo, no de la causa—.
+#    Con el `.env` de Coolify, lo que no está simplemente no está, que es lo que el esquema
+#    espera de un valor opcional.
+#
+# Aquí sólo se fijan los ajustes que distinguen un servicio de otro (rol, puerto, planificador),
+# que son los que NO pueden vivir en un `.env` compartido por los tres.
+#
+# ## Cómo se sube la configuración
+#
+# Pega el contenido de `atlas-vps-testing/env/motor.env` en Environment Variables. En bloque, no
+# clave por clave: pegando de una vez, las que no tengan valor no se crean.
+#
+# ## Lo que este archivo NO trae, y por qué
+#
+# **La red externa `atlas_vps` y los puertos publicados.** Coolify crea una red por proyecto y
+# publica por su proxy con TLS. Declarar una red externa obliga a crearla a mano en el host, y
+# publicar `3020:3000` a pelo deja el motor accesible por un segundo camino sin cifrar.
+#
+# **`script-runner`, `litellm` y `transformer`.** Igual que en el compose del VPS: el sidecar de
+# scripts sólo es tolerable bajo gVisor, y los otros dos son imágenes de varios gigas. Consecuencia
+# que hay que conocer antes de reportar un fallo: los nodos de script están APAGADOS
+# (`SCRIPT_NODES_ENABLED=false`) y el análisis semántico responde «proveedor no configurado». Es lo
+# esperado de este despliegue, no una avería.
+#
+# ## Lo que hay que tener resuelto ANTES de desplegar
+#
+# **El DNS del demonio de Docker.** En Ubuntu, `/etc/resolv.conf` apunta a `127.0.0.53`, que
+# dentro de un contenedor es el propio contenedor: `apt-get` y `yarn` fallan sin decir por qué.
+# Se arregla con `"dns": ["1.1.1.1","8.8.8.8"]` en `/etc/docker/daemon.json` —FUSIONÁNDOLO, no
+# sobrescribiéndolo— y se comprueba con `docker run --rm alpine nslookup registry.yarnpkg.com`.
+#
+# **El endpoint de Neon tiene que ser el DIRECTO**, sin `-pooler`: el de PgBouncer en modo
+# transacción rompe los cerrojos de sesión de la siembra, el `LISTEN` de los trabajos de fondo y
+# las migraciones, y ninguno de los tres fallos lo menciona.
+
+name: atlas-motor
+
+x-common: &common
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: '10m'
+      max-file: '3'
+
+# La imagen se construye UNA VEZ, y sólo `migrate` la declara.
+#
+# Los tres servicios son EL MISMO artefacto con distinto `WORKER_ROLE`, así que los tres apuntan
+# al mismo tag. Si los tres llevaran `build:`, Compose lanzaría tres construcciones CONCURRENTES
+# de la misma imagen —en el log de Coolify se lee «Building» tres veces— y en un VPS eso agota la
+# memoria: el OOM se lleva una, distinta en cada intento. Pasó con AtlasBackend y el objetivo que
+# moría iba bailando entre `worker` y `api`, que es la firma de una carrera por recursos y no de
+# un fallo del código.
+x-image: &image
+  image: atlas-decision:coolify
+
+x-build: &build
+  image: atlas-decision:coolify
+  build:
+    context: .
+    dockerfile: Dockerfile.dev
+    target: app
+    cache_from: ['atlas-decision:coolify']
+
+services:
+  # Job de UN SOLO DISPARO. `prisma migrate deploy` es idempotente —aplica sólo lo que falta— así
+  # que corre en cada despliegue sin coste.
+  #
+  # **No siembra, y es deliberado.** `prisma db seed` ejecuta `ts-node`, que esta imagen no lleva.
+  # Quien siembra es `SeedingService` al arrancar el WORKER: mismo trabajo desde código compilado,
+  # con el mismo cerrojo consultivo y la misma guarda (la marca de `atlas_seed.load_log`, no el
+  # número de filas). Una base que ya la tiene no se toca; una virgen se siembra.
+  #
+  # Que `migrate` aparezca como EXITED en el panel es lo correcto: terminó. Lo que hay que mirar
+  # es su código de salida — si fuera distinto de cero, `api` y `worker` no arrancarían nunca,
+  # porque esperan a `service_completed_successfully`.
+  migrate:
+    <<: *build
+    init: true
+    environment:
+      WORKER_ROLE: API
+    command: ['npx', 'prisma', 'migrate', 'deploy']
+    restart: 'no'
+
+  api:
+    <<: [*common, *image]
+    init: true
+    environment:
+      WORKER_ROLE: API
+      PORT: '3000'
+      # La API no ejecuta trabajos de fondo: de eso se encarga `worker`. Dos planificadores
+      # compitiendo por el mismo cerrojo son trabajo duplicado y contención en la base.
+      JOB_SCHEDULER_ENABLED: 'false'
+    # Sin `ports:` — lo publica el proxy de Coolify, con TLS y el dominio configurado.
+    expose: ['3000']
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    stop_grace_period: 25s
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  worker:
+    <<: [*common, *image]
+    init: true
+    environment:
+      WORKER_ROLE: WORKER
+      WORKER_HEALTH_PORT: '3001'
+      JOB_SCHEDULER_ENABLED: 'true'
+      # Pool más pequeño que el de la API: la concurrencia del worker la fija el número de
+      # trabajos, no el tráfico. Y en Neon las conexiones se cuentan — dos procesos con 15 cada
+      # uno agotan el cupo del proyecto, y el fallo aparece en el que llegue tarde, no en el que
+      # las gastó.
+      DATABASE_POOL_MAX: '5'
+    # Sólo en el bucle local: es la sonda de salud, no atiende tráfico de negocio.
+    ports: ['127.0.0.1:3021:3001']
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    command: ['node', 'dist/worker.js']
+    stop_grace_period: 30s
+    deploy:
+      resources:
+        limits:
+          # 1,25 GB y no 768 MB, y el número sale de MEDIR el worker de identidad: una
+          # verificación completa —Tesseract con el modelo del español, las cinco redes de Human
+          # sobre tfjs-wasm y los búferes de sharp— llega a **712 MB de RSS de pico**. Con el tope
+          # en 768 MB quedaban 56 MB de margen y la segunda verificación simultánea lo cruzaba: el
+          # contenedor moría por OOM y el síntoma —«el worker se reinicia solo»— no menciona la
+          # memoria. Por eso `IDENTITY_WORKER_CONCURRENCY=1` en `motor.env`.
+          #
+          # El heap de V8 NO es la restricción: medido, `heapUsed` pica en 56 MB de 560, y 293 MB
+          # del RSS son «external» —la memoria lineal del WASM de tfjs y de Tesseract, más los
+          # búferes de sharp—. Subir `--max-old-space-size` no arregla nada; lo que cuenta es este
+          # tope.
+          memory: 1250m
