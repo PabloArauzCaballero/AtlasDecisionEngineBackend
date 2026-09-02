@@ -119,15 +119,20 @@ jobs:
               ;;
           esac
 
-          # `--fail-with-body` y no `--fail` a secas: ante un 401 o un 404 queremos leer lo que
-          # Coolify responde, que es lo que distingue «el token no vale» de «ese UUID no existe».
+          # POST, no GET. Coolify 4.3.x cambió este endpoint y contesta al GET con
+          # `405 {"message":"This endpoint has changed to a POST request."}`, que es un fallo
+          # limpio pero fácil de confundir con un problema de permisos.
+          #
+          # `--fail-with-body` y no `--fail` a secas: ante un 401, un 404 o un 405 queremos LEER lo
+          # que Coolify responde. Es lo que distingue «el token no vale» de «ese UUID no existe» de
+          # «el método cambió» — con `--fail` a secas los tres se ven igual, como un exit 22.
           curl \
             --fail-with-body \
             --silent \
             --show-error \
             --connect-timeout 10 \
             --max-time 60 \
-            --request GET \
+            --request POST \
             "${COOLIFY_DEPLOY_WEBHOOK}" \
             --header "Authorization: Bearer ${COOLIFY_API_TOKEN}"
 
