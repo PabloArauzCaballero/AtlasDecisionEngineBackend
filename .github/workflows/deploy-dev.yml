@@ -102,6 +102,23 @@ jobs:
             exit 1
           fi
 
+          # La FORMA del webhook se valida antes de usarlo, y no es celo: un webhook sin `:8000`
+          # cae en el nginx del puerto 80 del host y devuelve un `404 Not Found` de nginx. Ese
+          # error no menciona a Coolify por ninguna parte y manda a revisar el UUID del recurso
+          # —que está bien— en vez del puerto, que es lo que falta. Pasó en el primer despliegue.
+          case "${COOLIFY_DEPLOY_WEBHOOK}" in
+            *:8000/api/v1/deploy*) ;;
+            *)
+              echo "::error::El webhook no tiene la forma esperada. Coolify escucha en el puerto"
+              echo "::error::8000, y la URL debe ser del tipo:"
+              echo "::error::  http://<host>:8000/api/v1/deploy?uuid=<UUID_DEL_RECURSO>&force=false"
+              echo "::error::Sácala de Coolify -> la aplicación -> Webhooks -> Deploy Webhook."
+              echo "::error::Sin el :8000 la petición cae en el nginx del host y devuelve un 404"
+              echo "::error::que no menciona a Coolify."
+              exit 1
+              ;;
+          esac
+
           # `--fail-with-body` y no `--fail` a secas: ante un 401 o un 404 queremos leer lo que
           # Coolify responde, que es lo que distingue «el token no vale» de «ese UUID no existe».
           curl \
