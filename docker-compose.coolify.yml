@@ -27,10 +27,8 @@
 #
 # ## Lo que este archivo NO trae, y por qué
 #
-# **La red externa `atlas_vps`.** Coolify crea una red por proyecto; declarar una externa obliga a
-# crearla a mano en el host. Lo que SÍ se publica es el 3020, y sólo en la interfaz de Tailscale:
-# es el camino por el que AtlasBackend —que en Coolify vive en OTRA red— alcanza a este motor.
-# Los navegadores siguen entrando por el proxy de Coolify, con TLS.
+# **La red externa `atlas_vps` ni puertos del host.** Los bloques se encuentran por la red
+# compartida `coolify` con un alias estable; ver la nota del final del archivo.
 #
 # **`script-runner`, `litellm` y `transformer`.** Igual que en el compose del VPS: el sidecar de
 # scripts sólo es tolerable bajo gVisor, y los otros dos son imágenes de varios gigas. Consecuencia
@@ -126,6 +124,13 @@ services:
     restart: 'no'
 
   api:
+    # Alias ESTABLE en la red compartida: es como lo encuentran los otros bloques.
+    # El nombre del contenedor lleva una marca de tiempo y cambia en cada despliegue;
+    # este alias no.
+    networks:
+      default: {}
+      coolify:
+        aliases: ['motor']
     <<: [*common, *image]
     init: true
     environment:
@@ -134,18 +139,6 @@ services:
       # La API no ejecuta trabajos de fondo: de eso se encarga `worker`. Dos planificadores
       # compitiendo por el mismo cerrojo son trabajo duplicado y contención en la base.
       JOB_SCHEDULER_ENABLED: 'false'
-    # Publicado SÓLO en la interfaz de Tailscale, y por la misma razón que en AtlasBackend:
-    # AtlasBackend corre como OTRA aplicación de Coolify, o sea en OTRA red, y no puede alcanzar
-    # a este servicio por su nombre. `motor` era un alias de la red compartida `atlas_vps` del
-    # VPS operado a mano; aquí no resuelve, y el fallo se lee como «el motor está caído».
-    #
-    # `100.101.207.88` es una IP real del host, así que un contenedor de otra aplicación sí la
-    # alcanza; `127.0.0.1` no serviría —dentro de un contenedor es el propio contenedor—. Al
-    # atarlo a esa interfaz el camino queda dentro del tailnet y no en la IP pública.
-    #
-    # Coolify sigue publicando este servicio por su proxy con TLS para los navegadores; esto es
-    # el camino interno entre bloques.
-    ports: ['100.101.207.88:3020:3000']
     expose: ['3000']
     depends_on:
       redis:
@@ -197,3 +190,26 @@ services:
 
 volumes:
   redis-data:
+
+# ---------------------------------------------------------------------------------------------
+# La red COMPARTIDA de Coolify, y por qué no se publican puertos del host.
+#
+# Coolify nombra cada contenedor con una MARCA DE TIEMPO —`api-<uuid>-124239539875`—, así que en
+# cada despliegue crea uno NUEVO en vez de reemplazar el anterior. Con un puerto fijo del host eso
+# choca siempre: el contenedor viejo sigue sujetando el puerto y el nuevo muere con
+# `failed to bind host port ...: address already in use`. No es un puerto mal elegido: es que
+# publicar un puerto fijo es incompatible con cómo despliega Coolify.
+#
+# La salida es la red compartida `coolify`, a la que se unen todas las aplicaciones, con un ALIAS
+# estable por servicio. El alias no cambia entre despliegues —el nombre del contenedor sí— así que
+# los bloques se encuentran por nombre igual que hacían en el VPS operado a mano, y sin abrir un
+# solo puerto en el host.
+#
+# **Hace falta activar «Connect To Predefined Network» en esta aplicación dentro de Coolify.** Sin
+# eso la red no existe para ella y el despliegue falla diciendo que no la encuentra, que es un
+# fallo claro y no silencioso.
+networks:
+  default: {}
+  coolify:
+    external: true
+    name: coolify
