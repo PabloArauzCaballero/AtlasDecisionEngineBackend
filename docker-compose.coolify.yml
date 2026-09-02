@@ -79,6 +79,33 @@ x-build: &build
     cache_from: ['atlas-decision:coolify']
 
 services:
+  # Redis PROPIO, y aquí no se comparte con AtlasBackend.
+  #
+  # El compose del VPS operado a mano no lo traía: tomaba prestado el de AtlasBackend por la red
+  # compartida `atlas_vps` (`REDIS_URL=redis://redis:6379`). En Coolify cada aplicación tiene su
+  # propia red, así que ese nombre no resuelve — y el fallo NO es ruidoso: `CacheService` cae a un
+  # respaldo EN MEMORIA y el proceso sigue. `/health/data-sources` publica entonces
+  # `redis-cache: up` con `detail: "memory"`, que es fácil de leer como que todo va bien.
+  #
+  # Lo que se pierde con el respaldo en memoria no es rendimiento: es que la caché deja de ser
+  # COMPARTIDA. `api` y `worker` son dos procesos, así que cada uno cachea por su cuenta y ninguno
+  # ve las invalidaciones del otro — un despliegue que publica una versión de artefacto puede
+  # seguir sirviendo la anterior desde el proceso que no se enteró.
+  #
+  # 256 MB con `allkeys-lru`: es una caché, no un almacén. Si se llena, que tire lo más viejo en
+  # vez de empezar a rechazar escrituras.
+  redis:
+    <<: *common
+    image: redis:7-alpine
+    command:
+      ['redis-server', '--appendonly', 'yes', '--maxmemory', '256mb', '--maxmemory-policy', 'allkeys-lru']
+    volumes: ['redis-data:/data']
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   # Job de UN SOLO DISPARO. `prisma migrate deploy` es idempotente —aplica sólo lo que falta— así
   # que corre en cada despliegue sin coste.
   #
@@ -121,6 +148,8 @@ services:
     ports: ['100.101.207.88:3020:3000']
     expose: ['3000']
     depends_on:
+      redis:
+        condition: service_healthy
       migrate:
         condition: service_completed_successfully
     stop_grace_period: 25s
@@ -144,6 +173,8 @@ services:
     # Sólo en el bucle local: es la sonda de salud, no atiende tráfico de negocio.
     ports: ['127.0.0.1:3021:3001']
     depends_on:
+      redis:
+        condition: service_healthy
       migrate:
         condition: service_completed_successfully
     command: ['node', 'dist/worker.js']
@@ -163,3 +194,6 @@ services:
           # búferes de sharp—. Subir `--max-old-space-size` no arregla nada; lo que cuenta es este
           # tope.
           memory: 1250m
+
+volumes:
+  redis-data:
