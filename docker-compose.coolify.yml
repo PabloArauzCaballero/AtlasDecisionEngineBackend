@@ -92,7 +92,7 @@ services:
   #
   # 256 MB con `allkeys-lru`: es una caché, no un almacén. Si se llena, que tire lo más viejo en
   # vez de empezar a rechazar escrituras.
-  # Se anuncia como `motor-redis`, NO como `redis`, y el alias es lo que hace que se use.
+  # El servicio se LLAMA `motor-redis`, no `redis`, y el nombre no es cosmetico.
   #
   # `api` y `worker` estan tambien en la red COMPARTIDA de Coolify, donde `coolify-redis` —el Redis
   # interno de Coolify— ya registra el alias `redis`. Con un contenedor en varias redes Docker no
@@ -101,16 +101,18 @@ services:
   # `redis` daba 10.0.1.2 mientras este contenedor estaba en 10.0.3.2, y `/health/data-sources`
   # publicaba `redis-cache: up` con `detail: "memory"`.
   #
+  # Y va en el NOMBRE del servicio, no en `networks: {default: {aliases: [...]}}`: un alias se
+  # registra solo en la red donde se declara, y `worker` no declara `networks:`, asi que Coolify lo
+  # deja fuera de `default` y el nombre no le llegaria. El nombre del servicio, en cambio, Compose
+  # lo registra en TODAS las redes que ocupe.
+  #
   # Un nombre generico compartido con Coolify vuelve a romperlo. Se comprueba resolviendo el nombre
-  # DENTRO del api y comparando con la IP de este contenedor.
-  redis:
+  # DENTRO del api Y del worker, y comparando con la IP de este contenedor.
+  motor-redis:
     <<: *common
     image: redis:7-alpine
     command:
       ['redis-server', '--appendonly', 'yes', '--maxmemory', '256mb', '--maxmemory-policy', 'allkeys-lru']
-    networks:
-      default:
-        aliases: ['motor-redis']
     volumes: ['redis-data:/data']
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
@@ -162,7 +164,7 @@ services:
       JOB_SCHEDULER_ENABLED: 'false'
     expose: ['3000']
     depends_on:
-      redis:
+      motor-redis:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
@@ -187,7 +189,7 @@ services:
     # Sólo en el bucle local: es la sonda de salud, no atiende tráfico de negocio.
     ports: ['127.0.0.1:3021:3001']
     depends_on:
-      redis:
+      motor-redis:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
