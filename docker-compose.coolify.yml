@@ -92,11 +92,25 @@ services:
   #
   # 256 MB con `allkeys-lru`: es una caché, no un almacén. Si se llena, que tire lo más viejo en
   # vez de empezar a rechazar escrituras.
+  # Se anuncia como `motor-redis`, NO como `redis`, y el alias es lo que hace que se use.
+  #
+  # `api` y `worker` estan tambien en la red COMPARTIDA de Coolify, donde `coolify-redis` —el Redis
+  # interno de Coolify— ya registra el alias `redis`. Con un contenedor en varias redes Docker no
+  # garantiza cual gana, y ganaba esa: `redis` resolvia a la infraestructura de Coolify. Es
+  # precisamente el fallo silencioso que describe el parrafo de arriba, y se midio: desde el `api`,
+  # `redis` daba 10.0.1.2 mientras este contenedor estaba en 10.0.3.2, y `/health/data-sources`
+  # publicaba `redis-cache: up` con `detail: "memory"`.
+  #
+  # Un nombre generico compartido con Coolify vuelve a romperlo. Se comprueba resolviendo el nombre
+  # DENTRO del api y comparando con la IP de este contenedor.
   redis:
     <<: *common
     image: redis:7-alpine
     command:
       ['redis-server', '--appendonly', 'yes', '--maxmemory', '256mb', '--maxmemory-policy', 'allkeys-lru']
+    networks:
+      default:
+        aliases: ['motor-redis']
     volumes: ['redis-data:/data']
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
