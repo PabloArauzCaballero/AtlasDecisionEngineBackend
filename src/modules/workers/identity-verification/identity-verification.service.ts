@@ -7,10 +7,15 @@ import { JobName } from '../../../common/jobs/job-names';
 import { JobSignalService } from '../../../common/jobs/job-signal.service';
 import { MessagingTraceService } from '../../../common/observability/messaging-trace.service';
 import { PrismaService } from '../../../common/prisma/prisma.service';
+import { ObjectStorageService } from '../../../common/storage/object-storage.service';
 import type { AuthenticatedPrincipal } from '../../../common/security/security.types';
 import { IDENTITY_DEFAULTS } from './core/identity-options';
 import { IDENTITY_PIPELINE_VERSION } from './identity-pipeline-version';
-import { newRequestId, type ValidatedIdentityInput } from './identity-verification-input';
+import {
+  newRequestId,
+  type ValidatedIdentityImage,
+  type ValidatedIdentityInput,
+} from './identity-verification-input';
 
 /** Estados desde los que ya no puede pasar nada más. */
 const TERMINAL_STATUSES: readonly WorkerRunStatus[] = [
@@ -75,6 +80,7 @@ export class IdentityVerificationService {
     private readonly jobSignal: JobSignalService,
     private readonly config: ConfigService,
     private readonly messagingTrace: MessagingTraceService,
+    private readonly objectStorage: ObjectStorageService,
   ) {}
 
   /**
@@ -99,12 +105,31 @@ export class IdentityVerificationService {
       (input.documentBack?.bytes.byteLength ?? 0) +
       input.selfie.bytes.byteLength;
 
+    /*
+     * El `requestId` deja de generarse dentro del `create` porque ahora forma parte de la RUTA de
+     * los objetos, y la ruta hay que conocerla antes de escribirlos.
+     */
+    const requestId = newRequestId();
+
+    /*
+     * Las imágenes se copian al almacén ANTES de crear la fila, y esa es la decisión importante.
+     *
+     * Al revés —crear y luego subir— una caída entre las dos operaciones deja una ejecución que se
+     * procesa, decide y cierra sin que su evidencia se haya guardado nunca, y sin que nadie se
+     * entere hasta que alguien vaya a mirarla semanas después. En este orden, si el almacén falla
+     * no hay alta: el cliente reintenta y vuelve a subir sus fotos, que es un incordio de diez
+     * segundos frente a una decisión sin evidencia.
+     *
+     * El precio son objetos huérfanos cuando la huella resulta duplicada; se limpian abajo.
+     */
+    const objectKeys = await this.storeIdentityImages(tenantId, requestId, input);
+
     try {
       const run = await this.prisma.$transaction(async (tx) => {
         const created = await tx.identityVerificationRun.create({
           data: {
             tenantId,
-            requestId: newRequestId(),
+            requestId,
             status: WorkerRunStatus.QUEUED,
             inputSource: source,
             fixtureCode: options.fixtureCode ?? null,
@@ -121,6 +146,10 @@ export class IdentityVerificationService {
             documentBytes: new Uint8Array(input.document.bytes),
             documentBackBytes: input.documentBack ? new Uint8Array(input.documentBack.bytes) : null,
             selfieBytes: new Uint8Array(input.selfie.bytes),
+            // La copia que SOBREVIVE al cierre. Las tres de arriba se siguen borrando igual.
+            documentObjectKey: objectKeys?.document ?? null,
+            documentBackObjectKey: objectKeys?.documentBack ?? null,
+            selfieObjectKey: objectKeys?.selfie ?? null,
             requestedBy: principal.id,
             correlationId: principal.requestId,
             traceCarrier: persistableCarrier(this.messagingTrace.inject()),
@@ -135,6 +164,9 @@ export class IdentityVerificationService {
       });
       return { run, deduplicated: false };
     } catch (error) {
+      // Los objetos que se acaban de escribir quedaron sin fila que los referencie. Se borran aquí
+      // y no en un barrido posterior porque este es el único momento en que se sabe cuáles son.
+      await this.discardOrphanImages(objectKeys);
       if (!isUniqueViolation(error)) throw error;
       const existing = await this.prisma.identityVerificationRun.findFirst({
         where: { tenantId, inputHash: input.inputHash },
@@ -146,6 +178,136 @@ export class IdentityVerificationService {
       );
       return { run: existing, deduplicated: true };
     }
+  }
+
+  /**
+   * Copia las imágenes al almacén y devuelve sus claves.
+   *
+   * `null` cuando no hay almacén configurado: el motor tiene que poder correr en local y en las
+   * pruebas sin MinIO, y la fila queda con las tres claves en `null`, que es la verdad —esa
+   * ejecución no conservó nada—. Quien no acepte esa degradación pone
+   * `IDENTITY_IMAGE_RETENTION_REQUIRED=true` y entonces ni siquiera arranca sin almacén, que es
+   * donde debe descubrirse.
+   *
+   * Si el almacén SÍ está y rechaza una escritura, se propaga: «no hay almacén» y «hay almacén y
+   * no me deja escribir» son dos cosas distintas, y tratarlas igual fue exactamente lo que dejó al
+   * VPS aceptando subidas contra credenciales que MinIO no conocía.
+   */
+  private async storeIdentityImages(
+    tenantId: bigint,
+    requestId: string,
+    input: ValidatedIdentityInput,
+  ): Promise<{ document: string; documentBack: string | null; selfie: string } | null> {
+    if (!this.objectStorage.isConfigured()) {
+      this.logger.warn(
+        `La verificación ${requestId} se encola SIN copia persistente de las imágenes: no hay almacén configurado. ` +
+          'Sus imágenes se perderán al cerrar la ejecución.',
+      );
+      return null;
+    }
+
+    const escrituras: Array<{ campo: 'document' | 'documentBack' | 'selfie'; clave: string; imagen: ValidatedIdentityImage }> = [
+      { campo: 'document', clave: this.buildKey(tenantId, requestId, 'document', input.document), imagen: input.document },
+      { campo: 'selfie', clave: this.buildKey(tenantId, requestId, 'selfie', input.selfie), imagen: input.selfie },
+      ...(input.documentBack
+        ? [
+            {
+              campo: 'documentBack' as const,
+              clave: this.buildKey(tenantId, requestId, 'document-back', input.documentBack),
+              imagen: input.documentBack,
+            },
+          ]
+        : []),
+    ];
+
+    // En paralelo: son dos o tres objetos pequeños contra el mismo servidor, y encadenarlos sólo
+    // suma latencia a una petición que el cliente está esperando con el teléfono en la mano.
+    const escritas: string[] = [];
+    try {
+      await Promise.all(
+        escrituras.map(async ({ clave, imagen }) => {
+          await this.objectStorage.put(clave, imagen.bytes, imagen.contentType);
+          escritas.push(clave);
+        }),
+      );
+    } catch (error) {
+      // Una escritura parcial deja objetos que ninguna fila va a referenciar nunca.
+      await Promise.all(escritas.map((clave) => this.objectStorage.remove(clave)));
+      throw error;
+    }
+
+    return {
+      document: escrituras.find((e) => e.campo === 'document')!.clave,
+      documentBack: escrituras.find((e) => e.campo === 'documentBack')?.clave ?? null,
+      selfie: escrituras.find((e) => e.campo === 'selfie')!.clave,
+    };
+  }
+
+  private buildKey(
+    tenantId: bigint,
+    requestId: string,
+    kind: 'document' | 'document-back' | 'selfie',
+    imagen: ValidatedIdentityImage,
+  ): string {
+    // La extensión sale del tipo YA DETECTADO por bytes mágicos, no del nombre que mandó el
+    // cliente: el nombre es dato de fuera y aquí decide una ruta.
+    const extension = imagen.contentType === 'image/png' ? 'png' : imagen.contentType === 'image/webp' ? 'webp' : 'jpg';
+    return this.objectStorage.buildIdentityKey({ tenantId, requestId, kind, extension });
+  }
+
+  /** Limpieza best-effort de lo que se subió para una fila que no llegó a existir. */
+  private async discardOrphanImages(
+    objectKeys: { document: string; documentBack: string | null; selfie: string } | null,
+  ): Promise<void> {
+    if (!objectKeys) return;
+    const claves = [objectKeys.document, objectKeys.documentBack, objectKeys.selfie].filter(
+      (clave): clave is string => clave !== null,
+    );
+    await Promise.all(claves.map((clave) => this.objectStorage.remove(clave)));
+  }
+
+  /**
+   * Una de las tres imágenes de un caso, recuperada del almacén.
+   *
+   * Es la contrapartida de conservarlas: sin esto, persistir la cara y el carnet sólo llenaría un
+   * bucket que nadie puede consultar. Los bytes se sirven POR LA API y no por una URL firmada del
+   * almacén, y eso es deliberado — la autorización por tenant y por rol la impone este proceso, y
+   * una URL prefirmada se puede reenviar por un chat y sigue funcionando hasta que vence.
+   *
+   * `null` cuando la ejecución no tiene esa imagen: puede ser un caso sin reverso, o —para las
+   * ejecuciones anteriores al 2026-09-03— uno cuyas imágenes ya se perdieron. Quien llama lo
+   * traduce a 404; distinguir los dos casos no aportaría nada a quien mira la pantalla.
+   */
+  async getRunImage(
+    tenantId: bigint,
+    requestId: string,
+    kind: 'document' | 'documentBack' | 'selfie',
+  ): Promise<{ content: Buffer; contentType: string } | null> {
+    const run = await this.prisma.identityVerificationRun.findFirst({
+      where: { tenantId, requestId },
+      select: { documentObjectKey: true, documentBackObjectKey: true, selfieObjectKey: true },
+    });
+    if (!run) {
+      // 404 y no 403, igual que en `getRun`: un 403 confirmaría que la ejecución existe y es de
+      // otro tenant.
+      throw new DomainException(
+        'IDENTITY_RUN_NOT_FOUND',
+        'No existe esa verificación.',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    const objectKey =
+      kind === 'document'
+        ? run.documentObjectKey
+        : kind === 'documentBack'
+          ? run.documentBackObjectKey
+          : run.selfieObjectKey;
+    if (!objectKey) return null;
+
+    const stored = await this.objectStorage.get(objectKey);
+    if (!stored) return null;
+    return { content: stored.content, contentType: stored.contentType ?? 'application/octet-stream' };
   }
 
   /** Una ejecución del tenant. Ajena o inexistente responden igual: 404. */

@@ -10,6 +10,7 @@ import { CryptoModule } from './common/crypto/crypto.module';
 import { PersistenceCoreModule } from './common/persistence/persistence-core.module';
 import { PersistenceModule } from './common/persistence/persistence.module';
 import { PrismaModule } from './common/prisma/prisma.module';
+import { ObjectStorageModule } from './common/storage/object-storage.module';
 import { SecurityModule } from './common/security/security.module';
 import { ObservabilityModule } from './common/observability/observability.module';
 import { ArtifactModule } from './modules/artifacts/artifact.module';
@@ -60,6 +61,7 @@ import { PdfWorkerModule } from './pdf-worker/pdf-worker.module';
     // datos es imposible.
     PersistenceCoreModule,
     PrismaModule,
+    ObjectStorageModule,
     PersistenceModule,
     // Antes que cualquier módulo de dominio: los trabajos de fondo se registran contra el
     // orquestador en su propio onModuleInit, y los productores publican su señal de

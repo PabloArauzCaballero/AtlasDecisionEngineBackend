@@ -1038,8 +1038,70 @@ export const envSchema = z
       .optional(),
     BOOTSTRAP_MANAGEMENT_ROLES: z.string().default(''),
     BOOTSTRAP_RUNTIME_ROLES: z.string().default(''),
+
+    // --- Almacenamiento persistente de objetos (MinIO) ------------------------------------
+    //
+    // Hasta 2026-09-03 el motor no tenía ninguno, y las imágenes de identidad vivían en
+    // columnas `Bytes` que se ponían a `null` al cerrar cada ejecución. Eso resolvía la
+    // privacidad y el crecimiento de la tabla a la vez, pero significaba que la cara y la
+    // cédula de un cliente NO EXISTÍAN en cuanto había veredicto: ni para revisar el caso
+    // más tarde, ni para responder a una impugnación, ni para auditar la decisión.
+    //
+    // Ahora las imágenes se copian a MinIO al INGRESAR —una sola escritura, antes de crear
+    // la fila— y las columnas `Bytes` siguen siendo la copia de trabajo del pipeline y se
+    // siguen borrando igual. Los seis sitios que las ponían a `null` no cambiaron.
+    //
+    // Vacío = sin almacén: las imágenes vuelven a perderse al cerrar. Se permite porque las
+    // pruebas y el desarrollo local no siempre levantan MinIO, pero
+    // `IDENTITY_IMAGE_RETENTION_REQUIRED` lo convierte en un fallo de arranque donde importa.
+    STORAGE_S3_ENDPOINT: emptyAsUndefined(z.string().url().optional()),
+    // Por donde llega el NAVEGADOR del revisor, si no es el mismo camino que este proceso.
+    STORAGE_S3_PUBLIC_ENDPOINT: emptyAsUndefined(z.string().url().optional()),
+    STORAGE_S3_BUCKET: emptyAsUndefined(z.string().min(1).optional()),
+    STORAGE_S3_REGION: z.string().min(1).default('us-east-1'),
+    STORAGE_S3_ACCESS_KEY_ID: emptyAsUndefined(z.string().min(1).optional()),
+    STORAGE_S3_SECRET_ACCESS_KEY: emptyAsUndefined(z.string().min(1).optional()),
+    // MinIO y compatibles exigen el bucket en la ruta; AWS acepta ambos estilos.
+    STORAGE_S3_FORCE_PATH_STYLE: booleanFromString.default(true),
+    STORAGE_URL_TTL_SECONDS: z.coerce.number().int().positive().max(3600).default(300),
+    // Prefijo de las imágenes de identidad dentro del bucket compartido con AtlasBackend.
+    // Es lo que permite una política de retención propia sin mover un objeto.
+    STORAGE_IDENTITY_KEY_PREFIX: z.string().default('identity'),
+    // Con `true`, arrancar sin almacén es un error en vez de una degradación silenciosa.
+    IDENTITY_IMAGE_RETENTION_REQUIRED: booleanFromString.default(false),
   })
   .superRefine((value, ctx) => {
+    /*
+     * Retención de imágenes: o hay almacén, o se declara que no importa.
+     *
+     * Sin esta comprobación, la única señal de que las caras y las cédulas se están
+     * perdiendo era su ausencia semanas después, cuando alguien fuera a revisar un caso
+     * cerrado. Con `IDENTITY_IMAGE_RETENTION_REQUIRED=true` una configuración incompleta
+     * impide arrancar, que es donde se descubre a tiempo.
+     */
+    if (value.IDENTITY_IMAGE_RETENTION_REQUIRED) {
+      const faltantes = (
+        [
+          ['STORAGE_S3_ENDPOINT', value.STORAGE_S3_ENDPOINT],
+          ['STORAGE_S3_BUCKET', value.STORAGE_S3_BUCKET],
+          ['STORAGE_S3_ACCESS_KEY_ID', value.STORAGE_S3_ACCESS_KEY_ID],
+          ['STORAGE_S3_SECRET_ACCESS_KEY', value.STORAGE_S3_SECRET_ACCESS_KEY],
+        ] as const
+      )
+        .filter(([, declarado]) => !declarado)
+        .map(([nombre]) => nombre);
+
+      if (faltantes.length > 0) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['IDENTITY_IMAGE_RETENTION_REQUIRED'],
+          message:
+            `Se exige conservar las imágenes de identidad pero falta configurar el almacén: ${faltantes.join(', ')}. ` +
+            'Declara MinIO, o pon IDENTITY_IMAGE_RETENTION_REQUIRED=false para aceptar que se pierdan al cerrar cada ejecución.',
+        });
+      }
+    }
+
     // El lease de idempotencia tiene que sobrevivir a la decisión más larga que la
     // configuración permite. Si vence antes, otra petición reclama legítimamente la clave
     // mientras el titular sigue trabajando: la respuesta del titular ya no se cachea (la

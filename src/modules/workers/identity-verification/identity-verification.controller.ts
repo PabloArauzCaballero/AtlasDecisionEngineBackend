@@ -7,6 +7,7 @@ import {
   Param,
   Post,
   Query,
+  Res,
   UploadedFiles,
   UseInterceptors,
 } from '@nestjs/common';
@@ -21,6 +22,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { WorkerInputSource } from '@prisma/client';
+import type { Response } from 'express';
 import { DomainException } from '../../../common/errors/domain-exception';
 import { paginationArgs } from '../../../common/http/pagination';
 import { ApiArrayResponse, ApiPagedResponse } from '../../../common/http/pagination.dto';
@@ -176,6 +178,59 @@ export class IdentityVerificationController {
     @Param('requestId') requestId: string,
   ): Promise<WorkerRunDto> {
     return toWorkerRunDto(await this.identity.getRun(tenantId, requestId));
+  }
+
+  @Get('runs/:requestId/images/:kind')
+  @ApiOperation({
+    summary: 'Una de las tres imágenes de la verificación, desde el almacén persistente',
+    description:
+      'Sirve los bytes por la API, no una URL firmada del almacén: la autorización por tenant y por rol la ' +
+      'impone este proceso, y una URL prefirmada se reenvía por un chat y sigue funcionando hasta que vence. ' +
+      'Las ejecuciones anteriores al 2026-09-03 responden 404: sus imágenes se borraban al cerrar.',
+  })
+  /*
+   * Se declara el cuerpo aunque la respuesta se escriba con `@Res()`, igual que en la descarga del
+   * worker de extractos: sin esto el contrato publica una operación sin forma de respuesta y un
+   * cliente generado desde él no sabe que recibe un archivo.
+   */
+  @ApiOkResponse({
+    description: 'La imagen. `Cache-Control: no-store` — es la cara de una persona.',
+    content: {
+      'image/jpeg': { schema: { type: 'string', format: 'binary' } },
+      'image/png': { schema: { type: 'string', format: 'binary' } },
+      'image/webp': { schema: { type: 'string', format: 'binary' } },
+    },
+  })
+  @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'OPERATIONS', 'COMPLIANCE', 'AUDITOR')
+  async getRunImage(
+    @TenantId() tenantId: bigint,
+    @Param('requestId') requestId: string,
+    @Param('kind') kind: string,
+    @Res() response: Response,
+  ): Promise<void> {
+    if (kind !== 'document' && kind !== 'documentBack' && kind !== 'selfie') {
+      throw new DomainException(
+        'IDENTITY_IMAGE_KIND_INVALID',
+        'La imagen pedida no existe: usa document, documentBack o selfie.',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const image = await this.identity.getRunImage(tenantId, requestId, kind);
+    if (!image) {
+      throw new DomainException(
+        'IDENTITY_IMAGE_NOT_AVAILABLE',
+        'Esa imagen no está disponible para esta verificación.',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    // `no-store` y no `private, max-age`: un caché intermedio que guarde la cara de un cliente es
+    // exactamente lo que no se le promete a nadie en la pantalla de subida.
+    response.setHeader('Cache-Control', 'no-store');
+    response.setHeader('Content-Type', image.contentType);
+    response.setHeader('Content-Length', String(image.content.byteLength));
+    response.end(image.content);
   }
 
   @Post('runs/:requestId/cancel')

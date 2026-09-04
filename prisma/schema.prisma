@@ -2853,14 +2853,31 @@ model IdentityVerificationRun {
   selfieFileName   String @map("selfie_file_name") @db.VarChar(255)
   imageSizeBytes   Int    @map("image_size_bytes")
 
-  /// Las imágenes, mientras hacen falta. **Se borran en la misma actualización
-  /// que cierra la ejecución**, igual que el PDF del worker de extractos: lo que
-  /// se conserva es la decisión y su evidencia, no la cara ni la cédula de
-  /// nadie. Es a la vez la decisión de privacidad y la razón de que esta tabla
-  /// no crezca sin cota.
+  /// Las imágenes EN LA BASE, mientras hacen falta. **Se borran en la misma
+  /// actualización que cierra la ejecución**, igual que el PDF del worker de
+  /// extractos: es la copia de trabajo del pipeline, y que la tabla no crezca
+  /// sin cota depende de que se sigan borrando.
+  ///
+  /// Lo que cambió el 2026-09-03 es que dejaron de ser la ÚNICA copia. Antes,
+  /// borrarlas significaba que la cara y la cédula sobre las que se decidió
+  /// desaparecían: no había forma de revisar un caso cerrado, de responder a
+  /// una impugnación ni de auditar un rechazo. Ahora las tres claves de abajo
+  /// apuntan a la copia duradera en MinIO, escrita al ingresar.
   documentBytes     Bytes? @map("document_bytes")
   documentBackBytes Bytes? @map("document_back_bytes")
   selfieBytes       Bytes? @map("selfie_bytes")
+
+  /// Claves de las imágenes en el almacén de objetos. La ruta la impone el
+  /// servidor (`identity/<tenant>/<requestId>/<tipo>-<uuid>.<ext>`); quien sube
+  /// no elige dónde escribe.
+  ///
+  /// `null` significa «esta ejecución nació sin almacén configurado», no «no
+  /// tenía imágenes»: distinguirlo importa porque es la única señal de que un
+  /// despliegue estuvo perdiendo evidencia. Las ejecuciones anteriores a esta
+  /// migración lo tienen `null` y sus imágenes son irrecuperables.
+  documentObjectKey     String? @map("document_object_key") @db.VarChar(512)
+  documentBackObjectKey String? @map("document_back_object_key") @db.VarChar(512)
+  selfieObjectKey       String? @map("selfie_object_key") @db.VarChar(512)
 
   /// `IdentityVerificationOutcome`. El número de documento viaja enmascarado.
   resultJson   Json? @map("result_json")
