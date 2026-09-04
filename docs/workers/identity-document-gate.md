@@ -206,12 +206,42 @@ En el portal es la pestaña **Revisión** del worker de identidad
    existe para no ser.
 3. La prioridad se **deriva** del motivo (`identity-outcome.ts`). Puesta a mano acabaría
    siendo «alta» siempre, que es lo mismo que no tenerla.
-4. **Un pendiente conserva las imágenes.** La regla de privacidad —borrarlas al cerrar—
-   sigue intacta porque un caso en revisión no está cerrado: sin ellas, la pestaña ofrecería
-   «resolver» sobre una fila sin nada que mirar.
+4. **Un pendiente conserva las imágenes en la BASE.** La regla —borrar las columnas `Bytes`
+   al cerrar— sigue intacta porque un caso en revisión no está cerrado: sin ellas, la pestaña
+   ofrecería «resolver» sobre una fila sin nada que mirar.
 5. Un fallo del proveedor **no** entra en la cola ni se marca como documento rechazado.
    Nadie puede resolver desde una pantalla que el servicio biométrico esté saturado, y ese
    camino conserva sus reintentos.
+
+## Las imágenes sobreviven al cierre desde el 2026-09-03
+
+Antes no. Las columnas `document_bytes`, `document_back_bytes` y `selfie_bytes` se ponen a `NULL`
+en los seis sitios donde una ejecución termina, así que la cara y el carnet sobre los que se
+decidió **dejaban de existir**: no había forma de revisar un caso cerrado, de responder a una
+impugnación ni de auditar un rechazo.
+
+Ahora se copian al almacén de objetos (MinIO) **al ingresar**, antes de crear la fila, y las tres
+claves quedan en `document_object_key`, `document_back_object_key` y `selfie_object_key`. La ruta
+la impone el servidor: `identity/<tenant>/<requestId>/<tipo>-<uuid>.<ext>`.
+
+- **No se tocó ninguna ruta de borrado.** Las columnas `Bytes` siguen siendo la copia de trabajo
+  del pipeline y siguen desapareciendo igual — es lo que impide que la tabla crezca sin cota.
+- **Se sube ANTES de crear la fila.** Al revés, una caída entre las dos operaciones deja una
+  ejecución que se procesa, decide y cierra sin evidencia, y nadie se entera hasta que alguien va
+  a mirarla. En este orden, si el almacén falla no hay alta y el cliente reintenta.
+- **`IDENTITY_IMAGE_RETENTION_REQUIRED=true` convierte «no hay almacén» en un fallo de arranque.**
+  Sin eso, la única señal de que se está perdiendo evidencia es su ausencia semanas después.
+- **Las imágenes se sirven por la API**, no por una URL prefirmada del almacén:
+  `GET /v1/workers/identity-verification/runs/:requestId/images/:kind` con `kind` en `document`,
+  `documentBack` o `selfie`, y `Cache-Control: no-store`. La autorización por inquilino y rol la
+  impone el motor; una URL firmada se reenvía por un chat y sigue valiendo hasta que vence.
+- **Las ejecuciones anteriores a la migración tienen las tres claves en `NULL`**, y es la verdad:
+  sus imágenes ya no están. El endpoint responde 404 y el portal lo dice con esas palabras.
+
+El portal las pinta en la propia cola de arbitraje
+(`AtlasDecisionEngineFrontend/src/features/workers/IdentityRunImagesPanel.tsx`), sólo al ABRIR un
+caso: montarlas con la lista descargaría el carnet y la cara de las veinticinco personas de la
+página para enseñar una tabla de resúmenes.
 
 ## Dónde está cada cosa
 
@@ -225,6 +255,7 @@ En el portal es la pestaña **Revisión** del worker de identidad
 | `core/adapters/identity-arbitration.adapter.ts`      | Los dos árbitros.                                |
 | `identity-outcome.ts`                                | El único sitio que fija el estado final.         |
 | `review/identity-review.service.ts`                  | La cola y sus dos acciones.                      |
+| `common/storage/object-storage.service.ts`           | El almacén: dónde sobreviven las imágenes.       |
 
 Pruebas: `test/identity-document-gate.spec.ts` (la política, sin imágenes),
 `test/identity-verification-pipeline.spec.ts` (el camino completo, con imágenes generadas) y

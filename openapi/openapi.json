@@ -4339,7 +4339,8 @@
                 "PARTIAL_EXTRACTION",
                 "AMBIGUOUS_DATA",
                 "OCR_ERROR",
-                "MANUAL_REQUEST"
+                "MANUAL_REQUEST",
+                "SUSPECTED_TAMPERING"
               ]
             }
           },
@@ -4957,6 +4958,198 @@
         ]
       }
     },
+    "/v1/workers/bank-statement/institutions/{code}/logo": {
+      "get": {
+        "operationId": "financialInstitutionLogo",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "El logotipo. El tipo real viaja en `Content-Type`.",
+            "content": {
+              "image/svg+xml": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Logotipo de una entidad",
+        "tags": [
+          "Workers · Entidades financieras"
+        ]
+      },
+      "put": {
+        "operationId": "financialInstitutionSetLogo",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadInstitutionLogoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Entidad con su logotipo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinancialInstitutionDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Carga el logotipo de una entidad",
+        "tags": [
+          "Workers · Entidades financieras"
+        ]
+      },
+      "delete": {
+        "operationId": "financialInstitutionRemoveLogo",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Entidad sin logotipo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinancialInstitutionDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Quita el logotipo de una entidad",
+        "tags": [
+          "Workers · Entidades financieras"
+        ]
+      }
+    },
+    "/v1/workers/bank-statement/institutions/logos/sync": {
+      "post": {
+        "description": "Escribe donde no hay logotipo, y donde hay un monograma que la semilla ya puede sustituir por el logotipo oficial. Nunca pisa uno cargado a mano. Con dryRun responde qué haría sin escribir.",
+        "operationId": "financialInstitutionSyncLogos",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Resumen de la carga.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstitutionLogoSyncDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Carga los logotipos que trae el motor y reemplaza los monogramas por la marca oficial",
+        "tags": [
+          "Workers · Entidades financieras"
+        ]
+      }
+    },
     "/v1/workers/bank-statement/institutions/seed": {
       "post": {
         "description": "Sólo crea lo que falta; nunca pisa una entidad existente. Con dryRun responde qué haría sin escribir.",
@@ -5198,6 +5391,75 @@
           }
         },
         "summary": "Estado, progreso y veredicto de una verificación",
+        "tags": [
+          "Workers · Verificación de identidad"
+        ]
+      }
+    },
+    "/v1/workers/identity-verification/runs/{requestId}/images/{kind}": {
+      "get": {
+        "description": "Sirve los bytes por la API, no una URL firmada del almacén: la autorización por tenant y por rol la impone este proceso, y una URL prefirmada se reenvía por un chat y sigue funcionando hasta que vence. Las ejecuciones anteriores al 2026-09-03 responden 404: sus imágenes se borraban al cerrar.",
+        "operationId": "identityVerificationGetRunImage",
+        "parameters": [
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Identificador de correlación de la petición; el mismo que viaja en la cabecera `x-request-id`."
+          },
+          {
+            "name": "kind",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "La imagen. `Cache-Control: no-store` — es la cara de una persona.",
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Una de las tres imágenes de la verificación, desde el almacén persistente",
         "tags": [
           "Workers · Verificación de identidad"
         ]
@@ -20364,7 +20626,8 @@
               "PARTIAL_EXTRACTION",
               "AMBIGUOUS_DATA",
               "OCR_ERROR",
-              "MANUAL_REQUEST"
+              "MANUAL_REQUEST",
+              "SUSPECTED_TAMPERING"
             ],
             "type": "string",
             "description": "Por qué espera a una persona. Sólo con estado PENDING_REVIEW o IN_REVIEW."
@@ -20376,7 +20639,11 @@
               "UNSUPPORTED_FILE",
               "EMPTY_DOCUMENT",
               "CORRUPTED_PDF",
-              "UNREADABLE_DOCUMENT"
+              "UNREADABLE_DOCUMENT",
+              "TAMPERED_DOCUMENT",
+              "ACTIVE_CONTENT",
+              "INSUFFICIENT_PERIOD",
+              "STALE_PERIOD"
             ],
             "type": "string",
             "description": "Por qué se rechazó. Sólo con estado PDF_INVALID."
@@ -20437,7 +20704,8 @@
               "PARTIAL_EXTRACTION",
               "AMBIGUOUS_DATA",
               "OCR_ERROR",
-              "MANUAL_REQUEST"
+              "MANUAL_REQUEST",
+              "SUSPECTED_TAMPERING"
             ],
             "type": "string"
           },
@@ -20531,7 +20799,8 @@
               "PARTIAL_EXTRACTION",
               "AMBIGUOUS_DATA",
               "OCR_ERROR",
-              "MANUAL_REQUEST"
+              "MANUAL_REQUEST",
+              "SUSPECTED_TAMPERING"
             ],
             "type": "string",
             "description": "`null` = «Todos»."
@@ -20575,7 +20844,11 @@
               "UNSUPPORTED_FILE",
               "EMPTY_DOCUMENT",
               "CORRUPTED_PDF",
-              "UNREADABLE_DOCUMENT"
+              "UNREADABLE_DOCUMENT",
+              "TAMPERED_DOCUMENT",
+              "ACTIVE_CONTENT",
+              "INSUFFICIENT_PERIOD",
+              "STALE_PERIOD"
             ],
             "type": "string",
             "description": "Obligatorio con MARK_INVALID: un rechazo sin motivo no es medible."
@@ -20658,6 +20931,33 @@
             "type": "string",
             "nullable": true
           },
+          "website": {
+            "type": "string",
+            "nullable": true
+          },
+          "expectedSignals": {
+            "type": "object",
+            "additionalProperties": true,
+            "nullable": true,
+            "description": "Descriptor de las señales esperadas en un extracto de esta entidad. `null` mientras no se haya calibrado: sin él, el parecido no se mide y no afecta a ningún desenlace."
+          },
+          "hasLogo": {
+            "type": "boolean",
+            "description": "Si la entidad tiene logotipo cargado."
+          },
+          "logoSource": {
+            "type": "string",
+            "nullable": true,
+            "description": "De dónde salió: DOWNLOADED del sitio oficial, GENERATED cuando el motor compuso un monograma con la sigla, UPLOADED cuando lo cargó una persona. Un monograma NO es la marca de la entidad y la pantalla debe decirlo."
+          },
+          "logoSourceUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "logoUpdatedAt": {
+            "type": "string",
+            "nullable": true
+          },
           "isActive": {
             "type": "boolean"
           },
@@ -20677,6 +20977,7 @@
           "retailDeposits",
           "markers",
           "exclusions",
+          "hasLogo",
           "isActive",
           "updatedAt"
         ]
@@ -20782,6 +21083,37 @@
             "type": "string",
             "maxLength": 1000,
             "description": "Por qué la licencia no está vigente. Obligatorio si no lo está."
+          },
+          "website": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "Sitio oficial de la entidad. Es de donde se descarga el logotipo y lo que permite rehacerlo cuando la marca cambia.",
+            "example": "https://www.bnb.com.bo"
+          },
+          "expectedSignals": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Descriptor de las SEÑALES ESPERADAS en un extracto de esta entidad, contra el que se mide el parecido de cada documento. Se valida al guardar: patrones inválidos o con retroceso catastrófico se rechazan aquí, no a mitad de un análisis. `provenance: MEASURED` exige declarar sobre cuántos documentos se midió, y es lo único que autoriza a sostener un documento dudoso.",
+            "example": {
+              "version": 1,
+              "institutionCode": "BNB",
+              "provenance": "DECLARED",
+              "sampleSize": 0,
+              "signals": [
+                {
+                  "id": "razon-social",
+                  "scope": "COVER",
+                  "pattern": "BANCO NACIONAL DE BOLIVIA",
+                  "weight": 10
+                },
+                {
+                  "id": "generador",
+                  "scope": "PRODUCER",
+                  "pattern": "iText",
+                  "weight": 35
+                }
+              ]
+            }
           }
         },
         "required": [
@@ -20789,6 +21121,74 @@
           "name",
           "kind",
           "markers"
+        ]
+      },
+      "UploadInstitutionLogoDto": {
+        "type": "object",
+        "properties": {
+          "base64": {
+            "type": "string",
+            "maxLength": 400000,
+            "description": "La imagen en base64. Se admite el prefijo `data:` y se ignora."
+          },
+          "contentType": {
+            "type": "string",
+            "maxLength": 80,
+            "description": "Tipo de la imagen. Sólo `image/svg+xml`, `image/png` o `image/jpeg`.",
+            "example": "image/png"
+          },
+          "sourceUrl": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "De dónde salió, para poder citarlo y volver a descargarlo."
+          }
+        },
+        "required": [
+          "base64",
+          "contentType"
+        ]
+      },
+      "InstitutionLogoSyncDto": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "number",
+            "description": "Logotipos que trae el motor."
+          },
+          "downloaded": {
+            "type": "number",
+            "description": "De ellos, descargados del sitio oficial de la entidad."
+          },
+          "generated": {
+            "type": "number",
+            "description": "De ellos, monogramas compuestos con la sigla ASFI."
+          },
+          "applied": {
+            "description": "Siglas a las que se les cargó el logotipo.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "upgraded": {
+            "description": "De ellas, las que tenían un monograma y pasaron a llevar el logotipo oficial de la entidad.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "dryRun": {
+            "type": "boolean",
+            "description": "Si fue un ensayo: nada se escribió."
+          }
+        },
+        "required": [
+          "available",
+          "downloaded",
+          "generated",
+          "applied",
+          "upgraded",
+          "dryRun"
         ]
       },
       "FinancialInstitutionSeedSummaryDto": {
@@ -23463,6 +23863,26 @@
           "traffic"
         ]
       },
+      "SeededCoverageDto": {
+        "type": "object",
+        "properties": {
+          "executions": {
+            "type": "number",
+            "example": 24,
+            "description": "Decisiones de la ventana escritas por las semillas de demostración."
+          },
+          "share": {
+            "type": "number",
+            "nullable": true,
+            "example": 0.827586,
+            "description": "Proporción sobre el total medido. Nulo si no hubo decisiones que medir."
+          }
+        },
+        "required": [
+          "executions",
+          "share"
+        ]
+      },
       "SubjectCoverageDto": {
         "type": "object",
         "properties": {
@@ -23572,6 +23992,9 @@
             "type": "string",
             "example": "2026-08-11T00:00:00.000Z"
           },
+          "seeded": {
+            "$ref": "#/components/schemas/SeededCoverageDto"
+          },
           "subject": {
             "$ref": "#/components/schemas/SubjectCoverageDto"
           },
@@ -23588,6 +24011,7 @@
         "required": [
           "from",
           "to",
+          "seeded",
           "subject",
           "outcome",
           "daily"

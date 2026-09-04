@@ -138,6 +138,23 @@ export class FinancialInstitutionController {
   @Get(':code/logo')
   @ApiOperation({ summary: 'Logotipo de una entidad' })
   @ApiProduces('image/svg+xml', 'image/png', 'image/jpeg')
+  /*
+   * El cuerpo se declara aunque la respuesta se escriba con `@Res()`.
+   *
+   * `@ApiProduces` sólo dice en qué formatos puede venir; sin `@ApiOkResponse` la operación se
+   * publica con una respuesta 200 SIN contenido, y un cliente generado desde el contrato cree que
+   * este endpoint no devuelve nada. Lo destapó `docs:openapi:check` al regenerar el artefacto: la
+   * regla es fallo duro y llevaba tiempo incumplida sin que se viera, porque `openapi/openapi.json`
+   * estaba desactualizado y esta operación ni siquiera figuraba.
+   */
+  @ApiOkResponse({
+    description: 'El logotipo. El tipo real viaja en `Content-Type`.',
+    content: {
+      'image/svg+xml': { schema: { type: 'string', format: 'binary' } },
+      'image/png': { schema: { type: 'string', format: 'binary' } },
+      'image/jpeg': { schema: { type: 'string', format: 'binary' } },
+    },
+  })
   @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST', 'OPERATIONS')
   async logo(
     @TenantId() tenantId: bigint,
