@@ -2605,11 +2605,23 @@ model BankStatementRun {
   /// original no traía ninguna y el nombre del archivo no identifica nada.
   fileHash      String @map("file_hash") @db.Char(64)
   fileSizeBytes Int    @map("file_size_bytes")
-  /// El documento, mientras hace falta. **Se borra en la misma transacción que
-  /// cierra la ejecución**: lo que se conserva es el resultado normalizado, no
-  /// el extracto bancario. Es a la vez la decisión de privacidad y el motivo
-  /// por el que esta tabla no crece sin cota.
+  /// El documento EN LA BASE, mientras hace falta. **Se borra en la misma
+  /// transacción que cierra la ejecución**: es la copia de trabajo, y que esta
+  /// tabla no crezca sin cota depende de que se siga borrando.
+  ///
+  /// Desde el 2026-09-03 ya no es la ÚNICA copia: `fileObjectKey` apunta al
+  /// extracto guardado en el almacén de objetos. Antes, cerrar la ejecución
+  /// hacía desaparecer el documento sobre el que se calculó la capacidad de
+  /// pago, y con él la posibilidad de rehacer el cálculo o de justificarlo.
   fileBytes     Bytes? @map("file_bytes")
+
+  /// Clave del extracto en el almacén de objetos. La ruta la impone el servidor
+  /// (`statements/<tenant>/<requestId>/<uuid>.pdf`).
+  ///
+  /// `null` significa «esta ejecución nació sin almacén configurado», no «no
+  /// tenía documento». Las anteriores a la migración lo tienen `null` y su PDF
+  /// es irrecuperable.
+  fileObjectKey String? @map("file_object_key") @db.VarChar(512)
 
   /// `NormalizedBankStatement`. Hereda el enmascarado del motor: nunca trae el
   /// número de cuenta completo.

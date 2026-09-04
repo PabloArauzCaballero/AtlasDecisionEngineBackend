@@ -5,6 +5,7 @@ import { DomainException } from '../../../common/errors/domain-exception';
 import { JobName } from '../../../common/jobs/job-names';
 import { JobSignalService } from '../../../common/jobs/job-signal.service';
 import { PrismaService } from '../../../common/prisma/prisma.service';
+import { ObjectStorageService } from '../../../common/storage/object-storage.service';
 import type { AuthenticatedPrincipal } from '../../../common/security/security.types';
 import { newRequestId, type ValidatedStatementInput } from './bank-statement-input';
 import { persistableCarrier } from '../../../common/events/trace-carrier';
@@ -94,6 +95,7 @@ export class BankStatementService {
     private readonly jobSignal: JobSignalService,
     private readonly config: ConfigService,
     private readonly messagingTrace: MessagingTraceService,
+    private readonly objectStorage: ObjectStorageService,
   ) {}
 
   /**
@@ -113,12 +115,24 @@ export class BankStatementService {
     source: WorkerInputSource,
     fixtureCode?: string,
   ): Promise<{ run: BankStatementRunView; deduplicated: boolean }> {
+    // El `requestId` sale del `create` porque ahora forma parte de la RUTA del objeto, y la ruta
+    // hay que conocerla antes de escribirlo.
+    const requestId = newRequestId();
+
+    /*
+     * El extracto se copia al almacén ANTES de crear la fila, por lo mismo que las imágenes de
+     * identidad: al revés, una caída entre las dos operaciones deja una ejecución que se procesa,
+     * decide y cierra sin que su documento se guardara nunca. Si el almacén falla no hay alta y el
+     * cliente reintenta, que es preferible a una capacidad de pago sin el extracto que la sostiene.
+     */
+    const fileObjectKey = await this.storeStatementFile(tenantId, requestId, input);
+
     try {
       const run = await this.prisma.$transaction(async (tx) => {
         const created = await tx.bankStatementRun.create({
           data: {
             tenantId,
-            requestId: newRequestId(),
+            requestId,
             status: WorkerRunStatus.QUEUED,
             inputSource: source,
             fixtureCode: fixtureCode ?? null,
@@ -131,6 +145,8 @@ export class BankStatementService {
             // subida, con 10 MiB de techo— en lugar de resolverlo con un cast:
             // un cast escondería que los dos tipos no son intercambiables.
             fileBytes: new Uint8Array(input.bytes),
+            // La copia que SOBREVIVE al cierre. `fileBytes` se sigue borrando igual.
+            fileObjectKey,
             requestedBy: principal.id,
             correlationId: principal.requestId,
             // Contexto de traza capturado AQUÍ, en el proceso de API: tras el commit se pierde,
@@ -148,6 +164,11 @@ export class BankStatementService {
       });
       return { run, deduplicated: false };
     } catch (error) {
+      // El objeto que se acaba de escribir quedó sin fila que lo referencie: la ruta lleva un
+      // `requestId` que ya no va a existir. Se borra aquí y no en un barrido posterior porque este
+      // es el único momento en que se sabe cuál es. Si la huella resulta duplicada y hay que
+      // reencolar, `requeue` escribe el suyo bajo el `requestId` que sí sobrevive.
+      if (fileObjectKey) await this.objectStorage.remove(fileObjectKey);
       if (!isUniqueViolation(error)) throw error;
       const existing = await this.prisma.bankStatementRun.findFirst({
         where: { tenantId, fileHash: input.fileHash },
@@ -196,6 +217,38 @@ export class BankStatementService {
   }
 
   /**
+   * Copia el extracto al almacén y devuelve su clave.
+   *
+   * `null` cuando no hay almacén configurado: el motor tiene que poder correr en local y en las
+   * pruebas sin MinIO, y la fila queda con la clave en `null`, que es la verdad —esa ejecución no
+   * conservó el documento—. Quien no acepte esa degradación pone
+   * `IDENTITY_IMAGE_RETENTION_REQUIRED=true`, que exige el almacén al validar el entorno.
+   *
+   * Si el almacén SÍ está y rechaza la escritura, se propaga: «no hay almacén» y «hay almacén y no
+   * me deja escribir» son dos cosas distintas, y tratarlas igual deja claves de objetos que nunca
+   * existieron.
+   */
+  private async storeStatementFile(
+    tenantId: bigint,
+    requestId: string,
+    input: ValidatedStatementInput,
+  ): Promise<string | null> {
+    if (!this.objectStorage.isConfigured()) {
+      this.logger.warn(
+        `El extracto ${requestId} se encola SIN copia persistente: no hay almacén configurado. ` +
+          'El documento se perderá al cerrar la ejecución.',
+      );
+      return null;
+    }
+
+    // Siempre PDF: `validateStatementUpload` comprueba los bytes mágicos antes de llegar aquí, así
+    // que el tipo no sale de lo que declare quien sube.
+    const objectKey = this.objectStorage.buildStatementKey({ tenantId, requestId, extension: 'pdf' });
+    await this.objectStorage.put(objectKey, input.bytes, 'application/pdf');
+    return objectKey;
+  }
+
+  /**
    * Devuelve a la cola una ejecución que terminó sin resultado.
    *
    * Se ACTUALIZA la fila en vez de crear otra porque la huella es única por
@@ -215,6 +268,8 @@ export class BankStatementService {
     source: WorkerInputSource,
     fixtureCode?: string,
   ): Promise<BankStatementRunView> {
+    const fileObjectKey = await this.storeStatementFile(tenantId, requestId, input);
+
     return this.prisma.$transaction(async (tx) => {
       const requeued = await tx.bankStatementRun.update({
         where: { tenantId_requestId: { tenantId, requestId } },
@@ -226,6 +281,9 @@ export class BankStatementService {
           fileName: input.fileName,
           fileSizeBytes: input.bytes.byteLength,
           fileBytes: new Uint8Array(input.bytes),
+          // La copia duradera del intento NUEVO. Se repone junto con los bytes y por la misma
+          // razón: la fila que se reencola perdió su documento al cerrarse el intento anterior.
+          fileObjectKey,
           // El rastro del intento anterior se limpia entero: dejar el código de
           // error junto a un estado QUEUED describiría una ejecución que no
           // existe.

@@ -119,6 +119,24 @@ export class ObjectStorageService {
   }
 
   /**
+   * La clave del extracto bancario: `prefijo/tenant/petición/<uuid>.<ext>`.
+   *
+   * Misma forma que la de identidad y con el mismo criterio —el servidor impone la ruta— pero con
+   * su propio prefijo, para que las dos poblaciones puedan tener retenciones distintas.
+   */
+  buildStatementKey(input: { tenantId: bigint | string; requestId: string; extension: string }): string {
+    const prefix = (this.config.get<string>('STORAGE_STATEMENT_KEY_PREFIX') ?? 'statements')
+      .trim()
+      .replace(/^\/+|\/+$/g, '');
+    return [
+      ...(prefix ? [prefix] : []),
+      this.safeSegment(String(input.tenantId)),
+      this.safeSegment(input.requestId),
+      `${randomUUID()}.${this.safeSegment(input.extension)}`,
+    ].join('/');
+  }
+
+  /**
    * Escribe un objeto. Devuelve `null` si no hay almacén configurado.
    *
    * `null` y no una excepción: quien llama decide si eso es aceptable. El worker de identidad lo

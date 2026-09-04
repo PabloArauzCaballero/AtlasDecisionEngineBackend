@@ -82,6 +82,10 @@ function servicioCon(existente: { status: WorkerRunStatus; requestId: string }):
     jobSignal as never,
     new ConfigService({}),
     { inject: () => ({}) } as never,
+    // Sin almacén configurado: esta prueba mide la DEDUPLICACIÓN, y con `isConfigured()` en falso
+    // el servicio se salta la copia persistente por el mismo camino que en desarrollo local. Que
+    // el extracto se guarde en MinIO lo fija la prueba del almacén, no ésta.
+    { isConfigured: () => false, remove: () => Promise.resolve() } as never,
   );
   return { service, registro };
 }

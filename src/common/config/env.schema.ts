@@ -1067,6 +1067,10 @@ export const envSchema = z
     // Prefijo de las imágenes de identidad dentro del bucket compartido con AtlasBackend.
     // Es lo que permite una política de retención propia sin mover un objeto.
     STORAGE_IDENTITY_KEY_PREFIX: z.string().default('identity'),
+    // Prefijo del extracto bancario. Separado del de identidad porque son dos poblaciones con
+    // sensibilidad y vida útil distintas: un PDF de banco no es la cara de una persona, y poder
+    // aplicarles retenciones diferentes sin mover un objeto es justo lo que da el prefijo.
+    STORAGE_STATEMENT_KEY_PREFIX: z.string().default('statements'),
     // Con `true`, arrancar sin almacén es un error en vez de una degradación silenciosa.
     IDENTITY_IMAGE_RETENTION_REQUIRED: booleanFromString.default(false),
   })
