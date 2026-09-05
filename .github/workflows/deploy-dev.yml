@@ -85,18 +85,34 @@ jobs:
         with:
           authkey: ${{ secrets.PABLO_H310_TAILSCALE_AUTHKEY }}
 
+      # Reintenta: `tailscale up` vuelve antes de que el camino hasta el peer esté hecho, y el
+      # primer paquete puede tardar unos segundos en abrirse (DERP, handshake de WireGuard). El
+      # 2026-09-05 seis runners entraron a la vez, con la máquina en load 19 por los builds, y los
+      # seis murieron aquí con `curl (28) Timeout` mientras Coolify respondía 200 a todo el mundo.
+      # Un despliegue no debe caerse por diez segundos de red lenta.
       - name: Verify Coolify connectivity
         shell: bash
         run: |
           set -euo pipefail
-          curl \
-            --fail \
-            --silent \
-            --show-error \
-            --connect-timeout 10 \
-            --max-time 20 \
-            http://100.101.207.88:8000/api/health \
-            >/dev/null
+          for intento in $(seq 1 12); do
+            if curl \
+                 --fail \
+                 --silent \
+                 --show-error \
+                 --connect-timeout 10 \
+                 --max-time 20 \
+                 http://100.101.207.88:8000/api/health \
+                 >/dev/null; then
+              echo "Coolify responde (intento ${intento})."
+              exit 0
+            fi
+            echo "  Coolify no responde todavía (intento ${intento}/12); reintentando en 10 s."
+            sleep 10
+          done
+          echo "::error::Coolify no respondió en dos minutos desde el runner."
+          echo "::error::Comprueba el estado de la máquina y de tailscaled:"
+          echo "::error::  ssh root@100.101.207.88 'systemctl status tailscaled; docker ps | grep coolify'"
+          exit 1
 
       - name: Deploy and wait for Coolify
         shell: bash
