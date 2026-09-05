@@ -73,10 +73,12 @@ jobs:
   deploy:
     name: Deploy DEV
     runs-on: ubuntu-latest
-    # El build más largo medido (portal del motor) tardó 20 min, y con `concurrent_builds: 1`
-    # un despliegue puede pasar un buen rato en cola detrás de otros. 60 min es el tope duro; la
-    # espera de dentro sólo empieza a contar cuando el build arranca de verdad.
-    timeout-minutes: 60
+    # Con `concurrent_builds: 1` los despliegues se sirven de uno en uno, y un build de esta
+    # máquina ha llegado a tardar 27 min: empujar tres repos a la vez pone al último a esperar
+    # más de una hora. 120 min es el tope duro —los minutos son gratis en repos públicos— y la
+    # espera de dentro sólo empieza a contar cuando el build arranca de verdad, así que un build
+    # colgado sigue fallando a los 40 min con nuestro mensaje y no con el corte seco de GitHub.
+    timeout-minutes: 120
     steps:
       - name: Connect to Tailscale
         uses: tailscale/github-action@v4
