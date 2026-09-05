@@ -12,11 +12,24 @@
 #
 # ## Este workflow NO construye nada, y es deliberado
 #
-# No hay `yarn install`, ni `docker build`, ni `docker push`. Lo único que hace es AVISAR a
-# Coolify; quien clona la rama, construye la imagen y levanta los contenedores es Coolify, con el
-# mismo `docker-compose.coolify.yml` que se usa al desplegar a mano. Construir aquí además
-# significaría mantener dos rutas de build que se separan en cuanto una cambie, y el día que se
-# separen el artefacto que se prueba deja de ser el que se despliega.
+# No hay `yarn install`, ni `docker build`, ni `docker push`. Lo único que hace es pedirle a
+# Coolify que despliegue y ESPERAR su veredicto; quien clona la rama, construye la imagen y
+# levanta los contenedores es Coolify, con el mismo `docker-compose.coolify.yml` que se usa al
+# desplegar a mano. Construir aquí además significaría mantener dos rutas de build que se separan
+# en cuanto una cambie, y el día que se separen el artefacto que se prueba deja de ser el que se
+# despliega.
+#
+# ## Por qué espera, y no se conforma con «orden recibida»
+#
+# Hasta el 2026-09-05 este workflow hacía un POST al webhook y terminaba en verde a los diez
+# segundos. Ese verde decía «Coolify recibió la orden», no «la aplicación se desplegó»: un build
+# que moría a los veinte minutos —por `NODE_ENV`, por DNS del demonio, por OOM— dejaba el commit
+# marcado como desplegado en GitHub y el contenedor viejo sirviendo en producción, sin un solo
+# aviso. La única forma de enterarse era abrir Coolify y mirar.
+#
+# Ahora el trabajo consulta `GET /api/v1/deployments/<uuid>` cada diez segundos hasta que el
+# despliegue llega a un estado terminal, y falla si ese estado no es `finished`. El verde vuelve
+# a significar lo que aparenta.
 #
 # ## Los secrets, y por qué se llaman así
 #
@@ -25,14 +38,20 @@
 # solo error visible hasta el primer despliegue.
 #
 #   PABLO_H310_TAILSCALE_AUTHKEY   credencial efímera para unirse a la tailnet
-#   PABLO_H310_COOLIFY_TOKEN       API token de Coolify con permiso de despliegue
+#   PABLO_H310_COOLIFY_TOKEN       API token de Coolify, con permisos `deploy` Y `read`
 #   PABLO_H310_COOLIFY_WEBHOOK     URL de despliegue de ESTA aplicación
 #
 # El webhook lleva el UUID del recurso, así que **es distinto en cada repositorio**. El token sí
 # puede repetirse mientras tenga permiso sobre todos los recursos.
 #
+# El permiso `read` es nuevo: sin él Coolify responde 403 a la consulta de estado y el workflow
+# no puede esperar. Cuando eso pasa no rompe el despliegue —lo avisa en rojo suave y termina en
+# verde, igual que antes—, pero la verificación queda desactivada. Se arregla en Coolify →
+# Keys & Tokens → API tokens, creando uno con `deploy` + `read` y repartiéndolo por los seis
+# repositorios.
+#
 # Ninguno de los tres se imprime nunca: `${{ secrets.* }}` sólo se referencia dentro de `env:`, y
-# no hay `echo`, `env` ni `set` que pudieran volcarlos al log.
+# GitHub enmascara su valor en los logs.
 
 name: Deploy DEV to Coolify
 
@@ -40,14 +59,13 @@ on:
   push:
     branches:
       - dev
+  # Permite redesplegar desde la pestaña Actions sin inventarse un commit vacío.
+  workflow_dispatch:
 
-# Un grupo por repositorio: dos empujones seguidos no deben encolar dos despliegues, y el que
-# importa es siempre el último. `cancel-in-progress` descarta el anterior en cuanto llega uno nuevo.
 concurrency:
   group: atlas-decision-engine-backend-deploy-dev
   cancel-in-progress: true
 
-# Sólo lectura: este trabajo no escribe en el repositorio ni publica paquetes.
 permissions:
   contents: read
 
@@ -55,23 +73,20 @@ jobs:
   deploy:
     name: Deploy DEV
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-
+    # El build más largo medido (portal del motor) tardó 20 min, y con `concurrent_builds: 1`
+    # un despliegue puede pasar un buen rato en cola detrás de otros. 60 min es el tope duro; la
+    # espera de dentro sólo empieza a contar cuando el build arranca de verdad.
+    timeout-minutes: 60
     steps:
       - name: Connect to Tailscale
         uses: tailscale/github-action@v4
         with:
           authkey: ${{ secrets.PABLO_H310_TAILSCALE_AUTHKEY }}
 
-      # Se comprueba la conectividad ANTES de disparar, y separado, porque los dos fallos se
-      # arreglan en sitios distintos: si esto falla el problema es Tailscale o que Coolify no está
-      # escuchando; si falla el paso siguiente, el problema es el token o el UUID del webhook.
-      # Juntarlos daría un único error ambiguo.
       - name: Verify Coolify connectivity
         shell: bash
         run: |
           set -euo pipefail
-
           curl \
             --fail \
             --silent \
@@ -81,31 +96,24 @@ jobs:
             http://100.101.207.88:8000/api/health \
             >/dev/null
 
-      - name: Trigger Coolify deployment
+      - name: Deploy and wait for Coolify
         shell: bash
         env:
           COOLIFY_DEPLOY_WEBHOOK: ${{ secrets.PABLO_H310_COOLIFY_WEBHOOK }}
           COOLIFY_API_TOKEN: ${{ secrets.PABLO_H310_COOLIFY_TOKEN }}
+          COOLIFY_API: http://100.101.207.88:8000/api/v1
         run: |
           set -euo pipefail
 
-          # Un secret ausente llega como cadena VACÍA, no como error: sin estas dos guardas el
-          # `curl` saldría contra una URL vacía y el trabajo podría acabar en verde sin haber
-          # desplegado nada. Se comprueba que existen, nunca se imprime su valor.
           if [ -z "${COOLIFY_DEPLOY_WEBHOOK:-}" ]; then
-            echo "::error::Falta el secret del webhook de despliegue de Coolify."
+            echo "::error::Falta el secret PABLO_H310_COOLIFY_WEBHOOK."
             exit 1
           fi
-
           if [ -z "${COOLIFY_API_TOKEN:-}" ]; then
-            echo "::error::Falta el secret del API token de Coolify."
+            echo "::error::Falta el secret PABLO_H310_COOLIFY_TOKEN."
             exit 1
           fi
 
-          # La FORMA del webhook se valida antes de usarlo, y no es celo: un webhook sin `:8000`
-          # cae en el nginx del puerto 80 del host y devuelve un `404 Not Found` de nginx. Ese
-          # error no menciona a Coolify por ninguna parte y manda a revisar el UUID del recurso
-          # —que está bien— en vez del puerto, que es lo que falta. Pasó en el primer despliegue.
           case "${COOLIFY_DEPLOY_WEBHOOK}" in
             *:8000/api/v1/deploy*) ;;
             *)
@@ -119,24 +127,179 @@ jobs:
               ;;
           esac
 
-          # POST, no GET. Coolify 4.3.x cambió este endpoint y contesta al GET con
-          # `405 {"message":"This endpoint has changed to a POST request."}`, que es un fallo
-          # limpio pero fácil de confundir con un problema de permisos.
-          #
-          # `--fail-with-body` y no `--fail` a secas: ante un 401, un 404 o un 405 queremos LEER lo
-          # que Coolify responde. Es lo que distingue «el token no vale» de «ese UUID no existe» de
-          # «el método cambió» — con `--fail` a secas los tres se ven igual, como un exit 22.
-          curl \
-            --fail-with-body \
+          # El UUID del recurso ya viaja dentro del webhook; sacarlo de ahí evita un cuarto
+          # secret que podría quedar desparejado del anterior sin que nadie lo note.
+          app_uuid=$(printf '%s' "${COOLIFY_DEPLOY_WEBHOOK}" | sed -n 's/.*[?&]uuid=\([^&]*\).*/\1/p')
+          if [ -z "${app_uuid}" ]; then
+            echo "::error::La URL del webhook no lleva ?uuid=<UUID_DEL_RECURSO>."
+            exit 1
+          fi
+
+          auth="Authorization: Bearer ${COOLIFY_API_TOKEN}"
+
+          # Devuelve el código HTTP y deja el cuerpo en $1. Nunca aborta el script: quien llama
+          # decide qué hacer con cada código.
+          consultar() {
+            local codigo
+            codigo=$(curl \
+              --silent \
+              --show-error \
+              --connect-timeout 10 \
+              --max-time 30 \
+              --output "$2" \
+              --write-out '%{http_code}' \
+              --header "${auth}" \
+              "$1") || true
+            printf '%s' "${codigo:-000}"
+          }
+
+          aviso_sin_read() {
+            echo "::warning::El API token de Coolify no tiene permiso 'read', así que no se puede"
+            echo "::warning::comprobar cómo terminó el despliegue. La orden SÍ se envió."
+            echo "::warning::Arreglo: Coolify -> Keys & Tokens -> API tokens -> crear uno con"
+            echo "::warning::'deploy' + 'read' y actualizar PABLO_H310_COOLIFY_TOKEN en los seis"
+            echo "::warning::repositorios de Atlas."
+          }
+
+          echo "Pidiendo despliegue a Coolify…"
+          respuesta=$(mktemp)
+          codigo=$(curl \
             --silent \
             --show-error \
             --connect-timeout 10 \
             --max-time 60 \
             --request POST \
-            "${COOLIFY_DEPLOY_WEBHOOK}" \
-            --header "Authorization: Bearer ${COOLIFY_API_TOKEN}"
+            --output "${respuesta}" \
+            --write-out '%{http_code}' \
+            --header "${auth}" \
+            "${COOLIFY_DEPLOY_WEBHOOK}") || true
+          codigo="${codigo:-000}"
 
-          echo
-          echo "Despliegue solicitado a Coolify."
-          echo "OJO: esto confirma que Coolify RECIBIÓ la orden, no que la aplicación haya"
-          echo "terminado de desplegarse. Eso se mira en Deployment Logs."
+          if [ "${codigo}" != "200" ]; then
+            echo "::error::Coolify rechazó la orden de despliegue (HTTP ${codigo})."
+            jq -r '.message // .' "${respuesta}" 2>/dev/null || cat "${respuesta}"
+            exit 1
+          fi
+
+          jq -r '.deployments[]? | "Coolify: \(.message)"' "${respuesta}" || true
+          despliegue=$(jq -r '.deployments[0].deployment_uuid // empty' "${respuesta}")
+
+          # Cuando Coolify deduplica («Deployment already queued for this commit») devuelve un
+          # deployment_uuid que genera antes de detectar el duplicado y que NUNCA llegó a la cola:
+          # consultarlo da 404 para siempre. En ese caso el despliegue de verdad es el último de
+          # esta aplicación.
+          cuerpo=$(mktemp)
+          codigo=404
+          if [ -n "${despliegue}" ]; then
+            codigo=$(consultar "${COOLIFY_API}/deployments/${despliegue}" "${cuerpo}")
+          fi
+
+          case "${codigo}" in
+            401|403)
+              aviso_sin_read
+              exit 0
+              ;;
+            404)
+              echo "El UUID devuelto no resuelve; buscando el último despliegue de la aplicación."
+              codigo=$(consultar "${COOLIFY_API}/deployments/applications/${app_uuid}?take=1" "${cuerpo}")
+              case "${codigo}" in
+                401|403) aviso_sin_read; exit 0 ;;
+                200) ;;
+                *)
+                  echo "::error::Coolify respondió ${codigo} al listar los despliegues de ${app_uuid}."
+                  cat "${cuerpo}"
+                  exit 1
+                  ;;
+              esac
+              despliegue=$(jq -r '.deployments[0].deployment_uuid // empty' "${cuerpo}")
+              if [ -z "${despliegue}" ]; then
+                echo "::error::Coolify no tiene ningún despliegue registrado para ${app_uuid}."
+                exit 1
+              fi
+              ;;
+            200) ;;
+            *)
+              echo "::error::Coolify respondió ${codigo} al consultar el despliegue ${despliegue}."
+              cat "${cuerpo}"
+              exit 1
+              ;;
+          esac
+
+          panel="http://100.101.207.88:8000/api/v1/deployments/${despliegue}"
+          echo "Despliegue ${despliegue}. Esperando a que termine…"
+
+          # 40 min de espera contra 60 de timeout del job: si el build se cuelga, el mensaje que
+          # queda en el log es el nuestro y no el corte seco de GitHub. Mientras el despliegue
+          # siga en cola el plazo se reinicia —esperar turno no es colgarse—, y quien pone el
+          # límite absoluto es el `timeout-minutes` de arriba.
+          limite=$(( $(date +%s) + 40 * 60 ))
+          anterior=""
+
+          while :; do
+            codigo=$(consultar "${COOLIFY_API}/deployments/${despliegue}" "${cuerpo}")
+            case "${codigo}" in
+              200) ;;
+              401|403) aviso_sin_read; exit 0 ;;
+              *)
+                # Un corte de red o un reinicio del panel no es un despliegue fallido.
+                echo "  (Coolify respondió ${codigo}; reintentando)"
+                sleep 10
+                continue
+                ;;
+            esac
+
+            estado=$(jq -r '.status // "desconocido"' "${cuerpo}")
+            if [ "${estado}" != "${anterior}" ]; then
+              echo "  estado: ${estado}"
+              anterior="${estado}"
+            fi
+
+            case "${estado}" in
+              finished)
+                commit=$(jq -r '.commit // ""' "${cuerpo}")
+                echo "Despliegue terminado. Commit desplegado: ${commit}"
+                if [ "${GITHUB_EVENT_NAME}" = "push" ] && [ -n "${commit}" ] \
+                   && [ "${commit}" != "${GITHUB_SHA}" ] && [ "${commit}" != "HEAD" ]; then
+                  echo "::warning::Coolify desplegó ${commit}, no ${GITHUB_SHA}. Suele ser un push"
+                  echo "::warning::posterior que ganó la carrera; compruébalo antes de dar el"
+                  echo "::warning::despliegue por bueno."
+                fi
+                {
+                  echo "### Despliegue correcto"
+                  echo ""
+                  echo "- Aplicación: \`${app_uuid}\`"
+                  echo "- Despliegue: \`${despliegue}\`"
+                  echo "- Commit: \`${commit}\`"
+                } >> "${GITHUB_STEP_SUMMARY}"
+                exit 0
+                ;;
+              failed|cancelled-by-user)
+                echo "::error::El despliegue terminó en '${estado}'. El contenedor que está"
+                echo "::error::sirviendo sigue siendo el ANTERIOR."
+                echo "::error::Log completo: Coolify -> ${app_uuid} -> Deployments -> ${despliegue}"
+                echo "::error::o  curl -H 'Authorization: Bearer <token con read:sensitive>' ${panel}"
+                {
+                  echo "### Despliegue fallido (\`${estado}\`)"
+                  echo ""
+                  echo "- Aplicación: \`${app_uuid}\`"
+                  echo "- Despliegue: \`${despliegue}\`"
+                  echo "- El servicio sigue con la versión anterior."
+                } >> "${GITHUB_STEP_SUMMARY}"
+                exit 1
+                ;;
+              queued)
+                limite=$(( $(date +%s) + 40 * 60 ))
+                ;;
+              in_progress) ;;
+              *)
+                echo "::warning::Estado inesperado '${estado}'; se sigue esperando."
+                ;;
+            esac
+
+            if [ "$(date +%s)" -ge "${limite}" ]; then
+              echo "::error::40 minutos esperando y el despliegue sigue en '${estado}'."
+              echo "::error::Míralo en Coolify -> ${app_uuid} -> Deployments -> ${despliegue}."
+              exit 1
+            fi
+            sleep 10
+          done
