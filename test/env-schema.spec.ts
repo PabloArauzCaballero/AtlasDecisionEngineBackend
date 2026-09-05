@@ -34,6 +34,16 @@ describe('variables opcionales que llegan vacías desde Docker', () => {
     LITELLM_MAX_ATTEMPTS: '',
     LITELLM_MAX_OUTPUT_TOKENS: '',
     SEMANTIC_CASCADE_LOCAL_TIMEOUT_MS: '',
+    SEMANTIC_CASCADE_REMOTE_PROVIDER: '',
+    OPENROUTER_API_KEY: '',
+    OPENROUTER_BASE_URL: '',
+    OPENROUTER_FAST_MODEL: '',
+    OPENROUTER_DEEP_MODEL: '',
+    OPENROUTER_TIMEOUT_MS: '',
+    OPENROUTER_MAX_ATTEMPTS: '',
+    OPENROUTER_MAX_OUTPUT_TOKENS: '',
+    OPENROUTER_APP_URL: '',
+    OPENROUTER_APP_TITLE: '',
   };
 
   it('un despliegue SIN gateway arranca aunque compose le pase las variables vacías', () => {
@@ -44,12 +54,70 @@ describe('variables opcionales que llegan vacías desde Docker', () => {
     const result = validateEnvironment({ ...base, ...vacias });
     expect(result.LITELLM_API_KEY).toBeUndefined();
     expect(result.LITELLM_TIMEOUT_MS).toBeUndefined();
+    expect(result.OPENROUTER_API_KEY).toBeUndefined();
+    expect(result.SEMANTIC_CASCADE_REMOTE_PROVIDER).toBeUndefined();
   });
 
   it('con un valor de verdad, se sigue validando igual', () => {
     expect(() => validateEnvironment({ ...base, LITELLM_TIMEOUT_MS: '5' })).toThrow(); // por debajo del mínimo de 1000 ms
     const ok = validateEnvironment({ ...base, LITELLM_TIMEOUT_MS: '5000' });
     expect(ok.LITELLM_TIMEOUT_MS).toBe(5000);
+  });
+});
+
+/**
+ * Un gateway sin credencial arranca sano y convierte cada glosa en un pendiente
+ * de revisión: es el modo de fallo más caro y hay que cortarlo al arrancar. La
+ * guarda mira el gateway que el despliegue VA A USAR, no «LiteLLM porque sí».
+ *
+ * Sólo en producción, como el resto de guardas del worker: en desarrollo se
+ * puede arrancar a medio configurar.
+ */
+describe('la credencial del gateway elegido', () => {
+  const conWorker = {
+    ...jwtProduction,
+    SEMANTIC_ANALYSIS_WORKER_ENABLED: 'true',
+    SEMANTIC_ALLOW_INTERNATIONAL_TRANSFER: 'true',
+  };
+
+  it('openrouter en directo exige OPENROUTER_API_KEY, y sólo esa', () => {
+    expect(() =>
+      validateEnvironment({ ...conWorker, SEMANTIC_ANALYSIS_PROVIDER: 'openrouter' }),
+    ).toThrow(/OPENROUTER_API_KEY/u);
+    expect(() =>
+      validateEnvironment({
+        ...conWorker,
+        SEMANTIC_ANALYSIS_PROVIDER: 'openrouter',
+        OPENROUTER_API_KEY: 'sk-or-v1-prueba',
+      }),
+    ).not.toThrow();
+  });
+
+  it('la cascada exige la credencial del escalón remoto elegido, no la del otro', () => {
+    expect(() =>
+      validateEnvironment({
+        ...conWorker,
+        SEMANTIC_ANALYSIS_PROVIDER: 'cascade',
+        SEMANTIC_CASCADE_REMOTE_PROVIDER: 'openrouter',
+        LITELLM_API_KEY: 'sk-gateway',
+      }),
+    ).toThrow(/OPENROUTER_API_KEY/u);
+    expect(() =>
+      validateEnvironment({
+        ...conWorker,
+        SEMANTIC_ANALYSIS_PROVIDER: 'cascade',
+        SEMANTIC_CASCADE_REMOTE_PROVIDER: 'openrouter',
+        OPENROUTER_API_KEY: 'sk-or-v1-prueba',
+      }),
+    ).not.toThrow();
+    // Sin declarar el remoto, sigue siendo LiteLLM, como antes.
+    expect(() =>
+      validateEnvironment({
+        ...conWorker,
+        SEMANTIC_ANALYSIS_PROVIDER: 'cascade',
+        OPENROUTER_API_KEY: 'sk-or-v1-prueba',
+      }),
+    ).toThrow(/LITELLM_API_KEY/u);
   });
 });
 

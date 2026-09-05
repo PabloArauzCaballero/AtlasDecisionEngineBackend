@@ -3,7 +3,7 @@
 
 # Catálogo de endpoints
 
-Contrato **v1** · 203 rutas · 227 operaciones.
+Contrato **v1** · 209 rutas · 237 operaciones.
 
 La referencia interactiva completa —con esquemas, ejemplos y la posibilidad de probar cada
 llamada— está en `/docs/{API_VERSION}/reference` del propio backend. Esta página existe para
@@ -416,7 +416,11 @@ Clasificación de texto libre contra el catálogo de categorías, con entidades 
 | `POST` | `/v1/workers/bank-statement/institutions` | `financialInstitutionCreate` | Da de alta una entidad en el padrón |
 | `PUT` | `/v1/workers/bank-statement/institutions/{code}` | `financialInstitutionUpdate` | Actualiza una entidad del padrón |
 | `DELETE` | `/v1/workers/bank-statement/institutions/{code}` | `financialInstitutionDeactivate` | Da de baja una entidad (no se borra: las trazas la citan) |
+| `GET` | `/v1/workers/bank-statement/institutions/{code}/logo` | `financialInstitutionLogo` | Logotipo de una entidad |
+| `PUT` | `/v1/workers/bank-statement/institutions/{code}/logo` | `financialInstitutionSetLogo` | Carga el logotipo de una entidad |
+| `DELETE` | `/v1/workers/bank-statement/institutions/{code}/logo` | `financialInstitutionRemoveLogo` | Quita el logotipo de una entidad |
 | `POST` | `/v1/workers/bank-statement/institutions/{code}/reactivate` | `financialInstitutionReactivate` | Vuelve a poner en servicio una entidad dada de baja |
+| `POST` | `/v1/workers/bank-statement/institutions/logos/sync` | `financialInstitutionSyncLogos` | Carga los logotipos que trae el motor y reemplaza los monogramas por la marca oficial |
 | `POST` | `/v1/workers/bank-statement/institutions/seed` | `financialInstitutionSeed` | Inyecta las entidades de la nómina ASFI que falten en el padrón |
 | `GET` | `/v1/workers/bank-statement/institutions/summary` | `financialInstitutionSummary` | Estado del padrón y entidades que faltan respecto de la nómina ASFI |
 
@@ -451,6 +455,16 @@ Conversión de un extracto bancario en PDF a movimientos normalizados. Asíncron
 | `POST` | `/v1/workers/audio-tts/runs/{requestId}/cancel` | `audioTtsCancelRun` | Cancela una locución que nadie ha reclamado todavía |
 | `GET` | `/v1/workers/audio-tts/templates` | `audioTtsListTemplates` | Plantillas de locución del tenant, con sus variables |
 
+## Workers · Modelo semántico
+
+| Método | Ruta | Operación | Resumen |
+| --- | --- | --- | --- |
+| `GET` | `/v1/workers/semantic-analysis/model-settings` | `semanticModelSettingsDescribe` | Gateway y modelos en uso, de dónde salen y qué gateways están disponibles |
+| `PUT` | `/v1/workers/semantic-analysis/model-settings` | `semanticModelSettingsUpdate` | Elige el gateway y los modelos del escalón remoto |
+| `DELETE` | `/v1/workers/semantic-analysis/model-settings` | `semanticModelSettingsReset` | Vuelve a lo que dicta el entorno |
+| `GET` | `/v1/workers/semantic-analysis/model-settings/catalog` | `semanticModelSettingsListCatalog` | Modelos de OpenRouter que sostienen salida estructurada, con precio |
+| `POST` | `/v1/workers/semantic-analysis/model-settings/test` | `semanticModelSettingsTest` | Clasifica una glosa de prueba con la configuración candidata, sin guardarla |
+
 ## Workers · Pendientes de clasificación
 
 | Método | Ruta | Operación | Resumen |
@@ -475,3 +489,4 @@ Conversión de un extracto bancario en PDF a movimientos normalizados. Asíncron
 | `GET` | `/v1/workers/identity-verification/runs` | `identityVerificationListRuns` | Verificaciones del tenant |
 | `GET` | `/v1/workers/identity-verification/runs/{requestId}` | `identityVerificationGetRun` | Estado, progreso y veredicto de una verificación |
 | `POST` | `/v1/workers/identity-verification/runs/{requestId}/cancel` | `identityVerificationCancelRun` | Cancela una verificación que nadie ha reclamado todavía |
+| `GET` | `/v1/workers/identity-verification/runs/{requestId}/images/{kind}` | `identityVerificationGetRunImage` | Una de las tres imágenes de la verificación, desde el almacén persistente |

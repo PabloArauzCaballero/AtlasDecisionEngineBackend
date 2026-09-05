@@ -101,6 +101,10 @@ import { UnresolvedReevaluationService } from './semantic-analysis/unresolved-re
 import { SemanticAnalysisService } from './semantic-analysis/semantic-analysis.service';
 import { buildSemanticWorkerConfig } from './semantic-analysis/semantic-config.bridge';
 import { buildSemanticModelProvider } from './semantic-analysis/semantic-model-provider.bridge';
+import { OpenRouterCatalogService } from './semantic-analysis/model-settings/openrouter-catalog.service';
+import { SemanticModelProbeService } from './semantic-analysis/model-settings/semantic-model-probe.service';
+import { SemanticModelSettingsController } from './semantic-analysis/model-settings/semantic-model-settings.controller';
+import { SemanticModelSettingsService } from './semantic-analysis/model-settings/semantic-model-settings.service';
 import { SemanticRetentionSweeperService } from './semantic-analysis/semantic-retention-sweeper.service';
 import { SemanticRunWorkerService } from './semantic-analysis/semantic-run-worker.service';
 import { WorkersController } from './workers.controller';
@@ -138,6 +142,7 @@ import { WorkerServiceInvokerService } from './worker-service-invoker.service';
     BankStatementController,
     StatementReviewController,
     FinancialInstitutionController,
+    SemanticModelSettingsController,
     IdentityVerificationController,
     IdentityReviewController,
     SemanticAnalysisController,
@@ -347,6 +352,16 @@ import { WorkerServiceInvokerService } from './worker-service-invoker.service';
       inject: [ConfigService],
     },
 
+    /*
+     * Gateway y modelos del escalón remoto, elegibles desde el portal. El
+     * servicio sondea la fila en los procesos que corren el worker, y el puente
+     * de abajo reconstruye el adaptador y vacía la caché de veredictos cuando
+     * cambia. El catálogo y la sonda sólo los usa el controlador.
+     */
+    SemanticModelSettingsService,
+    OpenRouterCatalogService,
+    SemanticModelProbeService,
+
     /**
      * Recuperación de candidatos.
      *
@@ -371,7 +386,12 @@ import { WorkerServiceInvokerService } from './worker-service-invoker.service';
     {
       provide: SEMANTIC_MODEL_PROVIDER,
       useFactory: buildSemanticModelProvider,
-      inject: [ConfigService, SEMANTIC_WORKER_CONFIG],
+      inject: [
+        ConfigService,
+        SEMANTIC_WORKER_CONFIG,
+        SemanticModelSettingsService,
+        ClassificationCache,
+      ],
     },
   ],
   exports: [

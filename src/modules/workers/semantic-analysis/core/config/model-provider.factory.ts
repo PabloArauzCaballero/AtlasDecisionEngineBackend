@@ -7,17 +7,29 @@ import {
 } from './openai-provider.config';
 import { loadTransformerProviderOptions } from './transformer-provider.config';
 import { loadLiteLlmEmbeddingOptions, loadLiteLlmProviderOptions } from './litellm-provider.config';
+import { loadOpenRouterProviderOptions } from './openrouter-provider.config';
+import { SemanticConfigurationError } from '../domain/semantic-analysis.errors';
 import { OpenAiSemanticProvider } from '../infrastructure/openai/openai-semantic.provider';
 import { OpenAiEmbeddingProvider } from '../infrastructure/openai/openai-embedding.provider';
 import { TransformerSemanticProvider } from '../infrastructure/transformer/transformer-semantic.provider';
 import { TransformerEmbeddingProvider } from '../infrastructure/transformer/transformer-embedding.provider';
 import { LiteLlmSemanticProvider } from '../infrastructure/litellm/litellm-semantic.provider';
+import { OpenRouterSemanticProvider } from '../infrastructure/openrouter/openrouter-semantic.provider';
 import { CascadingSemanticProvider } from '../infrastructure/cascade/cascading-semantic.provider';
+
+/** Los dos gateways que pueden atender el escalón remoto: el propio y el alojado. */
+export type RemoteGatewayKind = 'litellm' | 'openrouter';
 
 const selectionSchema = z.object({
   SEMANTIC_MODEL_PROVIDER: z
-    .enum(['openai', 'transformer', 'litellm', 'cascade'])
+    .enum(['openai', 'transformer', 'litellm', 'openrouter', 'cascade'])
     .default('openai'),
+  /**
+   * Quién atiende el escalón remoto de la cascada. Por omisión el gateway
+   * propio, que es lo que había; `openrouter` deja el codificador local
+   * exactamente igual y sólo cambia a quién se le pregunta lo difícil.
+   */
+  SEMANTIC_CASCADE_REMOTE_PROVIDER: z.enum(['litellm', 'openrouter']).default('litellm'),
   /**
    * Cuánto se le espera al clasificador local antes de escalar al modelo remoto.
    *
@@ -59,6 +71,9 @@ const selectionSchema = z.object({
  * datos al exterior sin tocar nada del motor y sin que nadie lo declarase. Un despliegue con
  * el gateway apuntado sólo a modelos dentro del perímetro declara la variable igualmente —una
  * afirmación de más—; lo contrario sería una transferencia de menos.
+ *
+ * **`openrouter` es el caso sin matiz.** No hay perímetro que valga: es un servicio alojado
+ * que reenvía a proveedores alojados, y el texto sale del país en la primera llamada.
  */
 function assertTransferAllowed(
   kind: ProviderKind,
@@ -79,7 +94,7 @@ function assertTransferAllowed(
   );
 }
 
-type ProviderKind = 'openai' | 'transformer' | 'litellm' | 'cascade';
+type ProviderKind = 'openai' | 'transformer' | 'litellm' | 'openrouter' | 'cascade';
 
 export interface ResolvedModelProviders {
   readonly modelProvider: SemanticModelProvider;
@@ -128,6 +143,7 @@ function buildModelProvider(
 ): SemanticModelProvider {
   if (kind === 'transformer') return buildTransformerModelProvider(environment);
   if (kind === 'litellm') return buildLiteLlmModelProvider(environment, config);
+  if (kind === 'openrouter') return buildOpenRouterModelProvider(environment, config);
   if (kind === 'cascade') return buildCascadeModelProvider(environment, config);
   return buildOpenAiModelProvider(environment, config);
 }
@@ -138,18 +154,37 @@ function buildModelProvider(
  * Los dos adaptadores se construyen aquí y no dentro del compuesto para que ÉSTE no
  * conozca proveedores concretos: recibe dos puertos y no sabe que uno habla con un
  * servidor de embeddings y el otro con un gateway. Cambiar cualquiera de los dos no
- * toca la lógica de la cascada.
+ * toca la lógica de la cascada — y por eso el escalón remoto puede ser cualquiera
+ * de los dos gateways sin que la cascada se entere.
  */
 function buildCascadeModelProvider(
   environment: NodeJS.ProcessEnv,
   config: SemanticWorkerConfig,
 ): SemanticModelProvider {
-  const { SEMANTIC_CASCADE_LOCAL_TIMEOUT_MS: localTimeoutMs } = selectionSchema.parse(environment);
+  const {
+    SEMANTIC_CASCADE_LOCAL_TIMEOUT_MS: localTimeoutMs,
+    SEMANTIC_CASCADE_REMOTE_PROVIDER: remoteKind,
+  } = selectionSchema.parse(environment);
   return new CascadingSemanticProvider({
     local: buildTransformerModelProvider(environment),
-    remote: buildLiteLlmModelProvider(environment, config),
+    remote: buildRemoteGatewayProvider(remoteKind, environment, config),
     localTimeoutMs,
   });
+}
+
+/**
+ * El escalón remoto, sea el gateway propio o el alojado. Público porque la
+ * configuración en tiempo de ejecución elige entre los dos sin pasar por el
+ * entorno, y necesita construir exactamente lo mismo que construiría éste.
+ */
+export function buildRemoteGatewayProvider(
+  kind: RemoteGatewayKind,
+  environment: NodeJS.ProcessEnv,
+  config: SemanticWorkerConfig,
+): SemanticModelProvider {
+  return kind === 'openrouter'
+    ? buildOpenRouterModelProvider(environment, config)
+    : buildLiteLlmModelProvider(environment, config);
 }
 
 function buildEmbeddingProvider(
@@ -162,6 +197,15 @@ function buildEmbeddingProvider(
   if (kind === 'transformer' || kind === 'cascade')
     return buildTransformerEmbeddingProvider(environment);
   if (kind === 'litellm') return buildLiteLlmEmbeddingProvider(environment);
+  // OpenRouter no publica `/embeddings` con el contrato de OpenAI. Heredar el
+  // proveedor de clasificación aquí construiría un cliente que falla en la
+  // primera recuperación; mejor pedir la decisión explícita.
+  if (kind === 'openrouter') {
+    throw new SemanticConfigurationError(
+      'OpenRouter no ofrece embeddings: con SEMANTIC_ANALYSIS_PROVIDER=openrouter y el ' +
+        'recuperador híbrido hay que declarar SEMANTIC_EMBEDDING_PROVIDER (transformer | litellm | openai).',
+    );
+  }
   return buildOpenAiEmbeddingProvider(environment);
 }
 
@@ -216,6 +260,25 @@ function buildLiteLlmModelProvider(
     config.analysisTimeoutSeconds,
   );
   return new LiteLlmSemanticProvider(options);
+}
+
+/**
+ * OpenRouter se comprueba contra el presupuesto exactamente igual que el gateway propio:
+ * sus reintentos tampoco ven el reloj del análisis. Aquí no hay `num_retries` por debajo
+ * que sumar, pero sí un enrutado entre proveedores físicos que puede probar más de uno
+ * dentro de la misma llamada, así que el peor caso sigue siendo un SUELO.
+ */
+function buildOpenRouterModelProvider(
+  environment: NodeJS.ProcessEnv,
+  config: SemanticWorkerConfig,
+): SemanticModelProvider {
+  const options = loadOpenRouterProviderOptions(environment);
+  assertProviderTimeoutFitsAnalysis(
+    options.timeoutMs ?? 30_000,
+    options.maxAttempts ?? 3,
+    config.analysisTimeoutSeconds,
+  );
+  return new OpenRouterSemanticProvider(options);
 }
 
 /**

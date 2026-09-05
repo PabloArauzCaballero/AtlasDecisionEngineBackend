@@ -336,12 +336,41 @@ export const envSchema = z
      * más texto del perímetro; se conserva para medir al modelo por su cuenta.
      */
     SEMANTIC_ANALYSIS_PROVIDER: z
-      .enum(['', 'openai', 'transformer', 'litellm', 'cascade'])
+      .enum(['', 'openai', 'transformer', 'litellm', 'openrouter', 'cascade'])
       .default(''),
     /** Cuánto se espera al clasificador local antes de escalar al LLM. */
     SEMANTIC_CASCADE_LOCAL_TIMEOUT_MS: emptyAsUndefined(
       z.coerce.number().int().min(200).max(60_000).optional(),
     ),
+    /**
+     * Quién atiende el escalón remoto de la cascada: el gateway propio (por
+     * omisión) o OpenRouter. El codificador local no cambia.
+     */
+    SEMANTIC_CASCADE_REMOTE_PROVIDER: emptyAsUndefined(
+      z.enum(['litellm', 'openrouter']).optional(),
+    ),
+    /*
+     * --- OpenRouter (SEMANTIC_ANALYSIS_PROVIDER=openrouter) ------------------
+     *
+     * El otro gateway. A diferencia de LiteLLM, aquí el motor SÍ nombra el modelo
+     * físico (`openai/gpt-4.1-mini`): OpenRouter no tiene alias, tiene catálogo.
+     * Es lo que permite elegir el modelo desde la configuración sin desplegar
+     * nada — ni el motor ni un `config.yaml` aparte. La única credencial que
+     * entra en este proceso es la de OpenRouter.
+     */
+    OPENROUTER_BASE_URL: emptyAsUndefined(z.url().optional()),
+    OPENROUTER_API_KEY: emptyAsUndefined(z.string().trim().min(1).optional()),
+    OPENROUTER_FAST_MODEL: emptyAsUndefined(z.string().trim().min(1).optional()),
+    OPENROUTER_DEEP_MODEL: emptyAsUndefined(z.string().trim().min(1).optional()),
+    OPENROUTER_TIMEOUT_MS: emptyAsUndefined(
+      z.coerce.number().int().min(1_000).max(600_000).optional(),
+    ),
+    OPENROUTER_MAX_ATTEMPTS: emptyAsUndefined(z.coerce.number().int().min(1).max(10).optional()),
+    OPENROUTER_MAX_OUTPUT_TOKENS: emptyAsUndefined(
+      z.coerce.number().int().min(256).max(32_000).optional(),
+    ),
+    OPENROUTER_APP_URL: emptyAsUndefined(z.url().optional()),
+    OPENROUTER_APP_TITLE: emptyAsUndefined(z.string().trim().min(1).max(80).optional()),
     /*
      * --- Gateway LiteLLM (SEMANTIC_ANALYSIS_PROVIDER=litellm) --------------
      *
@@ -1439,10 +1468,16 @@ export const envSchema = z
        * a uno. Es el modo de fallo más caro de los tres: no cae, no clasifica y
        * la bandeja crece sin que nada apunte a la configuración.
        */
+      // En cascada el gateway que importa es el del escalón remoto, no «LiteLLM
+      // porque sí»: con el remoto en OpenRouter, exigir LITELLM_API_KEY pediría
+      // una credencial que ese despliegue no usa.
+      const escalonRemoto =
+        value.SEMANTIC_ANALYSIS_PROVIDER === 'cascade'
+          ? (value.SEMANTIC_CASCADE_REMOTE_PROVIDER ?? 'litellm')
+          : value.SEMANTIC_ANALYSIS_PROVIDER;
       if (
         value.SEMANTIC_ANALYSIS_WORKER_ENABLED &&
-        (value.SEMANTIC_ANALYSIS_PROVIDER === 'litellm' ||
-          value.SEMANTIC_ANALYSIS_PROVIDER === 'cascade') &&
+        escalonRemoto === 'litellm' &&
         (value.LITELLM_API_KEY ?? '') === ''
       ) {
         ctx.addIssue({
@@ -1452,6 +1487,22 @@ export const envSchema = z
             'SEMANTIC_ANALYSIS_PROVIDER=litellm necesita la credencial del gateway. Define ' +
             'LITELLM_API_KEY (la master key o una virtual key del proxy); las claves de los ' +
             'proveedores físicos no van aquí, sino en el contenedor de LiteLLM.',
+        });
+      }
+      // Mismo modo de fallo con el otro gateway: arranca sano y convierte cada
+      // glosa en un pendiente de revisión.
+      if (
+        value.SEMANTIC_ANALYSIS_WORKER_ENABLED &&
+        escalonRemoto === 'openrouter' &&
+        (value.OPENROUTER_API_KEY ?? '') === ''
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['OPENROUTER_API_KEY'],
+          message:
+            'SEMANTIC_ANALYSIS_PROVIDER=openrouter (o la cascada con escalón remoto en ' +
+            'OpenRouter) necesita OPENROUTER_API_KEY. Las cuentas de los proveedores físicos ' +
+            'viven en OpenRouter, no aquí.',
         });
       }
       /*

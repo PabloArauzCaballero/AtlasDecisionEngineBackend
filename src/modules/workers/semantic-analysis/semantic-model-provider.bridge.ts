@@ -8,6 +8,28 @@ import type {
   ModelClassification,
   ModelClassificationInput,
 } from './core/domain/semantic-analysis.types';
+import { environmentOverridesFor } from './model-settings/environment-overrides';
+import type { EffectiveModelSettings } from './model-settings/semantic-model-settings.service';
+
+/**
+ * Lo que el puente necesita de la configuración del portal. Se declara
+ * estructuralmente para que una prueba pueda pasar un objeto literal y para
+ * que el puente no arrastre el servicio entero.
+ */
+export interface ModelSettingsSource {
+  /** Si la elección de gateway tiene efecto en este despliegue. */
+  applies(): boolean;
+  current(): Promise<EffectiveModelSettings>;
+  /** Lo último resuelto, sin consultar. */
+  peek(): EffectiveModelSettings | undefined;
+  /** Avisa cuando cambia. Devuelve la baja. */
+  onChange(listener: (settings: EffectiveModelSettings) => void): () => void;
+}
+
+/** Lo que hay que vaciar cuando cambia el modelo: los veredictos del anterior. */
+export interface ClearableCache {
+  clear(): void;
+}
 
 /**
  * Puente entre la selección de proveedor del motor y la fábrica del núcleo.
@@ -27,6 +49,20 @@ import type {
  *    con otro. Se traduce aquí, igual que hace `semantic-config.bridge.ts` con
  *    el resto de la configuración, para no tocar el núcleo absorbido.
  *
+ * Y una tercera cosa, que llegó después: **la configuración del portal**. El
+ * gateway y los modelos del escalón remoto pueden cambiarse en caliente, así
+ * que el proveedor construido se cachea por VERSIÓN de esa configuración y no
+ * para siempre. Cambiar de modelo reconstruye el adaptador en la siguiente
+ * clasificación y vacía la caché de veredictos: lo que calculó el modelo
+ * anterior no se sirve como si lo hubiera calculado el nuevo — el mismo
+ * defecto que ya tuvo el catálogo cuando editar una categoría no cambiaba su
+ * firma.
+ *
+ * La configuración se expresa como variables de entorno sobre `process.env` y
+ * pasa por la misma fábrica: un modelo elegido en la pantalla y el mismo
+ * modelo puesto en `.env` construyen exactamente el mismo adaptador, con las
+ * mismas validaciones y la misma comprobación de presupuesto.
+ *
  * La construcción perezosa sigue siendo necesaria con `transformer`, aunque no
  * exija credencial: el adaptador rechaza en el constructor una URL apuntada a la
  * capa compatible con OpenAI, y ese fallo tumbaría el arranque de toda réplica
@@ -40,17 +76,29 @@ import type {
 export function buildSemanticModelProvider(
   config: ConfigService,
   workerConfig: SemanticWorkerConfig,
+  settings?: ModelSettingsSource,
+  classificationCache?: ClearableCache,
 ): SemanticModelProvider & Required<Pick<SemanticModelProvider, 'modelFor'>> {
-  return new LazySemanticModelProvider(config, workerConfig);
+  return new RoutedSemanticModelProvider(config, workerConfig, settings, classificationCache);
 }
 
-class LazySemanticModelProvider implements SemanticModelProvider {
-  private resolved?: SemanticModelProvider;
+class RoutedSemanticModelProvider implements SemanticModelProvider {
+  private resolved?: { readonly provider: SemanticModelProvider; readonly version: number };
 
   constructor(
     private readonly config: ConfigService,
     private readonly workerConfig: SemanticWorkerConfig,
-  ) {}
+    private readonly settings?: ModelSettingsSource,
+    private readonly classificationCache?: ClearableCache,
+  ) {
+    // El aviso llega del sondeo del worker o de la escritura de la API. Se
+    // vacía la caché AQUÍ y no al reconstruir, para que un acierto de caché
+    // —que nunca llega a construir nada— tampoco sirva un veredicto viejo.
+    this.settings?.onChange(() => {
+      this.resolved = undefined;
+      this.classificationCache?.clear();
+    });
+  }
 
   // `async` a propósito: sin él, un fallo de configuración se lanzaría de forma
   // SÍNCRONA desde un método que declara devolver una promesa, y el `.catch()`
@@ -61,32 +109,69 @@ class LazySemanticModelProvider implements SemanticModelProvider {
     tier: AnalysisTier,
     signal?: AbortSignal,
   ): Promise<ModelClassification> {
-    return this.provider().classify(input, tier, signal);
+    const provider = await this.provider();
+    return provider.classify(input, tier, signal);
   }
 
+  /**
+   * `modelFor` es opcional en el puerto y se invoca en el camino de error: si
+   * el adaptador no puede construirse, la métrica de fallo se queda sin
+   * atribución en vez de romper ese camino.
+   */
   modelFor(tier: AnalysisTier): string {
-    const provider = this.provider();
-    // `modelFor` es opcional en el puerto: si el adaptador elegido no fija el
-    // modelo por nivel, la métrica de fallo se queda sin atribución en vez de
-    // romper el camino de error, que es donde se invoca.
-    return provider.modelFor?.(tier) ?? 'unknown';
+    try {
+      if (this.resolved === undefined) {
+        // Con lo último que se conozca del portal, sin consultar: este camino es
+        // síncrono. Si el portal aún no se ha leído, se construye desde el
+        // entorno y la primera clasificación lo reemplazará si la versión difiere.
+        const effective = this.settingsIfApply()?.peek();
+        this.resolved = { provider: this.build(effective), version: effective?.version ?? 0 };
+      }
+      return this.resolved.provider.modelFor?.(tier) ?? 'unknown';
+    } catch {
+      return 'unknown';
+    }
   }
 
-  private provider(): SemanticModelProvider {
-    if (this.resolved) return this.resolved;
+  private async provider(): Promise<SemanticModelProvider> {
+    const source = this.settingsIfApply();
+    const effective = source === undefined ? undefined : await source.current();
+    const version = effective?.version ?? 0;
+    if (this.resolved !== undefined && this.resolved.version === version) {
+      return this.resolved.provider;
+    }
+    const provider = this.build(effective);
+    this.resolved = { provider, version };
+    return provider;
+  }
 
+  private settingsIfApply(): ModelSettingsSource | undefined {
+    return this.settings?.applies() === true ? this.settings : undefined;
+  }
+
+  private build(effective: EffectiveModelSettings | undefined): SemanticModelProvider {
     const selected = this.config.get<string>('SEMANTIC_ANALYSIS_PROVIDER') ?? '';
     if (selected === '') {
       // No retryable a propósito: reintentar no va a hacer aparecer la
       // configuración, y cada intento gastaría un lease de la ejecución.
       throw new SemanticConfigurationError(
-        'No hay proveedor de modelo semántico configurado: defina SEMANTIC_ANALYSIS_PROVIDER (transformer | cascade | litellm | openai).',
+        'No hay proveedor de modelo semántico configurado: defina SEMANTIC_ANALYSIS_PROVIDER (transformer | cascade | litellm | openrouter | openai).',
       );
     }
 
+    const overrides =
+      effective === undefined
+        ? {}
+        : environmentOverridesFor(
+            selected,
+            effective.gateway,
+            effective.fastModel,
+            effective.deepModel,
+          );
+
     try {
-      this.resolved = loadModelProviders(
-        { ...process.env, SEMANTIC_MODEL_PROVIDER: selected },
+      return loadModelProviders(
+        { ...process.env, SEMANTIC_MODEL_PROVIDER: selected, ...overrides },
         this.workerConfig,
       ).modelProvider;
     } catch (error) {
@@ -97,6 +182,5 @@ class LazySemanticModelProvider implements SemanticModelProvider {
         { cause: error },
       );
     }
-    return this.resolved;
   }
 }

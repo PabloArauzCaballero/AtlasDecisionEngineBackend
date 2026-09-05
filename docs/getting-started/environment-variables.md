@@ -3,7 +3,7 @@
 
 # Variables de entorno
 
-267 variables declaradas. El esquema se valida al arrancar: un valor ausente o
+307 variables declaradas. El esquema se valida al arrancar: un valor ausente o
 fuera de rango impide el arranque en vez de degradar el comportamiento en caliente.
 
 | Variable | Obligatoria | Valor por defecto | Para qué |
@@ -120,6 +120,16 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `SEMANTIC_ANALYSIS_TIMEOUT_RESCUE_ENABLED` | no | `true` | — |
 | `SEMANTIC_ANALYSIS_PROVIDER` | **sí** | — | — |
 | `SEMANTIC_CASCADE_LOCAL_TIMEOUT_MS` | **sí** | — | — |
+| `SEMANTIC_CASCADE_REMOTE_PROVIDER` | **sí** | — | — |
+| `OPENROUTER_BASE_URL` | no | — | — |
+| `OPENROUTER_API_KEY` | no | — | — |
+| `OPENROUTER_FAST_MODEL` | no | — | — |
+| `OPENROUTER_DEEP_MODEL` | no | — | — |
+| `OPENROUTER_TIMEOUT_MS` | **sí** | — | — |
+| `OPENROUTER_MAX_ATTEMPTS` | no | — | — |
+| `OPENROUTER_MAX_OUTPUT_TOKENS` | **sí** | — | — |
+| `OPENROUTER_APP_URL` | no | — | — |
+| `OPENROUTER_APP_TITLE` | no | — | — |
 | `LITELLM_BASE_URL` | no | — | — |
 | `LITELLM_API_KEY` | no | — | — |
 | `LITELLM_FAST_MODEL` | no | — | — |
@@ -148,6 +158,17 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `BANK_STATEMENT_DOCUMENT_REVIEW_CONFIDENCE` | no | `0.3` | — |
 | `BANK_STATEMENT_REVIEW_EXTRACTION_CONFIDENCE` | no | `0.5` | — |
 | `BANK_STATEMENT_REQUIRE_LICENSED_ISSUER` | no | `true` | — |
+| `BANK_STATEMENT_AUTHENTICITY_ENFORCE` | no | `true` | — |
+| `BANK_STATEMENT_AUTHENTICITY_REJECT_SCORE` | no | `70` | — |
+| `BANK_STATEMENT_AUTHENTICITY_REVIEW_SCORE` | no | `30` | — |
+| `BANK_STATEMENT_ENFORCE_MINIMUM_MONTHS` | no | `false` | — |
+| `BANK_STATEMENT_RECENCY_ENFORCE` | no | `true` | — |
+| `BANK_STATEMENT_RECENCY_TOLERANCE_DAYS` | no | `3` | — |
+| `BANK_STATEMENT_RECENCY_FUTURE_TOLERANCE_DAYS` | **sí** | — | — |
+| `BANK_STATEMENT_SIMILARITY_MODE` | **sí** | — | — |
+| `BANK_STATEMENT_SIMILARITY_MATCH_SCORE` | no | `70` | — |
+| `BANK_STATEMENT_SIMILARITY_PARTIAL_SCORE` | no | `35` | — |
+| `BANK_STATEMENT_SIMILARITY_MIN_SAMPLE` | no | `3` | — |
 | `BANK_STATEMENT_QUEUE_WAIT_BUDGET_MS` | **sí** | — | — |
 | `IDENTITY_VERIFICATION_WORKER_ENABLED` | no | `false` | --- Worker C: verificación de identidad (ADR-0026) --------------------- |
 | `IDENTITY_WORKER_POLL_MS` | no | `500` | — |
@@ -175,6 +196,8 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `IDENTITY_MIN_IMAGE_PIXELS` | no | `230_400` | — |
 | `IDENTITY_MIN_READABLE_LONG_EDGE` | no | `240` | — |
 | `IDENTITY_MIN_READABLE_SHORT_EDGE` | no | `150` | — |
+| `IDENTITY_OCR_MAX_LONG_EDGE` | no | `600` | — |
+| `IDENTITY_OCR_FINE_LONG_EDGE` | no | `1_200` | — |
 | `IDENTITY_FACE_CROP_PADDING_RATIO` | no | `0.25` | — |
 | `IDENTITY_MIN_DOCUMENT_FACE_PX` | no | `80` | — |
 | `IDENTITY_LIVENESS_ENABLED` | no | `true` | — |
@@ -185,6 +208,13 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `IDENTITY_OCR_PROVIDER` | no | `'tesseract'` | — |
 | `IDENTITY_FACE_PROVIDER` | no | `'human'` | — |
 | `IDENTITY_LIVENESS_PROVIDER` | no | `'human'` | — |
+| `IDENTITY_FRAUD_DETECTION_ENABLED` | no | `true` | — |
+| `IDENTITY_FRAUD_STRICT` | no | `false` | — |
+| `IDENTITY_FRAUD_TEMPLATE_COVERAGE_MIN` | no | `0.4` | — |
+| `IDENTITY_FRAUD_REVIEW_RISK` | no | `0.3` | — |
+| `IDENTITY_FRAUD_SUSPICION_RISK` | no | `0.6` | — |
+| `IDENTITY_FRAUD_SEMANTIC_FLOOR` | no | `0.8` | — |
+| `IDENTITY_FRAUD_SEMANTIC_MARGIN` | no | `0.015` | — |
 | `AUDIO_TTS_WORKER_ENABLED` | no | `false` | --- Worker D: locución (ADR-0026) --------------------------------------  El único de los cuatro que puede COSTAR DINERO por ejecución, y eso marca casi todas las variables que siguen: hay un presupuesto mensual, un techo por persona y día, y una puerta aparte para permitir generar bajo demanda. |
 | `AUDIO_TTS_PROVIDER` | no | `'disabled'` | — |
 | `AUDIO_TTS_ALLOW_RUNTIME_GENERATION` | no | `false` | — |
@@ -269,11 +299,20 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `OUTBOX_BATCH_SIZE` | no | `25` | — |
 | `OUTBOX_MAX_ATTEMPTS` | no | `8` | Failed dispatches back off exponentially via available_at; after this many attempts the event is dead-lettered (status DEAD) for operator attention. |
 | `OUTBOX_LEASE_MS` | no | `30_000` | Claim lease: a relay replica that dies mid-batch frees its rows after this lapse. |
-| `STARTUP_SEED_ENABLED` | no | — | Idempotently injects bootstrap seeds (every environment) and mockup/demo seeds (development only) at application startup. Left unset it is on everywhere except `test`, where suites provision their own fixtures. Set explicitly to force either way. Solo surte efecto donde corren los trabajos de fondo (WORKER_ROLE ∈ ALL, WORKER): una réplica de API nunca siembra, aunque esto esté en `true`. |
-| `SEED_SOURCE_DATABASE_URL` | no | — | Cadena completa a la RAMA de PostgreSQL que publica el conjunto sembrado. Gana sobre `SEED_SOURCE_HOST`/`_DB`/`_USER`/`_PASSWORD`. La rama ES el perfil: la de desarrollo publica el artefacto de demostración, la de producción no, así que sustituye a `SEED_INCLUDE_MOCKUP` —que se deducía de `NODE_ENV` y nunca fue guarda fiable, porque la imagen del migrador fija `production` también en un portátil. Ver `docs/data/seeds.md`. |
-| `SEED_SOURCE_HOST` / `SEED_SOURCE_PORT` / `SEED_SOURCE_DB` / `SEED_SOURCE_USER` / `SEED_SOURCE_PASSWORD` / `SEED_SOURCE_SSL` | no | — | La rama por partes. Cómodo cuando sólo cambia la rama: cada rama tiene su propio endpoint, así que se toca el host y el resto queda igual. |
+| `STARTUP_SEED_ENABLED` | no | — | Al arrancar, trae el conjunto sembrado que publica la rama `SEED_SOURCE_*` SI la base está vacía; si ya tiene datos no toca nada, porque la carga es un reemplazo y no un upsert. Sin declarar está activo en todas partes menos en `test`, donde las suites aportan sus propios fixtures. Solo surte efecto donde corren los trabajos de fondo (WORKER_ROLE ∈ ALL, WORKER): una réplica de API nunca siembra, aunque esto esté en `true`. |
 | `BOOTSTRAP_TENANT_ID` | **sí** | — | Bootstrap integration clients. Read straight from process.env by the seed helpers (they stay framework-free so `prisma db seed` can run them without Nest); declared here so the values are validated and documented instead of being magic strings.  El tenant de TODO lo que siembra el módulo, no sólo de estos clientes: lo resuelve `seeding/data/helpers.ts`. `[1-9][0-9]*` y no `[0-9]+` para que las dos validaciones digan lo mismo — el `0` pasaba aquí y el resolutor lo rechaza, así que un despliegue arrancaba y la siembra moría después, que es el peor sitio para enterarse. |
 | `SEED_TENANT_ID` | **sí** | — | Sinónimo histórico, el que usan los guiones de `prisma/dev-seeds/`. Se declara para que valide igual; si están las dos, manda BOOTSTRAP_TENANT_ID. |
 | `BOOTSTRAP_MANAGEMENT_ROLES` | no | `''` | — |
 | `BOOTSTRAP_RUNTIME_ROLES` | no | `''` | — |
+| `STORAGE_S3_ENDPOINT` | no | — | --- Almacenamiento persistente de objetos (MinIO) ------------------------------------  Hasta 2026-09-03 el motor no tenía ninguno, y las imágenes de identidad vivían en columnas `Bytes` que se ponían a `null` al cerrar cada ejecución. Eso resolvía la privacidad y el crecimiento de la tabla a la vez, pero significaba que la cara y la cédula de un cliente NO EXISTÍAN en cuanto había veredicto: ni para revisar el caso más tarde, ni para responder a una impugnación, ni para auditar la decisión.  Ahora las imágenes se copian a MinIO al INGRESAR —una sola escritura, antes de crear la fila— y las columnas `Bytes` siguen siendo la copia de trabajo del pipeline y se siguen borrando igual. Los seis sitios que las ponían a `null` no cambiaron.  Vacío = sin almacén: las imágenes vuelven a perderse al cerrar. Se permite porque las pruebas y el desarrollo local no siempre levantan MinIO, pero `IDENTITY_IMAGE_RETENTION_REQUIRED` lo convierte en un fallo de arranque donde importa. |
+| `STORAGE_S3_PUBLIC_ENDPOINT` | no | — | Por donde llega el NAVEGADOR del revisor, si no es el mismo camino que este proceso. |
+| `STORAGE_S3_BUCKET` | no | — | — |
+| `STORAGE_S3_REGION` | no | `'us-east-1'` | — |
+| `STORAGE_S3_ACCESS_KEY_ID` | no | — | — |
+| `STORAGE_S3_SECRET_ACCESS_KEY` | no | — | — |
+| `STORAGE_S3_FORCE_PATH_STYLE` | no | `true` | MinIO y compatibles exigen el bucket en la ruta; AWS acepta ambos estilos. |
+| `STORAGE_URL_TTL_SECONDS` | no | `300` | — |
+| `STORAGE_IDENTITY_KEY_PREFIX` | no | `'identity'` | Prefijo de las imágenes de identidad dentro del bucket compartido con AtlasBackend. Es lo que permite una política de retención propia sin mover un objeto. |
+| `STORAGE_STATEMENT_KEY_PREFIX` | no | `'statements'` | Prefijo del extracto bancario. Separado del de identidad porque son dos poblaciones con sensibilidad y vida útil distintas: un PDF de banco no es la cara de una persona, y poder aplicarles retenciones diferentes sin mover un objeto es justo lo que da el prefijo. |
+| `IDENTITY_IMAGE_RETENTION_REQUIRED` | no | `false` | Con `true`, arrancar sin almacén es un error en vez de una degradación silenciosa. |
 

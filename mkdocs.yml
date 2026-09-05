@@ -146,6 +146,7 @@ nav:
       - Catálogo de categorías del worker semántico: workers/semantic-category-catalog.md
       - Ninguna glosa sin categoría: workers/semantic-sin-desconocido.md
       - Gateway LiteLLM del worker semántico: workers/semantic-litellm-gateway.md
+      - OpenRouter y la elección del modelo desde el portal: workers/semantic-openrouter.md
       - Monitoreo continuo del modelo: model-monitoring.md
       - Mapa de integraciones: architecture/integration-map.md
   - Módulos:

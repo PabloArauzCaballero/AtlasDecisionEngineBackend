@@ -39,6 +39,9 @@ export const PERMANENT_ERROR_CODES: ReadonlySet<string> = new Set([
   'model_not_found',
   'invalid_model',
   'budget_exceeded',
+  // OpenRouter: la cuenta se quedó sin créditos. Viaja como 402, que ya no se
+  // reintenta por estado; se lista igual por si algún día llega con otro.
+  'insufficient_credits',
 ]);
 
 /**
@@ -82,6 +85,8 @@ const QUOTA_EXHAUSTED_SIGNATURES: readonly string[] = [
   'credit balance is too low',
   'billing hard limit',
   'exceeded your monthly',
+  // OpenRouter, literal: «Insufficient credits. Add more using https://openrouter.ai/…».
+  'insufficient credits',
 ];
 
 /**
@@ -351,4 +356,38 @@ export function parseStructuredOutput(outputText: string): Record<string, unknow
 /** Normaliza una base de API quitando las barras finales. */
 export function normalizeBaseUrl(baseUrl: string): string {
   return baseUrl.replace(/\/+$/u, '');
+}
+
+/**
+ * El texto de `message.content`, admitiendo las dos formas que atraviesan un
+ * gateway.
+ *
+ * Los proxies normalizan a cadena para casi todos sus proveedores, pero los que
+ * devuelven bloques de contenido (Anthropic, Vertex) pueden atravesarlos como
+ * lista. Rechazar la lista dejaría el mismo modelo funcionando con un proveedor
+ * y roto con su suplente, que es exactamente el fallo que un gateway existe
+ * para evitar y el que sólo se manifiesta durante una caída. Vive aquí y no en
+ * cada adaptador porque LiteLLM y OpenRouter comparten el problema letra por
+ * letra.
+ */
+export function extractMessageContent(content: unknown): string {
+  if (typeof content === 'string' && content.trim().length > 0) {
+    return content;
+  }
+  if (Array.isArray(content)) {
+    const text = content
+      .filter((part): part is { text: string } => isTextPart(part))
+      .map((part) => part.text)
+      .join('');
+    if (text.trim().length > 0) return text;
+  }
+  throw new SemanticProviderError('La respuesta del modelo no contiene salida estructurada.');
+}
+
+function isTextPart(part: unknown): part is { text: string } {
+  return (
+    typeof part === 'object' &&
+    part !== null &&
+    typeof (part as { text?: unknown }).text === 'string'
+  );
 }

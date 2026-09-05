@@ -21,6 +21,7 @@ import {
   DEFAULT_MAX_OUTPUT_TOKENS,
   HttpProviderError,
   OpenAiCompatibleTransport,
+  extractMessageContent,
   normalizeBaseUrl,
   parseStructuredOutput,
   readErrorDetail,
@@ -181,7 +182,7 @@ export class LiteLlmSemanticProvider implements SemanticModelProvider {
       );
     }
 
-    const outputText = extractContent(choice?.message?.content);
+    const outputText = extractMessageContent(choice?.message?.content);
     const classification = modelClassificationSchema.parse({
       ...parseStructuredOutput(outputText),
       // Lo PEDIDO frente a lo que RESPONDIÓ: el alias mantiene acotada la
@@ -220,37 +221,6 @@ export class LiteLlmSemanticProvider implements SemanticModelProvider {
       },
     };
   }
-}
-
-/**
- * El texto de la respuesta, admitiendo las dos formas que llegan del gateway.
- *
- * LiteLLM normaliza a cadena para casi todos sus proveedores, pero los que
- * devuelven bloques de contenido (Anthropic, Vertex) pueden atravesarlo como
- * lista. Rechazar la lista dejaría el alias lógico funcionando con un proveedor
- * y roto con su suplente, que es exactamente el fallo que el gateway existe para
- * evitar y el que sólo se manifiesta durante una caída.
- */
-function extractContent(content: unknown): string {
-  if (typeof content === 'string' && content.trim().length > 0) {
-    return content;
-  }
-  if (Array.isArray(content)) {
-    const text = content
-      .filter((part): part is { text: string } => isTextPart(part))
-      .map((part) => part.text)
-      .join('');
-    if (text.trim().length > 0) return text;
-  }
-  throw new SemanticProviderError('La respuesta del modelo no contiene salida estructurada.');
-}
-
-function isTextPart(part: unknown): part is { text: string } {
-  return (
-    typeof part === 'object' &&
-    part !== null &&
-    typeof (part as { text?: unknown }).text === 'string'
-  );
 }
 
 /**

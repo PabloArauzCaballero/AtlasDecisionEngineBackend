@@ -57,14 +57,41 @@ import { booleanoDeConfig } from '../../../common/config/config-coercion.util';
 function providerWorstCaseSeconds(config: ConfigService): number {
   const TIERS = 2;
   const selected = config.get<string>('SEMANTIC_ANALYSIS_PROVIDER') ?? '';
-  const usaGateway = selected === 'litellm' || selected === 'cascade';
+  const usaGateway = selected === 'litellm' || selected === 'openrouter' || selected === 'cascade';
 
-  const timeoutMs = usaGateway
-    ? (config.get<number>('LITELLM_TIMEOUT_MS') ?? 30_000)
-    : (config.get<number>('SEMANTIC_PROVIDER_TIMEOUT_MS') ?? 30_000);
-  const attempts = usaGateway
-    ? (config.get<number>('LITELLM_MAX_ATTEMPTS') ?? 3)
-    : (config.get<number>('SEMANTIC_PROVIDER_MAX_ATTEMPTS') ?? 3);
+  /*
+   * Con un gateway por delante, el peor caso es el del gateway MÁS LENTO al que
+   * este despliegue puede llegar, no sólo el del elegido en el entorno. El
+   * gateway se puede cambiar desde el portal en caliente, sin reiniciar el
+   * worker, y un lease calculado para LiteLLM que de pronto ampara llamadas a
+   * OpenRouter con un plazo mayor dejaría que otra réplica reclamase un job
+   * todavía vivo. «Puede llegar» es tener la credencial: sin ella el portal no
+   * deja elegirlo, así que sus plazos no cuentan aunque estén en el entorno.
+   */
+  const remoto =
+    selected === 'cascade'
+      ? (config.get<string>('SEMANTIC_CASCADE_REMOTE_PROVIDER') ?? 'litellm')
+      : selected;
+  const alcanzables = new Set<string>([remoto]);
+  if ((config.get<string>('LITELLM_API_KEY') ?? '').trim() !== '') alcanzables.add('litellm');
+  if ((config.get<string>('OPENROUTER_API_KEY') ?? '').trim() !== '') alcanzables.add('openrouter');
+
+  const peorCasoDe = (timeoutVar: string, attemptsVar: string): number =>
+    (config.get<number>(timeoutVar) ?? 30_000) * (config.get<number>(attemptsVar) ?? 3);
+
+  let remotoMs = 0;
+  if (usaGateway) {
+    for (const gateway of alcanzables) {
+      remotoMs = Math.max(
+        remotoMs,
+        gateway === 'openrouter'
+          ? peorCasoDe('OPENROUTER_TIMEOUT_MS', 'OPENROUTER_MAX_ATTEMPTS')
+          : peorCasoDe('LITELLM_TIMEOUT_MS', 'LITELLM_MAX_ATTEMPTS'),
+      );
+    }
+  } else {
+    remotoMs = peorCasoDe('SEMANTIC_PROVIDER_TIMEOUT_MS', 'SEMANTIC_PROVIDER_MAX_ATTEMPTS');
+  }
 
   /*
    * En cascada los dos niveles NO los atiende el mismo adaptador: el rápido es el
@@ -78,10 +105,10 @@ function providerWorstCaseSeconds(config: ConfigService): number {
    */
   if (selected === 'cascade') {
     const localMs = config.get<number>('SEMANTIC_CASCADE_LOCAL_TIMEOUT_MS') ?? 2_000;
-    return Math.ceil((localMs + timeoutMs * attempts) / 1_000);
+    return Math.ceil((localMs + remotoMs) / 1_000);
   }
 
-  return Math.ceil((timeoutMs * attempts * TIERS) / 1_000);
+  return Math.ceil((remotoMs * TIERS) / 1_000);
 }
 
 export function buildSemanticWorkerConfig(config: ConfigService): SemanticWorkerConfig {

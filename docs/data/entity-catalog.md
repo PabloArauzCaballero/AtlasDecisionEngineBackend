@@ -3,7 +3,7 @@
 
 # Catálogo de entidades
 
-99 modelos persistentes. El nombre técnico es el de la tabla; el nombre del
+100 modelos persistentes. El nombre técnico es el de la tabla; el nombre del
 modelo es el que usa el código. Las restricciones e índices son los declarados en el
 esquema, que es la fuente que las migraciones aplican.
 
@@ -17,7 +17,7 @@ esquema, que es la fuente que las migraciones aplican.
 | [`AudioSegment`](#audiosegment) | `decision_audio_segment` | 10 | 1 | 0 |
 | [`AudioTemplate`](#audiotemplate) | `decision_audio_template` | 11 | 1 | 0 |
 | [`AudioTtsRun`](#audiottsrun) | `decision_audio_tts_run` | 26 | 4 | 0 |
-| [`BankStatementRun`](#bankstatementrun) | `decision_bank_statement_run` | 36 | 5 | 0 |
+| [`BankStatementRun`](#bankstatementrun) | `decision_bank_statement_run` | 46 | 6 | 0 |
 | [`BusinessObjective`](#businessobjective) | `decision_business_objective` | 10 | 1 | 0 |
 | [`CalculatedField`](#calculatedfield) | `decision_calculated_field` | 12 | 2 | 0 |
 | [`CalculatedFieldLibrary`](#calculatedfieldlibrary) | `decision_calculated_field_library` | 5 | 1 | 2 |
@@ -80,8 +80,8 @@ esquema, que es la fuente que las migraciones aplican.
 | [`DecisionVariableVersion`](#decisionvariableversion) | `decision_variable_version` | 24 | 2 | 1 |
 | [`DecisionVersionStatusHistory`](#decisionversionstatushistory) | `decision_version_status_history` | 8 | 1 | 1 |
 | [`ExposureLimit`](#exposurelimit) | `exposure_limit` | 10 | 2 | 0 |
-| [`FinancialInstitution`](#financialinstitution) | `decision_financial_institution` | 14 | 3 | 0 |
-| [`IdentityVerificationRun`](#identityverificationrun) | `decision_identity_verification_run` | 41 | 5 | 0 |
+| [`FinancialInstitution`](#financialinstitution) | `decision_financial_institution` | 21 | 3 | 0 |
+| [`IdentityVerificationRun`](#identityverificationrun) | `decision_identity_verification_run` | 44 | 5 | 0 |
 | [`IntegrationClient`](#integrationclient) | `integration_client` | 10 | 1 | 0 |
 | [`IntegrationCredential`](#integrationcredential) | `integration_credential` | 11 | 2 | 1 |
 | [`IntegrationScope`](#integrationscope) | `integration_scope` | 4 | 1 | 1 |
@@ -103,6 +103,7 @@ esquema, que es la fuente que las migraciones aplican.
 | [`SemanticCategory`](#semanticcategory) | `decision_semantic_category` | 16 | 3 | 2 |
 | [`SemanticCategoryEmbedding`](#semanticcategoryembedding) | `decision_semantic_category_embedding` | 6 | 1 | 1 |
 | [`SemanticEntityAlias`](#semanticentityalias) | `decision_semantic_entity_alias` | 6 | 2 | 0 |
+| [`SemanticModelSetting`](#semanticmodelsetting) | `decision_semantic_model_setting` | 8 | 0 | 0 |
 | [`SemanticTenantBudget`](#semantictenantbudget) | `decision_semantic_tenant_budget` | 5 | 1 | 0 |
 | [`SqlConsoleQueryLog`](#sqlconsolequerylog) | `sql_console_query_log` | 13 | 2 | 0 |
 | [`SubjectConsent`](#subjectconsent) | `subject_consent` | 11 | 2 | 1 |
@@ -339,12 +340,22 @@ Tabla `decision_bank_statement_run`.
 | `fileHash` | `String` | @map("file_hash") @db.Char(64) |
 | `fileSizeBytes` | `Int` | @map("file_size_bytes") |
 | `fileBytes` | `Bytes?` | @map("file_bytes") |
+| `fileObjectKey` | `String?` | @map("file_object_key") @db.VarChar(512) |
 | `resultJson` | `Json?` | @map("result_json") |
 | `warningsJson` | `Json?` | @map("warnings_json") |
 | `confidence` | `Decimal?` | @db.Decimal(4, 3) |
 | `documentTypeConfidence` | `Decimal?` | @map("document_type_confidence") @db.Decimal(4, 3) |
 | `institutionId` | `String?` | @map("institution_id") @db.VarChar(16) |
 | `transactionCount` | `Int?` | @map("transaction_count") |
+| `affordabilityJson` | `Json?` | @map("affordability_json") |
+| `monthsComplete` | `Int?` | @map("months_complete") @db.SmallInt |
+| `affordabilityScore` | `Int?` | @map("affordability_score") @db.SmallInt |
+| `affordabilityBand` | `String?` | @map("affordability_band") @db.VarChar(16) |
+| `monthlyIncome` | `Decimal?` | @map("monthly_income") @db.Decimal(18, 2) |
+| `monthlyObligations` | `Decimal?` | @map("monthly_obligations") @db.Decimal(18, 2) |
+| `maxAffordableInstallment` | `Decimal?` | @map("max_affordable_installment") @db.Decimal(18, 2) |
+| `authenticityVerdict` | `String?` | @map("authenticity_verdict") @db.VarChar(16) |
+| `authenticityScore` | `Int?` | @map("authenticity_score") @db.SmallInt |
 | `errorCode` | `String?` | @map("error_code") @db.VarChar(120) |
 | `errorMessage` | `String?` | @map("error_message") @db.Text |
 | `reviewReason` | `StatementReviewReason?` | @map("review_reason") |
@@ -372,6 +383,7 @@ Tabla `decision_bank_statement_run`.
 - `index([status, queuedAt])`
 - `index([tenantId, queuedAt])`
 - `index([tenantId, status, reviewReason, reviewPriority, reviewOpenedAt])`
+- `index([tenantId, affordabilityBand], map: "decision_bank_statement_run_affordability_idx")`
 
 ## BusinessObjective
 
@@ -1864,6 +1876,13 @@ Tabla `decision_financial_institution`.
 | `markers` | `Json` | — |
 | `exclusions` | `Json` | — |
 | `note` | `String?` | @db.Text |
+| `website` | `String?` | @map("website") @db.VarChar(200) |
+| `logoData` | `Bytes?` | @map("logo_data") |
+| `logoContentType` | `String?` | @map("logo_content_type") @db.VarChar(80) |
+| `logoSource` | `String?` | @map("logo_source") @db.VarChar(16) |
+| `logoSourceUrl` | `String?` | @map("logo_source_url") @db.VarChar(500) |
+| `logoUpdatedAt` | `DateTime?` | @map("logo_updated_at") @db.Timestamptz(6) |
+| `expectedSignals` | `Json?` | @map("expected_signals") |
 | `isActive` | `Boolean` | @default(true) @map("is_active") |
 | `createdAt` | `DateTime` | @default(now()) @map("created_at") @db.Timestamptz(6) |
 | `updatedAt` | `DateTime` | @updatedAt @map("updated_at") @db.Timestamptz(6) |
@@ -1896,6 +1915,9 @@ Tabla `decision_identity_verification_run`.
 | `documentBytes` | `Bytes?` | @map("document_bytes") |
 | `documentBackBytes` | `Bytes?` | @map("document_back_bytes") |
 | `selfieBytes` | `Bytes?` | @map("selfie_bytes") |
+| `documentObjectKey` | `String?` | @map("document_object_key") @db.VarChar(512) |
+| `documentBackObjectKey` | `String?` | @map("document_back_object_key") @db.VarChar(512) |
+| `selfieObjectKey` | `String?` | @map("selfie_object_key") @db.VarChar(512) |
 | `resultJson` | `Json?` | @map("result_json") |
 | `warningsJson` | `Json?` | @map("warnings_json") |
 | `decision` | `String?` | @db.VarChar(30) |
@@ -2390,6 +2412,21 @@ Tabla `decision_semantic_entity_alias`.
 
 - `unique([tenantId, entityType, alias])`
 - `index([tenantId, isActive])`
+
+## SemanticModelSetting
+
+Tabla `decision_semantic_model_setting`.
+
+| Campo | Tipo | Atributos |
+| --- | --- | --- |
+| `id` | `Int` | @id |
+| `gateway` | `SemanticModelGateway` | — |
+| `fastModel` | `String` | @map("fast_model") @db.VarChar(160) |
+| `deepModel` | `String` | @map("deep_model") @db.VarChar(160) |
+| `version` | `Int` | @default(1) |
+| `updatedBy` | `String` | @map("updated_by") @db.VarChar(160) |
+| `updatedAt` | `DateTime` | @updatedAt @map("updated_at") @db.Timestamptz(6) |
+| `createdAt` | `DateTime` | @default(now()) @map("created_at") @db.Timestamptz(6) |
 
 ## SemanticTenantBudget
 

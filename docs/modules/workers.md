@@ -6,9 +6,9 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/workers/`](https://github.com/) · 212 ficheros TypeScript.
+Código: [`src/modules/workers/`](https://github.com/) · 243 ficheros TypeScript.
 
-Etiquetas de API: **Workers · Locución**, **Workers · Extractos bancarios**, **Workers · Entidades financieras**, **Workers · Verificación de identidad**, **Workers · Análisis semántico**, **Workers · Categorías semánticas**, **Workers · Pendientes de clasificación**, **Workers**.
+Etiquetas de API: **Workers · Locución**, **Workers · Extractos bancarios**, **Workers · Entidades financieras**, **Workers · Verificación de identidad**, **Workers · Modelo semántico**, **Workers · Análisis semántico**, **Workers · Categorías semánticas**, **Workers · Pendientes de clasificación**, **Workers**.
 
 ## Endpoints
 
@@ -28,7 +28,11 @@ Etiquetas de API: **Workers · Locución**, **Workers · Extractos bancarios**, 
 | `POST` | `/v1/workers/bank-statement/institutions` | `financialInstitutionCreate` | Da de alta una entidad en el padrón |
 | `PUT` | `/v1/workers/bank-statement/institutions/{code}` | `financialInstitutionUpdate` | Actualiza una entidad del padrón |
 | `DELETE` | `/v1/workers/bank-statement/institutions/{code}` | `financialInstitutionDeactivate` | Da de baja una entidad (no se borra: las trazas la citan) |
+| `GET` | `/v1/workers/bank-statement/institutions/{code}/logo` | `financialInstitutionLogo` | Logotipo de una entidad |
+| `PUT` | `/v1/workers/bank-statement/institutions/{code}/logo` | `financialInstitutionSetLogo` | Carga el logotipo de una entidad |
+| `DELETE` | `/v1/workers/bank-statement/institutions/{code}/logo` | `financialInstitutionRemoveLogo` | Quita el logotipo de una entidad |
 | `POST` | `/v1/workers/bank-statement/institutions/{code}/reactivate` | `financialInstitutionReactivate` | Vuelve a poner en servicio una entidad dada de baja |
+| `POST` | `/v1/workers/bank-statement/institutions/logos/sync` | `financialInstitutionSyncLogos` | Carga los logotipos que trae el motor y reemplaza los monogramas por la marca oficial |
 | `POST` | `/v1/workers/bank-statement/institutions/seed` | `financialInstitutionSeed` | Inyecta las entidades de la nómina ASFI que falten en el padrón |
 | `GET` | `/v1/workers/bank-statement/institutions/summary` | `financialInstitutionSummary` | Estado del padrón y entidades que faltan respecto de la nómina ASFI |
 | `GET` | `/v1/workers/bank-statement/reviews` | `statementReviewList` | Cola de documentos pendientes de revisión humana |
@@ -52,12 +56,18 @@ Etiquetas de API: **Workers · Locución**, **Workers · Extractos bancarios**, 
 | `GET` | `/v1/workers/identity-verification/runs` | `identityVerificationListRuns` | Verificaciones del tenant |
 | `GET` | `/v1/workers/identity-verification/runs/{requestId}` | `identityVerificationGetRun` | Estado, progreso y veredicto de una verificación |
 | `POST` | `/v1/workers/identity-verification/runs/{requestId}/cancel` | `identityVerificationCancelRun` | Cancela una verificación que nadie ha reclamado todavía |
+| `GET` | `/v1/workers/identity-verification/runs/{requestId}/images/{kind}` | `identityVerificationGetRunImage` | Una de las tres imágenes de la verificación, desde el almacén persistente |
 | `GET` | `/v1/workers/semantic-analysis/categories` | `semanticCategoryList` | Árbol de categorías del tenant |
 | `POST` | `/v1/workers/semantic-analysis/categories` | `semanticCategoryCreate` | Crea o reemplaza una categoría |
 | `PUT` | `/v1/workers/semantic-analysis/categories/{code}` | `semanticCategoryUpdate` | Actualiza una categoría |
 | `DELETE` | `/v1/workers/semantic-analysis/categories/{code}` | `semanticCategoryDeactivate` | Desactiva una categoría (no se borra: las trazas la citan) |
 | `POST` | `/v1/workers/semantic-analysis/categories/import` | `semanticCategoryImport` | Inyecta un subárbol completo desde JSON |
 | `GET` | `/v1/workers/semantic-analysis/fixtures` | `semanticAnalysisListFixtures` | Escenarios de prueba disponibles |
+| `GET` | `/v1/workers/semantic-analysis/model-settings` | `semanticModelSettingsDescribe` | Gateway y modelos en uso, de dónde salen y qué gateways están disponibles |
+| `PUT` | `/v1/workers/semantic-analysis/model-settings` | `semanticModelSettingsUpdate` | Elige el gateway y los modelos del escalón remoto |
+| `DELETE` | `/v1/workers/semantic-analysis/model-settings` | `semanticModelSettingsReset` | Vuelve a lo que dicta el entorno |
+| `GET` | `/v1/workers/semantic-analysis/model-settings/catalog` | `semanticModelSettingsListCatalog` | Modelos de OpenRouter que sostienen salida estructurada, con precio |
+| `POST` | `/v1/workers/semantic-analysis/model-settings/test` | `semanticModelSettingsTest` | Clasifica una glosa de prueba con la configuración candidata, sin guardarla |
 | `POST` | `/v1/workers/semantic-analysis/runs` | `semanticAnalysisCreateRun` | Encola un análisis semántico |
 | `GET` | `/v1/workers/semantic-analysis/runs` | `semanticAnalysisListRuns` | Análisis del tenant |
 | `GET` | `/v1/workers/semantic-analysis/runs/{requestId}` | `semanticAnalysisGetRun` | Estado, progreso y resultado de un análisis |
@@ -94,6 +104,8 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `BANK_STATEMENT_REVIEW_NOT_FOUND`
 - `BANK_STATEMENT_RUN_NOT_CANCELLABLE`
 - `BANK_STATEMENT_RUN_NOT_FOUND`
+- `IDENTITY_IMAGE_KIND_INVALID`
+- `IDENTITY_IMAGE_NOT_AVAILABLE`
 - `IDENTITY_REJECTION_REASON_REQUIRED`
 - `IDENTITY_REVIEW_DOCUMENT_TYPE_REQUIRED`
 - `IDENTITY_REVIEW_NOT_ASSIGNED`
@@ -102,9 +114,15 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `IDENTITY_RUN_NOT_CANCELLABLE`
 - `IDENTITY_RUN_NOT_FOUND`
 - `INSTITUTION_INVALID_PATTERN`
+- `INSTITUTION_LOGO_ACTIVE_SVG`
+- `INSTITUTION_LOGO_NOT_FOUND`
+- `INSTITUTION_LOGO_TOO_LARGE`
+- `INSTITUTION_LOGO_UNSUPPORTED_TYPE`
 - `INSTITUTION_NOTE_REQUIRED`
 - `INSTITUTION_NOT_FOUND`
 - `INSTITUTION_WITHOUT_MARKERS`
+- `INVALID_SIGNAL_DESCRIPTOR`
+- `OPENROUTER_CATALOG_UNAVAILABLE`
 - `SEMANTIC_CATEGORY_DUPLICATE_CODE`
 - `SEMANTIC_CATEGORY_HAS_ACTIVE_CHILDREN`
 - `SEMANTIC_CATEGORY_NOT_FOUND`
@@ -112,6 +130,10 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `SEMANTIC_CATEGORY_SELF_PARENT`
 - `SEMANTIC_CATEGORY_TREE_BROKEN`
 - `SEMANTIC_INPUT_AMBIGUOUS`
+- `SEMANTIC_MODEL_GATEWAY_UNAVAILABLE`
+- `SEMANTIC_MODEL_INVALID`
+- `SEMANTIC_MODEL_PROBE_CONFIGURATION`
+- `SEMANTIC_MODEL_SETTINGS_NOT_APPLICABLE`
 - `SEMANTIC_RUN_NOT_CANCELLABLE`
 - `SEMANTIC_RUN_NOT_FOUND`
 - `SEMANTIC_TEXT_EMPTY`
@@ -170,6 +192,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `DocumentClassifier`
 - `DocumentParserRegistry`
 - `EconomicoStatementParser`
+- `EffectiveModelSettingsDto`
 - `ElevenLabsHttpClient`
 - `ElevenLabsTtsAdapter`
 - `EngineAudioLogger`
@@ -184,6 +207,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `FinancialInstitutionService`
 - `FinancialInstitutionSummaryDto`
 - `GanaderoStatementParser`
+- `GatewayEnvironmentDto`
 - `GenericDocumentParser`
 - `GenericStatementStrategy`
 - `GlosaFallbackClassifier`
@@ -210,15 +234,23 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `ImportSemanticCategoriesDto`
 - `InstitutionCatalogService`
 - `InstitutionDetector`
+- `InstitutionLogoSyncDto`
 - `InvalidProfileError`
+- `InvalidSignalDescriptorError`
 - `LayoutPdfReader`
 - `LexicalCandidateRetriever`
 - `LiteLlmSemanticProvider`
 - `LocalAudioStorageAdapter`
 - `MercantilStatementParser`
+- `ModelProbeTierDto`
+- `ModelProbeUsageDto`
 - `OpenAiCompatibleTransport`
 - `OpenAiEmbeddingProvider`
 - `OpenAiSemanticProvider`
+- `OpenRouterCatalogDto`
+- `OpenRouterCatalogService`
+- `OpenRouterModelDto`
+- `OpenRouterSemanticProvider`
 - `PassportDocumentParser`
 - `PrismaAudioAssetRepository`
 - `PrismaAudioQuotaRepository`
@@ -252,6 +284,11 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `SemanticCategoryService`
 - `SemanticConfigurationError`
 - `SemanticExhaustedError`
+- `SemanticModelProbeDto`
+- `SemanticModelProbeService`
+- `SemanticModelSettingsController`
+- `SemanticModelSettingsDto`
+- `SemanticModelSettingsService`
 - `SemanticProviderError`
 - `SemanticRetentionSweeperService`
 - `SemanticRunWorkerService`
@@ -274,6 +311,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `TextNormalizer`
 - `TimeoutExceededError`
 - `TransformerEmbeddingProvider`
+- `TransformerIdentityEmbedderAdapter`
 - `TransformerSemanticProvider`
 - `TtsProviderError`
 - `UnionStatementParser`
@@ -283,6 +321,8 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `UnresolvedCountsDto`
 - `UnresolvedReevaluationService`
 - `UnresolvedResolutionService`
+- `UpdateSemanticModelSettingsDto`
+- `UploadInstitutionLogoDto`
 - `UpsertFinancialInstitutionDto`
 - `UpsertSemanticCategoryDto`
 - `WorkerDescriptorDto`

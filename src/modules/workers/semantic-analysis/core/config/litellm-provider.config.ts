@@ -39,7 +39,7 @@ const environmentSchema = z.object({
 const PHYSICAL_MODEL_SHAPE =
   /^(gpt-|o[1-4](-|$)|chatgpt-|claude-|gemini-|mistral-|llama-|command-|deepseek-|grok-)|^[a-z_]+\//iu;
 
-function assertLogicalAlias(variable: string, alias: string): void {
+export function assertLogicalAlias(variable: string, alias: string): void {
   if (!PHYSICAL_MODEL_SHAPE.test(alias)) return;
   throw new SemanticConfigurationError(
     `${variable} debe nombrar un alias lógico del \`model_list\` de LiteLLM ` +

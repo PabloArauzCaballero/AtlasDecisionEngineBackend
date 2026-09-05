@@ -3337,6 +3337,38 @@ model SemanticTenantBudget {
   @@map("decision_semantic_tenant_budget")
 }
 
+/// Los dos gateways que pueden atender el escalón remoto del worker semántico.
+enum SemanticModelGateway {
+  LITELLM
+  OPENROUTER
+}
+
+/// Qué gateway y qué modelos atienden el escalón remoto del worker semántico,
+/// elegidos desde el portal en vez de por variables de entorno.
+///
+/// Es GLOBAL por despliegue y no por tenant, y a propósito: el proveedor de
+/// modelo es una propiedad del proceso —como lo era la variable de entorno que
+/// sustituye—, y una sola configuración significa un solo proveedor cacheado,
+/// un solo lease y una sola caché de clasificación que invalidar. Por eso no
+/// lleva `tenant_id` ni RLS. Sin fila, manda el entorno.
+model SemanticModelSetting {
+  /// Siempre 1. La tabla es la fila.
+  id        Int                  @id
+  gateway   SemanticModelGateway
+  /// Alias lógico con LiteLLM; identificador físico `proveedor/modelo` con OpenRouter.
+  fastModel String               @map("fast_model") @db.VarChar(160)
+  deepModel String               @map("deep_model") @db.VarChar(160)
+  /// Sube en cada escritura. Es lo que un worker compara para saber que la
+  /// configuración cambió sin releer la fila entera, y lo que invalida su
+  /// proveedor construido y su caché de clasificación.
+  version   Int                  @default(1)
+  updatedBy String               @map("updated_by") @db.VarChar(160)
+  updatedAt DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdAt DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("decision_semantic_model_setting")
+}
+
 /// Un valor que debía pertenecer a un catálogo y no se pudo resolver con confianza.
 ///
 /// Existe para que el motor nunca invente una categoría ni pierda el dato. Cuando

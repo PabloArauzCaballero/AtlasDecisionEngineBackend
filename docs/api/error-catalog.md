@@ -3,7 +3,7 @@
 
 # Catálogo de códigos de error
 
-238 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
+250 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
 el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 
 | Código | Mensaje de referencia | Origen |
@@ -91,6 +91,8 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `IDEMPOTENCY_CONTENDED` | The idempotency key is under contention; retry the request | `src/modules/runtime/idempotency.service.ts` |
 | `IDEMPOTENCY_IN_PROGRESS` | An identical request is still being processed | `src/modules/runtime/idempotency.service.ts` |
 | `IDEMPOTENCY_PAYLOAD_MISMATCH` | The idempotency key was already used with a different request payload | `src/modules/runtime/idempotency.service.ts` |
+| `IDENTITY_IMAGE_KIND_INVALID` | La imagen pedida no existe: usa document, documentBack o selfie. | `src/modules/workers/identity-verification/identity-verification.controller.ts` |
+| `IDENTITY_IMAGE_NOT_AVAILABLE` | Esa imagen no está disponible para esta verificación. | `src/modules/workers/identity-verification/identity-verification.controller.ts` |
 | `IDENTITY_PROVIDER_ERROR` | Identity provider rejected the request | `src/common/security/identity-provider.client.ts` |
 | `IDENTITY_PROVIDER_INVALID_RESPONSE` | Identity provider did not return ${what} matching the expected contract | `src/common/security/identity-provider.client.ts` |
 | `IDENTITY_PROVIDER_NOT_CONFIGURED` | Identity provider is not configured | `src/common/security/identity-provider.client.ts` |
@@ -107,6 +109,10 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `IDENTITY_RUN_NOT_FOUND` | No existe esa verificación. | `src/modules/workers/identity-verification/identity-verification.service.ts` |
 | `IF_MATCH_REQUIRED` | If-Match header with current lock_version is required | `src/common/http/id.ts` |
 | `INSTITUTION_INVALID_PATTERN` | El patrón de ${field} «${source}» ${reason}. | `src/modules/workers/bank-statement/institutions/financial-institution.service.ts` |
+| `INSTITUTION_LOGO_ACTIVE_SVG` | El SVG contiene guiones o contenido incrustado y no se puede servir. Expórtalo otra vez sin scripts. | `src/modules/workers/bank-statement/institutions/financial-institution.service.ts` |
+| `INSTITUTION_LOGO_NOT_FOUND` | La entidad ${code} no tiene logotipo cargado. | `src/modules/workers/bank-statement/institutions/financial-institution.controller.ts` |
+| `INSTITUTION_LOGO_TOO_LARGE` | El logotipo debe pesar entre 1 byte y ${String(MAX_LOGO_BYTES / 1024)} KiB. | `src/modules/workers/bank-statement/institutions/financial-institution.service.ts` |
+| `INSTITUTION_LOGO_UNSUPPORTED_TYPE` | El logotipo debe ser ${[...ALLOWED_LOGO_TYPES].join(', ')}; llegó ${contentType}. | `src/modules/workers/bank-statement/institutions/financial-institution.service.ts` |
 | `INSTITUTION_NOTE_REQUIRED` | Una entidad sin licencia vigente necesita un motivo escrito: es lo único que quien revise el caso podrá leer. | `src/modules/workers/bank-statement/institutions/financial-institution.service.ts` |
 | `INSTITUTION_NOT_FOUND` | No hay ninguna entidad con código ${code} en el padrón. | `src/modules/workers/bank-statement/institutions/financial-institution.service.ts` |
 | `INSTITUTION_WITHOUT_MARKERS` | Una entidad sin marcadores no puede atribuir ningún documento. | `src/modules/workers/bank-statement/institutions/financial-institution.service.ts` |
@@ -120,6 +126,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `INVALID_ID` | ${name} must be a positive integer | `src/common/http/id.ts` |
 | `INVALID_IF_MATCH` | If-Match must be a positive integer | `src/common/http/id.ts` |
 | `INVALID_SECURITY_CONTEXT` | x-tenant-id is required for clients authorised on multiple tenants | `src/common/security/authentication.guard.ts` |
+| `INVALID_SIGNAL_DESCRIPTOR` | — | `src/modules/workers/bank-statement/institutions/financial-institution.service.ts` |
 | `INVALID_TRAFFIC_PERCENTAGE` | Traffic percentages must total 100 | `src/modules/deployments/deployment.service.ts` |
 | `INVALID_VERSION_TRANSITION` | Cannot transition artifact version from ${version.status} to ${to} | `src/modules/artifacts/version-state.service.ts` |
 | `LIBRARY_ENVIRONMENT_FORBIDDEN` | La librería ${row.logicalName} no está habilitada en el ambiente ${environmentCode} | `src/modules/libraries/library.service.ts` |
@@ -156,6 +163,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `NOTIFICATION_NOT_FOUND` | Notification not found | `src/modules/notifications/notification.service.ts` |
 | `NO_MATCHING_EDGE` | No outgoing edge matched node ${node.key} | `src/modules/graph/execution-engine.service.ts` |
 | `OBJECTIVE_NOT_FOUND` | Business objective not found | `src/modules/traceability/traceability.service.ts` |
+| `OPENROUTER_CATALOG_UNAVAILABLE` | No se pudo leer el catálogo de modelos de OpenRouter. Vuelve a intentarlo; si persiste, el motor no alcanza openrouter.ai. | `src/modules/workers/semantic-analysis/model-settings/openrouter-catalog.service.ts` |
 | `OUTCOME_BATCH_EMPTY` | El lote de ${field} está vacío | `src/modules/outcome-ingestion/outcome-ingestion.service.ts` |
 | `OUTCOME_BATCH_TOO_LARGE` | Un lote admite como máximo ${MAX_BATCH} ${field}; divídalo | `src/modules/outcome-ingestion/outcome-ingestion.service.ts` |
 | `OUTPUT_TYPE_INVALID` | Output ${code} cannot be null | `src/modules/graph/execution-engine.service.ts` |
@@ -203,6 +211,10 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `SEMANTIC_CATEGORY_SELF_PARENT` | Una categoría no puede ser su propio padre. | `src/modules/workers/semantic-analysis/semantic-category.service.ts` |
 | `SEMANTIC_CATEGORY_TREE_BROKEN` | El árbol no se sostiene: hay un ciclo o un padre inexistente en ${rotas.join(', ')}. | `src/modules/workers/semantic-analysis/semantic-category.service.ts` |
 | `SEMANTIC_INPUT_AMBIGUOUS` | Indica un texto o un escenario de prueba, no ambos. | `src/modules/workers/semantic-analysis/semantic-analysis.controller.ts` |
+| `SEMANTIC_MODEL_GATEWAY_UNAVAILABLE` | Este despliegue no tiene credencial para ${gateway}: falta ${variable} en el entorno del motor. | `src/modules/workers/semantic-analysis/model-settings/semantic-model-settings.service.ts` |
+| `SEMANTIC_MODEL_INVALID` | — | `src/modules/workers/semantic-analysis/model-settings/semantic-model-settings.service.ts` |
+| `SEMANTIC_MODEL_PROBE_CONFIGURATION` | No se pudo construir el adaptador de ${gateway}: ${String(           error instanceof Error ? error.message : error,         )} | `src/modules/workers/semantic-analysis/model-settings/semantic-model-probe.service.ts` |
+| `SEMANTIC_MODEL_SETTINGS_NOT_APPLICABLE` | Este despliegue clasifica con SEMANTIC_ANALYSIS_PROVIDER=${this.mode() \|\| '(vacío)'}, que no usa | `src/modules/workers/semantic-analysis/model-settings/semantic-model-settings.service.ts` |
 | `SEMANTIC_RUN_NOT_CANCELLABLE` | — | `src/modules/workers/semantic-analysis/semantic-analysis.service.ts` |
 | `SEMANTIC_RUN_NOT_FOUND` | No existe ese análisis. | `src/modules/workers/semantic-analysis/semantic-analysis.service.ts` |
 | `SEMANTIC_TEXT_EMPTY` | El texto a analizar está vacío. | `src/modules/workers/semantic-analysis/semantic-analysis.service.ts` |

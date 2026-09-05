@@ -5185,6 +5185,198 @@
         ]
       }
     },
+    "/v1/workers/semantic-analysis/model-settings": {
+      "get": {
+        "operationId": "semanticModelSettingsDescribe",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SemanticModelSettingsDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Gateway y modelos en uso, de dónde salen y qué gateways están disponibles",
+        "tags": [
+          "Workers · Modelo semántico"
+        ]
+      },
+      "put": {
+        "operationId": "semanticModelSettingsUpdate",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSemanticModelSettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Configuración aplicada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SemanticModelSettingsDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Elige el gateway y los modelos del escalón remoto",
+        "tags": [
+          "Workers · Modelo semántico"
+        ]
+      },
+      "delete": {
+        "operationId": "semanticModelSettingsReset",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Configuración del entorno, ya en vigor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SemanticModelSettingsDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Vuelve a lo que dicta el entorno",
+        "tags": [
+          "Workers · Modelo semántico"
+        ]
+      }
+    },
+    "/v1/workers/semantic-analysis/model-settings/catalog": {
+      "get": {
+        "operationId": "semanticModelSettingsListCatalog",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenRouterCatalogDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Modelos de OpenRouter que sostienen salida estructurada, con precio",
+        "tags": [
+          "Workers · Modelo semántico"
+        ]
+      }
+    },
+    "/v1/workers/semantic-analysis/model-settings/test": {
+      "post": {
+        "operationId": "semanticModelSettingsTest",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSemanticModelSettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SemanticModelProbeDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Clasifica una glosa de prueba con la configuración candidata, sin guardarla",
+        "tags": [
+          "Workers · Modelo semántico"
+        ]
+      }
+    },
     "/v1/workers/identity-verification/fixtures": {
       "get": {
         "operationId": "identityVerificationListFixtures",
@@ -12929,6 +13121,9 @@
     },
     {
       "name": "Workers · Locución"
+    },
+    {
+      "name": "Workers · Modelo semántico"
     },
     {
       "name": "Workers · Pendientes de clasificación"
@@ -21214,6 +21409,279 @@
           "total",
           "created",
           "dryRun"
+        ]
+      },
+      "EffectiveModelSettingsDto": {
+        "type": "object",
+        "properties": {
+          "gateway": {
+            "enum": [
+              "litellm",
+              "openrouter"
+            ],
+            "type": "string"
+          },
+          "fastModel": {
+            "type": "string"
+          },
+          "deepModel": {
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "environment",
+              "portal"
+            ],
+            "type": "string",
+            "description": "`environment` cuando manda el entorno; `portal` cuando alguien lo eligió aquí."
+          },
+          "version": {
+            "type": "number",
+            "description": "0 cuando manda el entorno; sube con cada cambio desde el portal."
+          },
+          "updatedBy": {
+            "type": "string",
+            "nullable": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "gateway",
+          "fastModel",
+          "deepModel",
+          "source",
+          "version"
+        ]
+      },
+      "GatewayEnvironmentDto": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "description": "Si el proceso tiene la credencial de este gateway. Sin ella no se puede elegir: arrancaría sano y convertiría cada glosa en un pendiente de revisión."
+          },
+          "fastModel": {
+            "type": "string",
+            "description": "Modelo del nivel rápido declarado en el entorno."
+          },
+          "deepModel": {
+            "type": "string",
+            "description": "Modelo del nivel profundo declarado en el entorno."
+          }
+        },
+        "required": [
+          "available",
+          "fastModel",
+          "deepModel"
+        ]
+      },
+      "SemanticModelSettingsDto": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "description": "Modo del despliegue (`SEMANTIC_ANALYSIS_PROVIDER`). La elección de gateway sólo tiene efecto en `litellm`, `openrouter` y `cascade`.",
+            "example": "cascade"
+          },
+          "applies": {
+            "type": "boolean",
+            "description": "Si la configuración elegida aquí tiene efecto en este despliegue."
+          },
+          "effective": {
+            "$ref": "#/components/schemas/EffectiveModelSettingsDto"
+          },
+          "litellm": {
+            "$ref": "#/components/schemas/GatewayEnvironmentDto"
+          },
+          "openrouter": {
+            "$ref": "#/components/schemas/GatewayEnvironmentDto"
+          }
+        },
+        "required": [
+          "mode",
+          "applies",
+          "effective",
+          "litellm",
+          "openrouter"
+        ]
+      },
+      "UpdateSemanticModelSettingsDto": {
+        "type": "object",
+        "properties": {
+          "gateway": {
+            "enum": [
+              "litellm",
+              "openrouter"
+            ],
+            "type": "string",
+            "example": "openrouter"
+          },
+          "fastModel": {
+            "type": "string",
+            "description": "Alias lógico con LiteLLM; `proveedor/modelo` con OpenRouter. La forma se valida según el gateway.",
+            "minLength": 1,
+            "maxLength": 160,
+            "example": "openai/gpt-4.1-mini"
+          },
+          "deepModel": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160,
+            "example": "anthropic/claude-sonnet-4.5"
+          }
+        },
+        "required": [
+          "gateway",
+          "fastModel",
+          "deepModel"
+        ]
+      },
+      "OpenRouterModelDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "openai/gpt-4.1-mini"
+          },
+          "name": {
+            "type": "string",
+            "example": "OpenAI: GPT-4.1 Mini"
+          },
+          "contextLength": {
+            "type": "number",
+            "example": 1047576
+          },
+          "promptUsdPerMillion": {
+            "type": "number",
+            "description": "USD por millón de tokens de entrada.",
+            "example": 0.4
+          },
+          "completionUsdPerMillion": {
+            "type": "number",
+            "description": "USD por millón de tokens de salida.",
+            "example": 1.6
+          },
+          "recommended": {
+            "type": "boolean",
+            "description": "Es uno de los dos modelos por omisión del motor."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "contextLength",
+          "promptUsdPerMillion",
+          "completionUsdPerMillion",
+          "recommended"
+        ]
+      },
+      "OpenRouterCatalogDto": {
+        "type": "object",
+        "properties": {
+          "models": {
+            "description": "Modelos que declaran salida estructurada. Los demás se omiten: sin esquema estricto, cada glosa acabaría en revisión humana.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpenRouterModelDto"
+            }
+          },
+          "fetchedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "models",
+          "fetchedAt"
+        ]
+      },
+      "ModelProbeUsageDto": {
+        "type": "object",
+        "properties": {
+          "inputTokens": {
+            "type": "number"
+          },
+          "outputTokens": {
+            "type": "number"
+          },
+          "totalTokens": {
+            "type": "number"
+          },
+          "estimatedCost": {
+            "type": "number",
+            "description": "USD, según lo declaró el gateway."
+          }
+        }
+      },
+      "ModelProbeTierDto": {
+        "type": "object",
+        "properties": {
+          "tier": {
+            "enum": [
+              "FAST",
+              "DEEP"
+            ],
+            "type": "string"
+          },
+          "model": {
+            "type": "string",
+            "description": "Lo que se pidió."
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "respondedBy": {
+            "type": "string",
+            "description": "Lo que respondió: modelo y despliegue físico."
+          },
+          "latencyMs": {
+            "type": "number"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/ModelProbeUsageDto"
+          },
+          "topCategory": {
+            "type": "string",
+            "description": "Categoría con más confianza sobre la glosa de prueba."
+          },
+          "confidence": {
+            "type": "number"
+          },
+          "error": {
+            "type": "string",
+            "description": "Por qué falló. Nunca lleva credenciales."
+          }
+        },
+        "required": [
+          "tier",
+          "model",
+          "ok"
+        ]
+      },
+      "SemanticModelProbeDto": {
+        "type": "object",
+        "properties": {
+          "gateway": {
+            "enum": [
+              "litellm",
+              "openrouter"
+            ],
+            "type": "string"
+          },
+          "tiers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModelProbeTierDto"
+            }
+          }
+        },
+        "required": [
+          "gateway",
+          "tiers"
         ]
       },
       "CreateIdentityVerificationRunDto": {
