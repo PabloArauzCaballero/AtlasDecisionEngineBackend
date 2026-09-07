@@ -168,6 +168,12 @@ services:
       # catálogo diría «no disponible» de un worker que está corriendo en el otro contenedor.
       # Por eso va en los dos servicios, igual que en el `docker-compose.yml` local.
       BANK_STATEMENT_WORKER_ENABLED: '${BANK_STATEMENT_WORKER_ENABLED:-true}'
+      # El worker de LOCUCION, encendido por lo mismo y con la misma prueba: el resto ya estaba
+      # cableado —`AUDIO_TTS_PROVIDER=elevenlabs`, generacion en tiempo de ejecucion permitida y
+      # la clave de datos presente— y solo faltaba la bandera, asi que arrancaba diciendo
+      # "Worker de locucion deshabilitado por configuracion". Mismo patron que extractos: el
+      # compose local lo pone en `true` y este se quedo sin el.
+      AUDIO_TTS_WORKER_ENABLED: '${AUDIO_TTS_WORKER_ENABLED:-true}'
     expose: ['3000']
     depends_on:
       motor-redis:
@@ -203,6 +209,12 @@ services:
       # lo pone en `true`, y sólo este compose se quedó sin él, así que el defecto no aparecía en
       # local. Tampoco existía como variable en Coolify: ni atada ni huérfana.
       BANK_STATEMENT_WORKER_ENABLED: '${BANK_STATEMENT_WORKER_ENABLED:-true}'
+      # El worker de LOCUCION, encendido por lo mismo y con la misma prueba: el resto ya estaba
+      # cableado —`AUDIO_TTS_PROVIDER=elevenlabs`, generacion en tiempo de ejecucion permitida y
+      # la clave de datos presente— y solo faltaba la bandera, asi que arrancaba diciendo
+      # "Worker de locucion deshabilitado por configuracion". Mismo patron que extractos: el
+      # compose local lo pone en `true` y este se quedo sin el.
+      AUDIO_TTS_WORKER_ENABLED: '${AUDIO_TTS_WORKER_ENABLED:-true}'
       # Pool más pequeño que el de la API: la concurrencia del worker la fija el número de
       # trabajos, no el tráfico. Y en Neon las conexiones se cuentan — dos procesos con 15 cada
       # uno agotan el cupo del proyecto, y el fallo aparece en el que llegue tarde, no en el que
