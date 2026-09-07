@@ -74,7 +74,26 @@ x-build: &build
     context: .
     dockerfile: Dockerfile.dev
     target: app
-    cache_from: ['atlas-decision:coolify']
+    # La caché de build la guarda el DEMONIO, y Coolify la borra cada noche.
+    #
+    # Aquí había un `cache_from: ['<imagen>:coolify']` que fallaba SIEMPRE —`pull access denied`, en
+    # esta máquina no hay registro—. Quitarlo no devuelve caché: sólo deja de fallar y de ensuciar el
+    # log. Se retira porque era ruido, no porque estuviera dando algo.
+    #
+    # Y no se sustituye por `cache_to: type=local`, aunque el driver lo soporte: **el exportador local
+    # es del lado del CLIENTE**, y Coolify construye dentro de un contenedor efímero (`docker run
+    # --rm`, que sólo monta el socket). Medido: la caché aterriza DENTRO de ese contenedor y se va con
+    # él. Sería trabajo por nada.
+    #
+    # La caché que de verdad se usa es la del propio buildkit del demonio, automática y sin declarar
+    # nada. Lo que la tira es `docker builder prune -af` que Coolify ejecuta A DIARIO cuando el
+    # servidor tiene `force_docker_cleanup` activo — con esa bandera no mira el umbral de disco, borra
+    # igual. Medido el 2026-09-07: los builds de después de la limpieza tardaban 19-27 min y uno murió
+    # con `ESOCKETTIMEDOUT` bajando una dependencia; los del mismo día con la caché ya caliente,
+    # 1-5 min.
+    #
+    # Es decir: esto se arregla en el SERVIDOR (Settings -> Docker Cleanup -> desactivar el forzado,
+    # dejando el umbral del 80%), no en este archivo.
 
 services:
   # Redis PROPIO, y aquí no se comparte con AtlasBackend.
