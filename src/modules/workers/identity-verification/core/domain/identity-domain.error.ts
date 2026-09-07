@@ -177,6 +177,22 @@ export const identityErrors = {
     ),
   invalidSelfie: (message = 'La selfie no es válida.') =>
     new IdentityDomainError('IDENTITY_SELFIE_INVALID', message, 'VALIDATION'),
+  /**
+   * La selfie es la misma imagen que el documento.
+   *
+   * Es `VALIDATION` y no `PERMANENT` a propósito: lo abrumadoramente frecuente
+   * es equivocarse de archivo al subir, y a esa persona hay que decirle qué
+   * arreglar. Quien lo hizo a propósito recibe la misma respuesta y tampoco
+   * avanza, que es lo que importa — el ataque no consiste en que el sistema no
+   * sepa acusarle, sino en que la comparación biométrica lo aprobaría con la
+   * puntuación más alta posible si nadie mirara esto.
+   */
+  selfieIsDocument: () =>
+    new IdentityDomainError(
+      'IDENTITY_SELFIE_IS_DOCUMENT',
+      'La foto de la selfie es la misma imagen del documento. Hace falta una foto tuya tomada en el momento, además de la del carnet.',
+      'VALIDATION',
+    ),
   livenessFailed: () =>
     new IdentityDomainError(
       'IDENTITY_LIVENESS_FAILED',

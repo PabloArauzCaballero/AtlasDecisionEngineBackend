@@ -169,7 +169,20 @@ export function parseMrzTd1(rawText: string): MrzTd1 | null {
         Number(leida.checks.birthDate) +
         Number(leida.checks.expirationDate) +
         // El compuesto pesa doble: valida los dos renglones enteros, no un campo.
-        2 * Number(leida.checks.composite);
+        2 * Number(leida.checks.composite) +
+        /*
+         * Y a igualdad de controles, gana la alineación con FORMA de TD1.
+         *
+         * Pesa menos que cualquier control —una décima— porque es una pista
+         * estructural y no una demostración: no puede darle la vuelta a un
+         * dígito que cuadra. Lo que sí hace es desempatar, que es donde hacía
+         * falta. Con varios arranques posibles, dos de ellos pueden validar los
+         * mismos cero controles y quedarse con el primero era quedarse con el
+         * renglón sin recortar; ahora gana el que empieza por el tipo de
+         * documento y el emisor, que es de donde salen la nacionalidad y el
+         * estado emisor —dos campos que ningún dígito de control cubre—.
+         */
+        0.1 * Number(cabeceraPlausible(v1.linea));
       if (puntos > mejorPuntos) {
         mejor = leida;
         mejorPuntos = puntos;
@@ -184,6 +197,33 @@ interface Variante {
   linea: string;
   /** Se quitó un carácter de EN MEDIO. Sólo vale si lo respalda el control compuesto. */
   arriesgada: boolean;
+}
+
+/**
+ * ¿Empieza este renglón donde empieza una TD1 de verdad?
+ *
+ * La norma fija la CABECERA del primer renglón: la posición 0 es el tipo de
+ * documento —`I`, `A` o `C` para una tarjeta de identidad— y las posiciones 2 a
+ * 4 son el estado emisor, un código ISO 3166-1 alfa-3 de tres LETRAS. Nada de
+ * eso depende de los dígitos de control, y por eso sirve para elegir de dónde
+ * arranca el renglón cuando el reconocedor le ha colgado glifos por delante.
+ *
+ * Es lo que hacía falta para no perder un número de documento por dos caracteres
+ * de basura. Medido sobre una cédula boliviana auténtica del DS 4924: el primer
+ * renglón llegó como `LEI<BOL4521966<<6<<<…` —el reconocedor metió las dos
+ * letras de un rótulo vecino— y las dos únicas variantes que había, «tal cual» y
+ * «sin el primer carácter», dejaban el número corrido dos y una posición. Su
+ * dígito de control CUADRA en cuanto el renglón se alinea, así que el documento
+ * traía la prueba de su propio número y el analizador no llegaba a mirarla.
+ *
+ * Se usa como criterio de desempate y no como filtro: un renglón cuya cabecera
+ * no case sigue probándose, porque el emisor podría no ser boliviano y porque
+ * el propio tipo de documento se lee mal a veces. Lo que hace es que, entre dos
+ * alineaciones que valen lo mismo para los controles, gane la que ADEMÁS tiene
+ * la forma que la norma describe.
+ */
+function cabeceraPlausible(linea: string): boolean {
+  return /^[IAC][A-Z<][A-Z]{3}/.test(linea);
 }
 
 /**
@@ -206,6 +246,27 @@ interface Variante {
  *
  * Sólo se generan cuando el renglón MIDE de más: un renglón de treinta ya está
  * completo y quitarle algo sólo puede empeorarlo.
+ *
+ * ## Por qué el recorte por DELANTE llega ahora hasta cuatro
+ *
+ * Era de uno, y uno no basta. El espurio de delante no es un carácter suelto:
+ * es texto de la propia tarjeta que el reconocedor arrastra al renglón de la
+ * MRZ —el borde impreso, el resto de un rótulo, el sello— y llega en grupo.
+ * Medido sobre cinco cédulas bolivianas auténticas, el primer renglón de una de
+ * ellas volvió como `LEI<BOL4521966<<6<<<…`: dos caracteres de más, número
+ * legible, control correcto, y **ninguna variante que lo alineara**. El
+ * expediente salía sin número de documento por eso.
+ *
+ * Cuatro es donde se para porque más allá el recorte deja de ser un realineado
+ * y empieza a comerse el tipo de documento y el emisor, que son lo único con lo
+ * que se puede comprobar que el arranque es el bueno.
+ *
+ * **Un recorte de más de uno NO es gratis**: sigue siendo `arriesgada` salvo que
+ * la cabecera resultante tenga la forma que la norma exige (`cabeceraPlausible`).
+ * Sin esa condición, ofrecer cinco arranques distintos multiplicaría por cinco
+ * las ocasiones de que un dígito de control de una sola cifra cuadre por azar, y
+ * un número inventado con el sello de «validado» es exactamente lo que este
+ * analizador existe para no producir.
  */
 function variantes(linea: string): Variante[] {
   const ajustar = (texto: string): string => texto.padEnd(LINE_LENGTH, '<').slice(0, LINE_LENGTH);
@@ -213,13 +274,26 @@ function variantes(linea: string): Variante[] {
     { linea: ajustar(linea), arriesgada: false },
     { linea: ajustar(linea.slice(1)), arriesgada: false },
   ];
-  if (linea.length <= LINE_LENGTH) return seguras;
+
+  /*
+   * Los recortes de 2 a 4 por delante. Se marcan seguros SÓLO si el renglón
+   * resultante empieza como empieza una TD1; en otro caso quedan como
+   * arriesgados y tendrán que demostrarse con el control compuesto, igual que
+   * las supresiones de en medio.
+   */
+  const porDelante: Variante[] = [];
+  for (let corte = 2; corte <= 4 && corte < linea.length; corte += 1) {
+    const recortada = ajustar(linea.slice(corte));
+    porDelante.push({ linea: recortada, arriesgada: !cabeceraPlausible(recortada) });
+  }
+
+  if (linea.length <= LINE_LENGTH) return [...seguras, ...porDelante];
 
   const sinUno: Variante[] = [];
   for (let i = 1; i < linea.length; i += 1) {
     sinUno.push({ linea: ajustar(`${linea.slice(0, i)}${linea.slice(i + 1)}`), arriesgada: true });
   }
-  return [...seguras, ...sinUno];
+  return [...seguras, ...porDelante, ...sinUno];
 }
 
 function interpretar(l1: string, l2: string, l3: string): MrzTd1 {
@@ -405,11 +479,28 @@ function candidateLines(rawText: string): string[] {
   return posibles.slice(-3);
 }
 
-/** Apellidos y nombres del tercer renglón: `APELLIDOS<<NOMBRES`. */
+/**
+ * Apellidos y nombres del tercer renglón: `APELLIDOS<<NOMBRES`.
+ *
+ * Se quitan las CIFRAS de los extremos, y no es cosmética. El tercer renglón es
+ * el único de la TD1 sin dígito de control, así que no hay con qué elegir entre
+ * sus alineaciones y se toma tal cual; cuando el reconocedor le cuelga un glifo
+ * por delante —medido sobre una cédula auténtica: `4QUISPE<MAMANI<<ANA…`—
+ * ese glifo se queda PEGADO al apellido y viaja al expediente como parte del
+ * nombre de una persona.
+ *
+ * Sólo se quitan cifras y signos, nunca letras: la norma reserva este renglón a
+ * `A-Z` y al relleno, así que un dígito ahí es ruido con certeza. Una letra de
+ * más no se puede distinguir de un apellido raro, y no se toca.
+ */
 function splitNames(line: string): { lastNames: string | null; firstNames: string | null } {
   const [apellidos, nombres] = line.split('<<');
   const limpiar = (valor: string | undefined): string | null => {
-    const texto = (valor ?? '').replace(/</g, ' ').replace(/\s+/g, ' ').trim();
+    const texto = (valor ?? '')
+      .replace(/</g, ' ')
+      .replace(/[^A-ZÑ ]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
     return texto.length > 1 ? texto : null;
   };
   return { lastNames: limpiar(apellidos), firstNames: limpiar(nombres) };

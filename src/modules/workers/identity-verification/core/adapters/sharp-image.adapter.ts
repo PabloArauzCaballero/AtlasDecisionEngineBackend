@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import sharp from 'sharp';
 import { identityErrors } from '../domain/identity-domain.error';
+import { detectarCajaDelDocumento } from './document-framing';
 import { IDENTITY_OPTIONS, type IdentityOptions } from '../identity-options';
 import type {
   DocumentFraming,
@@ -150,6 +151,22 @@ export class SharpImageAdapter implements ImageNormalizerPort, FaceCropPort, Doc
    * deja clasificar, vuelve a intentarlo con la imagen entera antes de rechazar.
    */
   async frame(input: Buffer): Promise<DocumentFraming> {
+    /*
+     * El detector de tarjeta va PRIMERO y `trim` queda de respaldo.
+     *
+     * No es una preferencia estética: son dos preguntas distintas. `trim`
+     * contesta «¿hay un marco de un solo color?» y el detector contesta «¿qué
+     * parte de esto no es el sitio donde se apoyó la tarjeta?». La segunda es la
+     * que hace falta, y la primera sólo la contesta bien cuando el fondo es liso.
+     *
+     * `trim` no se retira porque sigue ganando en un caso concreto y frecuente:
+     * el escaneo o la captura recortada, donde el marco ES de un color exacto y
+     * el detector, al no encontrar diferencia de color con el fondo, no
+     * encuentra nada que recortar.
+     */
+    const porColor = await this.encuadrarPorColor(input);
+    if (porColor) return porColor;
+
     const original = { buffer: input, recortado: false, areaConservada: 1 };
     try {
       const antes = await sharp(input).metadata();
@@ -173,6 +190,47 @@ export class SharpImageAdapter implements ImageNormalizerPort, FaceCropPort, Doc
       // `trim` lanza cuando la imagen es de un solo color: no hay nada que
       // recortar, y eso no es un fallo del que haya que enterarse.
       return original;
+    }
+  }
+
+  /**
+   * El encuadre por color, con el mismo suelo de área que el de `trim`.
+   *
+   * El suelo se conserva por el mismo motivo, y aquí importa más: `trim` como
+   * mucho se pasaba de listo con un fondo casi uniforme, mientras que una
+   * detección equivocada puede recortar el sitio de la foto donde NO está el
+   * número de la cédula. Por debajo de la cuarta parte del área se descarta y se
+   * devuelve la imagen entera, porque leer con la mesa alrededor es peor lectura
+   * y perder el número es no tener documento.
+   *
+   * El recorte sale en PNG y no en JPEG: `normalize` ya entregó un JPEG de
+   * calidad 88 y volver a codificar añadiría una segunda generación con pérdida
+   * justo sobre las cifras del número y sobre el retrato del que sale el
+   * descriptor biométrico. Es la misma razón —y está medida— por la que `rotate`
+   * usa PNG.
+   */
+  private async encuadrarPorColor(input: Buffer): Promise<DocumentFraming | null> {
+    try {
+      const caja = await detectarCajaDelDocumento(input, this.options.maxImagePixels);
+      if (!caja) return null;
+
+      const metadatos = await sharp(input).metadata();
+      const areaAntes = (metadatos.width ?? 0) * (metadatos.height ?? 0);
+      if (areaAntes === 0) return null;
+
+      const areaConservada = (caja.width * caja.height) / areaAntes;
+      if (areaConservada >= 1) return null;
+      if (areaConservada < MIN_AREA_TRAS_RECORTE) return null;
+
+      const buffer = await sharp(input, { limitInputPixels: this.options.maxImagePixels })
+        .extract(caja)
+        .png({ compressionLevel: 6 })
+        .toBuffer();
+      return { buffer, recortado: true, areaConservada };
+    } catch {
+      // Una detección que no se deja recortar no es un fallo del que haya que
+      // enterarse: queda `trim`, y detrás la imagen entera.
+      return null;
     }
   }
 

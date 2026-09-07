@@ -67,7 +67,7 @@ const REVERSO_DEGRADADO = [
   '[s] 0 SANTA CRUZ - ANDRES IBAÑEZ - SANTA E',
   'an 4 CRUZ DE LA SIERRA ae je',
   'í ZE DOMICILI A',
-  'Es A o vr METIDO C/CUQUISAS NRO 2180 -—',
+  'Es A o vr METIDO C/LOS ALAMOS NRO 3170 -—',
   '"” ESTUDIANTE ”',
   'ESTADO Civil f',
   'SOLTERO Z',
@@ -363,5 +363,216 @@ describe('rótulos que se parecen entre sí', () => {
       });
       expect(anclas.documentNumber).toBe('4521966');
     }
+  });
+});
+
+/**
+ * Lo que se aprendió midiendo CINCO cédulas bolivianas auténticas —dos del
+ * formato anterior y tres del DS 4924, anverso y reverso de cada una— el 6 de
+ * septiembre de 2026.
+ *
+ * Los textos de aquí conservan la FORMA de aquellas lecturas: el rótulo con un
+ * glifo delante, la primera letra del apellido comida, el número de la calle
+ * casando con el ancla del número de cédula, el renglón de la MRZ corrido dos
+ * posiciones. Los DATOS son inventados y los dígitos de control recalculados,
+ * por la misma regla que declara el encabezado de este archivo.
+ *
+ * Cada caso fija un defecto que se veía sobre una cédula legítima, y en casi
+ * todos el daño no era perder un campo sino GUARDAR UNO FALSO o levantar una
+ * marca de fraude contra un documento auténtico.
+ */
+describe('lo que rompe una foto real y no rompía la tarjeta dibujada', () => {
+  const parser = new BoliviaCiDocumentParser();
+
+  const analizar = (lineas: string[]) =>
+    parser.parse({
+      ocr: {
+        rawText: lineas.join('\n'),
+        lines: lineas.map((text) => ({ text, confidence: 0.6 })),
+        provider: 'tesseract',
+        modelVersion: 'spa-4.0.0',
+      },
+      context: { type: IdentityDocumentType.BOLIVIA_CI, country: 'BO' },
+    });
+
+  /*
+   * `LABEL_NOMBRES` y `LABEL_APELLIDOS` estaban anclados a `^`. Los rótulos del
+   * nombre son los únicos que van pegados al retrato, así que el reconocedor
+   * mete delante los glifos que cree ver en la foto y NINGUNO empieza por su
+   * propia palabra. Y como las dos palabras tienen siete caracteres, están por
+   * debajo del mínimo del cotejo tolerante: no había segunda oportunidad.
+   */
+  it('encuentra el rótulo del nombre aunque lleve basura delante', async () => {
+    const { fields, warnings } = await analizar([
+      'Z NOMBRES:',
+      'S ANA LUCIA. $',
+      '= APELLIDOS:',
+      '” QUISPE MAMANI',
+    ]);
+    expect(fields.firstNames?.value).toBe('ANA LUCIA');
+    expect(fields.lastNames?.value).toBe('QUISPE MAMANI');
+    expect(warnings).not.toContain('NAME_NOT_FOUND');
+  });
+
+  /*
+   * Cuando el reconocedor se come la primera letra del apellido, lo impreso y la
+   * MRZ dejan de ser prefijo el uno del otro. Antes ganaba lo impreso —o sea, el
+   * apellido MUTILADO— y además la cédula salía marcada `NAME_MRZ_MISMATCH`, que
+   * es una acusación de documento compuesto.
+   */
+  it('prefiere el nombre de la MRZ cuando el impreso llega mutilado', async () => {
+    const { fields, warnings } = await analizar([
+      'o NOMBRES:',
+      'S ANA LUCIA',
+      ': APELLIDOS:',
+      '.UISPE MAMANI',
+      'I<BOL4521966<<T<<<<<<<<<<<<<<<',
+      '9003141F3006128B0L<<<<<<<<<<<4',
+      'QUISPE<MAMANI<<ANA<LUCIA<<<<<<',
+    ]);
+    expect(fields.lastNames?.value).toBe('QUISPE MAMANI');
+    expect(fields.firstNames?.value).toBe('ANA LUCIA');
+    expect(warnings).not.toContain('NAME_MRZ_MISMATCH');
+  });
+
+  /*
+   * El formato ANTERIOR pone el nombre en el reverso tras una `A:` — el glifo
+   * más pequeño con el que se puede anclar un campo, y el primero que se pierde.
+   * Sin ancla, el nombre estaba impreso, legible y leído entero, y el expediente
+   * salía con `NAME_NOT_FOUND`.
+   */
+  it('recupera el nombre del formato anterior por el renglón de encima de «Nacido el»', async () => {
+    const { fields, warnings } = await analizar([
+      'r - ANA LUCIA QUISPE MAMANI',
+      '— Nacido el 14 de Marzo de 1990 : o',
+      '— Esasocvil SOLTERA',
+    ]);
+    expect(fields.fullName?.value).toBe('ANA LUCIA QUISPE MAMANI');
+    expect(warnings).not.toContain('NAME_NOT_FOUND');
+    // Es una suposición sobre la maqueta, no un dato rotulado, y se declara.
+    expect(warnings).toContain('NAME_SPLIT_HEURISTIC');
+  });
+
+  /*
+   * El formato anterior no dice «válida hasta»: dice `Emitida el` y `Expira el`,
+   * con el valor DETRÁS del rótulo. No estaban, y su ausencia costaba la
+   * caducidad entera de esa generación. El reconocedor además los mutila
+   * (`Exirael`), así que hacen falta cotejados con tolerancia.
+   */
+  it('lee «Emitida el» y «Expira el» aunque lleguen mutilados', async () => {
+    const { fields, warnings } = await analizar([
+      'No. 45219668 Emitida el 22 de Mayo de 2023',
+      'mem] — -Exirael 22de Mayode 2028',
+    ]);
+    expect(fields.issueDate?.value).toBe('2023-05-22');
+    expect(fields.expirationDate?.value).toBe('2028-05-22');
+    expect(warnings).not.toContain('DOCUMENT_EXPIRY_NOT_FOUND');
+  });
+
+  /*
+   * `INDEFINIDO` es lo que el SEGIP imprime cuando la cédula no caduca, y dos de
+   * las cinco medidas lo son. El renglón del formato vigente lleva las DOS
+   * fechas juntas, así que la regla «la caducidad es la última fecha del
+   * renglón» devolvía la de EMISIÓN: una cédula vigente salía caducada en el año
+   * de su emisión, y encima marcada `DOCUMENT_MRZ_MISMATCH` porque la MRZ
+   * codifica lo indefinido con una fecha centinela lejana.
+   */
+  it('no convierte la fecha de emisión en caducidad cuando la tarjeta dice INDEFINIDO', async () => {
+    const { fields, warnings } = await analizar([
+      '1 FECHA DE EMISIÓN: FECHA DE EXPIRACIÓN:',
+      '25/11/2024 INDEFINIDO — — |',
+      'I<BOL4521966<<T<<<<<<<<<<<<<<<',
+      '9003141F4911254B0L<<<<<<<<<<<4',
+      'QUISPE<MAMANI<<ANA<LUCIA<<<<<<',
+    ]);
+    expect(fields.expirationDate?.value).not.toBe('2024-11-25');
+    expect(warnings).toContain('DOCUMENT_EXPIRY_INDEFINITE');
+    expect(warnings).not.toContain('DOCUMENT_MRZ_MISMATCH');
+  });
+
+  /*
+   * El ancla `NRO` sirve para el número de cédula y también aparece en el
+   * domicilio del reverso. Con la reparación de glifos activa en los extremos,
+   * `NRO 3170 B` se convertía en `31708` —cinco cifras, forma válida— y ese
+   * número entraba en el expediente. Al no coincidir con el de la MRZ, la cédula
+   * salía acusada de documento compuesto por el número de su propia calle.
+   */
+  it('no toma el número de la calle del domicilio como número de cédula', async () => {
+    const { fields, warnings } = await analizar([
+      'EE DOMICILIO: = <= T———"',
+      'e C. LOS ALAMOS NRO 3170 B, LOS G',
+      'I<BOL4521966<<T<<<<<<<<<<<<<<<',
+      '9003141F3006128B0L<<<<<<<<<<<4',
+      'QUISPE<MAMANI<<ANA<LUCIA<<<<<<',
+    ]);
+    expect(fields.documentNumber?.value).toBe('4521966');
+    expect(warnings).not.toContain('DOCUMENT_MRZ_MISMATCH');
+  });
+
+  /*
+   * El guion que el borde de la tarjeta deja pegado detrás del número mataba el
+   * ancla entera: la expresión retrocedía dígito a dígito y todas las
+   * alternativas terminaban mirando el mismo carácter. El número estaba, el
+   * ancla estaba, y el expediente salía sin número de documento.
+   */
+  it('lee el número del formato anterior con el borde pegado detrás', async () => {
+    const { fields } = await analizar(['No-4521966-— 8 santa Gruz -—/AN']);
+    expect(fields.documentNumber?.value).toBe('4521966');
+  });
+
+  /*
+   * Y no se lleva la primera letra de la palabra siguiente. `D` es una confusión
+   * legítima de `0`, así que sin cerrar el candidato en un límite de palabra
+   * `No. 4521966 de Santa Cruz` daba `45219660`: un número con la forma correcta
+   * y una cifra que no existe, que es peor que ninguno.
+   */
+  it('no alarga el número con la letra de la palabra siguiente', async () => {
+    const { fields } = await analizar(['No. 4521966 de Santa Cruz /AJN']);
+    expect(fields.documentNumber?.value).toBe('4521966');
+  });
+
+  /*
+   * Una diferencia de UNA cifra entre lo impreso y la MRZ es una mala lectura,
+   * no un montaje: un falsificador no se equivoca en un dígito, copia una
+   * plantilla y escribe datos que no cuadran con nada. Y cuando lo único que
+   * discrepa son las FECHAS —el campo más pequeño del anverso y sobre
+   * guilloché—, el aviso es otro y más suave que el de documento compuesto.
+   */
+  it('no acusa de documento compuesto por una cifra mal leída en una fecha', async () => {
+    const { warnings } = await analizar([
+      'Q — FECHADE EMISIÓN: FECHA DE EXPIRACIÓN',
+      '12/06/2025 -— 12/07/2034',
+      'I<BOL4521966<<T<<<<<<<<<<<<<<<',
+      '9003141F3006128B0L<<<<<<<<<<<4',
+      'QUISPE<MAMANI<<ANA<LUCIA<<<<<<',
+    ]);
+    expect(warnings).not.toContain('DOCUMENT_MRZ_MISMATCH');
+    expect(warnings).toContain('DOCUMENT_MRZ_DATE_MISMATCH');
+  });
+});
+
+/**
+ * El primer renglón de la MRZ con DOS caracteres de basura por delante.
+ *
+ * Las variantes eran «tal cual» y «sin el primer carácter», y el espurio no
+ * llega de uno en uno: es texto de la tarjeta que el reconocedor arrastra al
+ * renglón. Con el número legible y su dígito de control correcto, el expediente
+ * salía sin número de documento porque nadie probaba esa alineación.
+ */
+describe('MRZ con el renglón corrido', () => {
+  it('realinea el primer renglón cuando le sobran dos caracteres delante', () => {
+    const mrz = parseMrzTd1(
+      [
+        'Le I<BOL4521966<<T<<<<<<<<<<<<<<-',
+        '9003141F3006128B0L<<<<<<<<<<<4',
+        '4 QUISPE<MAMANI<<ANA<LUCIA<<<<<',
+      ].join('\n'),
+    );
+    expect(mrz?.documentNumber).toBe('4521966');
+    expect(mrz?.checks.documentNumber).toBe(true);
+    expect(mrz?.issuingState).toBe('BOL');
+    // El tercer renglón no tiene control con el que elegir alineación, así que
+    // se toma tal cual; lo que sí se quita es la cifra pegada al apellido.
+    expect(mrz?.lastNames).toBe('QUISPE MAMANI');
   });
 });

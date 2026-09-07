@@ -28,6 +28,7 @@ import {
   type IdentityEmbedderPort,
 } from './core/forensics/identity-semantic.classifier';
 import { evaluarFraude, type EvaluacionDeFraude } from './core/forensics/identity-fraud.scorer';
+import { analizarVidaDeLaSelfie, SENALES_DE_VIDA } from './core/forensics/selfie-liveness';
 import { isoDateToUtcDate } from './core/parsers/spanish-date';
 import type { DocumentParser } from './core/parsers/document-parser';
 import type {
@@ -703,7 +704,21 @@ export class IdentityPipelineService {
     if (selfieQuality.warnings.includes('FACE_TOO_SMALL')) riskFlags.push('FACE_TOO_SMALL');
     await input.onProgress?.(70);
 
-    // --- 6. Prueba de vida --------------------------------------------------
+    /*
+     * --- 6. Prueba de vida, y las comprobaciones que el antispoof no hace ----
+     *
+     * Aquí había UNA sola pregunta —«¿es esto un rostro delante de la cámara?»—
+     * y dejaba abierto el ataque más barato del flujo: subir como selfie la
+     * misma foto del carnet. Contra la comparación biométrica ese ataque no
+     * fallaba, ganaba: dos recortes del mismo retrato son el parecido perfecto,
+     * o sea la puntuación más alta que este worker puede dar. Y el antispoof no
+     * lo tapa, porque el retrato de un carnet ES una fotografía de estudio de
+     * una cara, no una pantalla.
+     *
+     * `selfie-liveness.ts` añade lo que faltaba. Se ejecuta ANTES de comparar
+     * —comparar dos veces la misma imagen sólo gastaría el descriptor— salvo la
+     * parte que necesita el parecido, que se resuelve después con lo ya medido.
+     */
     const liveness: LivenessResult = input.entradaGenerada
       ? { outcome: 'NOT_RUN', provider: 'entrada-generada' }
       : await this.liveness.verify({
@@ -760,6 +775,30 @@ export class IdentityPipelineService {
             selfieFace,
             correlationId: input.correlationId,
           });
+
+    /*
+     * Las comprobaciones de vida que miran las DOS imágenes juntas.
+     *
+     * Van después de comparar porque una de ellas necesita el parecido: el que
+     * es DEMASIADO alto, que no significa «es clarísimamente la misma persona»
+     * sino «no hay dos fotos». Un par legítimo documento↔selfie mide entre 0,66
+     * y 0,92 en este repositorio —el retrato va tras el plastificado, lavado y
+     * con velo— así que el techo natural queda muy lejos del 0,97 que exige esta
+     * señal.
+     *
+     * Que la selfie SEA el documento corta aquí y no se anota: no tiene lectura
+     * inocente y seguir sólo produciría un veredicto sobre una comparación que
+     * no compara nada.
+     */
+    const vida = await analizarVidaDeLaSelfie({
+      selfie: selfie.buffer,
+      documento: document.buffer,
+      parecido: match && match.comparable ? match.similarityScore : null,
+      entradaGenerada: input.entradaGenerada === true,
+    });
+    if (vida.selfieEsElDocumento) throw identityErrors.selfieIsDocument();
+    riskFlags.push(...vida.senales);
+
     await input.onProgress?.(90);
 
     /*
@@ -831,9 +870,22 @@ export class IdentityPipelineService {
      * revisión porque el documento parezca auténtico. Que el carnet sea legítimo
      * no convierte en la misma persona a las dos caras que se compararon.
      */
-    const escalantes = ['MULTIPLE_FACES', 'FACE_TOO_SMALL'].filter((flag) =>
-      riskFlags.includes(flag),
-    );
+    /*
+     * Las señales de vida de la selfie escalan por esta MISMA puerta.
+     *
+     * Y tienen que hacerlo, porque son la única clase de señal del worker que el
+     * motor de decisión ve exactamente al revés. Un parecido de 0,98 le llega
+     * como la mejor comparación posible y cierra un VERIFICADO él solo; lo que
+     * significa de verdad es que no hay dos fotos. Dejarlo como marca de riesgo
+     * habría sido escribir la sospecha al lado de la aprobación que la sospecha
+     * contradice.
+     */
+    const escalantes = [
+      'MULTIPLE_FACES',
+      'FACE_TOO_SMALL',
+      SENALES_DE_VIDA.parecidoImposible,
+      SENALES_DE_VIDA.selfieRefotografiada,
+    ].filter((flag) => riskFlags.includes(flag));
     if (fraude && fraude.veredicto !== 'CLEAR') {
       escalantes.push(
         fraude.veredicto === 'FRAUD_SUSPECTED'

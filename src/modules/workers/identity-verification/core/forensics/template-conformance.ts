@@ -98,7 +98,7 @@ export function analizarPlantilla(entrada: EntradaDePlantilla): AnalisisDePlanti
   return {
     mejor,
     todas,
-    incoherencias: buscarIncoherencias(entrada, completo),
+    incoherencias: buscarIncoherencias(entrada, completo, mejor),
     marcasDeFalsificacion: MARCAS_DE_FALSIFICACION.filter((marca) =>
       marca.patron.test(completo),
     ).map((marca) => marca.codigo),
@@ -125,6 +125,7 @@ export function analizarPlantilla(entrada: EntradaDePlantilla): AnalisisDePlanti
 function buscarIncoherencias(
   entrada: EntradaDePlantilla,
   textoCompleto: string,
+  conformidad: ConformidadDePlantilla,
 ): IncoherenciaEstructural[] {
   const fallos: IncoherenciaEstructural[] = [];
   const { campos, mrz, ahora } = entrada;
@@ -212,6 +213,34 @@ function buscarIncoherencias(
       peso: 0.4,
     });
   }
+  /*
+   * Una EMISIÓN futura.
+   *
+   * Se comprobaba el nacimiento y no la emisión, y la emisión es la que un
+   * montaje toca: se parte de una cédula caducada y se le adelantan las fechas
+   * para que parezca vigente. Adelantar la emisión es el descuido más fácil de
+   * cometer y el más fácil de comprobar — el SEGIP no expide documentos con
+   * fecha de mañana.
+   *
+   * Se dan dos días de margen por la zona horaria: el motor trabaja en UTC y la
+   * tarjeta se imprimió en Bolivia (UTC−4), así que una cédula emitida hoy mismo
+   * no debe acusarse por unas horas de desfase.
+   */
+  if (emision && emision.getTime() > ahora.getTime() + 2 * DIA_MS) {
+    fallos.push({
+      codigo: 'ISSUE_DATE_IN_FUTURE',
+      detalle: 'La fecha de emisión es posterior a hoy.',
+      /*
+       * Pesa 0,2 y no más porque la emisión es el campo menos demostrable de la
+       * tarjeta: no está en la MRZ, así que no hay dígito de control que la
+       * respalde, y va impresa en el cuerpo más pequeño del anverso. Ver, más
+       * abajo, la comprobación de vigencia que se retiró por ese mismo motivo.
+       * Aquí la condición sí es imposible —el SEGIP no expide con fecha de
+       * mañana— pero un año mal leído la produce, así que escala y no acusa.
+       */
+      peso: 0.2,
+    });
+  }
 
   /*
    * Vigencias imposibles.
@@ -231,6 +260,56 @@ function buscarIncoherencias(
         peso: 0.3,
       });
     }
+    /*
+     * Aquí se PROBÓ un corte por vigencia no estándar —5 o 10 años, que es lo
+     * que el SEGIP expide— y se retiró, medido.
+     *
+     * La idea era buena: el tope de sesenta años atrapa el «válida hasta 2099»
+     * de un montaje torpe y deja pasar el que importa, que es adelantar la
+     * caducidad de una cédula vencida un par de años. El problema es de qué
+     * DATOS dispone para juzgar. La caducidad suele venir de la MRZ y trae
+     * dígito de control; la EMISIÓN no está en la MRZ y sólo existe impresa, en
+     * el cuerpo más pequeño del anverso y sobre el guilloché. O sea que la
+     * vigencia se calcula restando un dato demostrado menos un dato no
+     * demostrado.
+     *
+     * Sobre cinco cédulas bolivianas auténticas, la comprobación acusó a una: su
+     * anverso imprime `23/06/2026` y el reconocedor devolvió `23/08/2020`, de
+     * modo que una tarjeta de cinco años de vigencia parecía tener once. Una de
+     * cada cinco cédulas legítimas marcada por el campo que peor se lee no es
+     * una defensa contra el fraude: es una cola de revisión.
+     *
+     * Vuelve a tener sentido el día que la emisión se pueda demostrar —un QR
+     * leído, un cotejo contra el SEGIP— y no antes.
+     */
+  }
+
+  /*
+   * La generación VIGENTE sin zona de lectura mecánica.
+   *
+   * El DS 4924 de 2023 rediseñó la cédula y la MRZ TD1 del reverso es parte del
+   * diseño: una tarjeta de esa generación la lleva siempre. Un falsificador que
+   * reproduce el anverso —los rótulos, el guilloché, el retrato— se salta la MRZ
+   * con frecuencia, porque exige calcular tres dígitos de control que nadie mira
+   * a simple vista.
+   *
+   * Sólo se levanta cuando se fotografió el REVERSO. Sin reverso, la MRZ falta
+   * por no haberse fotografiado y no por no existir, que es una captura legítima
+   * y frecuente. Y pesa poco —0,2— porque la otra explicación es honesta y
+   * corriente: la MRZ es la letra más pequeña de la tarjeta y una foto regular la
+   * pierde entera. Es una señal para escalar, nunca para rechazar.
+   */
+  if (
+    conformidad.generacion === 'DS_4924_2023' &&
+    entrada.textoReverso.trim().length > 0 &&
+    !mrz
+  ) {
+    fallos.push({
+      codigo: 'MRZ_ABSENT_ON_CURRENT_GENERATION',
+      detalle:
+        'La tarjeta tiene el diseño vigente (DS 4924 de 2023), que lleva zona de lectura mecánica, y en el reverso fotografiado no se encontró ninguna.',
+      peso: 0.2,
+    });
   }
 
   /*
@@ -281,10 +360,30 @@ function buscarIncoherencias(
   }
 
   // --- 5. La nacionalidad de la MRZ ----------------------------------------
-  if (mrz?.nationality && mrz.nationality !== 'BOL' && /^[A-Z]{3}$/u.test(mrz.nationality)) {
+  /*
+   * Y sólo cuando el ESTADO EMISOR tampoco dice BOL.
+   *
+   * Los dos campos son códigos ISO de tres letras y **ninguno de los dos está
+   * cubierto por un dígito de control** —el compuesto abarca el número y las dos
+   * fechas—, así que los dos se leen mal con la misma facilidad. Medido sobre una
+   * cédula boliviana auténtica: el segundo renglón llegó con un glifo de más
+   * (`BO0L`), la nacionalidad salió `BOO` y el documento quedaba acusado de
+   * declarar una nacionalidad extranjera. El emisor, en el otro renglón, decía
+   * `BOL` sin dudar.
+   *
+   * Exigir que fallen los DOS es lo que separa un montaje de una errata: quien
+   * reetiqueta la plantilla de otro país deja los dos campos del país de origen,
+   * mientras que el reconocedor se equivoca en uno cada vez.
+   */
+  if (
+    mrz?.nationality &&
+    mrz.nationality !== 'BOL' &&
+    mrz.issuingState !== 'BOL' &&
+    /^[A-Z]{3}$/u.test(mrz.nationality)
+  ) {
     fallos.push({
       codigo: 'MRZ_NATIONALITY_NOT_BOL',
-      detalle: `La MRZ declara nacionalidad ${mrz.nationality} en un documento que se presenta como cédula boliviana.`,
+      detalle: `La MRZ declara nacionalidad ${mrz.nationality} y emisor ${mrz.issuingState ?? '—'} en un documento que se presenta como cédula boliviana.`,
       peso: 0.2,
     });
   }

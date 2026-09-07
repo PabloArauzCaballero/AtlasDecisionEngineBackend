@@ -124,11 +124,35 @@ export function toleranciaDe(rotulo: string): number {
  * cueste veinte recorridos completos.
  */
 function distanciaEnSubcadena(pajar: string, aguja: string, tope: number): number {
-  if (aguja.length === 0) return 0;
-  if (pajar.length === 0) return aguja.length;
+  return coincidenciaEnSubcadena(pajar, aguja, tope).distancia;
+}
+
+/**
+ * Lo mismo, y ADEMÁS dónde termina la subcadena que mejor casó.
+ *
+ * El final es lo que convierte «este rótulo está en la línea» en «el valor
+ * empieza aquí». Sin él, un rótulo cotejado con tolerancia sólo podía usarse
+ * para mirar el renglón de DEBAJO —que es donde la cédula vigente imprime sus
+ * valores— y los formatos que ponen el valor DETRÁS del rótulo, en la misma
+ * línea, se quedaban fuera: `Emitida el 22 de Mayo de 2023` es exactamente eso,
+ * y el reconocedor lo devuelve como `Emitida el 22 de Mayo de 2023` o como
+ * `-Exirael 22de Mayode 2028` según la foto. La segunda no casa con ninguna
+ * expresión regular y es el mismo rótulo.
+ *
+ * El final en curso se arrastra con el mínimo: cuando una fila mejora la
+ * distancia, la posición donde termina esa fila es donde termina el rótulo.
+ */
+function coincidenciaEnSubcadena(
+  pajar: string,
+  aguja: string,
+  tope: number,
+): { distancia: number; fin: number } {
+  if (aguja.length === 0) return { distancia: 0, fin: 0 };
+  if (pajar.length === 0) return { distancia: aguja.length, fin: 0 };
 
   let previa = Array.from({ length: aguja.length + 1 }, (_, indice) => indice);
   let mejor = previa[aguja.length] ?? aguja.length;
+  let finMejor = 0;
 
   for (let i = 0; i < pajar.length; i += 1) {
     const actual = new Array<number>(aguja.length + 1);
@@ -145,14 +169,69 @@ function distanciaEnSubcadena(pajar: string, aguja: string, tope: number): numbe
       if (valor < minimoDeLaFila) minimoDeLaFila = valor;
     }
     const final = actual[aguja.length] ?? aguja.length;
-    if (final < mejor) mejor = final;
-    if (mejor === 0) return 0;
+    if (final < mejor) {
+      mejor = final;
+      finMejor = i + 1;
+    }
+    if (mejor === 0) return { distancia: 0, fin: finMejor };
     // La fila entera por encima del tope: ninguna continuación puede bajar de
     // ahí, porque cada paso siguiente sólo suma.
-    if (minimoDeLaFila > tope && mejor > tope) return mejor;
+    if (minimoDeLaFila > tope && mejor > tope) return { distancia: mejor, fin: finMejor };
     previa = actual;
   }
-  return mejor;
+  return { distancia: mejor, fin: finMejor };
+}
+
+/**
+ * Pliega un texto y guarda de qué posición del ORIGINAL salió cada carácter.
+ *
+ * Es la pieza que faltaba para poder recortar el valor: el cotejo trabaja sobre
+ * el texto plegado —sin espacios ni signos, que es lo que le quita a la
+ * tolerancia el gasto de los separadores que el OCR inventa— y el valor hay que
+ * devolverlo del texto ORIGINAL, donde las barras de una fecha y los espacios de
+ * un nombre todavía existen.
+ */
+export function plegarConIndices(texto: string): { plegado: string; indices: number[] } {
+  const plegado: string[] = [];
+  const indices: number[] = [];
+  const normalizado = texto.normalize('NFD');
+  let posicionOriginal = 0;
+  for (const caracter of normalizado) {
+    // Un diacrítico descompuesto no ocupa posición propia en el texto tal como
+    // lo lee quien recorta: se salta sin avanzar el índice del original.
+    if (/[̀-ͯ]/u.test(caracter)) continue;
+    const limpio = caracter.toUpperCase().replace(/[^A-Z0-9]/gu, '');
+    if (limpio) {
+      plegado.push(limpio);
+      indices.push(posicionOriginal);
+    }
+    posicionOriginal += 1;
+  }
+  return { plegado: plegado.join(''), indices };
+}
+
+/**
+ * Lo que viene DESPUÉS del rótulo en esta misma línea, cotejando con tolerancia.
+ *
+ * Devuelve `null` cuando ninguna grafía casa. Cuando casa, devuelve el resto de
+ * la línea ORIGINAL a partir del carácter siguiente al último del rótulo — que
+ * puede ser cadena vacía, y eso es un dato: significa que el rótulo está solo en
+ * su renglón y el valor vive en el de abajo.
+ */
+export function valorTrasEtiqueta(linea: string, grafias: readonly string[]): string | null {
+  const { plegado, indices } = plegarConIndices(linea);
+  for (const grafia of grafias) {
+    const aguja = plegarParaCotejo(grafia);
+    if (aguja.length < LONGITUD_MINIMA) continue;
+    const tolerancia = Math.floor(aguja.length / CARACTERES_POR_EDICION);
+    const { distancia, fin } = coincidenciaEnSubcadena(plegado, aguja, tolerancia);
+    if (distancia > tolerancia || fin === 0) continue;
+    // `fin` es exclusivo en coordenadas plegadas; el corte va detrás del último
+    // carácter del rótulo en el original.
+    const corte = (indices[fin - 1] ?? -1) + 1;
+    return linea.slice(corte);
+  }
+  return null;
 }
 
 /**

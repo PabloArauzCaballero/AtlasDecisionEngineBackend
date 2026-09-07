@@ -180,6 +180,16 @@ Al artefacto suben sólo dos escalares —`result.fraudVerdict` y `result.fraudR
 queda en `result_json` de la ejecución del worker, que es donde el portal lo lee: publicarlo como
 variable lo metería en la traza de la ejecución, que se conserva años.
 
+## Lo que cambió al medirlo contra documentos reales
+
+Todo lo de arriba se escribió contra la tarjeta sintética y contra UNA foto real. El 6 de septiembre
+de 2026 se midió contra cinco cédulas auténticas y aparecieron dos falsas acusaciones de fraude
+—una discrepancia con la MRZ por una sola cifra mal leída, y una nacionalidad extranjera por un
+glifo de más— además de una comprobación de vigencia que hubo que retirar por apoyarse en el campo
+menos demostrable de la tarjeta. Está contado, defecto a defecto, en
+[Identidad contra cinco cédulas reales](identidad-cinco-cedulas-reales.md), que cubre también el
+encuadre del documento y las comprobaciones de vida de la selfie.
+
 ## Dónde se mira
 
 - Motor: `src/modules/workers/identity-verification/core/catalog/` y `core/forensics/`.

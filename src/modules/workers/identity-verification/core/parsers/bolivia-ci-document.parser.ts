@@ -6,8 +6,8 @@ import type { DocumentParser, DocumentParserInput, ParsedDocument } from './docu
 import { parseMrzTd1, type MrzTd1 } from './mrz-td1';
 import { parseSpanishDate } from './spanish-date';
 import { collapseWhitespace, normalizeForMatch, toLines } from './text-normalization';
-import { casarGrafias, plegarParaCotejo } from '../catalog/approximate-match';
-import { NOMBRES_DE_DEPARTAMENTO } from '../catalog/bolivia-ci.catalog';
+import { casarGrafias, plegarParaCotejo, valorTrasEtiqueta } from '../catalog/approximate-match';
+import { NOMBRES_DE_DEPARTAMENTO, esNumeroDeCedulaValido } from '../catalog/bolivia-ci.catalog';
 
 /**
  * Analizador de la cédula de identidad boliviana (tarjeta ID-1, dos caras).
@@ -65,6 +65,29 @@ export const BOLIVIA_CI_WARNINGS = {
   printedNameUnusable: 'PRINTED_NAME_UNUSABLE',
   /** La MRZ se leyó, pero su control compuesto no cuadra. */
   mrzCheckFailed: 'DOCUMENT_MRZ_CHECK_FAILED',
+  /**
+   * Las FECHAS impresas no coinciden con las de la MRZ, pero el número y el
+   * nombre sí.
+   *
+   * Es deliberadamente un aviso distinto de `DOCUMENT_MRZ_MISMATCH`, y la
+   * diferencia es de qué acusa cada uno. El número y el nombre identifican a la
+   * persona: que el anverso y el reverso digan personas distintas es un montaje.
+   * Las fechas, en cambio, van en el cuerpo más pequeño del anverso y sobre el
+   * guilloché, que es donde el reconocedor falla — medido sobre una cédula
+   * auténtica, `13/01/2031` volvió como `13/04/2034`.
+   *
+   * Un falsificador que acierte el número y el nombre y falle las dos fechas no
+   * existe; un OCR que haga eso es lo normal. Mantenerlos bajo la misma marca
+   * hacía que una cédula legítima llegara al análisis de fraude con la señal más
+   * grave que este analizador puede levantar.
+   */
+  mrzDateMismatch: 'DOCUMENT_MRZ_DATE_MISMATCH',
+  /**
+   * La tarjeta declara que NO caduca. No es un campo ausente ni un fallo de
+   * lectura: es lo que el SEGIP imprime, y sin distinguirlo el expediente
+   * quedaba igual que el de una cédula cuya caducidad no se pudo leer.
+   */
+  expiryIndefinite: 'DOCUMENT_EXPIRY_INDEFINITE',
 } as const;
 
 /*
@@ -88,17 +111,130 @@ export const BOLIVIA_CI_WARNINGS = {
  * levantaba `DOCUMENT_MRZ_MISMATCH` —una marca de documento compuesto— sobre una
  * cédula auténtica cuyas dos caras dicen exactamente lo mismo.
  */
+/*
+ * `(?![\d-])` era `(?![\d-])`, y el guion de ese conjunto costaba un número entero.
+ *
+ * Estaba ahí para no morder el número de control, que lleva sufijo. El precio:
+ * cualquier signo que el reconocedor cuelgue detrás del número IMPRESO mata el
+ * anclaje, porque la expresión retrocede dígito a dígito y todas las
+ * alternativas terminan mirando el mismo carácter. Medido sobre una cédula
+ * boliviana auténtica del formato anterior, el anverso volvió como
+ * `No-4521966-— 8 santa Gruz -—/AN`: el número estaba, el ancla `No` estaba, y
+ * la única razón de que el expediente saliera sin número de documento era el
+ * guion que el borde de la tarjeta deja pegado detrás.
+ *
+ * Ahora el sufijo se CAPTURA en vez de rechazarse —un complemento (`-1A`) es
+ * parte legítima del número en el formato anterior— y lo que excluye el número
+ * de control es su propia forma, que es donde siempre debió estar.
+ *
+ * `(?![0-9A-Z])` cierra el candidato en un límite de palabra, y hace falta
+ * porque la clase que admite las confusiones de glifo incluye letras: sobre
+ * `No. 4521966 de Santa Cruz`, sin este remate la expresión se llevaba la `D` de
+ * `de` —que la reparación convierte en un cero— y el expediente guardaba
+ * `45219660`, un número de ocho cifras con la forma correcta y **una cifra que no
+ * existe**. Un número inventado con pinta de leído es peor que ninguno.
+ *
+ * Y los EXTREMOS tienen que ser dígitos de verdad: la reparación de glifos vale
+ * dentro del número, no en sus puntas. Medido sobre una cédula auténtica, el
+ * domicilio del reverso —`C. LOS ALAMOS NRO 3170 B, LOS G`— casaba con el ancla
+ * `NRO`, se llevaba `3170 B`, la `B` se reparaba a `8` y el resultado, `31708`,
+ * tenía cinco cifras y por tanto la forma de un número de cédula válido. Ese
+ * número entraba en el expediente y, al no coincidir con el de la MRZ, la cédula
+ * salía marcada con `DOCUMENT_MRZ_MISMATCH`: acusada de ser un documento
+ * compuesto por el número de su propia calle.
+ */
 const DOCUMENT_NUMBER_ANCHOR =
-  /(?:^|\s)(?:N\s?[O°º*"'”’~^]\.?|NRO\.?|NUM(?:ERO)?\.?|C\.?\s?[I1L]\.?|N[?¿])\s*[:#-]?\s*(\d{5,10})(?![\d-])/;
-const CONTROL_NUMBER_LINE = /^(\d{5,10})\s+\d{2}\s?-\s?\d{2}$/;
+  /(?:^|\s)(?:N\s?[O°º*"'”’~^]\.?|NRO\.?|NUM(?:ERO)?\.?|C\.?\s?[I1L]\.?|N[?¿])\s*[:#.-]?\s*(\d[0-9OQDILSBZGT \u00b7.]{3,12}\d)(?![0-9A-Z])/;
+/*
+ * El número de CONTROL de impresión, que no es el de la cédula y se le parece.
+ *
+ * El patrón era `^(\d{5,10})\s+\d{2}\s?-\s?\d{2}$` — dígitos seguidos y sufijo
+ * de dos cifras. Sobre la tarjeta real no casa nunca: el reverso del formato
+ * anterior lo imprime **con los dígitos separados y con letra en el sufijo**
+ * —medido: `3 468 674 08-L3`— así que el renglón entero se colaba como
+ * candidato a número de cédula por la vía de los dígitos sueltos.
+ *
+ * Se acepta ahora la separación por espacios y el sufijo alfanumérico, y se
+ * exige que sea el renglón COMPLETO: es lo que distingue el número de control
+ * —que va solo, al pie— de un número de cédula rodeado de su rótulo.
+ */
+const CONTROL_NUMBER_LINE = /^([\d ]{5,14})\s+[0-9A-Z]{2}\s?[-–]\s?[0-9A-Z]{2}$/;
 const STANDALONE_NUMBER_LINE = /^(\d{5,10})$/;
-const NAME_ANCHOR = /^A\s*[:;.,]\s*(.+)$/;
+
+/**
+ * Deshace las confusiones de glifo en algo que YA es casi todo dígitos.
+ *
+ * Es la misma tabla que usa la MRZ y por la misma razón —la `O` y el `0`, la `T`
+ * y el `7` son el mismo trazo a poca resolución— pero aquí no hay una norma que
+ * garantice que la posición sea numérica, así que la garantía la pone el
+ * CONTEXTO: sólo se repara lo que va detrás del ancla `N°`/`No`/`C.I.`, que es
+ * el único sitio del anverso donde la tarjeta imprime un número de cédula.
+ *
+ * Y aun así se exige que la MAYORÍA de los caracteres ya fueran dígitos. Sin esa
+ * condición, `No SOLTERO` se convertiría en un número: reparar un texto que no
+ * era un número no lo corrige, lo inventa.
+ */
+function repararDigitos(bruto: string): string | null {
+  const limpio = bruto.replace(/[\s\u00b7.]/g, '');
+  if (limpio.length === 0) return null;
+  const yaDigitos = (limpio.match(/\d/g) ?? []).length;
+  if (yaDigitos * 2 < limpio.length) return null;
+  const reparado = [...limpio]
+    .map((caracter) => CONFUSIONES_A_DIGITO[caracter] ?? caracter)
+    .join('');
+  return /^\d+$/.test(reparado) ? reparado : null;
+}
+
+/** Las confusiones que un reconocedor comete sobre cifras impresas grandes. */
+const CONFUSIONES_A_DIGITO: Record<string, string> = {
+  O: '0',
+  Q: '0',
+  D: '0',
+  I: '1',
+  L: '1',
+  S: '5',
+  B: '8',
+  Z: '2',
+  G: '6',
+  T: '7',
+};
+/*
+ * `(?:^|\s)A` y no `^A`: el ancla del nombre del formato anterior es la letra
+ * MÁS PEQUEÑA con la que se puede anclar nada, y por delante de ella el
+ * reconocedor deja el borde de la tarjeta y los restos del sello. Medido sobre
+ * cinco cédulas bolivianas auténticas, ni una sola línea de valor empezaba
+ * limpia: `r - ANA LUCIA QUISPE MAMANI`, `e QUISPE MAMANI`, `S ANA LUCIA. $`.
+ */
+const NAME_ANCHOR = /(?:^|\s)A\s*[:;.,]\s*(.+)$/;
 const BIRTH_ANCHOR = /(?:^|\s)NACID[OA]\s+EL\s+(.+)$/;
 const EXPIRY_ANCHOR = /(?:^|\s)VALID[AO]\s+HASTA(?:\s+EL)?\s*[:.]?\s*(.+)$/;
-const PLACE_ANCHOR = /^EN\s+(.{4,})$/;
+/*
+ * El formato ANTERIOR no dice «válida hasta»: dice `Emitida el <fecha>` y
+ * `Expira el <fecha>`, las dos en su propia línea y con el valor DETRÁS del
+ * rótulo. No estaban, y su ausencia costaba la caducidad entera de esa
+ * generación: medido sobre una cédula de 2023, el anverso imprime `Expira el 22
+ * de Mayo de 2028`, se lee, y el expediente salía con `DOCUMENT_EXPIRY_NOT_FOUND`.
+ */
+const EXPIRA_ANCHOR = /(?:^|\s)EXPIRA\s*(?:EL)?\s*[:.]?\s*(.+)$/;
+const EMITIDA_ANCHOR = /(?:^|\s)EMITID[AO]\s*(?:EL)?\s*[:.]?\s*(.+)$/;
+const PLACE_ANCHOR = /(?:^|\s)EN\s+(.{4,})$/;
 // --- Formato vigente: los rótulos SON los anclajes ------------------------
-const LABEL_NOMBRES = /^NOMBRES\s*[:.]?\s*(.*)$/;
-const LABEL_APELLIDOS = /^APELLIDOS\s*[:.]?\s*(.*)$/;
+/*
+ * SIN `^`, y es el arreglo que más nombres recupera.
+ *
+ * Los rótulos del nombre son los únicos del anverso que van PEGADOS AL RETRATO,
+ * y el reconocedor mete delante de ellos los glifos que cree ver en la foto.
+ * Medido sobre cinco cédulas auténticas, el rótulo llegó como `Z NOMBRES:`,
+ * `= APELLIDOS:` y `5 ; APELLIDOS` — ninguno empieza por su propia palabra, así
+ * que ninguno casaba, y como `NOMBRES` y `APELLIDOS` tienen SIETE caracteres
+ * están por debajo del mínimo del cotejo tolerante (ocho): no había segunda
+ * oportunidad. El nombre se perdía entero en cédulas perfectamente legibles.
+ *
+ * Los rótulos de fecha ya toleraban un prefijo desde siempre
+ * (`(?:^|\s)FECHA\s+DE\s+…`); esto es la misma tolerancia donde más falta hacía.
+ */
+const LABEL_NOMBRES = /(?:^|\s)NOMBRES\s*[:.]?\s*(.*)$/;
+const LABEL_APELLIDOS = /(?:^|\s)APELLIDOS\s*[:.]?\s*(.*)$/;
 const LABEL_NACIMIENTO = /(?:^|\s)FECHA\s+DE\s+NACIMIENTO\s*[:.]?\s*(.*)$/;
 const LABEL_EXPIRACION =
   /(?:^|\s)FECHA\s+DE\s+(?:EXPIRACION|VENCIMIENTO|CADUCIDAD)\s*[:.]?\s*(.*)$/;
@@ -141,6 +277,23 @@ const GRAFIAS_NACIMIENTO = ['FECHA DE NACIMIENTO'];
  */
 const GRAFIAS_EXPIRACION = ['FECHA DE EXPIRACION', 'EXPIRACION'];
 const GRAFIAS_EMISION = ['FECHA DE EMISION', 'FECHA DE EXPEDICION'];
+/*
+ * Los rótulos del formato ANTERIOR, que llevan el valor DETRÁS en la misma
+ * línea, cotejados con tolerancia.
+ *
+ * Van aparte de las grafías de arriba porque se usan de otra manera: aquéllas
+ * sólo sirven para señalar el renglón y leer el de DEBAJO —que es donde la
+ * cédula vigente imprime sus valores—, y éstas necesitan saber dónde ACABA el
+ * rótulo para quedarse con el resto de la línea. Eso es lo que hace
+ * `valorTrasEtiqueta`.
+ *
+ * Las dos miden diez y nueve caracteres plegados, o sea que entran en el cotejo
+ * tolerante (mínimo ocho) con una y dos ediciones. Y hacen falta: medido sobre
+ * una cédula de 2023, `Expira el` volvió del reconocedor como `Exirael` —sin la
+ * `p` y sin espacios— y ninguna expresión regular lo alcanza.
+ */
+const GRAFIAS_EXPIRA_INLINE = ['EXPIRA EL'];
+const GRAFIAS_EMITIDA_INLINE = ['EMITIDA EL'];
 const GRAFIAS_LUGAR = ['LUGAR DE NACIMIENTO'];
 
 /**
@@ -226,6 +379,21 @@ function pareceNombre(valor: string | null | undefined): boolean {
  * `MARIA RENEE` y el de la MRZ `MARIA<RENE` son el mismo nombre, y exigir
  * igualdad exacta convertiría la norma de la ICAO en una discrepancia.
  */
+/** ¿Contiene el primero al segundo desde el principio, ya plegados a letras? */
+function empiezaPor(largo: string, corto: string): boolean {
+  const a = plegarNombre(largo);
+  const b = plegarNombre(corto);
+  return a.length > 0 && b.length > 0 && a.startsWith(b);
+}
+
+function plegarNombre(valor: string): string {
+  return valor
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/gu, '')
+    .toUpperCase()
+    .replace(/[^A-Z]/gu, '');
+}
+
 function mismoNombre(izquierda: string, derecha: string): boolean {
   const plegar = (valor: string): string =>
     valor
@@ -236,7 +404,50 @@ function mismoNombre(izquierda: string, derecha: string): boolean {
   const a = plegar(izquierda);
   const b = plegar(derecha);
   if (!a || !b) return true;
-  return a.startsWith(b) || b.startsWith(a);
+  if (a.startsWith(b) || b.startsWith(a)) return true;
+  /*
+   * Y una edición por cada ocho caracteres, que es lo que separa un nombre MAL
+   * LEÍDO de un nombre DISTINTO.
+   *
+   * El prefijo solo no bastaba, y el fallo está medido sobre una cédula
+   * boliviana auténtica: el rótulo de los apellidos va pegado al retrato, el
+   * reconocedor se comió la primera letra y devolvió `UISPE MAMANI` donde la
+   * MRZ dice `QUISPE MAMANI`. Ninguno de los dos es prefijo del otro —la
+   * diferencia está al principio— así que la cédula levantaba
+   * `NAME_MRZ_MISMATCH`, que es una marca de documento compuesto.
+   *
+   * Un carácter sobre dieciséis no es otra persona: es el mismo nombre con una
+   * letra perdida. Dos apellidos distintos difieren en mucho más que eso, y la
+   * tolerancia es la misma proporción que el catálogo ya aplica a sus rótulos.
+   */
+  const tolerancia = Math.max(1, Math.floor(Math.max(a.length, b.length) / 8));
+  return distanciaDeEdicion(a, b, tolerancia) <= tolerancia;
+}
+
+/**
+ * Distancia de Levenshtein con corte: en cuanto la fila entera se pasa del tope
+ * no hay continuación que baje de ahí, porque cada paso sólo suma.
+ */
+function distanciaDeEdicion(a: string, b: string, tope: number): number {
+  if (Math.abs(a.length - b.length) > tope) return tope + 1;
+  let previa = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i += 1) {
+    const actual = new Array<number>(b.length + 1);
+    actual[0] = i;
+    let minimo = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      const valor = Math.min(
+        (previa[j - 1] ?? 0) + (a[i - 1] === b[j - 1] ? 0 : 1),
+        (previa[j] ?? 0) + 1,
+        (actual[j - 1] ?? 0) + 1,
+      );
+      actual[j] = valor;
+      if (valor < minimo) minimo = valor;
+    }
+    if (minimo > tope) return tope + 1;
+    previa = actual;
+  }
+  return previa[b.length] ?? tope + 1;
 }
 
 function sinColaDeRuido(texto: string): string {
@@ -246,6 +457,74 @@ function sinColaDeRuido(texto: string): string {
   }
   return trozos.join(' ');
 }
+
+/**
+ * Y la CABEZA, que es por donde entra el ruido de verdad.
+ *
+ * `sinColaDeRuido` recortaba sólo por el final, y la medición sobre cinco
+ * cédulas bolivianas auténticas dice que el ruido llega sobre todo por DELANTE:
+ * el valor está impreso a la derecha del retrato, y a la izquierda del renglón
+ * quedan el borde de la tarjeta, el número vertical en rojo y los restos del
+ * sello. Lo que devolvió el reconocedor, literal:
+ *
+ *   `” .UISPE MAMANI`     `e QUISPE MAMANI`     `S ANA LUCIA. $`
+ *   `5 ANA LUCIA >= |`     `r - ANA LUCIA QUISPE MAMANI`
+ *
+ * Sin este recorte, esos glifos viajaban al expediente COMO PARTE DEL NOMBRE de
+ * una persona, y además rompían el cotejo con la MRZ —`” .UISPE MAMANI` no es
+ * prefijo de `QUISPE MAMANI`— así que una cédula auténtica levantaba
+ * `NAME_MRZ_MISMATCH`, que es una marca de documento compuesto.
+ *
+ * El criterio es simétrico al de la cola y por lo mismo: se quitan los trozos
+ * iniciales que no lleven una tira seguida de tres alfanuméricos. Un nombre
+ * castellano no EMPIEZA por una palabra de dos letras —«DE LA CRUZ» va en medio—
+ * y el ruido del reconocedor llega justamente así, en glifos sueltos.
+ */
+function sinCabezaDeRuido(texto: string): string {
+  const trozos = texto.split(/\s+/).filter(Boolean);
+  while (trozos.length > 1 && !/[\p{L}\p{N}]{3,}/u.test(trozos[0] ?? '')) {
+    trozos.shift();
+  }
+  return trozos.join(' ');
+}
+
+/**
+ * Las dos puntas, más los signos que cuelgan de los extremos.
+ *
+ * Los signos se quitan aparte de los trozos porque van PEGADOS a la palabra y no
+ * sueltos: `ANA LUCIA. $` pierde el `$` como trozo y la `.` como signo, y `.UISPE`
+ * conserva su cuerpo. Sólo se tocan los extremos —un `D'ANDREA` o un `PEREZ-GIL`
+ * llevan el signo en medio y son nombres de verdad—.
+ */
+function limpiarValor(texto: string): string {
+  return sinCabezaDeRuido(sinColaDeRuido(texto))
+    .replace(/^[^\p{L}\p{N}]+/u, '')
+    .replace(/[^\p{L}\p{N}]+$/u, '')
+    .trim();
+}
+
+/**
+ * El texto que la tarjeta imprime cuando NO caduca.
+ *
+ * No es un caso raro ni un defecto de lectura: el SEGIP emite cédulas de validez
+ * indefinida en las dos generaciones —el formato anterior imprime `Válida hasta
+ * el INDEFINIDO` y el vigente `FECHA DE EXPIRACIÓN: INDEFINIDO`— y dos de las
+ * cinco cédulas auténticas medidas son así.
+ *
+ * Reconocerlo importa por dos motivos, los dos medidos:
+ *
+ * 1. **La caducidad dejaba de faltar y pasaba a ser FALSA.** El renglón del
+ *    formato vigente lleva las dos fechas juntas —`25/11/2024   INDEFINIDO`— y
+ *    la regla «de las fechas del renglón, la caducidad es la ÚLTIMA» devolvía la
+ *    de EMISIÓN, porque es la única que hay. El expediente salía con una cédula
+ *    vigente marcada como caducada en 2024.
+ * 2. **Levantaba `DOCUMENT_MRZ_MISMATCH`**, que es una marca de documento
+ *    compuesto, sobre una cédula auténtica: la MRZ codifica lo indefinido con
+ *    una fecha centinela lejana —medido, `491125`, o sea 2049— porque la norma
+ *    ICAO exige seis dígitos ahí y no admite «indefinido». Impreso y MRZ decían
+ *    cosas distintas y las dos eran correctas.
+ */
+const CADUCIDAD_INDEFINIDA = /INDEFINID[OA]|SIN\s*VENCIMIENTO|PERMANENTE/;
 
 const SERIE_ANCHOR = /(?:^|\s)SERIE\s*[:.]?\s*(\d{2,8})/;
 const SECTION_ANCHOR = /(?:^|\s)SECCION\s*[:.]?\s*(\d{2,8})/;
@@ -276,14 +555,38 @@ export class BoliviaCiDocumentParser implements DocumentParser {
     const documentNumber = this.documentNumber(lines);
     const nombres = this.labelled(lines, LABEL_NOMBRES, GRAFIAS_NOMBRES);
     const apellidos = this.labelled(lines, LABEL_APELLIDOS, GRAFIAS_APELLIDOS);
-    const fullName = this.fullName(lines);
+    const fullName = this.fullName(lines) ?? this.nombrePorVecindad(lines);
     const birth =
       this.labelled(lines, LABEL_NACIMIENTO, GRAFIAS_NACIMIENTO, EXCLUSIONES.NACIMIENTO) ??
       this.anchored(lines, BIRTH_ANCHOR);
     const expiry =
       this.labelled(lines, LABEL_EXPIRACION, GRAFIAS_EXPIRACION, EXCLUSIONES.EXPIRACION) ??
-      this.anchored(lines, EXPIRY_ANCHOR);
-    const issue = this.labelled(lines, LABEL_EMISION, GRAFIAS_EMISION, EXCLUSIONES.EMISION);
+      this.anchored(lines, EXPIRY_ANCHOR) ??
+      /*
+       * `Expira el <fecha>` — el rótulo del formato ANTERIOR, que no estaba.
+       * Va el último de los tres porque es el más laxo: `EXPIRA` es una palabra
+       * corriente y los dos anclajes de arriba nombran el campo sin ambigüedad.
+       */
+      this.anchored(lines, EXPIRA_ANCHOR) ??
+      this.anchoredTolerante(lines, GRAFIAS_EXPIRA_INLINE);
+    const issue =
+      this.labelled(lines, LABEL_EMISION, GRAFIAS_EMISION, EXCLUSIONES.EMISION) ??
+      this.anchored(lines, EMITIDA_ANCHOR) ??
+      this.anchoredTolerante(lines, GRAFIAS_EMITIDA_INLINE);
+
+    /*
+     * ¿Dice la tarjeta que NO caduca?
+     *
+     * Se mira en el renglón de la caducidad y, si no hubo renglón, en el texto
+     * entero: el formato anterior lo imprime como `Válida hasta el INDEFINIDO`
+     * —dos renglones a veces— y el vigente como el valor del campo. Se comprueba
+     * ANTES de intentar leer una fecha, porque el renglón del formato vigente
+     * trae las dos fechas juntas y la regla «la caducidad es la última fecha del
+     * renglón» devuelve la de EMISIÓN cuando la de caducidad no es una fecha.
+     */
+    const caducidadIndefinida = expiry
+      ? CADUCIDAD_INDEFINIDA.test(normalizeForMatch(expiry.value))
+      : lines.some((line) => CADUCIDAD_INDEFINIDA.test(line.normalized));
     const placeOfBirth =
       this.labelled(lines, LABEL_LUGAR, GRAFIAS_LUGAR) ??
       this.placeOfBirth(lines) ??
@@ -291,7 +594,10 @@ export class BoliviaCiDocumentParser implements DocumentParser {
 
     const dateOfBirth = this.normalizedDate(birth);
     // La ÚLTIMA de las fechas del renglón: la emisión va antes que la expiración.
-    const expirationDate = this.normalizedDate(expiry, 'ultima');
+    // Salvo que la tarjeta diga que no caduca: entonces la única fecha del
+    // renglón es la de EMISIÓN, y tomarla como caducidad declara caducado en
+    // 2024 un documento que no vence nunca.
+    const expirationDate = caducidadIndefinida ? null : this.normalizedDate(expiry, 'ultima');
 
     /*
      * Resolución de cada campo: MRZ validada > texto impreso.
@@ -304,9 +610,28 @@ export class BoliviaCiDocumentParser implements DocumentParser {
     const numero = this.preferir(mrz?.documentNumber ?? null, documentNumber?.value ?? null);
     const nacimiento = this.preferir(mrz?.birthDate ?? null, dateOfBirth?.value ?? null);
     const caducidad = this.preferir(mrz?.expirationDate ?? null, expirationDate?.value ?? null);
-    if (numero.discrepa || nacimiento.discrepa || caducidad.discrepa) {
-      warnings.push(BOLIVIA_CI_WARNINGS.mrzMismatch);
-    }
+    /*
+     * La caducidad indefinida NO cuenta como discrepancia con la MRZ.
+     *
+     * La norma ICAO exige seis dígitos en el campo de caducidad y no admite
+     * «indefinido», así que el SEGIP codifica lo indefinido con una fecha
+     * centinela lejana: medido sobre una cédula auténtica cuyo anverso imprime
+     * `FECHA DE EXPIRACIÓN: INDEFINIDO`, su MRZ dice `491125`, o sea 2049. El
+     * impreso y la MRZ dicen cosas distintas y las DOS son correctas — no es un
+     * documento compuesto, es cómo se escribe «no caduca» en una zona de lectura
+     * mecánica. Sin esta excepción, la cédula salía marcada con
+     * `DOCUMENT_MRZ_MISMATCH`, que es una señal de fraude.
+     */
+    /*
+     * El número discrepa → documento compuesto. Sólo las fechas → mala lectura.
+     *
+     * Ver `mrzDateMismatch`: son dos acusaciones distintas y antes compartían
+     * marca, así que una cédula auténtica con una fecha mal leída llegaba al
+     * análisis de fraude con la señal de montaje.
+     */
+    const fechasDiscrepan = nacimiento.discrepa || (caducidad.discrepa && !caducidadIndefinida);
+    if (numero.discrepa) warnings.push(BOLIVIA_CI_WARNINGS.mrzMismatch);
+    else if (fechasDiscrepan) warnings.push(BOLIVIA_CI_WARNINGS.mrzDateMismatch);
     if (mrz && !mrz.checks.composite) warnings.push(BOLIVIA_CI_WARNINGS.mrzCheckFailed);
 
     /*
@@ -325,7 +650,8 @@ export class BoliviaCiDocumentParser implements DocumentParser {
     }
     if (!birth && !mrz?.birthDate) warnings.push(BOLIVIA_CI_WARNINGS.dateOfBirthNotFound);
     else if (!nacimiento.valor) warnings.push(BOLIVIA_CI_WARNINGS.unparsableDateOfBirth);
-    if (!expiry && !mrz?.expirationDate) warnings.push(BOLIVIA_CI_WARNINGS.expiryNotFound);
+    if (caducidadIndefinida) warnings.push(BOLIVIA_CI_WARNINGS.expiryIndefinite);
+    else if (!expiry && !mrz?.expirationDate) warnings.push(BOLIVIA_CI_WARNINGS.expiryNotFound);
     else if (!caducidad.valor) warnings.push(BOLIVIA_CI_WARNINGS.unparsableExpiry);
 
     const desdeMrz = (usada: boolean): ExtractedField<string>['source'] => (usada ? 'MRZ' : 'OCR');
@@ -419,7 +745,27 @@ export class BoliviaCiDocumentParser implements DocumentParser {
     deMrz: string | null,
     impreso: string | null,
   ): { valor: string | null; deMrz: boolean; discrepa: boolean } {
-    const discrepa = Boolean(deMrz && impreso && deMrz !== impreso);
+    /*
+     * UNA cifra de diferencia no es una discrepancia: es una mala lectura.
+     *
+     * La marca `DOCUMENT_MRZ_MISMATCH` significa «el anverso y el reverso
+     * pertenecen a documentos distintos», que es la firma de un montaje. Un
+     * montaje no se equivoca en un dígito: copia una plantilla y escribe datos
+     * que no cuadran con nada. Lo que sí se equivoca en un dígito es el
+     * reconocedor sobre el texto impreso, y sobre una cédula boliviana auténtica
+     * pasó: el anverso imprime `13/01/2031` y volvió `13/01/2034`, así que una
+     * cédula legítima salía marcada como documento compuesto.
+     *
+     * La comparación es asimétrica a propósito. La MRZ trae dígitos de control
+     * y ya se comprobaron —si no cuadraran, su campo sería `null` y no
+     * llegaríamos aquí—; lo impreso sólo se puede leer y confiar. Así que cuando
+     * las dos fuentes se parecen tanto que sólo pueden ser la misma, gana la que
+     * puede demostrarse y no se avisa de nada. A partir de DOS caracteres de
+     * diferencia el aviso vuelve, porque ahí ya no se explica por una errata.
+     */
+    const discrepa = Boolean(
+      deMrz && impreso && deMrz !== impreso && distanciaDeEdicion(deMrz, impreso, 1) > 1,
+    );
     if (deMrz) return { valor: deMrz, deMrz: true, discrepa };
     return { valor: impreso, deMrz: false, discrepa };
   }
@@ -475,44 +821,77 @@ export class BoliviaCiDocumentParser implements DocumentParser {
       (nombres !== null && nombreImpreso === null) ||
       (apellidos !== null && apellidoImpreso === null);
 
-    if (nombreImpreso || apellidoImpreso) {
-      const completo = [nombreImpreso, apellidoImpreso].filter(Boolean).join(' ').trim() || null;
+    /*
+     * Cada mitad se resuelve POR SEPARADO, y ésa es la corrección.
+     *
+     * Antes bastaba con que UNA de las dos mitades impresas pareciera un nombre
+     * para quedarse con las dos y no volver a mirar la MRZ. La consecuencia,
+     * medida sobre cédulas auténticas: el rótulo de los apellidos se leía y el de
+     * los nombres no —o al revés—, y el expediente salía con media identidad
+     * mientras la MRZ del reverso traía las dos mitades enteras y limpias.
+     * Nombres y apellidos son dos campos y se leen de dos sitios distintos de la
+     * tarjeta; que uno falle no dice nada del otro.
+     */
+    const resolverMitad = (
+      impreso: string | null,
+      deMrz: string | null,
+    ): { valor: string | null; deMrz: boolean; discrepa: boolean } => {
+      if (!impreso) return { valor: deMrz, deMrz: deMrz !== null, discrepa: false };
+      if (!deMrz) return { valor: impreso, deMrz: false, discrepa: false };
       /*
-       * Y si además hay MRZ y dice OTRO nombre, se avisa.
+       * Lo impreso gana SÓLO si es lo mismo o MÁS que la MRZ, nunca menos.
        *
-       * No se corrige —la truncatura hace que discrepar sea normal cuando el
-       * nombre es largo— pero un anverso y un reverso que nombran a dos personas
-       * distintas es la firma de un documento compuesto, y callarlo sería
-       * quedarse con el dato y tirar la señal. Es el mismo trato que ya reciben
-       * el número y las fechas.
+       * La razón por la que lo impreso ganaba está en la truncatura: la MRZ
+       * corta el tercer renglón a treinta caracteres por norma, así que sobre un
+       * nombre largo lo impreso trae la cola que la MRZ recortó, y además trae
+       * los diacríticos. Esa razón sólo se aplica cuando lo impreso CONTIENE lo
+       * de la MRZ; si es más corto o le falta un trozo por el medio, la razón
+       * juega al revés.
+       *
+       * La distinción hace falta porque `mismoNombre` tolera una edición —para
+       * no acusar de documento compuesto a una cédula con una letra mal leída— y
+       * sin ella esa tolerancia se volvía en contra: `.UISPE MAMANI` y `QUISPE
+       * MAMANI` pasaban por el mismo nombre, y como lo impreso mandaba, el
+       * expediente guardaba el apellido MUTILADO teniendo el entero al lado.
        */
-      const discrepa =
-        (nombreImpreso !== null &&
-          mrz?.firstNames != null &&
-          !mismoNombre(nombreImpreso, mrz.firstNames)) ||
-        (apellidoImpreso !== null &&
-          mrz?.lastNames != null &&
-          !mismoNombre(apellidoImpreso, mrz.lastNames));
+      if (empiezaPor(impreso, deMrz)) return { valor: impreso, deMrz: false, discrepa: false };
+      /*
+       * Se parecen pero lo impreso no es lo más completo: gana la MRZ y no se
+       * avisa, porque una edición de diferencia es una letra que el reconocedor
+       * se comió y no dos personas distintas.
+       */
+      if (mismoNombre(impreso, deMrz)) return { valor: deMrz, deMrz: true, discrepa: false };
+      /*
+       * Y cuando NO coinciden gana la MRZ. Esto es lo contrario de lo que había,
+       * y el motivo está medido sobre una cédula boliviana auténtica: el rótulo
+       * del nombre es el que va PEGADO AL RETRATO, y el reconocedor le come
+       * caracteres —`QUISPE MAMANI` volvió como `” .UISPE MAMANI`—
+       * mientras la MRZ, que está impresa en OCR-B al pie del reverso y para ser
+       * leída por una máquina, trae el mismo nombre entero.
+       *
+       * Quedarse con lo impreso guardaba en el expediente de identidad de una
+       * persona un apellido que no es el suyo, teniendo el bueno delante. Y la
+       * discrepancia NO se silencia: sigue levantando `NAME_MRZ_MISMATCH`, que
+       * es la marca de documento compuesto. Lo que cambia es cuál de los dos
+       * datos se guarda, no si se avisa.
+       */
+      return { valor: deMrz, deMrz: true, discrepa: true };
+    };
+
+    const primerosNombres = resolverMitad(nombreImpreso, mrz?.firstNames ?? null);
+    const apellidosFinales = resolverMitad(apellidoImpreso, mrz?.lastNames ?? null);
+
+    if (primerosNombres.valor || apellidosFinales.valor) {
+      const completo =
+        [primerosNombres.valor, apellidosFinales.valor].filter(Boolean).join(' ').trim() || null;
       return {
-        firstNames: nombreImpreso,
-        lastNames: apellidoImpreso,
+        firstNames: primerosNombres.valor,
+        lastNames: apellidosFinales.valor,
         fullName: completo,
-        deMrz: false,
+        deMrz: primerosNombres.deMrz || apellidosFinales.deMrz,
         heuristico: false,
         rotuloIlegible: hayRotuloIlegible,
-        discrepaConMrz: discrepa,
-      };
-    }
-    if (mrz?.firstNames || mrz?.lastNames) {
-      const completo = [mrz.firstNames, mrz.lastNames].filter(Boolean).join(' ') || null;
-      return {
-        firstNames: mrz.firstNames,
-        lastNames: mrz.lastNames,
-        fullName: completo,
-        deMrz: true,
-        heuristico: false,
-        rotuloIlegible: hayRotuloIlegible,
-        discrepaConMrz: false,
+        discrepaConMrz: primerosNombres.discrepa || apellidosFinales.discrepa,
       };
     }
     const partes = fullName ? this.splitName(fullName.value) : null;
@@ -564,32 +943,69 @@ export class BoliviaCiDocumentParser implements DocumentParser {
   }
 
   /**
-   * El número de cédula, prefiriendo el anclaje explícito `No <dígitos>`. Las
-   * líneas de dígitos sueltos sólo se consideran después de excluir el número
-   * de control de impresión, identificado por su sufijo `NN-NN` allá donde
-   * aparezca.
+   * El número de cédula, prefiriendo el anclaje explícito `No <dígitos>`.
+   *
+   * Tres cambios sobre lo que había, los tres medidos contra cinco cédulas
+   * bolivianas auténticas:
+   *
+   * 1. **El candidato se REPARA y se VALIDA**, en vez de aceptarse tal cual.
+   *    Reparar deshace las confusiones de glifo del reconocedor sobre cifras
+   *    grandes; validar lo contrasta con la forma que el SEGIP emite
+   *    (`esNumeroDeCedulaValido`: cinco a ocho dígitos, sin cero delante). Un
+   *    candidato que no cumple la forma se descarta en vez de viajar al
+   *    expediente, que es lo que impide que un número de control de nueve
+   *    dígitos ocupe el sitio del bueno.
+   * 2. **La serie y la sección se excluyen explícitamente.** Son los dos campos
+   *    administrativos del anverso, van en cifras y **tienen cinco dígitos**, o
+   *    sea que cumplen la forma de un número de cédula corto. Cuando el
+   *    reconocedor se come su rótulo —pasa: van en gris a cuerpo pequeño— el
+   *    renglón queda como cifras sueltas y la vía de los dígitos sueltos los
+   *    adjudicaba como número de documento. Medido sobre las cinco cédulas:
+   *    `42343`, `32333`, `21222`, `44333`, `54222`, todos candidatos legítimos
+   *    según la forma y ninguno el número de nadie.
+   * 3. **A igualdad de vía, gana el candidato MÁS LARGO.** El número de una
+   *    cédula boliviana tiene siete u ocho cifras y los ruidos que compiten con
+   *    él tienen cinco; sin este criterio, el orden de los renglones decidía.
    */
   private documentNumber(lines: SourceLine[]): Extraction | null {
-    const controlNumbers = new Set<string>();
+    const excluidos = new Set<string>();
     for (const line of lines) {
       const control = CONTROL_NUMBER_LINE.exec(line.normalized);
-      if (control?.[1]) controlNumbers.add(control[1]);
+      const numero = control?.[1] ? control[1].replace(/\s/g, '') : null;
+      if (numero) excluidos.add(numero);
+      const serie = SERIE_ANCHOR.exec(line.normalized)?.[1];
+      if (serie) excluidos.add(serie);
+      const seccion = SECTION_ANCHOR.exec(line.normalized)?.[1];
+      if (seccion) excluidos.add(seccion);
     }
 
+    const anclados: Extraction[] = [];
+    const sueltos: Extraction[] = [];
     for (const line of lines) {
       if (NUMBER_NOISE.test(line.normalized)) continue;
-      const anchored = DOCUMENT_NUMBER_ANCHOR.exec(line.normalized);
-      const value = anchored?.[1];
-      if (value && !controlNumbers.has(value)) return { value, confidence: line.confidence };
+
+      const anchored = DOCUMENT_NUMBER_ANCHOR.exec(line.normalized)?.[1];
+      const reparado = anchored ? repararDigitos(anchored) : null;
+      if (reparado && !excluidos.has(reparado) && esNumeroDeCedulaValido(reparado)) {
+        anclados.push({ value: reparado, confidence: line.confidence });
+      }
+
+      const standalone = STANDALONE_NUMBER_LINE.exec(line.normalized)?.[1];
+      if (standalone && !excluidos.has(standalone) && esNumeroDeCedulaValido(standalone)) {
+        sueltos.push({ value: standalone, confidence: line.confidence });
+      }
     }
 
-    for (const line of lines) {
-      if (NUMBER_NOISE.test(line.normalized)) continue;
-      const standalone = STANDALONE_NUMBER_LINE.exec(line.normalized);
-      const value = standalone?.[1];
-      if (value && !controlNumbers.has(value)) return { value, confidence: line.confidence };
-    }
-    return null;
+    const masLargo = (candidatos: Extraction[]): Extraction | null =>
+      candidatos.length === 0
+        ? null
+        : candidatos.reduce((mejor, actual) =>
+            actual.value.length > mejor.value.length ? actual : mejor,
+          );
+
+    // El anclado manda siempre: `No 1234567` es el número porque la tarjeta lo
+    // dice, y unas cifras sueltas sólo lo son porque no hay nada mejor.
+    return masLargo(anclados) ?? masLargo(sueltos);
   }
 
   private fullName(lines: SourceLine[]): Extraction | null {
@@ -608,7 +1024,55 @@ export class BoliviaCiDocumentParser implements DocumentParser {
       const separator = original.search(/[:;.,]/);
       const value =
         separator >= 0 ? collapseWhitespace(original.slice(separator + 1)) : words.join(' ');
-      return { value: sinColaDeRuido(value || words.join(' ')), confidence: line.confidence };
+      return { value: limpiarValor(value || words.join(' ')), confidence: line.confidence };
+    }
+    return null;
+  }
+
+  /**
+   * El nombre del formato ANTERIOR cuando su ancla `A:` no se dejó leer.
+   *
+   * En esa generación el nombre vive en el reverso y lo único que lo anuncia es
+   * una `A:` — el glifo más pequeño con el que se puede anclar un campo, y el
+   * primero que el reconocedor pierde. Medido sobre una cédula de 2023, el
+   * reverso volvió así:
+   *
+   *   `cedido es e`
+   *   `r - ANA LUCIA QUISPE MAMANI`
+   *   `— Nacido el 25 de Febrero de 2002 : o`
+   *
+   * El nombre está impreso, es legible y se leyó ENTERO; lo que se perdió fue su
+   * ancla, y con ella el campo. El expediente salía con `NAME_NOT_FOUND`.
+   *
+   * Lo que sí sobrevive es la ESTRUCTURA de la tarjeta: el nombre es el renglón
+   * que va justo encima de `Nacido el`. No es una coincidencia de maquetación,
+   * es el orden que esa generación imprime —`A: <nombre>` y debajo `Nacido el
+   * <fecha>`— y por eso se busca desde ahí y no por la forma del texto.
+   *
+   * Tres condiciones lo mantienen honesto:
+   *
+   * - Se mira sólo el renglón INMEDIATAMENTE anterior y el siguiente a ése hacia
+   *   arriba. Ampliar la ventana empezaría a alcanzar el bloque de `CERTIFICA:
+   *   Que la firma, fotografía…`, que es texto fijo de la tarjeta.
+   * - Tiene que parecer un nombre (`pareceNombre`) y traer al menos DOS palabras
+   *   de tres letras: un nombre boliviano completo lleva nombres y dos
+   *   apellidos, y el ruido del reconocedor llega en glifos sueltos.
+   * - **Va marcado `NAME_SPLIT_HEURISTIC`** igual que el corte por convención,
+   *   porque igual que aquél es una suposición sobre la maqueta y no un dato
+   *   rotulado. Quien revise el caso tiene que poder saberlo.
+   */
+  private nombrePorVecindad(lines: SourceLine[]): Extraction | null {
+    for (const [indice, line] of lines.entries()) {
+      if (!BIRTH_ANCHOR.test(line.normalized)) continue;
+      for (const salto of [1, 2]) {
+        const candidata = lines[indice - salto];
+        if (!candidata) break;
+        const valor = limpiarValor(candidata.text);
+        if (!pareceNombre(valor)) continue;
+        const palabras = valor.split(/\s+/).filter((p) => (p.match(/\p{L}/gu) ?? []).length >= 3);
+        if (palabras.length < 2) continue;
+        return { value: palabras.join(' '), confidence: candidata.confidence };
+      }
     }
     return null;
   }
@@ -637,6 +1101,30 @@ export class BoliviaCiDocumentParser implements DocumentParser {
       const match = pattern.exec(line.normalized);
       const captured = match?.[1];
       if (captured) return { value: collapseWhitespace(captured), confidence: line.confidence };
+    }
+    return null;
+  }
+
+  /**
+   * Lo que sigue a un rótulo EN LA MISMA LÍNEA, cotejándolo con tolerancia.
+   *
+   * Es el hermano de `anchored` para los rótulos que el reconocedor mutila. El
+   * cotejo aproximado no daba posiciones y por eso sólo se podía usar para mirar
+   * el renglón de debajo; ahora `valorTrasEtiqueta` devuelve el corte, y con él
+   * se alcanzan los rótulos del formato anterior —`Emitida el 22 de Mayo de
+   * 2023`, `Expira el 22 de Mayo de 2028`— que ponen su valor detrás.
+   *
+   * Se lee de la línea ORIGINAL y no de la normalizada: la fecha larga lleva
+   * espacios y la corta lleva barras, y los dos separadores hacen falta para
+   * interpretarla.
+   */
+  private anchoredTolerante(lines: SourceLine[], grafias: readonly string[]): Extraction | null {
+    for (const line of lines) {
+      const resto = valorTrasEtiqueta(line.text, grafias);
+      if (resto === null) continue;
+      const valor = collapseWhitespace(resto);
+      if (!valor) continue;
+      return { value: valor, confidence: line.confidence };
     }
     return null;
   }
@@ -674,13 +1162,13 @@ export class BoliviaCiDocumentParser implements DocumentParser {
 
       const enLinea = collapseWhitespace(match[1] ?? '');
       if (enLinea && pareceValor(enLinea)) {
-        return { value: sinColaDeRuido(enLinea), confidence: line.confidence };
+        return { value: limpiarValor(enLinea), confidence: line.confidence };
       }
 
       const siguiente = lines[indice + 1];
       if (!siguiente || ES_ROTULO.test(siguiente.normalized)) continue;
       return {
-        value: sinColaDeRuido(collapseWhitespace(siguiente.text)),
+        value: limpiarValor(collapseWhitespace(siguiente.text)),
         confidence: siguiente.confidence,
       };
     }
@@ -704,7 +1192,7 @@ export class BoliviaCiDocumentParser implements DocumentParser {
       if (casarGrafias(plegarParaCotejo(line.normalized), grafias) === null) continue;
       const siguiente = lines[indice + 1];
       if (!siguiente || ES_ROTULO.test(siguiente.normalized)) continue;
-      const valor = sinColaDeRuido(collapseWhitespace(siguiente.text));
+      const valor = limpiarValor(collapseWhitespace(siguiente.text));
       if (!pareceValor(valor)) continue;
       return { value: valor, confidence: siguiente.confidence };
     }
