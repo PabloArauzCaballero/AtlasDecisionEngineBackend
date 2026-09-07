@@ -24,12 +24,13 @@ import {
 import { TesseractOcrAdapter } from './identity-verification/core/adapters/tesseract-ocr.adapter';
 import { SharpImageAdapter } from './identity-verification/core/adapters/sharp-image.adapter';
 import {
-  AiIdentityArbitrationAdapter,
   HumanIdentityArbitrationAdapter,
+  OpenRouterIdentityArbitrationAdapter,
 } from './identity-verification/core/adapters/identity-arbitration.adapter';
 import { ImageQualityAssessmentService } from './identity-verification/core/image-quality-assessment.service';
 import {
   IDENTITY_ARBITRATION_PORT,
+  IDENTITY_SECOND_READER_PORT,
   IDENTITY_CLASSIFIER_PORT,
   IDENTITY_EMBEDDER_PORT,
   IDENTITY_FACE_DETECTOR_PORT,
@@ -107,6 +108,8 @@ import { SemanticModelSettingsController } from './semantic-analysis/model-setti
 import { SemanticModelSettingsService } from './semantic-analysis/model-settings/semantic-model-settings.service';
 import { SemanticRetentionSweeperService } from './semantic-analysis/semantic-retention-sweeper.service';
 import { SemanticRunWorkerService } from './semantic-analysis/semantic-run-worker.service';
+import { OpenRouterChatClient } from '../../common/llm/openrouter-chat.client';
+import { OpenRouterSecondReaderAdapter } from './identity-verification/core/adapters/openrouter-second-reader.adapter';
 import { WorkersController } from './workers.controller';
 import { WorkerMetricsService } from './worker-metrics.service';
 import { WorkerServiceInvokerService } from './worker-service-invoker.service';
@@ -132,6 +135,35 @@ import { WorkerServiceInvokerService } from './worker-service-invoker.service';
  * Los servicios de fondo consultan `WORKER_ROLE` en su propio `onModuleInit`,
  * así que cargar este módulo en una réplica de API no arranca ningún worker.
  */
+/**
+ * El modelo por omisión del árbitro de identidad.
+ *
+ * Se elige barato y rápido a propósito: la pregunta que contesta es «¿esto ni
+ * siquiera parece una cédula?», que no necesita un modelo de razonamiento, y
+ * está en el camino de una petición que el móvil está sondeando.
+ */
+const DEFAULT_ARBITRATION_MODEL = 'openai/gpt-4.1-mini';
+
+/**
+ * El modelo por omisión del segundo lector.
+ *
+ * Aquí sí hace falta uno multimodal y bueno leyendo texto pequeño sobre fondo
+ * impreso: la pregunta es «¿qué dice exactamente este renglón?», que es donde un
+ * modelo flojo inventa un dígito con la misma seguridad con la que acierta.
+ */
+const DEFAULT_SECOND_READER_MODEL = 'google/gemini-2.5-flash';
+
+/**
+ * Añade una clave sólo si tiene valor.
+ *
+ * `exactOptionalPropertyTypes` distingue «ausente» de «presente y undefined», y
+ * el cliente aplica su propio valor por omisión sólo ante la primera. Pasar
+ * `{ baseUrl: undefined }` lo dejaría sin base.
+ */
+function maybe<K extends string, V>(key: K, value: V | undefined): Record<K, V> | Record<string, never> {
+  return value === undefined ? {} : ({ [key]: value } as Record<K, V>);
+}
+
 @Module({
   // La bandeja del motor, para avisar de un valor sin clasificar por el canal
   // estandar en vez de inventar uno propio.
@@ -270,11 +302,62 @@ import { WorkerServiceInvokerService } from './worker-service-invoker.service';
      */
     {
       provide: IDENTITY_ARBITRATION_PORT,
-      useFactory: (options: IdentityOptions) =>
-        options.arbitrationMode === 'AI'
-          ? new AiIdentityArbitrationAdapter()
-          : new HumanIdentityArbitrationAdapter(),
-      inject: [IDENTITY_OPTIONS],
+      useFactory: (config: ConfigService, options: IdentityOptions) => {
+        if (options.arbitrationMode !== 'AI') return new HumanIdentityArbitrationAdapter();
+        /*
+         * Sin clave no se llega aquí: `env.schema.ts` se niega a arrancar con
+         * `IDENTITY_ARBITRATION_MODE=AI` y `OPENROUTER_API_KEY` ausente. El
+         * `?? ''` está para que el tipo cierre, y el cliente vuelve a
+         * comprobarlo por si alguien construye el módulo sin pasar por el
+         * esquema (las pruebas lo hacen).
+         */
+        return new OpenRouterIdentityArbitrationAdapter(
+          new OpenRouterChatClient({
+            apiKey: config.get<string>('OPENROUTER_API_KEY') ?? '',
+            model: config.get<string>('IDENTITY_ARBITRATION_MODEL') ?? DEFAULT_ARBITRATION_MODEL,
+            ...maybe('baseUrl', config.get<string>('OPENROUTER_BASE_URL')),
+            ...maybe('appUrl', config.get<string>('OPENROUTER_APP_URL')),
+            ...maybe('appTitle', config.get<string>('OPENROUTER_APP_TITLE')),
+            ...maybe('timeoutMs', config.get<number>('OPENROUTER_TIMEOUT_MS')),
+            ...maybe('maxAttempts', config.get<number>('OPENROUTER_MAX_ATTEMPTS')),
+          }),
+        );
+      },
+      inject: [ConfigService, IDENTITY_OPTIONS],
+    },
+    /*
+     * El segundo lector de campos del carnet.
+     *
+     * `null` por omisión, y esa omisión es una decisión de datos, no una función
+     * a medias: a diferencia del árbitro —que sólo ve el DICTAMEN de la puerta,
+     * sin imagen ni datos del titular— este adaptador manda la fotografía del
+     * documento a un enrutador que elige proveedor físico por su cuenta. Se
+     * enciende a mano, con `IDENTITY_SECOND_READER_ENABLED`, después de decidir
+     * eso; nunca de rebote al encender el arbitraje.
+     *
+     * Sin credencial se queda apagado en vez de romper el arranque, al revés que
+     * el árbitro. La diferencia está en el modo de fallo: un árbitro sin llave
+     * DIFIERE todos los casos y su avería se confunde con trabajo real; un
+     * segundo lector ausente deja el caso exactamente donde estaba sin él.
+     */
+    {
+      provide: IDENTITY_SECOND_READER_PORT,
+      useFactory: (config: ConfigService) => {
+        if (config.get<boolean>('IDENTITY_SECOND_READER_ENABLED') !== true) return null;
+        const apiKey = config.get<string>('OPENROUTER_API_KEY') ?? '';
+        if (apiKey === '') return null;
+        return new OpenRouterSecondReaderAdapter(
+          new OpenRouterChatClient({
+            apiKey,
+            model: config.get<string>('IDENTITY_SECOND_READER_MODEL') ?? DEFAULT_SECOND_READER_MODEL,
+            ...maybe('baseUrl', config.get<string>('OPENROUTER_BASE_URL')),
+            ...maybe('appUrl', config.get<string>('OPENROUTER_APP_URL')),
+            ...maybe('appTitle', config.get<string>('OPENROUTER_APP_TITLE')),
+            ...maybe('timeoutMs', config.get<number>('OPENROUTER_TIMEOUT_MS')),
+          }),
+        );
+      },
+      inject: [ConfigService],
     },
     /*
      * El codificador que sostiene la detección de fraude documental.

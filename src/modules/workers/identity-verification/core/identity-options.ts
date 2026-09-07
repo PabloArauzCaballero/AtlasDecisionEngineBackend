@@ -23,6 +23,8 @@ export const IDENTITY_FACE_MATCH_PORT = Symbol('IDENTITY_FACE_MATCH_PORT');
 export const IDENTITY_LIVENESS_PORT = Symbol('IDENTITY_LIVENESS_PORT');
 export const IDENTITY_NORMALIZER_PORT = Symbol('IDENTITY_NORMALIZER_PORT');
 export const IDENTITY_ARBITRATION_PORT = Symbol('IDENTITY_ARBITRATION_PORT');
+/** `null` cuando el segundo lector está apagado, que es lo que está por omisión. */
+export const IDENTITY_SECOND_READER_PORT = Symbol('IDENTITY_SECOND_READER_PORT');
 /**
  * El codificador de textos que sostiene la detección de fraude documental.
  *

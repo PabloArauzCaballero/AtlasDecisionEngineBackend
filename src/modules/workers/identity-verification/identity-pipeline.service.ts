@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { IdentityDecisionEngine } from './core/domain/identity-decision.engine';
 import { IdentityDecision, IdentityDocumentType } from './core/domain/identity-enums';
 import { identityErrors } from './core/domain/identity-domain.error';
@@ -6,6 +6,7 @@ import type { ExtractedIdentityData } from './core/domain/extracted-identity.typ
 import { ImageQualityAssessmentService } from './core/image-quality-assessment.service';
 import {
   IDENTITY_ARBITRATION_PORT,
+  IDENTITY_SECOND_READER_PORT,
   IDENTITY_CLASSIFIER_PORT,
   IDENTITY_EMBEDDER_PORT,
   IDENTITY_FACE_DETECTOR_PORT,
@@ -17,6 +18,7 @@ import {
   type IdentityOptions,
 } from './core/identity-options';
 import { DocumentParserRegistry } from './core/parsers/document-parser.registry';
+import { cuentaComoLeido, reconcileSecondReading } from './core/engine/second-reader';
 import { medirEvidenciaDeIdentidad } from './core/engine/identity-evidence';
 import { reconocerCedulaBoliviana } from './core/catalog/bolivia-ci.recognizer';
 import { triageIdentityDocument, type IdentityGateOutcome } from './core/engine/identity-triage';
@@ -45,6 +47,7 @@ import type {
   FaceMatchPort,
   FaceMatchResult,
   IdentityArbitrationPort,
+  IdentitySecondReaderPort,
   ImageNormalizerPort,
   LivenessPort,
   LivenessResult,
@@ -218,6 +221,14 @@ export class IdentityPipelineService {
      */
     @Inject(IDENTITY_EMBEDDER_PORT)
     private readonly embedder: IdentityEmbedderPort | null,
+    /*
+     * El segundo lector es OPCIONAL y viene apagado. No es una función a medias:
+     * es que mandarle la imagen del documento a un enrutador que elige proveedor
+     * por su cuenta es una decisión de tratamiento de datos, y esa se toma
+     * encendiendo una bandera, no heredándola de otra función.
+     */
+    @Inject(IDENTITY_SECOND_READER_PORT)
+    private readonly secondReader: IdentitySecondReaderPort | null,
     private readonly parsers: DocumentParserRegistry,
     private readonly quality: ImageQualityAssessmentService,
   ) {}
@@ -568,6 +579,26 @@ export class IdentityPipelineService {
     riskFlags.push(...parsed.warnings);
 
     /*
+     * --- 3.ter. Segundo lector, sólo si faltó algo --------------------------
+     *
+     * No corre en el camino feliz: si el analizador sacó los campos, preguntarle
+     * a un modelo sólo puede empeorar el caso —contradiciendo una lectura
+     * correcta— y cuesta una llamada de red por verificación.
+     *
+     * Va DESPUÉS del analizador porque necesita saber qué falta, y ANTES del
+     * fraude porque la conformidad de plantilla y la aritmética interna se miden
+     * sobre los campos: rellenarlos después dejaría al análisis de autenticidad
+     * juzgando un documento distinto del que se guarda.
+     */
+    const campos = await this.releerCamposQueFaltan(
+      parsed.fields,
+      document,
+      ocr.rawText,
+      input,
+      riskFlags,
+    );
+
+    /*
      * --- 3.bis. ¿Es un carnet AUTÉNTICO? ------------------------------------
      *
      * La puerta de arriba contestó «¿es un carnet?». Ésta contesta la siguiente,
@@ -590,7 +621,7 @@ export class IdentityPipelineService {
     const fraude = await this.analizarFraude({
       textoAnverso: front.rawText,
       textoReverso: back?.rawText ?? '',
-      campos: parsed.fields,
+      campos,
       rawText: ocr.rawText,
       documento: document.buffer,
       entradaGenerada: input.entradaGenerada === true,
@@ -820,7 +851,7 @@ export class IdentityPipelineService {
     }
 
     // --- 8. Decisión --------------------------------------------------------
-    const fields = parsed.fields;
+    const fields = campos;
     const decided = this.decisionEngine.decide({
       documentQuality: documentQuality.score,
       selfieQuality: selfieQuality.score,
@@ -1401,6 +1432,44 @@ export class IdentityPipelineService {
    * captura, así que sale como aviso del analizador y termina en marca de
    * riesgo. Absorbido de `DocumentParseStageService`.
    */
+  /**
+   * Le pide a un segundo lector los campos que el analizador no sacó.
+   *
+   * Devuelve SIEMPRE unos campos utilizables: si el lector está apagado, no hay
+   * huecos, o la llamada falló, devuelve los de entrada sin tocar. La función no
+   * puede hacer fracasar una verificación, sólo mejorarla — y ése es el único
+   * contrato que la hace segura de encender.
+   */
+  private async releerCamposQueFaltan(
+    fields: ExtractedIdentityData,
+    document: NormalizedImage,
+    ocrRawText: string,
+    input: IdentityPipelineInput,
+    riskFlags: string[],
+  ): Promise<ExtractedIdentityData> {
+    if (this.secondReader === null) return fields;
+
+    const faltantes = CAMPOS_RELEIBLES.filter((campo) => !fields[campo]?.value);
+    if (faltantes.length === 0) return fields;
+
+    const proposal = await this.secondReader.read({
+      correlationId: input.correlationId,
+      images: [toDataUrl(document)],
+      missingFields: faltantes,
+    });
+    if (proposal === null) return fields;
+
+    const reconciliado = reconcileSecondReading(fields, proposal, ocrRawText);
+    riskFlags.push(...reconciliado.riskFlags);
+    if (reconciliado.filled.length > 0) {
+      SECOND_READER_LOG.log(
+        `Segundo lector (${this.secondReader.provider}) completó ` +
+          `${reconciliado.filled.join(', ')} en ${input.correlationId}.`,
+      );
+    }
+    return reconciliado.fields;
+  }
+
   private assertSidesAgree(
     parser: DocumentParser,
     front: DocumentOcrResult,
@@ -1502,12 +1571,52 @@ function unirCaras(front: DocumentOcrResult, back: DocumentOcrResult): DocumentO
   };
 }
 
-/** Lo mínimo para poder afirmar que se leyó un documento y no una cartulina. */
+/**
+ * Los campos que tiene sentido volver a leer.
+ *
+ * No está `fullName` a propósito: es un campo DERIVADO de los otros dos, y
+ * pedírselo al modelo sería invitarle a proponer una tercera versión del nombre
+ * que luego habría que reconciliar con las dos que ya hay.
+ */
+const CAMPOS_RELEIBLES = [
+  'documentNumber',
+  'firstNames',
+  'lastNames',
+  'dateOfBirth',
+  'expirationDate',
+] as const satisfies readonly (keyof ExtractedIdentityData)[];
+
+/** Registro del segundo lector. Fuera de la clase: el servicio no tiene logger. */
+const SECOND_READER_LOG = new Logger('IdentitySecondReader');
+
+/**
+ * La imagen ya normalizada, como `data:` URL.
+ *
+ * Se manda la NORMALIZADA y no el original de 12 MP: es la misma que ve el
+ * resto del pipeline, pesa una fracción y viaja en el cuerpo de una petición
+ * HTTP que además se cobra por tamaño.
+ */
+function toDataUrl(image: NormalizedImage): string {
+  return `data:${image.mimeType};base64,${image.buffer.toString('base64')}`;
+}
+
+/**
+ * Lo mínimo para poder afirmar que se leyó un documento y no una cartulina.
+ *
+ * **Un campo con procedencia `MODEL` no cuenta.** Lo propuso un modelo mirando
+ * la imagen y no lo corroboró la MRZ, así que sostiene una revisión humana —el
+ * dato llega escrito y la persona sólo lo confirma— pero no puede sostener una
+ * aprobación automática. Sin este filtro, encender el segundo lector convertiría
+ * en `VERIFIED` casos que hoy van a la bandeja, que es exactamente la autoridad
+ * que no se le quiso dar. Ver `core/engine/second-reader.ts`.
+ */
 function requiredFieldsPresent(fields: ExtractedIdentityData): boolean {
-  return Boolean(
-    fields.documentNumber?.value &&
-    (fields.fullName?.value || fields.firstNames?.value || fields.lastNames?.value),
+  const nombre = [fields.fullName, fields.firstNames, fields.lastNames].some(
+    (campo) => Boolean(campo?.value) && cuentaComoLeido(campo?.source),
   );
+  const numero =
+    Boolean(fields.documentNumber?.value) && cuentaComoLeido(fields.documentNumber?.source);
+  return numero && nombre;
 }
 
 /** Cuánto entregó el reconocedor por cara, para la traza: volumen y confianza media. */

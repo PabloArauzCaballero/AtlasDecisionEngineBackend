@@ -24,7 +24,8 @@ import {
   parseStructuredOutput,
   readErrorDetail,
   readRetryAfterMs,
-} from '../http/openai-compatible-transport';
+} from '../../../../../../common/llm/openai-compatible-transport';
+import { semanticTransportErrors } from '../http/semantic-transport.errors';
 
 export interface OpenAiSemanticProviderOptions {
   readonly apiKey: string;
@@ -81,6 +82,7 @@ export class OpenAiSemanticProvider implements SemanticModelProvider {
     this.baseUrl = normalizeBaseUrl(options.baseUrl ?? 'https://api.openai.com/v1');
     this.maxOutputTokens = options.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS;
     this.transport = new OpenAiCompatibleTransport({
+      errors: semanticTransportErrors,
       providerLabel: 'OpenAI',
       ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
       ...(options.maxAttempts === undefined ? {} : { maxAttempts: options.maxAttempts }),
@@ -143,7 +145,7 @@ export class OpenAiSemanticProvider implements SemanticModelProvider {
     }
 
     const outputText = this.extractOutputText(providerResponse);
-    const parsedOutput = parseStructuredOutput(outputText);
+    const parsedOutput = parseStructuredOutput(outputText, semanticTransportErrors);
     const classification = modelClassificationSchema.parse({
       ...parsedOutput,
       model: providerResponse.model ?? model,

@@ -191,6 +191,13 @@ function buildPipeline(
      * que sí corren en local y sin red.
      */
     null,
+    /*
+     * Sin segundo lector, que es como va por omisión. Lo que hace esta batería
+     * es fijar lo que el pipeline saca del OCR y del analizador; un lector que
+     * rellenara huecos por detrás enmascararía justo las lecturas rotas que
+     * estos escenarios existen para detectar.
+     */
+    null,
     parsers,
     new ImageQualityAssessmentService(options),
   );

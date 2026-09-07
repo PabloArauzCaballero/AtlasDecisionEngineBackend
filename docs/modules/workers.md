@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/workers/`](https://github.com/) · 245 ficheros TypeScript.
+Código: [`src/modules/workers/`](https://github.com/) · 249 ficheros TypeScript.
 
 Etiquetas de API: **Workers · Locución**, **Workers · Extractos bancarios**, **Workers · Entidades financieras**, **Workers · Verificación de identidad**, **Workers · Modelo semántico**, **Workers · Análisis semántico**, **Workers · Categorías semánticas**, **Workers · Pendientes de clasificación**, **Workers**.
 
@@ -154,7 +154,6 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 
 ## Clases exportadas
 
-- `AiIdentityArbitrationAdapter`
 - `AudioAssetResolver`
 - `AudioBudgetPolicy`
 - `AudioDomainError`
@@ -212,7 +211,6 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `GenericStatementStrategy`
 - `GlosaFallbackClassifier`
 - `HeuristicDocumentClassifierAdapter`
-- `HttpProviderError`
 - `HumanFaceDetectorAdapter`
 - `HumanFaceMatchAdapter`
 - `HumanIdentityArbitrationAdapter`
@@ -244,12 +242,14 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `MercantilStatementParser`
 - `ModelProbeTierDto`
 - `ModelProbeUsageDto`
-- `OpenAiCompatibleTransport`
 - `OpenAiEmbeddingProvider`
 - `OpenAiSemanticProvider`
 - `OpenRouterCatalogDto`
 - `OpenRouterCatalogService`
+- `OpenRouterColumnAdvisorAdapter`
+- `OpenRouterIdentityArbitrationAdapter`
 - `OpenRouterModelDto`
+- `OpenRouterSecondReaderAdapter`
 - `OpenRouterSemanticProvider`
 - `PassportDocumentParser`
 - `PrismaAudioAssetRepository`

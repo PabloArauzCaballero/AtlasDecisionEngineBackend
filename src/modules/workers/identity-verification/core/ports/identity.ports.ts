@@ -122,6 +122,49 @@ export interface IdentityArbitrationPort {
   health(): Promise<{ ready: boolean; detail?: string }>;
 }
 
+// --- Segundo lector de campos ----------------------------------------------
+
+/**
+ * Lo que un modelo multimodal PROPONE tras mirar el documento.
+ *
+ * «Propone» es literal: nada de lo que hay aquí entra en el resultado sin pasar
+ * por `reconcileSecondReading`, que lo contrasta con lo que ya se leyó y con la
+ * MRZ. El puerto devuelve cadenas crudas —no `ExtractedField`— justamente para
+ * que no se pueda confundir con un dato extraído.
+ */
+export interface SecondReadingProposal {
+  readonly documentNumber?: string;
+  readonly firstNames?: string;
+  readonly lastNames?: string;
+  /** ISO `YYYY-MM-DD`. */
+  readonly dateOfBirth?: string;
+  /** ISO `YYYY-MM-DD`, o `INDEFINIDO` para las cédulas que no caducan. */
+  readonly expirationDate?: string;
+}
+
+export interface SecondReadingRequest {
+  readonly correlationId: string;
+  /** Imágenes del documento en `data:` URL. Anverso primero. */
+  readonly images: readonly string[];
+  /** Qué campos no pudo leer el analizador. Se le dice para no pagar por el resto. */
+  readonly missingFields: readonly string[];
+}
+
+/**
+ * Un segundo par de ojos sobre el documento, para los campos que el OCR no sacó.
+ *
+ * Existe porque los defectos medidos contra cédulas reales fueron de LECTURA y
+ * no de juicio —rótulos pegados al retrato, basura delante de la MRZ, una
+ * caducidad `INDEFINIDO` que no estaba contemplada—, y cada uno acababa igual:
+ * al caso le faltaba un campo y caía en la bandeja humana.
+ */
+export interface IdentitySecondReaderPort {
+  readonly provider: string;
+  /** `null` cuando no se pudo consultar. Nunca lanza: no leer no es un fallo del caso. */
+  read(request: SecondReadingRequest): Promise<SecondReadingProposal | null>;
+  health(): Promise<{ ready: boolean; detail?: string }>;
+}
+
 // --- Imagen ----------------------------------------------------------------
 
 export interface FaceBoundingBox {

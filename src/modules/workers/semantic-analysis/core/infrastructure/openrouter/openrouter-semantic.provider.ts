@@ -26,7 +26,8 @@ import {
   parseStructuredOutput,
   readErrorDetail,
   readRetryAfterMs,
-} from '../http/openai-compatible-transport';
+} from '../../../../../../common/llm/openai-compatible-transport';
+import { semanticTransportErrors } from '../http/semantic-transport.errors';
 
 export interface OpenRouterSemanticProviderOptions {
   /** Credencial DE OPENROUTER. Las de los proveedores físicos viven en su cuenta, no aquí. */
@@ -111,6 +112,7 @@ export class OpenRouterSemanticProvider implements SemanticModelProvider {
     this.baseUrl = normalizeBaseUrl(options.baseUrl);
     this.maxOutputTokens = options.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS;
     this.transport = new OpenAiCompatibleTransport({
+      errors: semanticTransportErrors,
       providerLabel: 'OpenRouter',
       ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
       ...(options.maxAttempts === undefined ? {} : { maxAttempts: options.maxAttempts }),
@@ -182,9 +184,9 @@ export class OpenRouterSemanticProvider implements SemanticModelProvider {
       );
     }
 
-    const outputText = extractMessageContent(choice?.message?.content);
+    const outputText = extractMessageContent(choice?.message?.content, semanticTransportErrors);
     const classification = modelClassificationSchema.parse({
-      ...parseStructuredOutput(outputText),
+      ...parseStructuredOutput(outputText, semanticTransportErrors),
       // Lo PEDIDO frente a lo que RESPONDIÓ. Aquí los dos son físicos, pero no
       // son lo mismo: `provider` dice qué despliegue del modelo atendió, que es
       // lo que hay que mirar cuando un mismo modelo se comporta distinto según

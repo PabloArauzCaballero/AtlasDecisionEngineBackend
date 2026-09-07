@@ -10,6 +10,7 @@ import type { StatementContext } from '../statement-context';
 import { extractGenericMetadata } from './metadata-extractor';
 import type { BuiltMovement } from './movement-builder';
 import { TableAnalyzer, type TableAnalysis } from './table-analyzer';
+import { adviseColumns, type StatementColumnAdvisorPort } from './column-advisor';
 
 /**
  * Techo de confianza del motor generalista.
@@ -45,6 +46,15 @@ export class GenericStatementStrategy implements StatementParserStrategy {
 
   private readonly analyzer = new TableAnalyzer();
 
+  /**
+   * El consejero de columnas es OPCIONAL y viene ausente.
+   *
+   * Sin él, la estrategia es exactamente la que era. Con él, y sólo cuando el
+   * saldo NO cuadra y hay rótulos que el diccionario no supo nombrar, se pide
+   * una asignación y se acepta únicamente si el saldo pasa a cuadrar entero.
+   */
+  constructor(private readonly columnAdvisor: StatementColumnAdvisorPort | null = null) {}
+
   canHandle(context: StatementContext): Promise<ParserDetectionResult> {
     return Promise.resolve(
       detectWithAnalyzer(this.analyzer, context, {
@@ -55,8 +65,31 @@ export class GenericStatementStrategy implements StatementParserStrategy {
     );
   }
 
-  parse(context: StatementContext): Promise<StatementParseOutcome> {
-    return Promise.resolve(parseWithAnalyzer(this.analyzer.analyze(context.pdf), context));
+  async parse(context: StatementContext): Promise<StatementParseOutcome> {
+    const baseline = this.analyzer.analyze(context.pdf);
+    if (this.columnAdvisor === null) return parseWithAnalyzer(baseline, context);
+
+    const advised = await adviseColumns(this.columnAdvisor, context.pdf, baseline);
+    if (advised === null) return parseWithAnalyzer(baseline, context);
+
+    const outcome = parseWithAnalyzer(advised.analysis, context);
+    /*
+     * Que hubo consejo se DICE. Un extracto leído con ayuda de un modelo y otro
+     * leído sólo con el diccionario no son la misma afirmación, aunque los dos
+     * cuadren: el segundo tiene detrás un catálogo que alguien escribió y el
+     * primero una asignación que nadie ha revisado todavía. Además señala qué
+     * rótulos merecen entrar en `header-lexicon.ts`, que es donde deberían
+     * acabar para no volver a pagar la llamada.
+     */
+    return {
+      ...outcome,
+      warnings: [
+        ...outcome.warnings,
+        `COLUMNAS_ASIGNADAS_POR_MODELO: ${[...advised.advice]
+          .map(([rotulo, campo]) => `${rotulo}→${campo}`)
+          .join(', ')} (${advised.mismatchesBefore} descuadres antes, 0 después)`,
+      ],
+    };
   }
 }
 

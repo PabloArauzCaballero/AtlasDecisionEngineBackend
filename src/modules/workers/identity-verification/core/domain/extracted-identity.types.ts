@@ -7,7 +7,21 @@
  * indistinguible «lo dice la cédula» de «lo supuso el analizador».
  */
 
-export type ExtractedFieldSource = 'OCR' | 'BARCODE' | 'MRZ' | 'MANUAL' | 'PROVIDER' | 'DERIVED';
+/**
+ * `MODEL` es la procedencia de un campo que PROPUSO un modelo multimodal
+ * mirando la imagen, y no está a la altura de las demás a propósito: es la
+ * única que no puede sostener por sí sola la afirmación «se leyó el documento».
+ * `requiredFieldsPresent` la ignora, y por eso rellenar un campo con ella nunca
+ * convierte una revisión en una aprobación. Ver `core/engine/second-reader.ts`.
+ */
+export type ExtractedFieldSource =
+  | 'OCR'
+  | 'BARCODE'
+  | 'MRZ'
+  | 'MANUAL'
+  | 'PROVIDER'
+  | 'DERIVED'
+  | 'MODEL';
 
 export interface ExtractedField<T> {
   value: T | null;

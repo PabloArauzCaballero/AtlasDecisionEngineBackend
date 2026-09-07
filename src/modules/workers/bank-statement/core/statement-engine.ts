@@ -7,6 +7,7 @@ import type { TriageThresholds } from './engine/document-triage';
 import type { StatementOcrPort } from './engine/extraction/ocr-port';
 import { StatementExtractor } from './engine/extraction/statement-extractor';
 import { GenericStatementStrategy } from './engine/generic/generic-statement.strategy';
+import type { StatementColumnAdvisorPort } from './engine/generic/column-advisor';
 import { InstitutionDetector } from './engine/institution-detector';
 import { DEFAULT_ISSUER_GATE_OPTIONS, type IssuerGateOptions } from './engine/issuer-gate';
 import {
@@ -97,6 +98,14 @@ export interface StatementEngineOptions {
   readonly parsers?: readonly StatementParser[];
   /** Registrar el motor generalista al final de la cascada. Por defecto, sí. */
   readonly includeGenericEngine?: boolean;
+  /**
+   * Consejero de columnas para el motor generalista. Ausente por omisión.
+   *
+   * Sólo interviene cuando el saldo corriente NO cuadra y hay rótulos que el
+   * diccionario no supo nombrar, y su propuesta se acepta únicamente si el saldo
+   * pasa a cuadrar entero. Ver `engine/generic/column-advisor.ts`.
+   */
+  readonly columnAdvisor?: StatementColumnAdvisorPort;
 }
 
 export interface StatementEngine {
@@ -148,7 +157,7 @@ export function createStatementEngine(options: StatementEngineOptions = {}): Sta
     registry.register(new ProfileStatementStrategy(profile));
   }
   if (options.includeGenericEngine !== false) {
-    registry.register(new GenericStatementStrategy());
+    registry.register(new GenericStatementStrategy(options.columnAdvisor ?? null));
   }
 
   const metrics = new ConversionMetrics();

@@ -583,6 +583,20 @@ export const envSchema = z
      */
     BANK_STATEMENT_SIMILARITY_MIN_SAMPLE: z.coerce.number().int().min(1).max(1_000).default(3),
     /*
+     * El consejero de columnas del motor generalista, APAGADO por omisión.
+     *
+     * Interviene sólo con los extractos de entidades sin analizador propio, y
+     * sólo cuando el saldo corriente NO cuadra: su propuesta se acepta
+     * únicamente si el saldo pasa a cuadrar entero, así que no puede producir
+     * una lectura peor que la que había. Lo que sale de la máquina son los
+     * RÓTULOS de la cabecera, nunca filas ni importes.
+     *
+     * Sin `OPENROUTER_API_KEY` se queda apagado en silencio: el documento se lee
+     * como se leía antes de que existiera.
+     */
+    BANK_STATEMENT_COLUMN_ADVISOR_ENABLED: z.coerce.boolean().default(false),
+    BANK_STATEMENT_COLUMN_ADVISOR_MODEL: emptyAsUndefined(z.string().trim().min(1).optional()),
+    /*
      * Cuánto puede esperar un documento en la cola antes de derivarse solo.
      * Cubre el caso que el presupuesto de procesamiento no ve: el worker apagado
      * o saturado, donde nadie llega a empezar el trabajo y por tanto ningún reloj
@@ -628,14 +642,36 @@ export const envSchema = z
      * documentos reales y son lo primero que hay que mover al abrir el flujo a
      * otro país.
      *
-     * `IDENTITY_ARBITRATION_MODE` elige QUIÉN resuelve la franja de duda. Hoy
-     * `HUMAN`, que la manda a la bandeja del portal; `AI` queda declarado para
-     * que enchufar un modelo sea cambiar esta variable.
+     * `IDENTITY_ARBITRATION_MODE` elige QUIÉN resuelve la franja de duda.
+     * `HUMAN` la manda a la bandeja del portal; `AI` la consulta con un modelo
+     * por OpenRouter, que sólo puede ESCALAR —nunca aprobar— y necesita
+     * `OPENROUTER_API_KEY`. La regla cruzada de más abajo impide arrancar en
+     * `AI` sin credencial: un árbitro sin llave no falla, difiere, y una cola
+     * que crece por una variable ausente no se distingue de una cola que crece
+     * porque llegan casos dudosos.
+     *
+     * `IDENTITY_ARBITRATION_MODEL` es el identificador físico `proveedor/modelo`
+     * de OpenRouter. Ausente, el módulo pone uno barato por omisión: la pregunta
+     * es «¿esto ni siquiera parece una cédula?» y está en el camino de una
+     * petición que el móvil sondea.
      */
     IDENTITY_ACCEPTED_DOCUMENT_TYPES: z.string().default('BOLIVIA_CI'),
     IDENTITY_DOCUMENT_ACCEPT_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.55),
     IDENTITY_DOCUMENT_REVIEW_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.25),
     IDENTITY_ARBITRATION_MODE: z.enum(['HUMAN', 'AI']).default('HUMAN'),
+    IDENTITY_ARBITRATION_MODEL: emptyAsUndefined(z.string().trim().min(1).optional()),
+    /*
+     * El segundo lector de campos del carnet, APAGADO por omisión.
+     *
+     * No es una función a medias: encenderlo manda la fotografía del documento a
+     * OpenRouter, que enruta a un proveedor físico por su cuenta. El árbitro no
+     * lo hace —sólo ve el dictamen de la puerta— y por eso son dos banderas y no
+     * una. Sin `OPENROUTER_API_KEY` se queda apagado en silencio, que aquí sí es
+     * el comportamiento correcto: ausente, el caso queda igual que si nunca se
+     * hubiera pedido la relectura.
+     */
+    IDENTITY_SECOND_READER_ENABLED: z.coerce.boolean().default(false),
+    IDENTITY_SECOND_READER_MODEL: emptyAsUndefined(z.string().trim().min(1).optional()),
     /*
      * Umbrales de la comparación biométrica. **Sin valor por omisión y
      * acoplados**: o se configuran los dos, o el motor de decisión devuelve
@@ -1503,6 +1539,30 @@ export const envSchema = z
             'SEMANTIC_ANALYSIS_PROVIDER=openrouter (o la cascada con escalón remoto en ' +
             'OpenRouter) necesita OPENROUTER_API_KEY. Las cuentas de los proveedores físicos ' +
             'viven en OpenRouter, no aquí.',
+        });
+      }
+      /*
+       * El árbitro de identidad en modo `AI` sin credencial de OpenRouter.
+       *
+       * Sin llave el adaptador no falla: DIFIERE, que es su comportamiento
+       * correcto ante cualquier avería. Y ahí está el problema —la bandeja se
+       * llena exactamente igual que si el modelo estuviera contestando «no lo
+       * sé», y nadie tiene motivo para mirar una variable de entorno—. Es el
+       * mismo modo de fallo que ya se cierra arriba para el worker semántico:
+       * arranca sano y no hace nada de lo que promete.
+       */
+      if (
+        value.IDENTITY_VERIFICATION_WORKER_ENABLED &&
+        value.IDENTITY_ARBITRATION_MODE === 'AI' &&
+        (value.OPENROUTER_API_KEY ?? '') === ''
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['OPENROUTER_API_KEY'],
+          message:
+            'IDENTITY_ARBITRATION_MODE=AI necesita OPENROUTER_API_KEY: sin ella el árbitro ' +
+            'difiere todos los casos y la bandeja humana crece sin que nada lo explique. ' +
+            'Con HUMAN no hace falta.',
         });
       }
       /*

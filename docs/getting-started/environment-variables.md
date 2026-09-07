@@ -3,7 +3,7 @@
 
 # Variables de entorno
 
-307 variables declaradas. El esquema se valida al arrancar: un valor ausente o
+312 variables declaradas. El esquema se valida al arrancar: un valor ausente o
 fuera de rango impide el arranque en vez de degradar el comportamiento en caliente.
 
 | Variable | Obligatoria | Valor por defecto | Para qué |
@@ -169,6 +169,8 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `BANK_STATEMENT_SIMILARITY_MATCH_SCORE` | no | `70` | — |
 | `BANK_STATEMENT_SIMILARITY_PARTIAL_SCORE` | no | `35` | — |
 | `BANK_STATEMENT_SIMILARITY_MIN_SAMPLE` | no | `3` | — |
+| `BANK_STATEMENT_COLUMN_ADVISOR_ENABLED` | no | `false` | — |
+| `BANK_STATEMENT_COLUMN_ADVISOR_MODEL` | no | — | — |
 | `BANK_STATEMENT_QUEUE_WAIT_BUDGET_MS` | **sí** | — | — |
 | `IDENTITY_VERIFICATION_WORKER_ENABLED` | no | `false` | --- Worker C: verificación de identidad (ADR-0026) --------------------- |
 | `IDENTITY_WORKER_POLL_MS` | no | `500` | — |
@@ -183,6 +185,9 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `IDENTITY_DOCUMENT_ACCEPT_CONFIDENCE` | no | `0.55` | — |
 | `IDENTITY_DOCUMENT_REVIEW_CONFIDENCE` | no | `0.25` | — |
 | `IDENTITY_ARBITRATION_MODE` | no | `'HUMAN'` | — |
+| `IDENTITY_ARBITRATION_MODEL` | no | — | — |
+| `IDENTITY_SECOND_READER_ENABLED` | no | `false` | — |
+| `IDENTITY_SECOND_READER_MODEL` | no | — | — |
 | `IDENTITY_MATCH_THRESHOLD` | no | — | — |
 | `IDENTITY_REVIEW_THRESHOLD` | no | — | — |
 | `IDENTITY_THRESHOLD_PROFILE_VERSION` | no | `'unconfigured'` | — |

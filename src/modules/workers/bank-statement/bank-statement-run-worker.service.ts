@@ -9,6 +9,9 @@ import { PrismaService } from '../../../common/prisma/prisma.service';
 import { StatementProcessingError } from './core/domain/errors';
 import { InstitutionCatalogService } from './institutions/institution-catalog.service';
 import { createStatementEngine, type StatementEngine } from './core/statement-engine';
+import { OpenRouterChatClient } from '../../../common/llm/openrouter-chat.client';
+import { OpenRouterColumnAdvisorAdapter } from './core/infrastructure/openrouter-column-advisor.adapter';
+import type { StatementColumnAdvisorPort } from './core/engine/generic/column-advisor';
 import type { SimilarityMode } from './core/engine/similarity/similarity-scorer';
 import {
   outcomeForError,
@@ -583,9 +586,42 @@ export class BankStatementRunWorkerService implements OnModuleInit, OnModuleDest
         partialScore: this.config.get<number>('BANK_STATEMENT_SIMILARITY_PARTIAL_SCORE') ?? 35,
         minimumSampleSize: this.config.get<number>('BANK_STATEMENT_SIMILARITY_MIN_SAMPLE') ?? 3,
       },
+      ...this.columnAdvisor(),
     });
     this.engines.set(key, engine);
     return engine;
+  }
+
+  /**
+   * El consejero de columnas del motor generalista, si el despliegue lo encendió.
+   *
+   * Apagado por omisión, y con su propia bandera aunque comparta credencial con
+   * el resto: lo que sale de aquí son RÓTULOS de cabecera, no filas ni importes,
+   * pero sigue siendo un extracto de una persona el que se está leyendo y esa
+   * decisión la toma quien despliega, no quien programa.
+   *
+   * Sin credencial se queda apagado en silencio: sin consejo, el documento se
+   * lee exactamente como se leía antes.
+   */
+  private columnAdvisor(): { columnAdvisor?: StatementColumnAdvisorPort } {
+    if (this.config.get<boolean>('BANK_STATEMENT_COLUMN_ADVISOR_ENABLED') !== true) return {};
+    const apiKey = this.config.get<string>('OPENROUTER_API_KEY') ?? '';
+    if (apiKey === '') return {};
+
+    const baseUrl = this.config.get<string>('OPENROUTER_BASE_URL');
+    const timeoutMs = this.config.get<number>('OPENROUTER_TIMEOUT_MS');
+    return {
+      columnAdvisor: new OpenRouterColumnAdvisorAdapter(
+        new OpenRouterChatClient({
+          apiKey,
+          model:
+            this.config.get<string>('BANK_STATEMENT_COLUMN_ADVISOR_MODEL') ??
+            DEFAULT_COLUMN_ADVISOR_MODEL,
+          ...(baseUrl === undefined ? {} : { baseUrl }),
+          ...(timeoutMs === undefined ? {} : { timeoutMs }),
+        }),
+      ),
+    };
   }
 
   private nextLease(): Date {
@@ -593,6 +629,16 @@ export class BankStatementRunWorkerService implements OnModuleInit, OnModuleDest
     return new Date(Date.now() + seconds * 1_000);
   }
 }
+
+/**
+ * El modelo por omisión del consejero de columnas.
+ *
+ * La tarea es corta y de vocabulario —mapear diez rótulos a un catálogo
+ * cerrado—, y su respuesta la verifica la aritmética. No hace falta un modelo
+ * caro y, sobre todo, no lo compensaría: uno mejor acertaría más veces la
+ * asignación que el saldo ya iba a confirmar de todos modos.
+ */
+const DEFAULT_COLUMN_ADVISOR_MODEL = 'openai/gpt-4.1-mini';
 
 function describeError(error: unknown): string {
   return error instanceof Error ? (error.stack ?? error.message) : String(error);

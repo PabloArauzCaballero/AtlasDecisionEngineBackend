@@ -26,7 +26,8 @@ import {
   parseStructuredOutput,
   readErrorDetail,
   readRetryAfterMs,
-} from '../http/openai-compatible-transport';
+} from '../../../../../../common/llm/openai-compatible-transport';
+import { semanticTransportErrors } from '../http/semantic-transport.errors';
 
 export interface LiteLlmSemanticProviderOptions {
   /** Credencial DEL GATEWAY. Las de los proveedores físicos no llegan a este proceso. */
@@ -100,6 +101,7 @@ export class LiteLlmSemanticProvider implements SemanticModelProvider {
     this.baseUrl = normalizeBaseUrl(options.baseUrl);
     this.maxOutputTokens = options.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS;
     this.transport = new OpenAiCompatibleTransport({
+      errors: semanticTransportErrors,
       providerLabel: 'LiteLLM',
       ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
       ...(options.maxAttempts === undefined ? {} : { maxAttempts: options.maxAttempts }),
@@ -182,9 +184,9 @@ export class LiteLlmSemanticProvider implements SemanticModelProvider {
       );
     }
 
-    const outputText = extractMessageContent(choice?.message?.content);
+    const outputText = extractMessageContent(choice?.message?.content, semanticTransportErrors);
     const classification = modelClassificationSchema.parse({
-      ...parseStructuredOutput(outputText),
+      ...parseStructuredOutput(outputText, semanticTransportErrors),
       // Lo PEDIDO frente a lo que RESPONDIÓ: el alias mantiene acotada la
       // etiqueta de las métricas y el modelo devuelto delata si contestó el
       // despliegue primario o su suplente.

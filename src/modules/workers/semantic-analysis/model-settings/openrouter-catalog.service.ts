@@ -6,7 +6,7 @@ import {
   DEFAULT_OPENROUTER_DEEP_MODEL,
   DEFAULT_OPENROUTER_FAST_MODEL,
 } from '../core/config/openrouter-provider.config';
-import { normalizeBaseUrl } from '../core/infrastructure/http/openai-compatible-transport';
+import { normalizeBaseUrl } from '../../../../common/llm/openai-compatible-transport';
 import type { OpenRouterCatalogDto, OpenRouterModelDto } from './semantic-model-settings.dto';
 
 /** Diez minutos: el catálogo cambia a diario, no por segundo, y la pantalla lo pide en cada visita. */
