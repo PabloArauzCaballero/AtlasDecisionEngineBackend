@@ -162,6 +162,12 @@ services:
       # La API no ejecuta trabajos de fondo: de eso se encarga `worker`. Dos planificadores
       # compitiendo por el mismo cerrojo son trabajo duplicado y contención en la base.
       JOB_SCHEDULER_ENABLED: 'false'
+      # La API no ejecuta el worker de extractos —`runsBackgroundJobs` lo impide con
+      # `WORKER_ROLE: API`—, pero sí lee esta bandera para dos cosas: el `available` que publica
+      # `workers.controller` y la comprobación de `worker-service-invoker`. Si aquí faltara, el
+      # catálogo diría «no disponible» de un worker que está corriendo en el otro contenedor.
+      # Por eso va en los dos servicios, igual que en el `docker-compose.yml` local.
+      BANK_STATEMENT_WORKER_ENABLED: '${BANK_STATEMENT_WORKER_ENABLED:-true}'
     expose: ['3000']
     depends_on:
       motor-redis:
@@ -187,6 +193,16 @@ services:
       WORKER_ROLE: WORKER
       WORKER_HEALTH_PORT: '3001'
       JOB_SCHEDULER_ENABLED: 'true'
+      # EL WORKER DE EXTRACTOS, ENCENDIDO EXPLÍCITAMENTE.
+      #
+      # Sin esta línea cae al `?? false` de `bank-statement-run-worker.service.ts` y el motor
+      # ACEPTA el extracto, lo deja en `QUEUED` y no lo procesa nunca. Aguas arriba se ve así:
+      # AtlasBackend lo encola, sondea 180 s, se rinde y deja la revisión «en cola» — que es su
+      # comportamiento correcto ante un motor que no contesta, pero desde el portal se lee como un
+      # worker apagado. Lo estaba, por OMISIÓN y no por decisión: el `docker-compose.yml` local sí
+      # lo pone en `true`, y sólo este compose se quedó sin él, así que el defecto no aparecía en
+      # local. Tampoco existía como variable en Coolify: ni atada ni huérfana.
+      BANK_STATEMENT_WORKER_ENABLED: '${BANK_STATEMENT_WORKER_ENABLED:-true}'
       # Pool más pequeño que el de la API: la concurrencia del worker la fija el número de
       # trabajos, no el tráfico. Y en Neon las conexiones se cuentan — dos procesos con 15 cada
       # uno agotan el cupo del proyecto, y el fallo aparece en el que llegue tarde, no en el que
