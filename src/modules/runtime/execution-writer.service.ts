@@ -8,6 +8,7 @@ import type { ResolvedDeployment } from '../deployments/deployment-resolver.serv
 import type { EngineExecutionResult } from '../graph/graph.types';
 import type { ResolvedVariableSnapshot } from '../variables/variable-resolution.service';
 import { outcomeWindowsFor, windowDueAt } from './outcome-windows';
+import { manualReviewCaseCode } from './manual-review-case-code';
 
 /** Complete persistence payload for one decision execution and its evidence. */
 export interface WriteExecutionInput {
@@ -193,7 +194,7 @@ export class ExecutionWriterService {
           data: {
             executionId: execution.id,
             tenantId: input.tenantId,
-            caseCode: `MR-${execution.id.toString().padStart(10, '0')}`,
+            caseCode: manualReviewCaseCode(execution.id),
             queueCode: result.manualReview.queueCode,
             priority: result.manualReview.priority,
             dueAt: new Date(Date.now() + result.manualReview.slaMinutes * 60_000),

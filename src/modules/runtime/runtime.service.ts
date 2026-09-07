@@ -24,6 +24,7 @@ import { ExecuteDecisionDto } from './runtime.dto';
 import { applySubjectPolicy } from './subject-policy';
 import { IdempotencyService } from './idempotency.service';
 import { ExecutionWriterService } from './execution-writer.service';
+import { manualReviewCaseCode } from './manual-review-case-code';
 
 /**
  * Cuanto pide esta solicitud, para proyectar la exposicion.
@@ -472,6 +473,30 @@ export class RuntimeService {
         environment: deployment.environmentCode,
         checksum: deployment.compiledChecksum,
       },
+      /*
+       * Si esta ejecucion abrio un caso de revision manual, y en que cola.
+       *
+       * Lo pide quien nos llama, no nosotros: AtlasBackend abria SU propio caso para el mismo
+       * cliente cada vez que el desenlace no era un «sigue adelante», y su portal lo dejaba
+       * resolver con otro formulario. Dos bandejas para la misma persona, dos bitacoras que no se
+       * hablan y ninguna respuesta a «quien aprobo».
+       *
+       * Ahora Atlas delega en nosotros SOLO cuando aqui hay de verdad un caso que atender. Sin este
+       * campo tendria que adivinarlo por el desenlace, y se equivocaria: un REJECT no abre caso, y
+       * el analista acabaria en una ejecucion sin bandeja mientras la unica cola posible —la suya—
+       * estaba cerrada por nosotros.
+       *
+       * `null` cuando el grafo no paso por un nodo de revision manual. El caso se crea en la misma
+       * transaccion que la ejecucion (`ExecutionWriterService`), asi que anunciarlo aqui no puede
+       * mentir: o estan los dos o no esta ninguno.
+       */
+      manualReview: result.manualReview
+        ? {
+            caseCode: manualReviewCaseCode(execution.id),
+            queueCode: result.manualReview.queueCode,
+            priority: result.manualReview.priority,
+          }
+        : null,
       traceReference: execution.id.toString(),
     };
   }
