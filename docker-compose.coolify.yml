@@ -175,6 +175,12 @@ services:
           memory: 1g
 
   worker:
+    # El worker SALE de su red privada a propósito: llama a otros bloques por sus alias de la red
+    # compartida, y sin declararla Compose lo deja sólo en `default`, donde esos nombres no
+    # resuelven. No lleva alias porque nadie lo llama a él: sólo llama.
+    networks:
+      default: {}
+      coolify: {}
     <<: [*common, *image]
     init: true
     environment:
