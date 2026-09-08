@@ -77,7 +77,19 @@ export function tokensInRange(line: PageLine, startRatio: number, endRatio: numb
 }
 
 export function normalizeNumeric(value: string): string {
-  const normalized = value.trim().replace(/[+]/g, '').replace(/\s/g, '').replace(/,/g, '');
+  // Los caracteres de control C0 (0x00–0x1F) se eliminan como separador de miles: el PDF de Banco
+  // Económico agrupa los millares con 0x0F (Shift In) en lugar de una coma —`12‹SI›154.41`—, así que
+  // TODO saldo de cinco cifras o más (>= 10 000) quedaba fuera del patrón numérico y devolvía cadena
+  // vacía. El efecto era silencioso y catastrófico: una cuenta cuyo saldo cruza los 10 000 pierde
+  // todos sus movimientos a partir de ahí, y el extracto se lee como vencido y sin cobertura. `\s` no
+  // los cubre (0x0F no es espacio). No se tocan la coma ni el punto decimal.
+  const normalized = value
+    .trim()
+    .replace(/[+]/g, '')
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001f]/g, '')
+    .replace(/\s/g, '')
+    .replace(/,/g, '');
   if (!/^-?\d+(?:\.\d{1,2})?$/.test(normalized)) {
     return '';
   }
