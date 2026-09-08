@@ -7,9 +7,10 @@
 #
 # ## Lo que este archivo NO trae, y por qué
 #
-# **PostgreSQL y Redis.** La base vive en Neon; el Redis lo pone el compose de AtlasBackend y se
-# comparte por la red externa. Un segundo Redis para un motor que cabe en 256 MB sería disco y RAM
-# gastados en tener dos cosas que mantener.
+# **PostgreSQL y Redis.** La base vive en `atlas-postgres`, el contenedor propio del host
+# `pablo-h310`, fuera de este compose; el Redis lo pone el compose de AtlasBackend y se comparte
+# por la red externa. Un segundo Redis para un motor que cabe en 256 MB sería disco y RAM gastados
+# en tener dos cosas que mantener.
 #
 # **`script-runner`, `litellm` y `transformer`.** El sidecar de scripts sólo es tolerable bajo
 # gVisor (`runsc`), que no está instalado en un VPS de Contabo; los otros dos son imágenes de varios
@@ -147,8 +148,9 @@ services:
       WORKER_HEALTH_PORT: '3001'
       JOB_SCHEDULER_ENABLED: 'true'
       # Pool más pequeño que el de la API: la concurrencia del worker la fija el número de trabajos,
-      # no el tráfico. Y en Neon las conexiones se cuentan — dos procesos con 15 cada uno agotan el
-      # cupo del proyecto y el fallo aparece en el que llegue tarde, no en el que las gastó.
+      # no el tráfico. Y en `atlas-postgres` las conexiones se cuentan igual — dos procesos con 15
+      # cada uno agotan el `max_connections` del contenedor, y el fallo aparece en el que llegue
+      # tarde, no en el que las gastó.
       DATABASE_POOL_MAX: '5'
     ports:
       - '127.0.0.1:3021:3001'

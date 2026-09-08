@@ -43,9 +43,10 @@
 # Se arregla con `"dns": ["1.1.1.1","8.8.8.8"]` en `/etc/docker/daemon.json` —FUSIONÁNDOLO, no
 # sobrescribiéndolo— y se comprueba con `docker run --rm alpine nslookup registry.yarnpkg.com`.
 #
-# **El endpoint de Neon tiene que ser el DIRECTO**, sin `-pooler`: el de PgBouncer en modo
-# transacción rompe los cerrojos de sesión de la siembra, el `LISTEN` de los trabajos de fondo y
-# las migraciones, y ninguno de los tres fallos lo menciona.
+# **La base es `atlas_decision` en `atlas-postgres`**, el PostgreSQL propio del host, no un
+# servicio gestionado: sin pooler, así que los cerrojos de sesión de la siembra, el `LISTEN` de
+# los trabajos de fondo y las migraciones ya no llevan la advertencia que exigía Neon. Se llega
+# SIEMPRE por el alias de red, nunca por la IP del host: `ufw` sólo abre 22/80/443.
 
 name: atlas-motor
 
@@ -235,9 +236,9 @@ services:
       # compose local lo pone en `true` y este se quedo sin el.
       AUDIO_TTS_WORKER_ENABLED: '${AUDIO_TTS_WORKER_ENABLED:-true}'
       # Pool más pequeño que el de la API: la concurrencia del worker la fija el número de
-      # trabajos, no el tráfico. Y en Neon las conexiones se cuentan — dos procesos con 15 cada
-      # uno agotan el cupo del proyecto, y el fallo aparece en el que llegue tarde, no en el que
-      # las gastó.
+      # trabajos, no el tráfico. Y en `atlas-postgres` las conexiones se cuentan igual — dos
+      # procesos con 15 cada uno agotan el `max_connections` del contenedor, y el fallo aparece
+      # en el que llegue tarde, no en el que las gastó.
       DATABASE_POOL_MAX: '5'
     # Sólo en el bucle local: es la sonda de salud, no atiende tráfico de negocio.
     ports: ['127.0.0.1:3021:3001']

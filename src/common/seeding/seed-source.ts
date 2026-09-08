@@ -1,19 +1,19 @@
 /**
- * Los datos de semilla ya no viven en el repositorio: viven en una RAMA de PostgreSQL gestionado
- * (Neon), y este módulo dice cuál.
+ * Los datos de semilla ya no viven en el repositorio: viven en una BASE separada del mismo
+ * PostgreSQL propio (`seed_atlas_decision`, en `atlas-postgres`), y este módulo dice cuál.
  *
- * La rama es la unidad de configuración a propósito. Un despliegue no elige "perfil de seeds"
- * compilado en el código, elige una rama: la de desarrollo trae también los usuarios y comercios de
+ * La base es la unidad de configuración a propósito. Un despliegue no elige "perfil de seeds"
+ * compilado en el código, elige una base: la de desarrollo trae también los usuarios y comercios de
  * prueba, la de producción sólo el dato maestro. Cambiar de una a otra es cambiar UNA variable, y
- * como cada rama de Neon tiene su propio endpoint, `SEED_SOURCE_HOST` es literalmente el nombre de
- * la rama a la que se apunta.
+ * como todas viven en el mismo host, `SEED_SOURCE_HOST` casi nunca cambia: basta con mover
+ * `SEED_SOURCE_DB` a la base de la que se quiere sembrar.
  *
  * Dos formas de declararla, en este orden:
  *
  *   1. `SEED_SOURCE_DATABASE_URL` — cadena completa. Gana sobre todo lo demás. Es la vía para CI y
  *      para un secreto inyectado de una pieza.
  *   2. `SEED_SOURCE_HOST` + `SEED_SOURCE_DB` + `SEED_SOURCE_USER` + `SEED_SOURCE_PASSWORD` — la vía
- *      cómoda cuando sólo cambia la rama: se toca el host y el resto queda igual.
+ *      cómoda cuando sólo cambia la base: se toca `SEED_SOURCE_DB` y el resto queda igual.
  *
  * Si no hay ninguna, no hay fuente y quien llama decide si eso es un error (`db:seed:pull`) o
  * simplemente no sembrar (arranque de la aplicación).
@@ -21,7 +21,7 @@
 export interface SeedSource {
   readonly connectionString: string;
   readonly ssl: { rejectUnauthorized: boolean } | false;
-  /** Host sin credenciales, para registrar a qué rama se apuntó sin filtrar la contraseña. */
+  /** Host sin credenciales, para registrar a qué base se apuntó sin filtrar la contraseña. */
   readonly describe: string;
 }
 
