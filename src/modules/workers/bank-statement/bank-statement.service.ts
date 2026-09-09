@@ -243,7 +243,11 @@ export class BankStatementService {
 
     // Siempre PDF: `validateStatementUpload` comprueba los bytes mágicos antes de llegar aquí, así
     // que el tipo no sale de lo que declare quien sube.
-    const objectKey = this.objectStorage.buildStatementKey({ tenantId, requestId, extension: 'pdf' });
+    const objectKey = this.objectStorage.buildStatementKey({
+      tenantId,
+      requestId,
+      extension: 'pdf',
+    });
     await this.objectStorage.put(objectKey, input.bytes, 'application/pdf');
     return objectKey;
   }

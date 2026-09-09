@@ -101,9 +101,7 @@ export class OpenRouterIdentityArbitrationAdapter implements IdentityArbitration
 
   public constructor(private readonly client: OpenRouterChatClient) {}
 
-  public async arbitrate(
-    request: IdentityArbitrationRequest,
-  ): Promise<IdentityArbitrationVerdict> {
+  public async arbitrate(request: IdentityArbitrationRequest): Promise<IdentityArbitrationVerdict> {
     try {
       const { output, respondedBy } = await this.client.complete({
         system: SYSTEM_PROMPT,

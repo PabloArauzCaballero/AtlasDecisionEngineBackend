@@ -299,11 +299,7 @@ function buscarIncoherencias(
    * corriente: la MRZ es la letra más pequeña de la tarjeta y una foto regular la
    * pierde entera. Es una señal para escalar, nunca para rechazar.
    */
-  if (
-    conformidad.generacion === 'DS_4924_2023' &&
-    entrada.textoReverso.trim().length > 0 &&
-    !mrz
-  ) {
+  if (conformidad.generacion === 'DS_4924_2023' && entrada.textoReverso.trim().length > 0 && !mrz) {
     fallos.push({
       codigo: 'MRZ_ABSENT_ON_CURRENT_GENERATION',
       detalle:

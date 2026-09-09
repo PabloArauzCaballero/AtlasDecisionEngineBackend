@@ -69,7 +69,9 @@ async function escena(opciones: {
       }
     }
   }
-  return sharp(pixeles, { raw: { width: ancho, height: alto, channels: 3 } }).png().toBuffer();
+  return sharp(pixeles, { raw: { width: ancho, height: alto, channels: 3 } })
+    .png()
+    .toBuffer();
 }
 
 describe('encuadre del documento', () => {

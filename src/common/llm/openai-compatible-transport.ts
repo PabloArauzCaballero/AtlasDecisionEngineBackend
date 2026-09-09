@@ -311,10 +311,9 @@ export class OpenAiCompatibleTransport {
     try {
       await delay(waitMs, undefined, { signal: budget });
     } catch (error: unknown) {
-      throw this.errors.budgetExhausted(
-        'El presupuesto se agotó durante la espera de reintento.',
-        { cause: error },
-      );
+      throw this.errors.budgetExhausted('El presupuesto se agotó durante la espera de reintento.', {
+        cause: error,
+      });
     }
   }
 

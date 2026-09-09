@@ -138,7 +138,10 @@ export class OpenRouterChatClient {
     return this.options.model;
   }
 
-  public complete(request: OpenRouterChatRequest, budget?: AbortSignal): Promise<OpenRouterChatResult> {
+  public complete(
+    request: OpenRouterChatRequest,
+    budget?: AbortSignal,
+  ): Promise<OpenRouterChatResult> {
     return this.transport.send((signal) => this.attempt(request, signal), budget);
   }
 
@@ -165,7 +168,10 @@ export class OpenRouterChatClient {
       return { ok: false, detail: 'OPENROUTER_API_KEY rechazada por OpenRouter' };
     }
     if (!response.ok) {
-      return { ok: false, detail: `OpenRouter respondió HTTP ${String(response.status)} a GET /key` };
+      return {
+        ok: false,
+        detail: `OpenRouter respondió HTTP ${String(response.status)} a GET /key`,
+      };
     }
 
     const body = (await response.json().catch(() => ({}))) as {
@@ -220,7 +226,10 @@ export class OpenRouterChatClient {
     }
 
     return {
-      output: parseStructuredOutput(extractMessageContent(choice?.message?.content, CHAT_ERRORS), CHAT_ERRORS),
+      output: parseStructuredOutput(
+        extractMessageContent(choice?.message?.content, CHAT_ERRORS),
+        CHAT_ERRORS,
+      ),
       respondedBy: respondedBy(body, this.options.model),
       usage: usageOf(body),
     };

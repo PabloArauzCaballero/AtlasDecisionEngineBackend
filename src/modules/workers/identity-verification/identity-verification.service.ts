@@ -206,9 +206,21 @@ export class IdentityVerificationService {
       return null;
     }
 
-    const escrituras: Array<{ campo: 'document' | 'documentBack' | 'selfie'; clave: string; imagen: ValidatedIdentityImage }> = [
-      { campo: 'document', clave: this.buildKey(tenantId, requestId, 'document', input.document), imagen: input.document },
-      { campo: 'selfie', clave: this.buildKey(tenantId, requestId, 'selfie', input.selfie), imagen: input.selfie },
+    const escrituras: Array<{
+      campo: 'document' | 'documentBack' | 'selfie';
+      clave: string;
+      imagen: ValidatedIdentityImage;
+    }> = [
+      {
+        campo: 'document',
+        clave: this.buildKey(tenantId, requestId, 'document', input.document),
+        imagen: input.document,
+      },
+      {
+        campo: 'selfie',
+        clave: this.buildKey(tenantId, requestId, 'selfie', input.selfie),
+        imagen: input.selfie,
+      },
       ...(input.documentBack
         ? [
             {
@@ -251,7 +263,12 @@ export class IdentityVerificationService {
   ): string {
     // La extensión sale del tipo YA DETECTADO por bytes mágicos, no del nombre que mandó el
     // cliente: el nombre es dato de fuera y aquí decide una ruta.
-    const extension = imagen.contentType === 'image/png' ? 'png' : imagen.contentType === 'image/webp' ? 'webp' : 'jpg';
+    const extension =
+      imagen.contentType === 'image/png'
+        ? 'png'
+        : imagen.contentType === 'image/webp'
+          ? 'webp'
+          : 'jpg';
     return this.objectStorage.buildIdentityKey({ tenantId, requestId, kind, extension });
   }
 
@@ -307,7 +324,10 @@ export class IdentityVerificationService {
 
     const stored = await this.objectStorage.get(objectKey);
     if (!stored) return null;
-    return { content: stored.content, contentType: stored.contentType ?? 'application/octet-stream' };
+    return {
+      content: stored.content,
+      contentType: stored.contentType ?? 'application/octet-stream',
+    };
   }
 
   /** Una ejecución del tenant. Ajena o inexistente responden igual: 404. */

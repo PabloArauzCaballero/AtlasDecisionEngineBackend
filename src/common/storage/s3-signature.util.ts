@@ -68,7 +68,8 @@ function uriEncode(value: string, encodeSlash: boolean): string {
     if (isUnreserved) out += char;
     else if (char === '/') out += encodeSlash ? '%2F' : '/';
     else {
-      for (const byte of Buffer.from(char, 'utf8')) out += `%${byte.toString(16).toUpperCase().padStart(2, '0')}`;
+      for (const byte of Buffer.from(char, 'utf8'))
+        out += `%${byte.toString(16).toUpperCase().padStart(2, '0')}`;
     }
   }
   return out;
@@ -82,7 +83,10 @@ function amzDate(now: Date): { stamp: string; dateOnly: string } {
   return { stamp, dateOnly: stamp.slice(0, 8) };
 }
 
-function buildHostAndPath(credentials: S3Credentials, objectKey: string): { host: string; path: string; origin: string } {
+function buildHostAndPath(
+  credentials: S3Credentials,
+  objectKey: string,
+): { host: string; path: string; origin: string } {
   const url = new URL(credentials.endpoint);
   const encodedKey = uriEncode(objectKey, false);
   if (credentials.forcePathStyle) {
@@ -133,9 +137,18 @@ export function presignS3Url(input: PresignInput): string {
     .map(([key, value]) => `${key}=${value}`)
     .join('&');
 
-  const canonicalRequest = [input.method, path, canonicalQuery, canonicalHeaders, signedHeaderNames, UNSIGNED_PAYLOAD].join('\n');
+  const canonicalRequest = [
+    input.method,
+    path,
+    canonicalQuery,
+    canonicalHeaders,
+    signedHeaderNames,
+    UNSIGNED_PAYLOAD,
+  ].join('\n');
   const stringToSign = [ALGORITHM, stamp, credentialScope, sha256Hex(canonicalRequest)].join('\n');
-  const signature = createHmac('sha256', signingKey(credentials, dateOnly)).update(stringToSign, 'utf8').digest('hex');
+  const signature = createHmac('sha256', signingKey(credentials, dateOnly))
+    .update(stringToSign, 'utf8')
+    .digest('hex');
 
   return `${origin}${path}?${canonicalQuery}&X-Amz-Signature=${signature}`;
 }

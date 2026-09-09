@@ -32,7 +32,11 @@ describe('ManualReviewService — segregación de funciones', () => {
    * control: la prueba de segregación recibía un error sin código y el propio control quedaba sin
    * ejercer. Un doble que no se parece al dato real no prueba nada — sólo que el `as` compila.
    */
-  const analista = { id: 'ana', requestId: 'req-1', roles: [] } as unknown as AuthenticatedPrincipal;
+  const analista = {
+    id: 'ana',
+    requestId: 'req-1',
+    roles: [],
+  } as unknown as AuthenticatedPrincipal;
   const otro = { id: 'beto', requestId: 'req-2', roles: [] } as unknown as AuthenticatedPrincipal;
   /** Quien puede desatascar la cola: operaciones, administración o plataforma. */
   const supervisora = {
@@ -159,7 +163,12 @@ describe('ManualReviewService — segregación de funciones', () => {
     it('quien supervisa SÍ puede reasignarlo', async () => {
       const { service, updates } = make({ id: CASE, status: 'ASSIGNED', assignedTo: 'ana' });
 
-      await service.assign(TENANT, CASE, { assignedTo: 'beto' } as AssignManualReviewDto, supervisora);
+      await service.assign(
+        TENANT,
+        CASE,
+        { assignedTo: 'beto' } as AssignManualReviewDto,
+        supervisora,
+      );
 
       expect(updates[0]?.assignedTo).toBe('beto');
     });

@@ -1,8 +1,5 @@
 import type { TransportErrors } from '../../../../../../common/llm/openai-compatible-transport';
-import {
-  SemanticProviderError,
-  SemanticTimeoutError,
-} from '../../domain/semantic-analysis.errors';
+import { SemanticProviderError, SemanticTimeoutError } from '../../domain/semantic-analysis.errors';
 
 /**
  * La taxonomía del worker semántico, para el transporte compartido de `common`.

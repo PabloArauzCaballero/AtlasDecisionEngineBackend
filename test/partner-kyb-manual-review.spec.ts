@@ -74,10 +74,7 @@ describe('PARTNER_KYB_REVIEW · la derivación a revisión abre caso', () => {
 
   const entrada = (code: string, dataType: string) => variable(code, dataType);
 
-  function intermedia(
-    code: string,
-    producerNodeKey: string,
-  ): IntermediateVariableSnapshot {
+  function intermedia(code: string, producerNodeKey: string): IntermediateVariableSnapshot {
     return {
       code,
       name: code,
@@ -366,10 +363,7 @@ describe('PARTNER_KYB_REVIEW · la derivación a revisión abre caso', () => {
   });
 
   it('un requisito duro que falta rechaza, por impecable que esté lo demás', async () => {
-    const resultado = await engine.execute(
-      compilar(true),
-      expediente({ kyb_qr_bancario: false }),
-    );
+    const resultado = await engine.execute(compilar(true), expediente({ kyb_qr_bancario: false }));
 
     expect(resultado.output.kyb_decision).toBe('RECHAZADO');
     expect(resultado.output.kyb_motivo).toBe('KYB_REQUISITOS_INCOMPLETOS');
@@ -399,10 +393,7 @@ describe('PARTNER_KYB_REVIEW · la derivación a revisión abre caso', () => {
   });
 
   it('la cola es propia y no la del crédito: los revisa otro equipo con otro criterio', async () => {
-    const resultado = await engine.execute(
-      compilar(true),
-      expediente({ kyb_sucursales: 0 }),
-    );
+    const resultado = await engine.execute(compilar(true), expediente({ kyb_sucursales: 0 }));
 
     expect(resultado.manualReview?.queueCode).not.toBe('CREDIT_REVIEW');
     expect(resultado.manualReview?.queueCode).toBe('MERCHANT_KYB');

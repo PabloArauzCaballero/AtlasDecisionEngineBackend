@@ -257,6 +257,7 @@ nav:
       - ADR-0029 Persistencia desacoplada y rutas read/write: adr/ADR-0029-polyglot-persistence-read-write.md
       - ADR-0030 Worker de verificación de identidad: adr/ADR-0030-identity-verification-worker.md
       - ADR-0031 Worker generador de PDF: adr/ADR-0031-pdf-generator-worker.md
+      - ADR-0032 Admisión del extracto y capacidad de pago: adr/ADR-0032-statement-admission-and-affordability.md
   # Espejo generado de `.claude/rules/`, que es la fuente canónica porque la herramienta de
   # asistencia las carga desde ahí por ruta de archivo. Se regenera con `yarn docs:vault`.
   # El generador documental se despliega como servicio aparte y tiene su propia superficie,
@@ -266,6 +267,9 @@ nav:
       - Visión general: pdf-worker/README.md
       - Integración: pdf-worker/integracion.md
       - Evidencia visual: pdf-worker/evidencia/README.md
+  # Salidas reales del motor desplegado, no fixtures. Estaba fuera de navegación: la evidencia
+  # existía y sólo la encontraba quien ya supiera su ruta, que es justo lo contrario de su función.
+  - Evidencia de corridas: evidence/README.md
   - Reglas de diseño:
       - Índice: design-rules/index.md
       - Gobernanza y precedencia: design-rules/00-governance.md

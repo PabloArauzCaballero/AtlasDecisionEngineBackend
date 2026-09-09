@@ -15,13 +15,7 @@
  * convierte una revisión en una aprobación. Ver `core/engine/second-reader.ts`.
  */
 export type ExtractedFieldSource =
-  | 'OCR'
-  | 'BARCODE'
-  | 'MRZ'
-  | 'MANUAL'
-  | 'PROVIDER'
-  | 'DERIVED'
-  | 'MODEL';
+  'OCR' | 'BARCODE' | 'MRZ' | 'MANUAL' | 'PROVIDER' | 'DERIVED' | 'MODEL';
 
 export interface ExtractedField<T> {
   value: T | null;

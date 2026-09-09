@@ -124,7 +124,11 @@ export class ObjectStorageService {
    * Misma forma que la de identidad y con el mismo criterio —el servidor impone la ruta— pero con
    * su propio prefijo, para que las dos poblaciones puedan tener retenciones distintas.
    */
-  buildStatementKey(input: { tenantId: bigint | string; requestId: string; extension: string }): string {
+  buildStatementKey(input: {
+    tenantId: bigint | string;
+    requestId: string;
+    extension: string;
+  }): string {
     const prefix = (this.config.get<string>('STORAGE_STATEMENT_KEY_PREFIX') ?? 'statements')
       .trim()
       .replace(/^\/+|\/+$/g, '');
@@ -164,7 +168,9 @@ export class ObjectStorageService {
     const response = await fetch(url, { method: 'PUT', headers, body: new Uint8Array(content) });
     if (!response.ok) {
       const detail = (await response.text().catch(() => '')).slice(0, 300);
-      throw new Error(`El almacén rechazó la escritura de ${objectKey}: HTTP ${response.status}. ${detail}`);
+      throw new Error(
+        `El almacén rechazó la escritura de ${objectKey}: HTTP ${response.status}. ${detail}`,
+      );
     }
 
     return {
@@ -180,10 +186,17 @@ export class ObjectStorageService {
     const credentials = this.credentials();
     if (!credentials) return null;
 
-    const url = presignS3Url({ credentials, method: 'GET', objectKey, expiresInSeconds: 60, now: new Date() });
+    const url = presignS3Url({
+      credentials,
+      method: 'GET',
+      objectKey,
+      expiresInSeconds: 60,
+      now: new Date(),
+    });
     const response = await fetch(url);
     if (response.status === 404) return null;
-    if (!response.ok) throw new Error(`El almacén no pudo servir ${objectKey}: HTTP ${response.status}.`);
+    if (!response.ok)
+      throw new Error(`El almacén no pudo servir ${objectKey}: HTTP ${response.status}.`);
 
     return {
       content: Buffer.from(await response.arrayBuffer()),
@@ -201,13 +214,23 @@ export class ObjectStorageService {
     if (!credentials) return;
 
     try {
-      const url = presignS3Url({ credentials, method: 'DELETE', objectKey, expiresInSeconds: 60, now: new Date() });
+      const url = presignS3Url({
+        credentials,
+        method: 'DELETE',
+        objectKey,
+        expiresInSeconds: 60,
+        now: new Date(),
+      });
       const response = await fetch(url, { method: 'DELETE' });
       if (!response.ok && response.status !== 404) {
-        this.logger.warn(`No se pudo borrar el objeto huérfano ${objectKey}: HTTP ${response.status}.`);
+        this.logger.warn(
+          `No se pudo borrar el objeto huérfano ${objectKey}: HTTP ${response.status}.`,
+        );
       }
     } catch (error) {
-      this.logger.warn(`No se pudo borrar el objeto huérfano ${objectKey}: ${(error as Error).message}`);
+      this.logger.warn(
+        `No se pudo borrar el objeto huérfano ${objectKey}: ${(error as Error).message}`,
+      );
     }
   }
 
@@ -217,7 +240,10 @@ export class ObjectStorageService {
    * Vence pronto y se emite en el momento: la cara de una persona no sale del almacén por una URL
    * que alguien pueda guardar o pegar en un chat.
    */
-  createDownloadUrl(objectKey: string, now: Date = new Date()): { url: string; expiresAt: string } | null {
+  createDownloadUrl(
+    objectKey: string,
+    now: Date = new Date(),
+  ): { url: string; expiresAt: string } | null {
     const credentials = this.publicCredentials();
     if (!credentials) return null;
 

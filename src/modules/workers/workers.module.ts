@@ -160,7 +160,10 @@ const DEFAULT_SECOND_READER_MODEL = 'google/gemini-2.5-flash';
  * el cliente aplica su propio valor por omisión sólo ante la primera. Pasar
  * `{ baseUrl: undefined }` lo dejaría sin base.
  */
-function maybe<K extends string, V>(key: K, value: V | undefined): Record<K, V> | Record<string, never> {
+function maybe<K extends string, V>(
+  key: K,
+  value: V | undefined,
+): Record<K, V> | Record<string, never> {
   return value === undefined ? {} : ({ [key]: value } as Record<K, V>);
 }
 
@@ -349,7 +352,8 @@ function maybe<K extends string, V>(key: K, value: V | undefined): Record<K, V> 
         return new OpenRouterSecondReaderAdapter(
           new OpenRouterChatClient({
             apiKey,
-            model: config.get<string>('IDENTITY_SECOND_READER_MODEL') ?? DEFAULT_SECOND_READER_MODEL,
+            model:
+              config.get<string>('IDENTITY_SECOND_READER_MODEL') ?? DEFAULT_SECOND_READER_MODEL,
             ...maybe('baseUrl', config.get<string>('OPENROUTER_BASE_URL')),
             ...maybe('appUrl', config.get<string>('OPENROUTER_APP_URL')),
             ...maybe('appTitle', config.get<string>('OPENROUTER_APP_TITLE')),

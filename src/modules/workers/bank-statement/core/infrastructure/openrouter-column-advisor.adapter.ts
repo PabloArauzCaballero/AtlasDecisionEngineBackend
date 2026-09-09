@@ -69,10 +69,7 @@ const CAMPOS: readonly CanonicalField[] = [
   'movementType',
 ];
 
-function adviceOf(
-  output: Record<string, unknown>,
-  unknownLabels: readonly string[],
-): ColumnAdvice {
+function adviceOf(output: Record<string, unknown>, unknownLabels: readonly string[]): ColumnAdvice {
   const advice = new Map<string, CanonicalField>();
   const asignaciones = output.asignaciones;
   if (!Array.isArray(asignaciones)) return advice;

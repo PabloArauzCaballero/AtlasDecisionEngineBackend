@@ -159,7 +159,8 @@ export async function analizarVidaDeLaSelfie(entrada: EntradaDeVida): Promise<An
     senales.push(SENALES_DE_VIDA.forenseNoDisponible);
   } else if (
     forense.senales.some(
-      (senal) => senal.codigo === 'SCREEN_REPHOTOGRAPH_SUSPECTED' || senal.codigo === 'UNIFORM_DARK_BORDER',
+      (senal) =>
+        senal.codigo === 'SCREEN_REPHOTOGRAPH_SUSPECTED' || senal.codigo === 'UNIFORM_DARK_BORDER',
     )
   ) {
     senales.push(SENALES_DE_VIDA.selfieRefotografiada);

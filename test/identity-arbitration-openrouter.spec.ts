@@ -41,7 +41,8 @@ function arbitro(respuestas: readonly (() => Response)[]): {
   const cuerpos: Record<string, unknown>[] = [];
   let indice = 0;
   const fetchDoble = ((_url: string, init?: RequestInit): Promise<Response> => {
-    if (typeof init?.body === 'string') cuerpos.push(JSON.parse(init.body) as Record<string, unknown>);
+    if (typeof init?.body === 'string')
+      cuerpos.push(JSON.parse(init.body) as Record<string, unknown>);
     const siguiente = respuestas[Math.min(indice, respuestas.length - 1)];
     indice += 1;
     return Promise.resolve(siguiente());
@@ -76,7 +77,9 @@ describe('OpenRouterIdentityArbitrationAdapter', () => {
   it('NO le ofrece al modelo la opción de aprobar', async () => {
     // La regla del pipeline (degradar un ACCEPT automático) sigue siendo la
     // defensa; ésta comprueba que además no se paga por una opción muerta.
-    const { adapter, cuerpos } = arbitro([() => respuesta({ outcome: 'DEFERRED', rationale: 'Dudo.' })]);
+    const { adapter, cuerpos } = arbitro([
+      () => respuesta({ outcome: 'DEFERRED', rationale: 'Dudo.' }),
+    ]);
     await adapter.arbitrate(PETICION);
 
     const formato = cuerpos[0]?.response_format as {
@@ -97,7 +100,9 @@ describe('OpenRouterIdentityArbitrationAdapter', () => {
   });
 
   it('no manda la imagen ni datos del titular, sólo el dictamen de la puerta', async () => {
-    const { adapter, cuerpos } = arbitro([() => respuesta({ outcome: 'DEFERRED', rationale: 'Dudo.' })]);
+    const { adapter, cuerpos } = arbitro([
+      () => respuesta({ outcome: 'DEFERRED', rationale: 'Dudo.' }),
+    ]);
     await adapter.arbitrate(PETICION);
 
     const mensajes = cuerpos[0]?.messages as { role: string; content: unknown }[];
@@ -114,7 +119,9 @@ describe('OpenRouterIdentityArbitrationAdapter', () => {
   });
 
   it('exige un proveedor que honre el esquema y pide el coste', async () => {
-    const { adapter, cuerpos } = arbitro([() => respuesta({ outcome: 'DEFERRED', rationale: 'Dudo.' })]);
+    const { adapter, cuerpos } = arbitro([
+      () => respuesta({ outcome: 'DEFERRED', rationale: 'Dudo.' }),
+    ]);
     await adapter.arbitrate(PETICION);
 
     expect(cuerpos[0]?.provider).toEqual({ require_parameters: true });
@@ -126,7 +133,9 @@ describe('OpenRouterIdentityArbitrationAdapter', () => {
     const { adapter } = arbitro([
       () =>
         new Response(
-          JSON.stringify({ error: { code: 402, message: 'Insufficient credits. Add more using…' } }),
+          JSON.stringify({
+            error: { code: 402, message: 'Insufficient credits. Add more using…' },
+          }),
           { status: 402, headers: { 'content-type': 'application/json' } },
         ),
     ]);
@@ -174,8 +183,8 @@ describe('OpenRouterIdentityArbitrationAdapter', () => {
   });
 
   it('no se puede construir el cliente sin credencial', () => {
-    expect(
-      () => new OpenRouterChatClient({ apiKey: '   ', model: 'openai/gpt-4.1-mini' }),
-    ).toThrow(/OPENROUTER_API_KEY/u);
+    expect(() => new OpenRouterChatClient({ apiKey: '   ', model: 'openai/gpt-4.1-mini' })).toThrow(
+      /OPENROUTER_API_KEY/u,
+    );
   });
 });

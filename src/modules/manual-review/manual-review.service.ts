@@ -341,21 +341,24 @@ export class ManualReviewService {
     }
 
     try {
-      const respuesta = await fetch(`${base.replace(/\/+$/, '')}/internal/identity/manual-review-callback`, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-tenant-id': tenantId.toString(),
-          'x-engine-callback-key': clave,
+      const respuesta = await fetch(
+        `${base.replace(/\/+$/, '')}/internal/identity/manual-review-callback`,
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-tenant-id': tenantId.toString(),
+            'x-engine-callback-key': clave,
+          },
+          body: JSON.stringify({
+            executionId: executionId.toString(),
+            decision: dto.decision,
+            reason: dto.reason,
+            resolvedByInternalUserId: principal.id,
+          }),
+          signal: AbortSignal.timeout(10_000),
         },
-        body: JSON.stringify({
-          executionId: executionId.toString(),
-          decision: dto.decision,
-          reason: dto.reason,
-          resolvedByInternalUserId: principal.id,
-        }),
-        signal: AbortSignal.timeout(10_000),
-      });
+      );
 
       if (!respuesta.ok) {
         throw new Error(`HTTP ${respuesta.status}: ${(await respuesta.text()).slice(0, 300)}`);
