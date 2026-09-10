@@ -56,6 +56,7 @@ const ARTIFACT_CODE = args.get('artifact') ?? 'PARTNER_KYB_REVIEW';
 const ENVIRONMENTS = (args.get('environments') ?? 'DEV,TEST').split(',').map((code) => code.trim()).filter(Boolean);
 const DRY_RUN = args.get('dry-run') === 'true';
 const QUEUE_CODE = args.get('queue') ?? 'MERCHANT_KYB';
+const SUITE_CODE = args.get('suite') ?? 'KYB-DESENLACES';
 
 if (!API_KEY) {
   console.error('Falta MANAGEMENT_API_KEY: es la credencial del plano de gestión (la de runtime NO sirve aquí).');
@@ -232,10 +233,31 @@ async function main() {
       `La versión ${vigente.versionNumber} (id ${vigente.id}, ${vigente.status}) de ${ARTIFACT_CODE} ya abre caso ` +
         `en la cola ${revisar.config?.queueCode}.`,
     );
-    // Preparada no es desplegada: decirlo evita dar por hecho que ya decide así en el ambiente.
-    if (!desplegada) {
-      console.log(`Todavía NO está desplegada. Cuando esté aprobada: node scripts/kyb-revision-manual.mjs --deploy ${vigente.id}`);
+    if (desplegada) return;
+
+    /*
+     * Preparada NO es enviada a revisión, y esta rama daba las dos por la misma.
+     *
+     * Un intento anterior dejó la versión en `COMPILED` sin solicitud de aprobación: el grafo estaba
+     * corregido, el guion decía «ya abre caso» y salía, y la cola de gobierno estaba VACÍA. Es decir,
+     * no había nada que aprobar y las instrucciones que daba —«que dos personas la aprueben»—
+     * apuntaban a una pantalla sin filas. Se comprueba y, si falta, se envía.
+     */
+    const solicitudes = await api('/v1/approval-requests');
+    const listaSolicitudes = Array.isArray(solicitudes) ? solicitudes : (solicitudes.items ?? solicitudes.data ?? []);
+    const suya = listaSolicitudes.find((peticion) => String(peticion.artifactVersionId) === String(vigente.id));
+    if (suya) {
+      console.log(`Ya está en revisión (solicitud ${suya.id}, ${suya.status}). Faltan las aprobaciones.`);
+    } else {
+      const verde = await asegurarSuiteBloqueante(vigente.id);
+      if (!verde) {
+        console.error('La suite bloqueante NO está en verde: el Motor no admitirá la versión a revisión, y hace bien.');
+        exit(1);
+      }
+      const creada = await enviarARevision(vigente.id);
+      console.log(`NO estaba en revisión pese a estar corregida: enviada ahora (solicitud ${creada.id ?? '?'}).`);
     }
+    instruccionesDeAprobacion(vigente.id);
     return;
   }
   console.log(`Versión vigente ${vigente.versionNumber} (id ${vigente.id}): REVISAR es ${revisar.type} y NO abre caso.`);
@@ -283,16 +305,189 @@ async function main() {
    * llegó a estar desplegada porque la sembró un script escribiendo filas por debajo del gobierno;
    * esa es la práctica que esto no repite.
    */
-  const solicitud = await api(`/v1/artifact-versions/${nuevaId}/submit-for-review`, {
+  const verde = await asegurarSuiteBloqueante(nuevaId);
+  if (!verde) {
+    console.error('La suite bloqueante NO está en verde: el Motor no admitirá la versión a revisión, y hace bien.');
+    exit(1);
+  }
+  const solicitud = await enviarARevision(nuevaId);
+  console.log(`Enviada a revisión (solicitud ${solicitud.id ?? '?'}).`);
+  instruccionesDeAprobacion(nuevaId);
+}
+
+/**
+ * Los casos que el Motor ejecuta ANTES de admitir la versión a revisión.
+ *
+ * Son los mismos seis que fija `test/partner-kyb-manual-review.spec.ts`, y están aquí por una razón
+ * que el propio Motor impone: sin una suite BLOQUEANTE en verde, `submit-for-review` responde 409
+ * `BLOCKING_TESTS_NOT_PASSED / NO_BLOCKING_TEST_SUITE`. Es el mismo principio que este artefacto
+ * llevaba sin cumplir: una política que nadie ejecuta antes de publicarla es una promesa, y la
+ * demostración puede afirmar una decisión que el motor no toma.
+ *
+ * `expectedResult` se compara como SUBCONJUNTO de la salida real, así que basta con nombrar lo que
+ * debe cumplirse y no hay que repetir el contrato entero.
+ */
+const CASOS_KYB = [
+  {
+    caseCode: 'KYB-COMPLETO-APRUEBA',
+    testName: 'Expediente completo y sin señales: aprueba',
+    input: {
+      kyb_tiene_matricula: true,
+      kyb_representante_acreditado: true,
+      kyb_qr_negocio: true,
+      kyb_qr_bancario: true,
+      kyb_correo_verificado: true,
+      kyb_sucursales: 1,
+      kyb_antiguedad_dias: 20,
+    },
+    expectedResult: { kyb_decision: 'APROBADO', kyb_motivo: 'KYB_COMPLETO', kyb_requisitos_faltantes: 0 },
+  },
+  {
+    caseCode: 'KYB-SIN-QR-BANCARIO-RECHAZA',
+    testName: 'Falta el QR de cobro: rechaza aunque todo lo demás esté',
+    input: {
+      kyb_tiene_matricula: true,
+      kyb_representante_acreditado: true,
+      kyb_qr_negocio: true,
+      kyb_qr_bancario: false,
+      kyb_correo_verificado: true,
+      kyb_sucursales: 1,
+      kyb_antiguedad_dias: 20,
+    },
+    expectedResult: { kyb_decision: 'RECHAZADO', kyb_motivo: 'KYB_REQUISITOS_INCOMPLETOS', kyb_requisitos_faltantes: 1 },
+  },
+  {
+    caseCode: 'KYB-DUROS-NO-COMPENSAN',
+    testName: 'Un requisito duro que falta rechaza aunque además haya señales',
+    input: {
+      kyb_tiene_matricula: true,
+      kyb_representante_acreditado: true,
+      kyb_qr_negocio: false,
+      kyb_qr_bancario: true,
+      kyb_correo_verificado: false,
+      kyb_sucursales: 0,
+      kyb_antiguedad_dias: 20,
+    },
+    expectedResult: { kyb_decision: 'RECHAZADO', kyb_senales_operativas: 2 },
+  },
+  {
+    caseCode: 'KYB-CORREO-SIN-PROBAR-REVISA',
+    testName: 'Completo con el correo sin verificar: a revisión, y ABRE caso',
+    input: {
+      kyb_tiene_matricula: true,
+      kyb_representante_acreditado: true,
+      kyb_qr_negocio: true,
+      kyb_qr_bancario: true,
+      kyb_correo_verificado: false,
+      kyb_sucursales: 1,
+      kyb_antiguedad_dias: 20,
+    },
+    expectedResult: { kyb_decision: 'REVISION_MANUAL', kyb_motivo: 'KYB_SENALES_OPERATIVAS', outcome: 'MANUAL_REVIEW' },
+  },
+  {
+    caseCode: 'KYB-SIN-SUCURSALES-REVISA',
+    testName: 'Sin sucursal declarada: a revisión',
+    input: {
+      kyb_tiene_matricula: true,
+      kyb_representante_acreditado: true,
+      kyb_qr_negocio: true,
+      kyb_qr_bancario: true,
+      kyb_correo_verificado: true,
+      kyb_sucursales: 0,
+      kyb_antiguedad_dias: 20,
+    },
+    expectedResult: { kyb_decision: 'REVISION_MANUAL', kyb_senales_operativas: 1 },
+  },
+  {
+    caseCode: 'KYB-EXPEDIENTE-VIEJO-REVISA',
+    testName: 'Expediente abierto hace demasiado: la antigüedad es señal, no defecto',
+    input: {
+      kyb_tiene_matricula: true,
+      kyb_representante_acreditado: true,
+      kyb_qr_negocio: true,
+      kyb_qr_bancario: true,
+      kyb_correo_verificado: true,
+      kyb_sucursales: 1,
+      kyb_antiguedad_dias: 121,
+    },
+    expectedResult: { kyb_decision: 'REVISION_MANUAL', kyb_senales_operativas: 1 },
+  },
+];
+
+/**
+ * Crea la suite bloqueante si falta y la ejecuta. Devuelve `true` si quedó en verde.
+ *
+ * Que sea BLOQUEANTE es el punto: una suite informativa no abre la puerta de la revisión, y el
+ * Motor tiene razón en exigirlo — es la diferencia entre una política probada y una publicada.
+ */
+async function esperarCorrida(runId, intentos = 40) {
+  let detalle = await api(`/v1/test-runs/${runId}`);
+  for (let i = 0; i < intentos; i += 1) {
+    const estado = String(detalle.status ?? detalle.runStatus ?? '').toUpperCase();
+    if (estado && !['QUEUED', 'RUNNING', 'PENDING'].includes(estado)) return detalle;
+    await new Promise((listo) => setTimeout(listo, 1_000));
+    detalle = await api(`/v1/test-runs/${runId}`);
+  }
+  return detalle;
+}
+
+async function asegurarSuiteBloqueante(versionId) {
+  const existentes = await api(`/v1/artifact-versions/${versionId}/test-suites`);
+  const lista = Array.isArray(existentes) ? existentes : (existentes.items ?? existentes.data ?? []);
+  let suite = lista.find((s) => s.suiteCode === SUITE_CODE);
+  if (!suite) {
+    suite = await api(`/v1/artifact-versions/${versionId}/test-suites`, {
+      method: 'POST',
+      body: JSON.stringify({
+        suiteCode: SUITE_CODE,
+        name: 'Verificación KYB del comercio: los tres desenlaces',
+        suiteType: 'REGRESSION',
+        isBlocking: true,
+        cases: CASOS_KYB,
+      }),
+    });
+    console.log(`Suite ${SUITE_CODE} creada con ${CASOS_KYB.length} casos.`);
+  } else {
+    console.log(`Suite ${SUITE_CODE} ya existe (id ${suite.id}).`);
+  }
+
+  const corrida = await api(`/v1/test-suites/${suite.id}/runs`, { method: 'POST', body: JSON.stringify({ triggerType: 'MANUAL' }) });
+  const runId = corrida.id ?? corrida.runId;
+  /*
+   * La corrida es ASÍNCRONA: nace `QUEUED` y el veredicto llega después. Leerla de inmediato
+   * devolvía «0 en verde, 0 en rojo» y el guion concluía que estaba en rojo — un falso negativo que
+   * habría dejado la versión atascada por una prueba que en realidad pasa.
+   */
+  const detalle = await esperarCorrida(runId);
+  const estado = String(detalle.status ?? detalle.runStatus ?? '').toUpperCase();
+  /*
+   * El veredicto se cuenta sobre `caseRuns`, que es lo que la respuesta trae de verdad. Contar
+   * campos agregados que el contrato NO publica (`passedCount`) daba «? en verde, ? en rojo» y el
+   * guion concluía que estaba en rojo una suite que había pasado entera.
+   */
+  const casos = detalle.caseRuns ?? detalle.cases ?? [];
+  const fallados = casos.filter((caso) => String(caso.resultStatus ?? caso.status).toUpperCase() !== 'PASS');
+  console.log(`Corrida ${runId}: ${estado} · ${casos.length - fallados.length} en verde, ${fallados.length} en rojo.`);
+  for (const caso of fallados) {
+    console.log(`  ✗ ${caso.testCase?.caseCode ?? caso.caseCode ?? '?'}: ${JSON.stringify(caso.assertions ?? caso.error)}`.slice(0, 400));
+  }
+  return casos.length > 0 && fallados.length === 0 && estado === 'PASSED';
+}
+
+/** Envía la versión a la cola de gobierno. Enviar NO es aprobar: eso son dos personas. */
+async function enviarARevision(versionId) {
+  return api(`/v1/artifact-versions/${versionId}/submit-for-review`, {
     method: 'POST',
     body: JSON.stringify({ requireCompliance: false }),
   });
-  console.log(`Enviada a revisión (solicitud ${solicitud.id ?? '?'}).`);
+}
+
+function instruccionesDeAprobacion(versionId) {
   console.log('');
   console.log('Falta lo que NO puede hacer este guion, y es deliberado:');
   console.log('  1. Un QA_ANALYST aprueba el paso 1 en el portal del Motor (Gobierno → Revisiones).');
   console.log('  2. Un RISK_APPROVER aprueba el paso 2.');
-  console.log(`  3. Y entonces: node scripts/kyb-revision-manual.mjs --deploy ${nuevaId}`);
+  console.log(`  3. Y entonces: node scripts/kyb-revision-manual.mjs --deploy ${versionId}`);
   console.log('');
   console.log('Ninguno de los tres puede ser quien corrió esto: la versión la creó este principal.');
 }
