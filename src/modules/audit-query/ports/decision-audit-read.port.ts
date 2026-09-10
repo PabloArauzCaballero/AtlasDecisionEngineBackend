@@ -98,7 +98,17 @@ export interface ExecutionMetrics {
   };
 }
 
+/** Una fila del resumen de accesos: (método + handler) con cuántas veces se permitió o se denegó. */
+export interface AccessRunSummary {
+  resource: string;
+  decision: string;
+  count: number;
+  lastAt: Date | null;
+}
+
 export interface DecisionAuditReadPort {
+  /** Accesos HTTP autenticados agrupados por recurso y decisión, dentro de la ventana en días. */
+  summarizeAccessRuns(windowDays: number): Promise<AccessRunSummary[]>;
   /** Detalle completo de una ejecución, o `null` si el tenant no la tiene. */
   findExecutionById(tenantId: bigint, executionId: bigint): Promise<AuditReadModel | null>;
   searchExecutions(criteria: ExecutionSearchCriteria): Promise<CountedRows<AuditReadModel>>;

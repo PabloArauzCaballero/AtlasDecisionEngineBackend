@@ -60,6 +60,21 @@ export class AuditQueryController {
     return this.audit.verifyAuditChain(tenantId);
   }
 
+  @ApiOperation({
+    summary: 'Resumen de accesos por recurso, para la verificación de Flujos',
+    description:
+      'Agrupa `decision_access_audit` por (método + handler) y decisión dentro de la ventana. Sólo ' +
+      'peticiones autenticadas: las anónimas no dejan rastro. La decisión es ALLOW/DENY del handler, ' +
+      'no un código HTTP.',
+  })
+  @Get('access-runs')
+  summarizeAccessRuns(@Query('windowDays') windowDays?: string) {
+    const dias = Number(windowDays ?? 30);
+    return this.audit.summarizeAccessRuns(
+      Number.isFinite(dias) && dias > 0 && dias <= 365 ? Math.trunc(dias) : 30,
+    );
+  }
+
   @Get('metrics')
   @ApiOperation({ summary: 'Aggregate decision outcomes and latency evidence' })
   @ApiOkResponse({ description: 'Agregados de ejecución del tenant.', type: ExecutionMetricsDto })

@@ -38,6 +38,16 @@ export interface InMemoryExecution {
 }
 
 export class InMemoryDecisionAuditReadAdapter implements DecisionAuditReadPort {
+  /**
+   * El doble no guarda accesos HTTP: este puerto los lee de `decision_access_audit`, que escribe el
+   * interceptor de seguridad y no las pruebas de contrato. Devolver vacío es la verdad, no un hueco.
+   */
+  summarizeAccessRuns(): Promise<
+    Array<{ resource: string; decision: string; count: number; lastAt: Date | null }>
+  > {
+    return Promise.resolve([]);
+  }
+
   constructor(
     private readonly events: InMemoryAuditEvent[] = [],
     private readonly executions: InMemoryExecution[] = [],

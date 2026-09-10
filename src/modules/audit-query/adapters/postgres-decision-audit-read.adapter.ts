@@ -45,6 +45,32 @@ export class PostgresDecisionAuditReadAdapter implements DecisionAuditReadPort {
     });
   }
 
+  /**
+   * Resumen de accesos HTTP por (método, controlador.handler) dentro de una ventana.
+   *
+   * Es lo que este bloque tiene como evidencia de ejecución real: `AccessAuditInterceptor` escribe
+   * una fila por petición AUTENTICADA con `resource = "MÉTODO Clase.handler"` y `decision`
+   * ALLOW/DENY. No hay código HTTP —el interceptor no lo ve— así que un DENY significa «el handler
+   * lanzó», no necesariamente un 5xx: quien lo consuma debe tratarlo como tal y no como un fallo de
+   * servidor. Las peticiones anónimas (login, health) no dejan rastro aquí, por diseño.
+   */
+  summarizeAccessRuns(windowDays: number) {
+    return this.reads.run('summarizeAccessRuns', async (client) => {
+      const rows = await client.decisionAccessAudit.groupBy({
+        by: ['resource', 'decision'],
+        where: { occurredAt: { gte: new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000) } },
+        _count: { _all: true },
+        _max: { occurredAt: true },
+      });
+      return rows.map((row) => ({
+        resource: row.resource,
+        decision: row.decision,
+        count: row._count._all,
+        lastAt: row._max.occurredAt,
+      }));
+    });
+  }
+
   /** Ruta efectiva actual; la usa `/health/data-sources` y las pruebas del router. */
   describe() {
     return this.reads.describe();

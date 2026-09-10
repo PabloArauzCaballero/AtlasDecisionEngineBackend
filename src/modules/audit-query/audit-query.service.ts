@@ -103,6 +103,22 @@ export class AuditQueryService {
     return keysetPage(rows, pageSize);
   }
 
+  /**
+   * Resumen de accesos reales por recurso, para que Flujos pueda verificar los flujos de este
+   * bloque. Se devuelve tal cual lo guarda el interceptor: `resource` es "MÉTODO Clase.handler",
+   * y la decisión es ALLOW/DENY, no un código HTTP. Traducirlo a «verificado» o «roto» es
+   * decisión de quien consuma, que es quien sabe qué considera roto.
+   */
+  async summarizeAccessRuns(windowDays: number) {
+    const rows = await this.reads.summarizeAccessRuns(windowDays);
+    return {
+      windowDays,
+      source: 'decision_access_audit',
+      note: 'Sólo peticiones autenticadas; ALLOW/DENY del handler, no código HTTP.',
+      resources: rows,
+    };
+  }
+
   async verifyAuditChain(tenantId: bigint) {
     // La cadena se recorre en lotes ordenados por id con un cursor, en vez de cargar cada
     // evento en memoria. Una cadena de auditoría crece sin cota, así que leerla entera
