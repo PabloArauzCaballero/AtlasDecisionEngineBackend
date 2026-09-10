@@ -26940,6 +26940,76 @@
           "lastAt"
         ]
       },
+      "ScreenRunRouteDto": {
+        "type": "object",
+        "properties": {
+          "method": {
+            "type": "string",
+            "example": "POST"
+          },
+          "path": {
+            "type": "string",
+            "example": "DeploymentController.deploy"
+          },
+          "calls": {
+            "type": "number",
+            "example": 3
+          },
+          "failed": {
+            "type": "number",
+            "example": 0,
+            "description": "Sólo 5xx."
+          }
+        },
+        "required": [
+          "method",
+          "path",
+          "calls",
+          "failed"
+        ]
+      },
+      "ScreenRunDto": {
+        "type": "object",
+        "properties": {
+          "client": {
+            "type": "string",
+            "example": "MOTOR_PORTAL"
+          },
+          "screen": {
+            "type": "string",
+            "example": "/approval-requests/42",
+            "description": "Ruta CONCRETA que declaró el cliente. La plantilla la resuelve quien tiene el catálogo de pantallas."
+          },
+          "calls": {
+            "type": "number",
+            "example": 3
+          },
+          "failed": {
+            "type": "number",
+            "example": 0,
+            "description": "Sólo 5xx."
+          },
+          "lastAt": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-09-10T05:54:03.755Z"
+          },
+          "routes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScreenRunRouteDto"
+            }
+          }
+        },
+        "required": [
+          "client",
+          "screen",
+          "calls",
+          "failed",
+          "lastAt",
+          "routes"
+        ]
+      },
       "AccessRunsSummaryDto": {
         "type": "object",
         "properties": {
@@ -26960,13 +27030,25 @@
             "items": {
               "$ref": "#/components/schemas/AccessRunDto"
             }
+          },
+          "screens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScreenRunDto"
+            }
+          },
+          "screensTruncated": {
+            "type": "boolean",
+            "description": "Si la lista de pantallas vino cortada por el tope."
           }
         },
         "required": [
           "windowDays",
           "source",
           "note",
-          "resources"
+          "resources",
+          "screens",
+          "screensTruncated"
         ]
       },
       "CountByOutcomeDto": {
