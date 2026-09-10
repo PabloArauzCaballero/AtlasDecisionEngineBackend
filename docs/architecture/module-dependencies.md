@@ -10,37 +10,46 @@ depende de cuál **en el código**, no en la intención del diseño.
 
 ```mermaid
 flowchart LR
+    qa_lab --> graph
     nested_trees --> graph
     runtime --> graph
     runtime --> deployments
-    artifacts --> graph
-    qa_lab --> graph
-    runtime --> variables
     calculated_fields --> libraries
+    workers --> graph
+    artifacts --> graph
+    calculated_fields --> qa_lab
+    runtime --> variables
     testing --> graph
+    risk_governance --> model_monitoring
     runtime --> nested_trees
+    runtime --> workers
     code_import --> artifacts
     runtime --> qa_lab
     deployments --> artifacts
     live_execution --> graph
     governance --> artifacts
-    code_import --> variables
+    governance --> security_review
+    runtime --> risk_governance
     live_execution --> deployments
     deployments --> governance
+    deployments --> model_monitoring
     governance --> testing
-    seeding --> graph
     live_execution --> nested_trees
     live_execution --> variables
     testing --> nested_trees
+    workers --> notifications
     qa_lab --> variables
     testing --> variables
+    testing --> workers
     calculated_fields --> graph
     graph --> calculated_fields
-    seeding --> libraries
+    outcome_ingestion --> runtime
     variables --> graph
+    qa_lab --> workers
     code_import --> graph
     deployments --> graph
-    seeding --> qa_lab
+    deployments --> runtime
+    deployments --> risk_governance
 ```
 
 ## Acoplamiento por módulo
@@ -50,40 +59,42 @@ Un `fan-in` alto significa que muchos módulos dependen de este: cambiarlo es ca
 
 | Módulo | Fan-in | Fan-out |
 | --- | ---: | ---: |
-| [`graph`](../modules/graph.md) | 119 | 5 |
-| [`runtime`](../modules/runtime.md) | 0 | 75 |
+| [`graph`](../modules/graph.md) | 145 | 5 |
+| [`runtime`](../modules/runtime.md) | 8 | 93 |
+| [`qa-lab`](../modules/qa-lab.md) | 24 | 41 |
+| [`deployments`](../modules/deployments.md) | 26 | 29 |
+| [`workers`](../modules/workers.md) | 21 | 25 |
 | [`nested-trees`](../modules/nested-trees.md) | 23 | 22 |
 | [`artifacts`](../modules/artifacts.md) | 25 | 18 |
-| [`deployments`](../modules/deployments.md) | 26 | 17 |
-| [`variables`](../modules/variables.md) | 37 | 4 |
-| [`qa-lab`](../modules/qa-lab.md) | 11 | 24 |
-| [`testing`](../modules/testing.md) | 6 | 23 |
+| [`calculated-fields`](../modules/calculated-fields.md) | 5 | 38 |
+| [`testing`](../modules/testing.md) | 6 | 29 |
+| [`variables`](../modules/variables.md) | 31 | 4 |
+| [`governance`](../modules/governance.md) | 6 | 20 |
 | [`live-execution`](../modules/live-execution.md) | 0 | 26 |
-| [`calculated-fields`](../modules/calculated-fields.md) | 5 | 17 |
-| [`code-import`](../modules/code-import.md) | 0 | 19 |
-| [`governance`](../modules/governance.md) | 6 | 13 |
-| [`libraries`](../modules/libraries.md) | 17 | 0 |
-| [`seeding`](../modules/seeding.md) | 0 | 12 |
+| [`risk-governance`](../modules/risk-governance.md) | 10 | 11 |
+| [`model-monitoring`](../modules/model-monitoring.md) | 20 | 0 |
+| [`libraries`](../modules/libraries.md) | 19 | 0 |
+| [`code-import`](../modules/code-import.md) | 0 | 13 |
+| [`outcome-ingestion`](../modules/outcome-ingestion.md) | 0 | 8 |
+| [`security-review`](../modules/security-review.md) | 7 | 0 |
+| [`notifications`](../modules/notifications.md) | 6 | 0 |
 | [`audit-query`](../modules/audit-query.md) | 0 | 0 |
 | [`data-subject`](../modules/data-subject.md) | 0 | 0 |
 | [`health`](../modules/health.md) | 0 | 0 |
 | [`identity-session`](../modules/identity-session.md) | 0 | 0 |
 | [`manual-review`](../modules/manual-review.md) | 0 | 0 |
-| [`model-monitoring`](../modules/model-monitoring.md) | 0 | 0 |
-| [`notifications`](../modules/notifications.md) | 0 | 0 |
 | [`outbox-relay`](../modules/outbox-relay.md) | 0 | 0 |
-| [`outcome-ingestion`](../modules/outcome-ingestion.md) | 0 | 0 |
-| [`risk-governance`](../modules/risk-governance.md) | 0 | 0 |
-| [`security-review`](../modules/security-review.md) | 0 | 0 |
+| [`platform-catalog`](../modules/platform-catalog.md) | 0 | 0 |
+| [`seeding`](../modules/seeding.md) | 0 | 0 |
 | [`sql-console`](../modules/sql-console.md) | 0 | 0 |
 | [`traceability`](../modules/traceability.md) | 0 | 0 |
 | [`tutorials`](../modules/tutorials.md) | 0 | 0 |
 | [`views`](../modules/views.md) | 0 | 0 |
-| [`workers`](../modules/workers.md) | 0 | 0 |
 
 ## Ciclos
 
 - `calculated-fields` ↔ `graph`
+- `deployments` ↔ `runtime`
 
 !!! note "La regla que evita los ciclos"
     Cuando un servicio necesita colaborar con otro dominio **de forma opcional**, se pasa como
