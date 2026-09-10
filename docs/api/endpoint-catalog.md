@@ -3,7 +3,7 @@
 
 # Catálogo de endpoints
 
-Contrato **v1** · 209 rutas · 237 operaciones.
+Contrato **v1** · 210 rutas · 238 operaciones.
 
 La referencia interactiva completa —con esquemas, ejemplos y la posibilidad de probar cada
 llamada— está en `/docs/{API_VERSION}/reference` del propio backend. Esta página existe para
@@ -25,6 +25,7 @@ Consulta de ejecuciones y de la cadena de auditoría append-only, y su verificac
 
 | Método | Ruta | Operación | Resumen |
 | --- | --- | --- | --- |
+| `GET` | `/v1/audit/access-runs` | `auditQuerySummarizeAccessRuns` | Resumen de accesos por recurso, para la verificación de Flujos |
 | `GET` | `/v1/audit/chain/verify` | `auditQueryVerify` | Verify the tenant audit HMAC chain in batches |
 | `GET` | `/v1/audit/events` | `auditQueryEvents` | List audit events using offset pagination |
 | `GET` | `/v1/audit/events/cursor` | `auditQueryEventsByCursor` | List audit events using a stable keyset cursor |

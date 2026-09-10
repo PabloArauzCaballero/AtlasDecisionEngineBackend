@@ -14,6 +14,7 @@ Etiquetas de API: **Audit and Observability**.
 
 | Método | Ruta | Operación | Resumen |
 | --- | --- | --- | --- |
+| `GET` | `/v1/audit/access-runs` | `auditQuerySummarizeAccessRuns` | Resumen de accesos por recurso, para la verificación de Flujos |
 | `GET` | `/v1/audit/chain/verify` | `auditQueryVerify` | Verify the tenant audit HMAC chain in batches |
 | `GET` | `/v1/audit/events` | `auditQueryEvents` | List audit events using offset pagination |
 | `GET` | `/v1/audit/events/cursor` | `auditQueryEventsByCursor` | List audit events using a stable keyset cursor |
@@ -31,6 +32,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `OPERATIONS`, `RISK_ANALY
 
 ## Clases exportadas
 
+- `AccessRunsSummaryDto`
 - `AuditChainVerificationDto`
 - `AuditEventKeysetQueryDto`
 - `AuditEventSearchQueryDto`
