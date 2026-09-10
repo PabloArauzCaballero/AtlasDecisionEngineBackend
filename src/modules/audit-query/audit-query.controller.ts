@@ -1,6 +1,10 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { AuditChainVerificationDto, ExecutionMetricsDto } from './audit-query.response.dto';
+import {
+  AccessRunsSummaryDto,
+  AuditChainVerificationDto,
+  ExecutionMetricsDto,
+} from './audit-query.response.dto';
 import { parseBigIntId } from '../../common/http/id';
 import { Roles, TenantId } from '../../common/security/security.decorators';
 import { ApiKeysetResponse, ApiPagedResponse } from '../../common/http/pagination.dto';
@@ -63,9 +67,14 @@ export class AuditQueryController {
   @ApiOperation({
     summary: 'Resumen de accesos por recurso, para la verificación de Flujos',
     description:
-      'Agrupa `decision_access_audit` por (método + handler) y decisión dentro de la ventana. Sólo ' +
-      'peticiones autenticadas: las anónimas no dejan rastro. La decisión es ALLOW/DENY del handler, ' +
-      'no un código HTTP.',
+      'Agrupa `decision_access_audit` por (método + handler), decisión y código HTTP dentro de la ' +
+      'ventana. Sólo peticiones autenticadas: las anónimas no dejan rastro. `status` es nulo en las ' +
+      'filas anteriores al 2026-09-10, cuando el interceptor aún no lo guardaba, y sin él un DENY no ' +
+      'permite distinguir un rechazo de una avería.',
+  })
+  @ApiOkResponse({
+    description: 'Accesos agrupados por recurso, decisión y código, con los límites declarados.',
+    type: AccessRunsSummaryDto,
   })
   @Get('access-runs')
   summarizeAccessRuns(@Query('windowDays') windowDays?: string) {

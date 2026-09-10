@@ -10185,6 +10185,53 @@
         ]
       }
     },
+    "/v1/audit/access-runs": {
+      "get": {
+        "description": "Agrupa `decision_access_audit` por (método + handler), decisión y código HTTP dentro de la ventana. Sólo peticiones autenticadas: las anónimas no dejan rastro. `status` es nulo en las filas anteriores al 2026-09-10, cuando el interceptor aún no lo guardaba, y sin él un DENY no permite distinguir un rechazo de una avería.",
+        "operationId": "auditQuerySummarizeAccessRuns",
+        "parameters": [
+          {
+            "name": "windowDays",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accesos agrupados por recurso, decisión y código, con los límites declarados.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessRunsSummaryDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Resumen de accesos por recurso, para la verificación de Flujos",
+        "tags": [
+          "Audit and Observability"
+        ]
+      }
+    },
     "/v1/audit/metrics": {
       "get": {
         "operationId": "auditQueryMetrics",
@@ -26852,6 +26899,74 @@
           "eventCount",
           "headHash",
           "invalid"
+        ]
+      },
+      "AccessRunDto": {
+        "type": "object",
+        "properties": {
+          "resource": {
+            "type": "string",
+            "example": "POST DeploymentController.deploy"
+          },
+          "decision": {
+            "type": "string",
+            "example": "ALLOW",
+            "enum": [
+              "ALLOW",
+              "DENY"
+            ]
+          },
+          "status": {
+            "type": "number",
+            "nullable": true,
+            "example": 400,
+            "description": "Código HTTP con el que acabó. NULO en las filas anteriores al 2026-09-10, cuando el interceptor aún no lo guardaba: sin él, un DENY no distingue un rechazo de una avería."
+          },
+          "count": {
+            "type": "number",
+            "example": 12
+          },
+          "lastAt": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-09-10T05:54:03.755Z"
+          }
+        },
+        "required": [
+          "resource",
+          "decision",
+          "status",
+          "count",
+          "lastAt"
+        ]
+      },
+      "AccessRunsSummaryDto": {
+        "type": "object",
+        "properties": {
+          "windowDays": {
+            "type": "number",
+            "example": 30
+          },
+          "source": {
+            "type": "string",
+            "example": "decision_access_audit"
+          },
+          "note": {
+            "type": "string",
+            "description": "Los límites de esta evidencia, en texto, para que nadie tenga que deducirlos."
+          },
+          "resources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccessRunDto"
+            }
+          }
+        },
+        "required": [
+          "windowDays",
+          "source",
+          "note",
+          "resources"
         ]
       },
       "CountByOutcomeDto": {
