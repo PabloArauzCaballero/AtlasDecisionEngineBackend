@@ -114,7 +114,11 @@ export class AuditQueryService {
     return {
       windowDays,
       source: 'decision_access_audit',
-      note: 'Sólo peticiones autenticadas; ALLOW/DENY del handler, no código HTTP.',
+      note:
+        'Sólo peticiones autenticadas. ALLOW/DENY del handler más el código HTTP; `status` nulo en las ' +
+        'filas anteriores al 2026-09-10. Ojo con `resource`: el interceptor escribe "MÉTODO Clase.handler" ' +
+        'y el auditor de denegaciones escribe "MÉTODO url", así que conviven dos formas y sólo la primera ' +
+        'se puede cruzar contra un catálogo por handler.',
       resources: rows,
     };
   }

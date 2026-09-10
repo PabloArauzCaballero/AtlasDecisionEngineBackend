@@ -50,14 +50,16 @@ export class PostgresDecisionAuditReadAdapter implements DecisionAuditReadPort {
    *
    * Es lo que este bloque tiene como evidencia de ejecución real: `AccessAuditInterceptor` escribe
    * una fila por petición AUTENTICADA con `resource = "MÉTODO Clase.handler"` y `decision`
-   * ALLOW/DENY. No hay código HTTP —el interceptor no lo ve— así que un DENY significa «el handler
-   * lanzó», no necesariamente un 5xx: quien lo consuma debe tratarlo como tal y no como un fallo de
-   * servidor. Las peticiones anónimas (login, health) no dejan rastro aquí, por diseño.
+   * ALLOW/DENY. Desde el 2026-09-10 lleva además el CÓDIGO HTTP, que es lo que distingue «el flujo
+   * rechazó una entrada inválida» de «el flujo reventó»: sin él, un DENY sólo dice «el handler
+   * lanzó» y quien lo consuma acaba llamando roto a lo primero. Las filas anteriores no lo tienen y
+   * se devuelven con `status: null`, que es lo honesto. Las peticiones anónimas (login, health) no
+   * dejan rastro aquí, por diseño.
    */
   summarizeAccessRuns(windowDays: number) {
     return this.reads.run('summarizeAccessRuns', async (client) => {
       const rows = await client.decisionAccessAudit.groupBy({
-        by: ['resource', 'decision'],
+        by: ['resource', 'decision', 'status'],
         where: { occurredAt: { gte: new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000) } },
         _count: { _all: true },
         _max: { occurredAt: true },
@@ -65,6 +67,10 @@ export class PostgresDecisionAuditReadAdapter implements DecisionAuditReadPort {
       return rows.map((row) => ({
         resource: row.resource,
         decision: row.decision,
+        // Nulo en las filas anteriores al 2026-09-10, cuando el interceptor aún no lo guardaba: se
+        // devuelve como nulo en vez de suponerle un código, que es lo que haría creer que un
+        // rechazo antiguo fue un 500.
+        status: row.status ?? null,
         count: row._count._all,
         lastAt: row._max.occurredAt,
       }));

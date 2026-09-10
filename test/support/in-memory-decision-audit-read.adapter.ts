@@ -9,6 +9,7 @@
  * una regla de negocio no queda escondido detrás de «no hay Postgres».
  */
 import type {
+  AccessRunSummary,
   AuditChainBatchCriteria,
   AuditChainEvent,
   AuditEventCriteria,
@@ -42,9 +43,7 @@ export class InMemoryDecisionAuditReadAdapter implements DecisionAuditReadPort {
    * El doble no guarda accesos HTTP: este puerto los lee de `decision_access_audit`, que escribe el
    * interceptor de seguridad y no las pruebas de contrato. Devolver vacío es la verdad, no un hueco.
    */
-  summarizeAccessRuns(): Promise<
-    Array<{ resource: string; decision: string; count: number; lastAt: Date | null }>
-  > {
+  summarizeAccessRuns(): Promise<AccessRunSummary[]> {
     return Promise.resolve([]);
   }
 

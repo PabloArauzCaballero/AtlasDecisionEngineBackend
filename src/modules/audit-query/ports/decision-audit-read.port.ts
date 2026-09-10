@@ -102,6 +102,8 @@ export interface ExecutionMetrics {
 export interface AccessRunSummary {
   resource: string;
   decision: string;
+  /** Código HTTP con el que acabó. Nulo en las filas anteriores a que se empezara a guardar. */
+  status: number | null;
   count: number;
   lastAt: Date | null;
 }

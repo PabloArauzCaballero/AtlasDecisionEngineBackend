@@ -2,7 +2,7 @@
 import { CallHandler, ExecutionContext, Injectable, Logger, NestInterceptor } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Request } from 'express';
-import { Observable, catchError, tap, throwError } from 'rxjs';
+import { Observable, catchError, throwError } from 'rxjs';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -22,8 +22,12 @@ export class AccessAuditInterceptor implements NestInterceptor {
     const principal = request.principal;
     if (!this.enabled || !principal) return next.handle();
 
+    const response = context.switchToHttp().getResponse<{
+      statusCode?: number;
+      once?: (evento: string, oyente: () => void) => void;
+    }>();
     const resource = `${request.method} ${context.getClass().name}.${context.getHandler().name}`;
-    const record = (decision: 'ALLOW' | 'DENY', reason?: string) =>
+    const record = (decision: 'ALLOW' | 'DENY', status: number | null, reason?: string) =>
       this.prisma.decisionAccessAudit
         .create({
           data: {
@@ -33,6 +37,7 @@ export class AccessAuditInterceptor implements NestInterceptor {
             resource: resource.slice(0, 160),
             action: request.method,
             decision,
+            status,
             reason: reason?.slice(0, 200),
           },
         })
@@ -42,10 +47,40 @@ export class AccessAuditInterceptor implements NestInterceptor {
           );
         });
 
+    /**
+     * La fila se escribe UNA vez, y con el código HTTP definitivo.
+     *
+     * DENY significa «el handler lanzó», y lanzar cubre desde un 400 de validación hasta un 500 de
+     * verdad. Sin el código, quien lea esta auditoría no puede distinguir «el flujo rechazó una
+     * entrada inválida, que es su trabajo» de «el flujo reventó», y acaba llamando roto a lo
+     * primero. El código sólo es el definitivo cuando la respuesta ha salido: dentro del `tap`
+     * todavía es el 200 por defecto de Express, y en el `catchError` el filtro de excepciones aún
+     * no ha corrido.
+     *
+     * Por eso se espera a `finish`. Y por eso hay red de seguridad: si la conexión se corta antes,
+     * `close` escribe igualmente la fila —con el código en nulo, que es la verdad— porque esto es
+     * un control de seguridad y un intento denegado tiene que quedar registrado aunque quien lo
+     * hizo cuelgue la conexión. La guarda `escrita` evita el duplicado, ya que `close` llega
+     * siempre después de `finish`.
+     */
+    let escrita = false;
+    let decision: 'ALLOW' | 'DENY' = 'ALLOW';
+    let reason: string | undefined;
+    const escribir = (status: number | null) => {
+      if (escrita) return;
+      escrita = true;
+      void record(decision, status, reason);
+    };
+    response.once?.('finish', () => escribir(response.statusCode ?? null));
+    response.once?.('close', () => {
+      reason ??= 'connection closed before response';
+      escribir(null);
+    });
+
     return next.handle().pipe(
-      tap(() => void record('ALLOW')),
       catchError((error: unknown) => {
-        void record('DENY', error instanceof Error ? error.message : 'unknown');
+        decision = 'DENY';
+        reason = error instanceof Error ? error.message : 'unknown';
         return throwError(() => error);
       }),
     );
