@@ -28,6 +28,7 @@ import type {
   DecisionAuditReadPort,
   ExecutionMetrics,
   ExecutionSearchCriteria,
+  ScreenRunSummary,
 } from '../ports/decision-audit-read.port';
 
 /** Nombre del módulo en las reglas de routing y en las etiquetas de métrica. */
@@ -70,6 +71,32 @@ export class PostgresDecisionAuditReadAdapter implements DecisionAuditReadPort {
         // Nulo en las filas anteriores al 2026-09-10, cuando el interceptor aún no lo guardaba: se
         // devuelve como nulo en vez de suponerle un código, que es lo que haría creer que un
         // rechazo antiguo fue un 500.
+        status: row.status ?? null,
+        count: row._count._all,
+        lastAt: row._max.occurredAt,
+      }));
+    });
+  }
+
+  summarizeScreenRuns(windowDays: number, limit: number) {
+    return this.reads.run('summarizeScreenRuns', async (client) => {
+      const rows = await client.decisionAccessAudit.groupBy({
+        by: ['originClient', 'originScreen', 'resource', 'status'],
+        where: {
+          occurredAt: { gte: new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000) },
+          originClient: { not: null },
+          originScreen: { not: null },
+        },
+        _count: { _all: true },
+        _max: { occurredAt: true },
+        // Lo más reciente primero: si hay que cortar, se pierde lo más viejo, y se dice.
+        orderBy: { _max: { occurredAt: 'desc' } },
+        take: limit,
+      });
+      return rows.map((row): ScreenRunSummary => ({
+        client: row.originClient ?? '',
+        screen: row.originScreen ?? '',
+        resource: row.resource,
         status: row.status ?? null,
         count: row._count._all,
         lastAt: row._max.occurredAt,

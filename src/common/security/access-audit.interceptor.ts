@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import type { Request } from 'express';
 import { Observable, catchError, throwError } from 'rxjs';
 import { PrismaService } from '../prisma/prisma.service';
+import { requestOrigin } from './request-origin';
 
 @Injectable()
 export class AccessAuditInterceptor implements NestInterceptor {
@@ -27,6 +28,11 @@ export class AccessAuditInterceptor implements NestInterceptor {
       once?: (evento: string, oyente: () => void) => void;
     }>();
     const resource = `${request.method} ${context.getClass().name}.${context.getHandler().name}`;
+    // Desde qué pantalla se llamó, si el cliente lo declara. Flujos lo usa para verificar pantallas.
+    const origen =
+      typeof request.header === 'function'
+        ? requestOrigin((nombre) => request.header(nombre))
+        : null;
     const record = (decision: 'ALLOW' | 'DENY', status: number | null, reason?: string) =>
       this.prisma.decisionAccessAudit
         .create({
@@ -39,6 +45,8 @@ export class AccessAuditInterceptor implements NestInterceptor {
             decision,
             status,
             reason: reason?.slice(0, 200),
+            originScreen: origen?.screen ?? null,
+            originClient: origen?.client ?? null,
           },
         })
         .catch((error: unknown) => {

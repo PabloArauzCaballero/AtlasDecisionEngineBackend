@@ -14,6 +14,7 @@ import {
   type DecisionAuditReadPort,
 } from './ports/decision-audit-read.port';
 import { numeroDeConfig } from '../../common/config/config-coercion.util';
+import { SCREEN_RUNS_LIMIT, agruparPantallas } from './screen-runs';
 
 /**
  * Consultas de auditoría: el módulo piloto de la separación read/write.
@@ -110,7 +111,12 @@ export class AuditQueryService {
    * decisión de quien consuma, que es quien sabe qué considera roto.
    */
   async summarizeAccessRuns(windowDays: number) {
-    const rows = await this.reads.summarizeAccessRuns(windowDays);
+    const [rows, pantallas] = await Promise.all([
+      this.reads.summarizeAccessRuns(windowDays),
+      // Una fila de más para poder decir que se cortó: quien degrade una pantalla a «no usada» con
+      // una lista incompleta convertiría el corte en una afirmación falsa.
+      this.reads.summarizeScreenRuns(windowDays, SCREEN_RUNS_LIMIT + 1),
+    ]);
     return {
       windowDays,
       source: 'decision_access_audit',
@@ -118,8 +124,11 @@ export class AuditQueryService {
         'Sólo peticiones autenticadas. ALLOW/DENY del handler más el código HTTP; `status` nulo en las ' +
         'filas anteriores al 2026-09-10. Ojo con `resource`: el interceptor escribe "MÉTODO Clase.handler" ' +
         'y el auditor de denegaciones escribe "MÉTODO url", así que conviven dos formas y sólo la primera ' +
-        'se puede cruzar contra un catálogo por handler.',
+        'se puede cruzar contra un catálogo por handler. `screens` sale de lo que declara el cliente en ' +
+        '`x-atlas-flow` y `x-atlas-product`: sólo aparecen las pantallas que alguien usó en la ventana.',
       resources: rows,
+      screens: agruparPantallas(pantallas.slice(0, SCREEN_RUNS_LIMIT)),
+      screensTruncated: pantallas.length > SCREEN_RUNS_LIMIT,
     };
   }
 

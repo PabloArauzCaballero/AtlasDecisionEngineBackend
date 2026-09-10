@@ -97,6 +97,11 @@ async function bootstrap(): Promise<void> {
       'x-api-key',
       'x-tenant-id',
       'x-request-id',
+      // Origen de pantalla y correlación que mandan los portales de Atlas. Sin ellas, el preflight de
+      // una llamada directa desde el navegador rechazaría la petición entera.
+      'x-correlation-id',
+      'x-atlas-flow',
+      'x-atlas-product',
     ],
     exposedHeaders: [
       'x-request-id',

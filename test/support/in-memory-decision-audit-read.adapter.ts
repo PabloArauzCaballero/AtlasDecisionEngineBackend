@@ -10,6 +10,7 @@
  */
 import type {
   AccessRunSummary,
+  ScreenRunSummary,
   AuditChainBatchCriteria,
   AuditChainEvent,
   AuditEventCriteria,
@@ -44,6 +45,11 @@ export class InMemoryDecisionAuditReadAdapter implements DecisionAuditReadPort {
    * interceptor de seguridad y no las pruebas de contrato. Devolver vacío es la verdad, no un hueco.
    */
   summarizeAccessRuns(): Promise<AccessRunSummary[]> {
+    return Promise.resolve([]);
+  }
+
+  /** Igual que los accesos: las pantallas las escribe el interceptor, no estas pruebas. */
+  summarizeScreenRuns(): Promise<ScreenRunSummary[]> {
     return Promise.resolve([]);
   }
 

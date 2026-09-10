@@ -97,6 +97,29 @@ class AccessRunDto {
   lastAt!: Date | null;
 }
 
+export class ScreenRunRouteDto {
+  @ApiProperty({ example: 'POST' }) method!: string;
+  @ApiProperty({ example: 'DeploymentController.deploy' }) path!: string;
+  @ApiProperty({ example: 3 }) calls!: number;
+  @ApiProperty({ example: 0, description: 'Sólo 5xx.' }) failed!: number;
+}
+
+/** Lo que se hizo desde una pantalla de un cliente dentro de la ventana. */
+export class ScreenRunDto {
+  @ApiProperty({ example: 'MOTOR_PORTAL' }) client!: string;
+  @ApiProperty({
+    example: '/approval-requests/42',
+    description:
+      'Ruta CONCRETA que declaró el cliente. La plantilla la resuelve quien tiene el catálogo de pantallas.',
+  })
+  screen!: string;
+  @ApiProperty({ example: 3 }) calls!: number;
+  @ApiProperty({ example: 0, description: 'Sólo 5xx.' }) failed!: number;
+  @ApiProperty({ example: '2026-09-10T05:54:03.755Z', nullable: true, type: String })
+  lastAt!: Date | null;
+  @ApiProperty({ type: [ScreenRunRouteDto] }) routes!: ScreenRunRouteDto[];
+}
+
 /**
  * Evidencia de ejecución real de este bloque, para que Flujos verifique sus flujos contra lo que de
  * verdad ocurrió en vez de dar por bueno el código.
@@ -109,4 +132,7 @@ export class AccessRunsSummaryDto {
   })
   note!: string;
   @ApiProperty({ type: [AccessRunDto] }) resources!: AccessRunDto[];
+  @ApiProperty({ type: [ScreenRunDto] }) screens!: ScreenRunDto[];
+  @ApiProperty({ description: 'Si la lista de pantallas vino cortada por el tope.' })
+  screensTruncated!: boolean;
 }

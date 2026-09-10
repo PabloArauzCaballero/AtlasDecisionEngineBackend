@@ -108,9 +108,21 @@ export interface AccessRunSummary {
   lastAt: Date | null;
 }
 
+/** Accesos agrupados por la pantalla y el cliente que los declararon, para verificar pantallas. */
+export interface ScreenRunSummary {
+  client: string;
+  screen: string;
+  resource: string;
+  status: number | null;
+  count: number;
+  lastAt: Date | null;
+}
+
 export interface DecisionAuditReadPort {
   /** Accesos HTTP autenticados agrupados por recurso y decisión, dentro de la ventana en días. */
   summarizeAccessRuns(windowDays: number): Promise<AccessRunSummary[]>;
+  /** Los mismos accesos por (cliente, pantalla declarada, recurso, código), como mucho `limit` grupos. */
+  summarizeScreenRuns(windowDays: number, limit: number): Promise<ScreenRunSummary[]>;
   /** Detalle completo de una ejecución, o `null` si el tenant no la tiene. */
   findExecutionById(tenantId: bigint, executionId: bigint): Promise<AuditReadModel | null>;
   searchExecutions(criteria: ExecutionSearchCriteria): Promise<CountedRows<AuditReadModel>>;
