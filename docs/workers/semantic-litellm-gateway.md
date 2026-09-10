@@ -17,7 +17,7 @@ Un [LiteLLM Proxy](https://docs.litellm.ai/docs/simple_proxy) se pone en medio y
 se lleva las dos cosas. El motor pide un **alias lógico** —
 `semantic-classifier-fast`— contra un endpoint compatible con OpenAI y conoce
 **una sola** credencial, la del gateway. Qué modelo atiende ese alias, con qué
-suplente y con qué clave vive en [`infra/litellm/config.yaml`](../../infra/litellm/config.yaml).
+suplente y con qué clave vive en [`infra/litellm/config.yaml`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/infra/litellm/config.yaml).
 
 ```text
 motor NestJS                 gateway (infra/litellm/config.yaml)
@@ -35,9 +35,9 @@ El gateway es **una función especializada detrás de un puerto, no el cerebro d
 sistema**. La autoridad sigue siendo del código determinista.
 
 El puerto ya existía y no se ha tocado:
-[`SemanticModelProvider`](../../src/modules/workers/semantic-analysis/core/application/ports.ts).
+[`SemanticModelProvider`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/modules/workers/semantic-analysis/core/application/ports.ts).
 LiteLLM es su tercer adaptador, al lado de los otros dos:
-[`litellm-semantic.provider.ts`](../../src/modules/workers/semantic-analysis/core/infrastructure/litellm/litellm-semantic.provider.ts).
+[`litellm-semantic.provider.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/modules/workers/semantic-analysis/core/infrastructure/litellm/litellm-semantic.provider.ts).
 
 Lo que el adaptador **puede** hacer: construir la petición mínima, poner el plazo,
 autenticarse, exigir salida estructurada, validarla y traducir errores externos a
@@ -69,7 +69,7 @@ de la factura — y del texto que sale del país.
 en `DecisionEngine`: en el nivel `FAST`, si ninguna candidata alcanza su umbral o
 las dos primeras empatan dentro del margen de ambigüedad, la decisión sale con
 `requiresDeepAnalysis` y es el pipeline quien pide el nivel `DEEP`.
-[`CascadingSemanticProvider`](../../src/modules/workers/semantic-analysis/core/infrastructure/cascade/cascading-semantic.provider.ts)
+[`CascadingSemanticProvider`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/modules/workers/semantic-analysis/core/infrastructure/cascade/cascading-semantic.provider.ts)
 sólo atiende cada nivel con quien corresponde. Duplicar el criterio habría creado
 dos definiciones de lo mismo, y la que mandaría sería la invisible.
 
@@ -260,7 +260,7 @@ yarn jest test/litellm-smoke.spec.ts
 
 **Qué se envía al proveedor.** Sólo lo que hace falta para clasificar, y la lista
 es cerrada porque la construye
-[`buildModelPayload`](../../src/modules/workers/semantic-analysis/core/infrastructure/model/classification-contract.ts):
+[`buildModelPayload`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/modules/workers/semantic-analysis/core/infrastructure/model/classification-contract.ts):
 el texto original, el normalizado, las entidades resueltas y los datos públicos de
 las categorías candidatas.
 
@@ -343,11 +343,11 @@ exactamente como antes de que existiera este documento.
 
 | Archivo | Qué fija | Coste |
 |---|---|---|
-| [`litellm-semantic-provider.spec.ts`](../../test/litellm-semantic-provider.spec.ts) | El adaptador: petición, esquema, parsing, cada modo de fallo | 0 |
-| [`litellm-provider-selection.spec.ts`](../../test/litellm-provider-selection.spec.ts) | Alias lógico obligatorio, presupuesto, transferencia internacional | 0 |
-| [`litellm-clasificacion-flujo.spec.ts`](../../test/litellm-clasificacion-flujo.spec.ts) | El flujo entero: determinista gana, y todo fallo acaba en la bandeja | 0 |
-| [`semantic-cascada-local-primero.spec.ts`](../../test/semantic-cascada-local-primero.spec.ts) | El LLM sólo entra si el local no puede o tarda demasiado | 0 |
-| [`litellm-gateway-contract.integration.spec.ts`](../../test/litellm-gateway-contract.integration.spec.ts) | El contrato HTTP contra un servidor real | 0 |
-| [`litellm-smoke.spec.ts`](../../test/litellm-smoke.spec.ts) | Un gateway real: el alias existe y respeta el esquema | tokens, **opt-in** |
+| [`litellm-semantic-provider.spec.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/test/litellm-semantic-provider.spec.ts) | El adaptador: petición, esquema, parsing, cada modo de fallo | 0 |
+| [`litellm-provider-selection.spec.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/test/litellm-provider-selection.spec.ts) | Alias lógico obligatorio, presupuesto, transferencia internacional | 0 |
+| [`litellm-clasificacion-flujo.spec.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/test/litellm-clasificacion-flujo.spec.ts) | El flujo entero: determinista gana, y todo fallo acaba en la bandeja | 0 |
+| [`semantic-cascada-local-primero.spec.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/test/semantic-cascada-local-primero.spec.ts) | El LLM sólo entra si el local no puede o tarda demasiado | 0 |
+| [`litellm-gateway-contract.integration.spec.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/test/litellm-gateway-contract.integration.spec.ts) | El contrato HTTP contra un servidor real | 0 |
+| [`litellm-smoke.spec.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/test/litellm-smoke.spec.ts) | Un gateway real: el alias existe y respeta el esquema | tokens, **opt-in** |
 
 Sólo el último gasta dinero y sólo con `RUN_LITELLM_E2E=true`. CI no lo ejecuta.

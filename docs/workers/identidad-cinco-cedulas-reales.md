@@ -182,7 +182,7 @@ fraude de cada una.
 repositorio.** El directorio va FUERA del repositorio, y cuando termines, borra las fotos: **no hay
 ni habrá imágenes de cédulas reales aquí**. Lo que sí queda versionado es la FORMA de las lecturas
 degradadas, con datos inventados y dígitos de control recalculados, en
-[`test/identity-degraded-ocr.spec.ts`](../../test/identity-degraded-ocr.spec.ts) — y ésa es la
+[`test/identity-degraded-ocr.spec.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/test/identity-degraded-ocr.spec.ts) — y ésa es la
 batería que hay que ampliar cuando aparezca otra cédula que falle.
 
 ## Dónde se mira
@@ -191,5 +191,5 @@ batería que hay que ampliar cuando aparezca otra cédula que falle.
 - Analizador: `core/parsers/bolivia-ci-document.parser.ts` y `core/parsers/mrz-td1.ts`.
 - Cotejo con posiciones: `core/catalog/approximate-match.ts`.
 - Vida de la selfie: `core/forensics/selfie-liveness.ts`, desde `identity-pipeline.service.ts`.
-- Pruebas: [`test/identity-degraded-ocr.spec.ts`](../../test/identity-degraded-ocr.spec.ts) y
-  [`test/identity-framing-and-liveness.spec.ts`](../../test/identity-framing-and-liveness.spec.ts).
+- Pruebas: [`test/identity-degraded-ocr.spec.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/test/identity-degraded-ocr.spec.ts) y
+  [`test/identity-framing-and-liveness.spec.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/test/identity-framing-and-liveness.spec.ts).

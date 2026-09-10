@@ -193,7 +193,7 @@ encuadre del documento y las comprobaciones de vida de la selfie.
 ## Dónde se mira
 
 - Motor: `src/modules/workers/identity-verification/core/catalog/` y `core/forensics/`.
-- Pruebas: [`test/identity-fraud-forensics.spec.ts`](../../test/identity-fraud-forensics.spec.ts)
+- Pruebas: [`test/identity-fraud-forensics.spec.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/test/identity-fraud-forensics.spec.ts)
   (política completa, sin imágenes y sin red) y `test/identity-verification-pipeline.spec.ts`
   (los escenarios del catálogo, de punta a punta).
 - Artefacto: `src/modules/seeding/data/identity-mobile.graph.ts`, versión 1.2.0.
