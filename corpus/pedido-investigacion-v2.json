@@ -1,0 +1,714 @@
+{
+  "meta": {
+    "nombre": "Pedido de investigación profunda — Atlas, workers de documentos (segunda tanda)",
+    "version": "2.0.0",
+    "emitido": "2026-09-11",
+    "emisor": "AtlasDecisionEngineBackend",
+    "idioma_esperado": "es-BO",
+    "formato_de_respuesta": "DOS archivos JSON UTF-8, uno por dominio, con la forma descrita en `esquema_del_paquete`.",
+    "archivos_esperados": [
+      "corpus-extractos-bo-v2.json",
+      "corpus-identidad-bo-v2.json"
+    ],
+    "destino": "corpus/ del repositorio; `yarn corpus:generar` los convierte en TypeScript tipado y sella cada catálogo con el SHA-256 de su corpus.",
+    "para_que_sirve_este_archivo": "Que la respuesta llegue en una forma que el motor pueda ingerir sin que nadie la transcriba a mano, y que no se vuelva a investigar lo ya verificado."
+  },
+  "reglas_de_respuesta": [
+    {
+      "id": "R1",
+      "regla": "`null` significa NO VERIFICADO. Nunca cero, nunca false, nunca 'no aplica'.",
+      "por_que": "Un cero inventado mueve dinero: la deuda externa no observada no vale cero, y un mes no cubierto no vale cero."
+    },
+    {
+      "id": "R2",
+      "regla": "Cada dato lleva `sources` con url, titulo, fecha de publicación y fecha de consulta.",
+      "por_que": "Un dato sin procedencia no se puede defender ante una impugnación, y se descarta entero al ingerirlo."
+    },
+    {
+      "id": "R3",
+      "regla": "Cada dato lleva `classification` con uno de: VERIFICADO, INFERIDO, NO_VERIFICADO.",
+      "por_que": "El motor publica la procedencia en el resultado. Una cifra que no dice qué clase de cifra es se lee como una medición."
+    },
+    {
+      "id": "R4",
+      "regla": "Ningún umbral sin población medida detrás. Si el pedido es un umbral y no hay medición, la respuesta correcta es null + `reason_unresolved`.",
+      "por_que": "Un umbral sin calibrar no puede firmar un rechazo sobre una persona."
+    },
+    {
+      "id": "R5",
+      "regla": "Prohibido afirmar: 'ratio ASFI vigente certificado', 'pesos de fraude calibrados', 'umbral de capacidad validado con mora', 'calibración de producción'.",
+      "por_que": "Son las afirmaciones que el corpus anterior ya prohíbe expresamente."
+    },
+    {
+      "id": "R6",
+      "regla": "Sin imágenes de documentos reales, sin datos personales y sin medios con licencia restringida embebidos.",
+      "por_que": "El paquete se versiona en un repositorio; ningún medio real entra en Git."
+    },
+    {
+      "id": "R7",
+      "regla": "Declarar los huecos y las contradicciones en `gaps` y `contradictions`, con el motivo exacto por el que no se resolvieron.",
+      "por_que": "Un hueco declarado es utilizable; uno silencioso se descubre cuando ya decidió algo."
+    },
+    {
+      "id": "R8",
+      "regla": "Cuando dos fuentes se contradigan, no elegir: registrar las dos en `contradictions` con la resolución propuesta y su criterio.",
+      "por_que": "El caso real: el glosario del BCP sigue publicando ITF y la Ley 1717 lo abroga. Ni vigencia desde una glosa, ni fraude desde un ajuste posterior."
+    }
+  ],
+  "ya_verificado_no_repetir": [
+    {
+      "que": "Padrón ASFI en su versión publicada y 67 fichas de cobertura por emisor",
+      "estado": "en el corpus v1"
+    },
+    {
+      "que": "Las 147 glosas oficiales del BCP",
+      "medicion": "casan 75 de 112 movimientos de un extracto real"
+    },
+    {
+      "que": "Abrogación del ITF por la Ley 1717 del 10-04-2026",
+      "nota": "ya versionado por hecho en `bolivia-taxes.ts`"
+    },
+    {
+      "que": "Especificación MRZ TD1 y catálogo de rótulos de la cédula PRE_2023",
+      "medicion": "controles de MRZ fallidos de 6/23 a 0/23 sobre cédulas auténticas"
+    },
+    {
+      "que": "Que la cobertura techo de una cédula REAL es ~0,69 y no 1",
+      "nota": "todo umbral por encima acusaba a documentos legítimos"
+    }
+  ],
+  "no_investigable_no_pedir": [
+    {
+      "id": "NI1",
+      "que": "Umbral de similitud facial operativo",
+      "falta": "selfies consentidas pareadas con los carnets",
+      "medido_hoy": "1 pareja genuina (0,6392) y 21 impostoras (máx. 0,5584); 0 fallos de 21 es un techo de FMR del 13,3 %, no cero"
+    },
+    {
+      "id": "NI2",
+      "que": "Calibración de las redes PAD / prueba de vida",
+      "falta": "población de ataques de presentación medida"
+    },
+    {
+      "id": "NI3",
+      "que": "Los ocho parámetros de capacidad de pago y sus AUC",
+      "falta": "cartera con mora observada; hoy hay 2 préstamos reales"
+    },
+    {
+      "id": "NI4",
+      "que": "Tasas de detección de fraude documental por familia de alteración",
+      "falta": "PDF bancarios originales y sus alteraciones"
+    }
+  ],
+  "vocabularios": {
+    "classification": [
+      "VERIFICADO",
+      "INFERIDO",
+      "NO_VERIFICADO"
+    ],
+    "accounting_side": [
+      "DEBIT",
+      "CREDIT",
+      "BOTH",
+      null
+    ],
+    "income_relevance": [
+      "NEVER",
+      "CANDIDATE_PAYROLL",
+      "NEUTRAL"
+    ],
+    "pdf_text_or_image": [
+      "TEXT",
+      "IMAGE",
+      "MIXED",
+      null
+    ],
+    "debit_credit_style": [
+      "TWO_COLUMNS",
+      "SIGNED_SINGLE_COLUMN",
+      null
+    ],
+    "negative_format": [
+      "PARENTHESES",
+      "MINUS_PREFIX",
+      "MINUS_SUFFIX",
+      "SEPARATE_COLUMN",
+      null
+    ],
+    "verification_kind": [
+      "QR",
+      "CODIGO",
+      "NINGUNA",
+      null
+    ],
+    "gap_status": [
+      "UNRESOLVED",
+      "PARTIAL",
+      "RESOLVED"
+    ]
+  },
+  "entregables": [
+    {
+      "id": "E01",
+      "prioridad": 1,
+      "dominio": "extractos",
+      "titulo": "Glosas oficiales de los emisores que no son el BCP",
+      "hueco_previo": "G10",
+      "pregunta": "¿Qué glosas literales publica cada emisor boliviano en sus estados de cuenta, y qué significa cada una?",
+      "por_que_importa": "Es el único hueco con impacto medido: el glosario del BCP casa 75 de 112 movimientos de un extracto real; sobre los otros cinco bancos casa cero, y cada glosa no reconocida es dinero mal colocado en el cálculo de capacidad de pago.",
+      "emisores_por_orden": [
+        "BNB",
+        "Banco Mercantil Santa Cruz",
+        "Banco Unión",
+        "Banco Ganadero",
+        "Banco Económico",
+        "Banco Sol",
+        "Banco Fortaleza",
+        "Banco Prodem",
+        "Banco FIE",
+        "Tigo Money (operado por E-FECTIVO ESPM)",
+        "Yolo Pago",
+        "Billetera Móvil"
+      ],
+      "donde_buscar": [
+        "manuales de banca por internet",
+        "tarifarios y contratos de cuenta publicados",
+        "anexos de ASFI",
+        "ayuda en línea del emisor",
+        "apps: pantallas de detalle de movimiento"
+      ],
+      "esquema_de_respuesta": {
+        "coleccion": "glosas",
+        "por_fila": {
+          "issuer_code": "string (código del padrón; si no existe, el nombre exacto)",
+          "literal": "string, TAL CUAL aparece impreso, sin normalizar",
+          "meaning": "string en es-BO",
+          "accounting_side": "DEBIT|CREDIT|BOTH|null",
+          "income_relevance": "NEVER|CANDIDATE_PAYROLL|NEUTRAL",
+          "is_tax": "boolean|null",
+          "is_fee": "boolean|null",
+          "is_internal_transfer": "boolean|null",
+          "channel": "string|null (ATM, POS, QR, ACH, ventanilla…)",
+          "classification": [
+            "VERIFICADO",
+            "INFERIDO",
+            "NO_VERIFICADO"
+          ],
+          "sources": [
+            {
+              "url": "string",
+              "titulo": "string",
+              "publicado": "YYYY-MM-DD|null",
+              "consultado": "YYYY-MM-DD",
+              "cita_literal": "string|null"
+            }
+          ]
+        }
+      },
+      "reglas_de_dominio": [
+        "La columna contable manda sobre la glosa: si la fila dice otra cosa, gana la fila y la discrepancia se declara, no se corrige.",
+        "Una glosa puede QUITAR el reconocimiento de ingreso; nunca darlo, salvo las marcadas CANDIDATE_PAYROLL.",
+        "Un prefijo no basta: `TRANSFERENCIA` casando el principio de «Transferencia QR BM QR Restotech» hundía la capacidad de todo comerciante que cobra por QR."
+      ],
+      "criterio_de_aceptacion": "Cada glosa con literal exacto y fuente. Un emisor sin glosario publicado se declara con `glossary_published: false` y su motivo; eso es un resultado válido y útil.",
+      "si_no_se_encuentra": "Decirlo explícitamente por emisor. No derivar glosas de capturas de pantalla de terceros ni de foros."
+    },
+    {
+      "id": "E02",
+      "prioridad": 2,
+      "dominio": "extractos",
+      "titulo": "Ficha de formato por emisor: las 67 plantillas que faltan",
+      "hueco_previo": "G09, G05, G11, G12",
+      "pregunta": "¿Cómo es, estructuralmente, el estado de cuenta que emite cada entidad?",
+      "por_que_importa": "Hoy hay 67 fichas de cobertura y CERO plantillas verificadas: columnas, productor del PDF, cabecera y formato de importe están todos en null. Ese vacío es deliberado —no se inventan— y es lo que hace que el extractor se equivoque de columna.",
+      "esquema_de_respuesta": {
+        "coleccion": "fichas_emisor",
+        "por_fila": {
+          "code": "string",
+          "name": "string",
+          "channels": [
+            "WEB",
+            "APP",
+            "VENTANILLA"
+          ],
+          "pdfProducer": "string|null (cadena exacta del metadato Producer/Creator)",
+          "header": [
+            "string: líneas literales de la carátula"
+          ],
+          "columns": [
+            "string: cabeceras de la tabla, en orden"
+          ],
+          "dateFormat": "string|null (p. ej. DD/MM/YYYY)",
+          "amountFormat": {
+            "thousands": "string|null",
+            "decimal": "string|null",
+            "negative": "PARENTHESES|MINUS_PREFIX|MINUS_SUFFIX|SEPARATE_COLUMN|null"
+          },
+          "debitCreditStyle": "TWO_COLUMNS|SIGNED_SINGLE_COLUMN|null",
+          "pdfTextOrImage": "TEXT|IMAGE|MIXED|null",
+          "pdfProtection": "string|null",
+          "accountNumberFormat": "string|null",
+          "interbankAccountCode": "string|null",
+          "verification": {
+            "kind": "QR|CODIGO|NINGUNA|null",
+            "detail": "string|null"
+          },
+          "classification": [
+            "VERIFICADO",
+            "INFERIDO",
+            "NO_VERIFICADO"
+          ],
+          "sources": [
+            {
+              "url": "string",
+              "titulo": "string",
+              "publicado": "YYYY-MM-DD|null",
+              "consultado": "YYYY-MM-DD",
+              "cita_literal": "string|null"
+            }
+          ]
+        }
+      },
+      "criterio_de_aceptacion": "Un campo sólo se rellena si se vio el documento o su especificación publicada. Lo demás, null con motivo.",
+      "nota_para_quien_investiga": "Este entregable se completa mucho mejor con extractos reales en la mano. Si la investigación no los tiene, decirlo: el pedido se resuelve entonces por recolección, no por búsqueda."
+    },
+    {
+      "id": "E03",
+      "prioridad": 3,
+      "dominio": "identidad",
+      "titulo": "El QR de la cédula boliviana: esquema, firma y claves",
+      "hueco_previo": "G07",
+      "pregunta": "¿Qué contiene el código QR de la cédula de identidad, cómo está codificado, va firmado, y existen claves públicas de verificación publicadas?",
+      "por_que_importa": "Es el único hueco capaz de cambiar la arquitectura de la decisión: si el QR se verifica criptográficamente, la autenticidad del documento deja de depender de umbrales y heurísticas de plantilla.",
+      "esquema_de_respuesta": {
+        "coleccion": "qr_cedula",
+        "campos": {
+          "exists": "boolean",
+          "generations": [
+            "string: qué generaciones del carnet lo llevan"
+          ],
+          "encoding": "string|null (binario, base64, texto delimitado…)",
+          "payload_fields": [
+            {
+              "name": "string",
+              "type": "string",
+              "description": "string"
+            }
+          ],
+          "signed": "boolean|null",
+          "signature_algorithm": "string|null",
+          "public_keys_published": "boolean|null",
+          "public_key_location": "string|null",
+          "offline_verifiable": "boolean|null",
+          "classification": [
+            "VERIFICADO",
+            "INFERIDO",
+            "NO_VERIFICADO"
+          ],
+          "sources": [
+            {
+              "url": "string",
+              "titulo": "string",
+              "publicado": "YYYY-MM-DD|null",
+              "consultado": "YYYY-MM-DD",
+              "cita_literal": "string|null"
+            }
+          ]
+        }
+      },
+      "si_no_se_encuentra": "`signed: null` con el motivo, y `verifiable: false` sólo si hay una fuente que lo afirme. No deducir que no existe porque no se encontró."
+    },
+    {
+      "id": "E04",
+      "prioridad": 4,
+      "dominio": "identidad",
+      "titulo": "Caducidad indefinida y el centinela de fecha",
+      "hueco_previo": "G06",
+      "pregunta": "¿Qué cédulas tienen vigencia indefinida, qué fecha de expiración imprimen, y actúa alguna fecha (2049-12-31 u otra) como centinela de «no caduca»?",
+      "por_que_importa": "`DOCUMENT_EXPIRED` es un rechazo INCONDICIONAL en el motor: una regla mal puesta aquí rechaza a personas legítimas sin posibilidad de revisión.",
+      "esquema_de_respuesta": {
+        "coleccion": "vigencia",
+        "campos": {
+          "indefinite_validity_exists": "boolean|null",
+          "who_qualifies": "string|null",
+          "printed_expiry_for_indefinite": "string|null",
+          "sentinel_dates": [
+            "string YYYY-MM-DD"
+          ],
+          "grace_period_days": "integer|null",
+          "classification": [
+            "VERIFICADO",
+            "INFERIDO",
+            "NO_VERIFICADO"
+          ],
+          "sources": [
+            {
+              "url": "string",
+              "titulo": "string",
+              "publicado": "YYYY-MM-DD|null",
+              "consultado": "YYYY-MM-DD",
+              "cita_literal": "string|null"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "E05",
+      "prioridad": 5,
+      "dominio": "identidad",
+      "titulo": "Geografía, abreviaturas y gramática del número del SEGIP",
+      "hueco_previo": "G05, G03, G04",
+      "pregunta": "¿Cómo imprime el SEGIP los lugares de nacimiento y qué forma exacta tiene el número de cédula y su complemento?",
+      "por_que_importa": "Defecto visible sobre una cédula auténtica: el lugar de nacimiento se publica como 'SANTA CRUZ - ANDRES IBAÑEZ - SANTA”', truncado y con basura. Y la gramática del número no está verificada, así que su formato hoy sólo se registra como observación sin peso.",
+      "esquema_de_respuesta": {
+        "colecciones": {
+          "geografia": {
+            "por_fila": {
+              "departamento": "string",
+              "provincia": "string|null",
+              "municipio": "string|null",
+              "abreviatura_impresa": "string|null",
+              "classification": [
+                "VERIFICADO",
+                "INFERIDO",
+                "NO_VERIFICADO"
+              ],
+              "sources": [
+                {
+                  "url": "string",
+                  "titulo": "string",
+                  "publicado": "YYYY-MM-DD|null",
+                  "consultado": "YYYY-MM-DD",
+                  "cita_literal": "string|null"
+                }
+              ]
+            }
+          },
+          "numero_cedula": {
+            "campos": {
+              "length_min": "integer|null",
+              "length_max": "integer|null",
+              "alphabet": "string|null",
+              "complement_alphabet": "string|null",
+              "complement_length": "integer|null",
+              "separator": "string|null",
+              "check_digit": "boolean|null",
+              "classification": [
+                "VERIFICADO",
+                "INFERIDO",
+                "NO_VERIFICADO"
+              ],
+              "sources": [
+                {
+                  "url": "string",
+                  "titulo": "string",
+                  "publicado": "YYYY-MM-DD|null",
+                  "consultado": "YYYY-MM-DD",
+                  "cita_literal": "string|null"
+                }
+              ]
+            }
+          },
+          "rotulos_por_variante": {
+            "por_fila": {
+              "generation": "PRE_2023|POST_2023",
+              "label_literal": "string",
+              "zone": "string|null",
+              "classification": [
+                "VERIFICADO",
+                "INFERIDO",
+                "NO_VERIFICADO"
+              ],
+              "sources": [
+                {
+                  "url": "string",
+                  "titulo": "string",
+                  "publicado": "YYYY-MM-DD|null",
+                  "consultado": "YYYY-MM-DD",
+                  "cita_literal": "string|null"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "E06",
+      "prioridad": 6,
+      "dominio": "identidad",
+      "titulo": "Matriz de confusiones de Tesseract para español impreso pequeño",
+      "hueco_previo": "G09, G10",
+      "pregunta": "¿Qué caracteres confunde Tesseract 5.x con `spa` sobre texto impreso de 1–2 mm, y cuánto cambia cada preprocesamiento?",
+      "por_que_importa": "Permite CORREGIR el OCR en vez de tolerarlo. Hoy los cuatro campos se leen completos en 17 de 23 cédulas: ese 26 % restante es principalmente lectura degradada.",
+      "esquema_de_respuesta": {
+        "colecciones": {
+          "confusiones": {
+            "por_fila": {
+              "expected": "string",
+              "read_as": "string",
+              "frequency": "number|null",
+              "conditions": "string",
+              "classification": [
+                "VERIFICADO",
+                "INFERIDO",
+                "NO_VERIFICADO"
+              ],
+              "sources": [
+                {
+                  "url": "string",
+                  "titulo": "string",
+                  "publicado": "YYYY-MM-DD|null",
+                  "consultado": "YYYY-MM-DD",
+                  "cita_literal": "string|null"
+                }
+              ]
+            }
+          },
+          "preprocesamiento": {
+            "por_fila": {
+              "step": "string",
+              "long_edge_px": "integer",
+              "delta_accuracy": "number|null",
+              "measured_on": "string",
+              "classification": [
+                "VERIFICADO",
+                "INFERIDO",
+                "NO_VERIFICADO"
+              ],
+              "sources": [
+                {
+                  "url": "string",
+                  "titulo": "string",
+                  "publicado": "YYYY-MM-DD|null",
+                  "consultado": "YYYY-MM-DD",
+                  "cita_literal": "string|null"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "contexto_del_motor": {
+        "ocr_max_long_edge": 600,
+        "ocr_fine_long_edge": 1200,
+        "suelo_de_legibilidad_px": 1000,
+        "mediana_real_recibida_px": 796
+      }
+    },
+    {
+      "id": "E07",
+      "prioridad": 7,
+      "dominio": "extractos",
+      "titulo": "Impuestos históricos, tarifas y tope de tasa",
+      "hueco_previo": "G06, G08, G13",
+      "preguntas": [
+        "Alícuotas históricas del ITF con sus vigencias, y RC-IVA/IUE sobre intereses de cuentas.",
+        "Tope de tasa vigente de ASFI para crédito de consumo, del texto consolidado.",
+        "Piso de subsistencia 2026 por hogar y ciudad (canasta del INE)."
+      ],
+      "por_que_importa": "El tope de ASFI se buscó y el acceso al consolidado falló: quedaron 15 %/25 % de normas secundarias, que no sirven para decidir. Y del piso de subsistencia sólo está verificado el salario mínimo (3.300 Bs), que NO es una canasta.",
+      "esquema_de_respuesta": {
+        "colecciones": {
+          "impuestos": {
+            "por_fila": {
+              "tax": "string",
+              "rate": "number|null",
+              "valid_from": "YYYY-MM-DD",
+              "valid_to": "YYYY-MM-DD|null",
+              "applies_to": "string",
+              "norm": "string",
+              "classification": [
+                "VERIFICADO",
+                "INFERIDO",
+                "NO_VERIFICADO"
+              ],
+              "sources": [
+                {
+                  "url": "string",
+                  "titulo": "string",
+                  "publicado": "YYYY-MM-DD|null",
+                  "consultado": "YYYY-MM-DD",
+                  "cita_literal": "string|null"
+                }
+              ]
+            }
+          },
+          "tope_tasa": {
+            "por_fila": {
+              "product": "string",
+              "cap_annual_percent": "number|null",
+              "norm": "string",
+              "valid_from": "YYYY-MM-DD",
+              "classification": [
+                "VERIFICADO",
+                "INFERIDO",
+                "NO_VERIFICADO"
+              ],
+              "sources": [
+                {
+                  "url": "string",
+                  "titulo": "string",
+                  "publicado": "YYYY-MM-DD|null",
+                  "consultado": "YYYY-MM-DD",
+                  "cita_literal": "string|null"
+                }
+              ]
+            }
+          },
+          "canasta": {
+            "por_fila": {
+              "city": "string",
+              "household_size": "integer",
+              "monthly_bob": "number|null",
+              "year": "integer",
+              "source_kind": "INE|OTRO",
+              "classification": [
+                "VERIFICADO",
+                "INFERIDO",
+                "NO_VERIFICADO"
+              ],
+              "sources": [
+                {
+                  "url": "string",
+                  "titulo": "string",
+                  "publicado": "YYYY-MM-DD|null",
+                  "consultado": "YYYY-MM-DD",
+                  "cita_literal": "string|null"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "E08",
+      "prioridad": 8,
+      "dominio": "extractos",
+      "titulo": "Productores de PDF legítimos por emisor",
+      "hueco_previo": "G20",
+      "pregunta": "¿Qué cadenas de metadato Producer/Creator emiten de verdad los bancos bolivianos en sus estados de cuenta?",
+      "por_que_importa": "El puntaje de seguridad castiga o acredita por productor sin una lista verificada, y eso produce falsos positivos sobre documentos auténticos. Seguridad y procedencia son dos ejes distintos.",
+      "esquema_de_respuesta": {
+        "coleccion": "productores",
+        "por_fila": {
+          "issuer_code": "string",
+          "producer_string": "string",
+          "creator_string": "string|null",
+          "seen_on": "string",
+          "classification": [
+            "VERIFICADO",
+            "INFERIDO",
+            "NO_VERIFICADO"
+          ],
+          "sources": [
+            {
+              "url": "string",
+              "titulo": "string",
+              "publicado": "YYYY-MM-DD|null",
+              "consultado": "YYYY-MM-DD",
+              "cita_literal": "string|null"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "E09",
+      "prioridad": 9,
+      "dominio": "identidad",
+      "titulo": "Catálogo literal de los otros documentos de identidad",
+      "hueco_previo": "G18",
+      "pregunta": "Pasaporte boliviano, licencia de conducir y carnet de extranjería: rótulos, zonas, MRZ y reglas de validación.",
+      "por_que_importa": "Hoy sólo la cédula tiene analizador verificado; el resto se rechaza CON ESE MOTIVO, que es correcto pero limita el flujo. Una licencia de conducir llega a 0,558 de cobertura contra el catálogo de la cédula, así que la cobertura sola no basta para nombrar el documento.",
+      "esquema_de_respuesta": {
+        "coleccion": "documentos",
+        "por_fila": {
+          "document_type": "string",
+          "generation": "string|null",
+          "labels": [
+            "string"
+          ],
+          "mrz_format": "TD1|TD2|TD3|NINGUNA|null",
+          "anchors": [
+            "string: rótulos que SÓLO lleva este documento"
+          ],
+          "classification": [
+            "VERIFICADO",
+            "INFERIDO",
+            "NO_VERIFICADO"
+          ],
+          "sources": [
+            {
+              "url": "string",
+              "titulo": "string",
+              "publicado": "YYYY-MM-DD|null",
+              "consultado": "YYYY-MM-DD",
+              "cita_literal": "string|null"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "esquema_del_paquete": {
+    "manifest": {
+      "name": "string",
+      "version": "string",
+      "language": "es-BO",
+      "evidence_cutoff_requested": "YYYY-MM-DD",
+      "retrieved_utc_date": "YYYY-MM-DD",
+      "timezone": "America/La_Paz",
+      "status": "PARTIAL_PUBLIC_EVIDENCE_WITH_EXPLICIT_GAPS",
+      "contains_calibrated_credit_policy": false,
+      "not_a_production_calibration": true,
+      "prohibited_claims": [
+        "string"
+      ]
+    },
+    "sources": [
+      {
+        "id": "S01",
+        "url": "string",
+        "titulo": "string",
+        "publicado": "YYYY-MM-DD|null",
+        "consultado": "YYYY-MM-DD",
+        "cita_literal": "string|null"
+      }
+    ],
+    "modules": {
+      "<id_del_entregable>": {
+        "records": [
+          "…según `esquema_de_respuesta` de cada entregable…"
+        ]
+      }
+    },
+    "gaps": [
+      {
+        "id": "G01",
+        "entregable": "E01",
+        "requirement": "string",
+        "status": "UNRESOLVED|PARTIAL",
+        "reason_unresolved": "string",
+        "search_and_limit": "string"
+      }
+    ],
+    "contradictions": [
+      {
+        "id": "C01",
+        "statement_a": "string",
+        "statement_b": "string",
+        "resolution": "string",
+        "criterio": "string"
+      }
+    ]
+  },
+  "como_se_ingiere": {
+    "paso_1": "Dejar los dos JSON en `corpus/` del repositorio.",
+    "paso_2": "`yarn corpus:generar` los convierte en TypeScript tipado bajo src/modules/workers/*/core/corpus/*.generated.ts.",
+    "paso_3": "`yarn corpus:check` falla si lo generado no coincide, y cada catálogo queda sellado con el SHA-256 de su corpus.",
+    "paso_4": "Se mide el delta contra las mismas poblaciones de la primera tanda: 23 cédulas auténticas y un extracto real de 112 movimientos."
+  }
+}
