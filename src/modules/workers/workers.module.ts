@@ -47,6 +47,7 @@ import {
   PassportDocumentParser,
 } from './identity-verification/core/parsers/document-parser';
 import { DocumentParserRegistry } from './identity-verification/core/parsers/document-parser.registry';
+import { numeroDeConfig } from '../../common/config/config-coercion.util';
 import { TransformerIdentityEmbedderAdapter } from './identity-verification/core/adapters/transformer-identity.adapter';
 import { buildIdentityOptions } from './identity-verification/identity-config.bridge';
 import { IdentityPipelineService } from './identity-verification/identity-pipeline.service';
@@ -388,9 +389,17 @@ function maybe<K extends string, V>(
             : {}),
           model:
             config.get<string>('SEMANTIC_TRANSFORMER_MODEL') ?? 'intfloat/multilingual-e5-small',
-          timeoutMs: config.get<number>('SEMANTIC_TRANSFORMER_TIMEOUT_MS') ?? 15_000,
-          maxAttempts: config.get<number>('SEMANTIC_TRANSFORMER_MAX_ATTEMPTS') ?? 3,
-          retryBackoffMs: config.get<number>('SEMANTIC_TRANSFORMER_RETRY_BACKOFF_MS') ?? 250,
+          /*
+           * Con `numeroDeConfig` y no con `config.get<number>`, que es un cast y no una
+           * conversión. Estas tres variables NO están en el esquema de entorno, así que llegan
+           * crudas: `SEMANTIC_TRANSFORMER_TIMEOUT_MS=15000` entraba como la cadena `'15000'` y
+           * `AbortSignal.timeout('15000')` lanza un `TypeError`. Medido sobre una cédula real: la
+           * prueba semántica se registraba como ausente con el mensaje del TypeError por motivo,
+           * de modo que un defecto de tipos se leía como «no había codificador».
+           */
+          timeoutMs: numeroDeConfig(config, 'SEMANTIC_TRANSFORMER_TIMEOUT_MS', 15_000),
+          maxAttempts: numeroDeConfig(config, 'SEMANTIC_TRANSFORMER_MAX_ATTEMPTS', 3),
+          retryBackoffMs: numeroDeConfig(config, 'SEMANTIC_TRANSFORMER_RETRY_BACKOFF_MS', 250),
           queryPrefix: config.get<string>('SEMANTIC_TRANSFORMER_QUERY_PREFIX') ?? 'query: ',
           passagePrefix: config.get<string>('SEMANTIC_TRANSFORMER_PASSAGE_PREFIX') ?? 'passage: ',
         });
