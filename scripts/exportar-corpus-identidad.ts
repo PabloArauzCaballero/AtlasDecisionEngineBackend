@@ -41,13 +41,31 @@ if (!destinoArg) {
 }
 const destino = resolve(destinoArg);
 const desdeArg = resto.indexOf('--desde');
-const desde = desdeArg >= 0 ? new Date(`${resto[desdeArg + 1]}T00:00:00Z`) : null;
+const desde = desdeArg >= 0 ? new Date(`${resto[desdeArg + 1] ?? ''}T00:00:00Z`) : null;
+if (desde && Number.isNaN(desde.getTime())) {
+  // Sin esto, una fecha ilegible llega a Prisma como `Invalid Date` y la consulta devuelve cero
+  // filas sin decir por qué: parecería que nadie ha firmado nada.
+  console.error('La fecha de --desde no se entiende. Formato: --desde 2026-09-15');
+  process.exit(2);
+}
 
 const prisma = new PrismaClient();
 const storage = new ObjectStorageService(new ConfigService(process.env));
 
-/** La etiqueta, tal como el calibrador la necesita: el documento primero, las selfies después. */
+/** El calibrador distingue el documento por el NOMBRE del archivo, no por el orden de lectura. */
 const NOMBRE_DOCUMENTO = 'carnet';
+
+/**
+ * La extensión sale del tipo que declaró el almacén.
+ *
+ * Escribir siempre `.jpg` funcionaría —sharp lee por contenido— pero dejaría una carpeta que miente
+ * sobre lo que contiene, y esa carpeta la va a mirar una persona antes de calibrar.
+ */
+function extensionDe(contentType: string | null): string {
+  if (contentType === 'image/png') return 'png';
+  if (contentType === 'image/webp') return 'webp';
+  return 'jpg';
+}
 
 async function main(): Promise<void> {
   if (!storage.isConfigured()) {
@@ -100,11 +118,8 @@ async function main(): Promise<void> {
       continue;
     }
 
-    const carpeta = join(destino, fila.subjectKey);
-    await mkdir(carpeta, { recursive: true });
-    const n = (porSujeto.get(fila.subjectKey) ?? 0) + 1;
-    porSujeto.set(fila.subjectKey, n);
-
+    // Las imágenes PRIMERO: un sujeto sólo cuenta cuando sus dos archivos están en disco. Al
+    // revés, un objeto que el almacén ya no tiene dejaba una carpeta vacía contada como sujeto.
     const documento = await storage.get(fila.documentObjectKey!);
     const selfie = await storage.get(fila.selfieObjectKey!);
     if (!documento || !selfie) {
@@ -112,10 +127,19 @@ async function main(): Promise<void> {
       continue;
     }
 
-    // El documento va el PRIMERO en cada carpeta y con nombre reconocible: el calibrador
-    // distingue documento de selfie por el nombre del archivo, no por el orden de lectura.
-    await writeFile(join(carpeta, `${NOMBRE_DOCUMENTO}-${n}.jpg`), documento.content);
-    await writeFile(join(carpeta, `selfie-${n}.png`), selfie.content);
+    const carpeta = join(destino, fila.subjectKey);
+    await mkdir(carpeta, { recursive: true });
+    const n = (porSujeto.get(fila.subjectKey) ?? 0) + 1;
+    porSujeto.set(fila.subjectKey, n);
+
+    await writeFile(
+      join(carpeta, `${NOMBRE_DOCUMENTO}-${n}.${extensionDe(documento.contentType)}`),
+      documento.content,
+    );
+    await writeFile(
+      join(carpeta, `selfie-${n}.${extensionDe(selfie.contentType)}`),
+      selfie.content,
+    );
 
     manifiesto.push({
       requestId: fila.requestId,

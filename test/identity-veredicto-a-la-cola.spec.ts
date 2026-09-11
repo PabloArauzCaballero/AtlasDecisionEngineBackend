@@ -1,6 +1,7 @@
 import { IdentityReviewReason, WorkerRunStatus } from '@prisma/client';
 import { outcomeForIdentityVerdict } from '../src/modules/workers/identity-verification/identity-outcome';
 import { IdentityDecision } from '../src/modules/workers/identity-verification/core/domain/identity-enums';
+import { IdentityDecisionEngine } from '../src/modules/workers/identity-verification/core/domain/identity-decision.engine';
 
 /**
  * Un veredicto que dice «esto lo decide una persona» tiene que llegar a una bandeja.
@@ -84,5 +85,51 @@ describe('el veredicto decide si el caso entra en la cola', () => {
     const d = outcomeForIdentityVerdict(IdentityDecision.REVIEW_REQUIRED, ['CODIGO_QUE_NO_EXISTE']);
     expect(d.status).toBe(WorkerRunStatus.PENDING_REVIEW);
     expect(d.reviewReason).toBe(IdentityReviewReason.MANUAL_REQUEST);
+  });
+});
+
+/**
+ * Una fecha vencida no rechaza sola a quien puede tener una cédula indefinida.
+ *
+ * La segunda tanda del corpus verificó contra el DS 4861 que la vigencia indefinida existe desde
+ * los 58 años, y dejó en NO VERIFICADO qué fecha imprimen esas tarjetas. Con ese hueco abierto, el
+ * rechazo no se puede defender: quizá la cédula no caduca y la fecha dice otra cosa.
+ */
+describe('caducidad y vigencia indefinida', () => {
+  const base = {
+    documentQuality: 0.9,
+    selfieQuality: 0.9,
+    liveness: 'PASSED' as const,
+    faceSimilarity: 0.95,
+    requiredFieldsPresent: true,
+    minDocumentQuality: 0.5,
+    minSelfieQuality: 0.5,
+    matchThreshold: 0.8,
+    reviewThreshold: 0.6,
+    now: new Date('2026-09-11T12:00:00Z'),
+    documentExpiresAt: new Date('2024-01-01T00:00:00Z'),
+  };
+
+  it('por debajo de los 58, un documento caducado sigue siendo rechazo', () => {
+    const r = new IdentityDecisionEngine().decide({
+      ...base,
+      dateOfBirth: new Date('1990-05-10T00:00:00Z'),
+    } as never);
+    expect(r.decision).toBe(IdentityDecision.NOT_VERIFIED);
+    expect(r.reasonCodes).toEqual(['DOCUMENT_EXPIRED']);
+  });
+
+  it('a partir de los 58 escala, con los dos motivos puestos', () => {
+    const r = new IdentityDecisionEngine().decide({
+      ...base,
+      dateOfBirth: new Date('1960-05-10T00:00:00Z'),
+    } as never);
+    expect(r.decision).toBe(IdentityDecision.REVIEW_REQUIRED);
+    expect(r.reasonCodes).toContain('INDEFINITE_VALIDITY_POSSIBLE');
+  });
+
+  it('sin fecha de nacimiento legible no se asume nada: la caducidad decide', () => {
+    const r = new IdentityDecisionEngine().decide({ ...base, dateOfBirth: null } as never);
+    expect(r.decision).toBe(IdentityDecision.NOT_VERIFIED);
   });
 });

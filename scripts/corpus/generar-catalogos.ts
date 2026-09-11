@@ -1249,10 +1249,170 @@ ${datos.contradictions
   );
 }
 
+/**
+ * La SEGUNDA tanda, que es sobre todo una lección sobre qué se puede investigar.
+ *
+ * Se pidieron nueve entregables y volvieron con esta forma: los rótulos de la generación 2023 y la
+ * vigencia indefinida VERIFICADOS contra el DS 4924 y el DS 4861; las glosas de los emisores que no
+ * son el BCP y los productores de PDF **vacíos**; y las 67 fichas de formato con todos sus campos de
+ * posición en `null`, citando como fuente nuestro propio repositorio.
+ *
+ * Ese vacío es el hallazgo, no un fracaso de la búsqueda: confirma que las plantillas y las glosas
+ * no salen de documentos públicos —salen de tener extractos reales en la mano—. Se deriva a código
+ * para que quede escrito, con su procedencia, y para que nadie vuelva a encargarlo esperando otra
+ * cosa.
+ */
+async function generarSegundaTanda(): Promise<void> {
+  const identidad = leerCorpus('corpus-identidad-bo-v2.json');
+  const extractos = leerCorpus('corpus-extractos-bo-v2.json');
+  const mod = (datos: Json, id: string): Json[] => (datos.modules?.[id]?.records ?? []) as Json[];
+
+  const rotulos = mod(identidad.datos, 'E05').filter(
+    (r: Json) => r.collection === 'rotulos_por_variante' && r.classification === 'VERIFICADO',
+  );
+  const geografia = mod(identidad.datos, 'E05').filter((r: Json) => r.collection === 'geografia');
+  const vigencia = mod(identidad.datos, 'E04')[0];
+  const qr = mod(identidad.datos, 'E03')[0];
+  const impuestos = mod(extractos.datos, 'E07').filter((r: Json) => r.collection === 'impuestos');
+
+  const huecosVacios = (datos: Json): Json[] =>
+    ((datos.gaps ?? []) as Json[]).filter((g: Json) => g.status === 'UNRESOLVED');
+
+  const contenido = `${CABECERA('corpus-identidad-bo-v2.json', identidad.hash, '2.0.0')}
+/** Los hashes de los DOS paquetes de la segunda tanda. Los comprueba una prueba. */
+export const HASH_CORPUS_IDENTIDAD_V2 = '${identidad.hash}';
+export const HASH_CORPUS_EXTRACTOS_V2 = '${extractos.hash}';
+
+/**
+ * Rótulos de la generación 2023, verificados contra el DS 4924 y con su zona.
+ *
+ * El catálogo del worker ya llevaba casi todos, escritos a mano. Lo que añade esto es PROCEDENCIA
+ * —ahora cada uno se puede citar— y los cuatro que faltaban.
+ */
+export const ROTULOS_POST_2023: readonly {
+  readonly literal: string;
+  readonly zona: string;
+}[] = [
+${rotulos
+  .map((r: Json) => `  { literal: ${lit(r.label_literal)}, zona: ${lit(r.zone)} },`)
+  .join('\n')}
+];
+
+/**
+ * La vigencia INDEFINIDA existe, y es la razón por la que una fecha vencida no basta para rechazar.
+ *
+ * \`expiracionImpresa\` en \`null\` significa NO VERIFICADO: no se sabe qué fecha imprimen esas
+ * tarjetas. Con ese hueco abierto, un rechazo por caducidad sobre alguien que podría tener una
+ * cédula indefinida no se puede defender — y por eso el motor escala en vez de rechazar.
+ */
+export const VIGENCIA_INDEFINIDA = {
+  existe: ${lit(vigencia?.indefinite_validity_exists ?? null)},
+  aQuien: ${lit(vigencia?.who_qualifies ?? null)},
+  expiracionImpresa: ${lit(vigencia?.printed_expiry_for_indefinite ?? null)},
+  fechasCentinela: ${lit(vigencia?.sentinel_dates ?? [])},
+  procedencia: ${lit(vigencia?.classification ?? 'NO_VERIFICADO')},
+} as const;
+
+/** La edad desde la que la cédula puede ser indefinida, según el DS 4861 art. 6.IV. */
+export const EDAD_DE_VIGENCIA_INDEFINIDA = 58;
+
+/**
+ * El QR de la cédula: existe, y su contenido NO está verificado.
+ *
+ * Era el único hueco capaz de cambiar la arquitectura —con firma verificable, la autenticidad
+ * dejaría de depender de umbrales—. La respuesta es que existe en la generación 2023 y que su
+ * esquema, su firma y sus claves siguen sin publicarse. Queda escrito para no volver a encargarlo
+ * esperando otra cosa.
+ */
+export const QR_DE_LA_CEDULA = {
+  existe: ${lit(qr?.exists ?? null)},
+  generaciones: ${lit(qr?.generations ?? [])},
+  codificacion: ${lit(qr?.encoding ?? null)},
+  firmado: ${lit(qr?.signed ?? null)},
+  clavesPublicadas: ${lit(qr?.public_keys_published ?? null)},
+  verificableSinRed: ${lit(qr?.offline_verifiable ?? null)},
+} as const;
+
+/** Geografía verificada contra el INE. Es una MUESTRA, no el padrón completo. */
+export const GEOGRAFIA_VERIFICADA: readonly {
+  readonly departamento: string;
+  readonly provincia: string | null;
+  readonly municipio: string | null;
+}[] = [
+${geografia
+  .map(
+    (r: Json) =>
+      `  { departamento: ${lit(r.departamento)}, provincia: ${lit(r.provincia)}, municipio: ${lit(
+        r.municipio,
+      )} },`,
+  )
+  .join('\n')}
+];
+
+/**
+ * Historia del ITF con sus vigencias.
+ *
+ * Toda \`INFERIDO\`: la abrogación de 2026 está verificada, las alícuotas históricas se reconstruyen
+ * de normas secundarias. Sirve para LEER un extracto viejo, nunca para afirmar que una fila es falsa.
+ */
+export const IMPUESTOS_HISTORICOS: readonly {
+  readonly impuesto: string;
+  readonly alicuota: number | null;
+  /** \`null\` cuando la vigencia no se pudo fijar. No se sustituye por una fecha plausible. */
+  readonly desde: string | null;
+  readonly hasta: string | null;
+  readonly norma: string;
+  readonly procedencia: string;
+}[] = [
+${impuestos
+  .map(
+    (r: Json) =>
+      `  { impuesto: ${lit(r.tax)}, alicuota: ${lit(r.rate)}, desde: ${lit(
+        r.valid_from,
+      )}, hasta: ${lit(r.valid_to)}, norma: ${lit(r.norm)}, procedencia: ${lit(
+        r.classification,
+      )} },`,
+  )
+  .join('\n')}
+];
+
+/**
+ * Lo que la segunda tanda NO pudo resolver, con su motivo.
+ *
+ * Está aquí y no en un documento porque es la respuesta a la pregunta «¿por qué el worker sigue sin
+ * reconocer las glosas del BNB?». La respuesta es que nadie las publica, y ahora se puede citar.
+ */
+export const HUECOS_SEGUNDA_TANDA: readonly {
+  readonly id: string;
+  readonly dominio: string;
+  readonly requisito: string;
+  readonly motivo: string;
+}[] = [
+${[
+  ...huecosVacios(identidad.datos).map((g: Json) => ({ dominio: 'identidad', g })),
+  ...huecosVacios(extractos.datos).map((g: Json) => ({ dominio: 'extractos', g })),
+]
+  .map(
+    ({ dominio, g }) =>
+      `  { id: ${lit(g.id)}, dominio: ${lit(dominio)}, requisito: ${lit(
+        g.requirement ?? g.requested ?? null,
+      )}, motivo: ${lit(g.reason_unresolved ?? g.search_and_limit ?? null)} },`,
+  )
+  .join('\n')}
+];
+`;
+
+  await escribir(
+    'src/modules/workers/identity-verification/core/corpus/corpus-segunda-tanda.generated.ts',
+    contenido,
+  );
+}
+
 async function main(): Promise<void> {
   console.log(MODO_CHECK ? 'Comprobando catálogos derivados…' : 'Generando catálogos derivados…');
   await generarExtractos();
   await generarIdentidad();
+  await generarSegundaTanda();
   if (process.exitCode !== 1) console.log(MODO_CHECK ? '✓ al día' : 'listo');
 }
 

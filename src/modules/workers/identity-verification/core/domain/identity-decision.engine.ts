@@ -1,4 +1,8 @@
 import { IdentityDecision } from './identity-enums';
+import {
+  EDAD_DE_VIGENCIA_INDEFINIDA,
+  VIGENCIA_INDEFINIDA,
+} from '../corpus/corpus-segunda-tanda.generated';
 
 /**
  * Motor de decisión del worker de identidad: el núcleo, y la parte que la
@@ -38,6 +42,13 @@ export interface IdentityDecisionInput {
   faceSimilarity: number | null;
   /** Caducidad impresa en el documento, o `null` si no se pudo leer. */
   documentExpiresAt?: Date | null;
+  /**
+   * Nacimiento leído del documento, o `null`.
+   *
+   * Sólo se usa para una cosa: saber si el titular puede tener una cédula de vigencia indefinida, y
+   * con ello si una fecha vencida puede rechazar por sí sola.
+   */
+  dateOfBirth?: Date | null;
   /** Días de gracia tras la caducidad impresa. Por omisión, ninguno. */
   documentExpiryGraceDays?: number;
   now: Date;
@@ -82,8 +93,27 @@ export class IdentityDecisionEngine {
             'REVIEW',
           );
     }
+    /*
+     * Una fecha vencida ya NO rechaza sola cuando el titular puede tener una cédula indefinida.
+     *
+     * La segunda tanda del corpus verificó contra el DS 4861 (art. 6.IV) que la vigencia indefinida
+     * existe desde los 58 años y para personas con discapacidad grave, y dejó en `null` —NO
+     * VERIFICADO— qué fecha imprimen esas tarjetas. Con ese hueco abierto, rechazar a alguien de 58
+     * o más por la fecha impresa es una acusación que no se puede defender: quizá su cédula no
+     * caduca y la fecha dice otra cosa. Así que escala a una persona, con los dos motivos puestos.
+     *
+     * No afloja nada para el resto: por debajo de esa edad, un documento caducado sigue siendo un
+     * rechazo. Y la discapacidad grave no se puede leer de una cédula, así que ese tramo del
+     * supuesto queda cubierto por la misma escalada cuando la edad no lo explica.
+     */
     if (this.isExpired(input)) {
-      return this.result(IdentityDecision.NOT_VERIFIED, ['DOCUMENT_EXPIRED'], 'NO_MATCH');
+      return this.puedeTenerVigenciaIndefinida(input)
+        ? this.result(
+            IdentityDecision.REVIEW_REQUIRED,
+            ['DOCUMENT_EXPIRED', 'INDEFINITE_VALIDITY_POSSIBLE'],
+            'REVIEW',
+          )
+        : this.result(IdentityDecision.NOT_VERIFIED, ['DOCUMENT_EXPIRED'], 'NO_MATCH');
     }
 
     // 2. Señales que por sí solas sólo justifican una segunda mirada.
@@ -125,6 +155,18 @@ export class IdentityDecisionEngine {
       return this.result(IdentityDecision.VERIFIED, [], 'MATCH');
     }
     return this.result(IdentityDecision.REVIEW_REQUIRED, ['AMBIGUOUS_MATCH'], 'REVIEW');
+  }
+
+  /**
+   * Si la edad del titular admite una cédula de vigencia indefinida.
+   *
+   * Sin fecha de nacimiento legible NO se asume nada: `false`, y entonces la caducidad decide como
+   * antes. Afirmar la indefinición sobre un dato que no se leyó sería el error simétrico.
+   */
+  private puedeTenerVigenciaIndefinida(input: IdentityDecisionInput): boolean {
+    if (!VIGENCIA_INDEFINIDA.existe || !input.dateOfBirth) return false;
+    const anios = (input.now.getTime() - input.dateOfBirth.getTime()) / (365.2425 * DAY_MS);
+    return anios >= EDAD_DE_VIGENCIA_INDEFINIDA;
   }
 
   private isExpired(input: IdentityDecisionInput): boolean {

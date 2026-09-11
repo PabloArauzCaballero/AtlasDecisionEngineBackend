@@ -864,6 +864,9 @@ export class IdentityPipelineService {
         this.options.livenessProfileVersion.trim().length > 0,
       faceSimilarity: match && match.comparable ? match.similarityScore : null,
       documentExpiresAt: isoDateToUtcDate(fields.expirationDate?.value),
+      // Sólo para decidir si una fecha vencida puede rechazar por sí sola: desde los 58 años la
+      // cédula puede ser de vigencia indefinida y esa fecha no prueba nada.
+      dateOfBirth: isoDateToUtcDate(fields.dateOfBirth?.value),
       documentExpiryGraceDays: this.options.documentExpiryGraceDays,
       now: new Date(),
       ...(this.options.matchThreshold !== undefined
