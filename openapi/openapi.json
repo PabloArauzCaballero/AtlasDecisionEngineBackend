@@ -5721,7 +5721,9 @@
                 "AMBIGUOUS_FACE_MATCH",
                 "LOW_IMAGE_QUALITY",
                 "TIMEOUT",
-                "MANUAL_REQUEST"
+                "MANUAL_REQUEST",
+                "UNCALIBRATED_DECISION",
+                "INCONCLUSIVE_LIVENESS"
               ]
             }
           },
@@ -21776,7 +21778,9 @@
               "AMBIGUOUS_FACE_MATCH",
               "LOW_IMAGE_QUALITY",
               "TIMEOUT",
-              "MANUAL_REQUEST"
+              "MANUAL_REQUEST",
+              "UNCALIBRATED_DECISION",
+              "INCONCLUSIVE_LIVENESS"
             ],
             "type": "string"
           },
@@ -21868,7 +21872,9 @@
               "AMBIGUOUS_FACE_MATCH",
               "LOW_IMAGE_QUALITY",
               "TIMEOUT",
-              "MANUAL_REQUEST"
+              "MANUAL_REQUEST",
+              "UNCALIBRATED_DECISION",
+              "INCONCLUSIVE_LIVENESS"
             ],
             "type": "string",
             "description": "`null` = «Todos»."
