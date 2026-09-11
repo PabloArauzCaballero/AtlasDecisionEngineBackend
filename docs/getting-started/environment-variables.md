@@ -3,7 +3,7 @@
 
 # Variables de entorno
 
-312 variables declaradas. El esquema se valida al arrancar: un valor ausente o
+313 variables declaradas. El esquema se valida al arrancar: un valor ausente o
 fuera de rango impide el arranque en vez de degradar el comportamiento en caliente.
 
 | Variable | Obligatoria | Valor por defecto | Para qué |
@@ -191,6 +191,7 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `IDENTITY_MATCH_THRESHOLD` | no | — | — |
 | `IDENTITY_REVIEW_THRESHOLD` | no | — | — |
 | `IDENTITY_THRESHOLD_PROFILE_VERSION` | no | `'unconfigured'` | — |
+| `IDENTITY_LIVENESS_PROFILE_VERSION` | no | `'unconfigured'` | — |
 | `IDENTITY_MIN_DOCUMENT_QUALITY` | no | `0.5` | — |
 | `IDENTITY_MIN_SELFIE_QUALITY` | no | `0.5` | — |
 | `IDENTITY_MIN_FACE_AREA_RATIO` | no | `0.012` | — |

@@ -143,6 +143,8 @@ nav:
       - Artefacto de verificación KYB del comercio: artifacts/partner-kyb-review.md
       - Fraude documental en identidad: workers/identidad-fraude-documental.md
       - Identidad contra cinco cédulas reales: workers/identidad-cinco-cedulas-reales.md
+      - Identidad contra veintitrés cédulas y el corpus: workers/corpus-identidad-medido.md
+      - Corpus de extractos, glosario oficial e impuestos: workers/corpus-extractos-bolivia.md
       - Padrón de entidades y compuerta de emisor: workers/bank-statement-institutions.md
       - Catálogo de categorías del worker semántico: workers/semantic-category-catalog.md
       - Ninguna glosa sin categoría: workers/semantic-sin-desconocido.md

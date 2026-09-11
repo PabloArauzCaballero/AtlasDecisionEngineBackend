@@ -25,8 +25,8 @@
     "semantic_hash": ""
   },
   "package.json": {
-    "mtime": 1787225953.5310175,
-    "ast_hash": "f100272a2f0a51c1c65b24078ec8db1f",
+    "mtime": 1789100338.2978497,
+    "ast_hash": "ea16174e3fddea0b48cb0fcf8bbd41d4",
     "semantic_hash": ""
   },
   "prisma.config.ts": {
@@ -135,8 +135,8 @@
     "semantic_hash": ""
   },
   "src/common/config/env.schema.ts": {
-    "mtime": 1788565051.6871655,
-    "ast_hash": "9c1edab3cf362456322495e857e42f7c",
+    "mtime": 1789101111.501114,
+    "ast_hash": "b2d602957ba86821f850aefac4e9fa7e",
     "semantic_hash": ""
   },
   "src/common/context/request-context.service.ts": {
@@ -225,8 +225,8 @@
     "semantic_hash": ""
   },
   "src/common/security/access-audit.interceptor.ts": {
-    "mtime": 1786913184.5486755,
-    "ast_hash": "e3b8a1ef74322daff75a0acb82aadf9a",
+    "mtime": 1789069881.1861293,
+    "ast_hash": "e33c62ecf587ba36d260e6fb9323e7e6",
     "semantic_hash": ""
   },
   "src/common/security/access-denial-auditor.service.ts": {
@@ -300,8 +300,8 @@
     "semantic_hash": ""
   },
   "src/main.ts": {
-    "mtime": 1787278304.9443724,
-    "ast_hash": "24d7edaeebb377846fd8daccfa1872dc",
+    "mtime": 1789069880.7495046,
+    "ast_hash": "d8a85814d4bf8b245f8cb181b32acb10",
     "semantic_hash": ""
   },
   "src/modules/artifacts/artifact-graph-reader.service.ts": {
@@ -345,8 +345,8 @@
     "semantic_hash": ""
   },
   "src/modules/audit-query/audit-query.controller.ts": {
-    "mtime": 1786913184.5511703,
-    "ast_hash": "740ad2ba6139550ff82c76c9d5047f7d",
+    "mtime": 1789021192.7692342,
+    "ast_hash": "7e882939f5819b2970fa7e3171ef9801",
     "semantic_hash": ""
   },
   "src/modules/audit-query/audit-query.dto.ts": {
@@ -360,8 +360,8 @@
     "semantic_hash": ""
   },
   "src/modules/audit-query/audit-query.service.ts": {
-    "mtime": 1787225953.5799265,
-    "ast_hash": "b5a4dc87bdc13738aa56ce5f8cd5b9fe",
+    "mtime": 1789069880.7506967,
+    "ast_hash": "9cc26895b642e38326aa142b1ba865a3",
     "semantic_hash": ""
   },
   "src/modules/deployments/deployment-resolver.service.ts": {
@@ -535,13 +535,13 @@
     "semantic_hash": ""
   },
   "src/modules/manual-review/manual-review.service.ts": {
-    "mtime": 1787836580.0708723,
-    "ast_hash": "ac451da65f5d16a8e0a556e7eb6d643a",
+    "mtime": 1788968265.9802535,
+    "ast_hash": "72d00060bb8bff22cec12a5cd72725b5",
     "semantic_hash": ""
   },
   "src/modules/runtime/execution-writer.service.ts": {
-    "mtime": 1787225953.5873795,
-    "ast_hash": "0bb4a2d048effe0bf5130a64b8b74143",
+    "mtime": 1788671082.42838,
+    "ast_hash": "318a6976e80b86c28cc1dcc81dc71b09",
     "semantic_hash": ""
   },
   "src/modules/runtime/idempotency.service.ts": {
@@ -565,8 +565,8 @@
     "semantic_hash": ""
   },
   "src/modules/runtime/runtime.service.ts": {
-    "mtime": 1787225953.5881195,
-    "ast_hash": "4d5f8eb359ca6887026d119cfe6fc251",
+    "mtime": 1788671082.427815,
+    "ast_hash": "4dbd7dbde6b8ffb427fb0001c5e8f0ff",
     "semantic_hash": ""
   },
   "src/modules/runtime/simulation.controller.ts": {
@@ -875,8 +875,8 @@
     "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1787278165.6519322,
-    "ast_hash": "3381a4b41f39449cb7f178bbcf626cd9",
+    "mtime": 1789102133.3909552,
+    "ast_hash": "4aad9a9ee7e2ff5de12c5026e92bffe7",
     "semantic_hash": ""
   },
   "README.md": {
@@ -2155,28 +2155,28 @@
     "semantic_hash": ""
   },
   "docs/reports/catalog-metrics.json": {
-    "mtime": 1788576043.3299997,
-    "ast_hash": "7141d60747401173d961029cda6a5129",
+    "mtime": 1789102092.3242407,
+    "ast_hash": "8ddb8170a9460672ab350f350e99c68e",
     "semantic_hash": ""
   },
   "docs/reports/documentation-coverage.json": {
-    "mtime": 1788576045.1849074,
-    "ast_hash": "837a9fd162af9ec04e397fa89cfc0376",
+    "mtime": 1789102093.6200218,
+    "ast_hash": "9f9ba1a02875fc29b2f32ac0b442ce91",
     "semantic_hash": ""
   },
   "docs/reports/openapi-metrics.json": {
-    "mtime": 1788575895.658197,
-    "ast_hash": "625282f8c181102f84c43c630f2ce6a8",
+    "mtime": 1789102088.8041391,
+    "ast_hash": "abc361b48f4082f3c95aebb0dd798ee0",
     "semantic_hash": ""
   },
   "docs/reports/openapi-response-schema-debt.json": {
-    "mtime": 1788575895.6578846,
+    "mtime": 1789102088.8039982,
     "ast_hash": "0e79fba81466844033df22a07283b0c0",
     "semantic_hash": ""
   },
   "openapi/openapi.json": {
-    "mtime": 1788575894.9765537,
-    "ast_hash": "d0eaf91686d3f4dc7f1a609b170fb011",
+    "mtime": 1789070910.3924923,
+    "ast_hash": "dc48c1e2de24f63442fe8a9b9d698bb6",
     "semantic_hash": ""
   },
   "prisma/migrations/20260730080000_variable_contracts_calculated_fields_qa/migration.sql": {
@@ -2310,8 +2310,8 @@
     "semantic_hash": ""
   },
   "src/modules/audit-query/audit-query.response.dto.ts": {
-    "mtime": 1786913184.551426,
-    "ast_hash": "a21e5137c21bee9d76e325b48d92f4e1",
+    "mtime": 1789069880.7510417,
+    "ast_hash": "e167d0865d4eab9a9a6ce165ba237bf8",
     "semantic_hash": ""
   },
   "src/modules/calculated-fields/calculated-field-contract.validator.ts": {
@@ -2780,12 +2780,12 @@
     "semantic_hash": ""
   },
   "docs/api/endpoint-catalog.md": {
-    "mtime": 1788576042.563252,
-    "ast_hash": "a4e6528a8d9179b3d5a4712f654f9026",
+    "mtime": 1789102092.126159,
+    "ast_hash": "171bf70aa3708d0a4f7b96c8889c737f",
     "semantic_hash": ""
   },
   "docs/api/error-catalog.md": {
-    "mtime": 1788576043.3268597,
+    "mtime": 1789102092.3230984,
     "ast_hash": "ddb7b87349e01045122759ec77d8f31d",
     "semantic_hash": ""
   },
@@ -2845,8 +2845,8 @@
     "semantic_hash": ""
   },
   "docs/architecture/module-dependencies.md": {
-    "mtime": 1787225953.506643,
-    "ast_hash": "485ac75b6ecc748ed69f7c94b7c61def",
+    "mtime": 1789092609.6983416,
+    "ast_hash": "950998bfbd73600248713f638a6b90d5",
     "semantic_hash": ""
   },
   "docs/architecture/overview.md": {
@@ -2930,8 +2930,8 @@
     "semantic_hash": ""
   },
   "docs/data/entity-catalog.md": {
-    "mtime": 1788576042.8498926,
-    "ast_hash": "da30e9c82f4b8b0b469cdc10f15f7dde",
+    "mtime": 1789102092.2160387,
+    "ast_hash": "8124d49e4e27f1d346456a641018f549",
     "semantic_hash": ""
   },
   "docs/data/migrations.md": {
@@ -2965,7 +2965,7 @@
     "semantic_hash": ""
   },
   "docs/events/event-catalog.md": {
-    "mtime": 1788576043.1273863,
+    "mtime": 1789102092.276693,
     "ast_hash": "314dd067d5446e863f44265c5a3216fe",
     "semantic_hash": ""
   },
@@ -2985,8 +2985,8 @@
     "semantic_hash": ""
   },
   "docs/getting-started/environment-variables.md": {
-    "mtime": 1788576043.3296163,
-    "ast_hash": "785da7bbb538424cb34dd3407055ccc8",
+    "mtime": 1789102092.3241117,
+    "ast_hash": "ad5b2ef9f84f937d8633d7f94b4a2556",
     "semantic_hash": ""
   },
   "docs/getting-started/local-setup.md": {
@@ -3040,127 +3040,127 @@
     "semantic_hash": ""
   },
   "docs/modules/artifacts.md": {
-    "mtime": 1788576042.8135865,
+    "mtime": 1789102092.2015467,
     "ast_hash": "7b9291a01638c6532e1db0215bf43a54",
     "semantic_hash": ""
   },
   "docs/modules/audit-query.md": {
-    "mtime": 1788576042.8153887,
-    "ast_hash": "844236cab0109f4198fd4b7989ee3e95",
+    "mtime": 1789102092.2019331,
+    "ast_hash": "a4a6ceed8412d83e89d65213d34ec98c",
     "semantic_hash": ""
   },
   "docs/modules/calculated-fields.md": {
-    "mtime": 1788576042.8172376,
+    "mtime": 1789102092.2025123,
     "ast_hash": "44b10f176e2635c51e14915edb803316",
     "semantic_hash": ""
   },
   "docs/modules/code-import.md": {
-    "mtime": 1788576042.8180683,
+    "mtime": 1789102092.2028549,
     "ast_hash": "eb2aa6cb14ca959b7d76a62b6114e8d1",
     "semantic_hash": ""
   },
   "docs/modules/deployments.md": {
-    "mtime": 1788576042.8198586,
+    "mtime": 1789102092.2033002,
     "ast_hash": "77bc3ace13d33f68be17c4bd58f65621",
     "semantic_hash": ""
   },
   "docs/modules/governance.md": {
-    "mtime": 1788576042.8215756,
+    "mtime": 1789102092.2034826,
     "ast_hash": "38a6605fb242838c3007b7f60d4936e5",
     "semantic_hash": ""
   },
   "docs/modules/graph.md": {
-    "mtime": 1788576042.8228505,
+    "mtime": 1789102092.2042117,
     "ast_hash": "e2e85c64c3a236d73577d9701528e1f8",
     "semantic_hash": ""
   },
   "docs/modules/health.md": {
-    "mtime": 1788576042.8239427,
+    "mtime": 1789102092.204419,
     "ast_hash": "9c0026573c97e727f31111c5e06a3468",
     "semantic_hash": ""
   },
   "docs/modules/identity-session.md": {
-    "mtime": 1788576042.8244743,
+    "mtime": 1789102092.2045822,
     "ast_hash": "4bbfd12a6a1960a36ab2534e8134a185",
     "semantic_hash": ""
   },
   "docs/modules/index.md": {
-    "mtime": 1788576042.8423812,
-    "ast_hash": "08722c322480d014e2eacbd5b7dadcbb",
+    "mtime": 1789102092.2136524,
+    "ast_hash": "be91fbd615810577c3deb1629ab22e7b",
     "semantic_hash": ""
   },
   "docs/modules/libraries.md": {
-    "mtime": 1788576042.8249054,
+    "mtime": 1789102092.2047596,
     "ast_hash": "3ffc91972a7ee31ca0e68f52a81e9d8c",
     "semantic_hash": ""
   },
   "docs/modules/live-execution.md": {
-    "mtime": 1788576042.8253758,
+    "mtime": 1789102092.2049003,
     "ast_hash": "1d1c69bca9f56f5e32e8f330e3562615",
     "semantic_hash": ""
   },
   "docs/modules/manual-review.md": {
-    "mtime": 1788576042.825839,
+    "mtime": 1789102092.2050853,
     "ast_hash": "004e0539b3809ec0a047fcd9dbda182a",
     "semantic_hash": ""
   },
   "docs/modules/nested-trees.md": {
-    "mtime": 1788576042.8271537,
+    "mtime": 1789102092.205663,
     "ast_hash": "5fe0f04f953c83e23952bcecf760b5be",
     "semantic_hash": ""
   },
   "docs/modules/notifications.md": {
-    "mtime": 1788576042.8275247,
+    "mtime": 1789102092.2058113,
     "ast_hash": "12dc0b21179913cb94c58a1d22b7299a",
     "semantic_hash": ""
   },
   "docs/modules/outbox-relay.md": {
-    "mtime": 1788576042.827827,
+    "mtime": 1789102092.2059345,
     "ast_hash": "b727dbc9b8168600ca51342f6ac0fcfb",
     "semantic_hash": ""
   },
   "docs/modules/qa-lab.md": {
-    "mtime": 1788576042.8295884,
+    "mtime": 1789102092.2066987,
     "ast_hash": "e293307d9cdd6ef19f7ca84ee0959730",
     "semantic_hash": ""
   },
   "docs/modules/runtime.md": {
-    "mtime": 1788576042.8309479,
-    "ast_hash": "d33e7c8ad1c1a6744b3917be08b8729d",
+    "mtime": 1789102092.2075896,
+    "ast_hash": "6af698f3a63023c9e02c2b8dbda05119",
     "semantic_hash": ""
   },
   "docs/modules/security-review.md": {
-    "mtime": 1788576042.8316317,
+    "mtime": 1789102092.207732,
     "ast_hash": "7f38dcc2e7eed2dac6c4596ad1e27016",
     "semantic_hash": ""
   },
   "docs/modules/seeding.md": {
-    "mtime": 1788576042.8320162,
+    "mtime": 1789102092.2078567,
     "ast_hash": "37ff087ca1d75e42b9af7e9eb3c6c7f3",
     "semantic_hash": ""
   },
   "docs/modules/testing.md": {
-    "mtime": 1788576042.8332677,
+    "mtime": 1789102092.2083943,
     "ast_hash": "82823a0e6596f230f409d0fa4f05fa66",
     "semantic_hash": ""
   },
   "docs/modules/traceability.md": {
-    "mtime": 1788576042.8336759,
+    "mtime": 1789102092.2085419,
     "ast_hash": "fa981bbad76c217212218657b40b4186",
     "semantic_hash": ""
   },
   "docs/modules/tutorials.md": {
-    "mtime": 1788576042.8340547,
+    "mtime": 1789102092.208657,
     "ast_hash": "7f91277c9fe2de93e7428a1307a2b18c",
     "semantic_hash": ""
   },
   "docs/modules/variables.md": {
-    "mtime": 1788576042.834606,
+    "mtime": 1789102092.2088935,
     "ast_hash": "3a010e593832df0e9bc428a47bda593f",
     "semantic_hash": ""
   },
   "docs/modules/views.md": {
-    "mtime": 1788576042.8350158,
+    "mtime": 1789102092.209034,
     "ast_hash": "a2025683940dba17deb88e4a16b2c4e2",
     "semantic_hash": ""
   },
@@ -3260,8 +3260,8 @@
     "semantic_hash": ""
   },
   "docs/reports/graphify-audit.md": {
-    "mtime": 1787225953.5258121,
-    "ast_hash": "2066b6b95d99969aa713f9a63aea22cd",
+    "mtime": 1789092609.69798,
+    "ast_hash": "951014254075c7098c4e6517fc358a90",
     "semantic_hash": ""
   },
   "docs/reports/production-readiness.md": {
@@ -3370,8 +3370,8 @@
     "semantic_hash": ""
   },
   "mkdocs.yml": {
-    "mtime": 1788575701.0759432,
-    "ast_hash": "cb76ea58b775d19efc5c52fa751eb286",
+    "mtime": 1789102060.8129694,
+    "ast_hash": "3432954f2366c79f5303303dfc0e91a0",
     "semantic_hash": ""
   },
   "redocly.yaml": {
@@ -3930,13 +3930,13 @@
     "semantic_hash": ""
   },
   "src/modules/audit-query/adapters/postgres-decision-audit-read.adapter.ts": {
-    "mtime": 1787225953.579546,
-    "ast_hash": "06b61850e045e628c85b3b5d92d9f3fd",
+    "mtime": 1789069881.2129745,
+    "ast_hash": "7f1e9ce4ed08fd272b4c3ec855bec35c",
     "semantic_hash": ""
   },
   "src/modules/audit-query/ports/decision-audit-read.port.ts": {
-    "mtime": 1787225953.5800123,
-    "ast_hash": "16329bd346133ea98c24b1157b9cd8ee",
+    "mtime": 1789069880.7500007,
+    "ast_hash": "163ada75c74a44960ac979717caadc73",
     "semantic_hash": ""
   },
   "src/modules/calculated-fields/calculated-field-outcomes.ts": {
@@ -4515,8 +4515,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/bank-statement-run-worker.service.ts": {
-    "mtime": 1788179767.4526393,
-    "ast_hash": "8ce754c9fd29c54b956cc0f9199dc7fa",
+    "mtime": 1788790075.6167202,
+    "ast_hash": "26c28e7fdd076b7aae75c00da99dfdac",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/bank-statement.controller.ts": {
@@ -4525,13 +4525,13 @@
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/bank-statement.service.ts": {
-    "mtime": 1788492089.2676864,
-    "ast_hash": "c3603eb8840ed4121d88f93405d0a5b5",
+    "mtime": 1788968267.760366,
+    "ast_hash": "cfbacc06719c2ac6374db38088cdeeca",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/application/bank-statement-worker.service.ts": {
-    "mtime": 1788180006.033799,
-    "ast_hash": "7b4e708c50907d1ca34a6d8a73cf167c",
+    "mtime": 1789101729.6131828,
+    "ast_hash": "25667ba11420051ed9ed9aaca5868374",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/application/file-validation.service.ts": {
@@ -4560,8 +4560,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/engine/document-classifier.ts": {
-    "mtime": 1787278165.6615741,
-    "ast_hash": "92b9d3bcc1a0d796c13526b362e7b869",
+    "mtime": 1789101729.7083755,
+    "ast_hash": "81373528e79a54e220eb294b53d995a7",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/engine/document-triage.ts": {
@@ -4600,8 +4600,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/engine/generic/generic-statement.strategy.ts": {
-    "mtime": 1786913184.5689318,
-    "ast_hash": "dea06ad5464ed5fc1027bebc0fdd8b19",
+    "mtime": 1788790075.6170278,
+    "ast_hash": "622e943be50eb13267739d45c6a6f566",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/engine/generic/header-lexicon.ts": {
@@ -4635,8 +4635,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/engine/institution-detector.ts": {
-    "mtime": 1788179948.5325167,
-    "ast_hash": "2fa7fdf408ab018fae1915ee96dcf291",
+    "mtime": 1789100338.3008106,
+    "ast_hash": "9e331991838511e40de64ceea7ceadea",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/engine/issuer-gate.ts": {
@@ -4700,8 +4700,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/engine/statement-context.ts": {
-    "mtime": 1788179458.2985802,
-    "ast_hash": "6735c8548582fafcc55181601c04225d",
+    "mtime": 1789100338.3010664,
+    "ast_hash": "c7bf3d993233c5e7cc0e0f32be559a75",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/engine/telemetry/conversion-metrics.ts": {
@@ -4710,8 +4710,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/institutions/bolivia-institutions.ts": {
-    "mtime": 1788179458.2941248,
-    "ast_hash": "420fb5bde3d93af84532a9c10d0eeddc",
+    "mtime": 1789100338.3013005,
+    "ast_hash": "4ff958172c4580b59a79430b6d8fa5b3",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/institutions/institution-registry.ts": {
@@ -4720,8 +4720,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/institutions/non-banking-issuers.ts": {
-    "mtime": 1787278165.662573,
-    "ast_hash": "fbe837f3340ea3fb36446202f5f7b33c",
+    "mtime": 1789100338.3014476,
+    "ast_hash": "6885ac0d3eb924a5890e5c7aab1454e4",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/options.ts": {
@@ -4760,8 +4760,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/parsers/parser-helpers.ts": {
-    "mtime": 1787225953.6007552,
-    "ast_hash": "5963dc5158102f64c49af7a5c6c1790b",
+    "mtime": 1788887122.0228016,
+    "ast_hash": "48ddc79ec32ef67f8867eb1721112c10",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/parsers/union.parser.ts": {
@@ -4785,8 +4785,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/statement-engine.ts": {
-    "mtime": 1788179700.0906992,
-    "ast_hash": "4b09baea96ab1c6c64b3ae985e442c0a",
+    "mtime": 1788790075.6173518,
+    "ast_hash": "3fb3ecd9426667b94df5c299e706e4a4",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/fixtures/bank-statement-fixtures.ts": {
@@ -4860,8 +4860,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/identity-verification/core/adapters/identity-arbitration.adapter.ts": {
-    "mtime": 1787789797.7514431,
-    "ast_hash": "9ff05519f07f2001cce6398405c39740",
+    "mtime": 1788968268.5219514,
+    "ast_hash": "a28a7ac7de52b165eb5aee86969a0520",
     "semantic_hash": ""
   },
   "src/modules/workers/identity-verification/core/adapters/local-providers.adapter.ts": {
@@ -4870,8 +4870,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/identity-verification/core/adapters/sharp-image.adapter.ts": {
-    "mtime": 1787787170.7303703,
-    "ast_hash": "ac3b84f1805d263f86873ee7711dd025",
+    "mtime": 1788699733.4567919,
+    "ast_hash": "8378cfef9bc0203dc078c9384335562d",
     "semantic_hash": ""
   },
   "src/modules/workers/identity-verification/core/adapters/tesseract-ocr.adapter.ts": {
@@ -4880,18 +4880,18 @@
     "semantic_hash": ""
   },
   "src/modules/workers/identity-verification/core/domain/extracted-identity.types.ts": {
-    "mtime": 1787225953.6018965,
-    "ast_hash": "abe10f3fdf7cccfc3da5ae7f2d8540bf",
+    "mtime": 1788968268.5901773,
+    "ast_hash": "975da026a615bc4c34a2dd2d8ece4a77",
     "semantic_hash": ""
   },
   "src/modules/workers/identity-verification/core/domain/identity-decision.engine.ts": {
-    "mtime": 1787225953.601947,
-    "ast_hash": "40c6c191992a36d1e00a938ebe4cf487",
+    "mtime": 1789101144.3458476,
+    "ast_hash": "0c933b69ed921aaad423c7200a108433",
     "semantic_hash": ""
   },
   "src/modules/workers/identity-verification/core/domain/identity-domain.error.ts": {
-    "mtime": 1787278165.663851,
-    "ast_hash": "c7b282a9be7214f171c1e5bbc73f4ce0",
+    "mtime": 1788700536.0748794,
+    "ast_hash": "b4f2979752df953f1fa3638a41be764d",
     "semantic_hash": ""
   },
   "src/modules/workers/identity-verification/core/domain/identity-enums.ts": {
@@ -4910,8 +4910,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/identity-verification/core/identity-options.ts": {
-    "mtime": 1788271887.3682387,
-    "ast_hash": "29f3be43a03e92450f580f1851f76a40",
+    "mtime": 1789101111.500051,
+    "ast_hash": "f766e741899e4af1f1ee3fecebae5c55",
     "semantic_hash": ""
   },
   "src/modules/workers/identity-verification/core/image-quality-assessment.service.ts": {
@@ -4920,8 +4920,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/identity-verification/core/parsers/bolivia-ci-document.parser.ts": {
-    "mtime": 1788283933.5330276,
-    "ast_hash": "6db122336be4305672247f4bab28f709",
+    "mtime": 1789100480.776483,
+    "ast_hash": "bbfbc5839d4653883210aa9cdb162de2",
     "semantic_hash": ""
   },
   "src/modules/workers/identity-verification/core/parsers/document-parser.registry.ts": {
@@ -4935,8 +4935,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/identity-verification/core/parsers/mrz-td1.ts": {
-    "mtime": 1788272371.9264033,
-    "ast_hash": "e32ffc806bf1845a99b81dec653fd9b2",
+    "mtime": 1789102521.159074,
+    "ast_hash": "9e18f37c5cd632b1bb3b5af68a5a7840",
     "semantic_hash": ""
   },
   "src/modules/workers/identity-verification/core/parsers/spanish-date.ts": {
@@ -4950,8 +4950,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/identity-verification/core/ports/identity.ports.ts": {
-    "mtime": 1788271699.1264694,
-    "ast_hash": "25a3b0c523dd483124c5834dd1f254bc",
+    "mtime": 1788790075.6182506,
+    "ast_hash": "ef2236a6df085e973a5829c11c810bea",
     "semantic_hash": ""
   },
   "src/modules/workers/identity-verification/fixtures/identity-card.ts": {
@@ -4970,8 +4970,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/identity-verification/identity-config.bridge.ts": {
-    "mtime": 1788271893.410032,
-    "ast_hash": "5a7ee77705fe1a8c97d635df99796211",
+    "mtime": 1789101111.5004678,
+    "ast_hash": "5b325515fecb26aa417423bf0b937751",
     "semantic_hash": ""
   },
   "src/modules/workers/identity-verification/identity-outcome.ts": {
@@ -4985,13 +4985,13 @@
     "semantic_hash": ""
   },
   "src/modules/workers/identity-verification/identity-pipeline.service.ts": {
-    "mtime": 1788283650.3639328,
-    "ast_hash": "9848c1aa9f0b77dc27f2c9416cee934d",
+    "mtime": 1789101144.347825,
+    "ast_hash": "a1086e855094f81e22e53d263d3bcaeb",
     "semantic_hash": ""
   },
   "src/modules/workers/identity-verification/identity-result.ts": {
-    "mtime": 1787759656.6201873,
-    "ast_hash": "f283259542e27b6ac7f7104604b26a72",
+    "mtime": 1789100492.8642106,
+    "ast_hash": "a0e463a76a98fcd1698eb2f1df514e53",
     "semantic_hash": ""
   },
   "src/modules/workers/identity-verification/identity-run-worker.service.ts": {
@@ -5010,8 +5010,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/identity-verification/identity-verification.service.ts": {
-    "mtime": 1788489862.8891935,
-    "ast_hash": "8c5351d7b42c262a146429b54c699463",
+    "mtime": 1788968269.0796576,
+    "ast_hash": "7bdd9a080c7d3c80eb73643413d222bd",
     "semantic_hash": ""
   },
   "src/modules/workers/identity-verification/review/identity-review.controller.ts": {
@@ -5174,14 +5174,9 @@
     "ast_hash": "3ba5a8dac3d8163be558f843cb264741",
     "semantic_hash": ""
   },
-  "src/modules/workers/semantic-analysis/core/infrastructure/http/openai-compatible-transport.ts": {
-    "mtime": 1788564972.9261951,
-    "ast_hash": "fb99355db60cdaf2906ef9d9822d574c",
-    "semantic_hash": ""
-  },
   "src/modules/workers/semantic-analysis/core/infrastructure/litellm/litellm-semantic.provider.ts": {
-    "mtime": 1788564984.0713453,
-    "ast_hash": "df24203c1b4dbd54d8e33871f729919c",
+    "mtime": 1788790075.6188803,
+    "ast_hash": "36e825dba140a3c96a03bbfcbccfa14d",
     "semantic_hash": ""
   },
   "src/modules/workers/semantic-analysis/core/infrastructure/model/classification-contract.ts": {
@@ -5195,8 +5190,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/semantic-analysis/core/infrastructure/openai/openai-semantic.provider.ts": {
-    "mtime": 1787330422.784258,
-    "ast_hash": "bc76d314726064489f9c17f8e2512853",
+    "mtime": 1788790075.6191328,
+    "ast_hash": "e9be8ec3a98e697c4982955f73e0c066",
     "semantic_hash": ""
   },
   "src/modules/workers/semantic-analysis/core/infrastructure/transformer/transformer-classifier.ts": {
@@ -5325,8 +5320,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/workers.module.ts": {
-    "mtime": 1788565919.6071105,
-    "ast_hash": "b352b683789124a6b953b70b5d6115af",
+    "mtime": 1788968269.6208975,
+    "ast_hash": "f02cf88a02f52db383537a3cd3e980d0",
     "semantic_hash": ""
   },
   "src/pdf-worker.ts": {
@@ -6040,8 +6035,8 @@
     "semantic_hash": ""
   },
   "test/identity-verification-pipeline.spec.ts": {
-    "mtime": 1787790027.9276645,
-    "ast_hash": "d00eb199de381efa96681cf04098f46e",
+    "mtime": 1788790075.6200998,
+    "ast_hash": "bdd2b82112831ff71fbed5da13945f27",
     "semantic_hash": ""
   },
   "test/input-contract-default-value.spec.ts": {
@@ -6085,8 +6080,8 @@
     "semantic_hash": ""
   },
   "test/manual-review-segregation.spec.ts": {
-    "mtime": 1787772248.7796264,
-    "ast_hash": "e1c4a7bd7793b2ac43f05453cb0eba55",
+    "mtime": 1788968271.5736697,
+    "ast_hash": "7b86f07a2626f3005d72daa61be9a4b6",
     "semantic_hash": ""
   },
   "test/metrics-token.spec.ts": {
@@ -6360,8 +6355,8 @@
     "semantic_hash": ""
   },
   "test/statement-issuer-gate.spec.ts": {
-    "mtime": 1787278165.6688948,
-    "ast_hash": "3af5df0056bb0e6e4c10e7fc138e8e8f",
+    "mtime": 1789100338.301723,
+    "ast_hash": "bf0f40472d5d94b2a51b40f27853d7e7",
     "semantic_hash": ""
   },
   "test/statement-triage.spec.ts": {
@@ -6385,8 +6380,8 @@
     "semantic_hash": ""
   },
   "test/support/in-memory-decision-audit-read.adapter.ts": {
-    "mtime": 1787225953.6281803,
-    "ast_hash": "ef531420d21c04961a63bdf843cc5543",
+    "mtime": 1789069880.7504742,
+    "ast_hash": "414c1ae4afea777c770be549a75317ed",
     "semantic_hash": ""
   },
   "test/support/pdf-worker-harness.ts": {
@@ -6600,57 +6595,57 @@
     "semantic_hash": ""
   },
   "docs/design-rules/00-governance.md": {
-    "mtime": 1787225953.5091395,
+    "mtime": 1788701213.4123194,
     "ast_hash": "9cbb520eb8c5e1a1793efc8224a8746b",
     "semantic_hash": ""
   },
   "docs/design-rules/10-backend-architecture.md": {
-    "mtime": 1787225953.5091956,
+    "mtime": 1788701213.4123478,
     "ast_hash": "80b507de1c6a1264e849f8a0c0adbb67",
     "semantic_hash": ""
   },
   "docs/design-rules/20-clean-code.md": {
-    "mtime": 1787225953.5092487,
+    "mtime": 1788701213.4123256,
     "ast_hash": "250e907450ec5760ce4717cbbff7457f",
     "semantic_hash": ""
   },
   "docs/design-rules/30-security.md": {
-    "mtime": 1787225953.509304,
+    "mtime": 1788701213.4122891,
     "ast_hash": "8e553765780c52c02f7e0a027aae6e40",
     "semantic_hash": ""
   },
   "docs/design-rules/40-observability.md": {
-    "mtime": 1787225953.509357,
+    "mtime": 1788701213.4123378,
     "ast_hash": "fc941184fc30ef7bebaa47336434763c",
     "semantic_hash": ""
   },
   "docs/design-rules/50-performance.md": {
-    "mtime": 1787225953.509411,
+    "mtime": 1788701213.412377,
     "ast_hash": "ccdf30589bf589974125c7a54d284ffe",
     "semantic_hash": ""
   },
   "docs/design-rules/60-testing.md": {
-    "mtime": 1787225953.509461,
+    "mtime": 1788701213.4123611,
     "ast_hash": "5030795b1b955da1be5dbd01cdb3d303",
     "semantic_hash": ""
   },
   "docs/design-rules/70-library-selection.md": {
-    "mtime": 1787225953.5095108,
+    "mtime": 1788701213.4125535,
     "ast_hash": "dd8c3ab5e755ab0328495d55cab49d44",
     "semantic_hash": ""
   },
   "docs/design-rules/80-database.md": {
-    "mtime": 1787225953.5095637,
+    "mtime": 1788701213.4124975,
     "ast_hash": "32545c5aa5dec8d58a53715a2c356026",
     "semantic_hash": ""
   },
   "docs/design-rules/90-documentation.md": {
-    "mtime": 1787225953.5096133,
+    "mtime": 1788701213.4123693,
     "ast_hash": "541ac5bd7271bcdb7ecb306d6c2692f8",
     "semantic_hash": ""
   },
   "docs/design-rules/index.md": {
-    "mtime": 1787225953.5096703,
+    "mtime": 1788701213.411577,
     "ast_hash": "258650327b42a13c7b80064b05961500",
     "semantic_hash": ""
   },
@@ -6670,38 +6665,38 @@
     "semantic_hash": ""
   },
   "docs/modules/data-subject.md": {
-    "mtime": 1788576042.8191602,
+    "mtime": 1789102092.2030985,
     "ast_hash": "49bf21c147c4d78322a218a0aaa44266",
     "semantic_hash": ""
   },
   "docs/modules/model-monitoring.md": {
-    "mtime": 1788576042.8265474,
+    "mtime": 1789102092.2054207,
     "ast_hash": "d6d86cb299b6ec95c32907d5a893c249",
     "semantic_hash": ""
   },
   "docs/modules/outcome-ingestion.md": {
-    "mtime": 1788576042.8283057,
+    "mtime": 1789102092.2061076,
     "ast_hash": "c1592f1888fbc315e3c466174ec2d81e",
     "semantic_hash": ""
   },
   "docs/modules/platform-catalog.md": {
-    "mtime": 1788576042.8287582,
+    "mtime": 1789102092.2062864,
     "ast_hash": "6a85c932aee862c841569b9632f74b7d",
     "semantic_hash": ""
   },
   "docs/modules/risk-governance.md": {
-    "mtime": 1788576042.8302543,
+    "mtime": 1789102092.2069352,
     "ast_hash": "b753579f6dc15547838f0a40b2b44bf1",
     "semantic_hash": ""
   },
   "docs/modules/sql-console.md": {
-    "mtime": 1788576042.8327663,
+    "mtime": 1789102092.2081952,
     "ast_hash": "4382b40549ba13a08d5a23aaed5859d4",
     "semantic_hash": ""
   },
   "docs/modules/workers.md": {
-    "mtime": 1788576042.8420877,
-    "ast_hash": "9098be7a5baac1607b9a707156b84729",
+    "mtime": 1789102092.2135653,
+    "ast_hash": "26348c4ac83a59dcd7c3c9be99449205",
     "semantic_hash": ""
   },
   "docs/observability/00-current-state-audit.md": {
@@ -6825,7 +6820,7 @@
     "semantic_hash": ""
   },
   "docs/skills/backend-hardening.md": {
-    "mtime": 1787225953.5271335,
+    "mtime": 1788701213.4129207,
     "ast_hash": "7fbbae2e416ad342e9b20d868f0a958c",
     "semantic_hash": ""
   },
@@ -6835,17 +6830,17 @@
     "semantic_hash": ""
   },
   "docs/skills/index.md": {
-    "mtime": 1787225953.5272431,
+    "mtime": 1788701213.4127328,
     "ast_hash": "e8934bf17c109ec1f6f5c71b7084437c",
     "semantic_hash": ""
   },
   "docs/skills/production-verification.md": {
-    "mtime": 1787225953.5273073,
+    "mtime": 1788701213.4129548,
     "ast_hash": "551e5b939fcd8cf173906f0373844eb7",
     "semantic_hash": ""
   },
   "docs/skills/security-audit.md": {
-    "mtime": 1787225953.5273664,
+    "mtime": 1788701213.4129558,
     "ast_hash": "6181f4e114feda59b0cd432c4ce92d38",
     "semantic_hash": ""
   },
@@ -6935,8 +6930,8 @@
     "semantic_hash": ""
   },
   "docs/workers/semantic-litellm-gateway.md": {
-    "mtime": 1787321945.3913953,
-    "ast_hash": "6d74c7875cd335c92b8f24fa3cf5f5fa",
+    "mtime": 1789022206.2789574,
+    "ast_hash": "a39704b9a310fbe4d8635f3685638a9b",
     "semantic_hash": ""
   },
   "docs/workers/semantic-sin-desconocido.md": {
@@ -7075,28 +7070,28 @@
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/engine/affordability/affordability-engine.ts": {
-    "mtime": 1787765508.1632423,
-    "ast_hash": "46bb4a11bcb99a0ff0bd6fbc551c0692",
+    "mtime": 1789102491.2709713,
+    "ast_hash": "c7d654993da87a3209add250f37f0249",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/engine/affordability/affordability-model.ts": {
-    "mtime": 1787760340.2308743,
-    "ast_hash": "85b4bf5c5175f97032de301cd6be0970",
+    "mtime": 1789102483.5217745,
+    "ast_hash": "978f1b04e3e5b29e4662660e5bd5cbc3",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/engine/affordability/affordability-policy.ts": {
-    "mtime": 1788177845.918118,
-    "ast_hash": "70dae707005721a1d32300f457bc5b2e",
+    "mtime": 1789101729.6672738,
+    "ast_hash": "0670210bd2963eed7228461776cf9290",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/engine/affordability/monthly-series.ts": {
-    "mtime": 1787760464.2490375,
-    "ast_hash": "1526149e30dca64cc9423f45f0e4ac49",
+    "mtime": 1789101571.0976727,
+    "ast_hash": "657d09d0acd82b5ae774a8c7713e2ef6",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/engine/affordability/movement-lexicon.ts": {
-    "mtime": 1787765508.2363439,
-    "ast_hash": "35cc9c45485d3fa16f7091ab395d4399",
+    "mtime": 1789100338.299891,
+    "ast_hash": "a1da3e95eab9c8ecb0a662e9423a43e9",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/engine/affordability/recurrence.ts": {
@@ -7115,8 +7110,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/core/engine/authenticity/pdf-forensics.ts": {
-    "mtime": 1787765508.3179297,
-    "ast_hash": "0022f2105208e126119a03a7bbdb9857",
+    "mtime": 1789100338.30022,
+    "ast_hash": "0cd0b1f5c2e69738f563568b15a83847",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/institutions/institution-logo-seed.ts": {
@@ -7135,13 +7130,13 @@
     "semantic_hash": ""
   },
   "src/modules/workers/identity-verification/core/catalog/bolivia-ci.catalog.ts": {
-    "mtime": 1788272722.6289015,
-    "ast_hash": "8b264b81f1ebf8c3fab08d7301887a8c",
+    "mtime": 1789101065.9481976,
+    "ast_hash": "63bdaca536c8a831aeaa0173d4ce10fe",
     "semantic_hash": ""
   },
   "src/modules/workers/identity-verification/core/forensics/identity-fraud.scorer.ts": {
-    "mtime": 1788272722.6663344,
-    "ast_hash": "97579bb221341c1e68fad5162619d089",
+    "mtime": 1789100792.2578511,
+    "ast_hash": "0ac1ebc77bc2f8e61c481368bec8e5cc",
     "semantic_hash": ""
   },
   "src/modules/workers/identity-verification/core/forensics/identity-semantic.classifier.ts": {
@@ -7155,8 +7150,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/identity-verification/core/forensics/template-conformance.ts": {
-    "mtime": 1788272722.6898441,
-    "ast_hash": "c5fb13bc1bc4f8651c4ea2a7915d78b5",
+    "mtime": 1789100770.2056391,
+    "ast_hash": "583567d96eed98ba327d9ff3e1f2a4dc",
     "semantic_hash": ""
   },
   "test/demo-marker-consistency.spec.ts": {
@@ -7195,8 +7190,8 @@
     "semantic_hash": ""
   },
   "docs/artifacts/partner-kyb-review.md": {
-    "mtime": 1787830126.4665072,
-    "ast_hash": "1dab7aa6a3e0fffcdc64fa64bf3bf164",
+    "mtime": 1788967378.8769457,
+    "ast_hash": "554b235055a0b750f14a1745d9a7b03d",
     "semantic_hash": ""
   },
   "docs/evidence/README.md": {
@@ -7205,8 +7200,8 @@
     "semantic_hash": ""
   },
   "docs/workers/identidad-fraude-documental.md": {
-    "mtime": 1787763362.445127,
-    "ast_hash": "645755fe4403b87f281248fea6b55616",
+    "mtime": 1789022197.6432865,
+    "ast_hash": "eb2852e720f1eb68609af3879565a96e",
     "semantic_hash": ""
   },
   "src/modules/workers/bank-statement/institutions/logos/BCR.svg": {
@@ -7595,8 +7590,8 @@
     "semantic_hash": ""
   },
   "src/common/seeding/seed-source.ts": {
-    "mtime": 1788179762.8273747,
-    "ast_hash": "70f55b5e4ff50e2f9c2f62c94bdc0516",
+    "mtime": 1788890558.351551,
+    "ast_hash": "dbf90c6ac8fa1fb24b559cdc14bde6c8",
     "semantic_hash": ""
   },
   "src/common/seeding/seed-sync.ts": {
@@ -7635,8 +7630,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/identity-verification/core/catalog/approximate-match.ts": {
-    "mtime": 1788272722.6141617,
-    "ast_hash": "b1acb6836632e52ac6cfe0117b541184",
+    "mtime": 1788670847.3363016,
+    "ast_hash": "5d78b08ab50fdcb4bf7eb5733ada2313",
     "semantic_hash": ""
   },
   "src/modules/workers/identity-verification/core/catalog/bolivia-ci.recognizer.ts": {
@@ -7660,8 +7655,8 @@
     "semantic_hash": ""
   },
   "test/identity-degraded-ocr.spec.ts": {
-    "mtime": 1788283985.3048866,
-    "ast_hash": "9e6b0bc372bc9ccf1f5fb458214d6a9c",
+    "mtime": 1788701262.1096585,
+    "ast_hash": "b8f922755f3929a5de8827d566252db3",
     "semantic_hash": ""
   },
   "test/semantic-catalogo-version-firma.spec.ts": {
@@ -7670,8 +7665,8 @@
     "semantic_hash": ""
   },
   "docker-compose.dev.yml": {
-    "mtime": 1788358736.8449118,
-    "ast_hash": "6de438171e838f126bf67070515f87f2",
+    "mtime": 1788890537.003758,
+    "ast_hash": "1285514e8111fbbe47aa524d7e09c905",
     "semantic_hash": ""
   },
   "docker-compose.transformer-amd64.yml": {
@@ -7715,13 +7710,13 @@
     "semantic_hash": ""
   },
   "src/common/storage/object-storage.service.ts": {
-    "mtime": 1788492044.2034774,
-    "ast_hash": "5bfda510a9a2589dc5427d602cc15aff",
+    "mtime": 1788968264.4079967,
+    "ast_hash": "4196de37aa7106e59a1e3c007d62ee7b",
     "semantic_hash": ""
   },
   "src/common/storage/s3-signature.util.ts": {
-    "mtime": 1788489670.9873993,
-    "ast_hash": "7d4947e1dc986dcf7a0c7e0410ebe464",
+    "mtime": 1788968264.4367495,
+    "ast_hash": "40748b86787e89e6202dc0afc0c8efad",
     "semantic_hash": ""
   },
   "src/modules/workers/semantic-analysis/core/config/openrouter-provider.config.ts": {
@@ -7730,8 +7725,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/semantic-analysis/core/infrastructure/openrouter/openrouter-semantic.provider.ts": {
-    "mtime": 1788565267.1000433,
-    "ast_hash": "d8b43813c38e8ff5efbe45980dbfd5c5",
+    "mtime": 1788790075.6192794,
+    "ast_hash": "a5c852c8d3cab60646d715cf7fcbd822",
     "semantic_hash": ""
   },
   "src/modules/workers/semantic-analysis/model-settings/environment-overrides.ts": {
@@ -7740,8 +7735,8 @@
     "semantic_hash": ""
   },
   "src/modules/workers/semantic-analysis/model-settings/openrouter-catalog.service.ts": {
-    "mtime": 1788575874.2706795,
-    "ast_hash": "23590ce76bda021105f047ccdb3c00e1",
+    "mtime": 1788790075.6194305,
+    "ast_hash": "691bb456efeaa0640a79a38f47c98817",
     "semantic_hash": ""
   },
   "src/modules/workers/semantic-analysis/model-settings/semantic-model-probe.service.ts": {
@@ -7790,18 +7785,248 @@
     "semantic_hash": ""
   },
   ".github/workflows/deploy-dev.yml": {
-    "mtime": 1788362654.7852328,
-    "ast_hash": "d5df89f6d9134bae6f68c1b5583a8e54",
+    "mtime": 1788644882.202184,
+    "ast_hash": "d636b8dcafc9bf39babbfa5aa6ccfa27",
     "semantic_hash": ""
   },
   "docker-compose.coolify.yml": {
-    "mtime": 1788451364.592231,
-    "ast_hash": "95f695220a58bc83f8973136bff520a5",
+    "mtime": 1788890521.9660668,
+    "ast_hash": "4075f83a2d4f88c052db38e51cea392e",
     "semantic_hash": ""
   },
   "docs/workers/semantic-openrouter.md": {
     "mtime": 1788575698.835455,
     "ast_hash": "3fd2d9c1c44369d2535dff9512496147",
+    "semantic_hash": ""
+  },
+  "corpus/corpus-extractos-bo.json": {
+    "mtime": 1789098286.4969907,
+    "ast_hash": "e56a4bf57344df75e2dcdbfc0d71d76d",
+    "semantic_hash": ""
+  },
+  "corpus/corpus-identidad-bo.json": {
+    "mtime": 1789098286.4998493,
+    "ast_hash": "d7a7238babd0d3849f73a0b48531061f",
+    "semantic_hash": ""
+  },
+  "prisma/migrations/20260910150000_access_audit_origin/migration.sql": {
+    "mtime": 1789069880.7566078,
+    "ast_hash": "c5db5b4f275188f50bb60821a2d6ea13",
+    "semantic_hash": ""
+  },
+  "scripts/auditar-corpus-glosas.ts": {
+    "mtime": 1788883200.6254761,
+    "ast_hash": "b52626d0fd128b04ee3242377b1a40ed",
+    "semantic_hash": ""
+  },
+  "scripts/corpus/generar-catalogos.ts": {
+    "mtime": 1789101822.1482415,
+    "ast_hash": "82c951f3b03ab3632fb6b24295f59b86",
+    "semantic_hash": ""
+  },
+  "scripts/diagnosticar-carnets.ts": {
+    "mtime": 1789100877.775109,
+    "ast_hash": "24560d50119faa39fb9e8db828a1688a",
+    "semantic_hash": ""
+  },
+  "scripts/kyb-revision-manual.mjs": {
+    "mtime": 1789070105.1230462,
+    "ast_hash": "5fd4ffa40267cf40eb4665ef47d70c27",
+    "semantic_hash": ""
+  },
+  "src/common/llm/llm-provider.error.ts": {
+    "mtime": 1788790075.6163363,
+    "ast_hash": "045f0ed7ff11fad899c3573a2db1e25b",
+    "semantic_hash": ""
+  },
+  "src/common/llm/openai-compatible-transport.ts": {
+    "mtime": 1788968263.5962687,
+    "ast_hash": "5f0b9595a05a83f26fdea094890be58f",
+    "semantic_hash": ""
+  },
+  "src/common/llm/openrouter-chat.client.ts": {
+    "mtime": 1788968263.6261165,
+    "ast_hash": "158fea496f696b13ccd66aa447aa7c39",
+    "semantic_hash": ""
+  },
+  "src/common/security/request-origin.ts": {
+    "mtime": 1789069881.1892433,
+    "ast_hash": "a97e3b8cea9f253ed1e07d25409274cb",
+    "semantic_hash": ""
+  },
+  "src/common/statistics/binomial.ts": {
+    "mtime": 1789101728.6413782,
+    "ast_hash": "0d90c50da7925ef1a21f50227824230e",
+    "semantic_hash": ""
+  },
+  "src/modules/audit-query/screen-runs.ts": {
+    "mtime": 1789069881.2285275,
+    "ast_hash": "b4fb2ea189ea2d45b595dbdf78715a90",
+    "semantic_hash": ""
+  },
+  "src/modules/runtime/manual-review-case-code.ts": {
+    "mtime": 1788671071.431971,
+    "ast_hash": "e3f668b9edb467df649e9e16e1bbcc07",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/core/corpus/corpus-extractos.generated.ts": {
+    "mtime": 1789101729.6438253,
+    "ast_hash": "db63e552389529635b0d26c3c2d436c9",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/core/engine/affordability/balance-series.ts": {
+    "mtime": 1789099840.4163024,
+    "ast_hash": "b8b2138f44d1601515a3ebcd04460d9a",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/core/engine/affordability/official-glossary.ts": {
+    "mtime": 1789101729.6875753,
+    "ast_hash": "74caa3d7630a79b236c823df865a18ef",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/core/engine/document-routes.ts": {
+    "mtime": 1789101729.710685,
+    "ast_hash": "41564909159463f510d76365c044b1cf",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/core/engine/generic/column-advisor.ts": {
+    "mtime": 1788790075.6168606,
+    "ast_hash": "13bd291d60fad52221af7989d046c586",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/core/engine/quality/bolivia-taxes.ts": {
+    "mtime": 1789099193.4201014,
+    "ast_hash": "a506ce799738cb6f4ba163b768287e84",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/core/infrastructure/openrouter-column-advisor.adapter.ts": {
+    "mtime": 1788968268.1805027,
+    "ast_hash": "2c1e513eab27be9af454db3972145cfb",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/identity-verification/core/adapters/document-framing.ts": {
+    "mtime": 1788700098.7457461,
+    "ast_hash": "c3a57b0feca2d2d2a1bbce86127669bd",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/identity-verification/core/adapters/openrouter-second-reader.adapter.ts": {
+    "mtime": 1788790075.6176848,
+    "ast_hash": "18f16e3b6770f2add639ba801153935a",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/identity-verification/core/corpus/corpus-identidad.generated.ts": {
+    "mtime": 1789101729.9753568,
+    "ast_hash": "d264bca44799e49cc2cc2cfd31b9f753",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/identity-verification/core/engine/second-reader.ts": {
+    "mtime": 1788790075.617982,
+    "ast_hash": "b232f839c8b4e4c512360c2d21c56675",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/identity-verification/core/forensics/selfie-liveness.ts": {
+    "mtime": 1788968268.6869893,
+    "ast_hash": "e12899031c5bdb2f82086734b3d39a18",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/semantic-analysis/core/infrastructure/http/semantic-transport.errors.ts": {
+    "mtime": 1788968269.3722215,
+    "ast_hash": "dfa7a7484897b11d4e7e19d805cfe759",
+    "semantic_hash": ""
+  },
+  "test/access-audit-origin.spec.ts": {
+    "mtime": 1789069941.6569247,
+    "ast_hash": "2b67844e0e84fd8424257963e1c2016b",
+    "semantic_hash": ""
+  },
+  "test/access-audit-status.spec.ts": {
+    "mtime": 1789020340.6975276,
+    "ast_hash": "55b1e36ead6cb8ef76c35727721281a8",
+    "semantic_hash": ""
+  },
+  "test/bank-statement-normalize-numeric.spec.ts": {
+    "mtime": 1788887267.9645028,
+    "ast_hash": "95d24e9902c3409eb0dac6545356431a",
+    "semantic_hash": ""
+  },
+  "test/binomial-intervals.spec.ts": {
+    "mtime": 1789099801.481953,
+    "ast_hash": "412e37c0c3c7cc077dedd8f286a98f9e",
+    "semantic_hash": ""
+  },
+  "test/corpus-catalogos-derivados.spec.ts": {
+    "mtime": 1789101730.6959047,
+    "ast_hash": "f23bc4bda0fb06197e44f8d83feae393",
+    "semantic_hash": ""
+  },
+  "test/corpus-extractos-regresion.spec.ts": {
+    "mtime": 1789102511.3180156,
+    "ast_hash": "8f4c77aa6a20606ae4e8a6096a2406ab",
+    "semantic_hash": ""
+  },
+  "test/corpus-identidad-regresion.spec.ts": {
+    "mtime": 1789102378.221751,
+    "ast_hash": "aa5c148ff18ea68810ad3c55224063e2",
+    "semantic_hash": ""
+  },
+  "test/identity-arbitration-openrouter.spec.ts": {
+    "mtime": 1788968271.3157427,
+    "ast_hash": "c5d24f0da3620408fd057606c31521dd",
+    "semantic_hash": ""
+  },
+  "test/identity-framing-and-liveness.spec.ts": {
+    "mtime": 1788968271.3512623,
+    "ast_hash": "d743b7779d2affcf824058f8f360d79e",
+    "semantic_hash": ""
+  },
+  "test/identity-second-reader.spec.ts": {
+    "mtime": 1788790075.6199315,
+    "ast_hash": "02e318c1990bdadc0c83c610609d38b1",
+    "semantic_hash": ""
+  },
+  "test/manual-review-case-code.spec.ts": {
+    "mtime": 1788700203.042016,
+    "ast_hash": "5845bac5301578283f834a881d29039c",
+    "semantic_hash": ""
+  },
+  "test/partner-kyb-manual-review.spec.ts": {
+    "mtime": 1788968271.7222645,
+    "ast_hash": "a62bea8d1db99e4ed576e87b443a0ce2",
+    "semantic_hash": ""
+  },
+  "test/statement-column-advisor.spec.ts": {
+    "mtime": 1788790075.6202283,
+    "ast_hash": "7b48495b66a8bae0a1c3b1aff6bac3fe",
+    "semantic_hash": ""
+  },
+  "corpus/README.md": {
+    "mtime": 1789102066.1706886,
+    "ast_hash": "7b86cb15c07853e97f4e6b0b64d105cd",
+    "semantic_hash": ""
+  },
+  "docs/workers/corpus-extractos-bolivia.md": {
+    "mtime": 1789102711.1682787,
+    "ast_hash": "67b8733708db2aeb2b6fac4a8230d702",
+    "semantic_hash": ""
+  },
+  "docs/workers/corpus-identidad-medido.md": {
+    "mtime": 1789102066.1649318,
+    "ast_hash": "cb15c97f83ed2aacc47ae6b837a54472",
+    "semantic_hash": ""
+  },
+  "docs/workers/identidad-cinco-cedulas-reales.md": {
+    "mtime": 1789022197.6428115,
+    "ast_hash": "96c06a55e1610a7fb8080f0fcc78756b",
+    "semantic_hash": ""
+  },
+  "src/common/llm/README.md": {
+    "mtime": 1788790075.6162493,
+    "ast_hash": "a8b1184d7cec7b0485397f7eea7903d2",
+    "semantic_hash": ""
+  },
+  "src/modules/workers/bank-statement/core/engine/affordability/economic-plausibility.ts": {
+    "mtime": 1789102472.027066,
+    "ast_hash": "055624e394e2c4a1788be1879da3d073",
     "semantic_hash": ""
   }
 }

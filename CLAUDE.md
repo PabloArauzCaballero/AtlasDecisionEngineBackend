@@ -301,3 +301,68 @@ evidencia visual real: `docs/pdf-worker/evidencia/`.
 - `yarn pdf:preview <templateId>` para iterar una maqueta sin levantar el motor.
   `yarn pdf:visual:baseline` compara la huella del HTML compuesto (cubre plantillas, parciales,
   estilos y marca; NO cubre que otra versión de Chromium pagine distinto).
+
+## Los dos corpus, y la frontera entre medir y acusar
+
+Manuales: [extractos](docs/workers/corpus-extractos-bolivia.md) ·
+[identidad](docs/workers/corpus-identidad-medido.md). Los paquetes viven en `corpus/` y se
+convierten en TypeScript con `yarn corpus:generar` (`yarn corpus:check` en CI).
+
+- **Lo generado no se edita.** Cada catálogo derivado lleva el SHA-256 del corpus del que salió y
+  `corpus-catalogos-derivados.spec.ts` lo compara con el archivo real: cambiar uno sin regenerar el
+  otro se ve. El generador formatea su salida con Prettier, porque si no `yarn format` y
+  `yarn corpus:check` se pelean para siempre.
+- **`null` es NO VERIFICADO, nunca cero ni falso**, y es la regla de la que cuelga todo lo demás. De
+  ahí salen las tres correcciones que mueven dinero: la deuda externa no observada no vale cero
+  (`obligations.isLowerBound`), un mes cubierto sin ingresos vale cero pero uno no cubierto no vale
+  nada, y el mínimo de saldo no sustituye a la media ponderada por tiempo.
+- **Un umbral sin calibrar no puede firmar un rechazo.** Ya lo hacía el cotejo facial
+  (`THRESHOLD_PROFILE_MISSING`); ahora también la prueba de vida
+  (`IDENTITY_LIVENESS_PROFILE_VERSION`, `LIVENESS_PROFILE_UNCALIBRATED`). No aprueba de más: cambia
+  quién firma el «no», y un rechazo que no se puede defender con una tasa medida es peor que una cola.
+- **La procedencia viaja al resultado.** `AffordabilityAssessment.calibration` dice
+  `NOT_CALIBRATED_AGAINST_OBSERVED_ARREARS`; `ForensicReport.calibration`, que sus pesos los declaró
+  el encargo. Una cifra que no dice qué clase de cifra es se lee como una medición.
+- **`common/statistics/binomial.ts` es el antídoto contra «el 81 %».** 17 aciertos de 21 son un
+  intervalo de 0,60 a 0,92; cero falsos positivos sobre 299 documentos son «por debajo del 0,997 %»,
+  no cero. Se comprueba contra las tablas que los propios corpus traen calculadas.
+
+## Identidad: «no lo pude leer» ≠ «no está»
+
+Medido sobre **23 cédulas bolivianas auténticas** (`yarn diagnosticar:carnets ~/Desktop/carnets`):
+la cola humana bajó del **48 % al 9 %** sin perder un solo expediente completo (17/23 antes y
+después) y sin una sola acusación falsa. Las cuatro piezas:
+
+- **Los controles de la MRZ tienen TRES estados.** `checks: boolean | null`. Un dígito que llegó
+  como `?`, como `c` minúscula o dentro de un renglón con un espacio no es un control que falla: es
+  un control que no se leyó. Cuatro de las 23 lo traían así y las cuatro salían acusadas.
+- **La alineación de la MRZ se elige por la norma.** Gana la variante con cabecera `[ACI]` + emisor
+  alfa-3; sólo si ninguna la tiene compiten las demás. Antes un control de UN dígito acertado por
+  azar —una vez de cada diez— hacía ganar a una alineación corrida, y con ella salían publicados un
+  emisor inventado y un dígito de control sobre el relleno.
+- **La cobertura de plantilla no se juzga por debajo de 1.000 px de lado largo**
+  (`LADO_LARGO_MINIMO_LEGIBLE`; 85 mm a 300 ppp son 1.004). La mediana de lo que la gente manda por
+  mensajería es 796 px: ahí ni una cédula perfecta llega al umbral. Se declara prueba ausente —en
+  estricto escala— en vez de contarse como plantilla incompleta.
+- **Tres reglas pasaron de incoherencia a observación**: el formato del número (la gramática del
+  SEGIP no está verificada y el complemento es alfanumérico, no dos letras), la nacionalidad de la
+  MRZ (ningún dígito de control la protege y un extranjero puede tener otra) y el lugar de
+  nacimiento (nacer fuera de Bolivia no es un indicio de nada). Siguen en el expediente, sin peso.
+
+## Extractos: el glosario lo publica el emisor
+
+- **147 glosas oficiales del BCP**, y de nadie más. Medido sobre un extracto real de 112
+  movimientos, casan 75; sobre los otros cinco bancos, cero — que es lo correcto. El glosario puede
+  QUITAR el reconocimiento de ingreso, nunca darlo, salvo las tres glosas que el corpus marca como
+  candidatas a nómina. Y un prefijo no basta para quitárselo a nadie: `TRANSFERENCIA` casando el
+  principio de «Transferencia QR BM QR Restotech» hundía la capacidad de todo comerciante que cobra
+  por QR.
+- **La columna contable manda sobre la glosa.** La discrepancia se declara
+  (`CONTRADICTS_GLOSSARY`), no se corrige: casi siempre es una columna mal leída por el extractor.
+- **El ITF está abrogado (Ley 1717, 10-04-2026) y eso no hace falso a ningún extracto.** Reversos,
+  regularizaciones y hechos anteriores siguen trayéndolo. `bolivia-taxes.ts` lo dice con un campo
+  —`automaticFraud: false`— para que sobreviva a la próxima refactorización.
+- **Seguridad y procedencia son DOS ejes.** `securityScore` no aplica créditos: el generador
+  institucional (−25) no puede restar de un PDF que ejecuta código.
+- **La marca no es el operador.** Tigo Money lo opera E-FECTIVO ESPM (`MEF`), con licencia; su
+  estado de cuenta se rechazaba como factura de telefónica por llevar «TIGO» en la carátula.
