@@ -13,7 +13,7 @@ El grafo contiene **11768 nodos** y **28152 relaciones** repartidos en
 **31 módulos de dominio** en `src/modules/`, de los cuales
 todos están registrados en `src/app.module.ts` (comprobado sobre el fichero, no supuesto).
 
-El grafo cubre **693 de 704**
+El grafo cubre **693 de 706**
 ficheros TypeScript de `src/` (98 %).
 Todos los módulos de dominio aparecen en el grafo.
 
@@ -113,11 +113,13 @@ Es la dirección que más daño hace: sobre un fichero ausente el grafo no devue
 consulta vacía se lee igual que «no existe». Por eso los catálogos del portal se generan del
 código y del contrato, nunca de este grafo.
 
-**11 de 704** ficheros `.ts` de `src/` no aparecen en el grafo. Se listan los primeros 20:
+**13 de 706** ficheros `.ts` de `src/` no aparecen en el grafo. Se listan los primeros 20:
 
 - `src/common/llm/llm-provider.error.ts`
 - `src/common/llm/openai-compatible-transport.ts`
 - `src/common/llm/openrouter-chat.client.ts`
+- `src/common/security/request-origin.ts`
+- `src/modules/audit-query/screen-runs.ts`
 - `src/modules/runtime/manual-review-case-code.ts`
 - `src/modules/workers/bank-statement/core/engine/generic/column-advisor.ts`
 - `src/modules/workers/bank-statement/core/infrastructure/openrouter-column-advisor.adapter.ts`
