@@ -58,11 +58,55 @@ export interface IncoherenciaEstructural {
   readonly peso: number;
 }
 
+/**
+ * Algo que se anota y que **no suma riesgo**.
+ *
+ * La distinción entre esto y una incoherencia es la corrección más importante de
+ * este archivo, y no es de estilo: es la diferencia entre describir y acusar.
+ *
+ * Tres cosas se movieron aquí desde las incoherencias, y las tres por el mismo
+ * motivo — el corpus demuestra que la regla que las sostenía no está verificada:
+ *
+ * - **El formato del número de cédula.** Se exigían cinco a ocho dígitos sin
+ *   cero inicial. El corpus buscó la gramática del SEGIP y devolvió
+ *   `exact_min_length: null`, `exact_max_length: null`,
+ *   `leading_zero_assignment_policy: null` y la instrucción literal «conservar
+ *   los ceros; no rechazar con una longitud no verificada» (hueco G04).
+ * - **La nacionalidad de la MRZ.** Ni la nacionalidad ni el estado emisor están
+ *   cubiertos por ningún dígito de control —el corpus lo enumera— y un titular
+ *   EXTRANJERO con cédula boliviana tiene legítimamente otra nacionalidad: el
+ *   propio corpus lista la cédula de extranjero como documento existente.
+ * - **El lugar de nacimiento.** Una persona nacida fuera de Bolivia es una
+ *   persona nacida fuera de Bolivia. Medido sobre 23 cédulas auténticas, esta
+ *   regla acusó a una.
+ *
+ * Ninguna de las tres desaparece: se registran, viajan a la traza y quien revisa
+ * las ve. Lo que pierden es el peso.
+ */
+export interface ObservacionEstructural {
+  readonly codigo: string;
+  readonly detalle: string;
+  /** Por qué se registra y no acusa. Va en la traza para que no se reintroduzca. */
+  readonly razonDeNoAcusar: string;
+}
+
 export interface AnalisisDePlantilla {
   /** La generación que mejor explica lo que se leyó. */
   readonly mejor: ConformidadDePlantilla;
   readonly todas: readonly ConformidadDePlantilla[];
   readonly incoherencias: readonly IncoherenciaEstructural[];
+  /** Lo que se anota sin acusar. Ver `ObservacionEstructural`. */
+  readonly observaciones: readonly ObservacionEstructural[];
+  /**
+   * Si la COBERTURA de plantilla se puede juzgar con esta imagen.
+   *
+   * `false` cuando la captura no da resolución suficiente para leer los rótulos
+   * que la plantilla enumera. Entonces una cobertura baja no dice nada del
+   * documento —dice que la foto es pequeña— y el fusor de fraude no la puntúa.
+   */
+  readonly coberturaEvaluable: boolean;
+  /** Por qué no se puede juzgar, cuando no se puede. */
+  readonly motivoDeNoEvaluable: string | null;
   /** Marcas de falsificación literales encontradas en el texto. */
   readonly marcasDeFalsificacion: readonly string[];
 }
@@ -74,7 +118,41 @@ export interface EntradaDePlantilla {
   readonly mrz: MrzTd1 | null;
   /** Fecha de referencia. La entrega quien llama para que el análisis sea reproducible. */
   readonly ahora: Date;
+  /**
+   * Lado largo, en píxeles, de la imagen del documento tal como se capturó.
+   *
+   * Se pasa para poder decir «no se pudo leer» en vez de «no está». Omitirlo
+   * mantiene el comportamiento anterior: la cobertura se juzga siempre.
+   */
+  readonly ladoLargoPx?: number | null;
+  /** Suelo de legibilidad. Por omisión, `LADO_LARGO_MINIMO_LEGIBLE`. */
+  readonly ladoLargoMinimo?: number;
 }
+
+/**
+ * Por debajo de esto, los rótulos de la plantilla no se pueden leer.
+ *
+ * **Mil píxeles de lado largo**, y el número viene de dos sitios que coinciden:
+ *
+ * 1. La conversión del corpus: la recomendación general de Tesseract son 300
+ *    ppp, y una tarjeta de 85 mm a 300 ppp son 1003,94 px de lado largo.
+ * 2. La medición propia sobre una cédula boliviana AUTÉNTICA, que es la que
+ *    obliga a poner el suelo aquí y no más abajo:
+ *
+ *        lado del OCR   600     900     1200    1600
+ *        cobertura      0,216   0,463   0,515   0,664
+ *
+ *    El umbral de cobertura del fusor está en 0,40. A 600 px un documento
+ *    legítimo da 0,216 —acusación garantizada— y a 900 da 0,463, que deja un
+ *    margen de seis centésimas: cualquier reflejo se lo come.
+ *
+ * Sobre las 23 cédulas auténticas del directorio de pruebas, la mediana del lado
+ * largo es **796 px**. O sea: la mayoría de las fotos que la gente manda por
+ * mensajería NO permiten juzgar la plantilla, y el sistema llevaba meses
+ * juzgándola igual. Lo que corresponde con esas fotos es pedir otra captura,
+ * que es lo que el corpus llama `RECAPTURE_OR_REVIEW`.
+ */
+export const LADO_LARGO_MINIMO_LEGIBLE = 1000;
 
 const DIA_MS = 86_400_000;
 const ANIO_MS = 365.2425 * DIA_MS;
@@ -95,10 +173,20 @@ export function analizarPlantilla(entrada: EntradaDePlantilla): AnalisisDePlanti
     textoReverso: entrada.textoReverso,
   });
 
+  const minimo = entrada.ladoLargoMinimo ?? LADO_LARGO_MINIMO_LEGIBLE;
+  const lado = entrada.ladoLargoPx ?? null;
+  const coberturaEvaluable = lado === null || lado >= minimo;
+  const { incoherencias, observaciones } = examinar(entrada, completo, mejor);
+
   return {
     mejor,
     todas,
-    incoherencias: buscarIncoherencias(entrada, completo, mejor),
+    incoherencias,
+    observaciones,
+    coberturaEvaluable,
+    motivoDeNoEvaluable: coberturaEvaluable
+      ? null
+      : `La imagen mide ${String(lado)} px de lado largo y hacen falta ${String(minimo)} para leer los rótulos de la plantilla.`,
     marcasDeFalsificacion: MARCAS_DE_FALSIFICACION.filter((marca) =>
       marca.patron.test(completo),
     ).map((marca) => marca.codigo),
@@ -122,21 +210,25 @@ export function analizarPlantilla(entrada: EntradaDePlantilla): AnalisisDePlanti
  * control CUADRAN y que aun así discrepa del anverso no lo explica ningún fallo
  * de lectura, y pesa el máximo.
  */
-function buscarIncoherencias(
+function examinar(
   entrada: EntradaDePlantilla,
   textoCompleto: string,
   conformidad: ConformidadDePlantilla,
-): IncoherenciaEstructural[] {
+): { incoherencias: IncoherenciaEstructural[]; observaciones: ObservacionEstructural[] } {
   const fallos: IncoherenciaEstructural[] = [];
+  const notas: ObservacionEstructural[] = [];
   const { campos, mrz, ahora } = entrada;
 
   // --- 1. El número de cédula respeta el formato del SEGIP -----------------
   const numero = campos.documentNumber?.value ?? null;
   if (numero && !esNumeroDeCedulaValido(numero)) {
-    fallos.push({
-      codigo: 'DOCUMENT_NUMBER_FORMAT_INVALID',
-      detalle: `El número leído no tiene la forma de una cédula boliviana (cinco a ocho dígitos, sin cero inicial, complemento opcional).`,
-      peso: 0.25,
+    notas.push({
+      codigo: 'DOCUMENT_NUMBER_SHAPE_UNEXPECTED',
+      detalle: `El número leído («${numero.slice(0, 16)}») no encaja en la forma que este catálogo espera.`,
+      razonDeNoAcusar:
+        'La gramática del número del SEGIP no está verificada: no se conocen longitud mínima, ' +
+        'longitud máxima, política de ceros iniciales ni la forma exacta del complemento. ' +
+        'Rechazar por una longitud no verificada descartaría cédulas legítimas.',
     });
   }
 
@@ -150,7 +242,7 @@ function buscarIncoherencias(
    * están bien leídos y son distintos, o sea que el reverso y el anverso no son
    * de la misma tarjeta.
    */
-  if (mrz?.documentNumber && mrz.checks.documentNumber && numero) {
+  if (mrz?.documentNumber && mrz.checks.documentNumber === true && numero) {
     const enMrz = mrz.documentNumber.replace(/\D/gu, '');
     const enAnverso = numero.replace(/\D/gu, '');
     if (enMrz && enAnverso && !enMrz.endsWith(enAnverso) && !enAnverso.endsWith(enMrz)) {
@@ -178,7 +270,17 @@ function buscarIncoherencias(
    * por casualidad es difícil y fallarlo por un glifo mal leído es fácil. Por
    * eso pesa poco: es una señal para escalar, nunca para rechazar sola.
    */
-  if (mrz && !mrz.checks.composite) {
+  if (mrz && mrz.checks.composite === null) {
+    notas.push({
+      codigo: 'MRZ_COMPOSITE_NOT_EVALUABLE',
+      detalle:
+        'Se leyó una zona de lectura mecánica pero su dígito de control compuesto no es legible.',
+      razonDeNoAcusar:
+        'Un dígito que el reconocedor no leyó no es un dígito que no cuadre. Medido sobre 23 ' +
+        'cédulas auténticas, cuatro traían ese dígito ilegible.',
+    });
+  }
+  if (mrz && mrz.checks.composite === false) {
     fallos.push({
       codigo: 'MRZ_COMPOSITE_CHECK_FAILED',
       detalle:
@@ -347,10 +449,13 @@ function buscarIncoherencias(
     const plegado = plegarTexto(lugar);
     const conocido = NOMBRES_DE_DEPARTAMENTO.some((departamento) => plegado.includes(departamento));
     if (!conocido && /BOLIVIA/u.test(plegado) === false) {
-      fallos.push({
+      notas.push({
         codigo: 'BIRTH_PLACE_NOT_BOLIVIAN',
         detalle: `El lugar de nacimiento leído («${lugar.slice(0, 40)}») no nombra ningún departamento de Bolivia.`,
-        peso: 0.15,
+        razonDeNoAcusar:
+          'Una persona nacida fuera de Bolivia puede tener cédula boliviana, y el campo se lee ' +
+          'sobre el guilloché del reverso con frecuencia a medias. Medido sobre 23 cédulas ' +
+          'auténticas, esta regla acusó a una.',
       });
     }
   }
@@ -377,10 +482,13 @@ function buscarIncoherencias(
     mrz.issuingState !== 'BOL' &&
     /^[A-Z]{3}$/u.test(mrz.nationality)
   ) {
-    fallos.push({
+    notas.push({
       codigo: 'MRZ_NATIONALITY_NOT_BOL',
       detalle: `La MRZ declara nacionalidad ${mrz.nationality} y emisor ${mrz.issuingState ?? '—'} en un documento que se presenta como cédula boliviana.`,
-      peso: 0.2,
+      razonDeNoAcusar:
+        'Ni la nacionalidad ni el estado emisor están cubiertos por un dígito de control, así que ' +
+        'los dos se leen mal con la misma facilidad; y un titular extranjero con cédula boliviana ' +
+        'tiene legítimamente otra nacionalidad.',
     });
   }
 
@@ -403,7 +511,7 @@ function buscarIncoherencias(
     });
   }
 
-  return fallos;
+  return { incoherencias: fallos, observaciones: notas };
 }
 
 /** Una fecha ISO del analizador, como fecha UTC. `null` si no hay o no se puede. */

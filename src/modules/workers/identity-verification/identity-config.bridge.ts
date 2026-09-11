@@ -50,6 +50,28 @@ export function buildIdentityOptions(config: ConfigService): IdentityOptions {
   }
   const usable = paired && review < match;
 
+  /*
+   * El perfil de la prueba de VIDA, con el mismo aviso que el del cotejo.
+   *
+   * Sin él, un fallo de vida escala a una persona en vez de rechazar. Se avisa
+   * al arrancar porque el efecto es silencioso: todo sigue funcionando y la
+   * única diferencia es que la cola humana recibe los casos que el worker no
+   * puede firmar. Preferible a firmarlos con un umbral que nadie midió.
+   */
+  const perfilDeVida =
+    config.get<string>('IDENTITY_LIVENESS_PROFILE_VERSION') ??
+    IDENTITY_DEFAULTS.livenessProfileVersion;
+  if (
+    (config.get<boolean>('IDENTITY_LIVENESS_ENABLED') ?? IDENTITY_DEFAULTS.livenessEnabled) &&
+    perfilDeVida === IDENTITY_DEFAULTS.livenessProfileVersion
+  ) {
+    logger.warn(
+      'IDENTITY_LIVENESS_PROFILE_VERSION sigue en «unconfigured»: los cortes 0,55/0,35 no están ' +
+        'calibrados contra ninguna población de ataques, así que una prueba de vida fallida ' +
+        'escalará a revisión humana en vez de rechazar.',
+    );
+  }
+
   const number = (key: string, fallback: number): number => config.get<number>(key) ?? fallback;
   const flag = (key: string, fallback: boolean): boolean => config.get<boolean>(key) ?? fallback;
   const text = (key: string, fallback: string): string => config.get<string>(key) ?? fallback;
@@ -89,6 +111,10 @@ export function buildIdentityOptions(config: ConfigService): IdentityOptions {
     livenessEnabled: flag('IDENTITY_LIVENESS_ENABLED', IDENTITY_DEFAULTS.livenessEnabled),
     livenessPassScore: number('IDENTITY_LIVENESS_PASS_SCORE', IDENTITY_DEFAULTS.livenessPassScore),
     livenessFailScore: number('IDENTITY_LIVENESS_FAIL_SCORE', IDENTITY_DEFAULTS.livenessFailScore),
+    livenessProfileVersion: text(
+      'IDENTITY_LIVENESS_PROFILE_VERSION',
+      IDENTITY_DEFAULTS.livenessProfileVersion,
+    ),
     documentClassificationEnabled: flag(
       'IDENTITY_DOCUMENT_CLASSIFICATION_ENABLED',
       IDENTITY_DEFAULTS.documentClassificationEnabled,

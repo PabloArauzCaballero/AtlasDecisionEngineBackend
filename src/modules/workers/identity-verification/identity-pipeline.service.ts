@@ -625,6 +625,7 @@ export class IdentityPipelineService {
       rawText: ocr.rawText,
       documento: document.buffer,
       entradaGenerada: input.entradaGenerada === true,
+      ladoLargoPx: Math.max(document.quality.width, document.quality.height),
     });
     if (fraude) {
       riskFlags.push(...fraude.motivos);
@@ -857,6 +858,10 @@ export class IdentityPipelineService {
       selfieQuality: selfieQuality.score,
       requiredFieldsPresent: requiredFieldsPresent(fields),
       liveness: liveness.outcome,
+      // Sin perfil de vida calibrado, un fallo escala en vez de rechazar.
+      livenessCalibrated:
+        this.options.livenessProfileVersion !== 'unconfigured' &&
+        this.options.livenessProfileVersion.trim().length > 0,
       faceSimilarity: match && match.comparable ? match.similarityScore : null,
       documentExpiresAt: isoDateToUtcDate(fields.expirationDate?.value),
       documentExpiryGraceDays: this.options.documentExpiryGraceDays,
@@ -1036,6 +1041,8 @@ export class IdentityPipelineService {
     rawText: string;
     documento: Buffer;
     entradaGenerada: boolean;
+    /** Lado largo de la captura del documento, en píxeles. */
+    ladoLargoPx: number | null;
   }): Promise<EvaluacionDeFraude | null> {
     if (!this.options.fraudDetectionEnabled) return null;
 
@@ -1046,6 +1053,9 @@ export class IdentityPipelineService {
         campos: entrada.campos,
         mrz: parseMrzTd1(entrada.rawText),
         ahora: new Date(),
+        // Con el tamaño de la captura, la cobertura baja de una foto pequeña se
+        // declara NO EVALUABLE en vez de contarse como plantilla incompleta.
+        ladoLargoPx: entrada.ladoLargoPx,
       });
 
       /*
@@ -1116,6 +1126,7 @@ export class IdentityPipelineService {
         veredicto: this.options.fraudStrictMode ? 'REVIEW' : 'CLEAR',
         riesgo: this.options.fraudStrictMode ? this.options.fraudReviewRisk : 0,
         motivos: ['FRAUD_ANALYSIS_FAILED'],
+        observaciones: [],
         pruebasAusentes: ['ALL:ANALYSIS_THREW'],
         desglose: {
           conformidadDePlantilla: 0,

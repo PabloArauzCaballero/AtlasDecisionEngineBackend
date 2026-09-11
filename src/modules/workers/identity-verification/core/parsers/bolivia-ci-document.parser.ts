@@ -632,7 +632,14 @@ export class BoliviaCiDocumentParser implements DocumentParser {
     const fechasDiscrepan = nacimiento.discrepa || (caducidad.discrepa && !caducidadIndefinida);
     if (numero.discrepa) warnings.push(BOLIVIA_CI_WARNINGS.mrzMismatch);
     else if (fechasDiscrepan) warnings.push(BOLIVIA_CI_WARNINGS.mrzDateMismatch);
-    if (mrz && !mrz.checks.composite) warnings.push(BOLIVIA_CI_WARNINGS.mrzCheckFailed);
+    /*
+     * Sólo cuando el control se pudo COMPROBAR y no cuadró.
+     *
+     * `null` significa que el dígito llegó ilegible —un `?`, una minúscula, un
+     * espacio— y avisar de «control fallido» ahí acusaba al documento de un
+     * defecto que es de la fotografía. Ver `checks` en `mrz-td1.ts`.
+     */
+    if (mrz && mrz.checks.composite === false) warnings.push(BOLIVIA_CI_WARNINGS.mrzCheckFailed);
 
     /*
      * El nombre sale, por este orden, de: la MRZ, los rótulos del formato

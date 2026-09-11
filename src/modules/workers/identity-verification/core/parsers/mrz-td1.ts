@@ -42,13 +42,51 @@ export interface MrzTd1 {
   issuingState: string | null;
   lastNames: string | null;
   firstNames: string | null;
-  /** Qué comprobaciones cuadraron. Vacío no significa error: significa que no había MRZ. */
+  /**
+   * Qué comprobaciones cuadraron, en TRES estados y no en dos.
+   *
+   * `true` cuadra, `false` NO cuadra, y **`null` no se pudo evaluar**. El tercero
+   * es el que faltaba y el que más caro salía: cuando el reconocedor devuelve un
+   * `?`, una `c` minúscula o un espacio donde la norma exige un dígito de
+   * control, lo que ha ocurrido no es que el documento falle su propio control —
+   * es que no se ha leído el control. Tratar esas dos cosas igual convierte una
+   * foto regular en una sospecha de manipulación.
+   *
+   * Medido sobre 23 cédulas bolivianas auténticas: **cuatro** traían el dígito
+   * compuesto ilegible (`?`, `c`) y las cuatro salían con
+   * `MRZ_COMPOSITE_CHECK_FAILED` en su expediente. Ninguna estaba manipulada; a
+   * ninguna se le podía comprobar ese dígito.
+   *
+   * El corpus lo dice en una línea: «Campo no leído es NO_EVALUABLE, no FALSO».
+   */
   checks: {
-    documentNumber: boolean;
-    birthDate: boolean;
-    expirationDate: boolean;
-    composite: boolean;
+    documentNumber: boolean | null;
+    birthDate: boolean | null;
+    expirationDate: boolean | null;
+    composite: boolean | null;
   };
+}
+
+/**
+ * ¿Se puede COMPROBAR este dígito de control?
+ *
+ * Sólo si es un dígito. La norma reserva esa posición a `0-9` (y admite `<` como
+ * relleno cuando el campo entero está vacío), así que cualquier otra cosa es un
+ * fallo de lectura y no un fallo del documento.
+ */
+function esControlLegible(control: string): boolean {
+  return /^[0-9]$/.test(control);
+}
+
+/**
+ * ¿Está esta tira dentro del alfabeto de la MRZ?
+ *
+ * La norma fija `A-Z`, `0-9` y `<`. Un espacio, una tilde o un signo de
+ * interrogación dentro de la entrada de un control significan que el renglón se
+ * leyó mal: el control calculado sobre esa tira no dice nada del documento.
+ */
+function tiraLegible(tira: string): boolean {
+  return /^[A-Z0-9<]*$/.test(tira);
 }
 
 /** Longitud de cada renglón de una TD1. Lo que no la tenga, no es TD1. */
@@ -140,15 +178,43 @@ export function parseMrzTd1(rawText: string): MrzTd1 | null {
    * fuera incorrecta ningún control cuadraría: elegir la que más controles
    * valida no puede inventar un dato, sólo recuperar el que se demuestra.
    */
+  /*
+   * Las alineaciones con CABECERA VÁLIDA se prueban primero y, si hay alguna,
+   * ninguna otra compite.
+   *
+   * La norma fija el arranque del primer renglón: el tipo de documento es `A`,
+   * `C` o `I`, y el estado emisor son tres letras. Una alineación que no lo
+   * cumple no es «una lectura peor»: es la MRZ leída desde el sitio equivocado,
+   * y todo lo que se calcule sobre ella —incluido el control compuesto— está
+   * calculado sobre posiciones que no son las suyas.
+   *
+   * Sin esta preferencia, un control compuesto acertado POR AZAR —un dígito,
+   * una posibilidad entre diez— hacía ganar a una alineación corrida. Medido
+   * sobre la MRZ sintética de las pruebas: el estado emisor salía `OLI` y el
+   * dígito de control del número caía sobre un relleno. Dos campos publicados
+   * mal por una coincidencia aritmética.
+   *
+   * Cuando NINGUNA variante tiene cabecera válida —el reconocedor se comió el
+   * tipo de documento, que pasa— se prueban todas, que es lo que se hacía antes.
+   */
+  const variantesL1 = variantes(l1);
+  const conCabecera = variantesL1.filter((variante) => cabeceraPlausible(variante.linea));
+  const candidatasL1 = conCabecera.length > 0 ? conCabecera : variantesL1;
+
   let mejor: MrzTd1 | null = null;
   let mejorPuntos = -1;
-  for (const v1 of variantes(l1)) {
+  for (const v1 of candidatasL1) {
     for (const v2 of variantes(l2)) {
       // El tercer renglón no lleva ningún control: no hay con qué elegir entre
       // sus variantes, así que se toma tal cual. Un espurio delante del nombre
       // no se puede demostrar — y un nombre «corregido» sin prueba sería un
       // dato inventado.
-      const leida = interpretar(v1.linea, v2.linea, variantes(l3)[0]?.linea ?? l3);
+      const leida = interpretar(
+        v1.linea,
+        v2.linea,
+        variantes(l3)[0]?.linea ?? l3,
+        v1.completa && v2.completa,
+      );
       /*
        * Una variante ARRIESGADA sólo se acepta si cuadra el control COMPUESTO.
        *
@@ -163,13 +229,13 @@ export function parseMrzTd1(rawText: string): MrzTd1 | null {
        * es todavía más. Las variantes de siempre —tal cual y sin el primer
        * carácter— no pasan por aquí: ésas ya estaban demostradas.
        */
-      if ((v1.arriesgada || v2.arriesgada) && !leida.checks.composite) continue;
+      if ((v1.arriesgada || v2.arriesgada) && leida.checks.composite !== true) continue;
       const puntos =
-        Number(leida.checks.documentNumber) +
-        Number(leida.checks.birthDate) +
-        Number(leida.checks.expirationDate) +
+        Number(leida.checks.documentNumber === true) +
+        Number(leida.checks.birthDate === true) +
+        Number(leida.checks.expirationDate === true) +
         // El compuesto pesa doble: valida los dos renglones enteros, no un campo.
-        2 * Number(leida.checks.composite) +
+        2 * Number(leida.checks.composite === true) +
         /*
          * Y a igualdad de controles, gana la alineación con FORMA de TD1.
          *
@@ -182,7 +248,21 @@ export function parseMrzTd1(rawText: string): MrzTd1 | null {
          * documento y el emisor, que es de donde salen la nacionalidad y el
          * estado emisor —dos campos que ningún dígito de control cubre—.
          */
-        0.1 * Number(cabeceraPlausible(v1.linea));
+        0.1 * Number(cabeceraPlausible(v1.linea)) +
+        /*
+         * Y, por debajo de todo, que el control se pueda COMPROBAR.
+         *
+         * Vale cinco centésimas: nunca le gana a un control que cuadra, y
+         * desempata entre dos alineaciones igual de buenas a favor de la que
+         * deja los dígitos de control sobre dígitos en vez de sobre el relleno.
+         * Una alineación que pierde el control no es más segura por no poder
+         * fallarlo.
+         */
+        0.05 *
+          (Number(leida.checks.documentNumber !== null) +
+            Number(leida.checks.birthDate !== null) +
+            Number(leida.checks.expirationDate !== null) +
+            Number(leida.checks.composite !== null));
       if (puntos > mejorPuntos) {
         mejor = leida;
         mejorPuntos = puntos;
@@ -197,6 +277,16 @@ interface Variante {
   linea: string;
   /** Se quitó un carácter de EN MEDIO. Sólo vale si lo respalda el control compuesto. */
   arriesgada: boolean;
+  /**
+   * El renglón traía sus 30 caracteres; no hubo que rellenarlo.
+   *
+   * Importa para el control COMPUESTO, que abarca los dos renglones enteros: si
+   * el reconocedor se comió el relleno final —cosa que hace, porque veinte `<`
+   * seguidos son justo lo que un OCR abrevia— la tira sobre la que se calcula
+   * lleva caracteres que pusimos nosotros. Que un control falle sobre caracteres
+   * inventados no dice nada del documento.
+   */
+  completa: boolean;
 }
 
 /**
@@ -270,9 +360,10 @@ function cabeceraPlausible(linea: string): boolean {
  */
 function variantes(linea: string): Variante[] {
   const ajustar = (texto: string): string => texto.padEnd(LINE_LENGTH, '<').slice(0, LINE_LENGTH);
+  const completa = (texto: string): boolean => texto.length >= LINE_LENGTH;
   const seguras: Variante[] = [
-    { linea: ajustar(linea), arriesgada: false },
-    { linea: ajustar(linea.slice(1)), arriesgada: false },
+    { linea: ajustar(linea), arriesgada: false, completa: completa(linea) },
+    { linea: ajustar(linea.slice(1)), arriesgada: false, completa: completa(linea.slice(1)) },
   ];
 
   /*
@@ -284,19 +375,24 @@ function variantes(linea: string): Variante[] {
   const porDelante: Variante[] = [];
   for (let corte = 2; corte <= 4 && corte < linea.length; corte += 1) {
     const recortada = ajustar(linea.slice(corte));
-    porDelante.push({ linea: recortada, arriesgada: !cabeceraPlausible(recortada) });
+    porDelante.push({
+      linea: recortada,
+      arriesgada: !cabeceraPlausible(recortada),
+      completa: completa(linea.slice(corte)),
+    });
   }
 
   if (linea.length <= LINE_LENGTH) return [...seguras, ...porDelante];
 
   const sinUno: Variante[] = [];
   for (let i = 1; i < linea.length; i += 1) {
-    sinUno.push({ linea: ajustar(`${linea.slice(0, i)}${linea.slice(i + 1)}`), arriesgada: true });
+    const sin = `${linea.slice(0, i)}${linea.slice(i + 1)}`;
+    sinUno.push({ linea: ajustar(sin), arriesgada: true, completa: completa(sin) });
   }
   return [...seguras, ...porDelante, ...sinUno];
 }
 
-function interpretar(l1: string, l2: string, l3: string): MrzTd1 {
+function interpretar(l1: string, l2: string, l3: string, renglonesCompletos: boolean): MrzTd1 {
   const numeroCrudo = l1.slice(5, 14);
   // Un dígito de control es un DÍGITO por norma: una letra ahí es un misleído
   // con certeza, así que se deshace antes de comparar.
@@ -321,25 +417,57 @@ function interpretar(l1: string, l2: string, l3: string): MrzTd1 {
   const numeroNormalizado = normalizeNumeric(numeroCrudo);
   const numeroValidaCrudo = checkDigit(numeroCrudo) === numeroControl;
   const numeroValidaNormalizado = checkDigit(numeroNormalizado) === numeroControl;
-  const numero = (numeroValidaCrudo ? numeroCrudo : numeroNormalizado).replace(/</g, '');
+  const numeroBase = (numeroValidaCrudo ? numeroCrudo : numeroNormalizado).replace(/</g, '');
+
+  /*
+   * El número DESBORDADO: más de nueve caracteres.
+   *
+   * La norma reserva nueve posiciones al número y, cuando no caben, marca el
+   * hueco del dígito de control con `<` y continúa el número al principio del
+   * campo opcional, seguido del dígito de control del número COMPLETO y de un
+   * `<`. El corpus lo transcribe entero y añade la parte que importa: ese `<` en
+   * la posición 15 **no** significa checksum cero ni número inválido.
+   *
+   * Una cédula boliviana no llega a nueve caracteres, así que esto no se dispara
+   * con `BOLIVIA_CI`. Existe porque `IDENTITY_ACCEPTED_DOCUMENT_TYPES` es una
+   * decisión de despliegue: el día que se admita otro documento, un número largo
+   * tiene que leerse, no descartarse.
+   */
+  const desborde = leerDesborde(l1, numeroCrudo);
 
   const nacimiento = normalizeNumeric(nacimientoCrudo);
   const caducidad = normalizeNumeric(caducidadCruda);
 
+  /*
+   * Cada control se declara NO EVALUABLE cuando no se pudo leer.
+   *
+   * Dos condiciones, y las dos son de LECTURA y no de documento: que el dígito
+   * de control no sea un dígito, o que la tira sobre la que se calcula lleve
+   * caracteres fuera del alfabeto de la MRZ. Ver `checks` en la interfaz.
+   */
   const checks = {
-    documentNumber: numeroValidaCrudo || numeroValidaNormalizado,
-    birthDate: checkDigit(nacimiento) === nacimientoControl,
-    expirationDate: checkDigit(caducidad) === caducidadControl,
-    composite: compositeCheck(l1, l2, compuestoControl, numeroValidaCrudo),
+    documentNumber: desborde
+      ? desborde.valida
+      : !esControlLegible(numeroControl)
+        ? null
+        : numeroValidaCrudo || numeroValidaNormalizado,
+    birthDate: !esControlLegible(nacimientoControl)
+      ? null
+      : checkDigit(nacimiento) === nacimientoControl,
+    expirationDate: !esControlLegible(caducidadControl)
+      ? null
+      : checkDigit(caducidad) === caducidadControl,
+    composite: compuesto(l1, l2, compuestoControl, numeroValidaCrudo, renglonesCompletos),
   };
 
   const nombres = splitNames(l3);
   return {
     // Cada campo sólo se entrega si SU dígito de control cuadra. Un número que
     // no valida es peor que ninguno: parece un dato y no lo es.
-    documentNumber: checks.documentNumber && numero ? numero : null,
-    birthDate: checks.birthDate ? toIsoDate(nacimiento, 'nacimiento') : null,
-    expirationDate: checks.expirationDate ? toIsoDate(caducidad, 'caducidad') : null,
+    documentNumber:
+      checks.documentNumber === true ? (desborde ? desborde.numero : numeroBase || null) : null,
+    birthDate: checks.birthDate === true ? toIsoDate(nacimiento, 'nacimiento') : null,
+    expirationDate: checks.expirationDate === true ? toIsoDate(caducidad, 'caducidad') : null,
     sex: sexo === 'M' || sexo === 'F' ? sexo : sexo === '<' ? 'X' : null,
     nationality: nacionalidad || null,
     issuingState: normalizeAlpha(l1.slice(2, 5).replace(/</g, '')) || null,
@@ -383,6 +511,33 @@ export function mrzDiagnostics(rawText: string): MrzDiagnostics {
     lines: enmascaradas,
     ...(leida ? { checks: leida.checks } : {}),
   };
+}
+
+/**
+ * El control compuesto en TRES estados.
+ *
+ * Cuadra, no cuadra, o **no se puede comprobar**. Lo tercero ocurre por tres
+ * motivos, todos de LECTURA:
+ *
+ * 1. El dígito de control no es un dígito —llegó `?`, `c`, un espacio—.
+ * 2. Alguno de los dos renglones lleva caracteres fuera del alfabeto de la MRZ.
+ * 3. Alguno de los dos renglones llegó corto y hubo que rellenarlo: el control
+ *    se calcularía sobre caracteres que no leyó nadie.
+ *
+ * El tercero sólo invalida cuando el control FALLA. Si cuadra con el relleno
+ * puesto, el relleno era el correcto y no hay nada que dudar.
+ */
+function compuesto(
+  l1: string,
+  l2: string,
+  control: string,
+  numeroValidaCrudo: boolean,
+  renglonesCompletos: boolean,
+): boolean | null {
+  if (!esControlLegible(control) || !tiraLegible(`${l1}${l2}`)) return null;
+  const cuadra = compositeCheck(l1, l2, control, numeroValidaCrudo);
+  if (cuadra) return true;
+  return renglonesCompletos ? false : null;
 }
 
 /**
@@ -509,8 +664,13 @@ function splitNames(line: string): { lastNames: string | null; firstNames: strin
 /**
  * Dígito de control de ICAO 9303: pesos 7-3-1 en ciclo, letras como 10..35 y
  * el relleno como cero.
+ *
+ * Se exporta para poder comprobarlo contra los ejemplos que el propio corpus
+ * trae calculados (`520727` → `3`, `AB2134<<<` → `5`). Una aritmética que se
+ * demuestra contra un oráculo externo vale más que una que se demuestra contra
+ * sus propias pruebas.
  */
-function checkDigit(valor: string): string {
+export function checkDigit(valor: string): string {
   const pesos = [7, 3, 1];
   let suma = 0;
   for (let i = 0; i < valor.length; i += 1) {
@@ -522,6 +682,45 @@ function checkDigit(valor: string): string {
     suma += peso * pesos[i % 3];
   }
   return String(suma % 10);
+}
+
+/**
+ * El número de documento cuando NO cabe en las nueve posiciones de la TD1.
+ *
+ * Devuelve `null` cuando no hay desbordamiento —el caso normal— y, cuando lo
+ * hay, el número completo con el veredicto de su dígito de control. Si la
+ * continuación no se puede interpretar, `valida` es `null`: no evaluable, que es
+ * lo que el corpus manda hacer con un desbordamiento ambiguo («REVISIÓN;
+ * conservar raw»).
+ */
+function leerDesborde(
+  l1: string,
+  numeroCrudo: string,
+): { numero: string; valida: boolean | null } | null {
+  // El disparador es EXACTAMENTE un `<` en la posición del dígito de control.
+  if (l1.slice(14, 15) !== '<') return null;
+
+  /*
+   * El campo opcional lleva `<continuación><control del número completo><`.
+   *
+   * El orden importa y es fácil de leer al revés: el dígito de control va
+   * DESPUÉS de la continuación y ANTES del relleno, así que es el carácter que
+   * precede al primer `<`, no el que lo sigue.
+   */
+  const opcional = l1.slice(15, 30);
+  const corte = opcional.indexOf('<');
+  if (corte <= 1) return null;
+  const continuacion = opcional.slice(0, corte - 1);
+  const control = normalizeNumeric(opcional.slice(corte - 1, corte));
+  const completo = `${numeroCrudo.replace(/</g, '')}${continuacion}`;
+
+  if (!esControlLegible(control)) return { numero: completo, valida: null };
+  const cuadra =
+    checkDigit(completo) === control || checkDigit(normalizeNumeric(completo)) === control;
+  return {
+    numero: cuadra && checkDigit(completo) !== control ? normalizeNumeric(completo) : completo,
+    valida: cuadra,
+  };
 }
 
 /** Deshace las confusiones de OCR que sólo pueden ser dígitos. */

@@ -92,7 +92,13 @@ export interface IdentityVerificationOutcome {
       front: { chars: number; lines: number; meanConfidence: number | null };
       back?: { chars: number; lines: number; meanConfidence: number | null };
     };
-    mrz: { found: boolean; lines?: string[]; checks?: Record<string, boolean> };
+    /**
+     * Los controles viajan en TRES estados: cuadró, no cuadró y no se pudo
+     * comprobar. `null` es el tercero y no se colapsa a `false` ni aquí ni en la
+     * pantalla: quien revisa un caso necesita distinguir un documento que falla
+     * su propio control de una foto en la que ese dígito no se lee.
+     */
+    mrz: { found: boolean; lines?: string[]; checks?: Record<string, boolean | null> };
   };
 }
 

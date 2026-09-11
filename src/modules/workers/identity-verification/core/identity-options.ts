@@ -163,6 +163,24 @@ export interface IdentityOptions {
    */
   readonly livenessPassScore: number;
   readonly livenessFailScore: number;
+  /**
+   * Nombre del perfil calibrado del que salen los cortes de vida.
+   *
+   * `unconfigured` —el valor por omisión— significa que **nadie los ha medido**,
+   * y entonces una prueba de vida fallida NO rechaza: escala a una persona.
+   *
+   * Es la misma regla que ya gobernaba el cotejo facial, aplicada a la otra
+   * mitad del problema. El 0,55 y el 0,35 que este worker trae salieron del
+   * encargo y el corpus los devuelve con una etiqueta inequívoca:
+   * `NO_USAR_COMO_RECHAZO_AUTOMATICO`, población «ninguna calibración real
+   * declarada». Su política de producción fija `auto_reject_fraud_enabled:
+   * false` y deja los dos umbrales del PAD en `null`.
+   *
+   * Rechazar a una persona por un número que nadie midió es exactamente lo que
+   * el encargo pidió no volver a hacer, y además no se puede defender: sin una
+   * población de ataques y de genuinos no hay APCER ni BPCER que enseñar.
+   */
+  readonly livenessProfileVersion: string;
   readonly documentClassificationEnabled: boolean;
 
   readonly ocrProvider: string;
@@ -251,6 +269,7 @@ export const IDENTITY_DEFAULTS: IdentityOptions = {
   livenessEnabled: true,
   livenessPassScore: 0.55,
   livenessFailScore: 0.35,
+  livenessProfileVersion: 'unconfigured',
   documentClassificationEnabled: true,
   ocrProvider: 'tesseract',
   faceProvider: 'human',

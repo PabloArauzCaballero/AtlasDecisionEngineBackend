@@ -98,6 +98,15 @@ export interface EvaluacionDeFraude {
   readonly riesgo: number;
   /** Códigos de motivo, en el mismo vocabulario que el resto del worker. */
   readonly motivos: readonly string[];
+  /**
+   * Lo que se anotó SIN acusar.
+   *
+   * Existen para que una señal retirada del riesgo no desaparezca del
+   * expediente: quien revisa un caso quiere ver que el lugar de nacimiento no
+   * nombra un departamento boliviano, y quiere ver también que eso no cuenta
+   * como indicio. Sin este campo, retirar el peso equivaldría a borrar el dato.
+   */
+  readonly observaciones: readonly string[];
   /** Qué pruebas no se pudieron ejecutar. Vacío es lo normal. */
   readonly pruebasAusentes: readonly string[];
   readonly desglose: {
@@ -134,7 +143,28 @@ export function evaluarFraude(input: {
 
   // --- 1. La plantilla del catálogo ---------------------------------------
   const cobertura = plantilla.mejor.cobertura;
-  if (cobertura < umbrales.coberturaMinima) {
+  /*
+   * Una plantilla que no se pudo LEER no es una plantilla incompleta.
+   *
+   * Es la corrección que más falsas escaladas ahorra. La cobertura mide qué
+   * rótulos del catálogo aparecen en el texto reconocido, así que depende de
+   * dos cosas a la vez: de que el documento los lleve impresos y de que la foto
+   * tenga resolución para leerlos. Con una captura de 800 px de lado largo —que
+   * es la MEDIANA de lo que la gente manda— ni una cédula perfecta llega al
+   * umbral, y el expediente salía con «plantilla incompleta» sobre un documento
+   * legítimo.
+   *
+   * Cuando no es evaluable, la prueba se declara AUSENTE en vez de fallada: en
+   * modo estricto escala —que es lo que el corpus llama `RECAPTURE_OR_REVIEW`—
+   * y en modo normal no acusa a nadie.
+   */
+  if (!plantilla.coberturaEvaluable) {
+    pruebasAusentes.push('TEMPLATE:LOW_RESOLUTION');
+    if (umbrales.estricto) {
+      motivos.push('TEMPLATE_NOT_EVALUABLE_LOW_RESOLUTION');
+      riesgos.push(0.3);
+    }
+  } else if (cobertura < umbrales.coberturaMinima) {
     motivos.push('TEMPLATE_COVERAGE_LOW');
     /*
      * El riesgo crece con la DISTANCIA al umbral y no de golpe. Una cobertura de
@@ -149,7 +179,7 @@ export function evaluarFraude(input: {
       ),
     );
   }
-  if (plantilla.mejor.obligatoriosAusentes.length > 0) {
+  if (plantilla.coberturaEvaluable && plantilla.mejor.obligatoriosAusentes.length > 0) {
     motivos.push('TEMPLATE_REQUIRED_FIELDS_MISSING');
     riesgos.push(escalar(plantilla.mejor.obligatoriosAusentes.length / 4, 0.4));
   }
@@ -234,6 +264,12 @@ export function evaluarFraude(input: {
     veredicto,
     riesgo,
     motivos: [...new Set(motivos)],
+    observaciones: [
+      ...new Set([
+        ...plantilla.observaciones.map((nota) => nota.codigo),
+        ...(plantilla.coberturaEvaluable ? [] : ['TEMPLATE_COVERAGE_NOT_EVALUABLE']),
+      ]),
+    ],
     pruebasAusentes,
     desglose: {
       conformidadDePlantilla: cobertura,

@@ -686,6 +686,14 @@ export const envSchema = z
     IDENTITY_MATCH_THRESHOLD: z.coerce.number().min(0).max(1).optional(),
     IDENTITY_REVIEW_THRESHOLD: z.coerce.number().min(0).max(1).optional(),
     IDENTITY_THRESHOLD_PROFILE_VERSION: z.string().min(1).max(128).default('unconfigured'),
+    /**
+     * El perfil calibrado de la prueba de VIDA.
+     *
+     * Mientras diga `unconfigured`, un fallo de vida no rechaza: escala. Ver
+     * `IdentityOptions.livenessProfileVersion` para el porqué —los cortes
+     * 0,55/0,35 no están medidos contra ninguna población de ataques—.
+     */
+    IDENTITY_LIVENESS_PROFILE_VERSION: z.string().min(1).max(128).default('unconfigured'),
     IDENTITY_MIN_DOCUMENT_QUALITY: z.coerce.number().min(0).max(1).default(0.5),
     IDENTITY_MIN_SELFIE_QUALITY: z.coerce.number().min(0).max(1).default(0.5),
     IDENTITY_MIN_FACE_AREA_RATIO: z.coerce.number().min(0.002).max(0.8).default(0.012),

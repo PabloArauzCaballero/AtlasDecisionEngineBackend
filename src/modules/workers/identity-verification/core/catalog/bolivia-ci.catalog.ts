@@ -491,15 +491,29 @@ export const PLANTILLAS: readonly PlantillaDeCedula[] = [
 /**
  * El número de cédula boliviano, con su complemento opcional.
  *
- * - Entre cinco y ocho dígitos. Por debajo de cinco no hay cédulas emitidas; por
- *   encima de ocho el número deja de ser un número de cédula y pasa a ser el de
- *   control de impresión, que la tarjeta también lleva y que este worker ya sabe
- *   excluir (`bolivia-ci-document.parser.ts`).
- * - Sin cero a la izquierda: el SEGIP no los emite y un `0` delante es la firma
- *   de un número tecleado en un formulario que lo rellenó a lo ancho.
- * - Complemento opcional de DOS caracteres alfanuméricos tras un guion —`1A`,
- *   `2B`—. Lo asigna el SEGIP a los números duplicados, así que una cédula sin
- *   complemento es lo normal y una CON complemento es igual de legítima.
+ * **Esto es un BUSCADOR, no un validador**, y la distinción decide si se
+ * rechaza a alguien. Sirve para elegir, entre los números que un OCR encuentra
+ * en una tarjeta llena de cifras —el de control de impresión, el del código de
+ * barras, una fecha pegada—, cuál parece el de la cédula. Para eso un patrón
+ * estrecho es exactamente lo que hace falta.
+ *
+ * Lo que NO puede hacer es acusar. La gramática del SEGIP **no está
+ * verificada**: el corpus de identidad la buscó y devolvió `exact_min_length:
+ * null`, `exact_max_length: null` y `leading_zero_assignment_policy: null`, con
+ * la instrucción de conservar los ceros y de no rechazar con una longitud que
+ * nadie ha confirmado (hueco G04). Y sobre el complemento resolvió una
+ * contradicción del encargo: el Servicio de Impuestos Nacionales lo publica como
+ * **alfanumérico**, no como dos letras, así que imponer `[A-Z]{2}` descartaría
+ * complementos legítimos (contradicción C02).
+ *
+ * Por eso `template-conformance.ts` ya no levanta una incoherencia cuando un
+ * número no encaja aquí: lo anota como observación y sigue.
+ *
+ * La forma que este buscador usa:
+ * - Entre cinco y ocho dígitos, que es lo observado en las cédulas reales de las
+ *   que disponemos; no una regla del emisor.
+ * - Sin cero a la izquierda, por la misma razón y con la misma reserva.
+ * - Complemento opcional de uno o dos caracteres alfanuméricos tras un guion.
  */
 export const NUMERO_CEDULA = /^(?!0)(\d{5,8})(?:-([0-9A-Z]{1,2}))?$/u;
 
@@ -510,12 +524,20 @@ export function esNumeroDeCedulaValido(valor: string | null | undefined): boolea
 }
 
 /**
- * Los nueve departamentos, más el rótulo con el que cada uno se abrevia en la
- * tarjeta.
+ * Los nueve departamentos, más la abreviatura CANDIDATA con la que cada uno
+ * aparece junto al número —`1234567 SC`—.
  *
- * La cédula se expide POR DEPARTAMENTO y lo imprime junto al número —`1234567
- * SC`—. Un lugar de expedición que no esté en esta lista no es un error de
- * lectura: es un dato que el SEGIP no puede haber impreso.
+ * **Candidata, y la palabra importa.** El corpus fue a buscar la tabla oficial
+ * del emisor (la RPT038 que la normativa referencia) y no la obtuvo:
+ * `official_SEGIP_code_list_verified: false`, y los nueve códigos llegan
+ * marcados uno a uno como `official_verified: false` (hueco G05). Su instrucción
+ * es explícita: son candidatos para revisión, **no una lista oficial ni una
+ * regla de rechazo**.
+ *
+ * Aquí decía lo contrario —«un lugar de expedición que no esté en esta lista es
+ * un dato que el SEGIP no puede haber impreso»— y esa frase es la que convierte
+ * una tabla reconstruida en un motivo para rechazar a una persona. Se usa para
+ * RECONOCER lo que se leyó; lo que no se reconoce se queda sin reconocer.
  */
 export const DEPARTAMENTOS_DE_EXPEDICION: Readonly<Record<string, string>> = {
   CH: 'Chuquisaca',
