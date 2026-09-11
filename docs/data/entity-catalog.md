@@ -25,7 +25,7 @@ esquema, que es la fuente que las migraciones aplican.
 | [`CalculatedFieldVersion`](#calculatedfieldversion) | `decision_calculated_field_version` | 25 | 2 | 1 |
 | [`CalibrationBucket`](#calibrationbucket) | `calibration_bucket` | 10 | 2 | 1 |
 | [`CreditFacility`](#creditfacility) | `credit_facility` | 15 | 3 | 1 |
-| [`DecisionAccessAudit`](#decisionaccessaudit) | `decision_access_audit` | 11 | 2 | 0 |
+| [`DecisionAccessAudit`](#decisionaccessaudit) | `decision_access_audit` | 13 | 3 | 0 |
 | [`DecisionActionReasonMapping`](#decisionactionreasonmapping) | `decision_action_reason_mapping` | 7 | 1 | 2 |
 | [`DecisionApprovalDecision`](#decisionapprovaldecision) | `decision_approval_decision` | 8 | 1 | 1 |
 | [`DecisionApprovalEvidence`](#decisionapprovalevidence) | `decision_approval_evidence` | 7 | 0 | 1 |
@@ -568,12 +568,15 @@ Tabla `decision_access_audit`.
 | `reason` | `String?` | @db.VarChar(200) |
 | `ipAddress` | `String?` | @map("ip_address") @db.VarChar(64) |
 | `status` | `Int?` | — |
+| `originScreen` | `String?` | @map("origin_screen") @db.VarChar(200) |
+| `originClient` | `String?` | @map("origin_client") @db.VarChar(60) |
 | `occurredAt` | `DateTime` | @default(now()) @map("occurred_at") @db.Timestamptz(6) |
 
 Índices y restricciones:
 
 - `index([tenantId, occurredAt])`
 - `index([decision, occurredAt])`
+- `index([originClient, occurredAt])`
 
 ## DecisionActionReasonMapping
 

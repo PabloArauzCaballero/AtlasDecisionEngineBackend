@@ -9,7 +9,7 @@ real: sus controladores, sus etiquetas de API, sus roles exigidos y sus códigos
 | Módulo | Endpoints | Roles exigidos | Ficheros |
 | --- | ---: | --- | ---: |
 | [`artifacts`](artifacts.md) | 13 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, OPERATIONS, QA_ANALYST, RISK_ANALYST | 12 |
-| [`audit-query`](audit-query.md) | 7 | AUDITOR, COMPLIANCE, OPERATIONS, RISK_ANALYST | 7 |
+| [`audit-query`](audit-query.md) | 7 | AUDITOR, COMPLIANCE, OPERATIONS, RISK_ANALYST | 8 |
 | [`calculated-fields`](calculated-fields.md) | 14 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 14 |
 | [`code-import`](code-import.md) | 6 | AUDITOR, FRAUD_ANALYST, QA_ANALYST, RISK_ANALYST | 14 |
 | [`data-subject`](data-subject.md) | 2 | AUDITOR, COMPLIANCE, OPERATIONS | 5 |
