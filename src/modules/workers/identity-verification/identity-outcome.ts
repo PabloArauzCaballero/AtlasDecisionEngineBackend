@@ -4,6 +4,7 @@ import {
   IdentityReviewReason,
   WorkerRunStatus,
 } from '@prisma/client';
+import { IdentityDecision } from './core/domain/identity-enums';
 import { IdentityDomainError } from './core/domain/identity-domain.error';
 
 /**
@@ -51,7 +52,85 @@ const PRIORIDAD_POR_MOTIVO: Readonly<Record<IdentityReviewReason, number>> = {
   [IdentityReviewReason.LOW_IMAGE_QUALITY]: 2,
   [IdentityReviewReason.MANUAL_REQUEST]: 2,
   [IdentityReviewReason.DOUBTFUL_DOCUMENT]: 3,
+  // Arriba del todo: es una persona con su documento en regla esperando a que alguien firme lo
+  // que el worker no puede firmar. No mirarlo es dejarla fuera por una carencia nuestra.
+  [IdentityReviewReason.UNCALIBRATED_DECISION]: 1,
+  [IdentityReviewReason.INCONCLUSIVE_LIVENESS]: 2,
 };
+
+/**
+ * Los motivos de revisión que puede levantar un VEREDICTO, por orden de precedencia.
+ *
+ * El orden no es estético: quien abre la bandeja decide qué mirar por el motivo, así que cuando
+ * un caso arrastra varios códigos gana el que mejor describe por qué nadie pudo firmarlo. Un
+ * `THRESHOLD_PROFILE_MISSING` con un aviso de calidad encima no es un problema de calidad: es que
+ * el worker no tiene con qué decidir, y etiquetarlo «baja resolución» manda a esa persona al
+ * fondo de la cola por un motivo falso.
+ */
+const MOTIVO_POR_CODIGO: ReadonlyArray<readonly [string, IdentityReviewReason]> = [
+  ['THRESHOLD_PROFILE_MISSING', IdentityReviewReason.UNCALIBRATED_DECISION],
+  ['LIVENESS_PROFILE_UNCALIBRATED', IdentityReviewReason.UNCALIBRATED_DECISION],
+  ['AMBIGUOUS_MATCH', IdentityReviewReason.AMBIGUOUS_FACE_MATCH],
+  ['LIVENESS_UNCERTAIN', IdentityReviewReason.INCONCLUSIVE_LIVENESS],
+  ['LOW_DOCUMENT_CONFIDENCE', IdentityReviewReason.LOW_IMAGE_QUALITY],
+  ['LOW_FACE_QUALITY', IdentityReviewReason.LOW_IMAGE_QUALITY],
+  ['DOCUMENT_FIELD_INCONSISTENCY', IdentityReviewReason.DOUBTFUL_DOCUMENT],
+  ['DOCUMENT_EXPIRY_UNKNOWN', IdentityReviewReason.DOUBTFUL_DOCUMENT],
+];
+
+/**
+ * El desenlace de una ejecución que TERMINÓ, a partir de su veredicto.
+ *
+ * Hasta el 2026-09-11 esto no existía y el estado salía de un ternario: `VERIFIED` a `SUCCEEDED`
+ * y todo lo demás a `SUCCEEDED_WITH_WARNINGS`. El efecto es que un `REVIEW_REQUIRED` —que
+ * significa literalmente «esto lo decide una persona»— terminaba en un estado TERMINAL y fuera
+ * de toda bandeja. La cola existía, funcionaba, y sólo la alimentaban los errores de la puerta;
+ * medido contra una cédula auténtica, devolvía cero elementos mientras la única verificación del
+ * día esperaba a que alguien la mirara.
+ *
+ * Un `NOT_VERIFIED` sigue siendo terminal: es una decisión del worker, no trabajo pendiente. Y un
+ * `INCONCLUSIVE` también, porque lo que falta ahí es una señal, no un juicio.
+ */
+export function outcomeForIdentityVerdict(
+  decision: IdentityDecision,
+  reasonCodes: readonly string[],
+): IdentityRunOutcome {
+  if (decision === IdentityDecision.VERIFIED) {
+    return {
+      status: WorkerRunStatus.SUCCEEDED,
+      reviewReason: null,
+      rejectionReason: null,
+      arbitrationMode: null,
+      reviewPriority: null,
+    };
+  }
+
+  if (decision !== IdentityDecision.REVIEW_REQUIRED) {
+    return {
+      status: WorkerRunStatus.SUCCEEDED_WITH_WARNINGS,
+      reviewReason: null,
+      rejectionReason: null,
+      arbitrationMode: null,
+      reviewPriority: null,
+    };
+  }
+
+  const codigos = new Set(reasonCodes);
+  const reviewReason =
+    MOTIVO_POR_CODIGO.find(([codigo]) => codigos.has(codigo))?.[1] ??
+    // Un veredicto de revisión sin código conocido sigue siendo trabajo de una persona: entra en
+    // la cola con el motivo más genérico antes que quedarse fuera de toda bandeja.
+    IdentityReviewReason.MANUAL_REQUEST;
+
+  return {
+    status: WorkerRunStatus.PENDING_REVIEW,
+    reviewReason,
+    rejectionReason: null,
+    // Lo decide una persona: el arbitraje por IA no firma veredictos de identidad.
+    arbitrationMode: IdentityArbitrationMode.HUMAN,
+    reviewPriority: PRIORIDAD_POR_MOTIVO[reviewReason],
+  };
+}
 
 /**
  * Rechazos por código, para los errores que ya existían.

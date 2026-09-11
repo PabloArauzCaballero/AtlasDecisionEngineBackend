@@ -2836,6 +2836,11 @@ enum IdentityReviewReason {
   TIMEOUT
   /// Alguien pidió la revisión a mano.
   MANUAL_REQUEST
+  /// El worker no puede firmar porque sus cortes no están calibrados. No es una duda sobre la
+  /// persona: es una carencia del sistema, y por eso la resuelve alguien y no un umbral.
+  UNCALIBRATED_DECISION
+  /// La prueba de vida no concluyó. Tampoco es una acusación.
+  INCONCLUSIVE_LIVENESS
 }
 
 /// Por qué se rechaza una imagen sin preguntar a nadie.

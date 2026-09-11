@@ -13,7 +13,11 @@ import {
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { IdentityDecision, IdentityDocumentType } from './core/domain/identity-enums';
 import { IdentityDomainError } from './core/domain/identity-domain.error';
-import { outcomeForIdentityError, type IdentityRunOutcome } from './identity-outcome';
+import {
+  outcomeForIdentityError,
+  outcomeForIdentityVerdict,
+  type IdentityRunOutcome,
+} from './identity-outcome';
 import { IdentityPipelineService } from './identity-pipeline.service';
 
 /**
@@ -210,6 +214,7 @@ export class IdentityRunWorkerService implements OnModuleInit, OnModuleDestroy, 
       });
 
       const warnings = [...new Set([...outcome.reasonCodes, ...outcome.riskFlags])];
+      const desenlace = outcomeForIdentityVerdict(outcome.decision, outcome.reasonCodes);
       await this.prisma.identityVerificationRun.update({
         where: { id: runId },
         data: {
@@ -219,10 +224,13 @@ export class IdentityRunWorkerService implements OnModuleInit, OnModuleDestroy, 
            * confundiría «el rostro no coincide» con «el proveedor se cayó», que
            * es la diferencia entre una decisión y una avería.
            */
-          status:
-            outcome.decision === IdentityDecision.VERIFIED
-              ? WorkerRunStatus.SUCCEEDED
-              : WorkerRunStatus.SUCCEEDED_WITH_WARNINGS,
+          status: desenlace.status,
+          // Un veredicto de revisión entra en la BANDEJA, con su motivo y su prioridad. Antes
+          // terminaba en un estado terminal y el caso no aparecía en ninguna: la cola existía y
+          // sólo la alimentaban los errores de la puerta.
+          reviewReason: desenlace.reviewReason,
+          reviewPriority: desenlace.reviewPriority,
+          arbitrationMode: desenlace.arbitrationMode,
           progress: 100,
           resultJson: outcome as unknown as Prisma.InputJsonValue,
           warningsJson: warnings as unknown as Prisma.InputJsonValue,
