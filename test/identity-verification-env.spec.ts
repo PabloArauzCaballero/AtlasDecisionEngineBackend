@@ -21,6 +21,12 @@ import { IDENTITY_DEFAULTS } from '../src/modules/workers/identity-verification/
 
 const base = {
   DATABASE_URL: 'postgresql://atlas:atlas@localhost:5432/atlas_decision',
+  // Un entorno válido incluye almacén desde el 2026-09-11: sin él el motor no arranca, porque
+  // decidir sobre una persona y perder su cara al cerrar dejó de ser un desenlace aceptable.
+  STORAGE_S3_ENDPOINT: 'http://localhost:9000',
+  STORAGE_S3_BUCKET: 'atlas-decision',
+  STORAGE_S3_ACCESS_KEY_ID: 'storage-key',
+  STORAGE_S3_SECRET_ACCESS_KEY: 'storage-secret',
   REDIS_URL: 'redis://localhost:6379',
   MANAGEMENT_API_KEY: 'management-key-with-enough-entropy-123',
   RUNTIME_API_KEY: 'runtime-key-with-enough-entropy-456',

@@ -82,10 +82,20 @@ function servicioCon(existente: { status: WorkerRunStatus; requestId: string }):
     jobSignal as never,
     new ConfigService({}),
     { inject: () => ({}) } as never,
-    // Sin almacén configurado: esta prueba mide la DEDUPLICACIÓN, y con `isConfigured()` en falso
-    // el servicio se salta la copia persistente por el mismo camino que en desarrollo local. Que
-    // el extracto se guarde en MinIO lo fija la prueba del almacén, no ésta.
-    { isConfigured: () => false, remove: () => Promise.resolve() } as never,
+    /*
+     * Almacén CONFIGURADO, aunque esta prueba mida la deduplicación.
+     *
+     * Estuvo en `false` para saltarse la copia persistente «igual que en desarrollo local», y eso
+     * dejó de ser un camino válido el 2026-09-11: una subida real sin almacén se rechaza, así que
+     * un doble sin almacén ya no representa a ningún despliegue —representa uno que no arranca—.
+     * Que el extracto se guarde de verdad lo fija `identity-storage-obligatorio.spec.ts`.
+     */
+    {
+      isConfigured: () => true,
+      buildStatementKey: () => 'statements/1/prueba.pdf',
+      put: () => Promise.resolve(),
+      remove: () => Promise.resolve(),
+    } as never,
   );
   return { service, registro };
 }

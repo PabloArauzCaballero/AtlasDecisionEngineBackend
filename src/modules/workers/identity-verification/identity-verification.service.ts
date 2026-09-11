@@ -122,7 +122,7 @@ export class IdentityVerificationService {
      *
      * El precio son objetos huérfanos cuando la huella resulta duplicada; se limpian abajo.
      */
-    const objectKeys = await this.storeIdentityImages(tenantId, requestId, input);
+    const objectKeys = await this.storeIdentityImages(tenantId, requestId, input, source);
 
     try {
       const run = await this.prisma.$transaction(async (tx) => {
@@ -183,11 +183,17 @@ export class IdentityVerificationService {
   /**
    * Copia las imágenes al almacén y devuelve sus claves.
    *
-   * `null` cuando no hay almacén configurado: el motor tiene que poder correr en local y en las
-   * pruebas sin MinIO, y la fila queda con las tres claves en `null`, que es la verdad —esa
-   * ejecución no conservó nada—. Quien no acepte esa degradación pone
-   * `IDENTITY_IMAGE_RETENTION_REQUIRED=true` y entonces ni siquiera arranca sin almacén, que es
-   * donde debe descubrirse.
+   * **Una subida real sin almacén se RECHAZA.** Antes se avisaba en el log y la ejecución seguía:
+   * decidía, cerraba, borraba las columnas `Bytes` y la evidencia sobre la que se decidió no
+   * existía al día siguiente. Ese aviso no lo lee nadie, y el daño sólo se descubre semanas
+   * después, cuando alguien va a revisar el caso o a contestar una impugnación —y entonces ya no
+   * hay nada que mirar—. Es incoherente además con el orden de escritura de arriba, que ya
+   * prefiere no dar de alta antes que dar de alta sin evidencia: el fallo AL SUBIR cortaba el
+   * alta, y no tener almacén no la cortaba.
+   *
+   * Los ESCENARIOS de prueba (`fixtureCode`) siguen pasando sin almacén: sus imágenes las genera
+   * el propio motor, no son de nadie, y perderlas no cuesta nada. Esa es toda la degradación que
+   * queda, y es la que permite correr el motor en local y en las pruebas sin MinIO.
    *
    * Si el almacén SÍ está y rechaza una escritura, se propaga: «no hay almacén» y «hay almacén y
    * no me deja escribir» son dos cosas distintas, y tratarlas igual fue exactamente lo que dejó al
@@ -197,11 +203,22 @@ export class IdentityVerificationService {
     tenantId: bigint,
     requestId: string,
     input: ValidatedIdentityInput,
+    source: WorkerInputSource,
   ): Promise<{ document: string; documentBack: string | null; selfie: string } | null> {
     if (!this.objectStorage.isConfigured()) {
+      if (source === WorkerInputSource.UPLOAD) {
+        throw new DomainException(
+          'IDENTITY_IMAGE_STORAGE_NOT_CONFIGURED',
+          'No se puede verificar una identidad sin un sitio donde conservar las imágenes: ' +
+            'declara STORAGE_S3_ENDPOINT, STORAGE_S3_BUCKET, STORAGE_S3_ACCESS_KEY_ID y ' +
+            'STORAGE_S3_SECRET_ACCESS_KEY. Se rechaza la subida en vez de decidir sobre una ' +
+            'persona y perder la evidencia al cerrar.',
+          HttpStatus.SERVICE_UNAVAILABLE,
+        );
+      }
       this.logger.warn(
-        `La verificación ${requestId} se encola SIN copia persistente de las imágenes: no hay almacén configurado. ` +
-          'Sus imágenes se perderán al cerrar la ejecución.',
+        `El escenario ${requestId} se encola sin copia persistente: no hay almacén configurado. ` +
+          'Sus imágenes son generadas, así que no hay evidencia de nadie que perder.',
       );
       return null;
     }

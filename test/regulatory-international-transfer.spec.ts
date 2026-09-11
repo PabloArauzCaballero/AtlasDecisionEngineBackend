@@ -18,6 +18,12 @@ describe('Guarda de transferencia internacional', () => {
   const base = {
     NODE_ENV: 'production',
     DATABASE_URL: 'postgresql://atlas_app:secret@localhost:5432/atlas',
+    // Un entorno válido incluye almacén desde el 2026-09-11: sin él el motor no arranca, porque
+    // decidir sobre una persona y perder su cara al cerrar dejó de ser un desenlace aceptable.
+    STORAGE_S3_ENDPOINT: 'http://localhost:9000',
+    STORAGE_S3_BUCKET: 'atlas-decision',
+    STORAGE_S3_ACCESS_KEY_ID: 'storage-key',
+    STORAGE_S3_SECRET_ACCESS_KEY: 'storage-secret',
     AUTH_MODE: 'JWT',
     JWT_JWKS_URL: 'https://idp.example.com/.well-known/jwks.json',
     JWT_ISSUER: 'https://idp.example.com/',

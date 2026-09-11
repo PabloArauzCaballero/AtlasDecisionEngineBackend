@@ -57,6 +57,49 @@ services:
     mem_limit: ${REDIS_MEMORY:-256m}
     restart: unless-stopped
 
+  # Almacén de objetos del motor. NO es opcional: es donde sobreviven al cierre de la ejecución la
+  # cara de la persona, las dos caras de su cédula y el PDF del extracto. Sin él, una subida real se
+  # RECHAZA (`IDENTITY_IMAGE_STORAGE_NOT_CONFIGURED`), porque decidir sobre alguien y perder la
+  # evidencia es peor que pedirle que reintente.
+  #
+  # Está en el compose de desarrollo por la misma razón: mientras no estuvo, cada verificación local
+  # se encolaba con un aviso en el log que nadie leía y las tres claves de objeto en `null`.
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${STORAGE_S3_ACCESS_KEY_ID:-atlas}
+      MINIO_ROOT_PASSWORD: ${STORAGE_S3_SECRET_ACCESS_KEY:-atlasatlas}
+    ports:
+      - "127.0.0.1:${MINIO_PORT:-9000}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
+    healthcheck:
+      # `mc ready local` y no un curl a /minio/health: la imagen no trae curl ni wget.
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - atlas_decision_minio:/data
+    networks: [atlas_data]
+    cpus: ${MINIO_CPUS:-1}
+    mem_limit: ${MINIO_MEMORY:-512m}
+    restart: unless-stopped
+
+  # One-shot: crea el bucket si no existe. Es idempotente y explícito, y no un script en la imagen
+  # de MinIO, porque un bucket que falta se manifiesta como una escritura rechazada en la primera
+  # verificación real —y ése es el peor momento para descubrirlo—.
+  minio-bucket:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MC_HOST_local: http://${STORAGE_S3_ACCESS_KEY_ID:-atlas}:${STORAGE_S3_SECRET_ACCESS_KEY:-atlasatlas}@minio:9000
+    entrypoint: ["sh", "-c", "mc mb --ignore-existing local/${STORAGE_S3_BUCKET:-atlas-decision} && mc ls local"]
+    networks: [atlas_data]
+    restart: "no"
+
   migrate:
     build:
       context: .
@@ -325,6 +368,8 @@ services:
       context: .
       target: worker
     depends_on:
+      minio-bucket:
+        condition: service_completed_successfully
       # El worker EJECUTA grafos (corridas de suites), así que necesita el mismo sidecar de
       # scripts que la API. Sin él, cualquier artefacto con un nodo de script fallaba su
       # suite bloqueante y no podía entrar en gobierno: es justo lo que produce «Importar
@@ -343,6 +388,19 @@ services:
       # Solo en loopback: /metrics del worker se raspa desde el host, nunca desde fuera.
       - "127.0.0.1:${WORKER_HEALTH_PORT:-3001}:3001"
     environment:
+      # ── Almacén de objetos ───────────────────────────────────────────────
+      # Donde sobreviven al cierre la cara, las dos caras de la cédula y el PDF del extracto.
+      # `minio:9000` es el extremo INTERNO; el público sirve para firmar URLs que abre un
+      # navegador del anfitrión, y por eso no es el mismo valor.
+      STORAGE_S3_ENDPOINT: ${STORAGE_S3_ENDPOINT:-http://minio:9000}
+      STORAGE_S3_PUBLIC_ENDPOINT: ${STORAGE_S3_PUBLIC_ENDPOINT:-http://127.0.0.1:9000}
+      STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-atlas-decision}
+      STORAGE_S3_ACCESS_KEY_ID: ${STORAGE_S3_ACCESS_KEY_ID:-atlas}
+      STORAGE_S3_SECRET_ACCESS_KEY: ${STORAGE_S3_SECRET_ACCESS_KEY:-atlasatlas}
+      # Con `true` el motor no arranca si falta cualquiera de las cuatro de arriba. Es lo que
+      # convierte «se perdieron las imágenes» en un error de configuración descubierto al
+      # arrancar, en vez de en un hueco que se nota semanas después.
+      IDENTITY_IMAGE_RETENTION_REQUIRED: ${IDENTITY_IMAGE_RETENTION_REQUIRED:-true}
       NODE_ENV: development
       WORKER_ROLE: WORKER
       WORKER_HEALTH_PORT: 3001
@@ -623,6 +681,8 @@ services:
       context: .
       target: runtime
     depends_on:
+      minio-bucket:
+        condition: service_completed_successfully
       migrate:
         condition: service_completed_successfully
       bootstrap-app-role:
@@ -634,6 +694,19 @@ services:
       script-runner:
         condition: service_started
     environment:
+      # ── Almacén de objetos ───────────────────────────────────────────────
+      # Donde sobreviven al cierre la cara, las dos caras de la cédula y el PDF del extracto.
+      # `minio:9000` es el extremo INTERNO; el público sirve para firmar URLs que abre un
+      # navegador del anfitrión, y por eso no es el mismo valor.
+      STORAGE_S3_ENDPOINT: ${STORAGE_S3_ENDPOINT:-http://minio:9000}
+      STORAGE_S3_PUBLIC_ENDPOINT: ${STORAGE_S3_PUBLIC_ENDPOINT:-http://127.0.0.1:9000}
+      STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-atlas-decision}
+      STORAGE_S3_ACCESS_KEY_ID: ${STORAGE_S3_ACCESS_KEY_ID:-atlas}
+      STORAGE_S3_SECRET_ACCESS_KEY: ${STORAGE_S3_SECRET_ACCESS_KEY:-atlasatlas}
+      # Con `true` el motor no arranca si falta cualquiera de las cuatro de arriba. Es lo que
+      # convierte «se perdieron las imágenes» en un error de configuración descubierto al
+      # arrancar, en vez de en un hueco que se nota semanas después.
+      IDENTITY_IMAGE_RETENTION_REQUIRED: ${IDENTITY_IMAGE_RETENTION_REQUIRED:-true}
       # ── Tamaño máximo del cuerpo ─────────────────────────────────────────
       # El carril de identidad recibe las TRES imágenes en base64 dentro del JSON
       # —anverso, reverso y selfie—, y base64 infla un tercio: con el millón de
@@ -1028,6 +1101,7 @@ services:
 
 volumes:
   atlas_decision_pg:
+  atlas_decision_minio:
   atlas_decision_redis:
   atlas_runner_socket:
   # Nombre fijo y no derivado del proyecto: aquí viven gigas de pesos de modelo y

@@ -1144,8 +1144,19 @@ export const envSchema = z
     // sensibilidad y vida útil distintas: un PDF de banco no es la cara de una persona, y poder
     // aplicarles retenciones diferentes sin mover un objeto es justo lo que da el prefijo.
     STORAGE_STATEMENT_KEY_PREFIX: z.string().default('statements'),
-    // Con `true`, arrancar sin almacén es un error en vez de una degradación silenciosa.
-    IDENTITY_IMAGE_RETENTION_REQUIRED: booleanFromString.default(false),
+    /*
+     * Con `true`, arrancar sin almacén es un error en vez de una degradación silenciosa.
+     *
+     * **Por omisión `true` desde el 2026-09-11.** Estaba en `false`, o sea «acepto perder las
+     * imágenes», y eso es lo que pasaba: el stack local no tenía almacén y cada verificación se
+     * encolaba con un aviso en el log y las tres claves de objeto en `null`. Medido sobre una
+     * cédula boliviana auténtica, tres veces seguidas. Un valor por omisión que renuncia a la
+     * evidencia sobre la que se decide acerca de una persona no puede ser el que se aplica cuando
+     * nadie eligió nada; quien de verdad acepte esa pérdida ahora lo dice en voz alta poniéndolo
+     * en `false`.
+     */
+    // Con `true` —lo predeterminado—, arrancar sin almacén es un error en vez de una degradación silenciosa que pierde la evidencia de cada decisión.
+    IDENTITY_IMAGE_RETENTION_REQUIRED: booleanFromString.default(true),
   })
   .superRefine((value, ctx) => {
     /*

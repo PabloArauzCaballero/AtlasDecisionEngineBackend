@@ -125,7 +125,7 @@ export class BankStatementService {
      * decide y cierra sin que su documento se guardara nunca. Si el almacén falla no hay alta y el
      * cliente reintenta, que es preferible a una capacidad de pago sin el extracto que la sostiene.
      */
-    const fileObjectKey = await this.storeStatementFile(tenantId, requestId, input);
+    const fileObjectKey = await this.storeStatementFile(tenantId, requestId, input, source);
 
     try {
       const run = await this.prisma.$transaction(async (tx) => {
@@ -219,10 +219,10 @@ export class BankStatementService {
   /**
    * Copia el extracto al almacén y devuelve su clave.
    *
-   * `null` cuando no hay almacén configurado: el motor tiene que poder correr en local y en las
-   * pruebas sin MinIO, y la fila queda con la clave en `null`, que es la verdad —esa ejecución no
-   * conservó el documento—. Quien no acepte esa degradación pone
-   * `IDENTITY_IMAGE_RETENTION_REQUIRED=true`, que exige el almacén al validar el entorno.
+   * **Una subida real sin almacén se RECHAZA**, por lo mismo que en identidad: el aviso en el log
+   * no lo lee nadie, la ejecución decidía y cerraba, y el extracto sobre el que se calculó una
+   * capacidad de pago no existía al día siguiente para responder a una impugnación. Los ESCENARIOS
+   * (`fixtureCode`) siguen pasando sin almacén: su PDF lo genera el motor y no es de nadie.
    *
    * Si el almacén SÍ está y rechaza la escritura, se propaga: «no hay almacén» y «hay almacén y no
    * me deja escribir» son dos cosas distintas, y tratarlas igual deja claves de objetos que nunca
@@ -232,11 +232,22 @@ export class BankStatementService {
     tenantId: bigint,
     requestId: string,
     input: ValidatedStatementInput,
+    source: WorkerInputSource,
   ): Promise<string | null> {
     if (!this.objectStorage.isConfigured()) {
+      if (source === WorkerInputSource.UPLOAD) {
+        throw new DomainException(
+          'STATEMENT_FILE_STORAGE_NOT_CONFIGURED',
+          'No se puede analizar un extracto sin un sitio donde conservarlo: declara ' +
+            'STORAGE_S3_ENDPOINT, STORAGE_S3_BUCKET, STORAGE_S3_ACCESS_KEY_ID y ' +
+            'STORAGE_S3_SECRET_ACCESS_KEY. Se rechaza la subida en vez de calcular una capacidad ' +
+            'de pago y perder el documento que la sostiene.',
+          HttpStatus.SERVICE_UNAVAILABLE,
+        );
+      }
       this.logger.warn(
-        `El extracto ${requestId} se encola SIN copia persistente: no hay almacén configurado. ` +
-          'El documento se perderá al cerrar la ejecución.',
+        `El escenario ${requestId} se encola sin copia persistente: no hay almacén configurado. ` +
+          'Su PDF es generado, así que no hay documento de nadie que perder.',
       );
       return null;
     }
@@ -272,7 +283,7 @@ export class BankStatementService {
     source: WorkerInputSource,
     fixtureCode?: string,
   ): Promise<BankStatementRunView> {
-    const fileObjectKey = await this.storeStatementFile(tenantId, requestId, input);
+    const fileObjectKey = await this.storeStatementFile(tenantId, requestId, input, source);
 
     return this.prisma.$transaction(async (tx) => {
       const requeued = await tx.bankStatementRun.update({

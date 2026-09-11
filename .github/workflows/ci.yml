@@ -45,6 +45,13 @@ jobs:
       AUDIT_HASH_SECRET: ci-audit-secret-with-at-least-32-characters-total
       METRICS_TOKEN: ci-metrics-token-with-enough-entropy
       REQUIRE_REDIS_IN_PRODUCTION: "true"
+      # El motor no arranca sin almacén (IDENTITY_IMAGE_RETENTION_REQUIRED, por omisión true), y
+      # `docs:openapi` construye el contexto de Nest de verdad. Aquí no se sube nada: basta con que
+      # la configuración exista para que la validación de entorno pase.
+      STORAGE_S3_ENDPOINT: http://127.0.0.1:9000
+      STORAGE_S3_BUCKET: atlas-decision
+      STORAGE_S3_ACCESS_KEY_ID: ci-storage-key
+      STORAGE_S3_SECRET_ACCESS_KEY: ci-storage-secret-with-enough-entropy
 
     steps:
       - uses: actions/checkout@v4
@@ -176,6 +183,13 @@ jobs:
       METRICS_TOKEN: ci-metrics-token-with-enough-entropy
       SWAGGER_ENABLED: "true"
       STARTUP_SEED_ENABLED: "false"
+      # `docs:openapi:generate` construye el contexto de Nest de verdad, así que la validación de
+      # entorno corre aquí también: sin almacén declarado el motor no arranca y el contrato no se
+      # genera. No se escribe ningún objeto en este job.
+      STORAGE_S3_ENDPOINT: http://127.0.0.1:9000
+      STORAGE_S3_BUCKET: atlas-decision
+      STORAGE_S3_ACCESS_KEY_ID: ci-storage-key
+      STORAGE_S3_SECRET_ACCESS_KEY: ci-storage-secret-with-enough-entropy
 
     steps:
       - uses: actions/checkout@v4

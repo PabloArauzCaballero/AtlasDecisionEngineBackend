@@ -3,7 +3,7 @@
 
 # Catálogo de códigos de error
 
-250 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
+252 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
 el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 
 | Código | Mensaje de referencia | Origen |
@@ -93,6 +93,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `IDEMPOTENCY_PAYLOAD_MISMATCH` | The idempotency key was already used with a different request payload | `src/modules/runtime/idempotency.service.ts` |
 | `IDENTITY_IMAGE_KIND_INVALID` | La imagen pedida no existe: usa document, documentBack o selfie. | `src/modules/workers/identity-verification/identity-verification.controller.ts` |
 | `IDENTITY_IMAGE_NOT_AVAILABLE` | Esa imagen no está disponible para esta verificación. | `src/modules/workers/identity-verification/identity-verification.controller.ts` |
+| `IDENTITY_IMAGE_STORAGE_NOT_CONFIGURED` | No se puede verificar una identidad sin un sitio donde conservar las imágenes: | `src/modules/workers/identity-verification/identity-verification.service.ts` |
 | `IDENTITY_PROVIDER_ERROR` | Identity provider rejected the request | `src/common/security/identity-provider.client.ts` |
 | `IDENTITY_PROVIDER_INVALID_RESPONSE` | Identity provider did not return ${what} matching the expected contract | `src/common/security/identity-provider.client.ts` |
 | `IDENTITY_PROVIDER_NOT_CONFIGURED` | Identity provider is not configured | `src/common/security/identity-provider.client.ts` |
@@ -222,6 +223,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `SEPARATION_OF_DUTIES_VIOLATION` | The version author cannot deploy the same version alone | `src/modules/deployments/deployment.service.ts` |
 | `SERVICE_NOT_READY` | One or more required dependencies are unavailable | `src/modules/health/health.controller.ts` |
 | `SIMULATION_PROD_FORBIDDEN` | El simulador no opera sobre PROD, tampoco para generar valores de prueba | `src/modules/runtime/sample-input.service.ts` |
+| `STATEMENT_FILE_STORAGE_NOT_CONFIGURED` | No se puede analizar un extracto sin un sitio donde conservarlo: declara | `src/modules/workers/bank-statement/bank-statement.service.ts` |
 | `SUBJECT_CONSENT_INVALID` | El titular tiene permisos que ya no amparan el tratamiento: | `src/modules/risk-governance/decision-guard.service.ts` |
 | `SUBJECT_NOT_FOUND` | No hay ninguna decisión registrada sobre ese titular en este tenant. | `src/modules/risk-governance/risk-governance.service.ts` |
 | `SUBJECT_REFERENCE_REQUIRED` | This environment requires subjectReference: a decision that cannot be attributed to | `src/modules/runtime/subject-policy.ts` |

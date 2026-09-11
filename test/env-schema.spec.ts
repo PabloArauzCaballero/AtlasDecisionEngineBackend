@@ -2,6 +2,12 @@ import { validateEnvironment } from '../src/common/config/env.schema';
 
 const base = {
   DATABASE_URL: 'postgresql://atlas:atlas@localhost:5432/atlas_decision',
+  // Un entorno válido incluye almacén desde el 2026-09-11: sin él el motor no arranca, porque
+  // decidir sobre una persona y perder su cara al cerrar dejó de ser un desenlace aceptable.
+  STORAGE_S3_ENDPOINT: 'http://localhost:9000',
+  STORAGE_S3_BUCKET: 'atlas-decision',
+  STORAGE_S3_ACCESS_KEY_ID: 'storage-key',
+  STORAGE_S3_SECRET_ACCESS_KEY: 'storage-secret',
   REDIS_URL: 'redis://localhost:6379',
   MANAGEMENT_API_KEY: 'management-key-with-enough-entropy-123',
   RUNTIME_API_KEY: 'runtime-key-with-enough-entropy-456',
@@ -347,5 +353,44 @@ describe('environment validation', () => {
         }),
       ).toThrow(/AUDIO_TTS_LEASE_SECONDS/);
     });
+  });
+});
+
+describe('conservar la evidencia es lo predeterminado', () => {
+  /*
+   * `IDENTITY_IMAGE_RETENTION_REQUIRED` estuvo por omisión en `false` —«acepto perder las
+   * imágenes»— y eso es exactamente lo que ocurría: el stack local no declaraba almacén y cada
+   * verificación se encolaba con un aviso en el log y las tres claves de objeto en `null`. Un
+   * valor por omisión que renuncia a la evidencia sobre la que se decide acerca de una persona no
+   * puede ser el que se aplica cuando nadie eligió nada.
+   */
+  const sinAlmacen = {
+    DATABASE_URL: 'postgresql://atlas:atlas@localhost:5432/atlas_decision',
+    REDIS_URL: 'redis://localhost:6379',
+    MANAGEMENT_API_KEY: 'management-key-with-enough-entropy-123',
+    RUNTIME_API_KEY: 'runtime-key-with-enough-entropy-456',
+    AUDIT_HASH_SECRET: 'audit-secret-with-at-least-thirty-two-characters',
+  };
+
+  it('un entorno sin almacén NO arranca, y el error nombra lo que falta', () => {
+    expect(() => validateEnvironment(sinAlmacen)).toThrow(/STORAGE_S3_ENDPOINT/);
+  });
+
+  it('renunciar a conservarlas sigue siendo posible, pero hay que declararlo', () => {
+    expect(() =>
+      validateEnvironment({ ...sinAlmacen, IDENTITY_IMAGE_RETENTION_REQUIRED: 'false' }),
+    ).not.toThrow();
+  });
+
+  it('con las cuatro declaradas, arranca', () => {
+    expect(() =>
+      validateEnvironment({
+        ...sinAlmacen,
+        STORAGE_S3_ENDPOINT: 'http://localhost:9000',
+        STORAGE_S3_BUCKET: 'atlas-decision',
+        STORAGE_S3_ACCESS_KEY_ID: 'storage-key',
+        STORAGE_S3_SECRET_ACCESS_KEY: 'storage-secret',
+      }),
+    ).not.toThrow();
   });
 });
