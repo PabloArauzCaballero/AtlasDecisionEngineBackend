@@ -94,6 +94,12 @@ jobs:
           else
             echo "::notice::Sin SEED_SOURCE_* declarado: las suites corren contra una base migrada y vacía."
           fi
+      # El generador documental compone con Chromium de verdad, y sus siete pruebas de integración
+      # son lo único que mide la paginación, que la página NO sale a la red y que se responde 429 al
+      # saturarse. Sin el navegador en el runner fallaban las siete, y ese rojo se leía como un fallo
+      # del generador. Sólo Chromium: los otros dos motores no los usa nadie aquí.
+      - name: Chromium para el generador documental
+        run: npx playwright install --with-deps chromium
       - run: yarn test:cov
       # Single source of truth for the audit threshold (package.json: yarn audit --level high).
       - run: yarn security:audit
