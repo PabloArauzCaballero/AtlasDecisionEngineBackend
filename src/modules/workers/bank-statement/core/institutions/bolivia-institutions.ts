@@ -60,7 +60,31 @@ export type InstitutionKind =
  * ya no opera. Borrarla del padrón convertiría ese caso en «entidad
  * desconocida», que se lee como un fallo del motor y no como el hecho que es.
  */
-export type InstitutionLicenseStatus = 'LICENSED' | 'SUSPENDED' | 'REVOKED';
+export type InstitutionLicenseStatus =
+  | 'LICENSED'
+  | 'SUSPENDED'
+  /**
+   * Intervenida por el regulador, **sin que conste revocación**.
+   *
+   * Es un estado propio y no un sinónimo de `REVOKED`, y la diferencia no es
+   * terminológica: una intervención no implica revocación automática, y en el
+   * corte oficial de servicios complementarios del 31.08.2026 la entidad aparece
+   * en la lista de INTERVENCIÓN sin fecha ni resolución de revocación. El corpus
+   * lo resuelve en su contradicción C02 con una instrucción literal —conservar
+   * el estado observado y dejar la revocación en `null`—, que es lo que impide
+   * afirmar en un expediente un hecho jurídico que nadie verificó.
+   */
+  | 'INTERVENED'
+  /** En liquidación voluntaria: deja de operar por decisión propia. */
+  | 'VOLUNTARY_LIQUIDATION'
+  /** En proceso de quiebra. */
+  | 'BANKRUPTCY'
+  /**
+   * Absorbida y disuelta sin liquidación: sus documentos siguen siendo válidos y
+   * su sucesora es quien responde hoy.
+   */
+  | 'ABSORBED'
+  | 'REVOKED';
 
 export interface BoliviaInstitution {
   /** Sigla ASFI. Es la clave con la que el regulador nombra a la entidad. */
@@ -590,10 +614,54 @@ const ENTIDADES_SIN_LICENCIA: readonly BoliviaInstitution[] = [
     code: 'BFS',
     name: 'Banco Fassil S.A.',
     kind: 'MULTIPLE_BANK',
-    licenseStatus: 'REVOKED',
+    /*
+     * INTERVENIDO, no revocado, y el cambio no es cosmético.
+     *
+     * Aquí decía `REVOKED` y la nota afirmaba una revocación con fecha. El corte
+     * oficial de ASFI al 31.08.2026 lo lista en INTERVENCIÓN y no publica ni
+     * fecha ni resolución de revocación. Afirmar la revocación en el expediente
+     * de un cliente es escribir como hecho algo que nadie verificó — y contra un
+     * documento que, además, puede ser perfectamente auténtico.
+     */
+    licenseStatus: 'INTERVENED',
     retailDeposits: true,
     markers: [/BANCO\s+FASSIL/i, /\bFASSIL\b/i],
-    note: 'Intervenido por ASFI el 26 de abril de 2023; su cartera y depósitos se transfirieron a otros bancos.',
+    note:
+      'En intervención según el corte de ASFI del 31.08.2026. No consta fecha ni resolución ' +
+      'de revocación. Un extracto suyo puede ser auténtico: el caso va a una persona, no al rechazo.',
+  },
+  {
+    code: 'BDB',
+    name: 'Banco Do Brasil S.A.',
+    kind: 'MULTIPLE_BANK',
+    licenseStatus: 'VOLUNTARY_LIQUIDATION',
+    retailDeposits: false,
+    markers: [/BANCO\s+DO\s+BRASIL/i],
+    note: 'En liquidación voluntaria según el corte de ASFI del 31.08.2026.',
+  },
+  {
+    code: 'CIC',
+    name: 'Cooperativa de Ahorro y Crédito Societaria Intercoop Ltda.',
+    kind: 'COOPERATIVE',
+    licenseStatus: 'BANKRUPTCY',
+    retailDeposits: true,
+    markers: [/\bINTERCOOP\b/i],
+    note: 'En proceso de quiebra según el corte de ASFI del 31.08.2026.',
+  },
+  {
+    code: 'ISS',
+    name: 'SEMBRAR SARTAWI IFD',
+    kind: 'DEVELOPMENT_IFD',
+    /*
+     * Absorbida por IDEPRO (IID) y disuelta SIN liquidación, por resolución
+     * ASFI 385/2024 del 29 de abril de 2024. Sigue en el padrón porque un
+     * estado de cuenta suyo anterior a esa fecha es un documento válido, y
+     * porque quien lo reciba hoy necesita saber quién responde por él.
+     */
+    licenseStatus: 'ABSORBED',
+    retailDeposits: false,
+    markers: [/\bSEMBRAR\s+SARTAWI\b/i, /\bSARTAWI\b/i],
+    note: 'Absorbida y disuelta sin liquidación (ASFI 385/2024, 29.04.2024). Sucesora: IDEPRO IFD (IID).',
   },
 ];
 

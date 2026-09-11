@@ -38,11 +38,18 @@ describe('padrón de entidades de ASFI', () => {
     // empiece a rechazarse sin que nadie relacione las dos cosas.
     const porTipo = (kind: string) =>
       BOLIVIA_INSTITUTIONS.filter((institution) => institution.kind === kind).length;
-    expect(porTipo('MULTIPLE_BANK')).toBe(12); // 11 vigentes + Fassil, revocado
+    // 11 vigentes + Fassil (intervenido) + Do Brasil (liquidación voluntaria).
+    expect(porTipo('MULTIPLE_BANK')).toBe(13);
     expect(porTipo('PYME_BANK')).toBe(2);
     expect(porTipo('HOUSING_ENTITY')).toBe(3);
-    expect(porTipo('COOPERATIVE')).toBe(41);
-    expect(porTipo('DEVELOPMENT_IFD')).toBe(8);
+    // 41 vigentes + Intercoop, en proceso de quiebra.
+    expect(porTipo('COOPERATIVE')).toBe(42);
+    // 8 vigentes + Sembrar Sartawi, absorbida por IDEPRO.
+    expect(porTipo('DEVELOPMENT_IFD')).toBe(9);
+    // Las vigentes al corte del 30-abr-2026 siguen siendo 67.
+    expect(
+      BOLIVIA_INSTITUTIONS.filter((institution) => institution.licenseStatus === 'LICENSED').length,
+    ).toBe(67);
   });
 
   it('ninguna entidad se queda sin marcadores', () => {

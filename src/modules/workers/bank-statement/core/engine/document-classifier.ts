@@ -7,6 +7,7 @@ import {
   type TriageThresholds,
 } from './document-triage';
 import type { DocumentClassification } from './statement-context';
+import { routeForDocumentType } from './document-routes';
 
 /**
  * Señal de que un documento es —o no es— un estado de cuenta.
@@ -62,6 +63,41 @@ const DOCUMENT_TYPES: ReadonlyArray<{ type: string; pattern: RegExp }> = [
   {
     type: 'BANK_STATEMENT',
     pattern: /extracto\s+de\s+movimientos|extracto\s+bancario/i,
+  },
+];
+
+/**
+ * Títulos de documentos que NO son extractos, y que aun así conviene nombrar.
+ *
+ * Viven en su propia lista y no en `DOCUMENT_TYPES` por un motivo concreto: esa
+ * otra lista alimenta una SEÑAL POSITIVA del clasificador —«el documento se
+ * titula como un estado de cuenta»— y meter aquí una boleta de pago le regalaría
+ * peso a un documento que no es un extracto. Se reconocen para poder explicar,
+ * no para puntuar.
+ *
+ * Antes caían todos en `UNKNOWN_DOCUMENT` y recibían la misma frase —«no reúne
+ * señales suficientes de ser un estado de cuenta»—, que es verdadera y no dice
+ * qué hacer. Con el tipo reconocido, `document-routes.ts` puede decir que a un
+ * comprobante le falta el periodo, que un certificado de saldo es una foto y no
+ * una historia, y que un resumen de tarjeta describe deuda y no ingreso.
+ */
+const OTHER_DOCUMENT_TYPES: ReadonlyArray<{ type: string; pattern: RegExp }> = [
+  {
+    type: 'TRANSFER_RECEIPT',
+    pattern:
+      /comprobante\s+de\s+(?:transferencia|pago|dep[oó]sito|env[ií]o)|constancia\s+de\s+transferencia/i,
+  },
+  {
+    type: 'BALANCE_CERTIFICATE',
+    pattern: /certificad[oa]\s+de\s+(?:saldo|cuenta|dep[oó]sito)/i,
+  },
+  {
+    type: 'PAYSLIP',
+    pattern: /boleta\s+de\s+pago|recibo\s+de\s+(?:sueldo|haberes)|papeleta\s+de\s+pago/i,
+  },
+  {
+    type: 'WALLET_STATEMENT',
+    pattern: /billetera\s+m[oó]vil|\bTIGO\s*MONEY\b|\bE-?\s?FECTIVO\b/i,
   },
 ];
 
@@ -225,6 +261,7 @@ export class DocumentClassifier {
         confidence: 0,
         detectedSignals: [`documento-de-otra-clase:${decisive.type}`],
         verdict: 'REJECT',
+        routing: routeForDocumentType(decisive.type),
       };
     }
 
@@ -245,12 +282,14 @@ export class DocumentClassifier {
 
     const confidence = Math.max(0, Math.min(1, Number(score.toFixed(2))));
     const verdict = triageDocument(confidence, this.thresholds);
+    const documentType = this.documentType(evidence.text, confidence);
     return {
-      documentType: this.documentType(evidence.text, confidence),
+      documentType,
       isFinancialStatement: verdict === 'ACCEPT',
       confidence,
       detectedSignals,
       verdict,
+      routing: routeForDocumentType(documentType),
     };
   }
 
@@ -284,6 +323,10 @@ export class DocumentClassifier {
   private documentType(text: string, confidence: number): string {
     const matched = DOCUMENT_TYPES.find((candidate) => candidate.pattern.test(text));
     if (matched) return matched.type;
+    // Los otros títulos se miran DESPUÉS: un extracto que además menciona un
+    // comprobante en una glosa sigue siendo un extracto.
+    const other = OTHER_DOCUMENT_TYPES.find((candidate) => candidate.pattern.test(text));
+    if (other) return other.type;
     return confidence >= this.thresholds.accept ? 'FINANCIAL_DOCUMENT' : 'UNKNOWN_DOCUMENT';
   }
 }

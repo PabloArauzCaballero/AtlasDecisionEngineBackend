@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { ExtractedPdf } from '../domain/models';
 import { countMarkerHits, type BoliviaInstitution } from '../institutions/bolivia-institutions';
 import { ASFI_SEED_REGISTRY, type InstitutionRegistry } from '../institutions/institution-registry';
-import { detectNonBankingIssuer } from '../institutions/non-banking-issuers';
+import { detectNonBankingIssuer, detectWalletOperator } from '../institutions/non-banking-issuers';
 import { COMPILED_SIGNAL_DESCRIPTORS } from '../institutions/signal-descriptors';
 import {
   coverText,
@@ -80,13 +80,26 @@ export class InstitutionDetector {
 
     if (!matched) {
       const issuer = detectNonBankingIssuer(cover);
+      /*
+       * Una billetera con operador licenciado NO es un emisor no financiero.
+       *
+       * Su carátula lleva la marca comercial —TIGO MONEY— que también lleva la
+       * factura de la telefónica del mismo grupo, y el rechazo por esa palabra
+       * descartaba un estado de cuenta admisible. Se publica la señal con el
+       * OPERADOR para que quien revise vea de quién es el documento.
+       */
+      const wallet = issuer ? undefined : detectWalletOperator(cover);
       return {
         code: UNKNOWN_INSTITUTION_CODE,
         detected: false,
         confidence: Number(
           Math.min(UNKNOWN_MAX_CONFIDENCE, generic.length * GENERIC_SIGNAL_WEIGHT).toFixed(2),
         ),
-        signals: issuer ? [`emisor-no-financiero:${issuer.code}`, ...generic] : generic,
+        signals: issuer
+          ? [`emisor-no-financiero:${issuer.code}`, ...generic]
+          : wallet
+            ? [`billetera-con-operador:${wallet.operator.code}`, ...generic]
+            : generic,
         registryAuthoritative,
         nonBankingIssuer: issuer && {
           code: issuer.code,

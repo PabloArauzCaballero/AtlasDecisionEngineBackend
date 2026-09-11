@@ -18,6 +18,7 @@
  */
 
 import type { InflowKind, OutflowKind } from './movement-lexicon';
+import type { EconomicPlausibility } from './economic-plausibility';
 
 /** Motivos con los que la evaluación se explica. Son estables: se miden. */
 export type AffordabilityReasonCode =
@@ -37,6 +38,13 @@ export type AffordabilityReasonCode =
   | 'AFF_CARGA_DE_DEUDA_ALTA'
   /** Las obligaciones crecen mes a mes. */
   | 'AFF_DEUDA_CRECIENTE'
+  /**
+   * No se observó la deuda que la persona paga fuera de esta cuenta.
+   *
+   * No es un defecto del expediente: es la cota de lo que un extracto puede
+   * decir. Se publica para que nadie lea la carga de deuda como si fuera total.
+   */
+  | 'AFF_DEUDA_EXTERNA_NO_OBSERVADA'
   /** El gasto comprometido crece mes a mes. */
   | 'AFF_GASTO_CRECIENTE'
   /** No queda margen entre lo que entra y lo que ya está comprometido. */
@@ -67,6 +75,13 @@ export interface MonthlyBucket {
   /** `AAAA-MM`. */
   readonly month: string;
   readonly transactionCount: number;
+  /**
+   * Si en el mes pasó algo.
+   *
+   * Un mes cubierto SIN actividad cuenta como ingreso cero —es una observación—
+   * y no se mezcla con un mes no cubierto, que no es ninguna.
+   */
+  readonly hasActivity: boolean;
   readonly inflowTotal: number;
   readonly outflowTotal: number;
   /** Abonos que cuentan como ingreso: los reconocidos por glosa o por cadencia. */
@@ -107,6 +122,20 @@ export interface AffordabilityRiskSignals {
   readonly nsfMonths: number;
   readonly monthsEndingNegative: number;
   readonly minBalanceObserved: number | null;
+  /**
+   * `sum(saldo_cierre_día) / días_cubiertos`, imputando hacia adelante.
+   *
+   * No es intercambiable con el mínimo y por eso viajan las dos: dos cuentas
+   * pueden compartir mínimo y no compartir media. `null` cuando el emisor no
+   * imprime saldos.
+   */
+  readonly timeWeightedMeanBalance: number | null;
+  /** Días con saldo conocido. Es el denominador de la media, y se publica. */
+  readonly balanceDaysCovered: number;
+  /** Días cuyo saldo de cierre quedó bajo cero. */
+  readonly negativeBalanceDays: number;
+  /** Veces que la cuenta CRUZÓ a negativo. Un descubierto de doce días es uno. */
+  readonly overdraftEpisodes: number;
   /** Colchón: días de gasto comprometido que cubre el saldo más bajo del periodo. */
   readonly cashCushionDays: number | null;
   readonly highRiskSpend: number;
@@ -116,6 +145,16 @@ export interface AffordabilityRiskSignals {
   /** Traspasos entre cuentas propias sobre el total de abonos. Infla el ingreso aparente. */
   readonly internalTransferRatio: number;
   readonly reversalRatio: number;
+  /**
+   * Las cuatro medidas de PLAUSIBILIDAD ECONÓMICA.
+   *
+   * Describen el dinero, no el archivo, y **ninguna tiene umbral**: el corpus
+   * las especifica con `threshold: null` y enumera para cada una sus confusores
+   * legítimos. Se publican para que quien decide las vea y para que, el día que
+   * haya mora observada, sean las variables candidatas de un modelo. Ver
+   * `economic-plausibility.ts`.
+   */
+  readonly plausibility: EconomicPlausibility;
 }
 
 /** Lo que se afirma del ingreso, con la evidencia que lo sostiene. */
@@ -153,7 +192,19 @@ export interface ExpenseAssessment {
 
 /** Lo que se afirma de las obligaciones con terceros. */
 export interface ObligationAssessment {
+  /** Observado más externo declarado. Es el que entra en el cálculo. */
   readonly monthly: number;
+  /** Lo que se ve EN ESTE extracto. */
+  readonly observedMonthly: number;
+  /**
+   * Cuota mensual en otras entidades. `null` es NO OBSERVADO, jamás cero.
+   *
+   * Un extracto omite la deuda que se paga desde otra cuenta; la ausencia de
+   * cuotas observadas no prueba que la deuda total sea cero.
+   */
+  readonly externalDebtService: number | null;
+  /** `true` cuando la deuda externa no se observó: la carga es un SUELO. */
+  readonly isLowerBound: boolean;
   readonly trend: number;
   /** Cuota comprometida sobre ingreso reconocido. */
   readonly debtServiceRatio: number;
@@ -179,6 +230,14 @@ export interface CapacityAssessment {
 export interface PeriodCoverage {
   readonly minimumMonthsRequired: number;
   readonly monthsObserved: number;
+  /**
+   * Meses cubiertos por el documento en los que no ocurrió nada.
+   *
+   * Se publica aparte porque cobertura documental y actividad son preguntas
+   * distintas: un extracto puede cubrir tres meses enteros y describir una
+   * cuenta que su titular no usa.
+   */
+  readonly monthsCoveredWithoutActivity?: number;
   readonly monthsComplete: number;
   readonly from: string | null;
   readonly to: string | null;
@@ -207,4 +266,22 @@ export interface AffordabilityAssessment {
   readonly reasons: readonly AffordabilityReason[];
   /** Versión del algoritmo. Va en la traza: una cifra sin versión no se puede auditar. */
   readonly modelVersion: string;
+  /**
+   * Qué clase de número es el que acaba de salir.
+   *
+   * Ninguno de los ocho parámetros con los que se calculó está calibrado contra
+   * mora observada, y una capacidad de pago que no dice eso de sí misma se lee
+   * como una medición. Va en el resultado y no sólo en la documentación porque
+   * es lo único que viaja hasta la pantalla de quien decide.
+   */
+  readonly calibration: AffordabilityCalibration;
+}
+
+/** El estado de calibración que acompaña a cada evaluación. */
+export interface AffordabilityCalibration {
+  readonly status: string;
+  readonly engineRole: string;
+  readonly parametersAudited: number;
+  readonly parametersCalibrated: number;
+  readonly requires: string;
 }

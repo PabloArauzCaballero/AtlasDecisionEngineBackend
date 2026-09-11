@@ -38,13 +38,41 @@
  * los últimos.
  */
 
+/**
+ * En qué EJE vive un hallazgo.
+ *
+ * Es la corrección de arquitectura que el corpus pide con nombre propio: la
+ * seguridad del archivo y la procedencia del documento son preguntas
+ * independientes y no se compensan. Un PDF con JavaScript incrustado es
+ * peligroso de abrir aunque lo haya producido el motor de informes de un banco;
+ * un PDF compuesto en Photoshop es dudoso aunque sea inofensivo de abrir.
+ *
+ * Mezclarlas en un solo número deja la puerta abierta a la peor operación
+ * posible: que una señal FAVORABLE de procedencia —el generador institucional,
+ * que vale −25— reste de un fallo de seguridad. Con dos ejes, no puede.
+ */
+export type ForensicAxis =
+  /** Qué le hace este archivo a quien lo abra. */
+  | 'SECURITY'
+  /** Qué dice el archivo sobre quién lo fabricó y si se tocó después. */
+  | 'PROVENANCE';
+
 /** Cada hallazgo, con su peso y su explicación. Es lo que queda en la traza. */
 export interface ForensicSignal {
   readonly code: string;
-  /** 0..100. Cuánta sospecha aporta por sí solo. */
+  /**
+   * 0..100. Cuánta sospecha aporta por sí solo.
+   *
+   * **Ninguno de estos pesos está calibrado.** Son los que declaró el encargo, y
+   * la auditoría del corpus devolvió `recommended_numeric_weight: null` en las
+   * diez señales: no hay una tasa publicada de detección ni de falso positivo
+   * que los sostenga, porque no existe un corpus de extractos bolivianos
+   * alterados con verdad conocida contra el que medirlos.
+   */
   readonly weight: number;
   /** `CRITICAL` cierra el documento por sí sola, sin sumar con nada. */
   readonly severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  readonly axis: ForensicAxis;
   readonly detail: string;
 }
 
@@ -80,6 +108,18 @@ export interface ForensicReport {
   readonly signals: readonly ForensicSignal[];
   /** 0..100. La suma acotada de los pesos; 100 cuando hay una señal crítica. */
   readonly suspicionScore: number;
+  /**
+   * 0..100, sólo del eje de SEGURIDAD.
+   *
+   * Nunca recibe créditos: aquí no entra el peso negativo del generador
+   * institucional ni ningún otro descuento. Un archivo que ejecuta código lo
+   * ejecuta igual lo haya escrito quien lo haya escrito.
+   */
+  readonly securityScore: number;
+  /** 0..100, sólo del eje de PROCEDENCIA. Aquí sí se aplican los créditos. */
+  readonly provenanceScore: number;
+  /** Qué clase de números son los de arriba. */
+  readonly calibration: 'UNCALIBRATED_WEIGHTS_DECLARED_IN_BRIEF';
 }
 
 /**
@@ -258,6 +298,7 @@ export function assessProvenance(provenance: PdfProvenance, textPageRatio: numbe
       code: 'CONTENIDO_ACTIVO',
       weight: 100,
       severity: 'CRITICAL',
+      axis: 'SECURITY',
       detail:
         'El PDF lleva JavaScript o una acción de lanzamiento incrustada. Un extracto bancario no ejecuta nada.',
     });
@@ -268,6 +309,7 @@ export function assessProvenance(provenance: PdfProvenance, textPageRatio: numbe
       code: 'ARCHIVOS_INCRUSTADOS',
       weight: 100,
       severity: 'CRITICAL',
+      axis: 'SECURITY',
       detail: `El PDF transporta ${String(provenance.embeddedFileCount)} archivo(s) incrustado(s).`,
     });
   }
@@ -278,6 +320,7 @@ export function assessProvenance(provenance: PdfProvenance, textPageRatio: numbe
       code: 'HERRAMIENTA_DE_AUTORIA',
       weight: 85,
       severity: 'CRITICAL',
+      axis: 'PROVENANCE',
       detail: `El archivo declara haber sido producido con ${authoring.label}, que es una herramienta de composición y edición, no un emisor de extractos.`,
     });
   }
@@ -287,6 +330,7 @@ export function assessProvenance(provenance: PdfProvenance, textPageRatio: numbe
       code: 'ANOTACIONES_SUPERPUESTAS',
       weight: 70,
       severity: 'HIGH',
+      axis: 'PROVENANCE',
       detail: `Hay contenido superpuesto al documento (${provenance.annotationSubtypes.join(', ')}). Es el equivalente digital de una tachadura sobre el papel.`,
     });
   }
@@ -302,6 +346,7 @@ export function assessProvenance(provenance: PdfProvenance, textPageRatio: numbe
       code: 'REVISIONES_INCREMENTALES',
       weight,
       severity: provenance.incrementalUpdates >= 2 ? 'HIGH' : 'MEDIUM',
+      axis: 'PROVENANCE',
       detail: `El archivo se reescribió ${String(provenance.incrementalUpdates)} vez/veces por encima de su versión original.`,
     });
   }
@@ -311,6 +356,7 @@ export function assessProvenance(provenance: PdfProvenance, textPageRatio: numbe
       code: 'FORMULARIO_EDITABLE',
       weight: 35,
       severity: 'MEDIUM',
+      axis: 'PROVENANCE',
       detail:
         'El PDF contiene campos de formulario rellenables. Un extracto emitido no se rellena.',
     });
@@ -324,6 +370,7 @@ export function assessProvenance(provenance: PdfProvenance, textPageRatio: numbe
       code: 'MODIFICADO_TRAS_LA_EMISION',
       weight: days >= 1 ? 45 : 25,
       severity: days >= 1 ? 'HIGH' : 'MEDIUM',
+      axis: 'PROVENANCE',
       detail: `El archivo se modificó ${days >= 1 ? `${String(days)} día(s)` : 'minutos'} después de haberse creado.`,
     });
   }
@@ -340,6 +387,7 @@ export function assessProvenance(provenance: PdfProvenance, textPageRatio: numbe
       code: 'SIN_METADATOS_DE_ORIGEN',
       weight: 20,
       severity: 'LOW',
+      axis: 'PROVENANCE',
       detail:
         'El archivo no declara con qué se produjo. Puede ser un generador parco o un borrado de metadatos.',
     });
@@ -351,6 +399,7 @@ export function assessProvenance(provenance: PdfProvenance, textPageRatio: numbe
       code: 'IMPRESION_DESDE_NAVEGADOR',
       weight: 15,
       severity: 'LOW',
+      axis: 'PROVENANCE',
       detail:
         'El PDF lo generó un navegador al imprimir. El contenido lo pintó el banco, pero el archivo no es el que el banco emitió.',
     });
@@ -369,6 +418,7 @@ export function assessProvenance(provenance: PdfProvenance, textPageRatio: numbe
       code: 'FUENTES_SIN_INCRUSTAR',
       weight: 25,
       severity: 'MEDIUM',
+      axis: 'PROVENANCE',
       detail:
         `El documento declara ${String(provenance.nonStandardFonts)} fuente(s) no estándar sin incrustarlas; ` +
         'el texto se pinta con las del equipo que lo abra, que es lo que ocurre al componerlo en un editor.',
@@ -387,6 +437,7 @@ export function assessProvenance(provenance: PdfProvenance, textPageRatio: numbe
       code: 'GENERADOR_INSTITUCIONAL',
       weight: -25,
       severity: 'LOW',
+      axis: 'PROVENANCE',
       detail: `El archivo lo produjo un motor de informes (${toolText.trim()}), compatible con una emisión institucional.`,
     });
   }
@@ -395,7 +446,32 @@ export function assessProvenance(provenance: PdfProvenance, textPageRatio: numbe
   const additive = signals.reduce((total, signal) => total + signal.weight, 0);
   const suspicionScore = critical ? 100 : Math.max(0, Math.min(100, additive));
 
-  return { provenance, signals, suspicionScore };
+  /*
+   * Los dos ejes se puntúan por separado, y el de seguridad IGNORA los créditos.
+   *
+   * `Math.max(0, weight)` en el eje de seguridad no es una precaución teórica:
+   * es lo que garantiza que añadir mañana una señal favorable —un productor
+   * reconocido, una firma que valida— no pueda restar de un archivo que ejecuta
+   * código. El corpus lo fija como caso de regresión (`SECURITY_AXIS`).
+   */
+  const axisScore = (axis: ForensicAxis, allowCredits: boolean): number => {
+    const ofAxis = signals.filter((signal) => signal.axis === axis);
+    if (ofAxis.some((signal) => signal.severity === 'CRITICAL')) return 100;
+    const total = ofAxis.reduce(
+      (sum, signal) => sum + (allowCredits ? signal.weight : Math.max(0, signal.weight)),
+      0,
+    );
+    return Math.max(0, Math.min(100, total));
+  };
+
+  return {
+    provenance,
+    signals,
+    suspicionScore,
+    securityScore: axisScore('SECURITY', false),
+    provenanceScore: axisScore('PROVENANCE', true),
+    calibration: 'UNCALIBRATED_WEIGHTS_DECLARED_IN_BRIEF',
+  };
 }
 
 /** Lee el diccionario `/Info`, que es donde el generador deja su nombre. */

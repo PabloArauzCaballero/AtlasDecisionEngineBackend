@@ -348,13 +348,30 @@ export class BankStatementWorkerService {
       };
     }
 
+    /*
+     * Un encabezado con texto NO hace extraíble una tabla que es una imagen.
+     *
+     * Cuando el documento trajo páginas sin capa de texto y aun así ninguna
+     * estrategia encontró movimientos, la causa probable no es el banco ni el
+     * formato: es que la tabla viaja como imagen y aquí no hubo reconocimiento
+     * óptico que la leyera. Se dice en los detalles —y el caso va a una persona,
+     * que es lo que el corpus fija en `ROUTE_MIXED`— en vez de fingir una
+     * lectura o de rechazar el documento.
+     */
+    const paginasSinTexto = extraction.warnings.find((warning) =>
+      warning.startsWith('paginas-sin-texto-omitidas:'),
+    );
     throw new StatementProcessingError(
       'NO_TRANSACTIONS',
-      'El PDF fue reconocido, pero no se encontraron movimientos verificables.',
+      paginasSinTexto
+        ? 'El PDF tiene texto en la carátula pero su tabla de movimientos no es extraíble: ' +
+            'hay páginas sin capa de texto.'
+        : 'El PDF fue reconocido, pero no se encontraron movimientos verificables.',
       422,
       {
         institutionCode: context.institution.code,
         strategies: candidates.map((candidate) => candidate.strategy.id),
+        ...(paginasSinTexto ? { textCoverage: paginasSinTexto } : {}),
       },
     );
   }
@@ -488,10 +505,19 @@ export class BankStatementWorkerService {
    */
   private classificationFailure(context: StatementContext): StatementProcessingError | undefined {
     if (context.classification.isFinancialStatement) return undefined;
+    const routing = context.classification.routing;
     const evidence = {
       documentType: context.classification.documentType,
       documentConfidence: context.classification.confidence,
       detectedSignals: context.classification.detectedSignals,
+      /*
+       * La RUTA, cuando el documento se pudo nombrar.
+       *
+       * «No reúne señales de ser un estado de cuenta» es verdad y no dice qué
+       * hacer. «Es el comprobante de una operación: hace falta el extracto del
+       * periodo» se resuelve en un minuto, y no acusa a nadie de nada.
+       */
+      ...(routing ? { documentRoute: routing.route, guidance: routing.guidance } : {}),
     };
     if (context.classification.verdict === 'REVIEW') {
       return new StatementProcessingError(
@@ -503,7 +529,9 @@ export class BankStatementWorkerService {
     }
     return new StatementProcessingError(
       'NOT_A_FINANCIAL_STATEMENT',
-      'El documento no reúne señales suficientes de ser un estado de cuenta.',
+      routing
+        ? `El documento no es un estado de cuenta. ${routing.guidance}`
+        : 'El documento no reúne señales suficientes de ser un estado de cuenta.',
       422,
       evidence,
     );
@@ -794,6 +822,12 @@ function toAffordabilityInput(statement: ParsedStatement): AffordabilityInput {
     currency:
       statement.metadata.accountCurrency === 'UNKNOWN' ? null : statement.metadata.accountCurrency,
     closingBalance: toNumberOrNull(statement.metadata.closingBalance),
+    // Con el emisor resuelto, las glosas se leen contra el glosario que ese
+    // emisor publica. Sin él —`UNKNOWN`— se sigue con el léxico de siempre.
+    issuerCode:
+      statement.metadata.institutionCode && statement.metadata.institutionCode !== 'UNKNOWN'
+        ? statement.metadata.institutionCode
+        : null,
   };
 }
 

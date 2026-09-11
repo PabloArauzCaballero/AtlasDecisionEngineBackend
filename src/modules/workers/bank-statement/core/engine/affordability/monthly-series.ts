@@ -25,10 +25,20 @@ import {
   classifyInflow,
   classifyOutflow,
   isNsf,
+  officialCategoryToKind,
   COMMITTED_OUTFLOWS,
   THIRD_PARTY_OBLIGATIONS,
   RECOGNIZED_INFLOWS,
+  type InflowKind,
+  type OutflowKind,
 } from './movement-lexicon';
+import {
+  directionCoherence,
+  lookupOfficialGlossary,
+  type DirectionCoherence,
+  type GlossaryLookup,
+} from './official-glossary';
+import type { TratamientoDeIngreso } from '../../corpus/corpus-extractos.generated';
 import { round2 } from './statistics';
 
 /** Un movimiento, reducido a lo que la capacidad de pago necesita de él. */
@@ -51,9 +61,92 @@ export interface ClassifiedMovement extends AffordabilityTransaction {
   readonly nsf: boolean;
   /** Glosa normalizada y recortada: la clave con la que se detecta recurrencia. */
   readonly label: string;
+  /** Quién nombró el movimiento: el glosario del emisor o nuestro léxico. */
+  readonly classifiedBy: 'OFFICIAL_GLOSSARY' | 'LOCAL_LEXICON';
+  /** Categorías analíticas del glosario oficial. Vacío si no casó ninguna. */
+  readonly officialCategories: readonly string[];
+  /** Lo que el glosario permite hacer con este importe al medir ingreso. */
+  readonly officialIncomeTreatment: TratamientoDeIngreso | null;
+  /** La fila contra lo que el emisor declara para esa glosa. Nunca cambia el lado. */
+  readonly directionCoherence: DirectionCoherence;
 }
 
 const MILLISECONDS_PER_DAY = 86_400_000;
+
+/** Lo que hay que saber del documento para consultar el glosario de su emisor. */
+export interface MovementClassificationContext {
+  /** Sigla ASFI del emisor del extracto, cuando se pudo resolver. */
+  readonly issuerCode?: string | null;
+}
+
+/**
+ * El glosario oficial puede QUITAR el reconocimiento de ingreso, nunca darlo.
+ *
+ * Es la regla que resuelve el caso incómodo: `PagoHAB` tiene categoría
+ * `SALARY_PAYMENT` y sin embargo su tratamiento es `DO_NOT_ASSUME_INCOME`,
+ * porque desde la cuenta de una empresa esa glosa es la planilla que PAGA, no el
+ * sueldo que cobra. Leer la categoría y olvidar el tratamiento convertiría la
+ * nómina de un empleador en su propio ingreso.
+ *
+ * Sólo `SALARY_CANDIDATE_REQUIRES_CREDIT_AND_VERIFICATION` —tres glosas de las
+ * 147— autoriza a llamar nómina a un abono, y aun así la condición del nombre se
+ * comprueba aparte: tiene que ser un abono de verdad, mirando la columna.
+ */
+function resolveKind(
+  direction: 'INFLOW' | 'OUTFLOW',
+  description: string,
+  lookup: GlossaryLookup,
+): { kind: InflowKind | OutflowKind; by: 'OFFICIAL_GLOSSARY' | 'LOCAL_LEXICON' } {
+  const heuristic =
+    direction === 'INFLOW' ? classifyInflow(description) : classifyOutflow(description);
+
+  if (lookup.matches.length === 0) return { kind: heuristic, by: 'LOCAL_LEXICON' };
+
+  const mapped =
+    lookup.categories
+      .map((category) => officialCategoryToKind(category, direction))
+      .find((kind): kind is InflowKind | OutflowKind => kind !== null) ?? null;
+
+  const allowsIncome =
+    lookup.incomeTreatment === 'SALARY_CANDIDATE_REQUIRES_CREDIT_AND_VERIFICATION';
+
+  const chosen = mapped ?? heuristic;
+  const by: 'OFFICIAL_GLOSSARY' | 'LOCAL_LEXICON' = mapped ? 'OFFICIAL_GLOSSARY' : 'LOCAL_LEXICON';
+
+  /*
+   * Un PREFIJO no basta para quitarle a nadie su ingreso.
+   *
+   * La regla de arriba —el glosario puede retirar el reconocimiento de ingreso—
+   * vale cuando el literal del emisor ES la glosa. Cuando sólo casa por prefijo,
+   * el resto de la glosa sigue diciendo cosas, y a veces dice lo importante.
+   *
+   * Medido sobre un extracto real del BCP con 112 movimientos: 75 casan con el
+   * glosario y la mayoría son del tipo `Transferencia QR BM QR Restotech
+   * Ventaid`. El literal oficial que casa es `TRANSFERENCIA`, que el corpus
+   * anota como `DO_NOT_ASSUME_INCOME` — correcto para «una transferencia» y
+   * demasiado ancho para ésta, donde `QR` y el nombre del comercio dicen que es
+   * el cobro de una venta. Sin esta excepción, la capacidad de pago de cualquier
+   * comerciante que cobra por QR se hundía por la primera palabra de su glosa.
+   *
+   * La excepción es estrecha a propósito: sólo cubre el caso en que el léxico
+   * local encontró algo MÁS específico dentro de la misma glosa. El literal
+   * exacto, la alternativa declarada y la plantilla del emisor siguen mandando.
+   */
+  const soloPorPrefijo = lookup.matches.every((match) => match.kind === 'PREFIX');
+  const elLexicoFueMasEspecifico = mapped === null && RECOGNIZED_INFLOWS.has(heuristic as never);
+
+  if (
+    direction === 'INFLOW' &&
+    !allowsIncome &&
+    RECOGNIZED_INFLOWS.has(chosen as never) &&
+    !(soloPorPrefijo && elLexicoFueMasEspecifico)
+  ) {
+    // El emisor no dice que esto sea ingreso: no lo es por mucho que la glosa
+    // se parezca a una nómina.
+    return { kind: 'ONE_OFF', by: 'OFFICIAL_GLOSSARY' };
+  }
+  return { kind: chosen, by };
+}
 
 /**
  * Clasifica los movimientos y descarta los que no dicen nada.
@@ -62,9 +155,14 @@ const MILLISECONDS_PER_DAY = 86_400_000;
  * asignar mes, así que contarlo en el total pero no en ninguna serie mensual
  * haría que la suma de los meses no cuadrara con el total del periodo — que es
  * justo la incoherencia que hace desconfiar de un informe.
+ *
+ * El `contexto` es opcional y lo que aporta es el EMISOR: con él, las glosas de
+ * un banco con glosario publicado se resuelven contra el glosario publicado en
+ * vez de contra nuestras palabras. Sin él, todo sigue funcionando como antes.
  */
 export function classifyMovements(
   transactions: readonly AffordabilityTransaction[],
+  context: MovementClassificationContext = {},
 ): ClassifiedMovement[] {
   const out: ClassifiedMovement[] = [];
   for (const transaction of transactions) {
@@ -76,18 +174,22 @@ export function classifyMovements(
     const direction: 'INFLOW' | 'OUTFLOW' = credit >= debit ? 'INFLOW' : 'OUTFLOW';
     const amount = direction === 'INFLOW' ? credit : debit;
 
+    const lookup = lookupOfficialGlossary(context.issuerCode, transaction.description);
+    const resolved = resolveKind(direction, transaction.description, lookup);
+
     out.push({
       ...transaction,
       month: transaction.date!.slice(0, 7),
       day: date.getUTCDate(),
       amount,
       direction,
-      kind:
-        direction === 'INFLOW'
-          ? classifyInflow(transaction.description)
-          : classifyOutflow(transaction.description),
+      kind: resolved.kind,
       nsf: isNsf(transaction.description),
       label: streamLabel(transaction.description),
+      classifiedBy: resolved.by,
+      officialCategories: lookup.categories,
+      officialIncomeTreatment: lookup.incomeTreatment,
+      directionCoherence: directionCoherence(lookup, direction),
     });
   }
   return out;
@@ -137,6 +239,25 @@ export function buildMonthlySeries(
     else byMonth.set(movement.month, [movement]);
   }
 
+  /*
+   * Un mes CUBIERTO y sin movimientos también es un mes.
+   *
+   * Antes no existía: los meses salían de agrupar movimientos, así que un mes
+   * entero sin actividad desaparecía de la serie y no entraba en ninguna
+   * mediana. El efecto es el que más importa de todo este archivo: **inflaba el
+   * ingreso**. Una persona con 5.000 en enero, nada en febrero y 5.000 en marzo
+   * declaraba una mediana de 5.000 cuando su ingreso mensual observado es 3.333.
+   *
+   * El corpus lo fija como regla, y distingue las dos cosas que aquí se
+   * confundían: un mes cubierto sin ingreso vale CERO, y un mes no cubierto vale
+   * NULL. Lo primero es una observación; lo segundo es la falta de una. Por eso
+   * el hueco se materializa sólo dentro de la ventana observada, y llega marcado
+   * con `hasActivity: false` para que quien mire sepa qué clase de cero es.
+   */
+  for (const month of monthsBetween(window.from, window.to)) {
+    if (!byMonth.has(month)) byMonth.set(month, []);
+  }
+
   return [...byMonth.entries()]
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([month, items]) => toBucket(month, items, window, recognizedLabels));
@@ -164,7 +285,18 @@ function toBucket(
     if (item.direction === 'INFLOW') {
       inflowTotal += item.amount;
       const recognizedByGloss = RECOGNIZED_INFLOWS.has(item.kind as never);
-      const recognizedByCadence = item.kind === 'ONE_OFF' && recognizedLabels.has(item.label);
+      /*
+       * El rescate por cadencia NO alcanza a lo que el emisor excluyó.
+       *
+       * `EXCLUDE_FROM_RECURRING_INCOME` lo dice en el nombre, y las 28 glosas
+       * que lo llevan son justo las que más se repiten con importe parecido:
+       * regularizaciones mensuales, devoluciones de comisión, liberaciones
+       * judiciales, compraventa de moneda. Son exactamente el perfil que la
+       * detección de recurrencia confunde con un sueldo.
+       */
+      const excludedByIssuer = item.officialIncomeTreatment === 'EXCLUDE_FROM_RECURRING_INCOME';
+      const recognizedByCadence =
+        item.kind === 'ONE_OFF' && !excludedByIssuer && recognizedLabels.has(item.label);
       if (recognizedByGloss || recognizedByCadence) recognizedIncome += item.amount;
     } else {
       outflowTotal += item.amount;
@@ -196,6 +328,7 @@ function toBucket(
   return {
     month,
     transactionCount: items.length,
+    hasActivity: items.length > 0,
     inflowTotal: round2(inflowTotal),
     outflowTotal: round2(outflowTotal),
     recognizedIncome: round2(recognizedIncome),
@@ -234,8 +367,20 @@ export function assessCoverage(
   minimumMonths: number,
 ): PeriodCoverage {
   const window = observationWindow(movements, printedPeriod);
+  /*
+   * La cobertura sigue exigiendo ACTIVIDAD, y eso es deliberado.
+   *
+   * Ahora que los meses vacíos existen en la serie, contarlos aquí dejaría que
+   * un extracto con un solo mes real y dos meses en blanco cumpliera un mínimo
+   * de tres. Lo que sí se hace —que es lo que el corpus pide— es publicar los
+   * dos números por separado: cobertura documental y actividad no son lo mismo,
+   * y «poca actividad» no demuestra «poco ingreso».
+   */
   const monthsComplete = months.filter(
     (month) => month.complete && month.transactionCount > 0,
+  ).length;
+  const monthsCoveredWithoutActivity = months.filter(
+    (month) => month.complete && month.transactionCount === 0,
   ).length;
 
   const gapMonths = window
@@ -254,6 +399,7 @@ export function assessCoverage(
       ? Math.round((window.to.getTime() - window.from.getTime()) / MILLISECONDS_PER_DAY) + 1
       : 0,
     satisfied: monthsComplete >= minimumMonths,
+    monthsCoveredWithoutActivity,
     gapMonths,
   };
 }

@@ -44,6 +44,29 @@ export interface NonBankingIssuer {
   readonly name: string;
   readonly kind: NonBankingIssuerKind;
   readonly markers: readonly RegExp[];
+  /**
+   * Lo que ANULA la atribución aunque un marcador coincida.
+   *
+   * Existe por un rechazo falso concreto y caro: **la marca no es el operador**.
+   * «Tigo Money» es un producto financiero operado por E-FECTIVO ESPM S.A., una
+   * empresa de servicio de pago móvil con licencia de ASFI (sigla `MEF` en el
+   * padrón de servicios complementarios al 31.08.2026). Su estado de cuenta
+   * lleva la palabra TIGO en la carátula y, con la regla de antes, se rechazaba
+   * como si fuera la factura de una telefónica.
+   *
+   * El corpus lo fija como caso de regresión (`TIGO_DISTINCTION`): la marca
+   * común no elimina la diferencia jurídica y documental, y el documento
+   * `MOBILE_WALLET_STATEMENT` es `POTENTIALLY_VALID_NOT_AUTO_REJECT`.
+   */
+  readonly exclusions?: readonly RegExp[];
+  /**
+   * El operador financiero cuando la marca pertenece a uno.
+   *
+   * No se usa para aceptar el documento —eso lo decide la compuerta de emisor—
+   * sino para que quien revise sepa qué tiene delante en vez de leer «emisor no
+   * financiero» sobre un estado de cuenta de una billetera con licencia.
+   */
+  readonly licensedOperator?: { readonly code: string; readonly name: string };
 }
 
 /**
@@ -66,6 +89,8 @@ const EMISORES_BOLIVIANOS: readonly NonBankingIssuer[] = [
     name: 'Telecel S.A. (Tigo)',
     kind: 'TELECOM',
     markers: [/\bTIGO\b/i, /\bTELECEL\s+S\.?A\.?/i],
+    exclusions: [/\bTIGO\s*MONEY\b/i, /\bE-?\s?FECTIVO\b/i, /\bESPM\b/i],
+    licensedOperator: { code: 'MEF', name: 'Empresa de Servicio de Pago Móvil E-FECTIVO S.A.' },
   },
   {
     code: 'VIVA',
@@ -248,7 +273,30 @@ export function detectNonBankingIssuer(cover: string): NonBankingIssuer | undefi
   for (const issuer of NON_BANKING_ISSUERS) {
     const hits = issuer.markers.filter((marker) => marker.test(cover)).length;
     if (hits === 0) continue;
+    // Una exclusión no resta: ANULA. Ver `exclusions` en la interfaz.
+    if (issuer.exclusions?.some((exclusion) => exclusion.test(cover))) continue;
     if (!best || hits > best.hits) best = { issuer, hits };
   }
   return best?.issuer;
+}
+
+/**
+ * La marca de billetera que aparece en la carátula, con su operador licenciado.
+ *
+ * Se resuelve aparte de `detectNonBankingIssuer` porque contesta otra pregunta.
+ * Aquélla dice «esto lo emitió alguien que NO es una entidad financiera» —lo que
+ * justifica un rechazo—; ésta dice «esto lo emitió una empresa de servicio de
+ * pago móvil con licencia», que **no** es un rechazo: es un documento que hay
+ * que mirar, comprobando titularidad, cobertura y contraparte.
+ */
+export function detectWalletOperator(
+  cover: string,
+): { readonly brand: string; readonly operator: { code: string; name: string } } | undefined {
+  for (const issuer of NON_BANKING_ISSUERS) {
+    if (!issuer.licensedOperator) continue;
+    if (issuer.exclusions?.some((exclusion) => exclusion.test(cover))) {
+      return { brand: issuer.name, operator: issuer.licensedOperator };
+    }
+  }
+  return undefined;
 }

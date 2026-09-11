@@ -7,6 +7,7 @@ import type {
 import type { NonBankingIssuerKind } from '../institutions/non-banking-issuers';
 import type { InstitutionSignalDescriptor } from './similarity/institution-signals';
 import type { DocumentVerdict } from './document-triage';
+import type { DocumentRouting } from './document-routes';
 
 /**
  * Cómo se obtuvo el texto del documento.
@@ -46,6 +47,15 @@ export interface DocumentClassification {
    * revisión de documentos que nadie tenía que mirar.
    */
   readonly verdict: DocumentVerdict;
+  /**
+   * Qué clase de evidencia es este documento, cuando se pudo nombrar.
+   *
+   * No es un veredicto de fraude: un comprobante de transferencia, un
+   * certificado de saldo y una boleta de pago son documentos legítimos que no
+   * responden la pregunta que este worker hace. La ruta dice cuál es la que sí
+   * la responde, que es lo único accionable para quien subió el archivo.
+   */
+  readonly routing?: DocumentRouting;
 }
 
 export interface InstitutionDetection {

@@ -50,6 +50,7 @@ import type {
   RecurringStream,
 } from './affordability-model';
 import {
+  AFFORDABILITY_CALIBRATION_STATUS,
   DEFAULT_AFFORDABILITY_POLICY,
   normalizeAffordabilityPolicy,
   type AffordabilityPolicy,
@@ -63,6 +64,12 @@ import {
   type AffordabilityTransaction,
   type ClassifiedMovement,
 } from './monthly-series';
+import { buildBalanceSeries, type BalanceSeries } from './balance-series';
+import {
+  assessEconomicPlausibility,
+  CONCENTRATION_WINDOW_DAYS,
+  type EconomicPlausibility,
+} from './economic-plausibility';
 import { findRecurringStreams, recognizableByCadence } from './recurrence';
 import {
   clamp,
@@ -91,6 +98,24 @@ export interface AffordabilityInput {
   readonly periodTo: string | null;
   readonly currency: string | null;
   readonly closingBalance: number | null;
+  /**
+   * Sigla ASFI del emisor, cuando el detector la resolvió.
+   *
+   * Con ella, las glosas se consultan contra el glosario que PUBLICA ese emisor
+   * antes de pasar por nuestro léxico de palabras. Es opcional porque la
+   * mayoría de los emisores no publica glosario y porque la evaluación tiene que
+   * seguir funcionando cuando no se sabe de quién es el documento.
+   */
+  readonly issuerCode?: string | null;
+  /**
+   * Servicio mensual de deuda que NO está en este extracto.
+   *
+   * Llega de fuera —un buró consultado con consentimiento— o no llega. `null`
+   * es lo normal y significa NO OBSERVADO, nunca cero: ver `assessObligations`.
+   * Es servicio MENSUAL, no saldo de capital; confundirlos multiplica la deuda
+   * por el plazo entero y es el error que el corpus nombra explícitamente.
+   */
+  readonly externalDebtService?: number | null;
 }
 
 export function assessAffordability(
@@ -98,7 +123,7 @@ export function assessAffordability(
   overrides: Partial<AffordabilityPolicy> = {},
 ): AffordabilityAssessment {
   const policy = normalizeAffordabilityPolicy(overrides);
-  const movements = classifyMovements(input.transactions);
+  const movements = classifyMovements(input.transactions, { issuerCode: input.issuerCode ?? null });
   const window = observationWindow(movements, { from: input.periodFrom, to: input.periodTo });
 
   if (!window) return emptyAssessment(policy, input.currency);
@@ -134,6 +159,22 @@ export function assessAffordability(
    */
   const scored = months.filter((month) => month.complete && month.transactionCount > 0);
 
+  /*
+   * El INGRESO se mide sobre los meses cubiertos, con actividad o sin ella.
+   *
+   * Es la asimetría deliberada de este módulo y conviene entenderla entera. Un
+   * mes cubierto en el que no entró nada es una observación de ingreso: vale
+   * cero y baja la mediana, que es exactamente lo que describe la vida de quien
+   * cobra a temporadas. Un mes cubierto en el que no salió nada, en cambio, NO
+   * es una observación de gasto —la persona comió igual, lo pagó desde otro
+   * sitio— y meterlo en la mediana de gasto comprometido regalaría disponible.
+   *
+   * Las dos elecciones empujan hacia el mismo lado: menos ingreso reconocido y
+   * no menos gasto. Cuando la observación falta, el error se paga en la
+   * dirección que no aprueba de más.
+   */
+  const incomeMonths = months.filter((month) => month.complete);
+
   if (!coverage.satisfied) {
     return {
       ...emptyAssessment(policy, input.currency),
@@ -147,10 +188,23 @@ export function assessAffordability(
   const inflowStreams = findRecurringStreams(movements, 'INFLOW', scored.length);
   const outflowStreams = findRecurringStreams(movements, 'OUTFLOW', scored.length);
 
-  const income = assessIncome(scored, movements, inflowStreams, policy);
+  const income = assessIncome(incomeMonths, movements, inflowStreams, policy);
   const expenses = assessExpenses(scored, policy);
-  const obligations = assessObligations(scored, outflowStreams, income.monthlyRecognized);
-  const signals = assessSignals(scored, movements, expenses.effectiveMonthly);
+  const obligations = assessObligations(
+    scored,
+    outflowStreams,
+    income.monthlyRecognized,
+    input.externalDebtService ?? null,
+  );
+  const balances = buildBalanceSeries(movements, window);
+  const plausibility = assessEconomicPlausibility(movements, window);
+  const signals = assessSignals(
+    scored,
+    movements,
+    expenses.effectiveMonthly,
+    balances,
+    plausibility,
+  );
   const capacity = computeCapacity(income, expenses, obligations, policy);
 
   const reasons = explain(coverage, income, expenses, obligations, capacity, signals, policy);
@@ -170,6 +224,7 @@ export function assessAffordability(
     band: bandOf(score, capacity),
     reasons,
     modelVersion: AFFORDABILITY_MODEL_VERSION,
+    calibration: { ...AFFORDABILITY_CALIBRATION_STATUS },
   };
 }
 
@@ -282,6 +337,7 @@ function assessObligations(
   scored: readonly MonthlyBucket[],
   streams: readonly RecurringStream[],
   income: number,
+  externalDebtService: number | null,
 ): ObligationAssessment {
   const observed = median(scored.map((month) => month.thirdPartyObligations)) ?? 0;
   const recurring = streams
@@ -299,10 +355,29 @@ function assessObligations(
    * el ingreso: allí se toma la menor. Las dos apuntan al mismo sitio — no
    * aprobar de más.
    */
-  const monthly = Math.max(observed, recurring);
+  const observedMonthly = Math.max(observed, recurring);
+
+  /*
+   * Lo que se paga en OTRO banco no está en este extracto, y no vale cero.
+   *
+   * Es la distinción que el corpus fija en su caso `MISSING_DEBT` y la que más
+   * fácil se pierde al escribir código: un dato que no llega se convierte en un
+   * `?? 0` y, a partir de ahí, «no sabemos cuánto debe» y «no debe nada» son el
+   * mismo número. Con esa confusión, la peor cartera posible —la de quien paga
+   * tres cuotas en entidades que no vemos— sale con la mejor relación de
+   * endeudamiento del sistema.
+   *
+   * Así que `externalDebtService` es `number | null` y nunca se rellena solo. Si
+   * llega de un buró con consentimiento, suma; si no llega, lo que se publica
+   * es que la cifra es un SUELO (`isLowerBound`), y quien decide lo sabe.
+   */
+  const monthly = round2(observedMonthly + (externalDebtService ?? 0));
 
   return {
-    monthly: round2(monthly),
+    monthly,
+    observedMonthly: round2(observedMonthly),
+    externalDebtService: externalDebtService === null ? null : round2(externalDebtService),
+    isLowerBound: externalDebtService === null,
     trend: round4(relativeTrend(scored.map((month) => month.thirdPartyObligations))),
     debtServiceRatio: income > 0 ? round4(clamp(monthly / income, 0, 5)) : 0,
     streams: streams.filter((stream) => THIRD_PARTY_OBLIGATIONS.has(stream.kind as never)),
@@ -315,12 +390,11 @@ function assessSignals(
   scored: readonly MonthlyBucket[],
   movements: readonly ClassifiedMovement[],
   committedMonthly: number,
+  balances: BalanceSeries,
+  plausibility: EconomicPlausibility,
 ): AffordabilityRiskSignals {
   const nsfEvents = scored.reduce((sum, month) => sum + month.nsfEvents, 0);
-  const balances = scored
-    .map((month) => month.minBalance)
-    .filter((balance): balance is number => balance !== null);
-  const minBalance = balances.length > 0 ? Math.min(...balances) : null;
+  const minBalance = balances.minimum;
 
   const highRiskByMonth = new Map<string, number>();
   let highRiskSpend = 0;
@@ -353,6 +427,17 @@ function assessSignals(
       (month) => month.closingBalance !== null && month.closingBalance < 0,
     ).length,
     minBalanceObserved: minBalance === null ? null : round2(minBalance),
+    /*
+     * La media ponderada por tiempo acompaña SIEMPRE al mínimo, nunca lo
+     * sustituye. Ver la cabecera de `balance-series.ts`: con una sola de las dos
+     * medidas, la cuenta que tuvo diez mil casi todo el mes y la que no tuvo
+     * nada nunca se leen igual.
+     */
+    timeWeightedMeanBalance:
+      balances.timeWeightedMean === null ? null : round2(balances.timeWeightedMean),
+    balanceDaysCovered: balances.daysCovered,
+    negativeBalanceDays: balances.negativeDays,
+    overdraftEpisodes: balances.overdraftEpisodes,
     cashCushionDays:
       minBalance === null || dailyCommitted <= 0
         ? null
@@ -363,6 +448,7 @@ function assessSignals(
     collectionActions,
     internalTransferRatio: inflowTotal > 0 ? round4(internalInflow / inflowTotal) : 0,
     reversalRatio: inflowTotal > 0 ? round4(reversalInflow / inflowTotal) : 0,
+    plausibility,
   };
 }
 
@@ -549,6 +635,15 @@ function explain(
       `${String(Math.round(obligations.debtServiceRatio * 100))}% del ingreso`,
     );
   }
+  if (obligations.isLowerBound) {
+    add(
+      'AFF_DEUDA_EXTERNA_NO_OBSERVADA',
+      'INFO',
+      'La carga de deuda que se publica es un SUELO: sólo se ve lo que pasa por esta cuenta. ' +
+        'Una cuota pagada desde otro banco no aparece aquí y no se ha supuesto que valga cero.',
+      `observado ${String(obligations.observedMonthly)}; externo no observado`,
+    );
+  }
   if (obligations.trend > 0.05) {
     add(
       'AFF_DEUDA_CRECIENTE',
@@ -673,7 +768,15 @@ function emptyAssessment(
       trend: 0,
       subsistenceFloorApplied: true,
     },
-    obligations: { monthly: 0, trend: 0, debtServiceRatio: 0, streams: [] },
+    obligations: {
+      monthly: 0,
+      observedMonthly: 0,
+      externalDebtService: null,
+      isLowerBound: true,
+      trend: 0,
+      debtServiceRatio: 0,
+      streams: [],
+    },
     capacity: {
       disposableIncome: 0,
       stressedDisposableIncome: 0,
@@ -687,6 +790,10 @@ function emptyAssessment(
       nsfMonths: 0,
       monthsEndingNegative: 0,
       minBalanceObserved: null,
+      timeWeightedMeanBalance: null,
+      balanceDaysCovered: 0,
+      negativeBalanceDays: 0,
+      overdraftEpisodes: 0,
       cashCushionDays: null,
       highRiskSpend: 0,
       highRiskMonths: 0,
@@ -694,11 +801,20 @@ function emptyAssessment(
       collectionActions: 0,
       internalTransferRatio: 0,
       reversalRatio: 0,
+      plausibility: {
+        pairedCounterpartyRatio: 0,
+        bidirectionalCounterparties: 0,
+        concentrationWindowDays: CONCENTRATION_WINDOW_DAYS,
+        preCloseInflowRatio: 0,
+        duplicateMovements: 0,
+        outflowToInflowRatio: null,
+      },
     },
     score: 0,
     band: 'INSUFICIENTE',
     reasons: [insufficientPeriodReason(0, policy.minimumMonths)],
     modelVersion: AFFORDABILITY_MODEL_VERSION,
+    calibration: { ...AFFORDABILITY_CALIBRATION_STATUS },
   };
 }
 
