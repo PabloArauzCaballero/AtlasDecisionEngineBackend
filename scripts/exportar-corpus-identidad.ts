@@ -27,6 +27,7 @@
  */
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { ObjectStorageService } from '../src/common/storage/object-storage.service';
@@ -49,7 +50,17 @@ if (desde && Number.isNaN(desde.getTime())) {
   process.exit(2);
 }
 
-const prisma = new PrismaClient();
+/*
+ * Con adaptador, como el sembrador: este esquema usa `driverAdapters`, así que un
+ * `new PrismaClient()` a secas muere con P2038 al cargar el módulo —antes de leer nada— y el error
+ * no menciona ni la base ni el adaptador.
+ */
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  console.error('Falta DATABASE_URL: sin ella no hay de dónde leer las verificaciones firmadas.');
+  process.exit(2);
+}
+const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 const storage = new ObjectStorageService(new ConfigService(process.env));
 
 /** El calibrador distingue el documento por el NOMBRE del archivo, no por el orden de lectura. */
