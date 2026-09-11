@@ -2629,6 +2629,10 @@ model BankStatementRun {
   /// es irrecuperable.
   fileObjectKey String? @map("file_object_key") @db.VarChar(512)
 
+  /// Huella del PDF tal como se subió. Es lo que permite sostener el cálculo ante una
+  /// impugnación: sin ella, la copia del almacén no se puede contrastar con el original.
+  fileSha256 String? @map("file_sha256") @db.Char(64)
+
   /// `NormalizedBankStatement`. Hereda el enmascarado del motor: nunca trae el
   /// número de cuenta completo.
   resultJson Json? @map("result_json")
@@ -2896,6 +2900,13 @@ model IdentityVerificationRun {
   documentObjectKey     String? @map("document_object_key") @db.VarChar(512)
   documentBackObjectKey String? @map("document_back_object_key") @db.VarChar(512)
   selfieObjectKey       String? @map("selfie_object_key") @db.VarChar(512)
+
+  /// Huella del original tal como se subió, no del objeto que hoy está en el almacén: es lo que
+  /// permite comprobar que la evidencia no se reemplazó. La pide el protocolo del corpus
+  /// («Original preservado; SHA256»). `input_hash` no sirve: ése incluye las reglas de decisión.
+  documentSha256     String? @map("document_sha256") @db.Char(64)
+  documentBackSha256 String? @map("document_back_sha256") @db.Char(64)
+  selfieSha256       String? @map("selfie_sha256") @db.Char(64)
 
   /// `IdentityVerificationOutcome`. El número de documento viaja enmascarado.
   resultJson   Json? @map("result_json")

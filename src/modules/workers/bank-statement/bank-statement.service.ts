@@ -125,7 +125,7 @@ export class BankStatementService {
      * decide y cierra sin que su documento se guardara nunca. Si el almacén falla no hay alta y el
      * cliente reintenta, que es preferible a una capacidad de pago sin el extracto que la sostiene.
      */
-    const fileObjectKey = await this.storeStatementFile(tenantId, requestId, input, source);
+    const guardado = await this.storeStatementFile(tenantId, requestId, input, source);
 
     try {
       const run = await this.prisma.$transaction(async (tx) => {
@@ -146,7 +146,8 @@ export class BankStatementService {
             // un cast escondería que los dos tipos no son intercambiables.
             fileBytes: new Uint8Array(input.bytes),
             // La copia que SOBREVIVE al cierre. `fileBytes` se sigue borrando igual.
-            fileObjectKey,
+            fileObjectKey: guardado?.objectKey ?? null,
+            fileSha256: guardado?.sha256 ?? null,
             requestedBy: principal.id,
             correlationId: principal.requestId,
             // Contexto de traza capturado AQUÍ, en el proceso de API: tras el commit se pierde,
@@ -168,7 +169,7 @@ export class BankStatementService {
       // `requestId` que ya no va a existir. Se borra aquí y no en un barrido posterior porque este
       // es el único momento en que se sabe cuál es. Si la huella resulta duplicada y hay que
       // reencolar, `requeue` escribe el suyo bajo el `requestId` que sí sobrevive.
-      if (fileObjectKey) await this.objectStorage.remove(fileObjectKey);
+      if (guardado) await this.objectStorage.remove(guardado.objectKey);
       if (!isUniqueViolation(error)) throw error;
       const existing = await this.prisma.bankStatementRun.findFirst({
         where: { tenantId, fileHash: input.fileHash },
@@ -233,7 +234,7 @@ export class BankStatementService {
     requestId: string,
     input: ValidatedStatementInput,
     source: WorkerInputSource,
-  ): Promise<string | null> {
+  ): Promise<{ objectKey: string; sha256: string | null } | null> {
     if (!this.objectStorage.isConfigured()) {
       if (source === WorkerInputSource.UPLOAD) {
         throw new DomainException(
@@ -259,8 +260,10 @@ export class BankStatementService {
       requestId,
       extension: 'pdf',
     });
-    await this.objectStorage.put(objectKey, input.bytes, 'application/pdf');
-    return objectKey;
+    // El almacén ya calcula la huella al escribir. Se guarda con la clave: sin ella, la copia no
+    // se puede contrastar con el PDF que subió el cliente.
+    const guardado = await this.objectStorage.put(objectKey, input.bytes, 'application/pdf');
+    return { objectKey, sha256: guardado?.sha256Hex ?? null };
   }
 
   /**
@@ -283,7 +286,7 @@ export class BankStatementService {
     source: WorkerInputSource,
     fixtureCode?: string,
   ): Promise<BankStatementRunView> {
-    const fileObjectKey = await this.storeStatementFile(tenantId, requestId, input, source);
+    const guardado = await this.storeStatementFile(tenantId, requestId, input, source);
 
     return this.prisma.$transaction(async (tx) => {
       const requeued = await tx.bankStatementRun.update({
@@ -298,7 +301,8 @@ export class BankStatementService {
           fileBytes: new Uint8Array(input.bytes),
           // La copia duradera del intento NUEVO. Se repone junto con los bytes y por la misma
           // razón: la fila que se reencola perdió su documento al cerrarse el intento anterior.
-          fileObjectKey,
+          fileObjectKey: guardado?.objectKey ?? null,
+          fileSha256: guardado?.sha256 ?? null,
           // El rastro del intento anterior se limpia entero: dejar el código de
           // error junto a un estado QUEUED describiría una ejecución que no
           // existe.

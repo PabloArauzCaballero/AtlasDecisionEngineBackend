@@ -117,3 +117,64 @@ describe('sin almacén de objetos no se acepta una subida real', () => {
     expect((fallo as DomainException).status).toBe(HttpStatus.SERVICE_UNAVAILABLE);
   });
 });
+
+describe('la huella del original se guarda con su clave', () => {
+  /*
+   * El almacén ya calculaba el SHA-256 al escribir y se tiraba. Sin él, la copia del almacén no se
+   * puede contrastar con lo que subió el cliente: si alguien reemplaza el objeto, la fila sigue
+   * apuntando al mismo sitio y nada lo delata. El protocolo del corpus lo pide con estas palabras:
+   * «Original preservado; SHA256».
+   *
+   * `inputHash` no vale para esto: incluye las reglas de decisión vigentes, así que cambia con la
+   * calibración y no identifica ningún archivo.
+   */
+  const SHA = 'a'.repeat(64);
+
+  it('identidad: las tres huellas viajan a la fila', async () => {
+    let escrito: Record<string, unknown> | undefined;
+    const prisma = {
+      $transaction: async (fn: (tx: unknown) => unknown) =>
+        fn({
+          identityVerificationRun: {
+            create: ({ data }: { data: Record<string, unknown> }) => {
+              escrito = data;
+              return { requestId: 'r1' };
+            },
+          },
+        }),
+    };
+
+    const service = new IdentityVerificationService(
+      prisma as never,
+      { notify: () => Promise.resolve() } as never,
+      NADA,
+      { inject: () => ({}) } as never,
+      {
+        isConfigured: () => true,
+        buildIdentityKey: () => 'identity/1/r1/x',
+        put: () =>
+          Promise.resolve({
+            objectKey: 'k',
+            sizeBytes: 1,
+            contentType: 'image/png',
+            sha256Hex: SHA,
+          }),
+        remove: () => Promise.resolve(),
+      } as never,
+    );
+
+    await service.createRun(
+      1n,
+      PRINCIPAL as never,
+      ENTRADA_IDENTIDAD as never,
+      WorkerInputSource.UPLOAD,
+      {
+        documentCountry: 'BO',
+      },
+    );
+
+    expect(escrito?.documentSha256).toBe(SHA);
+    expect(escrito?.documentBackSha256).toBe(SHA);
+    expect(escrito?.selfieSha256).toBe(SHA);
+  });
+});

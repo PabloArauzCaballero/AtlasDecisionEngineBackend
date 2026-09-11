@@ -392,7 +392,12 @@ services:
       # Donde sobreviven al cierre la cara, las dos caras de la cédula y el PDF del extracto.
       # `minio:9000` es el extremo INTERNO; el público sirve para firmar URLs que abre un
       # navegador del anfitrión, y por eso no es el mismo valor.
-      STORAGE_S3_ENDPOINT: ${STORAGE_S3_ENDPOINT:-http://minio:9000}
+      # Nombre PROPIO y no `STORAGE_S3_ENDPOINT`: compose interpola con el `.env`, y ahí esa
+      # variable vale `http://127.0.0.1:9000` —el valor que necesitan las pruebas y los guiones
+      # que corren FUERA de docker—. Si se comparte el nombre, ese valor entra en el contenedor y
+      # la API busca MinIO en su propio loopback: el síntoma es un `fetch failed` al subir, con
+      # MinIO sano y respondiendo 200 desde el mismo contenedor.
+      STORAGE_S3_ENDPOINT: ${STORAGE_S3_INTERNAL_ENDPOINT:-http://minio:9000}
       STORAGE_S3_PUBLIC_ENDPOINT: ${STORAGE_S3_PUBLIC_ENDPOINT:-http://127.0.0.1:9000}
       STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-atlas-decision}
       STORAGE_S3_ACCESS_KEY_ID: ${STORAGE_S3_ACCESS_KEY_ID:-atlas}
@@ -698,7 +703,12 @@ services:
       # Donde sobreviven al cierre la cara, las dos caras de la cédula y el PDF del extracto.
       # `minio:9000` es el extremo INTERNO; el público sirve para firmar URLs que abre un
       # navegador del anfitrión, y por eso no es el mismo valor.
-      STORAGE_S3_ENDPOINT: ${STORAGE_S3_ENDPOINT:-http://minio:9000}
+      # Nombre PROPIO y no `STORAGE_S3_ENDPOINT`: compose interpola con el `.env`, y ahí esa
+      # variable vale `http://127.0.0.1:9000` —el valor que necesitan las pruebas y los guiones
+      # que corren FUERA de docker—. Si se comparte el nombre, ese valor entra en el contenedor y
+      # la API busca MinIO en su propio loopback: el síntoma es un `fetch failed` al subir, con
+      # MinIO sano y respondiendo 200 desde el mismo contenedor.
+      STORAGE_S3_ENDPOINT: ${STORAGE_S3_INTERNAL_ENDPOINT:-http://minio:9000}
       STORAGE_S3_PUBLIC_ENDPOINT: ${STORAGE_S3_PUBLIC_ENDPOINT:-http://127.0.0.1:9000}
       STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-atlas-decision}
       STORAGE_S3_ACCESS_KEY_ID: ${STORAGE_S3_ACCESS_KEY_ID:-atlas}

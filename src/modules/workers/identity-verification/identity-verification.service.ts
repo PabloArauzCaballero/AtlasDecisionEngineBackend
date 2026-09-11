@@ -17,6 +17,16 @@ import {
   type ValidatedIdentityInput,
 } from './identity-verification-input';
 
+/** Lo que queda de una subida ya copiada al almacén: dónde está cada imagen y su huella. */
+interface GuardadoDeImagenes {
+  readonly document: string;
+  readonly documentBack: string | null;
+  readonly selfie: string;
+  readonly documentSha256: string | null;
+  readonly documentBackSha256: string | null;
+  readonly selfieSha256: string | null;
+}
+
 /** Estados desde los que ya no puede pasar nada más. */
 const TERMINAL_STATUSES: readonly WorkerRunStatus[] = [
   WorkerRunStatus.SUCCEEDED,
@@ -150,6 +160,11 @@ export class IdentityVerificationService {
             documentObjectKey: objectKeys?.document ?? null,
             documentBackObjectKey: objectKeys?.documentBack ?? null,
             selfieObjectKey: objectKeys?.selfie ?? null,
+            // La huella del ORIGINAL, no la del objeto que hoy esté en el almacén: es lo único
+            // que delata que la evidencia fue reemplazada.
+            documentSha256: objectKeys?.documentSha256 ?? null,
+            documentBackSha256: objectKeys?.documentBackSha256 ?? null,
+            selfieSha256: objectKeys?.selfieSha256 ?? null,
             requestedBy: principal.id,
             correlationId: principal.requestId,
             traceCarrier: persistableCarrier(this.messagingTrace.inject()),
@@ -204,7 +219,7 @@ export class IdentityVerificationService {
     requestId: string,
     input: ValidatedIdentityInput,
     source: WorkerInputSource,
-  ): Promise<{ document: string; documentBack: string | null; selfie: string } | null> {
+  ): Promise<GuardadoDeImagenes | null> {
     if (!this.objectStorage.isConfigured()) {
       if (source === WorkerInputSource.UPLOAD) {
         throw new DomainException(
@@ -252,11 +267,15 @@ export class IdentityVerificationService {
     // En paralelo: son dos o tres objetos pequeños contra el mismo servidor, y encadenarlos sólo
     // suma latencia a una petición que el cliente está esperando con el teléfono en la mano.
     const escritas: string[] = [];
+    const huellas = new Map<string, string | null>();
     try {
       await Promise.all(
-        escrituras.map(async ({ clave, imagen }) => {
-          await this.objectStorage.put(clave, imagen.bytes, imagen.contentType);
+        escrituras.map(async ({ campo, clave, imagen }) => {
+          const guardado = await this.objectStorage.put(clave, imagen.bytes, imagen.contentType);
           escritas.push(clave);
+          // El almacén ya la calcula al escribir; tirarla obligaba a releer el objeto para saber
+          // si seguía siendo el que se subió.
+          huellas.set(campo, guardado?.sha256Hex ?? null);
         }),
       );
     } catch (error) {
@@ -269,6 +288,9 @@ export class IdentityVerificationService {
       document: escrituras.find((e) => e.campo === 'document')!.clave,
       documentBack: escrituras.find((e) => e.campo === 'documentBack')?.clave ?? null,
       selfie: escrituras.find((e) => e.campo === 'selfie')!.clave,
+      documentSha256: huellas.get('document') ?? null,
+      documentBackSha256: huellas.get('documentBack') ?? null,
+      selfieSha256: huellas.get('selfie') ?? null,
     };
   }
 
@@ -290,9 +312,7 @@ export class IdentityVerificationService {
   }
 
   /** Limpieza best-effort de lo que se subió para una fila que no llegó a existir. */
-  private async discardOrphanImages(
-    objectKeys: { document: string; documentBack: string | null; selfie: string } | null,
-  ): Promise<void> {
+  private async discardOrphanImages(objectKeys: GuardadoDeImagenes | null): Promise<void> {
     if (!objectKeys) return;
     const claves = [objectKeys.document, objectKeys.documentBack, objectKeys.selfie].filter(
       (clave): clave is string => clave !== null,
