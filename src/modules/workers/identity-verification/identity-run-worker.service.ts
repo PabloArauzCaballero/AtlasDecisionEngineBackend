@@ -11,7 +11,7 @@ import {
   MESSAGING_SYSTEM,
 } from '../../../common/observability/telemetry.constants';
 import { PrismaService } from '../../../common/prisma/prisma.service';
-import { IdentityDecision, IdentityDocumentType } from './core/domain/identity-enums';
+import { IdentityDocumentType } from './core/domain/identity-enums';
 import { IdentityDomainError } from './core/domain/identity-domain.error';
 import {
   outcomeForIdentityError,
