@@ -103,7 +103,22 @@ export class IdentityReviewCategoryDto {
  * hay analizador, y reencolar sin él devolvería el caso a la misma cola por el
  * mismo motivo. El bucle es exactamente lo que ese campo impide.
  */
-export const IDENTITY_REVIEW_ACTIONS = ['CONFIRM_DOCUMENT', 'REJECT_DOCUMENT'] as const;
+/*
+ * Las dos primeras acciones resuelven una duda sobre el DOCUMENTO; las dos últimas, sobre la
+ * PERSONA. No son intercambiables y el servicio no deja mezclarlas: un caso que llegó porque el
+ * clasificador no supo nombrar el documento no tiene todavía veredicto que confirmar, y uno que
+ * llegó con veredicto no necesita que nadie le nombre el tipo.
+ *
+ * `CONFIRM_IDENTITY` y `DENY_IDENTITY` son lo que convierte esta cola en un corpus: lo que ahí
+ * firma una persona es la ETIQUETA contra la que se podrán calibrar los umbrales. El protocolo del
+ * corpus lo exige así —la verdad la pone el operador, «jamás por score del worker»—.
+ */
+export const IDENTITY_REVIEW_ACTIONS = [
+  'CONFIRM_DOCUMENT',
+  'REJECT_DOCUMENT',
+  'CONFIRM_IDENTITY',
+  'DENY_IDENTITY',
+] as const;
 export type IdentityReviewAction = (typeof IDENTITY_REVIEW_ACTIONS)[number];
 
 const TIPOS_CONFIRMABLES = [
@@ -116,7 +131,7 @@ export class ResolveIdentityReviewDto {
   @ApiProperty({
     enum: IDENTITY_REVIEW_ACTIONS,
     description:
-      'CONFIRM_DOCUMENT afirma que sí es el documento y devuelve la ejecución a la cola del worker · REJECT_DOCUMENT la cierra afirmando que no lo era.',
+      'CONFIRM_DOCUMENT afirma que sí es el documento y devuelve la ejecución a la cola del worker · REJECT_DOCUMENT la cierra afirmando que no lo era · CONFIRM_IDENTITY afirma que la selfie es del titular del carnet · DENY_IDENTITY afirma que no lo es. Las dos últimas sólo valen sobre un caso que ya tiene veredicto.',
   })
   @IsIn(IDENTITY_REVIEW_ACTIONS)
   action!: IdentityReviewAction;
@@ -138,6 +153,16 @@ export class ResolveIdentityReviewDto {
   @IsEnum(IdentityRejectionReason)
   rejectionReason?: IdentityRejectionReason;
 
+  @ApiPropertyOptional({
+    description:
+      'Identificador SEUDÓNIMO del sujeto (`T-07`), sólo con CONFIRM_IDENTITY o DENY_IDENTITY. Es lo que agrupa las ejecuciones de la misma persona al calibrar: sin él, dos intentos del mismo tester se cuentan como una pareja impostora y la tasa resultante es inventada. Ni nombre ni número de cédula.',
+    example: 'T-07',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  subjectKey?: string;
+
   @ApiProperty({ description: 'Por qué. Queda en la fila y en la auditoría.' })
   @IsString()
   @MaxLength(2_000)
@@ -148,9 +173,14 @@ export class ResolveIdentityReviewDto {
 export class IdentityReviewResolvedDto {
   @ApiProperty() requestId!: string;
   @ApiProperty({
-    enum: [WorkerRunStatus.QUEUED, WorkerRunStatus.DOCUMENT_REJECTED],
+    enum: [
+      WorkerRunStatus.QUEUED,
+      WorkerRunStatus.DOCUMENT_REJECTED,
+      WorkerRunStatus.SUCCEEDED,
+      WorkerRunStatus.SUCCEEDED_WITH_WARNINGS,
+    ],
     description:
-      '`QUEUED` si se confirmó —el worker retoma desde el principio con el tipo ya decidido— o `DOCUMENT_REJECTED` si se rechazó.',
+      'Dudas sobre el DOCUMENTO: `QUEUED` si se confirmó —el worker retoma con el tipo ya decidido— o `DOCUMENT_REJECTED` si se rechazó. Dudas sobre la PERSONA: `SUCCEEDED` o `SUCCEEDED_WITH_WARNINGS`, y el caso no vuelve al worker —no faltaba análisis, faltaba una firma—.',
   })
   status!: WorkerRunStatus;
   @ApiProperty({ description: 'Quién lo resolvió.' }) resolvedBy!: string;

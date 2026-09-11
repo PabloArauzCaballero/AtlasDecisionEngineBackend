@@ -17,7 +17,7 @@ esquema, que es la fuente que las migraciones aplican.
 | [`AudioSegment`](#audiosegment) | `decision_audio_segment` | 10 | 1 | 0 |
 | [`AudioTemplate`](#audiotemplate) | `decision_audio_template` | 11 | 1 | 0 |
 | [`AudioTtsRun`](#audiottsrun) | `decision_audio_tts_run` | 26 | 4 | 0 |
-| [`BankStatementRun`](#bankstatementrun) | `decision_bank_statement_run` | 46 | 6 | 0 |
+| [`BankStatementRun`](#bankstatementrun) | `decision_bank_statement_run` | 47 | 6 | 0 |
 | [`BusinessObjective`](#businessobjective) | `decision_business_objective` | 10 | 1 | 0 |
 | [`CalculatedField`](#calculatedfield) | `decision_calculated_field` | 12 | 2 | 0 |
 | [`CalculatedFieldLibrary`](#calculatedfieldlibrary) | `decision_calculated_field_library` | 5 | 1 | 2 |
@@ -81,7 +81,7 @@ esquema, que es la fuente que las migraciones aplican.
 | [`DecisionVersionStatusHistory`](#decisionversionstatushistory) | `decision_version_status_history` | 8 | 1 | 1 |
 | [`ExposureLimit`](#exposurelimit) | `exposure_limit` | 10 | 2 | 0 |
 | [`FinancialInstitution`](#financialinstitution) | `decision_financial_institution` | 21 | 3 | 0 |
-| [`IdentityVerificationRun`](#identityverificationrun) | `decision_identity_verification_run` | 44 | 5 | 0 |
+| [`IdentityVerificationRun`](#identityverificationrun) | `decision_identity_verification_run` | 49 | 7 | 0 |
 | [`IntegrationClient`](#integrationclient) | `integration_client` | 10 | 1 | 0 |
 | [`IntegrationCredential`](#integrationcredential) | `integration_credential` | 11 | 2 | 1 |
 | [`IntegrationScope`](#integrationscope) | `integration_scope` | 4 | 1 | 1 |
@@ -341,6 +341,7 @@ Tabla `decision_bank_statement_run`.
 | `fileSizeBytes` | `Int` | @map("file_size_bytes") |
 | `fileBytes` | `Bytes?` | @map("file_bytes") |
 | `fileObjectKey` | `String?` | @map("file_object_key") @db.VarChar(512) |
+| `fileSha256` | `String?` | @map("file_sha256") @db.Char(64) |
 | `resultJson` | `Json?` | @map("result_json") |
 | `warningsJson` | `Json?` | @map("warnings_json") |
 | `confidence` | `Decimal?` | @db.Decimal(4, 3) |
@@ -1921,6 +1922,9 @@ Tabla `decision_identity_verification_run`.
 | `documentObjectKey` | `String?` | @map("document_object_key") @db.VarChar(512) |
 | `documentBackObjectKey` | `String?` | @map("document_back_object_key") @db.VarChar(512) |
 | `selfieObjectKey` | `String?` | @map("selfie_object_key") @db.VarChar(512) |
+| `documentSha256` | `String?` | @map("document_sha256") @db.Char(64) |
+| `documentBackSha256` | `String?` | @map("document_back_sha256") @db.Char(64) |
+| `selfieSha256` | `String?` | @map("selfie_sha256") @db.Char(64) |
 | `resultJson` | `Json?` | @map("result_json") |
 | `warningsJson` | `Json?` | @map("warnings_json") |
 | `decision` | `String?` | @db.VarChar(30) |
@@ -1937,6 +1941,8 @@ Tabla `decision_identity_verification_run`.
 | `reviewResolvedBy` | `String?` | @map("review_resolved_by") @db.VarChar(160) |
 | `reviewResolvedAt` | `DateTime?` | @map("review_resolved_at") @db.Timestamptz(6) |
 | `reviewNotes` | `String?` | @map("review_notes") @db.Text |
+| `humanDecision` | `String?` | @map("human_decision") @db.VarChar(30) |
+| `subjectKey` | `String?` | @map("subject_key") @db.VarChar(64) |
 | `errorCode` | `String?` | @map("error_code") @db.VarChar(120) |
 | `errorMessage` | `String?` | @map("error_message") @db.Text |
 | `attemptCount` | `Int` | @default(0) @map("attempt_count") |
@@ -1954,6 +1960,8 @@ Tabla `decision_identity_verification_run`.
 - `unique([tenantId, requestId])`
 - `index([status, queuedAt])`
 - `index([tenantId, queuedAt])`
+- `index([tenantId, humanDecision], map: "decision_identity_run_human_decision_idx")`
+- `index([tenantId, subjectKey], map: "decision_identity_run_subject_key_idx")`
 - `index([tenantId, status, reviewReason, reviewPriority, reviewOpenedAt], map: "decision_identity_verification_run_review_queue_idx")`
 
 ## IntegrationClient

@@ -3,7 +3,7 @@
 
 # Catálogo de códigos de error
 
-252 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
+254 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
 el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 
 | Código | Mensaje de referencia | Origen |
@@ -102,10 +102,12 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `IDENTITY_REJECTION_REASON_REQUIRED` | Rechazar un documento exige declarar el motivo: un rechazo sin motivo no es medible. | `src/modules/workers/identity-verification/review/identity-review.service.ts` |
 | `IDENTITY_REQUEST_INVALID` | Invalid identity request | `src/common/security/identity-provider.client.ts` |
 | `IDENTITY_REQUEST_REJECTED` | — | `src/common/security/identity-provider.client.ts` |
+| `IDENTITY_REVIEW_ALREADY_HAS_VERDICT` | Este caso ya tiene veredicto del worker y espera que una persona lo firme: resuélvelo con CONFIRM_IDENTITY o DENY_IDENTITY. | `src/modules/workers/identity-verification/review/identity-review.service.ts` |
 | `IDENTITY_REVIEW_DOCUMENT_TYPE_REQUIRED` | Confirmar el documento exige declarar cuál es: sin tipo no hay analizador y el caso volvería a la misma cola. | `src/modules/workers/identity-verification/review/identity-review.service.ts` |
 | `IDENTITY_REVIEW_NOT_ASSIGNED` | Sólo quien reclamó el caso puede cerrarlo. Recláma1o primero. | `src/modules/workers/identity-verification/review/identity-review.service.ts` |
 | `IDENTITY_REVIEW_NOT_CLAIMABLE` | — | `src/modules/workers/identity-verification/review/identity-review.service.ts` |
 | `IDENTITY_REVIEW_NOT_FOUND` | No hay ningún caso de arbitraje con ese identificador. | `src/modules/workers/identity-verification/review/identity-review.service.ts` |
+| `IDENTITY_REVIEW_NO_VERDICT_YET` | Este caso llegó a la cola porque no se supo qué documento era: todavía no hay veredicto que confirmar ni negar. Resuélvelo con CONFIRM_DOCUMENT o REJECT_DOCUMENT. | `src/modules/workers/identity-verification/review/identity-review.service.ts` |
 | `IDENTITY_RUN_NOT_CANCELLABLE` | — | `src/modules/workers/identity-verification/identity-verification.service.ts` |
 | `IDENTITY_RUN_NOT_FOUND` | No existe esa verificación. | `src/modules/workers/identity-verification/identity-verification.service.ts` |
 | `IF_MATCH_REQUIRED` | If-Match header with current lock_version is required | `src/common/http/id.ts` |

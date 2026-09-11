@@ -65,6 +65,7 @@
     "production:config:check": "node -e \"require('./dist/common/config/env.schema.js').validateEnvironment(process.env); console.log('Production configuration OK')\"",
     "calibrar:identidad": "node scripts/calibrar-identidad.mjs",
     "corpus:generar": "ts-node -P tsconfig.json -T scripts/corpus/generar-catalogos.ts",
+    "exportar:corpus-identidad": "ts-node -P tsconfig.json -T scripts/exportar-corpus-identidad.ts",
     "corpus:check": "ts-node -P tsconfig.json -T scripts/corpus/generar-catalogos.ts --check",
     "diagnosticar:carnets": "ts-node -P tsconfig.json -T scripts/diagnosticar-carnets.ts",
     "diagnosticar:extractos": "ts-node -P tsconfig.json -T scripts/diagnosticar-extractos.ts",

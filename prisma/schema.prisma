@@ -2940,6 +2940,20 @@ model IdentityVerificationRun {
   reviewResolvedAt DateTime? @map("review_resolved_at") @db.Timestamptz(6)
   reviewNotes      String?   @map("review_notes") @db.Text
 
+  /// El veredicto que firmó una PERSONA, aparte del del worker (`decision`).
+  ///
+  /// Separado a propósito: escribirlo encima perdería la única comparación que mide si el worker
+  /// acierta. Es la ETIQUETA del corpus, y el protocolo exige que la ponga el operador y «jamás
+  /// por score del worker».
+  humanDecision String? @map("human_decision") @db.VarChar(30)
+
+  /// Identificador SEUDÓNIMO del sujeto (`T-07`), puesto por quien revisa.
+  ///
+  /// Agrupa las ejecuciones de la misma persona, que es lo que separa una pareja genuina de una
+  /// impostora al calibrar. No se deriva del documento: el número va enmascarado y tres dígitos
+  /// colisionan entre veinte personas. Ni nombre ni cédula: la carpeta del corpus no reidentifica.
+  subjectKey String? @map("subject_key") @db.VarChar(64)
+
   errorCode    String? @map("error_code") @db.VarChar(120)
   errorMessage String? @map("error_message") @db.Text
 
@@ -2958,6 +2972,8 @@ model IdentityVerificationRun {
   @@unique([tenantId, requestId])
   @@index([status, queuedAt])
   @@index([tenantId, queuedAt])
+  @@index([tenantId, humanDecision], map: "decision_identity_run_human_decision_idx")
+  @@index([tenantId, subjectKey], map: "decision_identity_run_subject_key_idx")
   @@index([tenantId, status, reviewReason, reviewPriority, reviewOpenedAt], map: "decision_identity_verification_run_review_queue_idx")
   @@map("decision_identity_verification_run")
 }

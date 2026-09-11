@@ -44,6 +44,10 @@ const QUEUE_SELECTION = {
   documentType: true,
   documentCountry: true,
   documentTypeConfidence: true,
+  // El veredicto del worker y su cifra: es lo que separa un caso de la PUERTA (sin veredicto) de
+  // uno del VEREDICTO, y lo que la persona necesita ver antes de firmar.
+  decision: true,
+  similarityScore: true,
   errorCode: true,
   errorMessage: true,
   queuedAt: true,
@@ -271,6 +275,34 @@ export class IdentityReviewService {
       );
     }
     const actual = await this.asignadoA(tenantId, requestId, principal);
+    const esVeredicto = dto.action === 'CONFIRM_IDENTITY' || dto.action === 'DENY_IDENTITY';
+
+    /*
+     * Las dos familias de acción no se mezclan, y la invariante que las separa es observable: un
+     * caso que llegó por la PUERTA todavía no tiene veredicto, y uno que llegó por el VEREDICTO ya
+     * lo tiene. Sin este corte, firmar «es la misma persona» sobre un caso al que nadie ha mirado
+     * la cara todavía produciría una etiqueta que no mide nada —y el corpus se construye con
+     * exactamente estas etiquetas—.
+     */
+    if (esVeredicto && actual.decision === null) {
+      throw new DomainException(
+        'IDENTITY_REVIEW_NO_VERDICT_YET',
+        'Este caso llegó a la cola porque no se supo qué documento era: todavía no hay veredicto que confirmar ni negar. Resuélvelo con CONFIRM_DOCUMENT o REJECT_DOCUMENT.',
+        HttpStatus.CONFLICT,
+      );
+    }
+    if (!esVeredicto && actual.decision !== null) {
+      throw new DomainException(
+        'IDENTITY_REVIEW_ALREADY_HAS_VERDICT',
+        'Este caso ya tiene veredicto del worker y espera que una persona lo firme: resuélvelo con CONFIRM_IDENTITY o DENY_IDENTITY.',
+        HttpStatus.CONFLICT,
+      );
+    }
+
+    if (esVeredicto) {
+      return this.resolverVeredicto(tenantId, requestId, dto, principal, actual);
+    }
+
     const confirma = dto.action === 'CONFIRM_DOCUMENT';
 
     await this.prisma.$transaction(async (tx) => {
@@ -369,6 +401,78 @@ export class IdentityReviewService {
       select: { status: true },
     });
     return run?.status ?? null;
+  }
+
+  /**
+   * Lo que firma una persona sobre la IDENTIDAD, que es la etiqueta del corpus.
+   *
+   * Se escribe en `humanDecision` y no encima de `decision`: pisarlo perdería la única comparación
+   * que mide si el worker acierta —su veredicto contra el de la persona— y con ella la posibilidad
+   * de calibrar sus umbrales contra algo que no sea él mismo. Las dos columnas juntas son, caso a
+   * caso, una fila del corpus: lo que el motor dijo, lo que dijo la persona y con qué parecido.
+   *
+   * El caso sale de la cola y no vuelve al worker: aquí no falta ningún análisis, faltaba una
+   * firma.
+   */
+  private async resolverVeredicto(
+    tenantId: bigint,
+    requestId: string,
+    dto: ResolveIdentityReviewDto,
+    principal: AuthenticatedPrincipal,
+    actual: QueueRow,
+  ): Promise<IdentityReviewResolvedDto> {
+    const confirma = dto.action === 'CONFIRM_IDENTITY';
+    const humanDecision = confirma ? 'VERIFIED' : 'NOT_VERIFIED';
+    const status = confirma ? WorkerRunStatus.SUCCEEDED : WorkerRunStatus.SUCCEEDED_WITH_WARNINGS;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.identityVerificationRun.update({
+        where: { tenantId_requestId: { tenantId, requestId } },
+        data: {
+          status,
+          humanDecision,
+          // Sólo si viene: un sujeto sin declarar deja la fila sin agrupar, y el exportador del
+          // corpus lo CUENTA y lo dice, en vez de inventarse que cada caso es una persona distinta.
+          ...(dto.subjectKey ? { subjectKey: dto.subjectKey } : {}),
+          reviewResolvedBy: principal.id,
+          reviewResolvedAt: new Date(),
+          reviewNotes: dto.notes,
+          finishedAt: new Date(),
+          leaseExpiresAt: null,
+          // El motivo por el que ENTRÓ se conserva: es lo que permite medir meses después qué
+          // clase de duda se resolvió cómo, y es la mitad de la lectura del corpus.
+        },
+      });
+      await this.audit.append(
+        {
+          tenantId,
+          eventType: 'IDENTITY_REVIEW_RESOLVED',
+          aggregateType: 'IdentityVerificationRun',
+          aggregateId: requestId,
+          actorId: principal.id,
+          requestId: principal.requestId,
+          payload: {
+            action: dto.action,
+            reviewReason: actual.reviewReason,
+            // Las dos, juntas y sin mezclar: es lo que hace auditable la discrepancia.
+            workerDecision: actual.decision,
+            humanDecision,
+            // A número: `similarityScore` es un `Decimal` de Prisma, y el canonizador de la
+            // cadena de auditoría rechaza cualquier valor con métodos («Unsupported canonical JSON
+            // value: function»). Pasa desapercibido hasta que alguien firma el primer caso.
+            similarityScore:
+              actual.similarityScore === null ? null : Number(actual.similarityScore),
+          },
+        },
+        tx,
+      );
+    });
+
+    this.logger.log(
+      `Veredicto de ${requestId} firmado por ${principal.id} como ${humanDecision} ` +
+        `(el worker dijo ${actual.decision ?? 'nada'}).`,
+    );
+    return { requestId, status, resolvedBy: principal.id };
   }
 
   private async asignadoA(

@@ -82,7 +82,18 @@ jobs:
       # hablan con Postgres de verdad, y correrlas contra una base vacía no las convierte en
       # unitarias — las convierte en 115 fallos de «la tabla no existe» que tapan los reales.
       - run: yarn prisma:migrate
-      - run: yarn prisma:seed
+      # La siembra viene de una base PUBLICADORA (`SEED_SOURCE_*`) que vive en el VPS y que un runner
+      # de GitHub no alcanza: el único camino es Tailscale, que monta `deploy-dev.yml` y no este
+      # workflow. Sin esta guarda el paso mataba TODAS las corridas —cien seguidas en rojo al
+      # 2026-09-11— y con ellas la señal de los pasos siguientes, que sí miden el código. Cuando el
+      # origen esté declarado, siembra; mientras no, lo dice y sigue.
+      - name: Sembrar, si hay de dónde
+        run: |
+          if [ -n "${SEED_SOURCE_DATABASE_URL:-}" ] || [ -n "${SEED_SOURCE_HOST:-}" ]; then
+            yarn prisma:seed
+          else
+            echo "::notice::Sin SEED_SOURCE_* declarado: las suites corren contra una base migrada y vacía."
+          fi
       - run: yarn test:cov
       # Single source of truth for the audit threshold (package.json: yarn audit --level high).
       - run: yarn security:audit

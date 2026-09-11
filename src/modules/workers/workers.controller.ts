@@ -153,8 +153,18 @@ export class WorkersController {
            * Publicarlo permite que la vista lo explique ANTES de que alguien
            * mande una foto y reciba un «revisión requerida» sin motivo visible.
            */
+          /*
+           * Y el nombre del perfil SÓLO se publica si hay umbrales que lo apliquen. El rótulo viene
+           * del compose con un valor por omisión (`sintetico-60x3-…`), así que el catálogo anunciaba
+           * una calibración vigente mientras cada decisión salía con `THRESHOLD_PROFILE_MISSING`:
+           * medido el 2026-09-11 sobre una cédula auténtica. Un catálogo que nombra un perfil que no
+           * rige es la clase de afirmación creíble y falsa que este catálogo existe para no hacer.
+           */
           thresholdProfile:
-            this.config.get<string>('IDENTITY_THRESHOLD_PROFILE_VERSION') ?? 'unconfigured',
+            this.config.get<number>('IDENTITY_MATCH_THRESHOLD') !== undefined &&
+            this.config.get<number>('IDENTITY_REVIEW_THRESHOLD') !== undefined
+              ? (this.config.get<string>('IDENTITY_THRESHOLD_PROFILE_VERSION') ?? 'unconfigured')
+              : 'unconfigured',
         },
         available: this.config.get<boolean>('IDENTITY_VERIFICATION_WORKER_ENABLED') ?? false,
         fixturesEnabled,
