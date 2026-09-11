@@ -64,6 +64,12 @@ jobs:
       # comprobaciones baratas, antes de compilar.
       - run: yarn lint
       - run: yarn typecheck
+      # Que los catálogos derivados sigan saliendo del corpus del repositorio. La suite
+      # `corpus-catalogos-derivados` compara el SHA-256 que viaja DENTRO de lo generado con el
+      # del archivo real, y eso caza actualizar `corpus/` sin regenerar. No caza lo otro:
+      # editar el catálogo generado a mano deja el hash intacto y compila. Esto lo regenera y
+      # exige que salga idéntico, byte a byte.
+      - run: yarn corpus:check
       - run: yarn build
       # La base se migra ANTES de las pruebas: la batería incluye suites de integración que
       # hablan con Postgres de verdad, y correrlas contra una base vacía no las convierte en
