@@ -36,7 +36,26 @@ describe('Nodos que llaman a un servicio de worker (e2e)', () => {
   beforeAll(async () => {
     // El servicio sólo se puede invocar si el despliegue declara la capacidad, con la misma
     // bandera que publica el catálogo `/v1/workers`.
-    app = await createTestApp({ BANK_STATEMENT_WORKER_ENABLED: true });
+    app = await createTestApp({
+      BANK_STATEMENT_WORKER_ENABLED: true,
+      /*
+       * La compuerta de VIGENCIA se apaga, y no es una comodidad: es que si no, esta prueba
+       * caduca sola.
+       *
+       * Los escenarios sintéticos del worker están fechados en el primer trimestre de 2026 —lo
+       * tienen que estar, porque hay escenarios cuyo propósito es ejercitar la vigencia—, así que
+       * desde el 3 de abril de 2026 el extracto «completo» lleva más de los tres días de
+       * tolerancia y la compuerta lo rechaza con `STALE_STATEMENT`. Ese rechazo es la compuerta
+       * ACERTANDO; lo que mide esta suite es el nodo `WORKER`, y verlo fallar por la fecha del
+       * calendario del runner no dice nada sobre el nodo.
+       *
+       * Se apaga sólo aquí y no se pierde cobertura: la compuerta se mide entera —incluida la
+       * tolerancia y la fecha en el futuro— en `test/bank-statement-recency.spec.ts`, con su
+       * «hoy» inyectado, que es justamente lo que permite probar una vigencia sin que el
+       * resultado cambie cada día que pasa.
+       */
+      BANK_STATEMENT_RECENCY_ENFORCE: false,
+    });
 
     /*
      * El PADRÓN de entidades tiene que existir, y se siembra por el endpoint del producto.
