@@ -68,6 +68,17 @@ x-common: &common
 # un fallo del código.
 x-image: &image
   image: atlas-decision:coolify
+  # `never`, y es lo que hace desplegable este archivo.
+  #
+  # Coolify ejecuta `docker compose pull --ignore-buildable` antes de levantar. `--ignore-buildable`
+  # salta `migrate` —el único que declara `build:`—, pero `api` y `worker` sólo declaran `image:`, así
+  # que Compose los toma por imágenes de registro y sale a buscarlas: «pull access denied for
+  # atlas-decision, repository does not exist». En esta máquina NO hay registro; el tag lo produce el
+  # build del propio despliegue. Y el fallo del pull ABORTA el despliegue completo, con lo que el
+  # contenedor que sigue sirviendo es el anterior — un despliegue que no despliega.
+  #
+  # `never` le dice a Compose lo que es verdad: esta imagen no se trae, se construye aquí.
+  pull_policy: never
 
 x-build: &build
   image: atlas-decision:coolify
