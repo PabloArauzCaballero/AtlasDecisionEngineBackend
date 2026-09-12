@@ -66,6 +66,8 @@
     "calibrar:identidad": "node scripts/calibrar-identidad.mjs",
     "corpus:generar": "ts-node -P tsconfig.json -T scripts/corpus/generar-catalogos.ts",
     "exportar:corpus-identidad": "ts-node -P tsconfig.json -T scripts/exportar-corpus-identidad.ts",
+    "triaje:identidad": "ts-node -P tsconfig.json -T scripts/triaje-identidad.ts",
+    "cruce:impostoras": "ts-node -P tsconfig.json -T scripts/cruce-impostoras.ts",
     "corpus:check": "ts-node -P tsconfig.json -T scripts/corpus/generar-catalogos.ts --check",
     "diagnosticar:carnets": "ts-node -P tsconfig.json -T scripts/diagnosticar-carnets.ts",
     "diagnosticar:extractos": "ts-node -P tsconfig.json -T scripts/diagnosticar-extractos.ts",

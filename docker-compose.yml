@@ -387,6 +387,15 @@ services:
     ports:
       # Solo en loopback: /metrics del worker se raspa desde el host, nunca desde fuera.
       - "127.0.0.1:${WORKER_HEALTH_PORT:-3001}:3001"
+    # Tope de registro, que no es cosmético: es la única traza de lo que le pasó a un tester.
+    # Sin él, el fichero del driver crece sin límite hasta llenar el disco del anfitrión —y el
+    # Mongo donde iban antes estos registros está borrado, así que hoy esto ES el registro—.
+    # 10 ficheros de 20 MiB dan margen para varios días de beta sin tocar nada.
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "10"
     environment:
       # ── Almacén de objetos ───────────────────────────────────────────────
       # Donde sobreviven al cierre la cara, las dos caras de la cédula y el PDF del extracto.
@@ -698,6 +707,15 @@ services:
         condition: service_healthy
       script-runner:
         condition: service_started
+    # Tope de registro, que no es cosmético: es la única traza de lo que le pasó a un tester.
+    # Sin él, el fichero del driver crece sin límite hasta llenar el disco del anfitrión —y el
+    # Mongo donde iban antes estos registros está borrado, así que hoy esto ES el registro—.
+    # 10 ficheros de 20 MiB dan margen para varios días de beta sin tocar nada.
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "10"
     environment:
       # ── Almacén de objetos ───────────────────────────────────────────────
       # Donde sobreviven al cierre la cara, las dos caras de la cédula y el PDF del extracto.
