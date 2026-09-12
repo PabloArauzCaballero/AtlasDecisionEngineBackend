@@ -60,7 +60,21 @@ Convención: una suite que toca la base de datos se nombra `*.integration.spec.t
 | `yarn start:dev` | Nest en modo watch. |
 | `yarn start:debug` | Igual, con debugger. |
 | `yarn start` | Ejecuta `dist/main.js` (requiere `build` previo). |
-| `yarn smoke` / `yarn smoke:sh` | Prueba de humo contra una API en marcha (PowerShell / bash). |
+| `yarn smoke` / `yarn smoke:sh` | Prueba de humo contra una API en marcha (PowerShell / bash). Necesita `BNPL_CREDIT_DECISION` desplegado y una credencial registrada: ver la nota de abajo. |
+
+El humo ejecuta una decisión **real**, así que pide dos cosas de la instalación contra la que
+apunta, y las dos fallan de forma que no se parece a su causa:
+
+- **El artefacto `BNPL_CREDIT_DECISION` desplegado.** Sin él responde `404`, que se lee como una
+  ruta que no existe. Quien lo provisiona sin depender de ninguna siembra es la batería e2e
+  (`test/e2e/support/demo-artifact.ts`): corre `yarn test:e2e` sobre esa base y el artefacto queda
+  desplegado en PROD —el teardown lo conserva—. Es lo que hace el CI.
+- **Una credencial registrada en la base.** La identidad por clave de API no vive en el entorno
+  sino en `integration_client`, y la escribe la siembra de arranque leyendo el entorno. Con
+  `NODE_ENV=test` se apaga sola, así que hay que declarar `STARTUP_SEED_ENABLED=true` al levantar
+  la API; si no, el humo recibe `401` en todo lo que se autentica.
+
+`BASE_URL` (o `PORT`) elige a quién apunta; por omisión, `http://127.0.0.1:3000`.
 
 ## Otros
 
