@@ -106,6 +106,7 @@ export async function provisionE2eClients(): Promise<void> {
      */
     for (const ambiente of [
       { code: 'DEV', name: 'Desarrollo', environmentType: 'DEVELOPMENT', isProduction: false },
+      { code: 'STAGING', name: 'Preproducción', environmentType: 'STAGING', isProduction: false },
       { code: 'PROD', name: 'Producción', environmentType: 'PRODUCTION', isProduction: true },
     ]) {
       await prisma.decisionEnvironment.upsert({

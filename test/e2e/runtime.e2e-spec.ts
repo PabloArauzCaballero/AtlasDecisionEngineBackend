@@ -2,6 +2,7 @@ import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { DEMO_BASE_APPLICANT } from '../fixtures/demo-applicant';
 import { createTestApp } from './support/test-app';
+import { provisionDemoArtifact } from './support/demo-artifact';
 import { runtimeHeaders } from './support/headers';
 
 /** Exercises the deployed BNPL_CREDIT_DECISION seed artifact: real decisions, not mocks. */
@@ -12,6 +13,8 @@ describe('Runtime decisions (e2e)', () => {
 
   beforeAll(async () => {
     app = await createTestApp();
+    // El artefacto que estas pruebas ejecutan ya no depende de que alguien haya sembrado antes.
+    await provisionDemoArtifact(app);
   });
 
   afterAll(async () => {

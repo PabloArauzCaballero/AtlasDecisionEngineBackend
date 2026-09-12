@@ -2,6 +2,7 @@ import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { managementHeaders } from './support/headers';
 import { createTestApp } from './support/test-app';
+import { provisionDemoArtifact } from './support/demo-artifact';
 
 /**
  * La única promesa que hace el botón «Generar valores de prueba» es que lo generado
@@ -22,6 +23,8 @@ describe('Valores de prueba del simulador (e2e)', () => {
 
   beforeAll(async () => {
     app = await createTestApp();
+    // El artefacto que estas pruebas ejecutan ya no depende de que alguien haya sembrado antes.
+    await provisionDemoArtifact(app);
   });
 
   afterAll(async () => {

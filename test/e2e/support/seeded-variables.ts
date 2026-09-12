@@ -20,6 +20,8 @@ export async function seededVariableVersionId(
   app: INestApplication,
   headers: Record<string, string>,
   variableCode: string,
+  /** Tipo con el que se CREA si no existe. El que ya existe se usa tal cual. */
+  dataType: 'INTEGER' | 'DECIMAL' | 'STRING' | 'BOOLEAN' = 'INTEGER',
 ): Promise<string> {
   const pageSize = 100;
   for (let page = 1; page <= 20; page += 1) {
@@ -55,7 +57,7 @@ export async function seededVariableVersionId(
    * Y se crea POR HTTP, con el contrato que el producto exige, así que si el alta se rompiera la
    * prueba lo diría igual.
    */
-  return createVariable(app, headers, variableCode);
+  return createVariable(app, headers, variableCode, dataType);
 }
 
 /** Da de alta la variable mínima que estas suites necesitan como dependencia de un grafo. */
@@ -63,6 +65,7 @@ async function createVariable(
   app: INestApplication,
   headers: Record<string, string>,
   variableCode: string,
+  dataType: string,
 ): Promise<string> {
   const created = await request(app.getHttpServer())
     .post('/v1/variables')
@@ -75,8 +78,7 @@ async function createVariable(
       ownerTeam: 'e2e',
       isSensitive: false,
       initialVersion: {
-        // INTEGER y no DECIMAL: las suites la usan como umbral de elegibilidad por edad.
-        dataType: 'INTEGER',
+        dataType,
         nullable: false,
         sources: [],
         validationRules: [],
