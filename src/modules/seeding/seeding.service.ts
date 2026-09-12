@@ -66,6 +66,39 @@ export class SeedingService implements OnApplicationBootstrap {
       return;
     }
 
+    /*
+     * Las CREDENCIALES primero, y antes de mirar si hay fuente de semillas.
+     *
+     * Son dos cosas que no tienen nada que ver: la identidad de quien llama sale del ENTORNO de
+     * esta instalación; el catálogo de datos sale de la base publicadora. Estaban enredadas —el
+     * registro vivía después del `return` de abajo—, y el efecto era que **una instalación sin
+     * base publicadora arrancaba sin NINGUNA credencial registrada**: el operador pone
+     * `MANAGEMENT_API_KEY` en el entorno, la plataforma contesta 401 a todo, y el único rastro es
+     * un «Startup seeding skipped: no SEED_SOURCE_* configured» que suena inofensivo porque habla
+     * de semillas y no de identidad.
+     *
+     * La documentación de esta clase ya decía que se hace SIEMPRE —«rotar una clave en el entorno
+     * tiene que poder aplicarse sin volver a sembrar»—; lo que faltaba era que el código lo
+     * cumpliera.
+     *
+     * Va fuera del bloqueo consultivo a propósito: es idempotente por `upsert` y por hash del
+     * secreto, así que N réplicas registrando lo mismo convergen. Esperar el bloqueo sólo
+     * conseguiría que las que no lo ganan arrancaran sin poder autenticar a nadie.
+     */
+    const clients = await seedIntegrationClients(this.prisma);
+    if (clients.length > 0) {
+      this.logger.log(
+        `Integration clients registered from this environment: ${clients.map((c) => c.clientKey).join(', ')}`,
+      );
+    } else {
+      // Ninguna clave declarada no es un error —una instalación con IdP no las necesita—, pero sí
+      // es la explicación de un 401 con `AUTH_MODE=API_KEY`, así que se dice.
+      this.logger.warn(
+        'No se registró ninguna credencial de integración: el entorno no declara MANAGEMENT_API_KEY ' +
+          'ni RUNTIME_API_KEY. Con AUTH_MODE=API_KEY toda petición responderá 401.',
+      );
+    }
+
     const seedSource = resolveSeedSource();
     if (!seedSource) {
       this.logger.log('Startup seeding skipped: no SEED_SOURCE_* configured');
@@ -106,13 +139,6 @@ export class SeedingService implements OnApplicationBootstrap {
         });
         this.logger.log(
           `Startup seeding complete: ${summary.rows} rows across ${summary.tables} tables`,
-        );
-      }
-
-      const clients = await seedIntegrationClients(this.prisma);
-      if (clients.length > 0) {
-        this.logger.log(
-          `Integration clients registered from this environment: ${clients.map((c) => c.clientKey).join(', ')}`,
         );
       }
     } catch (error) {
