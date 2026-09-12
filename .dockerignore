@@ -25,11 +25,19 @@ docs
 # que es el único orden en el que surte efecto.
 !docs/script-prueba.js
 !docs/script-prueba.py
+# ...y la huella del HTML compuesto de cada plantilla del generador documental, que la prueba
+# de regresión visual lee por ruta. Sin ella, esa suite muere al CARGAR con `ENOENT` y el rojo
+# se lee como una prueba rota en vez de como un fichero que no entró en el contexto.
+!docs/pdf-worker/visual-baseline.json
 site
 mkdocs.yml
 graphify-out
 structurizr
 openapi
+# ...salvo el contrato, que la prueba de conformidad compara con las rutas vivas de la
+# aplicación. Se niega el FICHERO y no el directorio: lo demás de `openapi/` —el paquete
+# generado por redocly— sigue sin viajar.
+!openapi/openapi.json
 asyncapi
 logs
 *.md

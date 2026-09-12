@@ -81,7 +81,7 @@ COPY scripts ./scripts
 COPY runner ./runner
 COPY smoke ./smoke
 COPY corpus ./corpus
-COPY openapi ./openapi
+COPY openapi/openapi.json ./openapi/openapi.json
 COPY docs/script-prueba.js docs/script-prueba.py ./docs/
 COPY docs/pdf-worker/visual-baseline.json ./docs/pdf-worker/visual-baseline.json
 # Chromium, porque las siete pruebas del generador documental componen con un navegador DE
