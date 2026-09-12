@@ -97,8 +97,16 @@ export const envSchema = z
     // ---------------------------------------------------------------------
     DATABASE_WRITE_URL: z.string().optional().or(z.literal('')),
     DATABASE_READ_URL: z.string().optional().or(z.literal('')),
-    /** Pool de la ruta de lectura; sin valor hereda DATABASE_POOL_MAX. */
-    DATABASE_READ_POOL_MAX: z.coerce.number().int().min(1).max(100).optional(),
+    /**
+     * Pool de la ruta de lectura; sin valor hereda DATABASE_POOL_MAX.
+     *
+     * Con `emptyAsUndefined`, porque «sin valor» y «cadena vacía» son lo mismo para quien
+     * configura: una plantilla con `DATABASE_READ_POOL_MAX=` y un secreto de CI que no se rellenó
+     * producen exactamente eso. Sin el envoltorio, `z.coerce.number()` convierte `''` en 0 y la
+     * aplicación NO ARRANCA con un «expected number to be >=1» que no menciona la variable que
+     * quedó vacía — cuesta un rato averiguar que el problema es una línea sin valor.
+     */
+    DATABASE_READ_POOL_MAX: emptyAsUndefined(z.coerce.number().int().min(1).max(100).optional()),
     /**
      * Interruptor de la separación de rutas. Apagado, toda lectura vuelve al primario y el
      * sistema se comporta exactamente como antes: es el rollback de esta migración sin
