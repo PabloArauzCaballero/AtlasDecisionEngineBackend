@@ -119,6 +119,25 @@ export class WorkerServiceInvokerService {
       this.config.get<number>('BANK_STATEMENT_MAX_UPLOAD_BYTES') ?? 10_485_760,
     );
 
+    /*
+     * Se ESPERA la primera carga del padrón, igual que hace el worker de fondo, y DESPUÉS de
+     * validar el documento: un base64 inválido no tiene por qué pagar una consulta.
+     *
+     * En frío no hay instantánea, el padrón cae a la nómina compilada y `isAuthoritative()`
+     * responde `false`. La compuerta de emisor se lo toma en serio —con razón: «licencia
+     * vigente» sería entonces una afirmación que nadie comprobó— y manda el documento a
+     * revisión con `padron-no-vigente`. Sin esta línea el PRIMER extracto que analiza un nodo
+     * `WORKER` tras cada arranque acaba en la cola con un motivo que apunta a la entidad
+     * cuando lo que pasó fue que el proceso acababa de empezar; y como se cura solo en el
+     * documento siguiente, es de los defectos que nadie llega a diagnosticar.
+     *
+     * `bank-statement-run-worker.service.ts` ya lo hacía para la cola asíncrona; este camino
+     * —el del grafo— se había quedado fuera. No reintroduce una espera por documento: con
+     * instantánea, aunque esté vencida, devuelve al instante y refresca por detrás. Lo que se
+     * espera es la carga inicial, una vez por tenant y por proceso.
+     */
+    await this.institutions.ensureLoaded(tenantId);
+
     try {
       const normalized = await this.withTimeout(
         this.statementEngineInstance(tenantId).normalize(validated.bytes, {

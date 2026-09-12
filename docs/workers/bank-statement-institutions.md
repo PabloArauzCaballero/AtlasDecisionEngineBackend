@@ -95,6 +95,32 @@ cooperativa era indistinguible de un documento ajeno.
 - **Un padrón vacío nunca se toma en serio.** `resolvedRegistry` cae a la nómina compilada:
   una tabla vacía no es una afirmación sobre el sistema financiero boliviano, es un fallo de
   carga, y tomárselo al pie de la letra rechazaría todos los extractos a la vez.
+- **Pero caer en la semilla NO es autoritativo**, y eso tiene consecuencias que no se
+  parecen a su causa. Con el padrón degradado la compuerta manda el documento a revisión con
+  `padron-no-vigente` —con razón: «licencia vigente» sería entonces una afirmación que nadie
+  comprobó—. Los dos caminos que analizan un extracto tienen que ESPERAR la primera carga:
+  el worker de cola (`bank-statement-run-worker.service.ts`) y el nodo `WORKER` del grafo
+  (`worker-service-invoker.service.ts`). Sin eso, el primer documento después de cada
+  arranque acaba en la cola con un motivo que apunta a la entidad, y como se cura solo en el
+  siguiente, nadie llega a diagnosticarlo.
+
+### Los siete estados de licencia
+
+`LICENSED`, `SUSPENDED`, `INTERVENED`, `VOLUNTARY_LIQUIDATION`, `BANKRUPTCY`, `ABSORBED` y
+`REVOKED`, y los tres sitios que los declaran —la nómina compilada, el enum de la base y el
+DTO del CRUD— se comprueban entre sí en `test/padron-entidades-enumeraciones.spec.ts`.
+
+Hizo falta ese invariante por lo que pasó cuando se separaron: la nómina incorporó las cuatro
+situaciones del corte de ASFI del 31.08.2026 y el enum de Postgres se quedó con tres. Nada
+falló al compilar. Lo que falló fue `POST …/institutions/seed`, con un 500 al llegar a la
+primera entidad en quiebra, dejando el padrón **vacío** — y con él, cada extracto del país en
+revisión por `padron-no-vigente`, o rechazado con «no se pudo reconocer una entidad financiera
+boliviana compatible». Tres capas de distancia entre la causa y el síntoma.
+
+`INTERVENED` es un estado propio y no un sinónimo de `REVOKED`: una intervención no implica
+revocación automática, y en el corte oficial la entidad aparece en intervención sin fecha ni
+resolución de revocación. Afirmarla sería escribir en un expediente un hecho jurídico que
+nadie verificó (contradicción C02 del corpus).
 
 ### Marcadores y exclusiones
 

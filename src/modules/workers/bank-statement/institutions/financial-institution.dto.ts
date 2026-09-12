@@ -28,7 +28,23 @@ export const INSTITUTION_KINDS = [
   'DEVELOPMENT_IFD',
 ] as const;
 
-export const LICENSE_STATUSES = ['LICENSED', 'SUSPENDED', 'REVOKED'] as const;
+/**
+ * Los mismos siete que declara `bolivia-institutions.ts`, y por eso están aquí.
+ *
+ * Tenía tres, así que el padrón administrado no podía registrar a una entidad intervenida, en
+ * quiebra, en liquidación voluntaria o absorbida —situaciones que el corte de ASFI publica y que la
+ * nómina compilada ya traía—. Quien intentara corregir a mano lo que la siembra no pudo escribir
+ * recibía un 400 por un valor que el dominio considera legítimo.
+ */
+export const LICENSE_STATUSES = [
+  'LICENSED',
+  'SUSPENDED',
+  'INTERVENED',
+  'VOLUNTARY_LIQUIDATION',
+  'BANKRUPTCY',
+  'ABSORBED',
+  'REVOKED',
+] as const;
 
 /** Tope de patrones por entidad. Ver `MAX_PATTERN_LENGTH` en el servicio. */
 const MAX_PATTERNS = 20;

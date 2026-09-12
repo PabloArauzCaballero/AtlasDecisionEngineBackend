@@ -470,9 +470,24 @@ enum FinancialInstitutionKind {
 /// de que la entidad ya no opera. Borrar la fila convertiría ese caso en
 /// "entidad desconocida", que se lee como un fallo del motor y no como el hecho
 /// que es.
+///
+/// Son los mismos siete que declara `bolivia-institutions.ts`. Tuvo tres hasta el
+/// 2026-09-11, cuando la nómina compilada ya declaraba siete: la siembra del padrón
+/// fallaba con 500 al llegar a la primera entidad en quiebra y lo dejaba VACÍO, y un
+/// padrón vacío manda a revisión todos los extractos del país. `INTERVENED` es un
+/// estado PROPIO y no un sinónimo de `REVOKED`: una intervención no implica revocación
+/// automática, y afirmarla sería escribir un hecho jurídico que nadie verificó.
 enum InstitutionLicenseStatus {
   LICENSED
   SUSPENDED
+  /// Intervenida por el regulador sin que conste revocación.
+  INTERVENED
+  /// En liquidación voluntaria: deja de operar por decisión propia.
+  VOLUNTARY_LIQUIDATION
+  /// En proceso de quiebra.
+  BANKRUPTCY
+  /// Absorbida y disuelta sin liquidación: su sucesora responde hoy.
+  ABSORBED
   REVOKED
 }
 

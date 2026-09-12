@@ -366,3 +366,11 @@ después) y sin una sola acusación falsa. Las cuatro piezas:
   institucional (−25) no puede restar de un PDF que ejecuta código.
 - **La marca no es el operador.** Tigo Money lo opera E-FECTIVO ESPM (`MEF`), con licencia; su
   estado de cuenta se rechazaba como factura de telefónica por llevar «TIGO» en la carátula.
+- **Un padrón vacío acusa a la carátula.** El padrón de entidades es una tabla ADMINISTRADA; sin
+  sembrar, `resolvedRegistry` cae a la nómina compilada marcándose NO autoritativa y la compuerta
+  manda todo a revisión (`padron-no-vigente`) o contesta «no se pudo reconocer una entidad
+  financiera boliviana compatible» sobre un extracto impecable. Tres capas entre causa y síntoma.
+  Los DOS caminos que analizan —la cola y el nodo `WORKER`— esperan la primera carga; y los siete
+  estados de licencia se comprueban entre nómina, enum y DTO en
+  `test/padron-entidades-enumeraciones.spec.ts`, porque cuando se separaron la siembra devolvía
+  500 y dejaba el padrón vacío sin que nada fallara al compilar.

@@ -21153,6 +21153,10 @@
             "enum": [
               "LICENSED",
               "SUSPENDED",
+              "INTERVENED",
+              "VOLUNTARY_LIQUIDATION",
+              "BANKRUPTCY",
+              "ABSORBED",
               "REVOKED"
             ]
           },
@@ -21292,6 +21296,10 @@
             "enum": [
               "LICENSED",
               "SUSPENDED",
+              "INTERVENED",
+              "VOLUNTARY_LIQUIDATION",
+              "BANKRUPTCY",
+              "ABSORBED",
               "REVOKED"
             ],
             "type": "string",

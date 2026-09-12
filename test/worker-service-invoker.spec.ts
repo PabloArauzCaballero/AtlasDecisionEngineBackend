@@ -31,6 +31,9 @@ const principal: AuthenticatedPrincipal = {
   authMethod: 'jwt',
 };
 
+/** Los dobles de la última llamada a `build`, para poder asertar sobre ellos. */
+const espias: { institutions?: InstitutionCatalogService } = {};
+
 function build(overrides: Record<string, unknown> = {}) {
   const config = new ConfigService({
     BANK_STATEMENT_WORKER_ENABLED: true,
@@ -56,7 +59,10 @@ function build(overrides: Record<string, unknown> = {}) {
   const institutions = {
     registryFor: jest.fn(),
     invalidate: jest.fn(),
+    // `ensureLoaded` sí se ejerce: ver «espera la primera carga del padrón…» más abajo.
+    ensureLoaded: jest.fn().mockResolvedValue(undefined),
   } as unknown as InstitutionCatalogService;
+  espias.institutions = institutions;
   /*
    * Y el pipeline de identidad por lo mismo: construirlo arrastra `sharp`,
    * Tesseract y las cinco redes de `@vladmandic/human`, que son medio minuto de
@@ -145,6 +151,28 @@ describe('invocador de servicios de worker', () => {
       ),
     ).rejects.toThrow(/sin el argumento templateCode/);
   });
+
+  /*
+   * El padrón en frío no es autoritativo, y la compuerta de emisor manda a REVISIÓN todo
+   * documento cuyo padrón no lo sea. Sin esperar la primera carga, el primer extracto que
+   * pasa por un nodo `WORKER` tras cada arranque acababa en la cola por `padron-no-vigente`
+   * —un motivo que apunta a la entidad cuando lo que pasó fue que el proceso acababa de
+   * empezar—. Se comprueba que se espera, y DESPUÉS de validar el documento: un base64
+   * inválido no paga la consulta.
+   */
+  it('espera la primera carga del padrón antes de analizar, y no antes de validar', async () => {
+    const invocador = build();
+    await expect(
+      invocador.invoke(request({ documentBase64: 'esto no es base64 ***' })),
+    ).rejects.toThrow(/no es base64 válido/);
+    expect(espias.institutions!.ensureLoaded).not.toHaveBeenCalled();
+
+    // Un PDF de verdad: llega al motor, y para llegar tuvo que esperar el padrón.
+    await invocador
+      .invoke(request({ documentBase64: statement.build().toString('base64') }))
+      .catch(() => undefined);
+    expect(espias.institutions!.ensureLoaded).toHaveBeenCalledWith(1n);
+  }, 30_000);
 
   it('rechaza una operación que ningún servicio ofrece', async () => {
     await expect(build().invoke({ ...request({}), operation: 'inventada' })).rejects.toThrow(

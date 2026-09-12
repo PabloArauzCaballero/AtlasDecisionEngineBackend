@@ -37,6 +37,33 @@ describe('Nodos que llaman a un servicio de worker (e2e)', () => {
     // El servicio sólo se puede invocar si el despliegue declara la capacidad, con la misma
     // bandera que publica el catálogo `/v1/workers`.
     app = await createTestApp({ BANK_STATEMENT_WORKER_ENABLED: true });
+
+    /*
+     * El PADRÓN de entidades tiene que existir, y se siembra por el endpoint del producto.
+     *
+     * `financial_institution` es una tabla ADMINISTRADA, no algo que viaje con el código, y sobre
+     * una base vacía `resolvedRegistry` cae a la nómina compilada marcándose como NO autoritativa.
+     * La compuerta de emisor se lo toma en serio y manda el documento a revisión, así que el
+     * worker rechazaba con `UNSUPPORTED_INSTITUTION` —«no se pudo reconocer una entidad financiera
+     * boliviana compatible»— un extracto del BCP perfectamente legible. El síntoma acusa a la
+     * carátula; la causa es que nadie había sembrado el padrón.
+     *
+     * Se siembra por `POST …/institutions/seed` y no con un `INSERT`: es la misma operación que
+     * hace un despliegue nuevo, invalida la caché del catálogo por el camino, y si se rompiera
+     * esta prueba lo diría.
+     */
+    const padron = await request(app.getHttpServer())
+      .post('/v1/workers/bank-statement/institutions/seed')
+      .set(author)
+      .send({});
+    if (padron.status !== 200 && padron.status !== 201) {
+      throw new Error(
+        `No se pudo sembrar el padrón de entidades (${padron.status}): ` +
+          // La COLA del mensaje, no la cabeza: un error de Prisma abre con el volcado de las 66
+          // filas que intentaba escribir y la causa —«Invalid value for argument …»— va al final.
+          JSON.stringify(padron.body?.error ?? padron.body).slice(-400),
+      );
+    }
   });
 
   afterAll(async () => {
@@ -251,7 +278,21 @@ describe('Nodos que llaman a un servicio de worker (e2e)', () => {
       if (['PASSED', 'FAILED', 'ERROR'].includes(run.body.status)) break;
       await new Promise((resolve) => setTimeout(resolve, 200));
     }
-    expect(run.body.status).toBe('PASSED');
+    // Con el detalle del caso: un `FAILED` a secas obliga a adivinar si falló la llamada al
+    // servicio, la proyección a intermedias o la comparación del resultado esperado.
+    if (run.body.status !== 'PASSED') {
+      throw new Error(
+        `La suite bloqueante no pasó (${run.body.status}): ` +
+          JSON.stringify(
+            (run.body.caseRuns ?? []).map((caso: Record<string, unknown>) => ({
+              estado: caso.resultStatus,
+              obtenido: caso.actualResultJson,
+              error: caso.errorJson,
+              asertos: caso.assertions,
+            })),
+          ),
+      );
+    }
   }, 60_000);
 
   it('gobierna y despliega la versión a DEV', async () => {
