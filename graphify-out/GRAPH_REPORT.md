@@ -1,16 +1,16 @@
 # Graph Report - AtlasDecisionEngineBackend  (2026-09-11)
 
 ## Corpus Check
-- 1491 files · ~1,436,857 words
+- 1506 files · ~1,503,321 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 12221 nodes · 29179 edges · 589 communities (475 shown, 114 thin omitted)
-- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 334 edges (avg confidence: 0.78)
+- 12281 nodes · 29289 edges · 615 communities (498 shown, 117 thin omitted)
+- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 337 edges (avg confidence: 0.78)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `d757e265`
+- Built from commit: `af6b2e7d`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -566,6 +566,7 @@
 - Módulo `data-subject`
 - BaselineCaptureService
 - run-jest.mjs
+- ManualReviewService
 - Recursos del generador documental
 - Fuentes del generador documental
 - healthcheck.mjs
@@ -578,67 +579,92 @@
 - Fase 12, 13 y 14 — Producción, redes y configuración
 - Pendientes reales
 - backup.sh
+- .manifest
 - @opentelemetry/api
 - Fase 4 y 5 — Procesos asíncronos, productores y consumidores
 - @opentelemetry/instrumentation-ioredis
+- SqlConsoleService
 - Mapa de contenido — Reglas, prompts y skills
 - verify-jaeger.sh script
 - postgres-role-privileges.integration.spec.ts
+- litellm-gateway-contract.integration.spec.ts
+- Runbook — Contratos de variables, intermedias y contrato de salida
 - statement-affordability.spec.ts
 - variable.response.dto.ts
+- Runbook — QA Lab: corridas generativas y contraejemplos
+- Auditabilidad
 - Eventos de dominio — panorama
+- Verificación — {{date}}
+- check-doc-links.mjs
 - Módulo `graph`
+- worker-service-nodes.e2e-spec.ts
 - Documentación del backend
+- Objetivos de nivel de servicio
 - Cliente y transporte de modelos de lenguaje
 - 4. Cambios realizados
 - governance.response.dto.ts
 - balance-series.ts
+- Gestión de secretos
 - CORPUS_DOCUMENT_TYPES
+- Arquitectura de seguridad
+- Mapa de contenido — Seguridad y operación
+- TenantBudgetRepository
+- job-scheduler-mutual-exclusion.spec.ts
+- Convenciones de la API
+- Ciclo de vida de una petición
+- Requisitos previos
+- Ejecutar las pruebas
+- Límites e higiene
+- ATLAS Decision Platform — bóveda de documentación
+- semantic-idempotency-key-limit.spec.ts
+- object-storage.module.ts
+- @opentelemetry/sdk-node
+- reflect-metadata
 
 ## God Nodes (most connected - your core abstractions)
-1. `PrismaService` - 329 edges
-2. `AuthenticatedPrincipal` - 252 edges
+1. `PrismaService` - 330 edges
+2. `AuthenticatedPrincipal` - 253 edges
 3. `Roles()` - 235 edges
 4. `TenantId` - 224 edges
-5. `DomainException` - 126 edges
+5. `DomainException` - 128 edges
 6. `parseBigIntId()` - 126 edges
 7. `MetricsService` - 121 edges
 8. `CurrentPrincipal` - 114 edges
 9. `Catálogo de entidades` - 101 edges
-10. `scripts` - 71 edges
+10. `scripts` - 72 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `service()` --indirect_call--> `code()`  [INFERRED]
-  test/audit-chain-verification.spec.ts → scripts/docs/generate-vault.mjs
 - `edge()` --indirect_call--> `code()`  [INFERRED]
   test/qa-lab-outcome-coverage.spec.ts → scripts/docs/generate-vault.mjs
+- `laApiAcepta()` --indirect_call--> `CreateSemanticAnalysisRunDto`  [INFERRED]
+  test/semantic-idempotency-key-limit.spec.ts → src/modules/workers/workers.dto.ts
+- `proveedorDelCodificador()` --indirect_call--> `WorkersModule`  [INFERRED]
+  test/transformer-identity-config-coercion.spec.ts → src/modules/workers/workers.module.ts
 - `main()` --indirect_call--> `code()`  [INFERRED]
   prisma/clean-test-data.ts → scripts/docs/generate-vault.mjs
-- `avisosDe()` --indirect_call--> `linea()`  [INFERRED]
-  scripts/audit-high.mjs → test/bcp-column-alignment.spec.ts
-- `necesitaRevision()` --indirect_call--> `ficha()`  [INFERRED]
-  scripts/auditar-corpus-glosas.ts → test/bcp-column-alignment.spec.ts
+- `main()` --indirect_call--> `imagen()`  [INFERRED]
+  scripts/calibrar-identidad.mjs → test/identity-storage-obligatorio.spec.ts
 
 ## Import Cycles
 - 3-file cycle: `src/modules/workers/bank-statement/core/engine/affordability/affordability-model.ts -> src/modules/workers/bank-statement/core/engine/affordability/economic-plausibility.ts -> src/modules/workers/bank-statement/core/engine/affordability/monthly-series.ts -> src/modules/workers/bank-statement/core/engine/affordability/affordability-model.ts`
 
-## Communities (589 total, 114 thin omitted)
+## Communities (615 total, 117 thin omitted)
 
 ### Community 0 - "graph.types.ts"
 Cohesion: 0.04
-Nodes (44): CompilerService, Injectable, describeOperand(), EvaluationContext, ExpressionEvaluator, Injectable, GraphConditionSnapshot, NodeType (+36 more)
+Nodes (41): describeOperand(), EvaluationContext, ExpressionEvaluator, Injectable, GraphActionSnapshot, GraphConditionSnapshot, GraphEdgeSnapshot, NodeType (+33 more)
 
 ### Community 1 - "CacheService"
 Cohesion: 0.06
-Nodes (35): GeneratePdfCommand, PreviewTemplateCommand, ValidatePayloadCommand, GeneratePdfResult, TemplateDefinitionResult, TemplateSchemaResult, ValidatePayloadResult, GeneratePdfUseCase (+27 more)
+Nodes (31): GeneratePdfCommand, PreviewTemplateCommand, ValidatePayloadCommand, GeneratePdfResult, TemplateDefinitionResult, TemplateSchemaResult, ValidatePayloadResult, GeneratePdfUseCase (+23 more)
 
 ### Community 2 - "seed.ts"
-Cohesion: 0.20
-Nodes (14): compile(), compiledCache, isPotentiallyCatastrophic(), SafeRegexResult, safeRegexTest(), CANONICAL_FIELDS, InvalidProfileError, optionalBoolean() (+6 more)
+Cohesion: 0.31
+Nodes (9): CANONICAL_FIELDS, InvalidProfileError, optionalBoolean(), optionalCeiling(), optionalSeparator(), optionalString(), parseStatementProfile(), parseStatementProfiles() (+1 more)
 
 ### Community 3 - "parseBigIntId"
-Cohesion: 0.12
-Nodes (18): managementHeaders(), runtimeHeaders(), ALL_MANAGEMENT_ROLES, E2E_CLIENTS, E2eClientName, headersFor(), provisionE2eClients(), sha256() (+10 more)
+Cohesion: 0.15
+Nodes (12): managementHeaders(), runtimeHeaders(), ALL_MANAGEMENT_ROLES, E2E_CLIENTS, E2eClientName, headersFor(), provisionE2eClients(), sha256() (+4 more)
 
 ### Community 4 - "views.controller.ts"
 Cohesion: 0.08
@@ -646,7 +672,7 @@ Nodes (41): READ_ROLES, ArtifactInputContractQueryDto, ArtifactPickerQueryDto, A
 
 ### Community 5 - "PrismaService"
 Cohesion: 0.03
-Nodes (48): numeroDeConfig(), DispatchedEventHandler, EventBus, Injectable, DispatchedEvent, EventEnvelope, DecisionEventType, SecurityRiskDetectedPayload (+40 more)
+Nodes (71): DispatchedEventHandler, EventBus, Injectable, DispatchedEvent, EventEnvelope, DecisionEventType, SecurityRiskDetectedPayload, VersionPublishedPayload (+63 more)
 
 ### Community 6 - "artifact.dto.ts"
 Cohesion: 0.06
@@ -657,20 +683,20 @@ Cohesion: 0.02
 Nodes (101): ApprovedLibrary, AudioActorGenerationDaily, AudioAsset, AudioBudgetWindow, AudioGenerationUsage, AudioSegment, AudioTemplate, AudioTtsRun (+93 more)
 
 ### Community 8 - "deployment.controller.ts"
-Cohesion: 0.05
-Nodes (63): Audience(), CurrentPrincipal, TenantId, AuthenticatedPrincipal, ApiOkResponse, Query, RiskGovernanceController, ApiOkResponse (+55 more)
+Cohesion: 0.09
+Nodes (40): CurrentPrincipal, TenantId, CodeImportController, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags, Body (+32 more)
 
 ### Community 9 - "devDependencies"
 Cohesion: 0.04
 Nodes (57): ajv, ajv-formats, dotenv, eslint, @eslint/js, @faker-js/faker, fast-check, jest (+49 more)
 
 ### Community 10 - "manual-review.controller.ts"
-Cohesion: 0.10
-Nodes (19): IdentityVerificationController, ApiAcceptedResponse, ApiBody, ApiConsumes, ApiOkResponse, ApiOperation, ApiTags, Body (+11 more)
+Cohesion: 0.20
+Nodes (3): ValidatedIdentityInput, IdentityVerificationService, Injectable
 
 ### Community 11 - "audit-query.service.ts"
-Cohesion: 0.09
-Nodes (31): defineTemplate(), PayloadParseResult, asNode(), describeJsonSchema(), describeNode(), JsonSchemaNode, requiredKeysOf(), typeNameOf() (+23 more)
+Cohesion: 0.08
+Nodes (26): AnalysisOutcome, AnalysisReportPublisher, Inject, Injectable, PDF_GENERATOR_PORT, creditAnalysisFixtureV1(), CREDIT_DECISIONS, CreditAnalysisPayloadV1 (+18 more)
 
 ### Community 12 - "RecordApprovalDecisionDto"
 Cohesion: 0.14
@@ -678,39 +704,39 @@ Nodes (13): ADR-0029, AppEnv, booleanFromString, envSchema, optionalSecret, opti
 
 ### Community 13 - ".append"
 Cohesion: 0.04
-Nodes (47): FixedWindowResult, MemoryCounter, MemoryEntry, RequestContextService, RequestContextStore, Injectable, AccessLogInterceptor, Injectable (+39 more)
+Nodes (37): RequestContextService, RequestContextStore, Injectable, LEVEL_WEIGHT, PINO_METHOD, AuthenticationGuard, Injectable, CachedIdentity (+29 more)
 
 ### Community 14 - "compilerOptions"
 Cohesion: 0.07
 Nodes (26): prisma/**/*.ts, test/**/*.ts, compilerOptions, allowSyntheticDefaultImports, declaration, emitDecoratorMetadata, esModuleInterop, experimentalDecorators (+18 more)
 
 ### Community 15 - "variable-resolution.service.ts"
-Cohesion: 0.02
-Nodes (132): IsUUID, ApiArrayResponse(), ApiPagedResponse(), PageMetaDto, AudioTtsController, ApiAcceptedResponse, ApiOkResponse, ApiOperation (+124 more)
+Cohesion: 0.03
+Nodes (100): IsUUID, AUDIO_TTS_FIXTURES, AudioTtsFixture, findAudioTtsFixture(), CSV_COLUMNS, safeCell(), serializeStatement(), StatementDownload (+92 more)
 
 ### Community 16 - "traceability.service.ts"
-Cohesion: 0.04
-Nodes (65): AuditModule, Global, Module, EventsModule, Module, JobsModule, Global, Module (+57 more)
+Cohesion: 0.05
+Nodes (59): AuditModule, Global, Module, CryptoModule, Global, Module, EventsModule, Module (+51 more)
 
 ### Community 17 - "scripts"
 Cohesion: 0.03
-Nodes (71): scripts, build, calibrar:identidad, check, corpus:check, corpus:generar, cov:merge, db:provision:dev (+63 more)
+Nodes (72): scripts, build, calibrar:identidad, check, corpus:check, corpus:generar, cov:merge, db:provision:dev (+64 more)
 
 ### Community 18 - "variable.service.ts"
 Cohesion: 0.06
-Nodes (67): code(), checkConstraintCoherence(), isTypeAssignable(), normalizeDataTypeOrString(), ArtifactGraphSnapshot, GraphValidationReport, OutputContractFieldSnapshot, ValidationIssue (+59 more)
+Nodes (72): code(), isTypeAssignable(), normalizeDataTypeOrString(), ArtifactGraphSnapshot, ExecutionTraceStep, GraphValidationReport, NodeValueState, NodeVariableState (+64 more)
 
 ### Community 19 - "AuthenticatedPrincipal"
-Cohesion: 0.13
-Nodes (25): ArtifactReferenceEdge, buildAdjacency(), computeMaxDepthFrom(), CycleCheckResult, detectCycle(), findAncestors(), findPath(), CreateArtifactReferenceDto (+17 more)
+Cohesion: 0.24
+Nodes (17): CreateArtifactReferenceDto, InputMappingEntryDto, OutputMappingEntryDto, IsArray, IsBoolean, IsIn, IsInt, IsObject (+9 more)
 
 ### Community 20 - "app.module.ts"
-Cohesion: 0.08
-Nodes (36): adviseColumns(), AdvisedAnalysis, ColumnAdvice, ColumnAdviceRequest, escapeRegExp(), labelsOf(), mismatchesOf(), StatementColumnAdvisorPort (+28 more)
+Cohesion: 0.06
+Nodes (28): LlmBudgetExhaustedError, LlmCreditsExhaustedError, LlmProviderError, CREDITS_EXHAUSTED_CODES, DEFAULT_TRANSPORT_ERRORS, isTextPart(), isTimeout(), OpenAiCompatibleTransport (+20 more)
 
 ### Community 21 - "DomainException"
 Cohesion: 0.07
-Nodes (52): BankTransaction, CurrencyCode, ExtractedPdf, PageLine, ParsedStatement, StatementParser, pageFurniture(), AMOUNT_RANGE (+44 more)
+Nodes (53): BankTransaction, CurrencyCode, ExtractedPdf, PageLine, ParsedStatement, StatementParser, AMOUNT_RANGE, BancoSolStatementParser (+45 more)
 
 ### Community 22 - ".execute"
 Cohesion: 0.07
@@ -721,76 +747,72 @@ Cohesion: 0.17
 Nodes (17): PdfHealthReport, PdfCatalogController, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags (+9 more)
 
 ### Community 24 - "HashService"
-Cohesion: 0.06
-Nodes (60): GenerationMetadata, GenerationOptions, TEMPLATE_SOURCE_LOADER_PORT, brandTokensCss(), clamp(), safe(), buildComposeInput(), CompositionRequest (+52 more)
+Cohesion: 0.04
+Nodes (90): GenerationMetadata, GenerationOptions, TEMPLATE_SOURCE_LOADER_PORT, TemplateSourceLoaderPort, brandTokensCss(), clamp(), safe(), buildComposeInput() (+82 more)
 
 ### Community 25 - "dependencies"
 Cohesion: 0.03
-Nodes (73): class-transformer, class-validator, compression, csv-stringify, helmet, ioredis, @nestjs/platform-express, @nestjs/swagger (+65 more)
+Nodes (73): class-transformer, class-validator, compression, csv-stringify, helmet, ioredis, @nestjs/common, @nestjs/platform-express (+65 more)
 
 ### Community 26 - "deployment.service.ts"
 Cohesion: 0.16
-Nodes (18): BranchAssignment, issueFor(), nameOf(), truncate(), unsupportedIssue(), ReadArm, ReadStatement, COMPARISONS (+10 more)
+Nodes (18): BranchAssignment, BranchExtraction, issueFor(), nameOf(), truncate(), unsupportedIssue(), ReadArm, COMPARISONS (+10 more)
 
 ### Community 27 - "MetricsService"
-Cohesion: 0.06
-Nodes (23): PrismaCategoryEmbeddingRepository, PrismaEntityAliasRepository, PrismaSemanticCategoryRepository, tenantFilter(), toNumberArray(), toStringArray(), toTenantId(), Injectable (+15 more)
-
-### Community 28 - "security.types.ts"
-Cohesion: 0.13
-Nodes (4): JsonPrimitive, JsonValue, normalize(), Money
+Cohesion: 0.05
+Nodes (35): EngineSemanticMetricsRecorder, Injectable, PrismaCategoryEmbeddingRepository, PrismaEntityAliasRepository, PrismaSemanticCategoryRepository, tenantFilter(), toNumberArray(), toStringArray() (+27 more)
 
 ### Community 29 - "StructuredLoggerService"
-Cohesion: 0.05
-Nodes (53): LlmBudgetExhaustedError, LlmCreditsExhaustedError, LlmProviderError, CREDITS_EXHAUSTED_CODES, DEFAULT_TRANSPORT_ERRORS, extractMessageContent(), HttpProviderError, isTextPart() (+45 more)
+Cohesion: 0.08
+Nodes (37): extractMessageContent(), HttpProviderError, normalizeBaseUrl(), parseStructuredOutput(), readErrorDetail(), readRetryAfterMs(), SemanticModelProvider, SemanticProviderError (+29 more)
 
 ### Community 30 - "identity-session.controller.ts"
 Cohesion: 0.05
-Nodes (61): BankStatementWorkerService, normalizeDate(), STATEMENT_PARSERS, textPageRatio(), timeSync(), toAffordabilityInput(), toNumberOrNull(), ADR-0006 (+53 more)
+Nodes (50): BankStatementWorkerService, normalizeDate(), STATEMENT_PARSERS, textPageRatio(), timeSync(), toAffordabilityInput(), toNumberOrNull(), ADR-0006 (+42 more)
 
 ### Community 31 - "ArtifactService"
-Cohesion: 0.06
-Nodes (36): CompiledBundle, TemplateBundleCompilerPort, FIELD_TYPES, FieldSpec, FieldType, TEMPLATE_ORIGINS, TEMPLATE_STATUSES, TemplateBundle (+28 more)
+Cohesion: 0.07
+Nodes (35): CompiledBundle, TemplateBundleCompilerPort, FIELD_TYPES, FieldSpec, FieldType, TEMPLATE_ORIGINS, TEMPLATE_STATUSES, TemplateBundle (+27 more)
 
 ### Community 32 - "CreateTestSuiteDto"
-Cohesion: 0.14
-Nodes (28): CreateTestSuiteDto, ImportTestCasesDto, RunTestSuiteDto, TestCaseDto, ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean (+20 more)
+Cohesion: 0.08
+Nodes (41): TestingController, ApiAcceptedResponse, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags, Body, Controller (+33 more)
 
 ### Community 33 - ".execute"
-Cohesion: 0.04
-Nodes (64): TransformerIdentityEmbedderAdapter, TransformerIdentityOptions, Injectable, AUTORIDAD_SEGIP, BoliviaCiGeneration, CAMPO_APELLIDOS, CAMPO_DOMICILIO, CAMPO_EMISION (+56 more)
+Cohesion: 0.03
+Nodes (81): TransformerIdentityEmbedderAdapter, TransformerIdentityOptions, Injectable, AnclajeDeCatalogo, AUTORIDAD_SEGIP, BoliviaCiGeneration, CAMPO_APELLIDOS, CAMPO_DOMICILIO (+73 more)
 
 ### Community 34 - "IdentityProviderClient"
 Cohesion: 0.07
 Nodes (35): ARQUITECTURA_DEFENSIVA, CasoDeRegresionExtractos, CASOS_DE_REGRESION_EXTRACTOS, COBERTURA_POR_EMISOR, CoberturaDeEmisor, COMPROBACIONES_NUMERICAS, EntidadHistorica, FamiliaDeFraude (+27 more)
 
 ### Community 35 - ".logout"
-Cohesion: 0.12
-Nodes (24): BranchExtraction, BranchExtractorService, Injectable, ContractDataType, ContractVariable, ImportLanguage, IssueSeverity, IssueSource (+16 more)
+Cohesion: 0.11
+Nodes (26): BranchExtractorService, Injectable, AnalyzeCodeImportResult, ContractDataType, ContractVariable, ImportLanguage, IssueSeverity, IssueSource (+18 more)
 
 ### Community 36 - "VISTAS_POR_FASES.md"
-Cohesion: 0.08
-Nodes (25): 10. Matriz resumida de permisos, 11. Reglas UX obligatorias para producción, 12. Definition of Done del frontend por vista, 13. Brechas de API antes de completar todas las vistas, 1.1 Variables, 1.2 Códigos de razón, 4.1 Aprobaciones, 4.2 Despliegues (+17 more)
+Cohesion: 0.06
+Nodes (34): 10. Matriz resumida de permisos, 11. Reglas UX obligatorias para producción, 12. Definition of Done del frontend por vista, 13. Brechas de API antes de completar todas las vistas, 1.1 Variables, 1.2 Códigos de razón, 1. Convenciones, 2.1 Artefactos (+26 more)
 
 ### Community 37 - "identity-provider.client.ts"
-Cohesion: 0.11
-Nodes (20): DetectionOptions, detectWithAnalyzer(), GenericStatementStrategy, parseWithAnalyzer(), rowConfidence(), SIGN_PENALTY, Injectable, StatementParserRegistry (+12 more)
+Cohesion: 0.08
+Nodes (28): PayloadParseResult, PayloadSchema, TemplateFieldDescriptor, ACEPTA, ArtifactFieldView, checkCompatibility(), CompatibilityFinding, CompatibilityInput (+20 more)
 
 ### Community 38 - "simulation.service.ts"
 Cohesion: 0.09
 Nodes (23): 1. Taxonomía: cinco cosas distintas que antes se llamaban igual, 2. Tipos de dato canónicos, 3. Restricciones configurables, 4. Variables intermedias (`INTERMEDIATE`), 5. Contrato de salida explícito, 6. Estado de variables por nodo, 7. Referencia rápida de la API, 8. Pruebas que respaldan este documento (+15 more)
 
 ### Community 39 - "AuthenticationGuard"
-Cohesion: 0.04
-Nodes (51): aAncho(), build(), CALIBRADO, Fila, imprimir(), main(), ocr, SIN_GATE (+43 more)
+Cohesion: 0.06
+Nodes (34): aAncho(), build(), CALIBRADO, Fila, imprimir(), main(), ocr, SIN_GATE (+26 more)
 
 ### Community 40 - "JwtVerifierService"
-Cohesion: 0.15
+Cohesion: 0.19
 Nodes (4): CacheService, Injectable, RateLimitGuard, Injectable
 
 ### Community 41 - "manifest.json"
-Cohesion: 0.04
-Nodes (55): PdfRenderInput, PdfRenderResult, RendererHealth, looksLikePdf(), ErrorAudience, errorCatalogEntries(), ErrorCatalogEntry, PDF_ERROR_CATALOG (+47 more)
+Cohesion: 0.05
+Nodes (52): TEMPLATE_BUNDLE_COMPILER_PORT, bootstrap(), ErrorAudience, errorCatalogEntries(), ErrorCatalogEntry, PDF_ERROR_CATALOG, ArtifactContractUnavailableError, ArtifactNotFoundError (+44 more)
 
 ### Community 42 - "exclude"
 Cohesion: 0.18
@@ -810,279 +832,283 @@ Nodes (20): CalculatedFieldCreatedDto, CalculatedFieldDetailDto, CalculatedField
 
 ### Community 46 - "server.mjs"
 Cohesion: 0.10
-Nodes (12): execute(), JS_WRAPPER, MAX_CONCURRENCY, MAX_QUEUE, PYTHON_WRAPPER, runScript(), server, socketDir (+4 more)
+Nodes (11): execute(), JS_WRAPPER, MAX_CONCURRENCY, MAX_QUEUE, PYTHON_WRAPPER, runScript(), server, socketDir (+3 more)
 
 ### Community 47 - "generate-baseline-sql.py"
-Cohesion: 0.06
-Nodes (60): StatementMetadata, assignToColumns(), columnText(), TableRegion, alignedBelow(), FOLDED, foldLabel(), isLabelOnly() (+52 more)
+Cohesion: 0.05
+Nodes (78): adviseColumns(), AdvisedAnalysis, ColumnAdvice, ColumnAdviceRequest, escapeRegExp(), labelsOf(), mismatchesOf(), StatementColumnAdvisorPort (+70 more)
 
 ### Community 48 - "TenantId"
-Cohesion: 0.34
-Nodes (9): DecisionBranch, CodeImportIR, GeneratedGraphPreview, assignmentsOf(), fallbackEntry(), GraphGeneratorService, reasonOf(), resultLabel() (+1 more)
+Cohesion: 0.35
+Nodes (8): DecisionBranch, CodeImportIR, GeneratedGraphPreview, assignmentsOf(), fallbackEntry(), label(), reasonOf(), resultLabel()
 
 ### Community 49 - "security.module.ts"
 Cohesion: 0.10
-Nodes (36): apply(), assign(), assignPresence(), assignTruthy(), boundFor(), Bounds, buildAffix(), buildCase() (+28 more)
+Nodes (34): apply(), assign(), assignPresence(), assignTruthy(), boundFor(), Bounds, buildAffix(), buildCase() (+26 more)
 
 ### Community 50 - "Graph Report - AtlasDecisionEngine  (2026-07-18)"
-Cohesion: 0.07
-Nodes (20): OpenRouterChatClient, ARBITRATION_SCHEMA, HumanIdentityArbitrationAdapter, OpenRouterIdentityArbitrationAdapter, payloadOf(), SYSTEM_PROMPT, Injectable, CAMPOS (+12 more)
+Cohesion: 0.06
+Nodes (32): ARBITRATION_SCHEMA, HumanIdentityArbitrationAdapter, OpenRouterIdentityArbitrationAdapter, payloadOf(), SYSTEM_PROMPT, Injectable, DisabledLivenessAdapter, HeuristicDocumentClassifierAdapter (+24 more)
 
 ### Community 51 - "SessionCookieService"
 Cohesion: 0.06
-Nodes (53): ConstraintCoherenceIssue, checkList(), checkNumeric(), checkText(), decimalsOf(), deepEquals(), FORMAT_PATTERNS, includesValue() (+45 more)
+Nodes (64): checkConstraintCoherence(), ConstraintCoherenceIssue, checkList(), checkNumeric(), checkText(), decimalsOf(), deepEquals(), FORMAT_PATTERNS (+56 more)
 
 ### Community 52 - "nest-cli.json"
 Cohesion: 0.22
 Nodes (8): collection, compilerOptions, assets, deleteOutDir, plugins, watchAssets, $schema, sourceRoot
 
 ### Community 53 - "Graph Report - AtlasDecisionEngine  (2026-07-19)"
-Cohesion: 0.05
-Nodes (24): SemanticModelProvider, classifyAttributes(), setUsageAttributes(), ModelClassification, ModelClassificationInput, abstention(), CascadingSemanticProvider, CascadingSemanticProviderOptions (+16 more)
+Cohesion: 0.20
+Nodes (4): CATEGORIAS, ENTRADA, motor, resuelveEnRapido()
 
 ### Community 55 - "package.json"
-Cohesion: 0.17
-Nodes (11): description, license, name, packageManager, private, resolutions, brace-expansion, deepmerge-ts (+3 more)
+Cohesion: 0.15
+Nodes (12): description, license, name, packageManager, private, resolutions, brace-expansion, deepmerge-ts (+4 more)
 
 ### Community 57 - ".run"
-Cohesion: 0.06
-Nodes (43): contractFromRequestBody(), contractFromSchema(), ContractMap, contractsFromParameters(), flatten(), isRecord(), ParameterLike, resolveRef() (+35 more)
+Cohesion: 0.12
+Nodes (19): CatalogManifestBlockDto, CatalogManifestDataEntityDto, CatalogManifestDto, ApiProperty, PlatformCatalogModule, Module, moduleForTable(), PlatformCatalogService (+11 more)
 
 ### Community 58 - "governance.service.ts"
-Cohesion: 0.09
-Nodes (24): Patch, parseBigIntId(), ArtifactController, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags, Body (+16 more)
+Cohesion: 0.06
+Nodes (52): Patch, parseBigIntId(), parseIfMatch(), ApiItemsResponse(), Roles(), ArtifactController, ApiCreatedResponse, ApiOkResponse (+44 more)
 
 ### Community 59 - "Graph Report - AtlasDecisionEngine  (2026-07-19)"
 Cohesion: 0.05
-Nodes (38): main(), LogFields, ComposeHtmlUseCase, Injectable, bootstrap(), auditar(), capturarPagina(), capturarVisor() (+30 more)
+Nodes (41): PdfRenderInput, PdfRenderResult, RendererHealth, LogFields, ComposeHtmlUseCase, Injectable, auditar(), capturarPagina() (+33 more)
 
 ### Community 61 - "CryptoModule"
-Cohesion: 0.10
-Nodes (11): ReadPathService, Injectable, PostgresTransactionContext, transactionClientOf(), Injectable, WritePathService, PersistenceAdapterFactory, Injectable (+3 more)
+Cohesion: 0.09
+Nodes (13): ReadPathService, Injectable, PostgresTransactionContext, transactionClientOf(), Injectable, WritePathService, nativeCodeOf(), normalizePostgresError() (+5 more)
 
 ### Community 62 - "ObservabilityModule"
-Cohesion: 0.12
-Nodes (19): CacheConnection, areEquivalent(), ConnectionTarget, DEFAULT_PORTS, describeTarget(), fingerprintOf(), inferProvider(), parseConnectionTarget() (+11 more)
+Cohesion: 0.26
+Nodes (12): areEquivalent(), ConnectionTarget, DEFAULT_PORTS, describeTarget(), fingerprintOf(), inferProvider(), parseConnectionTarget(), PostgresConnection (+4 more)
 
 ### Community 63 - "env.schema.ts"
-Cohesion: 0.19
-Nodes (22): OUTCOME_LABELS, FacilityOutcomeBatchDto, FacilityOutcomeDto, PendingWindowsQueryDto, RegisterFacilityBatchDto, RegisterFacilityDto, ApiProperty, ApiPropertyOptional (+14 more)
+Cohesion: 0.05
+Nodes (52): ClienteConTransaccion, consultaCrudaConTenant(), BaselineCaptureService, SnapshotRow, Injectable, OUTCOME_LABELS, FacilityOutcomeBatchDto, FacilityOutcomeDto (+44 more)
 
 ### Community 64 - "SecurityModule"
 Cohesion: 0.07
-Nodes (37): assertOpenRouterModelId(), environmentOverridesFor(), OpenRouterCatalogService, OpenRouterModelRecord, perMillion(), toModel(), Injectable, unavailable() (+29 more)
+Nodes (32): OpenRouterCatalogService, OpenRouterModelRecord, perMillion(), toModel(), Injectable, unavailable(), SemanticModelProbeService, Inject (+24 more)
 
 ### Community 65 - "ATLAS Decision Engine Backend 2.0"
 Cohesion: 0.15
 Nodes (13): ATLAS Decision Engine Backend 2.0, Autenticación, Capacidades, Clientes de integración, Documentación vigente, Estado, Identidades firmadas, Inicio local (+5 more)
 
 ### Community 67 - "README.md"
-Cohesion: 0.08
-Nodes (37): CalibrationService, Injectable, CalibrationRequestDto, DecideReidentificationDto, LEGAL_BASES, RecordConsentDto, RecordModelDossierDto, RecordPortfolioStateDto (+29 more)
+Cohesion: 0.10
+Nodes (35): CalibrationService, Injectable, CalibrationRequestDto, DecideReidentificationDto, LEGAL_BASES, RecordConsentDto, RecordModelDossierDto, RecordPortfolioStateDto (+27 more)
 
 ### Community 68 - "Arquitectura técnica"
 Cohesion: 0.06
-Nodes (30): ApiExcludeEndpoint, Req, TemplateStorePort, ManageTemplatesUseCase, TemplateInventoryEntry, Inject, Injectable, StoredTemplate (+22 more)
+Nodes (31): ApiExcludeEndpoint, Req, TEMPLATE_STORE_PORT, TemplateStorePort, ManageTemplatesUseCase, TemplateInventoryEntry, Inject, Injectable (+23 more)
 
 ### Community 69 - "ATLAS Decision Engine Backend 2.0 — Entrega final de fase"
-Cohesion: 0.22
-Nodes (10): IssueSeverity, PrintedTotals, validateStatement(), ValidationIssue, consecutiveByAccount(), isNewestFirst(), reconcileOneAccount(), reconcileRunningBalance() (+2 more)
+Cohesion: 0.11
+Nodes (29): StatementMetadata, alignedBelow(), FOLDED, foldLabel(), isLabelOnly(), readLabeledCell(), compact(), ExtractedTotals (+21 more)
 
 ### Community 70 - "Ejemplos API"
-Cohesion: 0.04
-Nodes (41): allocateOutcomeCounts(), ClassificationCache, Inject, Injectable, DecisionEngine, delModelo(), Injectable, CAJONES (+33 more)
+Cohesion: 0.10
+Nodes (17): CAJONES, CertezaDeRegla, DecisionPorRegla, GlosaFallbackClassifier, INSTRUMENTOS, ladoDelCodigo(), OrigenDeRegla, plegar() (+9 more)
 
 ### Community 71 - "Auditoría de seguridad y calidad — 2026-07-12"
-Cohesion: 0.11
-Nodes (26): ReadClient, UnsupportedCapabilityError, AdapterDescriptor, ReadAdapterHandle, AdapterCapabilities, capabilitiesOf(), CapabilityName, ENGINE_CAPABILITIES (+18 more)
+Cohesion: 0.10
+Nodes (28): ReadClient, AdapterDescriptor, ReadAdapterHandle, AdapterCapabilities, capabilitiesOf(), CapabilityName, ENGINE_CAPABILITIES, missingCapabilities() (+20 more)
 
 ### Community 72 - "jwt-verifier.service.ts"
-Cohesion: 0.04
-Nodes (41): canonicalize(), CryptoModule, Global, Module, HashService, Injectable, DECISION_ATTRIBUTES, ResolvedDeployment (+33 more)
+Cohesion: 0.08
+Nodes (9): requestedAmountOf(), RuntimeService, Injectable, systemPrincipal(), TestCaseExecutorService, Injectable, freshnessPolicyOf(), strictestSla() (+1 more)
 
 ### Community 73 - "Runbook operativo"
 Cohesion: 0.04
-Nodes (67): ASSET_RESOLVER_PORT, AssetResolverPort, BRAND_REPOSITORY_PORT, BrandRepositoryPort, DOCUMENT_STORAGE_PORT, DocumentStoragePort, EVENT_PUBLISHER_PORT, EventPublisherPort (+59 more)
+Nodes (54): ASSET_RESOLVER_PORT, AssetResolverPort, BRAND_REPOSITORY_PORT, BrandRepositoryPort, DOCUMENT_STORAGE_PORT, EVENT_PUBLISHER_PORT, EventPublisherPort, PDF_EVENT_TYPES (+46 more)
 
 ### Community 74 - "ATLAS — Paquete de arquitectura PlantUML"
-Cohesion: 0.13
-Nodes (7): ResolutionType, Injectable, UnresolvedClassificationService, ResolveInput, SIN_CATEGORIA, Injectable, UnresolvedResolutionService
+Cohesion: 0.15
+Nodes (5): Injectable, UnresolvedClassificationService, SIN_CATEGORIA, Injectable, UnresolvedResolutionService
 
 ### Community 75 - "ATLAS Decision Engine 2.0 — Production Readiness"
-Cohesion: 0.08
-Nodes (19): ResolvedAsset, DocumentSources, SharedSources, TemplateSourceLoaderPort, TemplateSourceError, ASSETS_ROOT_TOKEN, FilesystemAssetResolverAdapter, MIME_BY_EXTENSION (+11 more)
+Cohesion: 0.19
+Nodes (8): DocumentSources, SharedSources, BUNDLED_TEMPLATES_ROOT, FilesystemTemplateLoader, SHARED_STYLESHEETS, TEMPLATES_ROOT_TOKEN, Inject, Injectable
 
 ### Community 76 - "ManualReviewModule"
-Cohesion: 0.10
-Nodes (18): StoredDocumentMetadata, describeDocument(), DocumentDraft, DocumentStorageRecord, DocumentTrace, GeneratedDocument, newDocumentId(), PDF_MAGIC (+10 more)
+Cohesion: 0.15
+Nodes (9): DocumentStoragePort, StoredDocumentMetadata, DocumentStorageRecord, DocumentStorageError, buildKey(), LocalDocumentStorageAdapter, Injectable, MemoryDocumentStorageAdapter (+1 more)
 
 ### Community 77 - "TrafficRuleDto"
-Cohesion: 0.11
-Nodes (20): IDENTITY_QUEUE_STATUSES, IDENTITY_REVIEW_ACTIONS, IdentityReviewAction, IdentityReviewCategoryDto, IdentityReviewItemDto, IdentityReviewQueryDto, IdentityReviewResolvedDto, ResolveIdentityReviewDto (+12 more)
+Cohesion: 0.08
+Nodes (30): IdentityReviewController, ApiOkResponse, ApiOperation, ApiTags, Body, Controller, Get, Param (+22 more)
 
 ### Community 82 - "validate-baseline.py"
-Cohesion: 0.10
-Nodes (24): ResolveStatementReviewDto, REVIEW_ACTIONS, REVIEW_QUEUE_STATUSES, ReviewAction, StatementReprocessedDto, StatementReviewCategoryDto, StatementReviewItemDto, StatementReviewQueryDto (+16 more)
+Cohesion: 0.07
+Nodes (34): StatementReviewController, ApiOkResponse, ApiOperation, ApiTags, Body, Controller, Get, Param (+26 more)
 
 ### Community 84 - "deployment-resolver.service.ts"
-Cohesion: 0.05
-Nodes (24): PrismaSemanticAuditRepository, toResult(), Injectable, AuditClaim, SemanticAuditRepository, SemanticJobQueue, SemanticMetricsRecorder, UnresolvedSink (+16 more)
+Cohesion: 0.06
+Nodes (21): PrismaSemanticAuditRepository, toResult(), Injectable, AuditClaim, SemanticAuditRepository, SemanticJobQueue, SemanticMetricsRecorder, UnresolvedSink (+13 more)
 
 ### Community 85 - "ExecutionWriterService"
 Cohesion: 0.27
 Nodes (9): debtPath, HTTP_METHODS, main(), PUBLIC_PATHS, repoRoot, reportPath, requiresSchema(), specPath (+1 more)
 
 ### Community 86 - "Despliegue"
-Cohesion: 0.09
-Nodes (30): TraceabilityController, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags, Body, Controller, Get (+22 more)
+Cohesion: 0.05
+Nodes (33): AuthenticatedPrincipal, ArtifactLifecycleService, Injectable, ArtifactService, Injectable, NotificationController, ApiOkResponse, ApiOperation (+25 more)
 
 ### Community 87 - ".getMetrics"
 Cohesion: 0.05
 Nodes (61): PdfProvenance, GENERIC_SIGNALS, InstitutionDetector, Injectable, buildDocumentFingerprint(), detectColumnHeaders(), compile(), DescriptorProvenance (+53 more)
 
 ### Community 88 - "Seguridad"
-Cohesion: 0.05
-Nodes (48): GENERATION_STATUSES, PdfGenerationController, sendPdf(), ApiBody, ApiOperation, ApiProduces, ApiResponse, ApiTags (+40 more)
+Cohesion: 0.18
+Nodes (16): PdfGenerationController, sendPdf(), ApiBody, ApiOperation, ApiProduces, ApiResponse, ApiTags, Body (+8 more)
 
 ### Community 89 - "CLAUDE.md"
 Cohesion: 0.12
 Nodes (15): Campos calculados, librerías y QA Lab (§5–§10), Contratos de variables (§1–§4), De cuándo era el dato (`freshness.ts`), El circuito de la decisión: sujeto, crédito y desenlace, El triage de extractos: rechazar no es lo mismo que preguntar, Extractos: el glosario lo publica el emisor, Generador documental (`src/pdf-worker/`), Gobierno del riesgo (`src/modules/risk-governance/`) (+7 more)
 
 ### Community 90 - "README.md"
-Cohesion: 0.04
-Nodes (50): APROBACION, CANDIDATAS, compilado, DATOS, main(), mod(), raiz, REVISION (+42 more)
+Cohesion: 0.05
+Nodes (45): APROBACION, CANDIDATAS, compilado, DATOS, main(), mod(), raiz, REVISION (+37 more)
 
 ### Community 91 - "@nestjs/cli"
-Cohesion: 0.09
-Nodes (25): AssetRow, esResumenDeSegmentos(), isUniqueViolation(), PrismaAudioAssetRepository, toRecord(), AudioRunOutcome, AudioRunResult, buildAudioOutcome() (+17 more)
+Cohesion: 0.12
+Nodes (12): AssetRow, esResumenDeSegmentos(), isUniqueViolation(), PrismaAudioAssetRepository, toRecord(), AudioAssetRecord, AudioRenderIdentity, AudioAssetRepositoryPort (+4 more)
+
+### Community 92 - "Configurable outputs and RESULT nodes"
+Cohesion: 0.12
+Nodes (6): ResolvedAsset, ASSETS_ROOT_TOKEN, FilesystemAssetResolverAdapter, MIME_BY_EXTENSION, Injectable, BrowserPool
 
 ### Community 93 - ".error"
-Cohesion: 0.07
-Nodes (28): EmbeddingProvider, ResolvedModelProviders, environmentSchema, TransformerProviderOptions, SemanticProviderError, assess(), assessOne(), buildProbes() (+20 more)
+Cohesion: 0.06
+Nodes (24): environmentSchema, TransformerProviderOptions, assess(), assessOne(), buildProbes(), CategoryProbe, ClassifierThresholds, cosineSimilarity() (+16 more)
 
 ### Community 94 - "Fase 6 — Auditoría, investigaciones y observabilidad"
-Cohesion: 0.10
-Nodes (32): diagnosticar(), Diagnostico, esPdf(), expandir(), imprimir(), main(), motorEnMedicion(), primeraQueDetiene() (+24 more)
+Cohesion: 0.14
+Nodes (22): assessAuthenticity(), AuthenticityAssessment, AuthenticityVerdict, classify(), DEFAULT_AUTHENTICITY_OPTIONS, tamperingMessage(), assessProvenance(), AUTHORING_TOOLS (+14 more)
 
 ### Community 95 - "Resumen de vistas"
 Cohesion: 0.07
 Nodes (28): Auditoría integral de endurecimiento — backend, Cuarta pasada: la superficie nueva del proceso worker, El bloqueo de la cadena de auditoría: medido, no rediseñado, Estado de partida, Gates tras los cambios — salida real, H10 — ERROR en cada apagado limpio del relay del outbox · Baja, H11 — El sidecar ejecutaba de uno en uno · **Alta** · ✅ Corregido, H12 — Un sidecar caído atrapaba la clave de idempotencia · **Alta** · ✅ Corregido (+20 more)
 
 ### Community 96 - "@nestjs/schematics"
-Cohesion: 0.07
-Nodes (39): CampoMrz, CAMPOS_MRZ_TD1, CONFUSIONES_OCR_CANDIDATAS, CONTRADICCIONES_IDENTIDAD, CORTES_DE_VIDA_ACTUALES, DIMENSIONES, GENERACION_LEGADA, IMPOSIBLE_CON_UN_SOLO_FOTOGRAMA (+31 more)
+Cohesion: 0.06
+Nodes (45): CampoMrz, CAMPOS_MRZ_TD1, CONFUSIONES_OCR_CANDIDATAS, CONTRADICCIONES_IDENTIDAD, CORTES_DE_VIDA_ACTUALES, DIMENSIONES, GENERACION_LEGADA, IMPOSIBLE_CON_UN_SOLO_FOTOGRAMA (+37 more)
 
 ### Community 97 - ".claude/settings.local.json"
-Cohesion: 0.14
-Nodes (18): ApiKeysetResponse(), KeysetMetaDto, ApiProperty, NotificationController, ApiOkResponse, ApiOperation, ApiTags, Controller (+10 more)
+Cohesion: 0.09
+Nodes (29): diagnosticar(), Diagnostico, esPdf(), expandir(), imprimir(), main(), motorEnMedicion(), primeraQueDetiene() (+21 more)
 
 ### Community 98 - "docs/plantuml/compile_all.ps1"
-Cohesion: 0.08
-Nodes (26): PdfArtifactContractAdapter, TIPO_POR_DATA_TYPE, Injectable, valoresPublicados(), VERSIONES_ESTABLES, ARTIFACT_CONTRACT_PORT, ArtifactContractPort, ArtifactFieldType (+18 more)
+Cohesion: 0.10
+Nodes (18): PdfArtifactContractAdapter, TIPO_POR_DATA_TYPE, Injectable, valoresPublicados(), VERSIONES_ESTABLES, ARTIFACT_CONTRACT_PORT, ArtifactContractPort, ArtifactFieldType (+10 more)
 
 ### Community 99 - "AuditModule"
-Cohesion: 0.18
-Nodes (6): EvaluatedTestCase, systemPrincipal(), TestAssertionResult, TestCaseExecutorService, TestCaseRecord, Injectable
+Cohesion: 0.11
+Nodes (17): AudioTtsController, ApiAcceptedResponse, ApiOkResponse, ApiOperation, ApiTags, Body, Controller, Get (+9 more)
 
 ### Community 100 - "@nestjs/schematics"
-Cohesion: 0.12
-Nodes (8): Configurable outputs and RESULT nodes, JavaScript and Python, Visual RESULT node, Criterio de “pendiente”, Matriz de implementación frente a los 22 diagramas, Reglas operativas mínimas, Reporte responsable, Seguridad
+Cohesion: 0.02
+Nodes (78): Dos cargas de trabajo, una imagen, Kubernetes reference manifests, Autenticación con bearer token, Autenticación de gestión con API key, Consultar eventos por fecha, Consultar evidencia, Ejecutar una decisión, Ejecutar una suite sin evidencia ambigua (+70 more)
 
 ### Community 101 - "@nestjs/testing"
-Cohesion: 0.12
-Nodes (5): IdentityProviderClient, Injectable, IdentitySession, IdentitySessionService, Injectable
+Cohesion: 0.18
+Nodes (5): IdentityProviderClient, Injectable, IdentityLoginOutcome, IdentityProfile, IdentitySession
 
 ### Community 102 - "prisma"
-Cohesion: 0.17
+Cohesion: 0.24
 Nodes (3): SENSITIVE_KEYS, StructuredLoggerService, Injectable
 
 ### Community 103 - "OutboxRelayService"
-Cohesion: 0.13
-Nodes (21): Roles(), CalculatedFieldController, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags, Body, Controller (+13 more)
+Cohesion: 0.16
+Nodes (16): ApiArrayResponse(), ApiOkResponse, ApiOperation, ApiTags, Controller, Get, Query, ViewsController (+8 more)
 
 ### Community 104 - "ts-jest"
-Cohesion: 0.05
-Nodes (46): persistableCarrier(), SpanAttributes, TraceCarrier, ObjectStorageService, StoredObject, Injectable, amzDate(), buildHostAndPath() (+38 more)
+Cohesion: 0.21
+Nodes (3): ObjectStorageService, Injectable, ValidatedIdentityImage
 
 ### Community 105 - "package.json"
-Cohesion: 0.11
-Nodes (20): PrismaAudioSegmentRepository, AudioAssetIdentity, AudioSegmentIdentity, buildAudioSegmentKey(), normalizeText(), AudioSegmentAssembler, hasTemplateTokens(), renderTemplate() (+12 more)
+Cohesion: 0.09
+Nodes (27): PrismaAudioSegmentRepository, AudioAssetIdentity, AudioSegmentIdentity, buildAudioAssetKey(), buildAudioSegmentKey(), normalizeText(), providerVoiceRef(), renderIdentity() (+19 more)
 
 ### Community 106 - "graph.types.ts"
-Cohesion: 0.16
-Nodes (17): OPERATION_CATEGORIES, OperationArgument, OperationCategory, OperationDefinition, OPERATIONS, OPERATIONS_BY_ID, applyOperation(), dateOf() (+9 more)
+Cohesion: 0.38
+Nodes (11): applyOperation(), dateOf(), describe(), evaluateOperation(), listOf(), num(), numberList(), numbers() (+3 more)
 
 ### Community 107 - "AuthenticationGuard"
-Cohesion: 0.36
-Nodes (8): artifact, compiled(), config, edge(), engine, inputVariable(), node(), outputVariable()
+Cohesion: 0.09
+Nodes (13): EnqueueResult, PDF_JOB_QUEUE_PORT, PdfJob, PdfJobQueuePort, QueueStats, InMemoryPdfQueueAdapter, Injectable, PdfQueueGateway (+5 more)
 
 ### Community 108 - "prisma/migrations/20260712190000_init/migration.sql"
 Cohesion: 0.20
 Nodes (9): Bugs preexistentes encontrados y corregidos, Decisiones de diseño clave (para el revisor), Estado de integración a `main` — COMPLETADO Y VERIFICADO, Frontend — también fusionado y verificado, Nota de infraestructura, Pendiente menor (no bloqueante), Qué se implementó y verificó, Reporte final de implementación — Rebanadas 2-5 (+1 more)
 
 ### Community 109 - "client"
-Cohesion: 0.02
-Nodes (113): AppendAuditEventInput, AuditService, Injectable, DomainException, parseIfMatch(), pageResult, paginationArgs(), PaginationQueryDto (+105 more)
+Cohesion: 0.03
+Nodes (78): AppendAuditEventInput, AuditService, Injectable, FixedWindowResult, MemoryCounter, MemoryEntry, HashService, Injectable (+70 more)
 
 ### Community 110 - "integration-clients.ts"
-Cohesion: 0.09
+Cohesion: 0.08
 Nodes (28): DataSubjectController, ApiOkResponse, ApiOperation, ApiTags, Body, Controller, HttpCode, Post (+20 more)
 
 ### Community 111 - ".deploy"
-Cohesion: 0.26
-Nodes (13): ApiServiceUnavailableResponse, Public(), SkipRateLimit(), HealthController, ApiOkResponse, ApiOperation, ApiTags, Controller (+5 more)
+Cohesion: 0.16
+Nodes (17): ApiServiceUnavailableResponse, Public(), SkipRateLimit(), HealthController, ApiOkResponse, ApiOperation, ApiTags, Controller (+9 more)
 
 ### Community 112 - "migration.sql"
-Cohesion: 0.08
-Nodes (34): DocumentVerdict, TriageThresholds, text(), TIPOS_DE_DOCUMENTO, ClassificationSignal, DECISIVE_COUNTER_INDICATORS, DOCUMENT_TYPES, DocumentClassifier (+26 more)
+Cohesion: 0.07
+Nodes (37): clamp(), DocumentVerdict, normalizeThresholds(), triageByConfidence(), TriageThresholds, text(), TIPOS_DE_DOCUMENTO, ClassificationSignal (+29 more)
 
 ### Community 113 - "roles-guard.spec.ts"
-Cohesion: 0.05
-Nodes (53): assertLogicalAlias(), environmentSchema, loadLiteLlmEmbeddingOptions(), loadLiteLlmProviderOptions(), assertTransferAllowed(), buildCascadeModelProvider(), buildEmbeddingProvider(), buildLiteLlmEmbeddingProvider() (+45 more)
+Cohesion: 0.04
+Nodes (62): booleanoDeConfig(), assertLogicalAlias(), environmentSchema, loadLiteLlmEmbeddingOptions(), loadLiteLlmProviderOptions(), assertTransferAllowed(), buildCascadeModelProvider(), buildEmbeddingProvider() (+54 more)
 
 ### Community 114 - "identity-integration.spec.ts"
 Cohesion: 0.13
 Nodes (14): Comandos permitidos, Comandos prohibidos, Condiciones para detenerse, Cuándo NO usarla, Cuándo usarla, Endurecimiento del backend — Atlas Decision Engine, Entregable, Evidencia requerida (+6 more)
 
 ### Community 115 - "TestRunWorkerService"
-Cohesion: 0.09
-Nodes (26): CountedRows, auditEventWhere(), executionWhere(), PostgresDecisionAuditReadAdapter, Injectable, AccessRunSummary, AuditChainBatchCriteria, AuditChainEvent (+18 more)
+Cohesion: 0.06
+Nodes (33): WriteContext, CountedRows, WriteRepository, auditEventWhere(), executionWhere(), PostgresDecisionAuditReadAdapter, Injectable, AuditQueryModule (+25 more)
 
 ### Community 116 - "AuthenticationGuard"
 Cohesion: 0.13
 Nodes (14): Comandos permitidos, Comandos prohibidos, Condiciones para detenerse, Cuándo NO usarla, Cuándo usarla, Entregable, Evidencia requerida, Flujo por fases (+6 more)
 
 ### Community 117 - "migration.sql"
-Cohesion: 0.04
-Nodes (50): ClienteConTransaccion, consultaCrudaConTenant(), BaselineCaptureService, SnapshotRow, Injectable, AdverseImpactGroup, adverseImpactRatios(), AdverseImpactResult (+42 more)
+Cohesion: 0.07
+Nodes (32): ModelMonitoringService, Injectable, AdverseImpactGroup, adverseImpactRatios(), AdverseImpactResult, APPROVED_LABELS, bucketOfSnapshot(), bucketOfValue() (+24 more)
 
 ### Community 118 - "prisma/migrations/20260716042805_add_integration_client_registry/migration.sql"
 Cohesion: 0.06
-Nodes (66): boundaryCandidates(), CaseKind, distribute(), generateBoundaryValue(), generateCases(), generateCasesOfKinds(), generateInvalidValue(), generateValidValue() (+58 more)
+Nodes (55): boundaryCandidates(), CaseKind, distribute(), generateBoundaryValue(), generateCases(), generateCasesOfKinds(), generateInvalidValue(), generateValidValue() (+47 more)
 
 ### Community 119 - "JwtVerifierService"
-Cohesion: 0.03
-Nodes (59): ApiExcludeController, RFC-7235, AppModule, Module, describe(), DomainExceptionFilter, Catch, RFC-7807 (+51 more)
+Cohesion: 0.17
+Nodes (18): nonEmpty(), readBoolean(), readInteger(), readPropagators(), readRatio(), readTelemetryConfig(), UNTRACED_HTTP_PATHS, buildInstrumentations() (+10 more)
 
 ### Community 120 - "DeploymentController"
-Cohesion: 0.14
-Nodes (29): agrupar(), Categoria, Clasificacion, comoTextos(), cortarCobertura(), cortarColisiones(), cortarCompetencia(), cortarDecisiones() (+21 more)
+Cohesion: 0.12
+Nodes (31): agrupar(), Categoria, Clasificacion, comoTextos(), cortarCobertura(), cortarColisiones(), cortarCompetencia(), cortarDecisiones() (+23 more)
 
 ### Community 121 - "prisma/migrations/20260716183141_audit_access_denials/migration.sql"
 Cohesion: 0.22
 Nodes (8): API (`/v1/notifications`), Bandeja de notificaciones, Destinatarios por rol, no por usuario, Frontend, Fuera de alcance (v2 / fases posteriores), Idempotencia (exactly-once sobre at-least-once), Principio de diseño: generar desde eventos, Reglas de proyección (v1)
 
 ### Community 122 - "DomainExceptionFilter"
-Cohesion: 0.11
-Nodes (24): WorkerServiceOutcome, WorkerServiceRequest, sanitizeFileName(), validateStatementUpload(), IdentityImageKind, IncomingFile, KIND_LABEL, MIME_ALIASES (+16 more)
+Cohesion: 0.21
+Nodes (13): WorkerServiceOutcome, WorkerServiceRequest, stringArgument(), toClassificationResult(), toDomainException(), toIdentityResult(), ADR-0026, Injectable (+5 more)
 
 ### Community 123 - "prisma/migrations/20260716184106_fix_baseline_drift/migration.sql"
-Cohesion: 0.09
-Nodes (8): ConnectionRegistryService, Injectable, DataSourceHealthService, describe(), Injectable, PersistenceModule, Global, Module
+Cohesion: 0.07
+Nodes (9): CacheConnection, ConnectionRegistryService, Injectable, PersistenceModule, Global, Module, ConnectionHealth, ConnectionPoolStats (+1 more)
 
 ### Community 124 - "smoke.mjs"
-Cohesion: 0.06
-Nodes (54): CacheEntry, CachedClassification, Entrada, Decision, cosineSimilarity(), HybridCandidateRetriever, Inject, Injectable (+46 more)
+Cohesion: 0.04
+Nodes (60): RunInSpanConfiguration, TracingService, Injectable, CacheEntry, CatalogCache, Injectable, CachedClassification, Entrada (+52 more)
 
 ### Community 125 - "prisma/migrations/20260717061000_audit_hash_key_rotation/migration.sql"
 Cohesion: 0.13
@@ -1090,35 +1116,35 @@ Nodes (14): Auditoría de seguridad — Atlas Decision Engine (backend), Comando
 
 ### Community 126 - "helpers.ts"
 Cohesion: 0.07
-Nodes (36): BOLIVIA_CI_WARNINGS, BoliviaCiDocumentParser, CONFUSIONES_A_DIGITO, distanciaDeEdicion(), empiezaPor(), EXCLUSIONES, Extraction, GRAFIAS_APELLIDOS (+28 more)
+Nodes (37): BOLIVIA_CI_WARNINGS, BoliviaCiDocumentParser, CONFUSIONES_A_DIGITO, distanciaDeEdicion(), empiezaPor(), EXCLUSIONES, Extraction, GRAFIAS_APELLIDOS (+29 more)
 
 ### Community 127 - "graph-determinism.validator.ts"
-Cohesion: 0.07
-Nodes (48): fotoCualquiera(), main(), clamp(), normalizeThresholds(), triageByConfidence(), casarGrafias(), coincidenciaEnSubcadena(), contieneAproximado() (+40 more)
+Cohesion: 0.09
+Nodes (34): fotoCualquiera(), main(), casarGrafias(), coincidenciaEnSubcadena(), contieneAproximado(), distanciaEnSubcadena(), plegarConIndices(), plegarParaCotejo() (+26 more)
 
 ### Community 128 - "prisma/seed/demo-artifact.ts"
-Cohesion: 0.13
-Nodes (21): cargarMotor(), corpusDeDisco(), corpusDocumentoSelfie(), descriptorRecortado(), main(), OBJETIVO_FMR, OBJETIVO_FNMR, percentil() (+13 more)
+Cohesion: 0.09
+Nodes (27): cargarMotor(), corpusDeDisco(), corpusDocumentoSelfie(), descriptorRecortado(), main(), OBJETIVO_FMR, OBJETIVO_FNMR, percentil() (+19 more)
 
 ### Community 129 - "artifact.module.ts"
 Cohesion: 0.10
 Nodes (16): CacheModule, Global, Module, ReadOnlyConnectionError, PersistenceCoreModule, Global, Module, PrismaModule (+8 more)
 
 ### Community 130 - "ExecutionWriterService"
-Cohesion: 0.14
-Nodes (17): DeploymentController, ApiCreatedResponse, ApiOperation, ApiTags, Body, Controller, Get, Param (+9 more)
+Cohesion: 0.09
+Nodes (19): IntermediateStateEntry, IntermediateVariableSnapshot, accumulate(), IntermediateScope, IntermediateSnapshotEntry, IntermediateState, maskValue(), sanitize() (+11 more)
 
 ### Community 131 - "clean-test-data.ts"
 Cohesion: 0.15
 Nodes (13): 10. Ejecución en línea idempotente, 11. Simulación y comparación DEV/PROD, 12. Auditoría, explicabilidad y observabilidad, 1. Catálogo gobernado de variables, 2. Variables intermedias con ámbito de ejecución, 3. Contrato de salida explícito, 4. Campos calculados y librerías autorizadas, 5. Diseño, validación y compilación de algoritmos (+5 more)
 
 ### Community 132 - "cache.module.ts"
-Cohesion: 0.18
-Nodes (11): ManualReviewController, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags, Body, Controller, Get (+3 more)
+Cohesion: 0.12
+Nodes (23): ManualReviewController, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags, Body, Controller, Get (+15 more)
 
 ### Community 133 - "migration.sql"
-Cohesion: 0.14
-Nodes (26): TRANSACTION_CLIENT, ConcurrencyConflictError, ConnectionUnavailableError, DataSourceConfigurationError, DeadlockDetectedError, DuplicateEntityError, EntityNotFoundError, ForeignKeyConflictError (+18 more)
+Cohesion: 0.15
+Nodes (24): TRANSACTION_CLIENT, ConcurrencyConflictError, ConnectionUnavailableError, DeadlockDetectedError, DuplicateEntityError, EntityNotFoundError, ForeignKeyConflictError, InsufficientPrivilegeError (+16 more)
 
 ### Community 134 - "class-validator"
 Cohesion: 0.18
@@ -1129,28 +1155,28 @@ Cohesion: 0.05
 Nodes (40): Approved Libraries, Audit and Observability, Calculated Fields, Catálogo de endpoints, Code to Flow Import, Data Subject Rights, Decision Artifacts, Decision Deployments (+32 more)
 
 ### Community 136 - "@types/compression"
-Cohesion: 0.05
-Nodes (45): AdvisoryLockDomain, advisoryLockKey(), mix(), DeploymentListQueryDto, DeployVersionDto, RollbackDeploymentDto, SuspendDeploymentDto, TrafficRuleDto (+37 more)
+Cohesion: 0.07
+Nodes (39): DeploymentController, ApiCreatedResponse, ApiOperation, ApiTags, Body, Controller, Get, Param (+31 more)
 
 ### Community 137 - "@types/jest"
 Cohesion: 0.09
 Nodes (8): PrismaAudioQuotaRepository, AudioBudgetPolicy, dayKeyOf(), GenerationPurpose, Reservation, AudioQuotaRepositoryPort, BudgetSnapshot, BudgetWindow
 
 ### Community 138 - "AccessAuditInterceptor"
-Cohesion: 0.13
-Nodes (17): decodeCursor(), encodeCursor(), keysetArgs(), keysetPage, KeysetPaginationQueryDto, IsInt, IsOptional, IsString (+9 more)
+Cohesion: 0.03
+Nodes (62): canonicalize(), JsonPrimitive, JsonValue, normalize(), decodeCursor(), encodeCursor(), keysetArgs(), keysetPage (+54 more)
 
 ### Community 139 - "DeploymentResolverService"
-Cohesion: 0.07
-Nodes (40): IdentityErrorCategory, identityErrors, cuentaComoLeido(), IDENTITY_ARBITRATION_PORT, IDENTITY_CLASSIFIER_PORT, IDENTITY_EMBEDDER_PORT, IDENTITY_FACE_DETECTOR_PORT, IDENTITY_FACE_MATCH_PORT (+32 more)
+Cohesion: 0.05
+Nodes (45): Inject, IdentityErrorCategory, identityErrors, cuentaComoLeido(), IDENTITY_ARBITRATION_PORT, IDENTITY_CLASSIFIER_PORT, IDENTITY_EMBEDDER_PORT, IDENTITY_FACE_DETECTOR_PORT (+37 more)
 
 ### Community 140 - "DomainExceptionFilter"
-Cohesion: 0.11
-Nodes (25): blankToNull(), maskAccountNumber(), normalizeName(), sumOf(), toNormalizedStatement(), toNormalizedTransaction(), toNumber(), MovementType (+17 more)
+Cohesion: 0.08
+Nodes (30): ExtractionOutcome, blankToNull(), maskAccountNumber(), normalizeName(), sumOf(), toNormalizedStatement(), toNormalizedTransaction(), toNumber() (+22 more)
 
 ### Community 141 - ".hmac"
-Cohesion: 0.10
-Nodes (19): BANK_STATEMENT_OPTIONS, BankStatementModuleOptions, DEFAULT_BANK_STATEMENT_OPTIONS, dynamicImport(), importEsm(), applyTransform(), errorMessage(), LayoutPdfReader (+11 more)
+Cohesion: 0.06
+Nodes (42): ADR-0002, TextToken, AffordabilityPolicy, AuthenticityGateOptions, OcrBox, OcrPageBoxes, OcrLine, OcrPageRequest (+34 more)
 
 ### Community 142 - ".getMetrics"
 Cohesion: 0.21
@@ -1161,24 +1187,24 @@ Cohesion: 0.20
 Nodes (9): Backend — resultados de gates (salida real), Cómo se corrieron los gates, E2E (backend, contra Postgres real), Frontend, Frontend — resultados de gates (salida real), Límites y datos externos faltantes, Pruebas nuevas añadidas, Reporte de pruebas — Rebanadas 2-5 (Fases 3, 4, 5, 7, 8, 10) (+1 more)
 
 ### Community 146 - "health.module.ts"
-Cohesion: 0.17
-Nodes (11): IdentityPasswordChangedDto, IdentityPinChallengeDto, LogoutResultDto, ApiProperty, isChallengeResult(), SessionCookieService, Injectable, SessionOriginService (+3 more)
+Cohesion: 0.16
+Nodes (7): IdentitySessionModule, Module, SessionOriginService, Injectable, SessionRateLimitGuard, Injectable, guard()
 
 ### Community 147 - "main.ts"
 Cohesion: 0.10
 Nodes (21): CatalogDiscoveryService, CatalogRow, describedBy(), DiscoveredCatalog, kindOf(), MutableDataset, MutableTable, OmittedRelation (+13 more)
 
 ### Community 148 - "AccessDenialAuditorService"
-Cohesion: 0.08
-Nodes (21): Dos cargas de trabajo, una imagen, Kubernetes reference manifests, Contenedores, Desarrollo local, Despliegue, Producción, Variables que requieren una decisión explícita, Aislamiento por tenant (RLS) (+13 more)
+Cohesion: 0.09
+Nodes (9): GovernanceService, Injectable, SecurityReviewService, Injectable, TestExecutionService, Injectable, TestSuiteService, Injectable (+1 more)
 
 ### Community 150 - "Body"
-Cohesion: 0.16
-Nodes (26): PeriodCoverage, assessCoverage(), buildMonthlySeries(), classifyMovements(), isoDay(), monthsBetween(), MovementClassificationContext, observationWindow() (+18 more)
+Cohesion: 0.13
+Nodes (30): RecurringStream, assessCoverage(), buildMonthlySeries(), ClassifiedMovement, classifyMovements(), isoDay(), monthsBetween(), MovementClassificationContext (+22 more)
 
 ### Community 151 - ".deploy"
-Cohesion: 0.15
-Nodes (10): IDENTITY_REVIEW_STATUSES, IdentityRunOutcome, motivoDeRechazo(), motivoDeRevision(), outcomeForIdentityError(), PRIORIDAD_POR_MOTIVO, RECHAZO_POR_CODIGO, describeError() (+2 more)
+Cohesion: 0.14
+Nodes (12): IDENTITY_REVIEW_STATUSES, IdentityRunOutcome, MOTIVO_POR_CODIGO, motivoDeRechazo(), motivoDeRevision(), outcomeForIdentityError(), outcomeForIdentityVerdict(), PRIORIDAD_POR_MOTIVO (+4 more)
 
 ### Community 152 - "Get"
 Cohesion: 0.25
@@ -1189,8 +1215,8 @@ Cohesion: 0.25
 Nodes (7): Cargar un grafo, Guía del editor de FlowChart (Fase 3), Importar desde código (Fase 5), Nodos y aristas, Sincronización y guardado, Validar, Variables de entrada y salida
 
 ### Community 154 - "Param"
-Cohesion: 0.24
-Nodes (12): bearerFrom(), IdentitySessionController, ApiOkResponse, ApiOperation, ApiTags, Body, Controller, Headers (+4 more)
+Cohesion: 0.20
+Nodes (14): bearerFrom(), IdentitySessionController, ApiOkResponse, ApiOperation, ApiTags, Body, Controller, Headers (+6 more)
 
 ### Community 155 - "identity-session.controller.ts"
 Cohesion: 0.09
@@ -1208,10 +1234,6 @@ Nodes (6): Archivos fuente obligatorios AUSENTES, Comandos reales del proyecto (
 Cohesion: 0.29
 Nodes (6): Comandos reales del proyecto (verificados), Cómo trabaja Claude Code aquí, Dónde está cada cosa, Guía de uso — Claude Code en Atlas Decision Engine (backend), Pendiente, Reglas críticas que Claude respeta siempre
 
-### Community 159 - "IsEnum"
-Cohesion: 0.15
-Nodes (8): CalculatedFieldService, Injectable, buildSampleBatch(), MIX_BY_KIND, SampleKind, SampleRequest, seedSequence(), inputs
-
 ### Community 160 - "IsIn"
 Cohesion: 0.33
 Nodes (5): Descartados (no aplican al stack), Estado, Lo que NO se instaló (requiere aprobación humana — punto de parada), Lo que SÍ se aplicó (no destructivo, sin aprobación externa), Reporte de instalación — Claude Code
@@ -1225,136 +1247,136 @@ Cohesion: 0.33
 Nodes (5): Agentes, Reglas (`.claude/rules/`), Skills (`.claude/skills/`), Skills consideradas y NO creadas (y por qué), Trazabilidad de skills y reglas — Claude Code
 
 ### Community 163 - "IsNumber"
-Cohesion: 0.10
-Nodes (18): Alcance: qué NO está en este repositorio, Arquitectura de contenedores, Inventario de servicios, Matriz de dependencias de arranque, Matriz de puertos, Matriz de variables de entorno por sensibilidad, Matriz de volúmenes, Redes (+10 more)
+Cohesion: 0.04
+Nodes (45): Alcance: qué NO está en este repositorio, Arquitectura de contenedores, Inventario de servicios, Matriz de dependencias de arranque, Matriz de puertos, Matriz de variables de entorno por sensibilidad, Matriz de volúmenes, Redes (+37 more)
 
 ### Community 164 - "IsObject"
-Cohesion: 0.11
-Nodes (13): AudioAssetResolver, Inject, Injectable, monthKeyOf(), AudioGenerationProcessor, Inject, Injectable, parseResolveRequest() (+5 more)
+Cohesion: 0.14
+Nodes (10): AudioAssetResolver, Inject, Injectable, monthKeyOf(), AudioGenerationProcessor, Inject, Injectable, hasTemplateTokens() (+2 more)
 
 ### Community 165 - "IsOptional"
-Cohesion: 0.10
-Nodes (21): ADR-0011 — Ampliación de contratos: variables intermedias, campos calculados y QA generativo, D-10 · El límite de tres líneas cuenta sentencias, no saltos de línea, D-11 · `referenceRoot` conserva el código completo para `intermediate.*`, D-12 · `PERCENTAGE` valida el rango en la comprobación de forma, D-13 · El frontend valida, pero nunca decide, D-14 · El panel de estado enmascara de nuevo en el cliente, D-15 · La definición del campo calculado viaja EMBEBIDA en el artefacto compilado, D-16 · El cliente nunca aporta la definición ejecutable (+13 more)
+Cohesion: 0.06
+Nodes (33): ADR-0011 — Ampliación de contratos: variables intermedias, campos calculados y QA generativo, D-10 · El límite de tres líneas cuenta sentencias, no saltos de línea, D-11 · `referenceRoot` conserva el código completo para `intermediate.*`, D-12 · `PERCENTAGE` valida el rango en la comprobación de forma, D-13 · El frontend valida, pero nunca decide, D-14 · El panel de estado enmascara de nuevo en el cliente, D-15 · La definición del campo calculado viaja EMBEBIDA en el artefacto compilado, D-16 · El cliente nunca aporta la definición ejecutable (+25 more)
 
 ### Community 166 - "ArtifactLifecycleService"
-Cohesion: 0.12
-Nodes (12): IdempotencyStorePort, IdempotentOutcome, buildIdempotencyKey(), canonicalJson(), IdempotencyScope, payloadFingerprint(), replayFrom(), Entry (+4 more)
+Cohesion: 0.13
+Nodes (11): IdempotencyStorePort, IdempotentOutcome, buildIdempotencyKey(), canonicalJson(), IdempotencyScope, payloadFingerprint(), Entry, InMemoryIdempotencyStoreAdapter (+3 more)
 
 ### Community 167 - "Matches"
 Cohesion: 0.09
-Nodes (32): audioTtsAvailable(), buildAudioAssetKey(), providerVoiceRef(), renderIdentity(), ResolvedIdentity, resolveIdentity(), AUDIO_TTS_DEFAULTS, AudioStorageDriver (+24 more)
+Nodes (23): errorCodeOf(), isRetryable(), RESILIENCE_ERROR_CODES, TtsProviderError, Waiter, CircuitBreaker, CircuitBreakerOptions, CircuitState (+15 more)
 
 ### Community 168 - "AuditQueryModule"
 Cohesion: 0.09
-Nodes (13): CalculatedFieldExecutorService, Injectable, declaredOutcomes(), CalculatedFieldPreviewService, Injectable, LibraryModule, Module, LibraryService (+5 more)
+Nodes (23): CalculatedFieldExecutorService, Injectable, classifyExecution(), classifyFailure(), DeclaredOutcome, declaredOutcomes(), failureMessage(), OutcomeCode (+15 more)
 
 ### Community 169 - "Min"
-Cohesion: 0.19
-Nodes (22): AdverseImpactQueryDto, CoverageQueryDto, MonitoringWindowQueryDto, RecordMonitoringAttributeBatchDto, RecordMonitoringAttributeDto, RecordOutcomeBatchDto, RecordOutcomeDto, StabilityQueryDto (+14 more)
+Cohesion: 0.07
+Nodes (47): CutoffAnalysisService, Injectable, CoverageTotalsRow, DailyRow, DecisionCoverageService, defaultFrom(), ratio(), Injectable (+39 more)
 
 ### Community 170 - "Type"
-Cohesion: 0.11
-Nodes (27): main(), medir(), CajaDeDocumento, colorDelBorde(), contrasteDeLaCaja(), detectarCajaDelDocumento(), toleranciaDeFondo(), tramoDenso() (+19 more)
+Cohesion: 0.13
+Nodes (21): main(), medir(), CajaDeDocumento, colorDelBorde(), contrasteDeLaCaja(), detectarCajaDelDocumento(), toleranciaDeFondo(), tramoDenso() (+13 more)
 
 ### Community 173 - "safe-regex.ts"
-Cohesion: 0.14
-Nodes (22): DireccionDeclarada, GlosaOficial, TratamientoDeIngreso, ClassifiedMovement, buildCandidates(), Candidate, dedupe(), directionCoherence (+14 more)
+Cohesion: 0.15
+Nodes (20): DireccionDeclarada, GlosaOficial, TratamientoDeIngreso, buildCandidates(), Candidate, dedupe(), escapeRegex(), GlossaryLookup (+12 more)
 
 ### Community 174 - "identity-provider.client.ts"
-Cohesion: 0.14
-Nodes (14): SqlConsoleController, ApiOkResponse, ApiOperation, ApiTags, Body, Controller, Get, HttpCode (+6 more)
+Cohesion: 0.19
+Nodes (11): SqlConsoleController, ApiOkResponse, ApiOperation, ApiTags, Body, Controller, Get, HttpCode (+3 more)
 
 ### Community 175 - "IdentityLoginDto"
-Cohesion: 0.13
+Cohesion: 0.14
 Nodes (7): EngineAudioLogger, EngineAudioMetrics, AudioLogContext, AUDIO_METRIC, AudioMetricsPort, MetricLabels, Inject
 
 ### Community 177 - "migration.sql"
-Cohesion: 0.18
-Nodes (13): cleanTestArtifacts(), CleanupResult, KEEP_ARTIFACT_CODES, main(), pool, prisma, resolveBootstrapTenantId(), APPROVER_CLIENTS (+5 more)
+Cohesion: 0.27
+Nodes (8): cleanTestArtifacts(), CleanupResult, KEEP_ARTIFACT_CODES, main(), pool, prisma, resolveBootstrapTenantId(), globalTeardown()
 
 ### Community 185 - "pg"
-Cohesion: 0.09
-Nodes (23): CutoffAnalysisService, halfWidth(), Injectable, ModelMonitoringController, ApiOkResponse, ApiOperation, ApiTags, Body (+15 more)
+Cohesion: 0.11
+Nodes (21): halfWidth(), ModelMonitoringController, ApiOkResponse, ApiOperation, ApiTags, Body, Controller, Get (+13 more)
 
 ### Community 187 - ".decide"
-Cohesion: 0.17
-Nodes (12): OutcomeIngestionController, ApiOkResponse, ApiOperation, ApiTags, Body, Controller, Get, HttpCode (+4 more)
+Cohesion: 0.24
+Nodes (10): OutcomeIngestionController, ApiOkResponse, ApiOperation, ApiTags, Body, Controller, Get, HttpCode (+2 more)
 
 ### Community 192 - "main.ts"
-Cohesion: 0.10
-Nodes (9): audioAssetIdFromUri(), PrismaAudioStorageAdapter, AudioDomainError, AudioStoragePort, StoreAudioInput, StoredAudio, LocalAudioStorageAdapter, Inject (+1 more)
+Cohesion: 0.12
+Nodes (7): audioAssetIdFromUri(), PrismaAudioStorageAdapter, AudioStoragePort, StoreAudioInput, StoredAudio, LocalAudioStorageAdapter, Injectable
 
 ### Community 193 - "SessionCookieService"
 Cohesion: 0.14
 Nodes (22): pollUntil(), assert(), AUDIT, MANUAL_REVIEW, manualReview(), PLATFORM_ROLES, run(), run() (+14 more)
 
 ### Community 194 - "README.md"
-Cohesion: 0.11
-Nodes (25): ARTIFACT_SMELLS, ContractIssue, ContractValidationResult, validateCalculatedFieldContract(), validateCodeReferences(), validateOperationTree(), CodeGuardResult, countExecutableLines() (+17 more)
+Cohesion: 0.12
+Nodes (20): ARTIFACT_SMELLS, ContractIssue, ContractValidationResult, validateCalculatedFieldContract(), validateCodeReferences(), validateOperationTree(), CodeGuardResult, countExecutableLines() (+12 more)
 
 ### Community 195 - "IdentitySessionService"
-Cohesion: 0.07
-Nodes (26): ResolvedCalculatedFieldCall, ExecutionEngineService, requireFiniteNumber(), Injectable, CalculatedFieldCallSnapshot, CompiledDecisionArtifact, GraphNodeSnapshot, renderTemplate() (+18 more)
+Cohesion: 0.06
+Nodes (34): GeneratedCase, OutcomeCase, GenerateQaRunDto, GenerateSampleCasesDto, QaRunQueryDto, ReplayCounterexampleDto, ArrayMaxSize, IsArray (+26 more)
 
 ### Community 196 - "@nestjs/common"
 Cohesion: 0.07
 Nodes (28): Capturas, credit-analysis-report@1.0.0 — credit-analysis-report-1.0.0-pagina-1.png, credit-analysis-report@1.0.0 — credit-analysis-report-1.0.0-visor.png, credit-analysis-report@1.1.0 — credit-analysis-report-1.1.0-pagina-1.png, credit-analysis-report@1.1.0 — credit-analysis-report-1.1.0-pagina-2.png, credit-analysis-report@1.1.0 — credit-analysis-report-1.1.0-visor.png, Evidencia del PDF Generator Worker, generic-result-report@1.0.0 — generic-result-report-1.0.0-pagina-1.png (+20 more)
 
 ### Community 197 - "@types/node"
-Cohesion: 0.04
-Nodes (52): Cabeceras, Convenciones de la API, Códigos de estado, Forma general, Multi-tenant, Apagado ordenado, Ciclo de vida de una petición, Orden exacto (+44 more)
+Cohesion: 0.06
+Nodes (23): Glosario, Gobernanza y precedencia, Arquitectura backend (NestJS), Clean code, Seguridad, Observabilidad, Rendimiento, Pruebas (+15 more)
 
 ### Community 200 - "buildDemoGraph"
-Cohesion: 0.17
-Nodes (21): VariableDistribution, GenerateQaRunDto, GenerateSampleCasesDto, QaRunQueryDto, ReplayCounterexampleDto, ArrayMaxSize, IsArray, IsBoolean (+13 more)
+Cohesion: 0.12
+Nodes (18): BankStatementController, ApiAcceptedResponse, ApiBody, ApiConsumes, ApiOkResponse, ApiOperation, ApiTags, Body (+10 more)
 
 ### Community 201 - "helmet"
 Cohesion: 0.11
 Nodes (21): businessObjective(), calculatedField(), calculatedFieldVersion(), calculatedFieldVersionTooLong(), childArtifactCode(), codeImportOutputVariable(), decisionVariables(), graph() (+13 more)
 
 ### Community 202 - "jest"
-Cohesion: 0.14
-Nodes (15): SampleInputService, Injectable, GenerateSampleInputsDto, SimulateDecisionDto, IsBoolean, IsIn, IsInt, IsNotEmpty (+7 more)
+Cohesion: 0.04
+Nodes (51): TRANSITIONS, LANGUAGES, LibraryQueryDto, STATUSES, ArrayMaxSize, IsArray, IsIn, IsOptional (+43 more)
 
 ### Community 203 - "@opentelemetry/api"
-Cohesion: 0.05
-Nodes (38): MutableExecutionState, ArtifactReferenceResolution, ArtifactReferenceResolver, CalculatedFieldTraceEntry, DecisionReasonResult, EngineExecutionResult, ExecutionTraceStep, GraphActionSnapshot (+30 more)
+Cohesion: 0.07
+Nodes (30): ResolvedCalculatedFieldCall, ExecutionEngineService, MutableExecutionState, requireFiniteNumber(), Injectable, ArtifactReferenceResolution, ArtifactReferenceResolver, CalculatedFieldCallSnapshot (+22 more)
 
 ### Community 204 - "rxjs"
-Cohesion: 0.12
-Nodes (13): buildAudioTtsConfig(), AudioTtsRuntimeFactory, Injectable, TtsProviderHealth, TtsProviderPort, TtsSynthesisInput, TtsSynthesisResult, DisabledTtsAdapter (+5 more)
+Cohesion: 0.11
+Nodes (16): TtsProviderHealth, TtsProviderPort, TtsSynthesisInput, TtsSynthesisResult, backoffWithJitter(), ProviderRateGate, DisabledTtsAdapter, Injectable (+8 more)
 
 ### Community 226 - "migration.sql"
-Cohesion: 0.05
-Nodes (49): BANNER(), cell(), docsRoot, generateApiCatalog(), generateEntityCatalog(), generateEnvironmentCatalog(), generateErrorCatalog(), generateEventCatalog() (+41 more)
+Cohesion: 0.12
+Nodes (15): affordabilityColumns(), BankStatementRunWorkerService, describeError(), Injectable, ExtractionQuality, FAILED, outcomeForError(), outcomeForResult() (+7 more)
 
 ### Community 228 - "migration.sql"
 Cohesion: 0.16
 Nodes (18): OUT_DIR, setActor(), resolvePrincipal(), USER_ORDER, createProbe(), Reporter, loadState(), saveState() (+10 more)
 
 ### Community 230 - "migration.sql"
-Cohesion: 0.10
-Nodes (18): `api` no arranca: el host no tiene gVisor, `api` o `worker` aparecen `unhealthy` pero responden 200, Diagnóstico de problemas, `docker compose up` se detiene pidiendo una variable, El arranque falla validando la configuración, El sidecar de scripts responde 503, Jest no termina / deja conexiones abiertas, La prueba de humo devuelve 401 (+10 more)
+Cohesion: 0.17
+Nodes (12): `api` no arranca: el host no tiene gVisor, `api` o `worker` aparecen `unhealthy` pero responden 200, Diagnóstico de problemas, `docker compose up` se detiene pidiendo una variable, El arranque falla validando la configuración, El sidecar de scripts responde 503, Jest no termina / deja conexiones abiertas, La prueba de humo devuelve 401 (+4 more)
 
 ### Community 236 - "README.md"
-Cohesion: 0.07
-Nodes (24): Base de datos compartida: dos trampas conocidas, Ejecutar las pruebas, En contenedores, sin instalar nada, Pruebas sensibles a la carga, Qué necesita cada capa, Configuración, Cómo se lee la evidencia, Identidad: JWT y clave de API (+16 more)
+Cohesion: 0.15
+Nodes (11): Configuración, Cómo se lee la evidencia, Identidad: JWT y clave de API, Lo que el smoke deja atrás, Lo que encontró la primera vez que se corrió, Los tres tipos de usuario, Ni una sola omitida, Por qué el orden importa (+3 more)
 
 ### Community 247 - "README.md"
 Cohesion: 0.10
-Nodes (19): CompiledTemplate, TemplateEnginePort, formatDate(), formatDateTime(), formatNumber(), safeFormatter(), formatValue(), HELPER_NAMES (+11 more)
+Nodes (20): CompiledTemplate, TEMPLATE_ENGINE_PORT, TemplateEnginePort, formatDate(), formatDateTime(), formatNumber(), safeFormatter(), formatValue() (+12 more)
 
 ### Community 269 - "README.md"
-Cohesion: 0.17
-Nodes (17): LoginInput, PinInput, databaseIdSchema, IdentityLoginOutcome, IdentityPasswordChanged, identityPasswordChangedSchema, IdentityPinChallenge, identityPinChallengeSchema (+9 more)
+Cohesion: 0.14
+Nodes (12): LoginInput, PinInput, databaseIdSchema, identityPasswordChangedSchema, identityPinChallengeSchema, identityProfileSchema, identityProviderSessionSchema, identitySessionSchema (+4 more)
 
 ### Community 281 - ".simulate"
-Cohesion: 0.25
+Cohesion: 0.29
 Nodes (8): SimulationController, ApiCreatedResponse, ApiOperation, ApiTags, Body, Controller, Param, Post
 
 ### Community 282 - "LibraryService"
-Cohesion: 0.17
-Nodes (5): EngineSemanticMetricsRecorder, Injectable, FailureMetricEvent, ProviderMetricEvent, QueueDepthSnapshot
+Cohesion: 0.13
+Nodes (16): DecisionGuardService, ExposureRow, Injectable, canApproveReidentification(), checkConsent(), checkLimit(), ConsentInput, ConsentVerdict (+8 more)
 
 ### Community 283 - "code-import.response.dto.ts"
 Cohesion: 0.20
@@ -1365,12 +1387,12 @@ Cohesion: 0.18
 Nodes (11): ADR-0025: Umbral de archivado de `decision_execution`, Consecuencias negativas, Consecuencias positivas, Contexto, Decisión, Estado, Evidencia, Fuerzas y restricciones (+3 more)
 
 ### Community 285 - "Reintentos y cola muerta"
-Cohesion: 0.30
+Cohesion: 0.33
 Nodes (3): DATASET_NAMES, QueryExecutorService, Injectable
 
 ### Community 286 - "calculated-field.controller.ts"
-Cohesion: 0.14
-Nodes (14): API caída, Cola acumulada, Despliegue seguro, DLQ creciendo, Falla del sink de archivo, Incidente: aumento de 401, 403 o 429, Incidente: el arranque falla por configuración de datos, Incidente: incremento de NO_DECISION (+6 more)
+Cohesion: 0.13
+Nodes (18): CreateBusinessObjectiveDto, LinkPolicyArtifactDto, LinkPolicyTestSuiteDto, ObjectiveListQueryDto, PolicyRequirementDto, IsArray, IsNotEmpty, IsObject (+10 more)
 
 ### Community 287 - "NestedTreeService"
 Cohesion: 0.25
@@ -1389,20 +1411,20 @@ Cohesion: 0.22
 Nodes (9): Antes de aprobar un artefacto, Dos gobiernos distintos, Proceso de revisión, Puertas automáticas, Qué hacer ante un desacuerdo, Qué se comprueba, Revisión de artefacto, Revisión de código (+1 more)
 
 ### Community 291 - "Informe final de documentación del backend"
-Cohesion: 0.10
-Nodes (20): 10. Catálogo de datos y eventos, 11. Seguridad, 12. Observabilidad y operación, 13. Pruebas y CI/CD, 14. Métricas finales, 15. Evidencias de comandos ejecutados, 16. Riesgos residuales, 17. Declaración de preparación para producción (+12 more)
+Cohesion: 0.08
+Nodes (24): 10. Catálogo de datos y eventos, 11. Seguridad, 12. Observabilidad y operación, 13. Pruebas y CI/CD, 14. Métricas finales, 15. Evidencias de comandos ejecutados, 16. Riesgos residuales, 17. Declaración de preparación para producción (+16 more)
 
 ### Community 292 - ".run"
 Cohesion: 0.17
 Nodes (16): ExtractedField, ExtractedFieldSource, ExtractedIdentityData, caducidad(), equivalentes(), fecha(), normalizarNumero(), normalizarTexto() (+8 more)
 
 ### Community 293 - "Contexto de negocio"
-Cohesion: 0.21
-Nodes (8): AuditQueryController, ApiOkResponse, ApiOperation, ApiTags, Controller, Get, Param, Query
+Cohesion: 0.06
+Nodes (42): ApiEmptyOkResponse(), ApiKeysetResponse(), ApiPagedResponse(), KeysetMetaDto, PageMetaDto, ApiProperty, Audience(), AuditQueryController (+34 more)
 
 ### Community 294 - "Arquitectura de datos"
-Cohesion: 0.25
-Nodes (16): AbBranchDto, AbComparisonDto, AdverseImpactGroupDto, AdverseImpactReportDto, CoverageDayDto, CutoffAnalysisDto, CutoffPointDto, DecisionCoverageDto (+8 more)
+Cohesion: 0.10
+Nodes (4): JobSchedulerService, Injectable, build(), RelayInternals
 
 ### Community 295 - "Gestión del cambio"
 Cohesion: 0.19
@@ -1413,8 +1435,8 @@ Cohesion: 0.13
 Nodes (13): Aplicación en curso, Cómo se marca, Deprecación en el modelo de datos, Fases, Política de deprecación, Qué se considera retirada, Regla, Cómo se detecta (+5 more)
 
 ### Community 297 - "Pruebas extremo a extremo"
-Cohesion: 0.29
-Nodes (7): 1. Revertir la imagen, 2. Revertir el despliegue de un artefacto, 3. «Revertir» el esquema, Decidir qué revertir, Después de revertir, Reversión, Tres reversiones distintas
+Cohesion: 0.13
+Nodes (19): canonicalVariables(), newRequestId(), validateAudioRequest(), AudioRunOutcome, AudioRunResult, buildAudioOutcome(), describeReason(), REASON_LABEL (+11 more)
 
 ### Community 298 - "smoke.mjs"
 Cohesion: 0.15
@@ -1425,12 +1447,12 @@ Cohesion: 0.14
 Nodes (13): SqlConsoleQueryError, ADR-0031, QueryHistoryDto, RunQueryDto, ApiProperty, ApiPropertyOptional, IsInt, IsOptional (+5 more)
 
 ### Community 300 - "library-preludes.ts"
-Cohesion: 0.18
-Nodes (9): loadPdfWorkerEnv(), assertServiceAuthConfigured(), equalsInConstantTime(), RUTAS_PUBLICAS, SERVICE_AUTH_CONFIG, ServiceAuthConfig, ServiceAuthGuard, Inject (+1 more)
+Cohesion: 0.07
+Nodes (22): main(), LETTERHEAD_MODES, brandCatalog(), brandFromEnv(), boolean, loadPdfWorkerEnv(), optionalText, PdfWorkerEnv (+14 more)
 
 ### Community 301 - "openapi-document.ts"
-Cohesion: 0.21
-Nodes (13): attachStandardErrorResponses(), buildOpenApiDocument(), COMMON_PARAMETER_DESCRIPTIONS, declareGlobalTags(), describeCommonParameters(), OpenApiIdentity, operationIdFactory(), PUBLIC_OPENAPI_PATHS (+5 more)
+Cohesion: 0.15
+Nodes (18): stopTracing(), ApiReferenceIdentity, mountApiReference(), attachStandardErrorResponses(), buildOpenApiDocument(), COMMON_PARAMETER_DESCRIPTIONS, declareGlobalTags(), describeCommonParameters() (+10 more)
 
 ### Community 302 - "ADR-0023: Documentación generada del código"
 Cohesion: 0.14
@@ -1441,36 +1463,36 @@ Cohesion: 0.21
 Nodes (16): api(), args, asegurarSuiteBloqueante(), BASE, bindingDeCondicion(), CASOS_KYB, cuerpoDelGrafo(), DEPLOY (+8 more)
 
 ### Community 304 - "Estrategia de pruebas"
-Cohesion: 0.29
-Nodes (7): Cambios que exigen coordinación externa, Clases de cambio, Congelaciones, Después de un cambio significativo, Gestión del cambio, Trazabilidad de un cambio, Ventanas de mantenimiento
+Cohesion: 0.13
+Nodes (17): RFC-7235, AppModule, Module, ApiOperation, Get, Headers, Res, extractMetricsToken() (+9 more)
 
 ### Community 305 - "documentation-gap-analysis.md"
 Cohesion: 0.20
 Nodes (9): 1. Inventario real, 2. El problema que resolvía este reparto, 3. La decisión: `WORKER_ROLE`, 4. Despliegue, 5. Operación, 6. Evidencia, Por qué el worker carga el mismo `AppModule`, Procesamiento en segundo plano (+1 more)
 
 ### Community 306 - "Plan de corrección por fases — auditoría de producción 2026-07-31"
-Cohesion: 0.13
+Cohesion: 0.14
 Nodes (14): 1. Contexto, 2. Método, 3. Riesgos heredados y su resolución, 4.1 Alcance, 4.2 Principio seguido, 4.3 Artefactos nuevos, 4.4 Validación, 4. R1 en detalle (+6 more)
 
 ### Community 307 - "Capacidades"
-Cohesion: 0.11
-Nodes (14): Cadencia sugerida, Lo que no se puede «reparar», Qué respaldar, Recuperación a un punto en el tiempo, Respaldo y restauración, Restaurar, Antes de escalar, mida, Dos ejes independientes (+6 more)
+Cohesion: 0.05
+Nodes (38): 1. Pedir una decisión, 2. Reintentar con seguridad, 3. Simular sin persistir, 4. Recorrer la auditoría sin agotar la memoria, 5. Verificar la cadena de auditoría, 6. Manejar errores, 7. Generar un cliente, Ejemplos de integración (+30 more)
 
 ### Community 308 - "migration.sql"
 Cohesion: 0.22
 Nodes (12): ddl(), ensureRole(), fail(), grantPrivileges(), loadDotEnv(), main(), readConfig(), verify() (+4 more)
 
 ### Community 309 - "Informe de auditoría — Ampliación de contratos (2026-07-30)"
-Cohesion: 0.12
-Nodes (17): 1. Evidencia de verificación, 2. Segunda pasada: lo que faltaba, 4. Cumplimiento de los criterios de aceptación (§18), 5. Qué se decidió y por qué, 6. Pendientes y alcance no cubierto, 7. Cómo verlo funcionando, Alcance no cubierto por decisión, Backend (+9 more)
+Cohesion: 0.10
+Nodes (21): 1. Evidencia de verificación, 2. Segunda pasada: lo que faltaba, 3. Defectos reales encontrados y corregidos, 4. Cumplimiento de los criterios de aceptación (§18), 5. Qué se decidió y por qué, 6. Pendientes y alcance no cubierto, 7. Cómo verlo funcionando, Alcance no cubierto por decisión (+13 more)
 
 ### Community 310 - "Preparación para producción"
 Cohesion: 0.03
-Nodes (66): ADR-0022: OpenAPI generado como fuente de verdad del contrato, Consecuencias negativas, Consecuencias positivas, Contexto, Decisión, Estado, Evidencia, Fuerzas y restricciones (+58 more)
+Nodes (66): ADR-0021: Separación de procesos por `WORKER_ROLE`, Consecuencias negativas, Consecuencias positivas, Contexto, Decisión, Estado, Evidencia, Fuerzas y restricciones (+58 more)
 
 ### Community 311 - "Orquestación de trabajos de fondo"
-Cohesion: 0.17
-Nodes (12): 1. Retroceso adaptativo, 2. Despertar por `LISTEN`/`NOTIFY`, 3. Un solo ciclo de vida, Configuración, Docker y Kubernetes, Dónde corre cada cosa (`WORKER_ROLE`), Escribir un trabajo nuevo, Las tres piezas (+4 more)
+Cohesion: 0.09
+Nodes (13): ApiExcludeController, AccessLogInterceptor, Injectable, MetricsController, ApiTags, Controller, MetricsInterceptor, Injectable (+5 more)
 
 ### Community 312 - "Lista de comprobación"
 Cohesion: 0.17
@@ -1482,18 +1504,18 @@ Nodes (16): ColumnRef, copyTable(), EXCLUDED_SCHEMAS, ForeignKeyRef, listSeededT
 
 ### Community 314 - "module-dependencies.md"
 Cohesion: 0.05
-Nodes (20): Contenedores (C4 nivel 2), Endurecimiento aplicado a los contenedores de aplicación, Por qué cada contenedor existe, Acoplamiento por módulo, Ciclos, Dependencias entre módulos, Grafo (40 relaciones más fuertes), Contexto del sistema (C4 nivel 1) (+12 more)
+Nodes (25): Contenedores (C4 nivel 2), Endurecimiento aplicado a los contenedores de aplicación, Por qué cada contenedor existe, Acoplamiento por módulo, Ciclos, Dependencias entre módulos, Grafo (40 relaciones más fuertes), Contexto del sistema (C4 nivel 1) (+17 more)
 
 ### Community 315 - "Panorama de la arquitectura"
 Cohesion: 0.23
 Nodes (15): betaQuantile(), clopperPearson(), ConfidenceInterval, describeInterval(), incompleteBeta(), logGamma(), normalQuantile(), recruitmentSize() (+7 more)
 
 ### Community 316 - "1. Pendientes reales frente al pliego"
-Cohesion: 0.08
+Cohesion: 0.07
 Nodes (26): 0. Reparto de trabajo (leer antes de tocar nada), 1. Pendientes reales frente al pliego, 2. Fuera de alcance, por decisión explícita, 3. Sugerencia de reparto para lo que queda, 4. Lo único que sigue abierto, Aviso sobre `sidecar-concurrency.spec.ts`: una aserción estable pero vacía, ✅ Bloqueante cerrado (era del agente A), Cambios del agente A ya integrados y verificados (+18 more)
 
 ### Community 317 - "Modelo de amenazas (STRIDE)"
-Cohesion: 0.15
+Cohesion: 0.17
 Nodes (12): D · Denegación de servicio, E · Elevación de privilegios, F6 · Análisis semántico y datos de terceros, F7 · Extractos bancarios, Fronteras de confianza, I · Divulgación de información, Modelo de amenazas (STRIDE), R · Repudio (+4 more)
 
 ### Community 318 - "operation-evaluator.ts"
@@ -1521,8 +1543,8 @@ Cohesion: 0.18
 Nodes (11): Cadena de auditoría rota, Clasificación, Comunicación, Credencial comprometida, Después, Interna, Principios, Regulatoria (+3 more)
 
 ### Community 324 - "check-openapi-quality.mjs"
-Cohesion: 0.19
-Nodes (12): main(), seedSource, source, target, describeConnection(), parseBoolean(), requireSeedSource(), resolveSeedSource() (+4 more)
+Cohesion: 0.17
+Nodes (13): AdvisoryLockDomain, advisoryLockKey(), mix(), describeConnection(), parseBoolean(), requireSeedSource(), resolveSeedSource(), SeedSource (+5 more)
 
 ### Community 325 - "CalculatedFieldService"
 Cohesion: 0.18
@@ -1530,31 +1552,31 @@ Nodes (11): Campos calculados y cadenas, Catálogo, Convención para métricas n
 
 ### Community 326 - "Modelo de error"
 Cohesion: 0.16
-Nodes (13): DIRECT_ROLES, mapIdentityRoles(), ROLE_ALIASES, AuthorizationRole, isPlatformRole(), PLATFORM_ROLES, PlatformRole, RuntimeRole (+5 more)
+Nodes (20): compile(), compiledCache, isPotentiallyCatastrophic(), SafeRegexResult, safeRegexTest(), classEscapeChars(), classNode(), Cursor (+12 more)
 
 ### Community 327 - "Procesamiento en segundo plano"
-Cohesion: 0.09
-Nodes (21): ApiEmptyOkResponse(), DependencyGraphController, NestedTreeController, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags, Body (+13 more)
+Cohesion: 0.10
+Nodes (14): DependencyGraphController, NestedTreeController, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags, Body, Controller (+6 more)
 
 ### Community 328 - "Qué hace el sistema con cada clase"
-Cohesion: 0.17
-Nodes (12): API, Arquitectura, Calidad documental, Datos, Graphify, Limitaciones que quedan registradas y aceptadas, Operación, Preparación para producción (+4 more)
+Cohesion: 0.21
+Nodes (13): contractFromRequestBody(), contractFromSchema(), ContractMap, contractsFromParameters(), flatten(), isRecord(), ParameterLike, resolveRef() (+5 more)
 
 ### Community 329 - "Migraciones"
 Cohesion: 0.17
 Nodes (15): Length, ApiProperty, ApiPropertyOptional, ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsEnum (+7 more)
 
 ### Community 330 - "Diagnóstico de problemas"
-Cohesion: 0.22
-Nodes (10): IdentityReviewController, ApiOkResponse, ApiOperation, ApiTags, Body, Controller, Get, Param (+2 more)
+Cohesion: 0.15
+Nodes (10): audioTtsAvailable(), buildAudioTtsConfig(), AudioTtsRuntimeFactory, Injectable, AUDIO_TTS_DEFAULTS, AudioStorageDriver, AudioTtsConfig, AudioTtsProviderName (+2 more)
 
 ### Community 331 - "Registros"
-Cohesion: 0.29
-Nodes (13): bracketDelta(), endOfLine(), matchDelimiter(), readJavaScript(), readJavaScriptChain(), readLines(), readPython(), readPythonChain() (+5 more)
+Cohesion: 0.26
+Nodes (14): bracketDelta(), endOfLine(), matchDelimiter(), readJavaScript(), readJavaScriptChain(), readLines(), readPython(), readPythonChain() (+6 more)
 
 ### Community 332 - "Escalado"
-Cohesion: 0.16
-Nodes (7): CoverageTotalsRow, DailyRow, DecisionCoverageService, defaultFrom(), ratio(), Injectable, WindowTotalsRow
+Cohesion: 0.15
+Nodes (7): describe(), DomainExceptionFilter, Catch, catchWithin(), contextManager, exporter, host()
 
 ### Community 333 - "0. Reparto de trabajo (leer antes de tocar nada)"
 Cohesion: 0.17
@@ -1565,12 +1587,12 @@ Cohesion: 0.18
 Nodes (11): Acciones ejecutadas a partir de esta auditoría, Auditoría del grafo de conocimiento (Graphify), Componentes de alta centralidad, Componentes huérfanos, Dependencias circulares entre módulos, Divergencia entre el grafo y el disco, El disco tiene código que el grafo desconoce, El grafo menciona ficheros que ya no existen (+3 more)
 
 ### Community 335 - "Seguridad de dependencias"
-Cohesion: 0.29
-Nodes (12): IsEmail, IdentityLoginDto, IdentityLoginPinDto, IdentityLogoutDto, IdentityPasswordChangeConfirmDto, IdentityPasswordChangeRequestDto, IsBoolean, IsOptional (+4 more)
+Cohesion: 0.19
+Nodes (19): IsEmail, IdentityLoginDto, IdentityLoginPinDto, IdentityLogoutDto, IdentityPasswordChangeConfirmDto, IdentityPasswordChangeRequestDto, IsBoolean, IsOptional (+11 more)
 
 ### Community 336 - "qa-lab.controller.ts"
-Cohesion: 0.19
-Nodes (6): AccessAuditInterceptor, Injectable, requestOrigin, agruparPantallas(), ScreenRun, correr()
+Cohesion: 0.27
+Nodes (4): AccessAuditInterceptor, Injectable, requestOrigin, correr()
 
 ### Community 337 - "governance-scenarios.seed.ts"
 Cohesion: 0.17
@@ -1581,8 +1603,8 @@ Cohesion: 0.17
 Nodes (11): ALLOWED_LOGO_TYPES, hasActiveMarkup(), institutionLogoSeed, InstitutionLogoSource, LOGO_DIR, readInstitutionLogo(), Escenario, Fila (+3 more)
 
 ### Community 339 - "TestRunWorkerService"
-Cohesion: 0.17
-Nodes (12): 10. Escalamiento, 11. Capacidades complementarias y sus límites, 1. Separación Control Plane / Data Plane, 2. Núcleo determinista, 3. Persistencia, 4. Inmutabilidad y estados, 5. Gobierno, 6. Seguridad (+4 more)
+Cohesion: 0.16
+Nodes (12): ActiveTraceIds, EMPTY, readActiveTraceId(), readActiveTraceIds(), TraceContextService, Injectable, TraceResponseInterceptor, Injectable (+4 more)
 
 ### Community 340 - "Componentes (C4 nivel 3)"
 Cohesion: 0.14
@@ -1590,7 +1612,7 @@ Nodes (14): Cuatro medidas sobre el dinero, sin un solo umbral, Cuatro reglas qu
 
 ### Community 341 - "2. Segunda pasada: lo que faltaba"
 Cohesion: 0.15
-Nodes (20): QUALIFIED_RELATIONS, commonTableExpressions(), FORBIDDEN_BARE_WORDS, FORBIDDEN_FUNCTIONS, FORBIDDEN_KEYWORDS, FORBIDDEN_NAME_PATTERNS, FUNCTION_CALL(), GuardResult (+12 more)
+Nodes (19): QUALIFIED_RELATIONS, commonTableExpressions(), FORBIDDEN_BARE_WORDS, FORBIDDEN_FUNCTIONS, FORBIDDEN_KEYWORDS, FORBIDDEN_NAME_PATTERNS, FUNCTION_CALL(), GuardResult (+11 more)
 
 ### Community 342 - "Política de documentación"
 Cohesion: 0.25
@@ -1601,16 +1623,16 @@ Cohesion: 0.22
 Nodes (9): Al añadir una alerta, Alertas, Altas — atención en horario, Criterio, Críticas — despiertan a alguien, Cuáles están implementadas, Lo que no se alerta por métrica, Medias — revisar en el día (+1 more)
 
 ### Community 345 - "Despliegue"
-Cohesion: 0.13
-Nodes (15): docsRoot, graphPath, listModules(), listSourceFiles(), main(), moduleOf(), RELATION_MEANING, repoRoot (+7 more)
+Cohesion: 0.31
+Nodes (8): docsRoot, graphPath, listModules(), listSourceFiles(), main(), moduleOf(), RELATION_MEANING, repoRoot
 
 ### Community 346 - "Sondas de salud"
-Cohesion: 0.17
-Nodes (12): Comparación código ↔ grafo, Configuración, Decisión de diseño: contrato declarado, no inferido, Ejecución aislada, Endpoints, Errores por línea, Generación del grafo (`GraphGeneratorService`), Generador Código → Flow (Fase 5) (+4 more)
+Cohesion: 0.20
+Nodes (14): BankStatementFixture, bolivianos(), columns(), header(), MESES, Movement, table(), buildSyntheticPdf() (+6 more)
 
 ### Community 347 - "final-validation.md"
 Cohesion: 0.20
-Nodes (16): GuardViolation, CatalogColumnDto, CatalogDatasetDto, CatalogTableDto, ConsoleLimitsDto, OmittedRelationDto, QueryEstimateDto, QueryHistoryEntryDto (+8 more)
+Nodes (17): GuardViolation, CatalogColumnDto, CatalogDatasetDto, CatalogTableDto, ConsoleLimitsDto, OmittedRelationDto, QueryEstimateDto, QueryHistoryEntryDto (+9 more)
 
 ### Community 349 - "Datos de prueba"
 Cohesion: 0.23
@@ -1629,8 +1651,8 @@ Cohesion: 0.29
 Nodes (7): Autorización, Dónde se decide, El comodín y su límite, Recurso de otro tenant, Roles, Segregación de funciones, Tres capas independientes
 
 ### Community 353 - "Filtrado y ordenamiento"
-Cohesion: 0.18
-Nodes (11): Configuración (`env.schema.ts`, bloque aditivo), Creación manual, por JS y por Python, Ejecución y trazabilidad, Endpoints, Mapeo de variables, Modelo de datos, Pendiente / fuera de alcance de esta rebanada, Pruebas (+3 more)
+Cohesion: 0.17
+Nodes (6): describeError(), isRecord(), SemanticRunWorkerService, Injectable, scheduler, trace
 
 ### Community 354 - "Límites de tasa"
 Cohesion: 0.29
@@ -1641,8 +1663,8 @@ Cohesion: 0.25
 Nodes (7): API keys, Autenticación, De dónde salen la identidad y los roles, Denegaciones, JWT, Modos, Sesión del portal
 
 ### Community 356 - "Base de datos"
-Cohesion: 0.12
-Nodes (8): daysAgo(), PrismaAuditRetentionRepository, PrismaTenantBudgetRepository, Injectable, Inject, AuditRetentionRepository, TenantBudgetRepository, TenantBudgetUsage
+Cohesion: 0.09
+Nodes (13): daysAgo(), PrismaAuditRetentionRepository, PrismaTenantBudgetRepository, Injectable, AuditRetentionService, Inject, Injectable, AUDIT_RETENTION_REPOSITORY (+5 more)
 
 ### Community 357 - "Semillas"
 Cohesion: 0.25
@@ -1657,16 +1679,16 @@ Cohesion: 0.32
 Nodes (6): LayoutEdge, LayoutNode, layoutSeedNodes(), longestPathLevels(), NodePosition, orderRowsByBarycentre()
 
 ### Community 360 - "OutcomeIngestionService"
-Cohesion: 0.33
-Nodes (11): CABECERA(), escribir(), formatear(), generarExtractos(), generarIdentidad(), Json, leerCorpus(), lit() (+3 more)
+Cohesion: 0.36
+Nodes (12): CABECERA(), escribir(), formatear(), generarExtractos(), generarIdentidad(), generarSegundaTanda(), Json, leerCorpus() (+4 more)
 
 ### Community 361 - "document-samples.ts"
-Cohesion: 0.12
-Nodes (21): CodeImportController, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags, Body, Controller, Get (+13 more)
+Cohesion: 0.16
+Nodes (11): AnalyzeCodeImportDto, SaveCodeImportDto, IsIn, IsInt, IsOptional, IsString, Matches, MaxLength (+3 more)
 
 ### Community 362 - "qa-lab.response.dto.ts"
-Cohesion: 0.07
-Nodes (34): ApiItemsResponse(), LibraryController, ApiCreatedResponse, ApiOperation, ApiTags, Body, Controller, Get (+26 more)
+Cohesion: 0.21
+Nodes (9): LibraryController, ApiCreatedResponse, ApiOperation, ApiTags, Body, Controller, Get, Post (+1 more)
 
 ### Community 363 - "Componentes (C4 nivel 3)"
 Cohesion: 0.29
@@ -1681,20 +1703,20 @@ Cohesion: 0.29
 Nodes (7): Al menos una vez, Apagado, Configuración, Dónde corre, Orden, Reclamo atómico, Semántica de entrega
 
 ### Community 366 - "Tableros"
-Cohesion: 0.29
+Cohesion: 0.25
 Nodes (7): 1. Salud del plano de decisión, 2. Trabajos de fondo, 3. Calidad de datos y contratos, 4. Motor y ejecución, 5. Taxonomía de errores, Convenciones, Tableros
 
 ### Community 367 - "Pruebas extremo a extremo"
-Cohesion: 0.29
-Nodes (7): Escribir una nueva, Estado real, Infraestructura, no mocks, Lo que las e2e no cubren, Pruebas extremo a extremo, Qué cubren, Utilidades
+Cohesion: 0.13
+Nodes (13): Escribir una nueva, Estado real, Infraestructura, no mocks, Lo que las e2e no cubren, Pruebas extremo a extremo, Qué cubren, Utilidades, Estado honesto (+5 more)
 
 ### Community 368 - "Mapa de contenido — Arquitectura"
 Cohesion: 0.29
 Nodes (7): 1. Vista general, 2. El camino de una decisión, 3. Gobierno del artefacto, 4. Fuera de la petición, 5. Superficie HTTP, 6. Qué exige un cambio arquitectónico, Mapa de contenido — Arquitectura
 
 ### Community 369 - "@prisma/client"
-Cohesion: 0.18
-Nodes (11): ADR-0021: Separación de procesos por `WORKER_ROLE`, Consecuencias negativas, Consecuencias positivas, Contexto, Decisión, Estado, Evidencia, Fuerzas y restricciones (+3 more)
+Cohesion: 0.26
+Nodes (16): ArtifactRefDto, BusinessObjectiveBaseDto, BusinessObjectiveCreatedDto, BusinessObjectiveDetailDto, BusinessObjectiveListItemDto, CoverageMatrixDto, CoverageMatrixObjectiveDto, PolicyArtifactLinkCreatedDto (+8 more)
 
 ### Community 370 - "Mapa de integraciones"
 Cohesion: 0.33
@@ -1717,8 +1739,8 @@ Cohesion: 0.33
 Nodes (6): Autorización, Clases exportadas, Códigos de error propios, Endpoints, Módulo `security-review`, Responsabilidad
 
 ### Community 375 - "Matriz de trazabilidad"
-Cohesion: 0.33
-Nodes (5): Capacidades, Controles de seguridad, Cómo mantenerla, Matriz de trazabilidad, Trabajos de fondo
+Cohesion: 0.14
+Nodes (10): IdentityImageKind, IncomingFile, KIND_LABEL, MIME_ALIASES, newRequestId(), validateIdentityUpload(), FILES, huella() (+2 more)
 
 ### Community 376 - "Módulo `artifacts`"
 Cohesion: 0.33
@@ -1737,8 +1759,8 @@ Cohesion: 0.33
 Nodes (6): Autorización, Clases exportadas, Códigos de error propios, Endpoints, Módulo `code-import`, Responsabilidad
 
 ### Community 380 - "Línea base"
-Cohesion: 0.10
-Nodes (21): Atributos, Convención de nombres de span, Criterio de aceptación, Decisiones, Desarrollo — directo a Jaeger, Estrategia de cierre, Estrategia para datos sensibles, Estrategia para logs (+13 more)
+Cohesion: 0.15
+Nodes (13): Atributos, Convención de nombres de span, Decisiones, Estrategia de cierre, Estrategia para datos sensibles, Estrategia para logs, Estrategia para trabajos programados, Estrategia para workers y colas (+5 more)
 
 ### Community 381 - "Arquitectura de seguridad"
 Cohesion: 0.20
@@ -1785,8 +1807,8 @@ Cohesion: 0.33
 Nodes (6): Autorización, Clases exportadas, Códigos de error propios, Endpoints, Módulo `live-execution`, Responsabilidad
 
 ### Community 392 - "ATLAS Decision Platform — Backend"
-Cohesion: 0.20
-Nodes (10): Autenticación con bearer token, Autenticación de gestión con API key, Consultar eventos por fecha, Consultar evidencia, Ejecutar una decisión, Ejecutar una suite sin evidencia ambigua, Ejemplos API, Forzar revisión manual por fraude (+2 more)
+Cohesion: 0.12
+Nodes (15): 0. Reglas que la respuesta DEBE cumplir (no negociables), 1. Lo que el corpus anterior YA resolvió (no volver a pedirlo), 2. Lo que NINGUNA investigación puede resolver (no pedirlo), 3. PEDIDO, en orden de impacto medido, 4. Forma de entrega, Pedido de investigación profunda — Atlas, workers de documentos (2026-09-11), PRIORIDAD 1 — Glosas oficiales de los emisores que no son BCP (`extractos G10`), PRIORIDAD 2 — Ficha de formato por emisor (`extractos G09`, `G05`, `G11`, `G12`) (+7 more)
 
 ### Community 393 - "Módulo `manual-review`"
 Cohesion: 0.33
@@ -1813,8 +1835,8 @@ Cohesion: 0.27
 Nodes (10): api(), CASOS, clasificar(), ganadora(), headers, items(), main(), MAX_ESPERA (+2 more)
 
 ### Community 399 - "job-scheduler-mutual-exclusion.spec.ts"
-Cohesion: 0.04
-Nodes (48): booleanoDeConfig(), ConfigReader, runsBackgroundJobs(), servesHttp(), WORKER_ROLES, WorkerRole, workerRoleOf(), BackgroundJob (+40 more)
+Cohesion: 0.11
+Nodes (25): ConfigReader, runsBackgroundJobs(), servesHttp(), WORKER_ROLES, WorkerRole, workerRoleOf(), BackgroundJob, JobCadence (+17 more)
 
 ### Community 400 - "sidecar-concurrency.spec.ts"
 Cohesion: 0.33
@@ -1857,8 +1879,8 @@ Cohesion: 0.15
 Nodes (4): RunScopedAudioQueue, AudioGenerationJobPayload, AudioQueuePort, PublishResult
 
 ### Community 410 - "RateLimitGuard"
-Cohesion: 0.23
-Nodes (3): CodeImportService, Injectable, AnalyzeCodeImportResult
+Cohesion: 0.22
+Nodes (4): IdentityPasswordChanged, IdentityPinChallenge, IdentitySessionService, Injectable
 
 ### Community 411 - "17. Declaración de preparación para producción"
 Cohesion: 0.11
@@ -1900,10 +1922,6 @@ Nodes (6): Autorización, Clases exportadas, Códigos de error propios, Endpoint
 Cohesion: 0.33
 Nodes (6): Autorización, Clases exportadas, Códigos de error propios, Endpoints, Módulo `runtime`, Responsabilidad
 
-### Community 422 - "prisma"
-Cohesion: 0.15
-Nodes (6): CAJONES, ReevaluationState, ReevaluationSummary, Injectable, UnresolvedReevaluationService, servicio()
-
 ### Community 423 - "ts-node"
 Cohesion: 0.33
 Nodes (6): Autorización, Clases exportadas, Códigos de error propios, Endpoints, Módulo `sql-console`, Responsabilidad
@@ -1925,8 +1943,8 @@ Cohesion: 0.12
 Nodes (15): A0 — Copias de `.env` con secretos, sin ignorar, A1 — Código fuente fuera del control de versiones, A2 — Sentencias crudas sobre tablas con RLS forzada, fuera de transacción, B1 — El motor no fallaba cerrado ante un número no finito, B2 — Carrera entre el titular caducado y quien reclama la idempotencia, B3 — Sin análisis estático ni suelo de cobertura, B4 — Cuatro módulos sin ninguna prueba, C1–C5 (+7 more)
 
 ### Community 428 - "IntermediateVariableDto"
-Cohesion: 0.02
-Nodes (98): ADR-0024: Adopción de SLO, RTO y RPO, Consecuencias negativas, Consecuencias positivas, Contexto, Decisión, Estado, Evidencia, Fuerzas y restricciones (+90 more)
+Cohesion: 0.18
+Nodes (11): ADR-0024: Adopción de SLO, RTO y RPO, Consecuencias negativas, Consecuencias positivas, Contexto, Decisión, Estado, Evidencia, Fuerzas y restricciones (+3 more)
 
 ### Community 429 - "CalculatedFieldsModule"
 Cohesion: 0.33
@@ -1961,8 +1979,8 @@ Cohesion: 0.33
 Nodes (6): Autorización, Clases exportadas, Códigos de error propios, Endpoints, Módulo `views`, Responsabilidad
 
 ### Community 437 - "FilesystemTemplateLoader"
-Cohesion: 0.13
-Nodes (26): canonicalReturnType(), classifyExecution(), classifyFailure(), DeclaredOutcome, failureMessage(), OutcomeCode, POLICY_FIELDS, POLICY_LABELS (+18 more)
+Cohesion: 0.17
+Nodes (16): ApprovalEvidenceDto, CreateCustomApprovalStepDto, RecordApprovalDecisionDto, SubmitReviewDto, IsArray, IsBoolean, IsDateString, IsIn (+8 more)
 
 ### Community 438 - "ADR-0031 — Generador documental como worker desacoplado"
 Cohesion: 0.14
@@ -1997,20 +2015,20 @@ Cohesion: 0.33
 Nodes (6): Autorización, Clases exportadas, Códigos de error propios, Endpoints, Módulo `workers`, Responsabilidad
 
 ### Community 446 - "mrz-td1.ts"
-Cohesion: 0.20
-Nodes (20): ALPHA_FIXES, cabeceraPlausible(), candidateLines(), checkDigit(), compositeCheck(), compuesto(), esControlLegible(), interpretar() (+12 more)
+Cohesion: 0.17
+Nodes (22): avisosDe(), ALPHA_FIXES, cabeceraPlausible(), candidateLines(), checkDigit(), compositeCheck(), compuesto(), esControlLegible() (+14 more)
 
 ### Community 447 - "ClassificationCache"
-Cohesion: 0.36
-Nodes (9): ExecutionDetailRefDto, ExecutionReasonRefDto, ExecutionStepRefDto, ExecutionSummaryRefDto, ExecutionVariableRefDto, ManualReviewDetailDto, ManualReviewListItemDto, ManualReviewWriteResultDto (+1 more)
+Cohesion: 0.23
+Nodes (5): CatalogManifestEndpointDto, ApiPropertyOptional, READONLY_METHODS, RouteInventoryService, Injectable
 
 ### Community 448 - "ADR-0027 — Tecnología de mensajería: conservar el outbox transaccional sobre PostgreSQL"
-Cohesion: 0.15
-Nodes (13): ADR-0027 — Tecnología de mensajería: conservar el outbox transaccional sobre PostgreSQL, Alternativas evaluadas, Contexto, Coste operativo, Cuándo habría que migrar, Decisión, Despliegue, Notas por alternativa (+5 more)
+Cohesion: 0.05
+Nodes (35): ADR-0027 — Tecnología de mensajería: conservar el outbox transaccional sobre PostgreSQL, Alternativas evaluadas, Contexto, Coste operativo, Cuándo habría que migrar, Decisión, Despliegue, Notas por alternativa (+27 more)
 
 ### Community 449 - "Decisión"
-Cohesion: 0.08
-Nodes (25): ADR-0030: Integración del worker de verificación de identidad, Apagar la prueba de vida sigue siendo posible, y sigue costando, Calibrar con las parejas del tipo correcto, Consecuencias, Contexto, Cómo se comprobó, Decisión, El documento se recorta del fondo antes de leerlo (+17 more)
+Cohesion: 0.11
+Nodes (19): Apagar la prueba de vida sigue siendo posible, y sigue costando, Calibrar con las parejas del tipo correcto, Decisión, El documento se recorta del fondo antes de leerlo, El protocolo de captura se colapsa a una ejecución, El rostro se ALINEA antes de describirlo, La lectura y la biometría son REALES, locales y sin red, La prueba de vida es pasiva, y sobre una entrada fabricada NO se ejecuta (+11 more)
 
 ### Community 450 - "Fase 18 — Política de privacidad de las trazas"
 Cohesion: 0.15
@@ -2042,7 +2060,7 @@ Nodes (3): categoria(), SemanticCategoryService, Injectable
 
 ### Community 457 - "persistence/architecture.md"
 Cohesion: 0.03
-Nodes (74): ADR-0029 — Superficie de persistencia desacoplada con rutas de lectura y escritura separadas, Consecuencias negativas, Consecuencias positivas, Contexto, Decisión, Evidencia, Fuerzas y restricciones, Opciones consideradas (+66 more)
+Nodes (70): Arquitectura de datos, Crecimiento y su control, Familias de tablas, Invariantes de datos, Motor y acceso, Transacciones, Al escribir una migración, Compatibilidad hacia atrás (+62 more)
 
 ### Community 458 - "Roles y privilegios PostgreSQL"
 Cohesion: 0.17
@@ -2057,8 +2075,8 @@ Cohesion: 0.29
 Nodes (6): ATLAS Decision Engine 2.0 — Production Readiness, Estado honesto, Gates obligatorios antes de Go-Live, Mejoras incorporadas en 2.0, Riesgos abiertos, SLO inicial propuesto
 
 ### Community 461 - "semantic-calibration.mjs"
-Cohesion: 0.12
-Nodes (43): label(), assessAffordability(), assessExpenses(), assessIncome(), assessObligations(), assessSignals(), bandOf(), computeCapacity() (+35 more)
+Cohesion: 0.13
+Nodes (40): assessAffordability(), assessExpenses(), assessIncome(), assessObligations(), assessSignals(), bandOf(), computeCapacity(), computeScore() (+32 more)
 
 ### Community 462 - "operations.mjs"
 Cohesion: 0.18
@@ -2069,24 +2087,24 @@ Cohesion: 0.14
 Nodes (10): api(), codigos, codigosFixture, escenario, escenarios, esperados, esperarTerminal(), extractos (+2 more)
 
 ### Community 464 - "QueryHistoryDto"
-Cohesion: 0.42
-Nodes (8): FacilityRegistrationResultDto, OutcomeBatchResultDto, PendingWindowDto, PendingWindowsDto, RowResultDto, ApiProperty, VintageCellDto, VintageMatrixDto
+Cohesion: 0.22
+Nodes (3): numeroDeConfig(), OutboxRelayService, Injectable
 
 ### Community 465 - "Catálogo por paquete"
 Cohesion: 0.18
 Nodes (11): Actores, Auditoría y monitoreo, Cadena de inclusión de los casos críticos, Casos de uso, Catálogo por paquete, Despliegue, Diseño, Gobierno (+3 more)
 
 ### Community 466 - "Consistencia, transacciones y recuperación ante fallos"
-Cohesion: 0.09
-Nodes (20): Clasificación de datos, Datos que no pasan por el contrato de variables, En el contrato publicado, En la evidencia persistida, En la traza, En los registros, Niveles, Qué hace el sistema con cada clase (+12 more)
+Cohesion: 0.18
+Nodes (11): Ciclo de vida y apagado ordenado, Consistencia, transacciones y recuperación ante fallos, Documentos relacionados, Errores normalizados, Estrategia ante fallo de lectura, Modelo de consistencia, Métricas, Qué está anclado al primario y por qué (+3 more)
 
 ### Community 467 - "Catálogo"
 Cohesion: 0.18
 Nodes (11): `bank-statement.process`, Catálogo, Criterio de inclusión, `decision.execute`, Fase 8 — Catálogo de spans de negocio, `job.run`, Lo que deliberadamente **no** se instrumenta, `outbox.dispatch` (+3 more)
 
 ### Community 468 - "Matriz de controles regulatorios"
-Cohesion: 0.33
-Nodes (3): CURRENCY_CODES, EntityResolver, Injectable
+Cohesion: 0.12
+Nodes (12): Catalog, CURRENCY_CODES, EntityResolver, Injectable, AliasMatch, CAMPOS_DE_GLOSA, FoldedText, ROTULOS (+4 more)
 
 ### Community 469 - "Módulo — <nombre>"
 Cohesion: 0.18
@@ -2112,25 +2130,29 @@ Nodes (7): 1. Una tercera compuerta, la PRIMERA: el contenedor, 2. Tres meses na
 Cohesion: 0.12
 Nodes (18): buildCipher(), claimCorrelation(), AudioDataKey, AudioValueCipher, deriveLegacyV1(), deriveV2(), KDF_SALT, parsePreviousKeys() (+10 more)
 
+### Community 475 - "graph-worker-validator.spec.ts"
+Cohesion: 0.20
+Nodes (9): readCarrier(), SpanOperation, readRetryable(), readStringProperty(), recordSpanError(), SpanErrorDetails, stableErrorCode(), toRecordableError() (+1 more)
+
 ### Community 476 - "qa-lab-generator-constraints.spec.ts"
-Cohesion: 0.31
-Nodes (9): LibraryQueryDto, ArrayMaxSize, IsArray, IsIn, IsOptional, IsString, Matches, MaxLength (+1 more)
+Cohesion: 0.36
+Nodes (13): BANNER(), cell(), docsRoot, generateApiCatalog(), generateEntityCatalog(), generateEnvironmentCatalog(), generateErrorCatalog(), generateEventCatalog() (+5 more)
 
 ### Community 477 - "Bitácora"
 Cohesion: 0.20
 Nodes (10): 2026-08-04 — Agente de **documentación**, 2026-08-04 — Agente de **workers adicionales**, 2026-08-05 — Agente de **dockerización, mensajería e infraestructura**, Actualización: la suite entera en verde (2026-08-06), Al agente de **observabilidad** (2026-08-04), Aviso al agente de observabilidad (2026-08-05, segunda tanda), Bitácora, Coordinación entre agentes (+2 more)
 
 ### Community 478 - "Enrutamiento de lectura y escritura"
-Cohesion: 0.31
-Nodes (6): config, engine, intermediate(), node(), snapshot(), variable()
+Cohesion: 0.27
+Nodes (7): config, engine, intermediate(), node(), snapshot(), validate(), variable()
 
 ### Community 479 - "AccessLogInterceptor"
 Cohesion: 0.25
 Nodes (7): arrowParens, endOfLine, printWidth, semi, singleQuote, tabWidth, trailingComma
 
 ### Community 480 - "Resiliencia: catálogo de escenarios"
-Cohesion: 0.20
-Nodes (10): Al añadir un escenario, Capacidad: una pregunta distinta, Cómo se ejecuta, El catálogo, El hallazgo: escalar workers NO acelera el reparto, El reloj va acelerado, la lógica no, Escenarios no cubiertos, Por qué el banco NO usa `tmpfs` para la base (+2 more)
+Cohesion: 0.24
+Nodes (10): main(), seedSource, source, target, APPROVER_CLIENTS, BootstrapClientSummary, parseList(), seedIntegrationClients() (+2 more)
 
 ### Community 481 - "Triage de extractos y cola de revisión humana"
 Cohesion: 0.15
@@ -2145,8 +2167,8 @@ Cohesion: 0.18
 Nodes (8): El atajo: resolver sin preguntarle a nadie, El rescate por lentitud, El último escalón, La distinción: se publica QUÉ, y también QUIÉN lo decidió, Las dos capas de reglas, Ninguna glosa se queda sin categoría, Qué lo vigila, Resolución jerárquica contra el catálogo del tenant
 
 ### Community 484 - "audit-high.mjs"
-Cohesion: 0.20
-Nodes (9): avisos, avisosDe(), BLOQUEANTES, ejecutarAudit(), incluirDesarrollo, ORDEN, porSeveridad, resumen (+1 more)
+Cohesion: 0.22
+Nodes (8): avisos, BLOQUEANTES, ejecutarAudit(), incluirDesarrollo, ORDEN, porSeveridad, resumen, salida()
 
 ### Community 485 - "resilience-test.sh"
 Cohesion: 0.44
@@ -2176,9 +2198,9 @@ Nodes (10): Almacenamiento — decisión pendiente por diseño, Componentes y pu
 Cohesion: 0.67
 Nodes (5): SampleBatchDto, SampleCaseDto, SimulatorSampleInputsDto, ApiProperty, VersionSampleInputsDto
 
-### Community 492 - "CircuitBreaker"
-Cohesion: 0.09
-Nodes (15): errorCodeOf(), isRetryable(), RESILIENCE_ERROR_CODES, TtsProviderError, Bulkhead, Waiter, CircuitBreaker, CircuitBreakerOptions (+7 more)
+### Community 493 - "graph-calculated-fields.spec.ts"
+Cohesion: 0.30
+Nodes (10): StoredObject, amzDate(), buildHostAndPath(), hmac(), PresignInput, presignS3Url(), S3Credentials, sha256Hex() (+2 more)
 
 ### Community 494 - "@opentelemetry/instrumentation-express"
 Cohesion: 0.20
@@ -2213,16 +2235,16 @@ Cohesion: 0.22
 Nodes (9): ResolveUnresolvedDto, ApiPropertyOptional, IsIn, IsObject, IsOptional, IsString, MaxLength, Type (+1 more)
 
 ### Community 502 - "Plan de migración, rollback y despliegue"
-Cohesion: 0.25
-Nodes (5): assessment(), CANDIDATOS, ENTRADA, Llamada, respuestaOk()
+Cohesion: 0.12
+Nodes (11): SemanticTimeoutError, assessment(), CANDIDATOS, ENTRADA, Llamada, respuestaOk(), assessment(), CANDIDATOS (+3 more)
 
 ### Community 503 - "prom-client"
 Cohesion: 0.28
 Nodes (7): ficheros(), importsDe(), infracciones(), PROHIBIDO_EN_APLICACION, PROHIBIDO_EN_DOMINIO, PROHIBIDO_EN_TODO, ROOT
 
 ### Community 504 - "Semillas del motor"
-Cohesion: 0.25
-Nodes (8): 1. Pedir una decisión, 2. Reintentar con seguridad, 3. Simular sin persistir, 4. Recorrer la auditoría sin agotar la memoria, 5. Verificar la cadena de auditoría, 6. Manejar errores, 7. Generar un cliente, Ejemplos de integración
+Cohesion: 0.33
+Nodes (9): ArtifactReferenceEdge, buildAdjacency(), computeMaxDepthFrom(), CycleCheckResult, detectCycle(), findAncestors(), findPath(), DependencyGraphEdge (+1 more)
 
 ### Community 505 - "Trazas"
 Cohesion: 0.22
@@ -2237,8 +2259,8 @@ Cohesion: 0.25
 Nodes (7): Catálogo de categorías del worker semántico, Cinco archivos, una responsabilidad cada uno, Coste: qué crece y qué no, De un vistazo, Después de tocar el catálogo hay que recalibrar, La regla que decide si un rubro merece hoja propia, Lo que el ensamblado se niega a dejar pasar
 
 ### Community 508 - "calibrar-identidad.mjs"
-Cohesion: 0.22
-Nodes (8): Auditoría de seguridad y calidad — 2026-07-12, Hallazgos revisados sin acción (falsos positivos / severidad no justificada), P0 — El checksum del grafo nunca coincide entre `validate` y `compile`, P0 — `prisma migrate deploy` / `prisma db seed` fallan siempre (motor wasm), P1 — DTOs del grafo sin cota superior de tamaño, P1 — Sin rate limiting en intentos de autenticación fallidos, P2 — God classes (>300 líneas, responsabilidades mezcladas), P2 — Lógica de plantillas `{{path}}` duplicada
+Cohesion: 0.05
+Nodes (30): Cambios que exigen coordinación externa, Clases de cambio, Congelaciones, Después de un cambio significativo, Gestión del cambio, Trazabilidad de un cambio, Ventanas de mantenimiento, Estado documental de partida (+22 more)
 
 ### Community 509 - "merge-coverage.mjs"
 Cohesion: 0.25
@@ -2249,8 +2271,12 @@ Cohesion: 0.36
 Nodes (7): clasificar(), normalizar(), palabras(), PORT, puntuar(), server, VACIAS
 
 ### Community 511 - "Verificación integral — todas las rebanadas"
-Cohesion: 0.25
-Nodes (7): Configuración y seguridad, Diseño, Ejecución en vivo (Fase 8), Endpoint, Fuera de alcance, Justificación de arquitectura, Pruebas
+Cohesion: 0.20
+Nodes (4): allocateOutcomeCounts(), ClassificationCache, Inject, Injectable
+
+### Community 512 - "Bulkhead"
+Cohesion: 0.20
+Nodes (10): ADR-0029 — Superficie de persistencia desacoplada con rutas de lectura y escritura separadas, Consecuencias negativas, Consecuencias positivas, Contexto, Decisión, Evidencia, Fuerzas y restricciones, Opciones consideradas (+2 more)
 
 ### Community 513 - "Lo que enseñaron cinco cédulas bolivianas auténticas"
 Cohesion: 0.22
@@ -2272,25 +2298,21 @@ Nodes (7): Dos defectos del propio banco, encontrados al ejecutarlo, El catálog
 Cohesion: 0.25
 Nodes (5): config, loadDotEnv(), REPO_ROOT, PLATFORM_ROLES, READ_ROLES
 
-### Community 520 - "ATLAS Decision Engine — Catálogo de vistas por fases"
-Cohesion: 0.29
-Nodes (6): ATLAS — Paquete de arquitectura PlantUML, Compilación, Diagramas incluidos, Linux/macOS, PowerShell, Principios de diseño incorporados
-
 ### Community 521 - "semantic-catalogo-version-firma.spec.ts"
-Cohesion: 0.23
-Nodes (12): AuditEventKeysetQueryDto, AuditEventSearchQueryDto, ExecutionSearchQueryDto, IsDateString, IsOptional, IsString, MaxLength, AuditQueryService (+4 more)
+Cohesion: 0.22
+Nodes (4): RetentionSweeperService, Injectable, fakeScheduler, prismaDouble()
 
 ### Community 523 - "PdfHealthService"
-Cohesion: 0.44
-Nodes (3): PdfHealthService, reasonOf(), Injectable
+Cohesion: 0.22
+Nodes (9): Clasificación de datos, Datos que no pasan por el contrato de variables, En el contrato publicado, En la evidencia persistida, En la traza, En los registros, Niveles, Qué hace el sistema con cada clase (+1 more)
 
 ### Community 525 - "ReadContext"
-Cohesion: 0.33
-Nodes (5): Defectos detectados y corregidos, Entorno aislado, Gates y evidencia real, Límites que permanecen abiertos, Verificación integral del backend — 2026-07-28
+Cohesion: 0.22
+Nodes (8): Apagado, Configuración de las sondas, Endpoints, Liveness, Quién más consume estas sondas, Readiness, Sondas de salud, Una sola definición de «listo»
 
 ### Community 526 - "semantic-category.controller.ts"
-Cohesion: 0.33
-Nodes (4): @prisma/client, @prisma/client, claim(), ADR-0026
+Cohesion: 0.18
+Nodes (7): @prisma/client, @prisma/client, publishWithin(), directReadAdapterFactory(), uniqueTenantId(), claim(), ADR-0026
 
 ### Community 527 - "Fase 6, 7 y 18 — Imagen del backend, workers y optimización"
 Cohesion: 0.33
@@ -2325,16 +2347,16 @@ Cohesion: 0.33
 Nodes (6): Autorización, Clases exportadas, Códigos de error propios, Endpoints, Módulo `platform-catalog`, Responsabilidad
 
 ### Community 536 - "bcp-column-alignment.spec.ts"
-Cohesion: 0.10
-Nodes (18): ADR-0002, TextToken, OcrBox, ocrLinesFromBoxes(), OcrPageBoxes, OcrLine, OcrPageRequest, OcrRequest (+10 more)
+Cohesion: 0.47
+Nodes (3): line(), page(), token()
 
 ### Community 537 - "quality.mjs"
 Cohesion: 0.25
 Nodes (7): DECIDE, GOVERNANCE_READ, QA_AUTHOR, QA_LAB, QA_LAB_READ, QA_READ, SUBMIT
 
 ### Community 538 - "Migraciones"
-Cohesion: 0.40
-Nodes (5): 2.1 Artefactos, 2.2 Versiones y editor gráfico, Contrato disponible para el editor, Diseño mínimo del editor F2-08, Fase 2 — Artefactos, versiones y grafo de decisión
+Cohesion: 0.22
+Nodes (8): LIVE_EXECUTION_ENVIRONMENT_CODES, LiveExecutionEnvironmentCode, LiveExecutionStreamQueryDto, IsIn, IsOptional, IsString, Matches, MaxLength
 
 ### Community 539 - "ATLAS Decision Platform — Backend"
 Cohesion: 0.29
@@ -2369,36 +2391,52 @@ Cohesion: 0.60
 Nodes (5): cleanup(), info(), log(), load-test.sh script, sql()
 
 ### Community 548 - "Los dos corpus de referencia"
-Cohesion: 0.33
-Nodes (5): Cómo se usan, Derechos, Los dos corpus de referencia, Por qué están DENTRO del repositorio, Qué NO son
+Cohesion: 0.29
+Nodes (6): Cómo se usan, Derechos, Lo que falta, y por qué está pedido así, Los dos corpus de referencia, Por qué están DENTRO del repositorio, Qué NO son
 
 ### Community 549 - "job-scheduler-mutual-exclusion.spec.ts"
-Cohesion: 0.70
-Nodes (3): SemanticCategoryDto, SemanticCategoryImportSummaryDto, ApiProperty
+Cohesion: 0.25
+Nodes (6): SemanticCategoryDto, SemanticCategoryImportSummaryDto, ApiProperty, CAJONES, ReevaluationState, ReevaluationSummary
+
+### Community 550 - "Decisión"
+Cohesion: 0.25
+Nodes (8): Datos personales, La purga de idempotencia, en detalle, La retención del texto analizado, en detalle, Lo que todavía no vence, Por familia de datos, Regla que condiciona todo lo demás, Retención, Umbral de archivado de `decision_execution`
 
 ### Community 551 - "Arquitectura de datos"
-Cohesion: 0.33
-Nodes (6): Arquitectura de datos, Crecimiento y su control, Familias de tablas, Invariantes de datos, Motor y acceso, Transacciones
+Cohesion: 0.25
+Nodes (8): Criterio de aceptación, Desarrollo — directo a Jaeger, Estructura de ficheros, Fase 17 — muestreo, valores de partida, Fase 1 — Diseño de la arquitectura de observabilidad, Principio rector, Producción — a través del Collector, Topología
 
 ### Community 552 - "Superficie de persistencia"
-Cohesion: 0.50
-Nodes (4): armar(), config, FilaFalsa, prismaFalso()
+Cohesion: 0.29
+Nodes (5): servicio(), armar(), config, FilaFalsa, prismaFalso()
 
 ### Community 553 - "Persistencia políglota"
-Cohesion: 0.50
-Nodes (4): 3. Defectos reales encontrados y corregidos, D-A · Una decisión declinada en KYC moría con `REQUIRED_OUTPUT_MISSING`, D-B · La validación de referencias rechazaba las salidas implícitas del motor, D-C · Un helper Python no podía llamar a otro helper
+Cohesion: 0.25
+Nodes (7): Aprobar / rechazar / solicitar cambios (RBAC real), Clasificación de severidad, Endpoints y roles, Exportar reporte, Pruebas, Qué agrega, Vista de equipo de seguridad (Fase 10)
 
 ### Community 554 - "Base de datos"
-Cohesion: 0.50
-Nodes (4): 1. Convenciones, 2. Orden de implementación, ATLAS Decision Engine — Catálogo de vistas por fases, Estados visuales obligatorios
+Cohesion: 0.25
+Nodes (8): Capas, Cobertura donde importa, Estado actual, con salida real, Estrategia de pruebas, Lecciones que moldearon esta estrategia, Principio, Pruebas sensibles a la carga, Qué exige una feature nueva
 
 ### Community 555 - "Propiedad"
 Cohesion: 0.33
 Nodes (6): Al transferir la propiedad de un área, Guardia, Por área, Propiedad, Propiedad de los datos, Áreas críticas
 
+### Community 556 - "Módulo `data-subject`"
+Cohesion: 0.25
+Nodes (7): Bases de larga vida, Datos de prueba, Datos sintéticos, no reales, Limpieza, Reproducibilidad del generador, Tres orígenes, Valores de prueba para el simulador
+
+### Community 557 - "BaselineCaptureService"
+Cohesion: 0.29
+Nodes (7): desdeArg, destino, [destinoArg, ...resto], extensionDe(), main(), prisma, storage
+
 ### Community 558 - "run-jest.mjs"
 Cohesion: 0.40
 Nodes (4): child, jestBin, nodeOptions, require
+
+### Community 559 - "ManualReviewService"
+Cohesion: 0.25
+Nodes (4): ManualReviewService, supervisa(), SUPERVISION_ROLES, Injectable
 
 ### Community 560 - "Recursos del generador documental"
 Cohesion: 0.40
@@ -2444,65 +2482,145 @@ Nodes (3): Defecto 3: la segmentación de red no existía y el cierre de puertos
 Cohesion: 0.67
 Nodes (3): Pendientes reales, R1, cerrado de raíz, Sobre las condiciones de la máquina
 
+### Community 572 - ".manifest"
+Cohesion: 0.25
+Nodes (6): PlatformCatalogController, ApiOkResponse, ApiOperation, ApiTags, Controller, Get
+
 ### Community 577 - "Mapa de contenido — Reglas, prompts y skills"
 Cohesion: 0.33
 Nodes (6): 1. Reglas de diseño, 2. Prompts y contexto, 3. Skills, 4. Gobierno del proceso, 5. La regla que sostiene a las demás, Mapa de contenido — Reglas, prompts y skills
+
+### Community 582 - "litellm-gateway-contract.integration.spec.ts"
+Cohesion: 0.25
+Nodes (4): ENTRADA, Manejador, PeticionRecibida, RESPUESTA_VALIDA
+
+### Community 583 - "Runbook — Contratos de variables, intermedias y contrato de salida"
+Cohesion: 0.29
+Nodes (6): Incidente: la respuesta no trae un campo esperado, Incidente: no se puede publicar por `VARIABLE_CONTRACT_INCOMPATIBLE`, Incidente: sube `VARIABLE_MISSING_OR_INVALID` en runtime, Incidente: una intermedia aparece `INVALID` o aborta la ejecución, Runbook — Contratos de variables, intermedias y contrato de salida, Verificación tras cualquier cambio
 
 ### Community 584 - "statement-affordability.spec.ts"
 Cohesion: 0.47
 Nodes (5): AffordabilityInput, AffordabilityTransaction, MESES, movimiento(), tresMeses()
 
 ### Community 585 - "variable.response.dto.ts"
-Cohesion: 0.07
-Nodes (46): ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags, Body, Controller, Get, Param (+38 more)
+Cohesion: 0.06
+Nodes (49): compareBound(), Injectable, VariableContractService, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags, Body (+41 more)
+
+### Community 586 - "Runbook — QA Lab: corridas generativas y contraejemplos"
+Cohesion: 0.29
+Nodes (6): Cambió el generador: ¿siguen valiendo las corridas antiguas?, Reproducir un contraejemplo, Runbook — QA Lab: corridas generativas y contraejemplos, Una corrida agota su tiempo o carga demasiado el motor, Una corrida no encuentra nada y se sospecha que no prueba lo que importa, Verificación
+
+### Community 587 - "Auditabilidad"
+Cohesion: 0.29
+Nodes (7): Auditabilidad, Cómo se hace efectiva, Qué garantiza la cadena, Qué se audita, Rotación de la clave de firma, Si la verificación falla, Verificar
 
 ### Community 588 - "Eventos de dominio — panorama"
-Cohesion: 0.40
-Nodes (5): Alcance actual, Eventos de dominio — panorama, Piezas, Por qué hay un outbox, Versionado de payloads
+Cohesion: 0.29
+Nodes (6): Concurrencia, Datos de prueba compartidos, Escribir una nueva, Por qué RLS no se puede probar con un mock, Pruebas de integración, Qué demuestran
+
+### Community 589 - "Verificación — {{date}}"
+Cohesion: 0.29
+Nodes (6): Conclusión, Entorno, Límites de esta corrida, Resultados, Salidas, Verificación — {{date}}
+
+### Community 590 - "check-doc-links.mjs"
+Cohesion: 0.43
+Nodes (6): docsRoot, excludedPatterns(), main(), markdownFiles(), navigationPaths(), repoRoot
 
 ### Community 591 - "Módulo `graph`"
 Cohesion: 0.40
 Nodes (5): Autorización, Clases exportadas, Códigos de error propios, Módulo `graph`, Responsabilidad
 
+### Community 592 - "worker-service-nodes.e2e-spec.ts"
+Cohesion: 0.52
+Nodes (6): edge(), graphBody(), intermediate(), node(), resultNode(), RFC-7807
+
 ### Community 593 - "Documentación del backend"
-Cohesion: 0.33
+Cohesion: 0.40
 Nodes (5): Documentación del backend, Documentación generada (no editar a mano), Documentos vigentes, Evidencia fechada e histórica, Regla de mantenimiento
+
+### Community 594 - "Objetivos de nivel de servicio"
+Cohesion: 0.33
+Nodes (6): Dependencia de terceros, Indicadores, Lo que estos objetivos NO cubren, Objetivos adoptados, Objetivos de nivel de servicio, Presupuesto de error
 
 ### Community 595 - "Cliente y transporte de modelos de lenguaje"
 Cohesion: 0.40
 Nodes (4): Cliente y transporte de modelos de lenguaje, La regla que gobierna a los tres consumidores, Por qué vive en `common` y no dentro de un worker, Taxonomía de errores
 
 ### Community 596 - "4. Cambios realizados"
-Cohesion: 0.50
-Nodes (4): 4. Cambios realizados, Dockerización, Documentación, Procesos de fondo
+Cohesion: 0.33
+Nodes (6): 1. `CLAUDE.md` — lo invariante, 2. `.claude/rules/` — lo condicional, 3. `.claude/skills/` — lo procedimental, 4. El prompt de la tarea — lo variable, Capas de contexto, Orden de resolución ante un conflicto
 
 ### Community 597 - "governance.response.dto.ts"
-Cohesion: 0.15
-Nodes (12): GovernanceController, ApiOperation, ApiTags, Body, Controller, Get, Param, Post (+4 more)
+Cohesion: 0.26
+Nodes (9): GovernanceController, ApiOperation, ApiTags, Body, Controller, Get, Param, Post (+1 more)
 
 ### Community 598 - "balance-series.ts"
 Cohesion: 0.50
 Nodes (3): BalanceSeries, buildBalanceSeries(), EMPTY
 
+### Community 599 - "Gestión de secretos"
+Cohesion: 0.33
+Nodes (6): En producción, Gestión de secretos, Inventario, Regla, Rotar la clave de auditoría, Verificación
+
+### Community 601 - "Arquitectura de seguridad"
+Cohesion: 0.33
+Nodes (6): Activos que hay que proteger, Arquitectura de seguridad, Controles por capa, Decisiones de seguridad y su razón, Endurecimiento del sandbox de scripts, Lo que la plataforma NO protege
+
+### Community 602 - "Mapa de contenido — Seguridad y operación"
+Cohesion: 0.33
+Nodes (6): 1. Seguridad, 2. Observabilidad, 3. Operación, 4. Pruebas, 5. El límite que no se cruza, Mapa de contenido — Seguridad y operación
+
+### Community 604 - "job-scheduler-mutual-exclusion.spec.ts"
+Cohesion: 0.53
+Nodes (5): countingJob(), fakeMetrics(), fakeSignal(), makeScheduler(), sleep()
+
+### Community 605 - "Convenciones de la API"
+Cohesion: 0.40
+Nodes (5): Cabeceras, Convenciones de la API, Códigos de estado, Forma general, Multi-tenant
+
+### Community 606 - "Ciclo de vida de una petición"
+Cohesion: 0.40
+Nodes (5): Apagado ordenado, Ciclo de vida de una petición, Orden exacto, Qué garantiza cada paso, Ruta de decisión, con sus particularidades
+
+### Community 607 - "Requisitos previos"
+Cohesion: 0.40
+Nodes (4): Lo que hace falta, Requisitos previos, Servicios externos, Verificación rápida
+
+### Community 608 - "Ejecutar las pruebas"
+Cohesion: 0.40
+Nodes (5): Base de datos compartida: dos trampas conocidas, Ejecutar las pruebas, En contenedores, sin instalar nada, Pruebas sensibles a la carga, Qué necesita cada capa
+
+### Community 609 - "Límites e higiene"
+Cohesion: 0.40
+Nodes (5): Acciones que exigen aprobación explícita, Evidencia: la regla que más se incumple, Higiene de contexto, Límites e higiene, Qué revisar en una respuesta antes de aceptarla
+
+### Community 610 - "ATLAS Decision Platform — bóveda de documentación"
+Cohesion: 0.40
+Nodes (5): ATLAS Decision Platform — bóveda de documentación, Documentación que se genera sola, Mapas de contenido, Primeros pasos, Qué distingue a este backend
+
+### Community 612 - "object-storage.module.ts"
+Cohesion: 0.50
+Nodes (3): ObjectStorageModule, Global, Module
+
 ## Knowledge Gaps
-- **3431 isolated node(s):** `singleQuote`, `semi`, `trailingComma`, `printWidth`, `tabWidth` (+3426 more)
+- **3469 isolated node(s):** `singleQuote`, `semi`, `trailingComma`, `printWidth`, `tabWidth` (+3464 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **114 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **117 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `PrismaService` connect `client` to `artifact.module.ts`, `parseBigIntId`, `views.controller.ts`, `PrismaService`, `migration.sql`, `@types/compression`, `deployment.controller.ts`, `@types/jest`, `.append`, `job-scheduler-mutual-exclusion.spec.ts`, `variable-resolution.service.ts`, `main.ts`, `.deploy`, `RateLimitGuard`, `MetricsService`, `Inventario de fuentes de datos y matriz de accesos`, `ajv-formats`, `IsEnum`, `institution-logo-upload.spec.ts`, `.logout`, `prisma`, `AuditQueryModule`, `env.schema.ts`, `SessionCookieService`, `FilesystemTemplateLoader`, `pg`, `governance.service.ts`, `.decide`, `.run`, `CryptoModule`, `main.ts`, `SecurityModule`, `README.md`, `IdentitySessionService`, `README.md`, `check-openapi-quality.mjs`, `Auditoría de seguridad y calidad — 2026-07-12`, `jwt-verifier.service.ts`, `Procesamiento en segundo plano`, `variable.response.dto.ts`, `SemanticCategoryService`, `Escalado`, `TrafficRuleDto`, `rxjs`, `ATLAS — Paquete de arquitectura PlantUML`, `qa-lab.controller.ts`, `variable-catalog.data.ts`, `validate-baseline.py`, `deployment-resolver.service.ts`, `Despliegue`, `.getMetrics`, `final-validation.md`, `@nestjs/cli`, `Pruebas de contrato`, `docs/plantuml/compile_all.ps1`, `migration.sql`, `Base de datos`, `prisma`, `OutboxRelayService`, `ts-jest`, `document-samples.ts`, `package.json`, `integration-clients.ts`, `migration.sql`, `JwtVerifierService`?**
-  _High betweenness centrality (0.076) - this node is a cross-community bridge._
-- **Why does `Roles()` connect `OutboxRelayService` to `CacheService`, `ExecutionWriterService`, `cache.module.ts`, `views.controller.ts`, `artifact.dto.ts`, `deployment.controller.ts`, `semantic-catalogo-version-firma.spec.ts`, `manual-review.controller.ts`, `Ambientes`, `variable-resolution.service.ts`, `runtime.service.ts`, `.simulate`, `CreateTestSuiteDto`, `Contexto de negocio`, `Arquitectura de datos`, `Gestión del cambio`, `job-scheduler-mutual-exclusion.spec.ts`, `@types/express`, `pagination.dto.ts`, `env.schema.ts`, `migration.sql`, `identity-provider.client.ts`, `pg`, `governance.service.ts`, `.decide`, `.run`, `SecurityModule`, `README.md`, `Arquitectura técnica`, `Modelo de error`, `Procesamiento en segundo plano`, `variable.response.dto.ts`, `Diagnóstico de problemas`, `QueryHistoryDto`, `validate-baseline.py`, `governance.response.dto.ts`, `Despliegue`, `Seguridad`, `.claude/settings.local.json`, `document-samples.ts`, `qa-lab.response.dto.ts`, `client`, `integration-clients.ts`, `Convenciones de la API`?**
-  _High betweenness centrality (0.043) - this node is a cross-community bridge._
-- **Why does `AuthenticatedPrincipal` connect `deployment.controller.ts` to `ExecutionWriterService`, `cache.module.ts`, `PrismaService`, `artifact.dto.ts`, `@types/compression`, `manual-review.controller.ts`, `Ambientes`, `.append`, `variable-resolution.service.ts`, `.simulate`, `RateLimitGuard`, `IsEnum`, `CreateTestSuiteDto`, `.logout`, `Arquitectura de datos`, `Gestión del cambio`, `pagination.dto.ts`, `env.schema.ts`, `migration.sql`, `identity-provider.client.ts`, `FilesystemTemplateLoader`, `pg`, `governance.service.ts`, `.decide`, `SecurityModule`, `README.md`, `IdentitySessionService`, `README.md`, `Procesamiento en segundo plano`, `jwt-verifier.service.ts`, `variable.response.dto.ts`, `Diagnóstico de problemas`, `@opentelemetry/api`, `TrafficRuleDto`, `QueryHistoryDto`, `validate-baseline.py`, `governance.response.dto.ts`, `Despliegue`, `final-validation.md`, `.claude/settings.local.json`, `AuditModule`, `OutboxRelayService`, `ts-jest`, `document-samples.ts`, `qa-lab.response.dto.ts`, `client`, `integration-clients.ts`, `Convenciones de la API`, `migration.sql`, `DomainExceptionFilter`?**
-  _High betweenness centrality (0.040) - this node is a cross-community bridge._
+- **Why does `PrismaService` connect `PrismaService` to `artifact.module.ts`, `parseBigIntId`, `views.controller.ts`, `migration.sql`, `@types/compression`, `semantic-catalogo-version-firma.spec.ts`, `AccessAuditInterceptor`, `@types/jest`, `.append`, `semantic-category.controller.ts`, `job-scheduler-mutual-exclusion.spec.ts`, `variable-resolution.service.ts`, `main.ts`, `AccessDenialAuditorService`, `.deploy`, `LibraryService`, `MetricsService`, `Inventario de fuentes de datos y matriz de accesos`, `calculated-field.controller.ts`, `IsEnum`, `CreateTestSuiteDto`, `ajv-formats`, `institution-logo-upload.spec.ts`, `.logout`, `job-scheduler-mutual-exclusion.spec.ts`, `prisma`, `Arquitectura de datos`, `Min`, `env.schema.ts`, `ManualReviewService`, `SessionCookieService`, `pg`, `governance.service.ts`, `.run`, `CryptoModule`, `env.schema.ts`, `main.ts`, `SecurityModule`, `IdentitySessionService`, `README.md`, `check-openapi-quality.mjs`, `Auditoría de seguridad y calidad — 2026-07-12`, `Procesamiento en segundo plano`, `jwt-verifier.service.ts`, `jest`, `variable.response.dto.ts`, `rxjs`, `TrafficRuleDto`, `SemanticCategoryService`, `ATLAS — Paquete de arquitectura PlantUML`, `qa-lab.controller.ts`, `QueryHistoryDto`, `variable-catalog.data.ts`, `validate-baseline.py`, `deployment-resolver.service.ts`, `Despliegue`, `.getMetrics`, `final-validation.md`, `@nestjs/cli`, `Pruebas de contrato`, `Filtrado y ordenamiento`, `docs/plantuml/compile_all.ps1`, `migration.sql`, `Base de datos`, `document-samples.ts`, `package.json`, `client`, `integration-clients.ts`, `.deploy`, `roles-guard.spec.ts`, `migration.sql`, `Semillas del motor`, `prisma/migrations/20260716184106_fix_baseline_drift/migration.sql`?**
+  _High betweenness centrality (0.083) - this node is a cross-community bridge._
+- **Why does `AuthenticatedPrincipal` connect `Despliegue` to `cache.module.ts`, `PrismaService`, `artifact.dto.ts`, `deployment.controller.ts`, `@types/compression`, `AccessAuditInterceptor`, `Ambientes`, `.append`, `variable-resolution.service.ts`, `.simulate`, `calculated-field.controller.ts`, `IsEnum`, `CreateTestSuiteDto`, `.logout`, `Contexto de negocio`, `Gestión del cambio`, `Min`, `pagination.dto.ts`, `env.schema.ts`, `migration.sql`, `identity-provider.client.ts`, `ManualReviewService`, `pg`, `governance.service.ts`, `.decide`, `env.schema.ts`, `SqlConsoleService`, `SecurityModule`, `IdentitySessionService`, `README.md`, `Procesamiento en segundo plano`, `jwt-verifier.service.ts`, `variable.response.dto.ts`, `jest`, `@opentelemetry/api`, `buildDemoGraph`, `TrafficRuleDto`, `validate-baseline.py`, `governance.response.dto.ts`, `final-validation.md`, `AuditModule`, `document-samples.ts`, `qa-lab.response.dto.ts`, `client`, `integration-clients.ts`, `Convenciones de la API`, `@prisma/client`, `roles-guard.spec.ts`, `Semillas del motor`, `DomainExceptionFilter`?**
+  _High betweenness centrality (0.041) - this node is a cross-community bridge._
+- **Why does `Roles()` connect `governance.service.ts` to `CacheService`, `cache.module.ts`, `views.controller.ts`, `artifact.dto.ts`, `deployment.controller.ts`, `@types/compression`, `Ambientes`, `variable-resolution.service.ts`, `runtime.service.ts`, `HashService`, `.simulate`, `CreateTestSuiteDto`, `Contexto de negocio`, `job-scheduler-mutual-exclusion.spec.ts`, `Gestión del cambio`, `@types/express`, `Min`, `manifest.json`, `pagination.dto.ts`, `env.schema.ts`, `migration.sql`, `identity-provider.client.ts`, `pg`, `.decide`, `.manifest`, `env.schema.ts`, `SecurityModule`, `README.md`, `Arquitectura técnica`, `Procesamiento en segundo plano`, `buildDemoGraph`, `variable.response.dto.ts`, `jest`, `TrafficRuleDto`, `validate-baseline.py`, `governance.response.dto.ts`, `Despliegue`, `Seguridad`, `AuditModule`, `OutboxRelayService`, `qa-lab.response.dto.ts`, `client`, `integration-clients.ts`, `Convenciones de la API`, `@prisma/client`?**
+  _High betweenness centrality (0.032) - this node is a cross-community bridge._
 - **What connects `singleQuote`, `semi`, `trailingComma` to the rest of the system?**
-  _3431 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _3469 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `graph.types.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.04094881398252185 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.04257703081232493 - nodes in this community are weakly interconnected._
 - **Should `CacheService` be split into smaller, more focused modules?**
-  _Cohesion score 0.05663474692202462 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.06455696202531645 - nodes in this community are weakly interconnected._
 - **Should `parseBigIntId` be split into smaller, more focused modules?**
-  _Cohesion score 0.11962833914053426 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.14789915966386555 - nodes in this community are weakly interconnected._

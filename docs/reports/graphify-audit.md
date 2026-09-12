@@ -3,42 +3,42 @@
 
 # Auditoría del grafo de conocimiento (Graphify)
 
-**Commit analizado:** `ab59e5971cc89066d215cbab8f0623ab560d09be`
+**Commit analizado:** `af6b2e7da9096a22d596a6c86a93719f3d34f238`
 **Artefactos consultados:** `graphify-out/graph.json`, `manifest.json`, `GRAPH_REPORT.md`.
 
 ## Resumen ejecutivo
 
-El grafo contiene **11768 nodos** y **28152 relaciones** repartidos en
-**552 comunidades**. El árbol real declara
+El grafo contiene **12281 nodos** y **29289 relaciones** repartidos en
+**615 comunidades**. El árbol real declara
 **31 módulos de dominio** en `src/modules/`, de los cuales
 todos están registrados en `src/app.module.ts` (comprobado sobre el fichero, no supuesto).
 
-El grafo cubre **693 de 706**
-ficheros TypeScript de `src/` (98 %).
+El grafo cubre **715 de 715**
+ficheros TypeScript de `src/` (100 %).
 Todos los módulos de dominio aparecen en el grafo.
 
 ## Inventario cuantitativo
 
 | Tipo de nodo | Cantidad |
 | --- | ---: |
-| code | 8812 |
-| document | 2848 |
+| code | 9249 |
+| document | 2924 |
 | concept | 107 |
 | rationale | 1 |
 
 | Relación | Cantidad | Qué significa |
 | --- | ---: | --- |
-| `contains` | 6876 | Jerarquía de contención (fichero → símbolo) |
-| `references` | 6009 | Un símbolo menciona a otro |
-| `imports` | 5169 | Import de módulo |
-| `calls` | 3867 | Llamada directa |
-| `imports_from` | 3393 | Import con origen explícito |
-| `method` | 2271 | Método de una clase |
-| `indirect_call` | 309 | Llamada resuelta indirectamente |
-| `inherits` | 99 | Herencia |
-| `implements` | 91 | — |
+| `contains` | 7297 | Jerarquía de contención (fichero → símbolo) |
+| `references` | 6071 | Un símbolo menciona a otro |
+| `imports` | 5407 | Import de módulo |
+| `calls` | 4076 | Llamada directa |
+| `imports_from` | 3527 | Import con origen explícito |
+| `method` | 2311 | Método de una clase |
+| `indirect_call` | 337 | Llamada resuelta indirectamente |
+| `inherits` | 100 | Herencia |
+| `implements` | 93 | — |
 | `cites` | 22 | — |
-| `re_exports` | 16 | Reexportación |
+| `re_exports` | 18 | Reexportación |
 | `defines` | 15 | Definición de símbolo |
 | `extends` | 14 | Extensión de tipo o clase |
 | `rationale_for` | 1 | Justificación documental de un elemento |
@@ -51,26 +51,26 @@ esquema de datos y el módulo raíz, que por definición los tocan todos.
 
 | Nodo | Fichero | Entradas | Salidas | Total |
 | --- | --- | ---: | ---: | ---: |
-| `PrismaService` | `src/common/prisma/prisma.service.ts` | 324 | 5 | 329 |
-| `AuthenticatedPrincipal` | `src/common/security/security.types.ts` | 252 | 0 | 252 |
+| `PrismaService` | `src/common/prisma/prisma.service.ts` | 325 | 5 | 330 |
+| `AuthenticatedPrincipal` | `src/common/security/security.types.ts` | 253 | 0 | 253 |
 | `Roles()` | `src/common/security/security.decorators.ts` | 235 | 0 | 235 |
 | `TenantId` | `src/common/security/security.decorators.ts` | 224 | 0 | 224 |
-| `workers.module.ts` | `src/modules/workers/workers.module.ts` | 3 | 163 | 166 |
+| `workers.module.ts` | `src/modules/workers/workers.module.ts` | 4 | 171 | 175 |
 | `pdf-worker.module.ts` | `src/pdf-worker/pdf-worker.module.ts` | 8 | 133 | 141 |
 | `prisma.service.ts` | `src/common/prisma/prisma.service.ts` | 130 | 7 | 137 |
-| `DomainException` | `src/common/errors/domain-exception.ts` | 125 | 1 | 126 |
+| `DomainException` | `src/common/errors/domain-exception.ts` | 127 | 1 | 128 |
 | `parseBigIntId()` | `src/common/http/id.ts` | 126 | 0 | 126 |
-| `MetricsService` | `src/common/observability/metrics.service.ts` | 84 | 36 | 120 |
-| `domain-exception.ts` | `src/common/errors/domain-exception.ts` | 113 | 1 | 114 |
+| `MetricsService` | `src/common/observability/metrics.service.ts` | 85 | 36 | 121 |
+| `domain-exception.ts` | `src/common/errors/domain-exception.ts` | 115 | 1 | 116 |
 | `CurrentPrincipal` | `src/common/security/security.decorators.ts` | 114 | 0 | 114 |
 | `Catálogo de entidades` | `docs/data/entity-catalog.md` | 1 | 100 | 101 |
+| `identity-pipeline.service.ts` | `src/modules/workers/identity-verification/identity-pipeline.service.ts` | 7 | 92 | 99 |
 | `app.module.ts` | `src/app.module.ts` | 3 | 93 | 96 |
 | `security.types.ts` | `src/common/security/security.types.ts` | 86 | 5 | 91 |
-| `identity-pipeline.service.ts` | `src/modules/workers/identity-verification/identity-pipeline.service.ts` | 7 | 82 | 89 |
-| `graph.types.ts` | `src/modules/graph/graph.types.ts` | 55 | 33 | 88 |
-| `statement-engine.ts` | `src/modules/workers/bank-statement/core/statement-engine.ts` | 4 | 78 | 82 |
+| `graph.types.ts` | `src/modules/graph/graph.types.ts` | 57 | 33 | 90 |
+| `statement-engine.ts` | `src/modules/workers/bank-statement/core/statement-engine.ts` | 4 | 80 | 84 |
 | `bank-statement-worker.service.ts` | `src/modules/workers/bank-statement/core/application/bank-statement-worker.service.ts` | 1 | 75 | 76 |
-| `ports.ts` | `src/modules/workers/semantic-analysis/core/application/ports.ts` | 27 | 45 | 72 |
+| `scripts` | `package.json` | 1 | 71 | 72 |
 
 ## Dependencias circulares entre módulos
 
@@ -85,7 +85,7 @@ llamada**, no como dependencia de constructor.
 
 ## Componentes huérfanos
 
-10 nodos no participan en ninguna relación del grafo.
+11 nodos no participan en ninguna relación del grafo.
 La mayoría son ficheros de configuración y documentos sueltos, que por naturaleza no importan ni son importados. Se listan los primeros 20:
 
 - `docs/plantuml/compile_all.ps1`
@@ -98,14 +98,13 @@ La mayoría son ficheros de configuración y documentos sueltos, que por natural
 - `test/rls-guc-contamination.integration.spec.ts`
 - `test/setup-env.ts`
 - `test/tenant-rls-views.integration.spec.ts`
+- `src/modules/workers/bank-statement/core/engine/document-routes.ts`
 
 ## Divergencia entre el grafo y el disco
 
 ### El grafo menciona ficheros que ya no existen
 
-**1 ficheros** referenciados por el grafo ya no existen en disco. El grafo está desactualizado respecto al árbol; ejecute `graphify update .`:
-
-- `src/modules/workers/semantic-analysis/core/infrastructure/http/openai-compatible-transport.ts`
+Todo fichero referenciado por el grafo existe en el árbol de trabajo.
 
 ### El disco tiene código que el grafo desconoce
 
@@ -113,21 +112,7 @@ Es la dirección que más daño hace: sobre un fichero ausente el grafo no devue
 consulta vacía se lee igual que «no existe». Por eso los catálogos del portal se generan del
 código y del contrato, nunca de este grafo.
 
-**13 de 706** ficheros `.ts` de `src/` no aparecen en el grafo. Se listan los primeros 20:
-
-- `src/common/llm/llm-provider.error.ts`
-- `src/common/llm/openai-compatible-transport.ts`
-- `src/common/llm/openrouter-chat.client.ts`
-- `src/common/security/request-origin.ts`
-- `src/modules/audit-query/screen-runs.ts`
-- `src/modules/runtime/manual-review-case-code.ts`
-- `src/modules/workers/bank-statement/core/engine/generic/column-advisor.ts`
-- `src/modules/workers/bank-statement/core/infrastructure/openrouter-column-advisor.adapter.ts`
-- `src/modules/workers/identity-verification/core/adapters/document-framing.ts`
-- `src/modules/workers/identity-verification/core/adapters/openrouter-second-reader.adapter.ts`
-- `src/modules/workers/identity-verification/core/engine/second-reader.ts`
-- `src/modules/workers/identity-verification/core/forensics/selfie-liveness.ts`
-- `src/modules/workers/semantic-analysis/core/infrastructure/http/semantic-transport.errors.ts`
+Todo fichero `.ts` de `src/` está representado en el grafo.
 
 ## Riesgos identificados
 
