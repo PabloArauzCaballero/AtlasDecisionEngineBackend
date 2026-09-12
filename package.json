@@ -30,7 +30,7 @@
     "prisma:seed": "prisma db seed",
     "db:reset": "prisma migrate reset --force",
     "db:provision:dev": "node scripts/postgres/provision-development-roles.mjs",
-    "migration:validate": "python scripts/validate-migrations.py",
+    "migration:validate": "python3 scripts/validate-migrations.py",
     "graph:update": "graphify update .",
     "docs:openapi:generate": "node scripts/docs/generate-openapi.mjs",
     "docs:openapi:check": "node scripts/docs/check-openapi-quality.mjs",
