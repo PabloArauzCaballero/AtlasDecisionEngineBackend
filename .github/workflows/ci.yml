@@ -118,6 +118,12 @@ jobs:
         env:
           DATABASE_URL: postgresql://atlas:atlas@localhost:5432/atlas_decision_e2e?schema=public
           ADMIN_DATABASE_URL: postgresql://atlas:atlas@localhost:5432/atlas_decision_e2e?schema=public
+          # La app SIEMBRA SU PROPIO arranque —ambientes, tenant, clientes de integración— y eso
+          # no tiene nada que ver con la base publicadora del VPS: sale del repositorio.
+          # `SeedingService` la apaga sola cuando `NODE_ENV=test` y nadie dice lo contrario, así
+          # que en CI la app levantaba SIN el ambiente DEV y desplegar devolvía 404 «Not Found».
+          # El síntoma engaña: parece que el despliegue está roto, y lo que falta es el destino.
+          STARTUP_SEED_ENABLED: "true"
       # Une los dos mapas de Istanbul en un único informe. Es el número que describe el
       # repositorio entero; los umbrales por batería siguen aplicándose en su propia corrida.
       - run: yarn cov:merge
