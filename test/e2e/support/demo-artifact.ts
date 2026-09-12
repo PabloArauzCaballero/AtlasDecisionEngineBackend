@@ -127,7 +127,15 @@ async function provisionar(app: INestApplication): Promise<void> {
     kyc_status: await seededVariableVersionId(app, autor, 'kyc_status', 'STRING'),
     consent_active: await seededVariableVersionId(app, autor, 'consent_active', 'BOOLEAN'),
     pep_status: await seededVariableVersionId(app, autor, 'pep_status', 'BOOLEAN'),
-    monthly_income: await seededVariableVersionId(app, autor, 'monthly_income', 'DECIMAL'),
+    /*
+     * `disposable_income` y no `monthly_income`, y lo decide un contrato que ya existía:
+     * `smoke/demo-applicant.json` —el solicitante canónico que usan el humo del runtime y el
+     * ejemplo del manual— declara 56 variables, y el ingreso que trae es el DISPONIBLE. Pidiendo el
+     * mensual, este artefacto contestaba `VARIABLE_MISSING_OR_INVALID` a la petición documentada.
+     * Para un límite de crédito el disponible es además la magnitud correcta: es lo que queda
+     * después de los compromisos, no lo que entra.
+     */
+    disposable_income: await seededVariableVersionId(app, autor, 'disposable_income', 'DECIMAL'),
     requested_amount: await seededVariableVersionId(app, autor, 'requested_amount', 'DECIMAL'),
     approved_credit_limit: await seededVariableVersionId(
       app,
@@ -198,7 +206,7 @@ async function provisionar(app: INestApplication): Promise<void> {
    */
   const entradaBase = {
     age: 30,
-    monthly_income: 8000,
+    disposable_income: 4200,
     requested_amount: 2500,
   };
   const suite = await request(server())
@@ -364,7 +372,7 @@ function grafo(variables: Record<string, string>, motivoId: string): Record<stri
         'kyc_status',
         'consent_active',
         'pep_status',
-        'monthly_income',
+        'disposable_income',
         'requested_amount',
       ].map((codigo) => ({
         variableVersionId: variables[codigo],
@@ -457,7 +465,7 @@ function grafo(variables: Record<string, string>, motivoId: string): Record<stri
       {
         code: 'LIMITE_APROBADO',
         type: 'SET_FIELD',
-        // Un tercio del ingreso mensual, acotado al importe pedido y redondeado a dos decimales:
+        // Tres veces el ingreso DISPONIBLE, acotado al importe pedido y redondeado a dos decimales:
         // la prueba afirma «mayor que cero» sobre una regla que se puede leer, no sobre una
         // constante que pasaría igual si el motor no evaluara nada.
         payload: {
@@ -469,7 +477,7 @@ function grafo(variables: Record<string, string>, motivoId: string): Record<stri
               op: 'min',
               args: [
                 { var: 'requested_amount' },
-                { op: 'div', left: { var: 'monthly_income' }, right: { value: 3 } },
+                { op: 'mul', args: [{ var: 'disposable_income' }, { value: 3 }] },
               ],
             },
           },

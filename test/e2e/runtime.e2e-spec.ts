@@ -37,7 +37,7 @@ describe('Runtime decisions (e2e)', () => {
           age: 30,
           fraud_signal: false,
           bureau_score: 760,
-          monthly_income: 8000,
+          disposable_income: 4200,
           requested_amount: 2500,
         },
       })
@@ -60,7 +60,7 @@ describe('Runtime decisions (e2e)', () => {
         age: 30,
         fraud_signal: false,
         bureau_score: 760,
-        monthly_income: 8000,
+        disposable_income: 4200,
         requested_amount: 2500,
       },
     };
@@ -93,7 +93,7 @@ describe('Runtime decisions (e2e)', () => {
           age: 30,
           fraud_signal: false,
           bureau_score: 760,
-          monthly_income: 8000,
+          disposable_income: 4200,
           requested_amount: 2500,
         },
       })
@@ -112,7 +112,7 @@ describe('Runtime decisions (e2e)', () => {
           age: 30,
           fraud_signal: false,
           bureau_score: 760,
-          monthly_income: 8000,
+          disposable_income: 4200,
           requested_amount: 5000,
         },
       })
@@ -134,7 +134,7 @@ describe('Runtime decisions (e2e)', () => {
           age: 30,
           fraud_signal: false,
           bureau_score: 760,
-          monthly_income: 8000,
+          disposable_income: 4200,
           requested_amount: 2500,
         },
       })
@@ -163,7 +163,7 @@ describe('Runtime decisions (e2e)', () => {
           pep_status: true,
           pep_relationship_type: 'FAMILY',
           bureau_score: 760,
-          monthly_income: 8000,
+          disposable_income: 4200,
           requested_amount: 2500,
         },
       })

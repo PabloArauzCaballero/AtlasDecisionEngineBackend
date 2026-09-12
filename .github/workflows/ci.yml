@@ -135,6 +135,24 @@ jobs:
           retention-days: 14
       - name: Runtime smoke test
         shell: bash
+        env:
+          # La identidad de un llamante por clave de API vive en la BASE, y quien la escribe es la
+          # siembra de arranque leyendo el entorno. Con `NODE_ENV=test` se apaga sola, así que el
+          # humo levantaba una API sin ninguna credencial registrada y los cuatro escenarios que
+          # necesitan autenticarse respondían 401 — un rojo que se lee como «el humo está roto»
+          # cuando lo que faltaba era el registro. No siembra ningún catálogo: sin `SEED_SOURCE_*`
+          # sólo se registran las credenciales de este entorno.
+          STARTUP_SEED_ENABLED: "true"
+          # Y contra la base que acaban de dejar las e2e, no contra la vacía.
+          #
+          # El humo ejecuta una decisión REAL sobre `BNPL_CREDIT_DECISION`: sobre una base migrada y
+          # vacía ese artefacto no existe y el escenario respondía 404. Quien lo provisiona ahora es
+          # la propia batería (`test/e2e/support/demo-artifact.ts`), que lo deja desplegado en PROD
+          # tras pasar su gobierno — y el teardown lo conserva, porque está en `KEEP_ARTIFACT_CODES`.
+          # Así el humo mide más que antes: una decisión contra un artefacto que recorrió el ciclo
+          # completo en esta misma corrida, en vez de contra una siembra que nadie había gobernado.
+          DATABASE_URL: postgresql://atlas:atlas@localhost:5432/atlas_decision_e2e?schema=public
+          ADMIN_DATABASE_URL: postgresql://atlas:atlas@localhost:5432/atlas_decision_e2e?schema=public
         run: |
           node dist/main.js > /tmp/atlas-api.log 2>&1 &
           API_PID=$!
