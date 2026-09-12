@@ -180,6 +180,13 @@ jobs:
           METRICS_TOKEN: ci-metrics-token-with-enough-entropy
           GRAFANA_ADMIN_PASSWORD: ci-grafana-password
           AUTH_MODE: IDENTITY_HYBRID
+          # `docker-compose.prod.yml` la exige con `:?` a propósito: un despliegue de PRODUCCIÓN no
+          # debe arrancar sin declarar de dónde salen sus datos maestros —arrancar con el catálogo
+          # vacío es peor que no arrancar—. Aquí sólo hace falta que la interpolación resuelva: este
+          # paso corre `config`, que resuelve el modelo y no levanta nada ni se conecta a ningún
+          # sitio. Sin el relleno, el paso fallaba con «required variable … is missing a value», que
+          # se lee como un compose roto cuando lo que falta es una variable del validador.
+          SEED_SOURCE_DATABASE_URL: postgresql://ci:ci@compose-validation:5432/seed?schema=public
         run: |
           docker compose -f docker-compose.yml config --quiet
           docker compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet
