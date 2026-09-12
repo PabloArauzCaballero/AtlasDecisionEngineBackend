@@ -21905,10 +21905,12 @@
           "action": {
             "enum": [
               "CONFIRM_DOCUMENT",
-              "REJECT_DOCUMENT"
+              "REJECT_DOCUMENT",
+              "CONFIRM_IDENTITY",
+              "DENY_IDENTITY"
             ],
             "type": "string",
-            "description": "CONFIRM_DOCUMENT afirma que sí es el documento y devuelve la ejecución a la cola del worker · REJECT_DOCUMENT la cierra afirmando que no lo era."
+            "description": "CONFIRM_DOCUMENT afirma que sí es el documento y devuelve la ejecución a la cola del worker · REJECT_DOCUMENT la cierra afirmando que no lo era · CONFIRM_IDENTITY afirma que la selfie es del titular del carnet · DENY_IDENTITY afirma que no lo es. Las dos últimas sólo valen sobre un caso que ya tiene veredicto."
           },
           "documentType": {
             "type": "string",
@@ -21927,6 +21929,12 @@
             ],
             "type": "string",
             "description": "Obligatorio con REJECT_DOCUMENT: un rechazo sin motivo no es medible."
+          },
+          "subjectKey": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "Identificador SEUDÓNIMO del sujeto (`T-07`), sólo con CONFIRM_IDENTITY o DENY_IDENTITY. Es lo que agrupa las ejecuciones de la misma persona al calibrar: sin él, dos intentos del mismo tester se cuentan como una pareja impostora y la tasa resultante es inventada. Ni nombre ni número de cédula.",
+            "example": "T-07"
           },
           "notes": {
             "type": "string",
@@ -21948,10 +21956,12 @@
           "status": {
             "enum": [
               "QUEUED",
-              "DOCUMENT_REJECTED"
+              "DOCUMENT_REJECTED",
+              "SUCCEEDED",
+              "SUCCEEDED_WITH_WARNINGS"
             ],
             "type": "string",
-            "description": "`QUEUED` si se confirmó —el worker retoma desde el principio con el tipo ya decidido— o `DOCUMENT_REJECTED` si se rechazó."
+            "description": "Dudas sobre el DOCUMENTO: `QUEUED` si se confirmó —el worker retoma con el tipo ya decidido— o `DOCUMENT_REJECTED` si se rechazó. Dudas sobre la PERSONA: `SUCCEEDED` o `SUCCEEDED_WITH_WARNINGS`, y el caso no vuelve al worker —no faltaba análisis, faltaba una firma—."
           },
           "resolvedBy": {
             "type": "string",
