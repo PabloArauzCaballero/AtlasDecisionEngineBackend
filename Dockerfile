@@ -76,10 +76,14 @@ COPY scripts ./scripts
 #   smoke/             `demo-applicant.json`, el contrato del solicitante sembrado
 #   docs/script-prueba.{js,py}  los guiones de ejemplo que ejercitan el runner de scripts
 #   corpus/            los paquetes de los dos corpus, cuyo SHA-256 sella los catálogos derivados
+#   docs/pdf-worker/visual-baseline.json   la huella del HTML compuesto de cada plantilla
+#   openapi/openapi.json                   el contrato que la conformidad compara con las rutas vivas
 COPY runner ./runner
 COPY smoke ./smoke
 COPY corpus ./corpus
+COPY openapi ./openapi
 COPY docs/script-prueba.js docs/script-prueba.py ./docs/
+COPY docs/pdf-worker/visual-baseline.json ./docs/pdf-worker/visual-baseline.json
 # Chromium, porque las siete pruebas del generador documental componen con un navegador DE
 # VERDAD. Sin él fallaban dentro del contenedor con `PDF_RENDER_FAILED` y un «Fontconfig error»
 # —que se lee como un fallo del generador y no como una imagen sin navegador—, y son lo único
