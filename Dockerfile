@@ -75,9 +75,24 @@ COPY scripts ./scripts
 #   runner/            el sidecar real; las pruebas de concurrencia y de escape lo ARRANCAN
 #   smoke/             `demo-applicant.json`, el contrato del solicitante sembrado
 #   docs/script-prueba.{js,py}  los guiones de ejemplo que ejercitan el runner de scripts
+#   corpus/            los paquetes de los dos corpus, cuyo SHA-256 sella los catálogos derivados
 COPY runner ./runner
 COPY smoke ./smoke
+COPY corpus ./corpus
 COPY docs/script-prueba.js docs/script-prueba.py ./docs/
+# Chromium, porque las siete pruebas del generador documental componen con un navegador DE
+# VERDAD. Sin él fallaban dentro del contenedor con `PDF_RENDER_FAILED` y un «Fontconfig error»
+# —que se lee como un fallo del generador y no como una imagen sin navegador—, y son lo único
+# que mide la paginación, que la página NO sale a la red y que se responde 429 al saturarse.
+#
+# `PLAYWRIGHT_BROWSERS_PATH` fuera de `$HOME` y legible por todos: la instalación corre como
+# root y las pruebas como `node`, así que en la ruta por omisión —`/root/.cache`— el navegador
+# quedaría instalado donde quien lo usa no puede leerlo. Es la misma ubicación que fija la
+# imagen oficial de Playwright, por el mismo motivo.
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN npx playwright install --with-deps chromium \
+  && chmod -R a+rX /ms-playwright \
+  && rm -rf /var/lib/apt/lists/*
 # `/app` pertenece a root porque las etapas anteriores corren como root, y las pruebas se
 # ejecutan como `node`. En vez de un `chown -R /app` —que copiaría el árbol entero, cerca de
 # un giga, a una capa nueva— se apunta a `/tmp` todo lo que necesita escribir: la caché de
