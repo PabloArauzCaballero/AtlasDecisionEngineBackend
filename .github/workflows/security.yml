@@ -5,7 +5,9 @@ name: Security
 # schedule (advisories land after code stops changing).
 on:
   push:
-    branches: [main]
+    # `dev` es la rama donde se integra y la que se despliega: con sólo `main`, este workflow
+    # llevaba desde el 2026-08-03 sin mirar una línea del código que corre.
+    branches: [main, dev]
   pull_request:
   schedule:
     # Weekly re-scan: new advisories apply to code that has not changed.
@@ -78,7 +80,9 @@ jobs:
         run: docker build --target ${{ matrix.target }} -t atlas-decision-engine:scan-${{ matrix.target }} .
 
       - name: Scan image for OS and library vulnerabilities
-        uses: aquasecurity/trivy-action@0.24.0
+        # Fijada por SHA (v0.36.0). La etiqueta `0.24.0` dejó de existir y el paso fallaba en
+        # «Set up job» antes de escanear nada; una etiqueta puede moverse, un commit no.
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: atlas-decision-engine:scan-${{ matrix.target }}
           format: table
