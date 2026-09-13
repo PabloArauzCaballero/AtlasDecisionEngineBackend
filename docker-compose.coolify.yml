@@ -145,11 +145,17 @@ services:
     command:
       ['redis-server', '--appendonly', 'yes', '--maxmemory', '256mb', '--maxmemory-policy', 'allkeys-lru']
     volumes: ['redis-data:/data']
+    # `start_interval`: mientras dura `start_period`, la sonda corre cada segundo en vez de cada 10.
+    # `api` y `worker` esperan a `service_healthy`, y un Redis que responde al segundo 1 se daba por
+    # sano en el 10: diez segundos de motor caído en CADA despliegue esperando sólo esto (medido en
+    # AtlasBackend el 2026-09-13, con el mismo healthcheck).
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 5s
       retries: 10
+      start_period: 30s
+      start_interval: 1s
 
   # Job de UN SOLO DISPARO. `prisma migrate deploy` es idempotente —aplica sólo lo que falta— así
   # que corre en cada despliegue sin coste.
