@@ -231,7 +231,7 @@ describe('Frontera de sesión de navegador', () => {
     it('un desafío de PIN se devuelve como desafío, sin token de refresco', async () => {
       const challenge = {
         pinChallengeRequired: true,
-        challengeToken: 'desafio-largo-de-mas-de-20',
+        challengeToken: 'desafio-largo-de-mas-de-20', // gitleaks:allow — fixture inventado
         expiresInMinutes: 10,
       };
       const result = await new IdentitySessionService(

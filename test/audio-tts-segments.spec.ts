@@ -89,7 +89,7 @@ describe('la huella de un segmento', () => {
 
 const CONFIG = {
   NODE_ENV: 'test',
-  AUDIO_TTS_DATA_KEY: 'clave-de-prueba-16',
+  AUDIO_TTS_DATA_KEY: 'clave-de-prueba-16', // gitleaks:allow — fixture inventado
   AUDIO_TTS_DATA_KEY_ID: 'k1',
   AUDIO_TTS_DATA_KEYS_PREVIOUS: '',
   ELEVENLABS_VOICE_STABILITY: -1,

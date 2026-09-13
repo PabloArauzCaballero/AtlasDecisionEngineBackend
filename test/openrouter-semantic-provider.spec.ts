@@ -131,7 +131,7 @@ function proveedor(
   return {
     llamadas,
     provider: new OpenRouterSemanticProvider({
-      apiKey: 'sk-or-v1-de-prueba',
+      apiKey: 'sk-or-v1-de-prueba', // gitleaks:allow — fixture inventado
       baseUrl: 'https://openrouter.ai/api/v1/',
       fastModel: 'openai/gpt-4.1-mini',
       deepModel: 'anthropic/claude-sonnet-4.5',

@@ -53,13 +53,13 @@ export const E2E_CLIENTS = {
   },
   qaAnalyst: {
     clientKey: 'e2e-qa',
-    secret: 'e2e-qa-secret-0123456789abcdef',
+    secret: 'e2e-qa-secret-0123456789abcdef', // gitleaks:allow — fixture inventado
     audience: 'management',
     roles: ['QA_ANALYST'],
   },
   riskAnalyst: {
     clientKey: 'e2e-risk',
-    secret: 'e2e-risk-secret-0123456789abcdef',
+    secret: 'e2e-risk-secret-0123456789abcdef', // gitleaks:allow — fixture inventado
     audience: 'management',
     roles: ['RISK_ANALYST'],
   },
