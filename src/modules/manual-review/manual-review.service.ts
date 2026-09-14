@@ -50,6 +50,29 @@ function supervisa(principal: AuthenticatedPrincipal): boolean {
 /** La cola cuyas resoluciones tienen que volver al backend de identidad. */
 const COLA_DE_IDENTIDAD = 'IDENTIDAD';
 
+/**
+ * A donde vuelve cada resolucion, por cola.
+ *
+ * Hasta el 2026-09-14 solo la cola de IDENTIDAD avisaba a AtlasBackend. Las otras dos que Atlas
+ * delega —riesgo de onboarding y credito— se resolvian aqui y alla nadie se enteraba: el caso local
+ * quedaba delegado (409 `MANUAL_REVIEW_DELEGADA_AL_MOTOR`) y la solicitud `under_review` para
+ * siempre. Un callejon sin salida con las dos puertas cerradas a proposito.
+ *
+ * `MERCHANT_KYB` no esta y es correcto: AtlasBackend lo sincroniza por tiron (`sync_partner_kyb_reviews`).
+ * Cualquier cola que no este aqui no avisa, y lo deja escrito en el log: es preferible a adivinar un
+ * destino y llenar la auditoria de callbacks fallidos.
+ */
+export const RUTA_DE_CALLBACK_POR_COLA: Readonly<Record<string, string>> = {
+  [COLA_DE_IDENTIDAD]: '/internal/identity/manual-review-callback',
+  RIESGO_ONBOARDING: '/internal/risk/manual-review-callback',
+  CREDIT_REVIEW: '/internal/credit/manual-review-callback',
+};
+
+/** La ruta de vuelta para una cola, o `null` si esa cola no se devuelve por callback. */
+export function rutaDeCallback(queueCode: string | null | undefined): string | null {
+  return RUTA_DE_CALLBACK_POR_COLA[String(queueCode ?? '')] ?? null;
+}
+
 @Injectable()
 export class ManualReviewService {
   private readonly logger = new Logger(ManualReviewService.name);
@@ -307,24 +330,31 @@ export class ManualReviewService {
      * se mantiene y el fallo queda en la auditoria —con su motivo— en vez de desaparecer: un
      * circuito que se rompe en silencio es exactamente lo que este codigo existe para evitar.
      */
-    if (review.queueCode === COLA_DE_IDENTIDAD) {
-      await this.avisarIdentidadResuelta(tenantId, review.executionId, dto, principal, resuelto);
+    const ruta = rutaDeCallback(review.queueCode);
+    if (ruta) {
+      await this.avisarResolucion(ruta, tenantId, review.executionId, dto, principal, resuelto);
+    } else {
+      this.logger.log(
+        `Revision ${resuelto.id} resuelta en la cola ${review.queueCode}: esa cola no se devuelve por callback.`,
+      );
     }
 
     return resuelto;
   }
 
   /**
-   * Devuelve al backend de identidad la resolucion de una revision de identidad.
+   * Devuelve a AtlasBackend la resolucion de una revision delegada (identidad, riesgo o credito).
    *
-   * El motor no sabe de que CLIENTE es el caso, y no tiene por que: solo sabe de que ejecucion. El
-   * puente es `executionId`, que AtlasBackend guarda en el intento cuando pide la decision.
+   * El motor no sabe de que CLIENTE o SOLICITUD es el caso, y no tiene por que: solo sabe de que
+   * ejecucion. El puente es `executionId`, que AtlasBackend guarda en el intento, en el caso de
+   * riesgo o en la solicitud cuando pide la decision. La ruta la decide la cola (`rutaDeCallback`).
    *
    * Antes esto no existia. El analista aprobaba aqui, el caso quedaba `RESOLVED_APPROVED`, y alla el
    * cliente seguia `IN_REVIEW` para siempre: no podia pedir credito y nada avisaba de que faltaba
    * un paso que alguien tenia que dar a mano.
    */
-  private async avisarIdentidadResuelta(
+  private async avisarResolucion(
+    ruta: string,
     tenantId: bigint,
     executionId: bigint,
     dto: ResolveManualReviewDto,
@@ -335,38 +365,39 @@ export class ManualReviewService {
     const clave = this.config.get<string>('ENGINE_CALLBACK_API_KEY');
     if (!base || !clave) {
       this.logger.warn(
-        `Revision ${caso.id} resuelta sin avisar a identidad: falta ATLAS_BACKEND_BASE_URL o ENGINE_CALLBACK_API_KEY`,
+        `Revision ${caso.id} resuelta sin devolver a AtlasBackend (${ruta}): falta ATLAS_BACKEND_BASE_URL o ENGINE_CALLBACK_API_KEY`,
       );
       return;
     }
 
     try {
-      const respuesta = await fetch(
-        `${base.replace(/\/+$/, '')}/internal/identity/manual-review-callback`,
-        {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            'x-tenant-id': tenantId.toString(),
-            'x-engine-callback-key': clave,
-          },
-          body: JSON.stringify({
-            executionId: executionId.toString(),
-            decision: dto.decision,
-            reason: dto.reason,
-            resolvedByInternalUserId: principal.id,
-          }),
-          signal: AbortSignal.timeout(10_000),
+      const respuesta = await fetch(`${base.replace(/\/+$/, '')}${ruta}`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-tenant-id': tenantId.toString(),
+          'x-engine-callback-key': clave,
         },
-      );
+        body: JSON.stringify({
+          executionId: executionId.toString(),
+          decision: dto.decision,
+          reason: dto.reason,
+          resolvedByInternalUserId: principal.id,
+        }),
+        signal: AbortSignal.timeout(10_000),
+      });
 
       if (!respuesta.ok) {
         throw new Error(`HTTP ${respuesta.status}: ${(await respuesta.text()).slice(0, 300)}`);
       }
-      this.logger.log(`Identidad actualizada en AtlasBackend para la ejecucion ${executionId}`);
+      this.logger.log(
+        `Resolucion devuelta a AtlasBackend (${ruta}) para la ejecucion ${executionId}`,
+      );
     } catch (error) {
       const motivo = error instanceof Error ? error.message : String(error);
-      this.logger.error(`No se pudo avisar a identidad de la revision ${caso.id}: ${motivo}`);
+      this.logger.error(
+        `No se pudo devolver la revision ${caso.id} a AtlasBackend (${ruta}): ${motivo}`,
+      );
       await this.audit.append({
         tenantId,
         eventType: 'MANUAL_REVIEW_CALLBACK_FAILED',
