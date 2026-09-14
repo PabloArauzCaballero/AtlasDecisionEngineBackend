@@ -25,3 +25,10 @@ ignored:
 
 trustedRegistries:
   - docker.io
+  # `mcr.microsoft.com/playwright` es la base del generador documental: trae Chromium con sus
+  # dependencias del sistema y las doce familias de fuentes con las que el PDF sale igual en
+  # desarrollo, CI y producción. Es el registro OFICIAL de Microsoft para esa imagen; la
+  # alternativa —instalar Chromium a mano sobre Debian— reconstruye peor lo que esta base ya
+  # resuelve. La etiqueta está fijada y el propio Dockerfile comprueba que no se desincronice de
+  # la dependencia `playwright` del repositorio.
+  - mcr.microsoft.com

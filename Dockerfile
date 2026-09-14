@@ -4,8 +4,14 @@ WORKDIR /app
 ENV CI=true
 # Prisma CLI/client generation probes OpenSSL even when runtime queries use the JS adapter.
 # Installing it here keeps build and migrator engines aligned with Debian bookworm (OpenSSL 3).
+# `--only-upgrade libpcre2-8-0`: la imagen base arrastra 10.42-1, con dos avisos altos ya
+# corregidos por Debian (CVE-2026-86145, escritura fuera de límites; CVE-2026-89161, corrupción de
+# memoria). La etiqueta de la base está fijada a propósito, así que el parche no llega solo: se pide
+# aquí, por paquete y sin `apt-get upgrade` —que actualizaría cualquier cosa y rompe la
+# reproducibilidad—. Cuando Debian publique una base nueva, esta línea se vuelve inofensiva.
 RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl \
+  && apt-get install -y --no-install-recommends --only-upgrade libpcre2-8-0 \
   && rm -rf /var/lib/apt/lists/*
 COPY package.json yarn.lock ./
 # BuildKit may execute the development and production dependency stages concurrently. Separate
@@ -46,7 +52,24 @@ COPY scripts ./scripts
 # se rompe en silencio la próxima vez que el cargador gane un import más.
 COPY src ./src
 COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
-ENTRYPOINT ["npx", "prisma"]
+# npm y npx NO viajan en la imagen: este repositorio instala con yarn y el proceso arranca con
+# `node`. Lo que se va con ellos son las dependencias que npm trae dentro —`tar`, `pacote`,
+# `sigstore`, `ip-address`…—, que en el escaneo de Trivy son la MAYORÍA de los avisos altos y el
+# único crítico (CVE-2026-59873, gzip bomb en node-tar), y que ningún código de Atlas ejecuta.
+# Actualizar npm sólo movería el problema a la siguiente versión con aviso; no instalarlo lo cierra.
+# Por eso el punto de entrada es el binario LOCAL y no `npx prisma`: npx sólo servía para
+# resolver una ruta que ya se conoce, y a cambio obligaba a embarcar npm entero en la imagen que
+# corre con la credencial de superusuario de la base — la de mayor superficie y la que nadie mira.
+#
+# Y con npm se van también las librerías de PRUEBAS que esta etapa hereda de `dependencies`
+# —`@faker-js/faker` (CVE-2026-73231, ejecución arbitraria de código) y `fast-check`—. No es una
+# poda por tamaño: son generadores de datos para la batería del repositorio, no los ejecuta nada
+# aquí, y esta imagen es justamente la que corre con la credencial de superusuario de la base.
+# Subir faker a la versión corregida no era el camino: la 10 es sólo ESM y jest no la puede cargar,
+# así que habría cambiado una dependencia de desarrollo por una reescritura del arranque de pruebas.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
+           node_modules/@faker-js node_modules/fast-check
+ENTRYPOINT ["node", "node_modules/prisma/build/index.js"]
 CMD ["migrate", "deploy"]
 
 # Ejecutor de la batería de pruebas. Es la ÚNICA etapa que conserva las dependencias de
@@ -116,6 +139,7 @@ FROM node:22-bookworm-slim AS script-runner
 WORKDIR /app
 RUN apt-get update \
   && apt-get install -y --no-install-recommends python3 \
+  && apt-get install -y --no-install-recommends --only-upgrade libpcre2-8-0 \
   && rm -rf /var/lib/apt/lists/* \
   # A fresh named volume is seeded from whatever already exists at its mount point in the
   # image, ownership included — Docker itself would otherwise create the mount point as
@@ -151,6 +175,7 @@ ENV NODE_OPTIONS=--max-old-space-size=512
 # documento» — un fallo que parece del OCR y en realidad es una fuente que falta.
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates dumb-init python3 fonts-dejavu-core \
+  && apt-get install -y --no-install-recommends --only-upgrade libpcre2-8-0 \
   && rm -rf /var/lib/apt/lists/*
 COPY package.json yarn.lock ./
 # The cache is a BuildKit mount and is not committed to the image layer. `yarn cache clean`
@@ -177,11 +202,18 @@ COPY package.json yarn.lock ./
 #
 # Todo va en una sola orden y sin comentarios intercalados entre las continuaciones de línea,
 # que es una forma sutil de romper el análisis del Dockerfile.
+#
+# npm y npx NO viajan en la imagen: este repositorio instala con yarn y el proceso arranca con
+# `node`. Lo que se va con ellos son las dependencias que npm trae dentro —`tar`, `pacote`,
+# `sigstore`, `ip-address`…—, que en el escaneo de Trivy son la MAYORÍA de los avisos altos y el
+# único crítico (CVE-2026-59873, gzip bomb en node-tar), y que ningún código de Atlas ejecuta.
+# Actualizar npm sólo movería el problema a la siguiente versión con aviso; no instalarlo lo cierra.
 RUN --mount=type=cache,id=atlas-yarn-production,target=/usr/local/share/.cache/yarn \
     yarn install --frozen-lockfile --production \
     && rm -rf node_modules/prisma node_modules/typescript \
               node_modules/.bin/prisma node_modules/.bin/tsc node_modules/.bin/tsserver \
-              node_modules/@prisma/engines node_modules/@prisma/fetch-engine
+              node_modules/@prisma/engines node_modules/@prisma/fetch-engine \
+              /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 # Solo el cliente GENERADO. Antes se copiaba `@prisma` ENTERO desde la etapa de build, que es
 # por donde entraban los binarios del motor podados arriba. `@prisma/client` no declara
 # ninguna dependencia, así que la instalación de producción ya deja su copia correcta y aquí
@@ -231,7 +263,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 COPY scripts/smoke.mjs ./scripts/smoke.mjs
 # La evidencia se escribe en smoke/last-run.json; el volumen de Compose lo monta encima.
-RUN mkdir -p /app/smoke && chown -R node:node /app/smoke
+# npm se retira por lo mismo que en las demás: el humo corre con `node` y módulos del núcleo.
+RUN mkdir -p /app/smoke && chown -R node:node /app/smoke \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 USER node
 ENTRYPOINT ["node", "scripts/smoke.mjs"]
 
@@ -285,7 +319,8 @@ RUN --mount=type=cache,id=atlas-yarn-pdf,target=/usr/local/share/.cache/yarn \
     PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 yarn install --frozen-lockfile --production \
     && rm -rf node_modules/prisma node_modules/typescript \
               node_modules/.bin/prisma node_modules/.bin/tsc node_modules/.bin/tsserver \
-              node_modules/@prisma/engines node_modules/@prisma/fetch-engine
+              node_modules/@prisma/engines node_modules/@prisma/fetch-engine \
+              /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 # `dumb-init` es lo único que le falta a la base. Sin un init que reparta las señales,
 # `SIGTERM` no llega a Node, el apagado ordenado no corre y cada reinicio deja un Chromium
 # huérfano. Las fuentes SÍ vienen (12 familias Liberation y DejaVu), que es la pila de
@@ -297,6 +332,7 @@ RUN --mount=type=cache,id=atlas-yarn-pdf,target=/usr/local/share/.cache/yarn \
 # construir en vez de en la primera petición.
 RUN apt-get update \
   && apt-get install -y --no-install-recommends dumb-init \
+  && apt-get install -y --no-install-recommends --only-upgrade libpcre2-8-0 \
   && rm -rf /var/lib/apt/lists/* \
   && node -e "const {chromium}=require('playwright');const p=chromium.executablePath();require('node:fs').accessSync(p);console.log('Chromium verificado: '+p)"
 COPY --from=build /app/dist ./dist
