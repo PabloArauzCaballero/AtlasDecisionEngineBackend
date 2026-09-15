@@ -3,7 +3,7 @@
 
 # Catálogo de endpoints
 
-Contrato **v1** · 210 rutas · 238 operaciones.
+Contrato **v1** · 211 rutas · 239 operaciones.
 
 La referencia interactiva completa —con esquemas, ejemplos y la posibilidad de probar cada
 llamada— está en `/docs/{API_VERSION}/reference` del propio backend. Esta página existe para
@@ -384,6 +384,7 @@ Catálogo de los workers adicionales, con sus límites y su disponibilidad en es
 | --- | --- | --- | --- |
 | `GET` | `/v1/workers` | `workersList` | Workers disponibles, con sus límites y disponibilidad |
 | `GET` | `/v1/workers/{code}/metrics` | `workersWorkerMetrics` | Salud, latencia, cola e incidencias de un worker |
+| `GET` | `/v1/workers/storage/references` | `storageReferencesReferences` | Cuántas ejecuciones del Motor referencian una clave del almacén |
 
 ## Workers · Análisis semántico
 

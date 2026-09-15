@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/workers/`](https://github.com/) · 257 ficheros TypeScript.
+Código: [`src/modules/workers/`](https://github.com/) · 258 ficheros TypeScript.
 
 Etiquetas de API: **Workers · Locución**, **Workers · Extractos bancarios**, **Workers · Entidades financieras**, **Workers · Verificación de identidad**, **Workers · Modelo semántico**, **Workers · Análisis semántico**, **Workers · Categorías semánticas**, **Workers · Pendientes de clasificación**, **Workers**.
 
@@ -79,6 +79,7 @@ Etiquetas de API: **Workers · Locución**, **Workers · Extractos bancarios**, 
 | `GET` | `/v1/workers/semantic-analysis/unresolved/count` | `unresolvedClassificationCount` | Cuántos pendientes hay |
 | `POST` | `/v1/workers/semantic-analysis/unresolved/reevaluate` | `unresolvedClassificationReevaluate` | Arranca la reevaluación de los pendientes con el catálogo de hoy |
 | `GET` | `/v1/workers/semantic-analysis/unresolved/reevaluate/status` | `unresolvedClassificationReevaluationStatus` | Estado de la reevaluación en curso |
+| `GET` | `/v1/workers/storage/references` | `storageReferencesReferences` | Cuántas ejecuciones del Motor referencian una clave del almacén |
 
 ## Autorización
 
@@ -309,6 +310,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `StatementReviewItemDto`
 - `StatementReviewQueryDto`
 - `StatementReviewService`
+- `StorageReferencesController`
 - `TableAnalyzer`
 - `TenantBudgetGuard`
 - `TesseractOcrAdapter`
