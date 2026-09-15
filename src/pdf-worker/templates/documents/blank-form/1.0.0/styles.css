@@ -1,0 +1,149 @@
+/*
+ * Estilos de `blank-form`: huecos para escribir a mano.
+ *
+ * La medida que manda es la ALTURA del hueco: una letra manuscrita ocupa 7–8 mm; con menos, la
+ * gente escribe encima de la etiqueta. Las cajas son `border`, nunca guiones bajos. Sólo tokens
+ * para color; las medidas en mm son propias del papel y por eso van aquí.
+ */
+
+.form-id {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4mm;
+  align-items: baseline;
+  margin-top: var(--gap-block);
+  padding: 1.5mm 2.5mm;
+  border: var(--hairline) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+  font-size: var(--type-sm);
+}
+.form-id__code { font-weight: var(--weight-bold); }
+.form-id__version { color: var(--ink-muted); }
+.form-id__hint { color: var(--ink-muted); margin-left: auto; }
+
+.form-instructions {
+  margin: var(--gap-block) 0 0;
+  padding-left: 6mm;
+  font-size: var(--type-sm);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 3mm 4mm;
+}
+.form-field { break-inside: avoid; page-break-inside: avoid; }
+.form-field--w1 { grid-column: span 1; }
+.form-field--w2 { grid-column: span 2; }
+.form-field--w3 { grid-column: span 3; }
+
+.form-field__label {
+  font-size: var(--type-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+.form-field__required { color: var(--critical); }
+.form-field__hint,
+.form-field__sub,
+.form-boxes__legend {
+  font-size: var(--type-xs);
+  color: var(--ink-muted);
+  margin-top: 0.4mm;
+}
+.form-field__sub { margin-top: 1mm; }
+
+.form-line {
+  height: 8mm;
+  margin-top: 1mm;
+  border: var(--hairline) solid var(--ink-muted);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.form-line--numeric { border-right-width: 2pt; }
+.form-line--chip { display: flex; align-items: center; }
+.form-line__n {
+  font-size: var(--type-xs);
+  color: var(--ink-muted);
+  padding-left: 1.5mm;
+}
+.form-field__prefilled {
+  min-height: 8mm;
+  margin-top: 1mm;
+  padding: 1.5mm 2mm;
+  border: var(--hairline) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+  font-weight: var(--weight-medium);
+}
+
+.form-boxes { display: flex; align-items: center; gap: 0.6mm; margin-top: 1mm; }
+.form-box {
+  display: inline-block;
+  width: 6.5mm;
+  height: 8mm;
+  border: var(--hairline) solid var(--ink-muted);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.form-boxes__sep { padding: 0 0.6mm; color: var(--ink-muted); }
+.form-boxes__gap { width: 4mm; }
+
+.form-options { display: flex; flex-wrap: wrap; gap: 1.5mm 5mm; margin-top: 1.2mm; }
+.form-option { display: inline-flex; align-items: center; gap: 1.5mm; font-size: var(--type-sm); }
+.form-option__code { color: var(--ink-muted); font-size: var(--type-xs); }
+.form-check {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 4.5mm;
+  height: 4.5mm;
+  border: var(--rule) solid var(--ink);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.form-split { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm; }
+
+.form-table th.form-table__n,
+.form-table td.form-table__n { width: 8mm; text-align: center; color: var(--ink-muted); }
+/* Sin separadores verticales, quien escribe no sabe dónde acaba una columna: la cebra
+   compartida sólo distingue filas. */
+.form-table td,
+.form-table th { border-right: var(--hairline) solid var(--line); }
+.form-table td:last-child,
+.form-table th:last-child { border-right: 0; }
+.form-table__row td { height: 8.5mm; border-bottom: var(--hairline) solid var(--line); }
+.form-table th.form-table__w2 { width: 28%; }
+.form-table th.form-table__w3 { width: 40%; }
+.form-table th.form-table__num { text-align: right; }
+.form-table__total td { font-weight: var(--weight-bold); height: 8.5mm; background: var(--surface-muted); }
+
+.form-declarations p { font-size: var(--type-sm); margin: 0 0 1.5mm; }
+
+.form-office {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2mm 6mm;
+  align-items: center;
+  margin-top: var(--gap-section);
+  padding: 2mm 2.5mm;
+  border: var(--hairline) dashed var(--ink-muted);
+  border-radius: var(--radius-sm);
+  font-size: var(--type-xs);
+  color: var(--ink-muted);
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.form-office__title { font-weight: var(--weight-bold); width: 100%; }
+.form-office__line {
+  display: inline-block;
+  width: 40mm;
+  border-bottom: var(--hairline) solid var(--ink-muted);
+  vertical-align: bottom;
+  height: 5mm;
+}
+.form-office__line--short { width: 22mm; }
+
+.form-annex__table td.mono { width: 28mm; }
+
+.page-break-before { break-before: page; page-break-before: always; }

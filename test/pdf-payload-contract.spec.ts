@@ -7,6 +7,8 @@
  */
 import { z } from 'zod';
 import { zodSchema } from '../src/pdf-worker/infrastructure/validation/zod-payload-schema';
+import { BlankFormSchema } from '../src/pdf-worker/templates/documents/blank-form/1.0.0/schema';
+import { blankFormFixture } from '../src/pdf-worker/templates/documents/blank-form/1.0.0/preview.fixture';
 import { GenericResultReportSchema } from '../src/pdf-worker/templates/documents/generic-result-report/1.0.0/schema';
 import { genericResultReportFixture } from '../src/pdf-worker/templates/documents/generic-result-report/1.0.0/preview.fixture';
 import { CreditAnalysisSchemaV1 } from '../src/pdf-worker/templates/documents/credit-analysis-report/1.0.0/schema';
@@ -123,6 +125,69 @@ describe('Contrato de payload por template', () => {
         ],
       };
       expect(GenericResultReportSchema.safeParse(nested).success).toBe(false);
+    });
+
+    describe('blank-form (formulario para rellenar a mano)', () => {
+      const base = () => ({
+        formCode: 'ERP-CRM-CUENTA-CREAR',
+        formVersion: '1',
+        title: 'Alta de cuenta',
+        sections: [{ title: 'Datos', fields: [{ label: 'Razón social', kind: 'text' }] }],
+      });
+
+      it('el fixture cumple su propio contrato', () => {
+        expect(BlankFormSchema.safeParse(blankFormFixture()).success).toBe(true);
+      });
+
+      it('exige un código de formulario imprimible: mayúsculas, dígitos y guiones', () => {
+        expect(BlankFormSchema.safeParse({ ...base(), formCode: 'erp cuenta' }).success).toBe(
+          false,
+        );
+        expect(
+          BlankFormSchema.safeParse({ ...base(), formCode: 'ERP-CRM-CUENTA-CREAR' }).success,
+        ).toBe(true);
+      });
+
+      it('una sección sin campos ni tabla no es una sección: se rechaza', () => {
+        const vacia = { ...base(), sections: [{ title: 'Nada' }] };
+        expect(BlankFormSchema.safeParse(vacia).success).toBe(false);
+      });
+
+      it('un catalogRef tiene que apuntar a un anexo que exista', () => {
+        const huerfano = {
+          ...base(),
+          sections: [
+            { title: 'Datos', fields: [{ label: 'Rubro', kind: 'select', catalogRef: 'Rubros' }] },
+          ],
+        };
+        expect(BlankFormSchema.safeParse(huerfano).success).toBe(false);
+        expect(
+          BlankFormSchema.safeParse({
+            ...huerfano,
+            annexes: [{ title: 'Rubros', entries: [{ code: 'A', label: 'a' }] }],
+          }).success,
+        ).toBe(true);
+      });
+
+      it('acota los renglones de tabla para que un payload no encargue un cuaderno', () => {
+        const tablas = Array.from({ length: 4 }, (_, i) => ({
+          title: `T${i}`,
+          table: { columns: [{ label: 'A' }], rows: 60 },
+        }));
+        expect(BlankFormSchema.safeParse({ ...base(), sections: tablas }).success).toBe(false);
+        expect(BlankFormSchema.safeParse({ ...base(), sections: tablas.slice(0, 3) }).success).toBe(
+          true,
+        );
+      });
+
+      it('más de doce opciones no caben como casillas: el contrato obliga a usar un anexo', () => {
+        const opciones = Array.from({ length: 13 }, (_, i) => ({ label: `Opción ${i}` }));
+        const largo = {
+          ...base(),
+          sections: [{ title: 'D', fields: [{ label: 'X', kind: 'select', options: opciones }] }],
+        };
+        expect(BlankFormSchema.safeParse(largo).success).toBe(false);
+      });
     });
 
     it('la versión 1.1.0 acepta todo lo que aceptaba la 1.0.0', async () => {

@@ -14,6 +14,7 @@ import {
   TemplatePayloadValidationError,
   TemplateVersionNotFoundError,
 } from '../src/pdf-worker/domain/errors/pdf-worker.errors';
+import { blankFormFixture } from '../src/pdf-worker/templates/documents/blank-form/1.0.0/preview.fixture';
 import { genericResultReportFixture } from '../src/pdf-worker/templates/documents/generic-result-report/1.0.0/preview.fixture';
 import { createPdfWorkerHarness, FROZEN_AT, type Harness } from './support/pdf-worker-harness';
 
@@ -48,6 +49,21 @@ describe('GeneratePdfUseCase', () => {
       expect(result.createdAt).toBe(FROZEN_AT.toISOString());
       expect(result.trace.pageCount).toBe(3);
       expect(result.storage?.provider).toBe('memory');
+    });
+
+    it('imprime un formulario en blanco: renglones vacíos, anexo de catálogo y varias páginas', async () => {
+      const result = await generate.execute({
+        templateId: 'blank-form',
+        payload: blankFormFixture(),
+        metadata: { correlationId: 'corr-form', requestedBy: 'erp@atlas' },
+      });
+
+      expect(result.status).toBe('GENERATED');
+      expect(result.template).toEqual({ id: 'blank-form', version: '1.0.0' });
+      expect(result.mimeType).toBe('application/pdf');
+      // El fixture pide 12 renglones de tabla y un anexo en hoja aparte: si sale en una página,
+      // algo no se pintó.
+      expect(result.trace.pageCount).toBeGreaterThanOrEqual(3);
     });
 
     it('resuelve la última versión cuando la petición no la fija, y la ARCHIVA', async () => {

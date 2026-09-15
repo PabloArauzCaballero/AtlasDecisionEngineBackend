@@ -10,10 +10,12 @@
 import type { TemplateContract } from '../domain/contracts/template-contract';
 import { CreditAnalysisReportTemplateV1 } from './documents/credit-analysis-report/1.0.0/template.config';
 import { CreditAnalysisReportTemplateV11 } from './documents/credit-analysis-report/1.1.0/template.config';
+import { BlankFormTemplate } from './documents/blank-form/1.0.0/template.config';
 import { GenericResultReportTemplate } from './documents/generic-result-report/1.0.0/template.config';
 
 export const TEMPLATE_CATALOG: readonly TemplateContract[] = [
   GenericResultReportTemplate as TemplateContract,
   CreditAnalysisReportTemplateV1 as TemplateContract,
   CreditAnalysisReportTemplateV11 as TemplateContract,
+  BlankFormTemplate as TemplateContract,
 ];

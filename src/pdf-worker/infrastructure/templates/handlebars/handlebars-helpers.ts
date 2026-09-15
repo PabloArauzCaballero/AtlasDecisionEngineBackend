@@ -79,6 +79,8 @@ export const HELPER_NAMES = [
   'or',
   'not',
   'inc',
+  'times',
+  'concat',
   'cell',
   'join',
   'fallback',
@@ -99,6 +101,23 @@ export function registerHelpers(env: typeof Handlebars): void {
   env.registerHelper('or', (a: unknown, b: unknown) => Boolean(a) || Boolean(b));
   env.registerHelper('not', (a: unknown) => !a);
   env.registerHelper('inc', (a: unknown) => Number(a) + 1);
+  /**
+   * `{{#each (times n)}}`: los números 1..n.
+   *
+   * Un formulario en blanco imprime N renglones vacíos y Handlebars no sabe contar. Acotado a
+   * 500 por la misma razón que todos los topes de los contratos: nadie imprime más renglones que
+   * ésos y, sin tope, un `rows` desmedido sería trabajo gratis para Chromium.
+   */
+  env.registerHelper('times', (n: unknown) => {
+    const total = Math.min(500, Math.max(0, Math.floor(Number(n) || 0)));
+    return Array.from({ length: total }, (_, index) => index + 1);
+  });
+  env.registerHelper('concat', (...parts: unknown[]) =>
+    parts
+      .slice(0, -1)
+      .map((part) => (part === undefined || part === null ? '' : String(part)))
+      .join(''),
+  );
   env.registerHelper(
     'isEmpty',
     (a: unknown) => a === undefined || a === null || (Array.isArray(a) && a.length === 0),

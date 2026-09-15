@@ -70,6 +70,7 @@ OpenAPI: `http://localhost:3100/docs` y `openapi.json` con el proceso suelto.
 yarn pdf:preview                                # lista los templates
 yarn pdf:preview generic-result-report          # genera ./tmp/pdf-preview/…pdf
 yarn pdf:preview credit-analysis-report 1.0.0 --out=./tmp/credito.pdf
+yarn pdf:preview blank-form                     # formulario en blanco para rellenar a mano (ERP)
 yarn pdf:evidencia                              # PDFs + capturas del visor
 yarn pdf:visual:baseline                        # compara huellas visuales
 ```
