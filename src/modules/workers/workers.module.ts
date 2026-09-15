@@ -112,6 +112,7 @@ import { SemanticRunWorkerService } from './semantic-analysis/semantic-run-worke
 import { OpenRouterChatClient } from '../../common/llm/openrouter-chat.client';
 import { OpenRouterSecondReaderAdapter } from './identity-verification/core/adapters/openrouter-second-reader.adapter';
 import { WorkersController } from './workers.controller';
+import { StorageReferencesController } from './storage-references.controller';
 import { WorkerMetricsService } from './worker-metrics.service';
 import { WorkerServiceInvokerService } from './worker-service-invoker.service';
 
@@ -174,6 +175,7 @@ function maybe<K extends string, V>(
   imports: [NotificationsModule],
   controllers: [
     WorkersController,
+    StorageReferencesController,
     AudioTtsController,
     BankStatementController,
     StatementReviewController,

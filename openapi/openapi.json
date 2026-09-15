@@ -3655,6 +3655,57 @@
         ]
       }
     },
+    "/v1/workers/storage/references": {
+      "get": {
+        "operationId": "storageReferencesReferences",
+        "parameters": [
+          {
+            "name": "key",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "references": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Cuántas ejecuciones del Motor referencian una clave del almacén",
+        "tags": [
+          "Workers"
+        ]
+      }
+    },
     "/v1/workers/audio-tts/fixtures": {
       "get": {
         "operationId": "audioTtsListFixtures",
