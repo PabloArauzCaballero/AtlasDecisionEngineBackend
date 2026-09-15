@@ -178,7 +178,7 @@ describe('PDF Generator Worker (e2e)', () => {
       const ids = (response.body.templates as Array<{ id: string; version: string }>).map(
         (template) => `${template.id}@${template.version}`,
       );
-      expect(ids).toEqual(['credit-analysis-report@1.1.0', 'generic-result-report@1.0.0']);
+      expect(ids).toEqual(['blank-form@1.0.0', 'credit-analysis-report@1.1.0', 'generic-result-report@1.0.0']);
     });
 
     it('GET /pdf/templates/:id/schema publica lo que hay que mandar', async () => {
