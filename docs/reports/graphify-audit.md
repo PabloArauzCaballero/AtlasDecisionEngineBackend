@@ -13,8 +13,8 @@ El grafo contiene **12281 nodos** y **29289 relaciones** repartidos en
 **31 módulos de dominio** en `src/modules/`, de los cuales
 todos están registrados en `src/app.module.ts` (comprobado sobre el fichero, no supuesto).
 
-El grafo cubre **715 de 715**
-ficheros TypeScript de `src/` (100 %).
+El grafo cubre **715 de 719**
+ficheros TypeScript de `src/` (99 %).
 Todos los módulos de dominio aparecen en el grafo.
 
 ## Inventario cuantitativo
@@ -112,7 +112,12 @@ Es la dirección que más daño hace: sobre un fichero ausente el grafo no devue
 consulta vacía se lee igual que «no existe». Por eso los catálogos del portal se generan del
 código y del contrato, nunca de este grafo.
 
-Todo fichero `.ts` de `src/` está representado en el grafo.
+**4 de 719** ficheros `.ts` de `src/` no aparecen en el grafo. Se listan los primeros 20:
+
+- `src/modules/workers/storage-references.controller.ts`
+- `src/pdf-worker/templates/documents/blank-form/1.0.0/preview.fixture.ts`
+- `src/pdf-worker/templates/documents/blank-form/1.0.0/schema.ts`
+- `src/pdf-worker/templates/documents/blank-form/1.0.0/template.config.ts`
 
 ## Riesgos identificados
 
