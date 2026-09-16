@@ -173,18 +173,27 @@ services:
     init: true
     environment:
       WORKER_ROLE: API
-      # Migrar y SERVIR no se hacen con el mismo rol de base de datos.
-      #
-      # `migrate` crea el rol `atlas_app`, escribe políticas RLS y revoca permisos
-      # (`20260719080000_tenant_rls_and_app_role`), así que necesita un rol elevado; la API, en
-      # cambio, debe conectarse como `atlas_app` o las políticas por inquilino quedan INERTES: un
-      # superusuario se salta RLS mande lo que mande la política, y el propio arranque lo avisa.
-      # `prisma.config.ts` no lee `ADMIN_DATABASE_URL` —Prisma migra con `DATABASE_URL`— y aquí los
-      # tres servicios heredaban el mismo `.env` de Coolify, así que no había forma de separarlos
-      # sin esto. El valor por omisión deja el comportamiento de HOY intacto: donde no se definan
-      # las dos variables nuevas, los tres siguen usando `DATABASE_URL`.
-      DATABASE_URL: '${MIGRATE_DATABASE_URL:-${DATABASE_URL}}'
-    command: ['npx', 'prisma', 'migrate', 'deploy']
+    # Migrar y SERVIR no se hacen con el mismo rol de base de datos.
+    #
+    # `migrate` crea el rol `atlas_app`, escribe políticas RLS y revoca permisos
+    # (`20260719080000_tenant_rls_and_app_role`), así que necesita un rol elevado; la API y el worker
+    # deben conectarse como `atlas_app` o las políticas por inquilino quedan INERTES: un superusuario
+    # se salta RLS mande lo que mande la política, y el propio arranque lo avisa por registro.
+    # `prisma.config.ts` no lee `ADMIN_DATABASE_URL` —Prisma migra con `DATABASE_URL`— y los tres
+    # servicios heredan el mismo `.env` de Coolify, así que hay que separarlos aquí.
+    #
+    # La decisión se toma en el ARRANQUE del contenedor y no con `${VAR:-otra}` en este archivo:
+    # **Coolify no interpola el valor por defecto anidado**. Medido el 2026-09-15 en Contabo: con
+    # `${APP_DATABASE_URL:-${DATABASE_URL}}` el compose generado se quedó con el respaldo y la API
+    # siguió entrando como superusuario, con las dos variables correctas ahí al lado. En cambio `sh`
+    # dentro del contenedor sí decide bien, y donde la variable no existe —DEV— no cambia nada.
+    # El `$$` evita que Compose interpole: la variable tiene que llegar VIVA al contenedor.
+    command:
+      - sh
+      - -c
+      - |
+        if [ -n "$$MIGRATE_DATABASE_URL" ]; then export DATABASE_URL="$$MIGRATE_DATABASE_URL"; fi
+        exec npx prisma migrate deploy
     restart: 'no'
 
   api:
@@ -199,9 +208,6 @@ services:
     init: true
     environment:
       WORKER_ROLE: API
-      # La API sirve como `atlas_app` (no superusuario) para que RLS por inquilino se aplique.
-      # Ver el comentario de `migrate`. Sin `APP_DATABASE_URL` definida, nada cambia.
-      DATABASE_URL: '${APP_DATABASE_URL:-${DATABASE_URL}}'
       PORT: '3000'
       # La sonda del HEALTHCHECK elige puerto con `HEALTHCHECK_PORT ?? WORKER_HEALTH_PORT ??
       # PORT`, y la IMAGEN fija `WORKER_HEALTH_PORT=3001` para el worker. Sin esta línea, el
@@ -225,6 +231,13 @@ services:
       # "Worker de locucion deshabilitado por configuracion". Mismo patron que extractos: el
       # compose local lo pone en `true` y este se quedo sin el.
       AUDIO_TTS_WORKER_ENABLED: '${AUDIO_TTS_WORKER_ENABLED:-true}'
+    # Sirve como `atlas_app` cuando esa variable existe. Ver el comentario de `migrate`.
+    command:
+      - sh
+      - -c
+      - |
+        if [ -n "$$APP_DATABASE_URL" ]; then export DATABASE_URL="$$APP_DATABASE_URL"; fi
+        exec node dist/main.js
     expose: ['3000']
     depends_on:
       motor-redis:
@@ -248,8 +261,6 @@ services:
     init: true
     environment:
       WORKER_ROLE: WORKER
-      # Mismo rol que la API: el worker también lee y escribe datos de inquilinos.
-      DATABASE_URL: '${APP_DATABASE_URL:-${DATABASE_URL}}'
       WORKER_HEALTH_PORT: '3001'
       JOB_SCHEDULER_ENABLED: 'true'
       # EL WORKER DE EXTRACTOS, ENCENDIDO EXPLÍCITAMENTE.
@@ -280,7 +291,13 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-    command: ['node', 'dist/worker.js']
+    # Mismo rol que la API: el worker también lee y escribe datos de inquilinos.
+    command:
+      - sh
+      - -c
+      - |
+        if [ -n "$$APP_DATABASE_URL" ]; then export DATABASE_URL="$$APP_DATABASE_URL"; fi
+        exec node dist/worker.js
     stop_grace_period: 30s
     deploy:
       resources:
