@@ -141,6 +141,7 @@ nav:
       - Triage de extractos y revisión humana: workers/bank-statement-triage.md
       - Puerta de documentos de identidad y arbitraje: workers/identity-document-gate.md
       - Artefacto de verificación KYB del comercio: artifacts/partner-kyb-review.md
+      - Artefacto de identidad móvil con la bitácora del alta: artifacts/identidad-carnet-movil.md
       - Fraude documental en identidad: workers/identidad-fraude-documental.md
       - Identidad contra cinco cédulas reales: workers/identidad-cinco-cedulas-reales.md
       - Identidad contra veintitrés cédulas y el corpus: workers/corpus-identidad-medido.md
