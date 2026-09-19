@@ -66,9 +66,11 @@ export function buildInstrumentations(config: TelemetryConfig): Instrumentation[
       // `authorization`, `cookie` y `x-api-key` al sistema de trazas.
     }),
     new ExpressInstrumentation(),
-    // Se captura el TEXTO de la sentencia; los VALORES de los parámetros no. Un span con los
-    // parámetros de un `insert` de evidencia llevaría al backend de trazas justo los datos
-    // personales que el logger se cuida de no escribir.
+    // `enhancedDatabaseReporting: false` deja fuera los VALORES de los parámetros ligados, y
+    // con Prisma eso bastaría. No basta con la CONSOLA SQL interna: `$queryRawUnsafe` ejecuta el
+    // texto que escribe un operador, y ese texto viaja como atributo del span. Los literales de
+    // ese texto los borra `RedactingSpanProcessor`, que cubre LOS DOS nombres que esta versión
+    // de la instrumentación publica (`db.query.text` y `db.statement`) en vez de acertar con uno.
     new PgInstrumentation({ enhancedDatabaseReporting: false }),
     new IORedisInstrumentation({
       // El valor almacenado nunca entra en el span: sólo el comando y sus argumentos serían

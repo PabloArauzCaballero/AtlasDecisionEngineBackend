@@ -38,9 +38,10 @@ Nunca en un atributo, evento, nombre de span, descripción de estado ni excepci�
 `app.entity.id` es la única concesión a cardinalidad alta, deliberada: sin él no se puede ir de
 un incidente concreto a su traza. Es un identificador del motor, no un dato personal.
 
-## Estrategia de redacción — tres capas
+## Estrategia de redacción — cuatro capas
 
-Una sola capa falla el día que alguien añade una instrumentación nueva.
+Una sola capa falla el día que alguien añade una instrumentación nueva. Y la capa 3 se añadió
+porque las otras **no bastaron**: ver «Dos fugas reales» al final de este documento.
 
 ### 1. En origen (código)
 
@@ -62,11 +63,29 @@ Una sola capa falla el día que alguien añade una instrumentación nueva.
 - `IORedisInstrumentation` con un serializador que emite sólo el comando, no el valor.
 - Rutas de sonda excluidas (`UNTRACED_HTTP_PATHS`).
 
-### 3. En el Collector
+### 3. En el proceso, antes de exportar
+
+[`redacting-span-processor.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/common/observability/redacting-span-processor.ts)
+se ejecuta sobre **todo** span antes del lote, venga de la instrumentación que venga:
+
+- Borra `url.query` y recorta `url.full`. Cierra la fuga de las **URLs firmadas de MinIO**, que
+  llevan `X-Amz-Signature` y `X-Amz-Credential` y se usan para leer el carnet y la selfie.
+- Redacta los literales de cadena del SQL (`redactSqlLiterals`), en `db.query.text` **y** en
+  `db.statement`. Cierra el texto que un operador escribe en la consola SQL interna, que se
+  ejecuta con `$queryRawUnsafe`.
+- Borra `db.statement.parameters` por si alguien enciende el reporte ampliado.
+
+**Por qué un procesador y no un hook por instrumentación:** los nombres de los atributos cambian
+al subir de versión —`db.statement` pasó a `db.query.text` en una minor, y durante la transición
+se publican los dos—. Un saneado repartido en hooks deja de cubrir en cuanto uno se mueve, y lo
+hace en silencio.
+
+### 4. En el Collector
 
 [`infra/otel-collector/otel-collector.config.yml`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/infra/otel-collector/otel-collector.config.yml)
 borra cabeceras sensibles, parámetros SQL y `url.query` antes de persistir. Es la red que
-recoge lo que se cuele por una biblioteca actualizada.
+recoge lo que se cuele por una biblioteca actualizada, y la única que sigue actuando cuando el
+proceso ya está desplegado con una versión vieja.
 
 ## El portador de traza
 
@@ -124,3 +143,39 @@ de exposición sin aportar valor probatorio.
 | Ingeniería de plataforma | Instrumentación, configuración del Collector, retención |
 | Operación / SRE | Acceso a la UI, purga ante incidente |
 | Cumplimiento | Revisión periódica de esta política y de los atributos publicados |
+
+## Dos fugas reales, medidas y cerradas (2026-09-18)
+
+Ninguna de las dos se veía leyendo el código de la aplicación: las dos salieron de exportar una
+traza y buscar el dato dentro.
+
+### 1. Credenciales de descarga de documentos de identidad
+
+`ObjectStorageService` hace `put`, `get` y `delete` con `fetch` a una **URL firmada** de MinIO,
+y esa URL lleva `X-Amz-Signature` y `X-Amz-Credential` en la cadena de consulta. La
+instrumentación de `undici` publica `url.full` y `url.query` enteros.
+
+Comprobado emitiendo una traza con una firma de prueba: **la firma y la credencial aparecían
+completas en el span exportado**. Los objetos que ese servicio guarda son el carnet y la selfie
+del solicitante, así que una traza en Jaeger contenía una credencial de descarga válida —60
+segundos— para un documento de identidad, en un almacén que no cifra ni audita quién lo consulta.
+
+Cerrado con `RedactingSpanProcessor`: borra `url.query` y recorta `url.full` antes de exportar.
+Se conserva `server.address` y `url.path`, que es lo que diagnostica. Verificado repitiendo el
+mismo sondeo: la firma ya no aparece.
+
+### 2. Texto de la consola SQL
+
+`query-executor.service.ts` ejecuta con `$queryRawUnsafe` el SQL que escribe un operador en la
+consola interna, y ese texto viaja como atributo del span. Una consulta tan normal como
+`WHERE documento = '7712345'` habría publicado un documento de identidad.
+
+Las plantillas etiquetadas de Prisma (`$queryRaw`) sí parametrizan, así que el riesgo venía sólo
+de la consola. Cerrado con `redactSqlLiterals`, aplicado en el mismo procesador: todo literal de
+cadena sale como `'?'`.
+
+**Se aplica a los DOS nombres del atributo.** `instrumentation-pg@0.72` publica `db.statement` y
+`db.query.text` a la vez —cambió de nombre al subir de minor—, y cubrir sólo uno habría dejado
+el otro con la consulta entera. Ése es el motivo de sanear en un procesador y no en un hook por
+instrumentación: aquí no hay que acertar con el nombre, hay que cubrirlos todos.
+

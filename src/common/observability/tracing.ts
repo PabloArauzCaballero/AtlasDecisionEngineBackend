@@ -4,12 +4,17 @@ import { CompositePropagator } from '@opentelemetry/core';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { NodeSDK } from '@opentelemetry/sdk-node';
-import { ParentBasedSampler, TraceIdRatioBasedSampler } from '@opentelemetry/sdk-trace-base';
+import {
+  BatchSpanProcessor,
+  ParentBasedSampler,
+  TraceIdRatioBasedSampler,
+} from '@opentelemetry/sdk-trace-base';
 import {
   ATTR_SERVICE_NAME,
   ATTR_SERVICE_VERSION,
   ATTR_SERVICE_NAMESPACE,
 } from '@opentelemetry/semantic-conventions';
+import { RedactingSpanProcessor } from './redacting-span-processor';
 import { readTelemetryConfig } from './telemetry.config';
 import { buildInstrumentations } from './telemetry.instrumentations';
 import type { TelemetryConfig } from './telemetry.types';
@@ -55,10 +60,18 @@ export function startTracing(defaultServiceName?: string): void {
     }),
     // Sin endpoint configurado se usa el destino OTLP por defecto (localhost:4318), que es la
     // convención del colector como sidecar.
-    traceExporter: new OTLPTraceExporter({
-      url: config.tracesEndpoint,
-      timeoutMillis: config.exportTimeoutMs,
-    }),
+    // El saneado va PRIMERO en la lista y el lote después: los procesadores se ejecutan en
+    // orden, así que lo que el exportador ve es el span ya limpio. Con `traceExporter` a secas
+    // el SDK crearía su propio lote y no habría dónde intercalar esto.
+    spanProcessors: [
+      new RedactingSpanProcessor(),
+      new BatchSpanProcessor(
+        new OTLPTraceExporter({
+          url: config.tracesEndpoint,
+          timeoutMillis: config.exportTimeoutMs,
+        }),
+      ),
+    ],
     // Basado en el padre: si un servicio aguas arriba ya decidió muestrear una traza, se
     // respeta su decisión, porque media traza no sirve para nada. La proporción sólo gobierna
     // las trazas que nacen aquí.
