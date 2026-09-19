@@ -25,10 +25,10 @@ concurrencia 4, sobre una ruta que atraviesa el pipeline completo sin escribir e
 
 Mismo binario, misma máquina, ejecuciones consecutivas, 300 peticiones cada una:
 
-| Escenario | media | p50 | p95 | p99 | máx | req/s | errores |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| **`OTEL_ENABLED=false`** (línea base) | 54,15 ms | 48,99 ms | 95,45 ms | 128,00 ms | 139,92 ms | 73,3 | **0** |
-| **`OTEL_ENABLED=true`**, muestreo 100 % | 84,12 ms | 63,24 ms | 160,66 ms | 558,50 ms | 572,66 ms | 46,9 | **0** |
+| Escenario                               |    media |      p50 |       p95 |       p99 |       máx | req/s | errores |
+| --------------------------------------- | -------: | -------: | --------: | --------: | --------: | ----: | ------: |
+| **`OTEL_ENABLED=false`** (línea base)   | 54,15 ms | 48,99 ms |  95,45 ms | 128,00 ms | 139,92 ms |  73,3 |   **0** |
+| **`OTEL_ENABLED=true`**, muestreo 100 % | 84,12 ms | 63,24 ms | 160,66 ms | 558,50 ms | 572,66 ms |  46,9 |   **0** |
 
 **Sobrecarga medida con muestreo al 100 %:** +29,97 ms de media (**+55 %**), +14,25 ms en p50
 (**+29 %**), y **−36 % de throughput**.
@@ -48,10 +48,10 @@ ratio de producción no debe ser 1.0.**
 
 Medida antes, con 400 peticiones y la máquina más cargada:
 
-| Escenario | media | p50 | p95 | p99 | req/s | errores |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Muestreo **10 %** | 114,32 ms | 80,43 ms | 252,46 ms | 414,50 ms | 34,8 | **0** |
-| Muestreo **100 %** | 126,65 ms | 109,57 ms | 284,68 ms | 366,13 ms | 31,5 | **0** |
+| Escenario          |     media |       p50 |       p95 |       p99 | req/s | errores |
+| ------------------ | --------: | --------: | --------: | --------: | ----: | ------: |
+| Muestreo **10 %**  | 114,32 ms |  80,43 ms | 252,46 ms | 414,50 ms |  34,8 |   **0** |
+| Muestreo **100 %** | 126,65 ms | 109,57 ms | 284,68 ms | 366,13 ms |  31,5 |   **0** |
 
 Muestrear todo frente a una décima parte cuesta **+12,3 ms de media (+9,5 %)** y **−9,5 % de
 throughput**. Las magnitudes absolutas de esta tanda son mayores que las de la final porque la
@@ -63,8 +63,11 @@ respalda el ratio recomendado.
 Durante el escenario de muestreo al 100 %, el exportador **agotó su timeout** contra Jaeger:
 
 ```json
-{"name":"Error","message":"Request timed out",
- "stack":"Error: Request timed out\n    at ClientRequest.<anonymous> (.../otlp-exporter-base/.../http-transport-utils.js:112:24)"}
+{
+  "name": "Error",
+  "message": "Request timed out",
+  "stack": "Error: Request timed out\n    at ClientRequest.<anonymous> (.../otlp-exporter-base/.../http-transport-utils.js:112:24)"
+}
 ```
 
 En esa misma ejecución la API sirvió **400 peticiones con 0 errores** y un p99 de 366 ms. Es la
@@ -74,19 +77,19 @@ la decisión**.
 
 ### Escenario que no llegó a medirse por separado
 
-| Escenario | Motivo |
-| --- | --- |
+| Escenario                                | Motivo                                                                                                                                                                                                                                                                                                      |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Telemetría activa con Jaeger **apagado** | Un primer intento no arrancó (`Connection terminated due to connection timeout` contra PostgreSQL, máquina saturada). No se repitió porque el comportamiento que iba a verificar **ya quedó demostrado**: el timeout del exportador descrito arriba ocurrió con la API sirviendo 400 peticiones y 0 errores |
 
 ## Microbanco: coste de crear un span
 
 Microbanco de creación y cierre de un span con dos atributos, 20 000 iteraciones por escenario.
 
-| Escenario | p50 | p95 | p99 |
-| --- | ---: | ---: | ---: |
-| **A.** Sin SDK (`OTEL_ENABLED=false`) | 0,90 µs | 2,90 µs | 6,50 µs |
+| Escenario                                              |      p50 |       p95 |         p99 |
+| ------------------------------------------------------ | -------: | --------: | ----------: |
+| **A.** Sin SDK (`OTEL_ENABLED=false`)                  |  0,90 µs |   2,90 µs |     6,50 µs |
 | **B.** SDK activo, muestreo 1.0, `SimpleSpanProcessor` | 36,80 µs | 163,20 µs | 1 705,60 µs |
-| **C.** SDK activo, span **no** muestreado | 10,20 µs | 20,30 µs | 258,70 µs |
+| **C.** SDK activo, span **no** muestreado              | 10,20 µs |  20,30 µs |   258,70 µs |
 
 Comando exacto:
 
@@ -111,22 +114,22 @@ node --input-type=module -e "...bench de 20000 iteraciones por escenario..."
 
 ### Contexto de la medición
 
-| | |
-| --- | --- |
-| Node | v24.18.1 |
-| Plataforma | Windows 11, Docker Desktop |
+|                   |                                                           |
+| ----------------- | --------------------------------------------------------- |
+| Node              | v24.18.1                                                  |
+| Plataforma        | Windows 11, Docker Desktop                                |
 | Carga concurrente | **Alta** — suite de pruebas y seis contenedores en marcha |
-| Iteraciones | 20 000 por escenario |
+| Iteraciones       | 20 000 por escenario                                      |
 
 ## Lo que NO se midió, y por qué
 
-| Medición pendiente | Por qué no se hizo |
-| --- | --- |
-| CPU y memoria del proceso | Igual: sin aislamiento, la atribución de consumo no es defendible |
-| Throughput (peticiones/s) | Ídem |
-| Tiempo de arranque y de cierre | Medible, pero sin valor sin las anteriores |
-| Pérdida de spans con el Collector saturado | Requiere desplegar el Collector y provocar la saturación |
-| Uso de red del exportador | Requiere la prueba de carga |
+| Medición pendiente                         | Por qué no se hizo                                                |
+| ------------------------------------------ | ----------------------------------------------------------------- |
+| CPU y memoria del proceso                  | Igual: sin aislamiento, la atribución de consumo no es defendible |
+| Throughput (peticiones/s)                  | Ídem                                                              |
+| Tiempo de arranque y de cierre             | Medible, pero sin valor sin las anteriores                        |
+| Pérdida de spans con el Collector saturado | Requiere desplegar el Collector y provocar la saturación          |
+| Uso de red del exportador                  | Requiere la prueba de carga                                       |
 
 **Ninguna de estas se ha estimado ni inventado.**
 
@@ -159,3 +162,31 @@ Cuando haya un entorno de staging aislado:
 Hasta entonces, el ratio de producción recomendado (`0.10`) es un **punto de partida
 conservador**, no una conclusión medida — así consta también en
 [01-architecture-design.md](01-architecture-design.md).
+
+## Referencia medida en AtlasBackend (2026-09-19)
+
+El microbanco de arriba mide el coste de CREAR un span; lo que falta aquí es el coste bajo
+carga sostenida, y eso no es una medición de este repositorio. Pero la capa de trazas es la misma, y en AtlasBackend sí se midió con carga real
+—16 corridas válidas, 4 configuraciones, 4 rondas intercaladas, 10 req/s durante 120 s— contra
+un Jaeger real. Sirve como **cota superior razonable**, porque aquel backend monta CINCO
+instrumentaciones y este también cinco, así que la comparación es directa:
+
+| Configuración              | CPU del proceso | Δ       | p95        |
+| -------------------------- | --------------- | ------- | ---------- |
+| apagada                    | 20,46 s         | —       | 28,27 ms   |
+| muestreo 0.10 (producción) | 22,89 s         | +11,8 % | +3,3 %     |
+| destino cerrado            | 23,62 s         | +15,4 % | **+1,4 %** |
+| muestreo 1.0 (depuración)  | 25,46 s         | +24,4 % | +12,1 %    |
+
+Las dos conclusiones que se trasladan tal cual:
+
+1. **Un destino caído no cuesta latencia.** +1,4 % en p95 frente a una dispersión de la línea
+   base del 14 %, con el signo repartido entre rondas. La exportación está fuera del camino de
+   la petición, que es la propiedad de la que depende todo lo demás.
+2. **Bajar el muestreo NO recorta el coste en proporción.** De 1.0 a 0.10 la sobrecarga pasa de
+   +24,4 % a +11,8 %, no a +2,4 %: el 43 % del coste es fijo —parcheo y propagación de
+   contexto— y se paga en toda petición, se muestree o no. Si hiciera falta bajar más, la
+   palanca que queda es retirar instrumentaciones, no seguir bajando el ratio.
+
+Lo que **no** se puede trasladar: los valores absolutos de latencia, que dependen de las
+consultas de cada backend y del volumen de su base.
