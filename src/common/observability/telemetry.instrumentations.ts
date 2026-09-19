@@ -1,7 +1,7 @@
 import type { IncomingMessage } from 'node:http';
 import type { RequestOptions } from 'node:https';
 import type { Instrumentation } from '@opentelemetry/instrumentation';
-import { ExpressInstrumentation } from '@opentelemetry/instrumentation-express';
+import { ExpressInstrumentation, ExpressLayerType } from '@opentelemetry/instrumentation-express';
 import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
 import { IORedisInstrumentation } from '@opentelemetry/instrumentation-ioredis';
 import { PgInstrumentation } from '@opentelemetry/instrumentation-pg';
@@ -65,7 +65,21 @@ export function buildInstrumentations(config: TelemetryConfig): Instrumentation[
       // Deliberadamente sin `headersToSpanAttributes`: capturar cabeceras traería
       // `authorization`, `cookie` y `x-api-key` al sistema de trazas.
     }),
-    new ExpressInstrumentation(),
+    new ExpressInstrumentation({
+      /*
+       * Sin spans por capa de middleware.
+       *
+       * Medido el 2026-09-18 en AtlasBackend, que monta el mismo NestJS sobre Express: de 18
+       * spans de una petición, SIETE eran middleware (`helmet`, `cors`, `compression`, dos
+       * parseadores y dos anónimos) y cinco duraban 0,0 ms. Son coste fijo por petición y
+       * esconden los spans que sí explican algo. La regla es que una traza tenga que poder
+       * leerse, no que lo tenga todo.
+       *
+       * Lo único que se pierde es el coste del parseo del cuerpo, y no del todo: sigue visible
+       * como el hueco entre el inicio del span del servidor y el del manejador.
+       */
+      ignoreLayersType: [ExpressLayerType.MIDDLEWARE],
+    }),
     // `enhancedDatabaseReporting: false` deja fuera los VALORES de los parámetros ligados, y
     // con Prisma eso bastaría. No basta con la CONSOLA SQL interna: `$queryRawUnsafe` ejecuta el
     // texto que escribe un operador, y ese texto viaja como atributo del span. Los literales de
