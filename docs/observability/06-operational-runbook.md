@@ -43,11 +43,11 @@ curl -sS -D - -o /dev/null https://<host>/v1/artifacts/__probe__ | grep -i x-tra
 
 El error clásico es el endpoint equivocado según dónde corra el proceso:
 
-| Dónde corre | Endpoint correcto |
-| --- | --- |
-| En Docker, misma red que Jaeger | `http://jaeger:4318/v1/traces` |
-| En el host | `http://localhost:4318/v1/traces` |
-| Producción | El del Collector, **nunca** Jaeger directamente |
+| Dónde corre                     | Endpoint correcto                               |
+| ------------------------------- | ----------------------------------------------- |
+| En Docker, misma red que Jaeger | `http://jaeger:4318/v1/traces`                  |
+| En el host                      | `http://localhost:4318/v1/traces`               |
+| Producción                      | El del Collector, **nunca** Jaeger directamente |
 
 ```bash
 # Desde el contenedor de la aplicación
@@ -101,13 +101,13 @@ comparando. Si la latencia no cambia, el problema está en otro sitio y este run
 
 Si sí cambia:
 
-| Sospecha | Comprobación | Corrección |
-| --- | --- | --- |
-| Muestreo al 100 % en producción | `OTEL_TRACES_SAMPLER_ARG` | Bajar a 0.1–0.2 |
-| Exportador bloqueando | Cola del Collector saturada, timeouts | Bajar `OTEL_EXPORT_TIMEOUT_MS`; escalar el Collector |
-| Lotes demasiado grandes | `batch.send_batch_size` | Reducirlo |
-| Instrumentación ruidosa | Cientos de spans en una petición sencilla | Revisar `telemetry.instrumentations.ts`; **no** se usa `auto-instrumentations-node` justo por esto |
-| Cardinalidad excesiva | Atributos con identificadores en el nombre del span | Ver [02-business-spans-catalog.md](02-business-spans-catalog.md) |
+| Sospecha                        | Comprobación                                        | Corrección                                                                                         |
+| ------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Muestreo al 100 % en producción | `OTEL_TRACES_SAMPLER_ARG`                           | Bajar a 0.1–0.2                                                                                    |
+| Exportador bloqueando           | Cola del Collector saturada, timeouts               | Bajar `OTEL_EXPORT_TIMEOUT_MS`; escalar el Collector                                               |
+| Lotes demasiado grandes         | `batch.send_batch_size`                             | Reducirlo                                                                                          |
+| Instrumentación ruidosa         | Cientos de spans en una petición sencilla           | Revisar `telemetry.instrumentations.ts`; **no** se usa `auto-instrumentations-node` justo por esto |
+| Cardinalidad excesiva           | Atributos con identificadores en el nombre del span | Ver [02-business-spans-catalog.md](02-business-spans-catalog.md)                                   |
 
 Un span por registro en un trabajo por lotes es la causa más habitual de una degradación
 súbita. La regla es **un span por lote**.
@@ -209,3 +209,26 @@ OTEL_ENABLED=false   # y redesplegar
 El motor arranca y opera con normalidad sin telemetría: no se parchea nada, no hay exportador y
 no hay conexiones de fondo. Es una salida segura y verificada por prueba
 ([observability-interceptor.spec.ts](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/test/observability-interceptor.spec.ts)).
+
+---
+
+## 8. «El log se llena de `OTLPExporterError: Not Found`»
+
+No es un fallo de las trazas: es otra señal.
+
+`NodeSDK` arranca un proveedor de **métricas** y otro de **registros** cuando
+`OTEL_METRICS_EXPORTER` y `OTEL_LOGS_EXPORTER` no están declaradas, porque su valor por defecto
+es `otlp` y no `none`. Si el destino es Jaeger —que sirve `/v1/traces` pero no `/v1/metrics`—
+el lector periódico falla cada minuto y deja ese error en el log de la aplicación.
+
+`startTracing` declara ahora las dos variables en `none`, así que el síntoma no debería
+aparecer. Si aparece, alguien las puso a otra cosa en el entorno del proceso: el código respeta
+esa decisión a propósito (`??=`). Compruébelo con
+
+```bash
+docker exec <contenedor> sh -lc 'env | grep OTEL_'
+```
+
+**No lo trate como ruido.** Las métricas de las instrumentaciones llevan sus propios atributos y
+**no** pasan por `RedactingSpanProcessor`, que sólo actúa sobre spans: un canal encendido sin
+querer es un canal fuera de la política de datos.

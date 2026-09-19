@@ -11,29 +11,29 @@ La regla de fondo: **una traza dice qué pasó y cuánto tardó, nunca con qué 
 
 Nunca en un atributo, evento, nombre de span, descripción de estado ni excepción registrada:
 
-| Categoría | Ejemplos en este motor |
-| --- | --- |
-| Credenciales | `MANAGEMENT_API_KEY`, `RUNTIME_API_KEY`, `AUDIT_HASH_SECRET`, `METRICS_TOKEN`, cabecera `authorization`, cookie `atlas_refresh`, JWT |
-| Variables de decisión | `dto.variables`, `dto.context`, `input_snapshot` — ingresos, deudas, scores |
-| Identidad del sujeto | `subjectReference`, documentos de identidad, identificadores fiscales |
-| Datos bancarios | Contenido de extractos (`file_bytes`), números de cuenta, movimientos |
-| Texto analizado | `input_text` del worker semántico |
-| Cuerpos completos | Peticiones, respuestas, payloads de eventos, ficheros |
-| SQL con valores | Parámetros de sentencias |
-| Entorno | Variables de proceso, cadenas de conexión |
-| Errores hacia el cliente | Stack traces (ya bloqueados por `DomainExceptionFilter` en producción) |
+| Categoría                | Ejemplos en este motor                                                                                                               |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Credenciales             | `MANAGEMENT_API_KEY`, `RUNTIME_API_KEY`, `AUDIT_HASH_SECRET`, `METRICS_TOKEN`, cabecera `authorization`, cookie `atlas_refresh`, JWT |
+| Variables de decisión    | `dto.variables`, `dto.context`, `input_snapshot` — ingresos, deudas, scores                                                          |
+| Identidad del sujeto     | `subjectReference`, documentos de identidad, identificadores fiscales                                                                |
+| Datos bancarios          | Contenido de extractos (`file_bytes`), números de cuenta, movimientos                                                                |
+| Texto analizado          | `input_text` del worker semántico                                                                                                    |
+| Cuerpos completos        | Peticiones, respuestas, payloads de eventos, ficheros                                                                                |
+| SQL con valores          | Parámetros de sentencias                                                                                                             |
+| Entorno                  | Variables de proceso, cadenas de conexión                                                                                            |
+| Errores hacia el cliente | Stack traces (ya bloqueados por `DomainExceptionFilter` en producción)                                                               |
 
 ## Datos permitidos
 
-| Categoría | Ejemplos |
-| --- | --- |
-| Identificadores opacos del motor | `app.entity.id`, `messaging.message.id`, id de ejecución |
-| Códigos de catálogo | `decision.artifact.code`, `decision.environment`, `decision.outcome` |
-| Estructura | `app.module`, `app.operation`, `app.job.name`, `app.event.type` |
-| Recuentos | `decision.steps.count`, `app.job.processed.count` |
-| Códigos de error estables | `error.type` (`VARIABLE_MISSING_OR_INVALID`, `SEMANTIC_TIMEOUT`) |
-| Convenciones semánticas | `db.system`, `db.operation.name`, `server.address`, `http.route`, `url.path` |
-| Tenant | `app.tenant.id` — necesario para aislar un incidente por cliente |
+| Categoría                        | Ejemplos                                                                     |
+| -------------------------------- | ---------------------------------------------------------------------------- |
+| Identificadores opacos del motor | `app.entity.id`, `messaging.message.id`, id de ejecución                     |
+| Códigos de catálogo              | `decision.artifact.code`, `decision.environment`, `decision.outcome`         |
+| Estructura                       | `app.module`, `app.operation`, `app.job.name`, `app.event.type`              |
+| Recuentos                        | `decision.steps.count`, `app.job.processed.count`                            |
+| Códigos de error estables        | `error.type` (`VARIABLE_MISSING_OR_INVALID`, `SEMANTIC_TIMEOUT`)             |
+| Convenciones semánticas          | `db.system`, `db.operation.name`, `server.address`, `http.route`, `url.path` |
+| Tenant                           | `app.tenant.id` — necesario para aislar un incidente por cliente             |
 
 `app.entity.id` es la única concesión a cardinalidad alta, deliberada: sin él no se puede ir de
 un incidente concreto a su traza. Es un identificador del motor, no un dato personal.
@@ -80,6 +80,16 @@ al subir de versión —`db.statement` pasó a `db.query.text` en una minor, y d
 se publican los dos—. Un saneado repartido en hooks deja de cubrir en cuanto uno se mueve, y lo
 hace en silencio.
 
+**Y el límite de esta capa, que costó encontrar:** el procesador actúa sobre SPANS y sobre nada
+más. `NodeSDK` arranca además un proveedor de MÉTRICAS y otro de REGISTROS cuando
+`OTEL_METRICS_EXPORTER` y `OTEL_LOGS_EXPORTER` no están declaradas —su valor por defecto es
+`otlp`, no `none`—, de modo que el proceso exportaba una señal que nadie había pedido y que NO
+atraviesa este saneador. Se vio el 2026-09-19 en los registros de una corrida de carga de
+AtlasBackend, que monta esta misma capa: un `OTLPExporterError: Not Found` por minuto contra
+Jaeger. El síntoma era ruido; el defecto era un canal fuera de la barrera. `startTracing` declara
+ahora las dos variables en `none` salvo que un operador diga otra cosa. Las métricas del motor
+las publica `prom-client` en `/metrics`, que es donde están declaradas y revisadas.
+
 ### 4. En el Collector
 
 [`infra/otel-collector/otel-collector.config.yml`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/infra/otel-collector/otel-collector.config.yml)
@@ -96,11 +106,11 @@ acabaría en trazas de terceros.
 
 ## Retención
 
-| Entorno | Retención | Motivo |
-| --- | --- | --- |
-| development | En memoria, se pierde al reiniciar | No hay nada que conservar |
-| staging | 7 días | Suficiente para investigar una regresión |
-| production | **30 días máximo** | Diagnóstico operativo; para la evidencia de una decisión está la cadena de auditoría, que es la fuente legal |
+| Entorno     | Retención                          | Motivo                                                                                                       |
+| ----------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| development | En memoria, se pierde al reiniciar | No hay nada que conservar                                                                                    |
+| staging     | 7 días                             | Suficiente para investigar una regresión                                                                     |
+| production  | **30 días máximo**                 | Diagnóstico operativo; para la evidencia de una decisión está la cadena de auditoría, que es la fuente legal |
 
 Una traza **no** es evidencia de una decisión. La evidencia es `DecisionAuditEvent`, append-only
 y encadenada por hash. Ampliar la retención de trazas «por si acaso» sólo aumenta la superficie
@@ -117,7 +127,7 @@ de exposición sin aportar valor probatorio.
 
 - `yarn jaeger:verify` comprueba, entre otras cosas, que **ninguna** traza almacenada contiene
   atributos con `authorization`, `cookie`, `x-api-key`, `password`, `token` o `secret`.
-- La prueba unitaria *«no deja el mensaje del error como descripción del estado»*
+- La prueba unitaria _«no deja el mensaje del error como descripción del estado»_
   ([observability-interceptor.spec.ts](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/test/observability-interceptor.spec.ts)) fija por
   contrato que el mensaje de una excepción no llega al span.
 - Toda instrumentación nueva se revisa contra esta lista antes de habilitarse.
@@ -138,11 +148,11 @@ de exposición sin aportar valor probatorio.
 
 ## Responsables
 
-| Función | Responsabilidad |
-| --- | --- |
-| Ingeniería de plataforma | Instrumentación, configuración del Collector, retención |
-| Operación / SRE | Acceso a la UI, purga ante incidente |
-| Cumplimiento | Revisión periódica de esta política y de los atributos publicados |
+| Función                  | Responsabilidad                                                   |
+| ------------------------ | ----------------------------------------------------------------- |
+| Ingeniería de plataforma | Instrumentación, configuración del Collector, retención           |
+| Operación / SRE          | Acceso a la UI, purga ante incidente                              |
+| Cumplimiento             | Revisión periódica de esta política y de los atributos publicados |
 
 ## Dos fugas reales, medidas y cerradas (2026-09-18)
 
@@ -178,4 +188,3 @@ cadena sale como `'?'`.
 `db.query.text` a la vez —cambió de nombre al subir de minor—, y cubrir sólo uno habría dejado
 el otro con la consulta entera. Ése es el motivo de sanear en un procesador y no en un hook por
 instrumentación: aquí no hay que acertar con el nombre, hay que cubrirlos todos.
-
