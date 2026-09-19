@@ -4,9 +4,9 @@ Verifica la identidad de quien se registra desde la app: llama al worker de iden
 carnet, comprueba que lo sea y compara su retrato con la selfie) y aplica la política de aceptación.
 Desde la **1.2.0** (2026-09-18) recibe además **cómo se hizo el alta**.
 
-- Definición: [`scripts/lib/identidad-carnet-movil.definicion.json`](../../scripts/lib/identidad-carnet-movil.definicion.json)
-- Publicación por la API de gestión: [`scripts/identidad-carnet-movil.mjs`](../../scripts/identidad-carnet-movil.mjs)
-- Ejecutada con el motor real: [`test/identidad-carnet-movil.spec.ts`](../../test/identidad-carnet-movil.spec.ts)
+- Definición: [`scripts/lib/identidad-carnet-movil.definicion.json`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/scripts/lib/identidad-carnet-movil.definicion.json)
+- Publicación por la API de gestión: [`scripts/identidad-carnet-movil.mjs`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/scripts/identidad-carnet-movil.mjs)
+- Ejecutada con el motor real: [`test/identidad-carnet-movil.spec.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/test/identidad-carnet-movil.spec.ts)
 - Quien la llama: `AtlasBackend/src/modules/mobile-identity/mobile-identity.service.ts`
 
 ## De dónde sale
