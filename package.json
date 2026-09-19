@@ -44,7 +44,7 @@
     "docs:report": "node scripts/docs/generate-doc-report.mjs",
     "docs:build": "docker compose --profile docs run --rm docs build --strict",
     "docs:serve": "docker compose --profile docs up docs-serve",
-    "docs:validate": "yarn docs:openapi:check && yarn docs:openapi:lint && yarn docs:catalog && yarn docs:vault:check && yarn docs:coverage && yarn docs:links",
+    "docs:validate": "yarn docs:openapi:check && yarn docs:openapi:lint && yarn docs:catalog && yarn docs:graph-audit && yarn docs:vault:check && yarn docs:coverage && yarn docs:links",
     "jaeger:up": "docker compose -f docker-compose.jaeger.yml up -d",
     "jaeger:down": "docker compose -f docker-compose.jaeger.yml down",
     "jaeger:logs": "docker compose -f docker-compose.jaeger.yml logs -f",
@@ -77,7 +77,8 @@
     "pdf:visual:baseline": "ts-node -P tsconfig.json -T src/pdf-worker/cli/visual-baseline.ts",
     "pdf:evidencia": "ts-node -P tsconfig.json -T src/pdf-worker/cli/evidencia.ts",
     "pdf:openapi": "ts-node -P tsconfig.json -T scripts/pdf/export-openapi.ts",
-    "security:audit:todo": "node scripts/audit-high.mjs --todos"
+    "security:audit:todo": "node scripts/audit-high.mjs --todos",
+    "docs:graph-audit": "node scripts/docs/analyze-graphify.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.5",
