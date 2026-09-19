@@ -50,6 +50,7 @@ export function startTracing(defaultServiceName?: string): void {
   if (!config.enabled) return;
 
   diag.setLogger(new DiagConsoleLogger(), toDiagLevel(config.diagLogLevel));
+  disableSignalsWeDoNotExport();
 
   sdk = new NodeSDK({
     resource: resourceFromAttributes({
@@ -82,6 +83,30 @@ export function startTracing(defaultServiceName?: string): void {
 
   sdk.start();
   activeConfig = config;
+}
+
+/**
+ * Apaga las señales que este motor NO exporta.
+ *
+ * `NodeSDK` no se limita a lo que se le pasa por constructor: cuando `OTEL_METRICS_EXPORTER` o
+ * `OTEL_LOGS_EXPORTER` no están declaradas, su valor por defecto es `otlp`, así que arranca
+ * ADEMÁS un proveedor de métricas y uno de registros apuntados al mismo destino. Medido el
+ * 2026-09-19 durante una corrida de carga contra un Jaeger real: el lector periódico de
+ * métricas fallaba cada minuto con `OTLPExporterError: Not Found` —Jaeger no sirve
+ * `/v1/metrics`— y dejaba un error en el log de la aplicación por cada intento.
+ *
+ * El ruido es lo de menos. Las métricas de las instrumentaciones llevan sus propios atributos
+ * (ruta, método, código de estado) y **no pasan por `RedactingSpanProcessor`**, que sólo actúa
+ * sobre spans: una señal que nadie pidió saldría del proceso por fuera de la única barrera de
+ * saneado que hay. Las métricas del motor ya las publica `prom-client` en `/metrics`, que es
+ * donde están declaradas y revisadas.
+ *
+ * Se declara el valor por defecto en vez de imponerlo: si un operador pone
+ * `OTEL_METRICS_EXPORTER` a propósito, su decisión manda.
+ */
+function disableSignalsWeDoNotExport(): void {
+  process.env.OTEL_METRICS_EXPORTER ??= 'none';
+  process.env.OTEL_LOGS_EXPORTER ??= 'none';
 }
 
 /**
