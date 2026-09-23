@@ -73,6 +73,11 @@ jobs:
     # colgado sigue fallando a los 40 min con nuestro mensaje y no con el corte seco de GitHub.
     timeout-minutes: 120
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
       - name: Connect to Tailscale
         uses: tailscale/github-action@v4
         with:
@@ -336,3 +341,47 @@ jobs:
             fi
             sleep 10
           done
+
+      - name: Smoke del motor publicado
+        shell: bash
+        env:
+          COOLIFY_DEPLOY_WEBHOOK: ${{ secrets.PABLO_H310_COOLIFY_WEBHOOK }}
+          COOLIFY_API_TOKEN: ${{ secrets.PABLO_H310_COOLIFY_TOKEN }}
+          COOLIFY_API: http://100.101.207.88:8000/api/v1
+          TARGET_SHA: ${{ github.sha }}
+          DEV_SMOKE_BASE_URL: ${{ vars.DEV_SMOKE_BASE_URL }}
+        run: |
+          set -euo pipefail
+          app_uuid=$(printf '%s' "${COOLIFY_DEPLOY_WEBHOOK}" | sed -n 's/.*[?&]uuid=\([^&]*\).*/\1/p')
+          if [ -z "${app_uuid}" ]; then
+            echo "::error::No se pudo identificar la aplicación desplegada."
+            exit 1
+          fi
+
+          smoke_base="${DEV_SMOKE_BASE_URL:-}"
+          if [ -z "${smoke_base}" ]; then
+            app=$(mktemp)
+            status=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              --output "${app}" --write-out '%{http_code}' \
+              --header "Authorization: Bearer ${COOLIFY_API_TOKEN}" \
+              "${COOLIFY_API}/applications/${app_uuid}") || true
+            if [ "${status:-000}" != "200" ]; then
+              echo "::error::No se pudo consultar el dominio de la aplicación en Coolify (HTTP ${status:-000})."
+              exit 1
+            fi
+            smoke_base=$(jq -r '
+              (.docker_compose_domains | if type == "string" then fromjson? else . end)
+              | .api.domain // empty | split(",")[0]
+            ' "${app}")
+            if [ -z "${smoke_base}" ]; then
+              smoke_base=$(jq -r '.fqdn // empty | split(",")[0]' "${app}")
+            fi
+            # Coolify añade :3000 para indicar el puerto INTERNO de Compose; el
+            # proxy público escucha en el puerto normal de HTTP(S).
+            smoke_base="${smoke_base%:3000}"
+          fi
+          if [ -z "${smoke_base}" ]; then
+            echo "::error::La aplicación no publica un dominio api. Define DEV_SMOKE_BASE_URL en GitHub Variables."
+            exit 1
+          fi
+          SMOKE_BASE_URL="${smoke_base}" node scripts/post-deploy-smoke.mjs

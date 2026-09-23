@@ -208,6 +208,7 @@ services:
     init: true
     environment:
       WORKER_ROLE: API
+      COMMIT_SHA: '${SOURCE_COMMIT:-local}'
       PORT: '3000'
       # La sonda del HEALTHCHECK elige puerto con `HEALTHCHECK_PORT ?? WORKER_HEALTH_PORT ??
       # PORT`, y la IMAGEN fija `WORKER_HEALTH_PORT=3001` para el worker. Sin esta línea, el
@@ -261,6 +262,7 @@ services:
     init: true
     environment:
       WORKER_ROLE: WORKER
+      COMMIT_SHA: '${SOURCE_COMMIT:-local}'
       WORKER_HEALTH_PORT: '3001'
       JOB_SCHEDULER_ENABLED: 'true'
       # EL WORKER DE EXTRACTOS, ENCENDIDO EXPLÍCITAMENTE.
