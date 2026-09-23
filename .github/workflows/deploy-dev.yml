@@ -1,6 +1,6 @@
 # Auto-despliegue de `dev` hacia Coolify, entrando por Tailscale.
 #
-#   git push origin dev  →  GitHub Actions  →  Tailscale  →  Coolify  →  build y deploy
+#   push dev → Backend CI completo verde → este workflow → Tailscale → Coolify
 #
 # ## Por qué pasa por Tailscale y no por una URL pública
 #
@@ -44,11 +44,8 @@
 # El webhook lleva el UUID del recurso, así que **es distinto en cada repositorio**. El token sí
 # puede repetirse mientras tenga permiso sobre todos los recursos.
 #
-# El permiso `read` es nuevo: sin él Coolify responde 403 a la consulta de estado y el workflow
-# no puede esperar. Cuando eso pasa no rompe el despliegue —lo avisa en rojo suave y termina en
-# verde, igual que antes—, pero la verificación queda desactivada. Se arregla en Coolify →
-# Keys & Tokens → API tokens, creando uno con `deploy` + `read` y repartiéndolo por los seis
-# repositorios.
+# El permiso `read` es obligatorio: sin él no se solicita un despliegue que luego no pueda
+# verificarse. Configurar `deploy` + `read` en Coolify → Keys & Tokens → API tokens.
 #
 # Ninguno de los tres se imprime nunca: `${{ secrets.* }}` sólo se referencia dentro de `env:`, y
 # GitHub enmascara su valor en los logs.
@@ -56,11 +53,7 @@
 name: Deploy DEV to Coolify
 
 on:
-  push:
-    branches:
-      - dev
-  # Permite redesplegar desde la pestaña Actions sin inventarse un commit vacío.
-  workflow_dispatch:
+  workflow_call:
 
 concurrency:
   group: atlas-decision-engine-backend-deploy-dev
@@ -120,6 +113,8 @@ jobs:
           COOLIFY_DEPLOY_WEBHOOK: ${{ secrets.PABLO_H310_COOLIFY_WEBHOOK }}
           COOLIFY_API_TOKEN: ${{ secrets.PABLO_H310_COOLIFY_TOKEN }}
           COOLIFY_API: http://100.101.207.88:8000/api/v1
+          TARGET_SHA: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
@@ -171,13 +166,38 @@ jobs:
             printf '%s' "${codigo:-000}"
           }
 
-          aviso_sin_read() {
-            echo "::warning::El API token de Coolify no tiene permiso 'read', así que no se puede"
-            echo "::warning::comprobar cómo terminó el despliegue. La orden SÍ se envió."
-            echo "::warning::Arreglo: Coolify -> Keys & Tokens -> API tokens -> crear uno con"
-            echo "::warning::'deploy' + 'read' y actualizar PABLO_H310_COOLIFY_TOKEN en los seis"
-            echo "::warning::repositorios de Atlas."
+          fallo_sin_read() {
+            echo "::error::El API token de Coolify necesita permiso 'read' además de 'deploy'."
+            echo "::error::No se puede verificar el resultado sin ese permiso."
+            exit 1
           }
+
+          # El deploy por UUID clona la punta de la rama, no acepta un SHA como parámetro.
+          # Si llegó otro push mientras corrían los gates, este job ya es obsoleto.
+          ref_cuerpo=$(mktemp)
+          ref_codigo=$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            --output "${ref_cuerpo}" --write-out '%{http_code}' \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/ref/heads/dev") || true
+          if [ "${ref_codigo:-000}" != "200" ]; then
+            echo "::error::No se pudo verificar la punta de dev (GitHub HTTP ${ref_codigo:-000})."
+            exit 1
+          fi
+          branch_sha=$(jq -r '.object.sha // empty' "${ref_cuerpo}")
+          if [ "${branch_sha}" != "${TARGET_SHA}" ]; then
+            echo "::error::El CI validó ${TARGET_SHA}, pero dev ya apunta a ${branch_sha}. Se cancela el despliegue obsoleto."
+            exit 1
+          fi
+
+          # Comprobar el permiso de lectura ANTES de disparar un despliegue irreversible.
+          cuerpo=$(mktemp)
+          codigo=$(consultar "${COOLIFY_API}/deployments/applications/${app_uuid}?take=1" "${cuerpo}")
+          case "${codigo}" in
+            200) ;;
+            401|403) fallo_sin_read ;;
+            *) echo "::error::No se pudo consultar Coolify antes del deploy (HTTP ${codigo})."; exit 1 ;;
+          esac
 
           echo "Pidiendo despliegue a Coolify…"
           respuesta=$(mktemp)
@@ -206,22 +226,18 @@ jobs:
           # deployment_uuid que genera antes de detectar el duplicado y que NUNCA llegó a la cola:
           # consultarlo da 404 para siempre. En ese caso el despliegue de verdad es el último de
           # esta aplicación.
-          cuerpo=$(mktemp)
           codigo=404
           if [ -n "${despliegue}" ]; then
             codigo=$(consultar "${COOLIFY_API}/deployments/${despliegue}" "${cuerpo}")
           fi
 
           case "${codigo}" in
-            401|403)
-              aviso_sin_read
-              exit 0
-              ;;
+            401|403) fallo_sin_read ;;
             404)
               echo "El UUID devuelto no resuelve; buscando el último despliegue de la aplicación."
               codigo=$(consultar "${COOLIFY_API}/deployments/applications/${app_uuid}?take=1" "${cuerpo}")
               case "${codigo}" in
-                401|403) aviso_sin_read; exit 0 ;;
+                401|403) fallo_sin_read ;;
                 200) ;;
                 *)
                   echo "::error::Coolify respondió ${codigo} al listar los despliegues de ${app_uuid}."
@@ -257,7 +273,7 @@ jobs:
             codigo=$(consultar "${COOLIFY_API}/deployments/${despliegue}" "${cuerpo}")
             case "${codigo}" in
               200) ;;
-              401|403) aviso_sin_read; exit 0 ;;
+              401|403) fallo_sin_read ;;
               *)
                 # Un corte de red o un reinicio del panel no es un despliegue fallido.
                 echo "  (Coolify respondió ${codigo}; reintentando)"
@@ -276,11 +292,10 @@ jobs:
               finished)
                 commit=$(jq -r '.commit // ""' "${cuerpo}")
                 echo "Despliegue terminado. Commit desplegado: ${commit}"
-                if [ "${GITHUB_EVENT_NAME}" = "push" ] && [ -n "${commit}" ] \
-                   && [ "${commit}" != "${GITHUB_SHA}" ] && [ "${commit}" != "HEAD" ]; then
-                  echo "::warning::Coolify desplegó ${commit}, no ${GITHUB_SHA}. Suele ser un push"
-                  echo "::warning::posterior que ganó la carrera; compruébalo antes de dar el"
-                  echo "::warning::despliegue por bueno."
+                if [ "${commit}" != "${TARGET_SHA}" ]; then
+                  echo "::error::Coolify terminó con commit '${commit}', pero el CI validó '${TARGET_SHA}'."
+                  echo "::error::Puede haber ganado un push posterior. Este despliegue no queda verificado."
+                  exit 1
                 fi
                 {
                   echo "### Despliegue correcto"
