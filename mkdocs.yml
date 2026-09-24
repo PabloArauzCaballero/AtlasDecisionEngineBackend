@@ -1,4 +1,4 @@
-﻿# Portal técnico del backend.
+# Portal técnico del backend.
 #
 # Se construye SIEMPRE en contenedor (`yarn docs:build`), no con una instalación local de
 # Python: la versión de MkDocs y de sus extensiones forma parte del resultado, y una máquina
@@ -220,6 +220,7 @@ nav:
           - Topología de producción: observability/03-production-topology.md
           - Política de privacidad de datos: observability/04-data-privacy-policy.md
           - Resultados de rendimiento: observability/05-performance-results.md
+          - Benchmark del runtime (2026-09-24): observability/06-engine-benchmark-2026-09-24.md
           - Runbook operativo: observability/06-operational-runbook.md
           - Informe de implementación: observability/07-implementation-report.md
   - Operación:

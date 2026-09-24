@@ -1,0 +1,39 @@
+[
+  {
+    "requirementId": "B18",
+    "packageId": "P-16",
+    "repository": "AtlasDecisionEngineBackend",
+    "title": "Benchmark propio del runtime de decisiones (no trasladado de Core)",
+    "releaseIncluded": true,
+    "ownerRole": "S",
+    "acceptance": "POST /v1/decisions/:artifactCode medido contra la API compilada con Postgres/Redis efímeros y un artefacto gobernado y desplegado por la batería e2e: p50/p95/p99, throughput, 422 de negocio separados de errores técnicos y de 429, RSS/CPU del proceso y espera del pool; carga sostenida y recuperación tras caída de Postgres y de Redis sin claves con dos ejecuciones ni reservas colgadas. Resultados por SHA en docs/observability/06-engine-benchmark-2026-09-24.md.",
+    "tests": [
+      {
+        "file": "scripts/perf/decision-bench.sh",
+        "name": "escalado, sostenida, limitador y caídas de Postgres/Redis con comprobación de duplicados en la base",
+        "runner": "script",
+        "command": "yarn build && bash scripts/perf/decision-bench.sh"
+      },
+      {
+        "file": "scripts/perf/decision-load.mjs",
+        "name": "generador de carga con reintento por la misma idempotencyKey",
+        "runner": "script",
+        "command": "node scripts/perf/decision-load.mjs --base-url http://127.0.0.1:3000 --api-key <runtime> --concurrency 4 --duration 180"
+      }
+    ],
+    "requiresDatabase": true,
+    "blockedBy": null
+  },
+  {
+    "requirementId": "B18-SLO",
+    "packageId": "P-16",
+    "repository": "AtlasDecisionEngineBackend",
+    "title": "SLO acordado alcanzado bajo la carga acordada en el entorno objetivo",
+    "releaseIncluded": true,
+    "ownerRole": "S",
+    "acceptance": "Carga esperada, concurrencia y SLO por operación acordados por S y R (objetivo inicial p95 < 500 ms sin proveedores, a ratificar); medido en el entorno objetivo con réplicas reales, soak de horas, alertas entregadas y caídas de proveedores, exportador de trazas y Redis en modo producción.",
+    "tests": [],
+    "requiresDatabase": true,
+    "blockedBy": "Requiere acuerdo de carga/SLO (S + R) y el entorno objetivo; en local sólo se midió un Mac de desarrollo compartido. Límite operativo propuesto: 4 decisiones concurrentes por réplica (p95 174 ms sostenido)."
+  }
+]
