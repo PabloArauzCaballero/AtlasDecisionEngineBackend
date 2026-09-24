@@ -97,6 +97,9 @@ Un respaldo no probado no es un respaldo. Cadencia mínima mensual, en un ambien
 4. Verificar readiness, la cadena de auditoría y una decisión de humo.
 5. Registrar el tiempo real: es su RTO medido, no el estimado.
 
+El ensayo automatizado local y el procedimiento con conciliación están en el
+[runbook de restore](restore-runbook.md) (P-17).
+
 ## Dependencias externas
 
 Ni el proveedor de identidad ni el de variables están bajo el control de esta plataforma. Su

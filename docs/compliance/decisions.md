@@ -142,3 +142,58 @@ reservar (dos decisiones simultáneas que caben por separado pasan las dos: est�
   reenvío sobrescriba (comportamiento anterior): reescribía evidencia en silencio y volvía a contar.
 - Una corrección legítima de un desenlace ya observado necesita un proceso explícito que hoy no
   existe (pendiente, **R**).
+
+## P-16 · Rendimiento propio del runtime (B18)
+
+### D-16.1 Límite operativo inicial: 4 decisiones concurrentes por réplica (ratifican **S** y **R**)
+
+Medido en un Mac de desarrollo compartido (`docs/observability/06-engine-benchmark-2026-09-24.md`):
+con 4 en vuelo por proceso el p95 sostenido es 174 ms (objetivo inicial p95 < 500 ms, **a
+ratificar**); con 8 sube a 575 ms sostenido y la CPU del proceso se clava. Se propone operar el
+piloto con **4 concurrentes por réplica** y escalar con réplicas. **Alternativa descartada:**
+extrapolar la cifra de Core o la de una máquina de desarrollo a producción. El SLO real y la
+carga esperada los acuerdan S y R en el entorno objetivo (B18-SLO, BLOCKED).
+
+### D-16.2 El banco mide la capacidad con el limitador por cliente elevado
+
+`RATE_LIMIT_RUNTIME_REQUESTS=100000` sólo en el banco, para medir el runtime y no el limitador;
+el escenario «limitador» mide el valor por omisión (1.500/min = 25 decisiones/s por cliente) y
+reporta sus 429 aparte. Ningún valor por omisión cambia.
+
+## P-17 · Restore, rollback y retención (B19)
+
+### D-17.1 Rollback = corrección hacia adelante (ratifica **S**)
+
+Prisma no tiene `down`. Toda migración desde el 2026-09-24 debe ser **aditiva** (columnas nulables
+o con DEFAULT, tablas, índices, CHECK que las filas existentes ya cumplen) y no reescribir ni borrar
+datos; lo exige `test/migrations-forward-only.spec.ts`. Así, revertir la APLICACIÓN a la versión
+anterior no requiere tocar el esquema. Para deshacer el efecto de una migración se escribe otra
+migración nueva. **Nunca** se revierte `20260924120000_enabling_basis_and_output_policy_range`
+borrando columnas: `consent_version` y `enabling_basis_policy` son la evidencia de bajo qué base y
+texto se decidió. **Alternativa descartada:** escribir `down` manuales que borren columnas.
+
+### D-17.2 Ensayo de restore local (lo aprobado sigue BLOCKED)
+
+`scripts/ops/restore-drill.sh` ensaya el restore en local y lo concilia; el runbook está en
+`docs/operations/restore-runbook.md`. RPO/RTO **aprobados**, restore de objetos de MinIO,
+credenciales efectivas del entorno y la ejecución por alguien distinto del autor quedan
+**BLOCKED** con dueño **S** (y **J** para lo que toca datos personales).
+
+### D-17.3 Retención por conjunto de datos — PROPUESTA a ratificar por **J**
+
+Valores **propuestos**, conservadores y configurables; ninguno está aprobado ni implementado como
+borrado salvo donde se indica «vigente». No son una afirmación sobre la ley aplicable: **J** fija
+los plazos. Todo conjunto admite *legal hold* (una retención legal suspende cualquier borrado).
+
+| Conjunto | Dónde vive | Hoy (vigente) | Propuesta | Tras el plazo | Nota |
+|---|---|---|---|---|---|
+| Evidencia de identidad (carnet, selfie) | MinIO + huellas en Postgres | Sin plazo (decisión del 2026-09-11, `test/conservacion-indefinida.spec.ts`) | Vida del crédito + 5 años, o sin plazo si J lo mantiene | Borrado del objeto; se conserva la huella SHA-256 | Cambiarlo exige tocar la prueba que lo fija |
+| Extractos bancarios (PDF y lectura) | MinIO / Postgres | Sin barrido | 5 años desde la decisión | Borrado del original; se conserva el resumen usado en la decisión | Datos financieros de terceros |
+| Decisiones (ejecución, variables, pasos, motivos) | Postgres | Sin barrido | Vida del crédito + 10 años | Anonimizar `subject_*`; conservar agregados | Evidencia de la decisión automatizada |
+| Consentimientos y bases habilitantes | `subject_consent` | Sin barrido | Mientras exista el tratamiento + 5 años desde la revocación | Conservar la revocación como prueba | Nunca borrar antes que la decisión que justifican |
+| Créditos y desenlaces | `credit_facility`, `decision_outcome_observation` | Sin barrido | Vida del crédito + 10 años | Anonimizar | Base del monitoreo de modelos |
+| Idempotencia del runtime | `decision_runtime_idempotency` | 24 h + gracia 24 h (`RUNTIME_IDEMPOTENCY_RETENTION_GRACE_HOURS`, vigente) | Mantener | Borrado | No contiene la decisión, sólo su respuesta |
+| Outbox / eventos procesados | `decision_outbox_event`, `decision_processed_event` | Sin barrido | DISPATCHED: 90 días; DEAD: hasta resolverlo + 90 días | Borrado | El hecho vive en su tabla de dominio |
+| Auditoría (cadena con hash) | `decision_audit_event`, `decision_access_audit` | Sin barrido | 10 años | Archivo frío, nunca borrado parcial (rompe la cadena) | |
+| Análisis semántico (glosas) | Postgres | Minimiza a 30 d, auditoría 90 d (vigente) | Mantener | — | |
+| Logs de aplicación y trazas | Collector / almacenamiento de logs | Según el destino | 30 días (logs), 7 días (trazas) | Borrado | Sin PII por política (`04-data-privacy-policy.md`) |

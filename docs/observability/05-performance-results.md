@@ -6,9 +6,10 @@
     AtlasBackend» es una medición de **otro servicio** (el core), trasladada aquí sólo como cota
     del coste de la instrumentación: **no mide decisiones del motor**, ni su latencia, ni su
     throughput, ni su comportamiento con Postgres, proveedores o el sandbox de scripts bajo
-    carga. El motor no tiene todavía un benchmark propio de `POST /v1/decisions/:artifactCode`;
-    lo aporta P-16. Ninguna cifra de esta página sirve como evidencia de rendimiento del motor
-    en `docs/compliance/release-scope.json`.
+    carga. El benchmark propio de `POST /v1/decisions/:artifactCode` está en
+    [06-engine-benchmark-2026-09-24.md](06-engine-benchmark-2026-09-24.md) (P-16). Ninguna cifra
+    de esta página sirve como evidencia de rendimiento del motor en
+    `docs/compliance/release-scope.json`.
 
 > **Lea esto antes que los números.** Se midió el **coste de crear un span** (microbanco) y la
 > **latencia de la API** contra el binario compilado, incluida la **línea base con la telemetría
