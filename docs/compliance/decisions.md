@@ -124,7 +124,7 @@ reservar (dos decisiones simultáneas que caben por separado pasan las dos: est�
 - `exposure`: `{limitCode, currencyCode, maxValue, enforced, currentExposure, requestedAmount,
   remainingBeforeDecision, remainingAfterDecision}` del límite `SUBJECT_TOTAL` más estrecho
   (o `null` sin límites activos). Ahora se publica también con límites no `enforced`.
-- `decisionValidUntil`: `now + DECISION_VALIDITY_SECONDS` (por omisión **3600 s**), sólo en
+- `decisionValidUntil`: `now + DECISION_VALIDITY_SECONDS` (por omisión **259200 s = 72 h**, igual que `CREDIT_DECISION_VALIDITY_HOURS` de Core; a ratificar por R), sólo en
   `SUCCEEDED`; `null` en cualquier otro estado. Una réplica idempotente devuelve el MISMO valor.
 - El valor por defecto de una hora lo ratifica **R**; es configurable.
 

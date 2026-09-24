@@ -11,7 +11,7 @@ idempotencias expiradas en lotes; nunca elimina auditoría o ejecuciones regulad
 
 Campos aditivos en `POST /v1/decisions/:artifactCode`:
 
-- `decisionValidUntil`: ISO 8601, sólo en `SUCCEEDED` (`DECISION_VALIDITY_SECONDS`, 3600 por
+- `decisionValidUntil`: ISO 8601, sólo en `SUCCEEDED` (`DECISION_VALIDITY_SECONDS`, 259200 (72 h) por
   omisión); `null` en cualquier otro estado. Una réplica idempotente devuelve el mismo valor.
 - `exposure`: límite `SUBJECT_TOTAL` más estrecho que vio la decisión (`currentExposure`,
   `requestedAmount`, `remainingBeforeDecision`, `remainingAfterDecision`…) o `null`. El motor NO

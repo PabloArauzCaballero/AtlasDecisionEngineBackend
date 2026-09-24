@@ -61,7 +61,7 @@ function requestedAmountOf(variables: Record<string, unknown>): number {
  * simultáneas del mismo solicitante pueden pasar las dos. Quien concede tiene que revalidar, y
  * una decisión que no caduca le permitiría conceder mañana con la exposición de hoy.
  */
-const DEFAULT_DECISION_VALIDITY_SECONDS = 3_600;
+const DEFAULT_DECISION_VALIDITY_SECONDS = 259_200;
 
 /** HTTP status and serializable response produced by the decision runtime. */
 export interface RuntimeHttpResult {

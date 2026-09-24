@@ -283,7 +283,7 @@ describe('RuntimeService · compuerta de salidas económicas (P-10)', () => {
       outcome: 'APPROVED',
       output: { pd: 0.04, rate: 0.3 },
       // Una hora por omisión, contada desde el reloj de la decisión.
-      decisionValidUntil: '2026-09-24T13:00:00.000Z',
+      decisionValidUntil: '2026-09-27T12:00:00.000Z',
       exposure: null,
       degradedInputs: false,
       freshnessUnknown: [],
