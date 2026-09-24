@@ -15,7 +15,7 @@
 | Familia | Política | Mecanismo |
 | --- | --- | --- |
 | `decision_runtime_idempotency` | Purga automática pasada la expiración más un margen | `RetentionSweeperService`, lotes acotados |
-| `decision_execution` y satélites | Conservación 7 años desde `executedAt` ([ADR-0025](../adr/ADR-0025-execution-archival-threshold.md)) | Archivado a solo lectura, no borrado; configurable por tenant |
+| `decision_execution` y satélites | Conservación 7 años desde `executedAt` ([ADR-0025](../adr/ADR-0025-execution-archival-threshold.md)) | Archivado a solo lectura, no borrado — **sin trabajo que lo ejecute todavía** (ver abajo). `RetentionSweeperService` NO toca estas tablas |
 | `decision_audit_event` | **Sin borrado** | Exportación de solo lectura |
 | `decision_access_audit` | Conservación operativa | Revisar con el responsable de seguridad |
 | Diseño y catálogo | Sin borrado; ciclo `DEPRECATED` → `RETIRED` | Estado, no eliminación |
