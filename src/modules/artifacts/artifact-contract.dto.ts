@@ -8,6 +8,7 @@
  */
 import { Type } from 'class-transformer';
 import {
+  IsNumber,
   ArrayMaxSize,
   IsArray,
   IsBoolean,
@@ -146,6 +147,14 @@ export class OutputContractFieldDto {
    * llegar a producción, y hasta ahora no había manera de hacerlo: la columna sólo se leía.
    */
   @IsOptional() @IsIn([...SEMANTIC_ROLES]) semanticRole?: SemanticRoleDto;
+
+  /**
+   * Rango que la POLÍTICA admite para este campo, además del de su rol: el suelo y el techo de
+   * la tasa del producto, el importe máximo que esta política puede aprobar. Una salida fuera de
+   * él no es una autorización: la decisión sale `NO_DECISION` con motivo técnico.
+   */
+  @IsOptional() @IsNumber({ allowNaN: false, allowInfinity: false }) policyMinValue?: number;
+  @IsOptional() @IsNumber({ allowNaN: false, allowInfinity: false }) policyMaxValue?: number;
 }
 
 /** Origen de una entrada de campo calculado dentro del grafo (§5.1). */

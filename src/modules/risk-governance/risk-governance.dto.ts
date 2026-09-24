@@ -120,6 +120,17 @@ export class RecordConsentDto {
   @IsString()
   @MaxLength(200)
   evidenceRef?: string;
+
+  @ApiPropertyOptional({
+    example: 'v3',
+    description:
+      'Versión del texto o de la política bajo la que se otorgó. Una versión de artefacto puede ' +
+      'exigir una lista cerrada de versiones aceptadas.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  consentVersion?: string;
 }
 
 export class RevokeConsentDto {
@@ -132,6 +143,16 @@ export class RevokeConsentDto {
   @IsString()
   @MaxLength(120)
   purpose!: string;
+
+  @ApiPropertyOptional({
+    example: '2026-09-20T10:00:00.000Z',
+    description:
+      'Cuándo revocó el titular, si la réplica llega tarde (p. ej. el motor estaba caído). ' +
+      'Vacío = ahora. Una revocación anterior a un alta posterior se rechaza como obsoleta.',
+  })
+  @IsOptional()
+  @IsISO8601()
+  revokedAt?: string;
 }
 
 /** Petición de reidentificación: ir del caso seudónimo a la persona. */

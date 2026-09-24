@@ -3,7 +3,7 @@ import request from 'supertest';
 import { DEMO_BASE_APPLICANT } from '../fixtures/demo-applicant';
 import { createTestApp } from './support/test-app';
 import { provisionDemoArtifact } from './support/demo-artifact';
-import { runtimeHeaders } from './support/headers';
+import { managementHeaders, runtimeHeaders } from './support/headers';
 
 /** Exercises the deployed BNPL_CREDIT_DECISION seed artifact: real decisions, not mocks. */
 describe('Runtime decisions (e2e)', () => {
@@ -15,6 +15,18 @@ describe('Runtime decisions (e2e)', () => {
     app = await createTestApp();
     // El artefacto que estas pruebas ejecutan ya no depende de que alguien haya sembrado antes.
     await provisionDemoArtifact(app);
+    // Como hace el core: la base habilitante de la evaluación crediticia se registra ANTES de
+    // decidir. Sin ella, originación en PROD deriva a revisión (P-09), que se prueba abajo.
+    await request(server())
+      .post('/v1/risk-governance/consents')
+      .set(managementHeaders('e2e.compliance', ['COMPLIANCE']))
+      .send({
+        subjectReference: 'e2e-subject',
+        purpose: 'credit_underwriting',
+        basis: 'CREDIT_PROTECTION',
+        grantedAt: '2026-01-01T00:00:00.000Z',
+      })
+      .expect(200);
   });
 
   afterAll(async () => {
@@ -85,6 +97,7 @@ describe('Runtime decisions (e2e)', () => {
       .send({
         requestId: key,
         idempotencyKey: key,
+        subjectReference: 'e2e-subject',
         environmentCode: 'PROD',
         variables: {
           ...DEMO_BASE_APPLICANT,
@@ -104,6 +117,7 @@ describe('Runtime decisions (e2e)', () => {
       .send({
         requestId: key,
         idempotencyKey: key,
+        subjectReference: 'e2e-subject',
         environmentCode: 'PROD',
         variables: {
           ...DEMO_BASE_APPLICANT,
@@ -126,6 +140,7 @@ describe('Runtime decisions (e2e)', () => {
       .send({
         requestId: `e2e-decline-${runId}`,
         idempotencyKey: `e2e-decline-${runId}`,
+        subjectReference: 'e2e-subject',
         environmentCode: 'PROD',
         variables: {
           ...DEMO_BASE_APPLICANT,
@@ -154,6 +169,7 @@ describe('Runtime decisions (e2e)', () => {
       .send({
         requestId: `e2e-fraud-${runId}`,
         idempotencyKey: `e2e-fraud-${runId}`,
+        subjectReference: 'e2e-subject',
         environmentCode: 'PROD',
         variables: {
           ...DEMO_BASE_APPLICANT,
@@ -169,5 +185,31 @@ describe('Runtime decisions (e2e)', () => {
       })
       .expect(200);
     expect(response.body.outcome).toBe('MANUAL_REVIEW');
+  });
+
+  it('a first-time applicant without a registered enabling basis goes to review, not approval', async () => {
+    const response = await request(server())
+      .post('/v1/decisions/BNPL_CREDIT_DECISION')
+      .set(runtimeHeaders('e2e.runtime'))
+      .send({
+        requestId: `e2e-nobasis-${runId}`,
+        idempotencyKey: `e2e-nobasis-${runId}`,
+        subjectReference: `e2e-nobasis-subject-${runId}`,
+        environmentCode: 'PROD',
+        variables: {
+          ...DEMO_BASE_APPLICANT,
+          kyc_status: 'VERIFIED',
+          consent_active: true,
+          age: 30,
+          fraud_signal: false,
+          bureau_score: 760,
+          disposable_income: 4200,
+          requested_amount: 2500,
+        },
+      })
+      .expect(422);
+    expect(response.body.status).toBe('NO_DECISION');
+    expect(response.body.reasonCodes[0].code).toBe('ENABLING_BASIS_MISSING');
+    expect(response.body.decisionValidUntil).toBeNull();
   });
 });

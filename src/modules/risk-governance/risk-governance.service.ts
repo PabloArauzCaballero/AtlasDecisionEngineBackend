@@ -174,30 +174,57 @@ export class RiskGovernanceService {
 
   // --- Licitud vigente ----------------------------------------------------
 
+  /**
+   * Registra (o renueva) la base habilitante de un titular para una finalidad.
+   *
+   * El titular se MATERIALIZA si el motor aún no lo conoce. Antes se exigía que tuviera una
+   * decisión previa (`SUBJECT_NOT_FOUND`), lo que obligaba al core a registrar la base DESPUÉS de
+   * la primera decisión: el primer solicitante se decidía siempre sin base que comprobar.
+   *
+   * Réplicas fuera de orden: un alta con `grantedAt` anterior o igual a una revocación vigente, o
+   * anterior al alta vigente, es una réplica vieja y se rechaza con `CONSENT_GRANT_REPLAYED`.
+   * Renovar de verdad (alta posterior a la revocación) sí limpia la revocación. Las escrituras
+   * sobre el mismo titular se serializan con un bloqueo de su fila.
+   */
   async recordConsent(tenantId: bigint, dto: RecordConsentDto, principal: AuthenticatedPrincipal) {
-    const subjectId = await this.requireSubject(tenantId, dto.subjectReference);
-    const consent = await this.prisma.subjectConsent.upsert({
-      where: { tenantId_subjectId_purpose: { tenantId, subjectId, purpose: dto.purpose } },
-      create: {
-        tenantId,
-        subjectId,
-        purpose: dto.purpose,
+    const grantedAt = new Date(dto.grantedAt);
+    const { consent, subjectId } = await this.prisma.$transaction(async (tx) => {
+      const subjectId = await this.lockSubject(tx, tenantId, dto.subjectReference);
+      const existing = await tx.subjectConsent.findUnique({
+        where: { tenantId_subjectId_purpose: { tenantId, subjectId, purpose: dto.purpose } },
+      });
+      if (existing) {
+        const replayed = existing.revokedAt
+          ? grantedAt <= existing.revokedAt
+          : grantedAt < existing.grantedAt;
+        if (replayed) {
+          throw new DomainException(
+            'CONSENT_GRANT_REPLAYED',
+            'El alta es anterior a la situación vigente de esta finalidad (una revocación o un alta ' +
+              'más reciente). Es una réplica vieja y no puede resucitar el permiso.',
+            HttpStatus.CONFLICT,
+            { purpose: dto.purpose },
+          );
+        }
+      }
+      const data = {
         basis: dto.basis as ProcessingLegalBasis,
-        grantedAt: new Date(dto.grantedAt),
+        grantedAt,
         expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
         evidenceRef: dto.evidenceRef,
+        consentVersion: dto.consentVersion ?? null,
         recordedBy: principal.id,
-      },
-      // Renovar limpia la revocación: es un permiso NUEVO sobre la misma finalidad, y arrastrar
-      // el `revokedAt` viejo dejaría el consentimiento recién dado como inválido para siempre.
-      update: {
-        basis: dto.basis as ProcessingLegalBasis,
-        grantedAt: new Date(dto.grantedAt),
-        expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
-        revokedAt: null,
-        evidenceRef: dto.evidenceRef,
-        recordedBy: principal.id,
-      },
+      };
+      const consent = existing
+        ? await tx.subjectConsent.update({
+            where: { id: existing.id },
+            // Renovar limpia la revocación: es un permiso NUEVO, posterior a ella.
+            data: { ...data, revokedAt: null },
+          })
+        : await tx.subjectConsent.create({
+            data: { ...data, tenantId, subjectId, purpose: dto.purpose },
+          });
+      return { consent, subjectId };
     });
     await this.audit.append({
       tenantId,
@@ -212,11 +239,58 @@ export class RiskGovernanceService {
     return this.serializeConsent(consent);
   }
 
+  /**
+   * Revoca la base de una finalidad, también si la réplica llega tarde o antes que el alta.
+   *
+   * `revokedAt` permite fechar la revocación cuando el titular la hizo (el motor pudo estar caído).
+   * Si no existe registro se deja una LÁPIDA revocada, para que un alta vieja que llegue después
+   * no pueda crear un permiso que el titular ya retiró. Una revocación anterior a un alta posterior
+   * es obsoleta (`CONSENT_REVOCATION_STALE`); entre dos revocaciones vale la más temprana.
+   */
   async revokeConsent(tenantId: bigint, dto: RevokeConsentDto, principal: AuthenticatedPrincipal) {
-    const subjectId = await this.requireSubject(tenantId, dto.subjectReference);
-    const consent = await this.prisma.subjectConsent.update({
-      where: { tenantId_subjectId_purpose: { tenantId, subjectId, purpose: dto.purpose } },
-      data: { revokedAt: new Date(), recordedBy: principal.id },
+    const now = new Date();
+    const revokedAt = dto.revokedAt ? new Date(dto.revokedAt) : now;
+    if (revokedAt.getTime() > now.getTime() + 60_000) {
+      throw new DomainException(
+        'CONSENT_REVOCATION_IN_FUTURE',
+        'Una revocación no puede fecharse en el futuro.',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    const { consent, subjectId } = await this.prisma.$transaction(async (tx) => {
+      const subjectId = await this.lockSubject(tx, tenantId, dto.subjectReference);
+      const existing = await tx.subjectConsent.findUnique({
+        where: { tenantId_subjectId_purpose: { tenantId, subjectId, purpose: dto.purpose } },
+      });
+      if (!existing) {
+        const consent = await tx.subjectConsent.create({
+          data: {
+            tenantId,
+            subjectId,
+            purpose: dto.purpose,
+            basis: ProcessingLegalBasis.CONSENT,
+            grantedAt: revokedAt,
+            revokedAt,
+            recordedBy: principal.id,
+          },
+        });
+        return { consent, subjectId };
+      }
+      if (existing.grantedAt > revokedAt) {
+        throw new DomainException(
+          'CONSENT_REVOCATION_STALE',
+          'La revocación es anterior al alta vigente de esta finalidad: ya fue superada.',
+          HttpStatus.CONFLICT,
+          { purpose: dto.purpose },
+        );
+      }
+      const effective =
+        existing.revokedAt && existing.revokedAt <= revokedAt ? existing.revokedAt : revokedAt;
+      const consent = await tx.subjectConsent.update({
+        where: { id: existing.id },
+        data: { revokedAt: effective, recordedBy: principal.id },
+      });
+      return { consent, subjectId };
     });
     await this.audit.append({
       tenantId,
@@ -228,6 +302,31 @@ export class RiskGovernanceService {
       payload: { purpose: dto.purpose, subjectId: subjectId.toString() },
     });
     return this.serializeConsent(consent);
+  }
+
+  /**
+   * El titular, creado si hace falta y BLOQUEADO hasta el final de la transacción.
+   *
+   * `INSERT … ON CONFLICT` y no `upsert`, por lo mismo que en el escritor de ejecuciones: dos
+   * réplicas simultáneas del mismo titular no deben abortar una a la otra con P2002. El bloqueo
+   * de la fila serializa alta y revocación del mismo titular, que es donde el orden importa.
+   */
+  private async lockSubject(
+    tx: Prisma.TransactionClient,
+    tenantId: bigint,
+    subjectReference: string,
+  ): Promise<bigint> {
+    const subjectReferenceHash = this.hashes.hmac(subjectReference);
+    const rows = await tx.$queryRaw<Array<{ id: bigint }>>`
+      INSERT INTO "decision_subject" ("tenant_id", "subject_reference_hash", "decision_count")
+      VALUES (${tenantId}, ${subjectReferenceHash}, 0)
+      ON CONFLICT ("tenant_id", "subject_reference_hash") DO UPDATE
+        SET "subject_reference_hash" = EXCLUDED."subject_reference_hash"
+      RETURNING "id"
+    `;
+    const subjectId = rows[0].id;
+    await tx.$queryRaw`SELECT "id" FROM "decision_subject" WHERE "id" = ${subjectId} FOR UPDATE`;
+    return subjectId;
   }
 
   /** Los permisos de un titular, cada uno con su veredicto de hoy. */
@@ -253,6 +352,7 @@ export class RiskGovernanceService {
     expiresAt: Date | null;
     revokedAt: Date | null;
     evidenceRef: string | null;
+    consentVersion?: string | null;
   }) {
     return {
       id: consent.id.toString(),
@@ -262,6 +362,7 @@ export class RiskGovernanceService {
       expiresAt: consent.expiresAt?.toISOString() ?? null,
       revokedAt: consent.revokedAt?.toISOString() ?? null,
       evidenceRef: consent.evidenceRef,
+      consentVersion: consent.consentVersion ?? null,
     };
   }
 

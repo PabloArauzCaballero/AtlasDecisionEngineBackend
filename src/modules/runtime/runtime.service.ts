@@ -1,5 +1,6 @@
-import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { ExecutionStatus } from '@prisma/client';
 import { AuditService } from '../../common/audit/audit.service';
 import { HashService } from '../../common/crypto/hash.service';
 import { DomainException } from '../../common/errors/domain-exception';
@@ -12,6 +13,7 @@ import {
 import { TracingService } from '../../common/observability/tracing.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
+import { DECISION_CLOCK, systemClock, type Clock } from '../../common/time/clock';
 import { DeploymentResolverService } from '../deployments/deployment-resolver.service';
 import type { ResolvedDeployment } from '../deployments/deployment-resolver.service';
 import { ExecutionEngineService } from '../graph/execution-engine.service';
@@ -19,7 +21,15 @@ import type { EngineExecutionResult } from '../graph/graph.types';
 import { NestedTreeExecutionService } from '../nested-trees/nested-tree-execution.service';
 import { WorkerServiceInvokerService } from '../workers/worker-service-invoker.service';
 import { VariableResolutionService } from '../variables/variable-resolution.service';
-import { DecisionGuardService } from '../risk-governance/decision-guard.service';
+import { DecisionGuardService, type GuardVerdict } from '../risk-governance/decision-guard.service';
+import {
+  EnablingBasisPolicyError,
+  parseUndeclaredBasisMode,
+  resolveEnablingBasisPolicy,
+  type EnablingBasisPolicy,
+} from '../risk-governance/enabling-basis';
+import type { RoleViolation } from '../risk-governance/semantic-outputs';
+import type { ResolvedVariableSnapshot } from '../variables/variable-resolution.service';
 import { ExecuteDecisionDto } from './runtime.dto';
 import { applySubjectPolicy } from './subject-policy';
 import { IdempotencyService } from './idempotency.service';
@@ -43,6 +53,15 @@ function requestedAmountOf(variables: Record<string, unknown>): number {
   }
   return 0;
 }
+
+/**
+ * Cuánto vale una decisión aprobada para conceder, si nadie lo configura: una hora.
+ *
+ * El motor no reserva exposición (lee los créditos ya registrados), así que dos decisiones
+ * simultáneas del mismo solicitante pueden pasar las dos. Quien concede tiene que revalidar, y
+ * una decisión que no caduca le permitiría conceder mañana con la exposición de hoy.
+ */
+const DEFAULT_DECISION_VALIDITY_SECONDS = 3_600;
 
 /** HTTP status and serializable response produced by the decision runtime. */
 export interface RuntimeHttpResult {
@@ -83,6 +102,11 @@ export class RuntimeService {
      * licitud vigente. Vivian como reglas puras que no llamaba nadie.
      */
     private readonly guard: DecisionGuardService,
+    /**
+     * El reloj de la decisión. UN instante por petición para la vigencia de la base, la frescura
+     * de las variables, el vencimiento de la decisión y las ventanas de observación.
+     */
+    @Optional() @Inject(DECISION_CLOCK) private readonly clock: Clock = systemClock,
   ) {}
 
   /**
@@ -157,6 +181,7 @@ export class RuntimeService {
     }
 
     const started = performance.now();
+    const now = this.clock();
     try {
       const deployment = await this.deployments.resolve(tenantId, artifactCode, environmentCode);
       /*
@@ -169,20 +194,39 @@ export class RuntimeService {
        */
       const subject = applySubjectPolicy(deployment.subjectPolicy, dto.subjectReference);
       /*
-       * Apetito de cartera y licitud vigente, ANTES de resolver variables y de ejecutar.
+       * Apetito de cartera y base habilitante, ANTES de resolver variables y de ejecutar.
        *
-       * Las dos pueden decir «no», y ese «no» no es una negativa de riesgo sobre el solicitante:
-       * es presupuesto agotado o un permiso vencido. Comprobarlo aqui evita gastar la ejecucion
-       * -y, con ella, las llamadas a proveedores- en una decision que no se va a poder conceder.
+       * Pueden decir «no», y ese «no» no es una negativa de riesgo sobre el solicitante: es
+       * presupuesto agotado o falta de base para tratar sus datos. Comprobarlo aqui evita gastar
+       * la ejecucion -y, con ella, las llamadas a proveedores- en una decision que no se va a
+       * poder conceder, y evita TRATAR los datos de alguien sin base para hacerlo.
        *
-       * Sin sujeto no comprueba nada: los dos controles son sobre una persona concreta. Que sea
-       * asi es un motivo mas para exigir sujeto, no una excusa para no exigirlo.
+       * Un sujeto todavia no materializado (primer solicitante) ya no elude nada: exposicion cero
+       * pero comparada, y sin bases registradas. Sin referencia de sujeto, una politica que exige
+       * base no se puede satisfacer.
        */
-      await this.guard.assertCanDecide(
+      const guardVerdict = await this.guard.checkBeforeDecision({
         tenantId,
-        await this.subjectIdOf(tenantId, subject.subjectReference),
-        requestedAmountOf(dto.variables),
-      );
+        subjectId: await this.subjectIdOf(tenantId, subject.subjectReference),
+        subjectReferencePresent: Boolean(subject.subjectReference),
+        requestedAmount: requestedAmountOf(dto.variables),
+        basisPolicy: this.basisPolicyFor(deployment),
+        now,
+      });
+      if (!guardVerdict.basis.satisfied) {
+        return await this.recordBasisReview(
+          tenantId,
+          artifactCode,
+          dto,
+          principal,
+          deployment,
+          subject,
+          guardVerdict,
+          reservation,
+          started,
+          now,
+        );
+      }
       // Output contracts are produced by RESULT nodes and must never be requested
       // from the caller as if they were input dependencies.
       const inputContracts = deployment.compiled.variables.filter(
@@ -194,6 +238,7 @@ export class RuntimeService {
         requestId: dto.requestId,
         allowExternal: true,
         metadata: dto.variableMetadata,
+        now,
       });
       const inputSnapshot = Object.fromEntries(
         resolution.snapshots.map((item) => [
@@ -218,6 +263,7 @@ export class RuntimeService {
               subjectAbsenceReason: subject.absenceReason,
               inputSnapshot,
               durationMs,
+              decidedAt: now,
               variableSnapshots: resolution.snapshots,
               errors: resolution.errors.map((error) => ({
                 code: error.code,
@@ -287,16 +333,39 @@ export class RuntimeService {
       const durationMs = Math.max(0, Math.round(performance.now() - started));
       /*
        * El rango de las salidas economicas se comprueba AQUI y no al compilar: el valor lo produce
-       * un script en tiempo de ejecucion, y al compilar solo existe la promesa. No lanza -tirar
-       * una decision ya calculada castigaria al solicitante por un defecto del artefacto- pero
-       * deja constancia, y el gate del contrato economico impide que un artefacto asi llegue a
-       * produccion.
+       * un script en tiempo de ejecucion, y al compilar solo existe la promesa.
+       *
+       * Y la lista SE USA. Antes se registraba y la decision salia igual, con una PD de 4,2 o un
+       * limite negativo dentro de una respuesta SUCCEEDED que el llamante podia leer como una
+       * autorizacion. Ahora la ejecucion se guarda entera como evidencia y la respuesta es
+       * NO_DECISION con motivo TECNICO: un defecto del artefacto no es una negativa sobre el
+       * solicitante, y tampoco puede ser una concesion.
        */
-      await this.guard.reviewOutputs(
+      const violations = await this.guard.reviewOutputs(
         tenantId,
         deployment.artifactVersionId,
         result.output as Record<string, unknown> | undefined,
+        { limit: result.limit },
       );
+      if (violations.length) {
+        return await this.recordInvalidOutput(
+          tenantId,
+          artifactCode,
+          dto,
+          principal,
+          deployment,
+          subject,
+          {
+            inputSnapshot,
+            variableSnapshots: resolution.snapshots,
+            result,
+            violations,
+            durationMs,
+          },
+          reservation,
+          now,
+        );
+      }
 
       // The execution and its evidence, the idempotency outcome and the audit event commit
       // together or not at all. Variable resolution and
@@ -314,12 +383,17 @@ export class RuntimeService {
             subjectAbsenceReason: subject.absenceReason,
             inputSnapshot,
             durationMs,
+            decidedAt: now,
             variableSnapshots: resolution.snapshots,
             result,
           },
           tx,
         );
-        const responseBody = this.buildBody(dto, artifactCode, deployment, execution, result);
+        const responseBody = this.buildBody(dto, artifactCode, deployment, execution, result, {
+          guard: guardVerdict,
+          snapshots: resolution.snapshots,
+          now,
+        });
         await this.idempotency.complete(
           reservation.id,
           reservation.lease,
@@ -447,7 +521,9 @@ export class RuntimeService {
     deployment: ResolvedDeployment,
     execution: { id: bigint },
     result: EngineExecutionResult,
+    context: { guard: GuardVerdict; snapshots: ResolvedVariableSnapshot[]; now: Date },
   ): Record<string, unknown> {
+    const succeeded = String(result.status) === ExecutionStatus.SUCCEEDED;
     return {
       requestId: dto.requestId,
       correlationId: dto.correlationId,
@@ -498,6 +574,287 @@ export class RuntimeService {
           }
         : null,
       traceReference: execution.id.toString(),
+      /*
+       * Lo que quien CONCEDE necesita para revalidar (campos aditivos, P-11).
+       *
+       * El motor decide y el core concede. El motor lee la exposicion de los creditos ya
+       * registrados y NO reserva: `exposure` publica cuanto quedaba y cuanto queda si se concede
+       * lo pedido, y `decisionValidUntil` pone fecha de caducidad a la decision. El core reserva
+       * contra su libro de forma atomica y no concede despues de esa fecha ni por encima de
+       * `exposure.remainingAfterDecision`. Nulo cuando la decision no termino en SUCCEEDED.
+       */
+      decisionValidUntil: succeeded ? this.validUntil(context.now).toISOString() : null,
+      exposure: context.guard.exposure,
+      enablingBasis: {
+        policySource: context.guard.basis.policy.source,
+        purposes: context.guard.basis.policy.requirements.map((requirement) => requirement.purpose),
+      },
+      /*
+       * Frescura (P-10). `degradedInputs` = alguna variable entro vieja, con sello dudoso o con
+       * frescura desconocida; `freshnessUnknown` = las CRITICAS cuya frescura no se pudo
+       * comprobar. El core no debe originar con datos criticos desconocidos.
+       */
+      degradedInputs: context.snapshots.some((snapshot) => snapshot.freshness?.degraded),
+      freshnessUnknown: context.snapshots
+        .filter((snapshot) => snapshot.freshness?.unknown)
+        .map((snapshot) => snapshot.code),
+    };
+  }
+
+  private validUntil(now: Date): Date {
+    const configured = Number(this.config.get('DECISION_VALIDITY_SECONDS'));
+    const seconds =
+      Number.isFinite(configured) && configured > 0
+        ? configured
+        : DEFAULT_DECISION_VALIDITY_SECONDS;
+    return new Date(now.getTime() + seconds * 1_000);
+  }
+
+  /**
+   * La politica de base habilitante de este despliegue.
+   *
+   * Una politica declarada que no se puede interpretar falla CERRADO y de forma determinista: es
+   * un defecto de la version, no una razon para decidir sin control.
+   */
+  private basisPolicyFor(deployment: ResolvedDeployment): EnablingBasisPolicy {
+    try {
+      return resolveEnablingBasisPolicy({
+        declared: deployment.enablingBasisPolicy,
+        legalBasis: deployment.legalBasis,
+        riskDomain: deployment.riskDomain,
+        isProductionEnvironment: deployment.isProductionEnvironment,
+        undeclaredMode: parseUndeclaredBasisMode(
+          this.config.get<string>('ENABLING_BASIS_UNDECLARED_ORIGINATION'),
+        ),
+      });
+    } catch (error) {
+      if (error instanceof EnablingBasisPolicyError) {
+        throw new DomainException(
+          'ENABLING_BASIS_POLICY_INVALID',
+          error.message,
+          HttpStatus.CONFLICT,
+        );
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Falta la base habilitante y la politica manda a revision: NO se ejecuta el grafo.
+   *
+   * Ejecutarlo seria tratar los datos del solicitante sin base para hacerlo, que es justo lo que
+   * este control impide. Queda una ejecucion NO_DECISION con los motivos por finalidad —sin las
+   * variables de entrada: la evidencia es la negativa y su porque, no el dato— y la respuesta es
+   * un 422 con la misma forma que el NO_DECISION por variables. El core la lee como revision,
+   * nunca como aprobacion ni como rechazo crediticio.
+   */
+  private async recordBasisReview(
+    tenantId: bigint,
+    artifactCode: string,
+    dto: ExecuteDecisionDto,
+    principal: AuthenticatedPrincipal,
+    deployment: ResolvedDeployment,
+    subject: ReturnType<typeof applySubjectPolicy>,
+    verdict: GuardVerdict,
+    reservation: { id: bigint; lease: Date },
+    started: number,
+    now: Date,
+  ): Promise<RuntimeHttpResult> {
+    const durationMs = Math.max(0, Math.round(performance.now() - started));
+    const failures = verdict.basis.failures;
+    const body = await this.prisma.$transaction(async (tx) => {
+      const execution = await this.writer.write(
+        {
+          tenantId,
+          deployment,
+          requestId: dto.requestId,
+          correlationId: dto.correlationId,
+          idempotencyKey: dto.idempotencyKey,
+          subjectReference: subject.subjectReference,
+          subjectAbsenceReason: subject.absenceReason,
+          inputSnapshot: {},
+          durationMs,
+          decidedAt: now,
+          variableSnapshots: [],
+          errors: failures.map((failure) => ({
+            code: `ENABLING_BASIS_${failure.reason}`,
+            type: 'ENABLING_BASIS',
+            message: `Finalidad ${failure.purpose}: ${failure.reason}`,
+            retryable: false,
+            details: { purpose: failure.purpose, policySource: verdict.basis.policy.source },
+          })),
+        },
+        tx,
+      );
+      const responseBody = {
+        requestId: dto.requestId,
+        correlationId: dto.correlationId,
+        executionId: execution.id.toString(),
+        status: ExecutionStatus.NO_DECISION,
+        outcome: ExecutionStatus.NO_DECISION,
+        reasonCodes: [
+          {
+            code: 'ENABLING_BASIS_MISSING',
+            category: 'COMPLIANCE',
+            message:
+              'Falta una base habilitante vigente para tratar los datos del solicitante con esta ' +
+              'finalidad. No es una negativa de riesgo: la solicitud va a revision.',
+            adverseAction: false,
+          },
+        ],
+        errors: failures.map((failure) => ({
+          code: `ENABLING_BASIS_${failure.reason}`,
+          purpose: failure.purpose,
+        })),
+        enablingBasis: { policySource: verdict.basis.policy.source, failures },
+        decisionValidUntil: null,
+        artifact: this.artifactRef(artifactCode, deployment),
+      };
+      await this.idempotency.fail(
+        reservation.id,
+        reservation.lease,
+        { httpStatus: 422, body: responseBody },
+        tx,
+      );
+      await this.audit.append(
+        {
+          tenantId,
+          eventType: 'DECISION_NO_DECISION_ENABLING_BASIS',
+          aggregateType: 'DecisionExecution',
+          aggregateId: execution.id.toString(),
+          actorId: principal.id,
+          requestId: principal.requestId,
+          payload: {
+            artifactCode,
+            policySource: verdict.basis.policy.source,
+            failures: failures.map((failure) => ({
+              purpose: failure.purpose,
+              reason: failure.reason,
+            })),
+          },
+        },
+        tx,
+      );
+      return responseBody;
+    });
+    this.metrics.recordDecision('NO_DECISION', 'NO_DECISION');
+    return { httpStatus: 422, body };
+  }
+
+  /**
+   * El grafo termino pero una salida economica no vale: se guarda TODO y no se autoriza nada.
+   *
+   * La ejecucion conserva salida, traza y motivos del grafo —es el expediente del defecto— con
+   * estado NO_DECISION y un error por salida. No se abre caso de revision manual aunque el grafo
+   * lo pidiera: la respuesta no lo anuncia, y un caso que nadie conoce es una bandeja fantasma.
+   */
+  private async recordInvalidOutput(
+    tenantId: bigint,
+    artifactCode: string,
+    dto: ExecuteDecisionDto,
+    principal: AuthenticatedPrincipal,
+    deployment: ResolvedDeployment,
+    subject: ReturnType<typeof applySubjectPolicy>,
+    evidence: {
+      inputSnapshot: Record<string, unknown>;
+      variableSnapshots: ResolvedVariableSnapshot[];
+      result: EngineExecutionResult;
+      violations: RoleViolation[];
+      durationMs: number;
+    },
+    reservation: { id: bigint; lease: Date },
+    now: Date,
+  ): Promise<RuntimeHttpResult> {
+    const { result, violations } = evidence;
+    const body = await this.prisma.$transaction(async (tx) => {
+      const execution = await this.writer.write(
+        {
+          tenantId,
+          deployment,
+          requestId: dto.requestId,
+          correlationId: dto.correlationId,
+          idempotencyKey: dto.idempotencyKey,
+          subjectReference: subject.subjectReference,
+          subjectAbsenceReason: subject.absenceReason,
+          inputSnapshot: evidence.inputSnapshot,
+          durationMs: evidence.durationMs,
+          decidedAt: now,
+          variableSnapshots: evidence.variableSnapshots,
+          result: { ...result, manualReview: undefined },
+          statusOverride: ExecutionStatus.NO_DECISION,
+          errors: violations.map((violation) => ({
+            code: violation.code,
+            type: 'ECONOMIC_OUTPUT',
+            message: violation.message,
+            retryable: false,
+            details: { field: violation.fieldCode, role: violation.role },
+          })),
+        },
+        tx,
+      );
+      const responseBody = {
+        requestId: dto.requestId,
+        correlationId: dto.correlationId,
+        executionId: execution.id.toString(),
+        status: ExecutionStatus.NO_DECISION,
+        outcome: ExecutionStatus.NO_DECISION,
+        reasonCodes: [
+          {
+            code: 'ECONOMIC_OUTPUT_INVALID',
+            category: 'TECHNICAL',
+            message:
+              'La politica produjo una salida economica fuera de rango. Es un defecto del ' +
+              'artefacto, no una negativa sobre el solicitante: la solicitud va a revision.',
+            adverseAction: false,
+          },
+        ],
+        errors: violations.map((violation) => ({
+          code: violation.code,
+          field: violation.fieldCode,
+          message: violation.message,
+        })),
+        decisionValidUntil: null,
+        artifact: this.artifactRef(artifactCode, deployment),
+      };
+      await this.idempotency.fail(
+        reservation.id,
+        reservation.lease,
+        { httpStatus: 422, body: responseBody },
+        tx,
+      );
+      await this.audit.append(
+        {
+          tenantId,
+          eventType: 'DECISION_NO_DECISION_ECONOMIC_OUTPUT',
+          aggregateType: 'DecisionExecution',
+          aggregateId: execution.id.toString(),
+          actorId: principal.id,
+          requestId: principal.requestId,
+          payload: {
+            artifactCode,
+            versionId: deployment.artifactVersionId.toString(),
+            graphOutcome: result.outcome ?? null,
+            violations: violations.map((violation) => ({
+              code: violation.code,
+              field: violation.fieldCode,
+            })),
+          },
+        },
+        tx,
+      );
+      return responseBody;
+    });
+    this.metrics.recordDecision('NO_DECISION', 'NO_DECISION');
+    return { httpStatus: 422, body };
+  }
+
+  private artifactRef(artifactCode: string, deployment: ResolvedDeployment) {
+    return {
+      code: artifactCode,
+      versionId: deployment.artifactVersionId.toString(),
+      deploymentId: deployment.deploymentId.toString(),
+      environment: deployment.environmentCode,
+      checksum: deployment.compiledChecksum,
     };
   }
 

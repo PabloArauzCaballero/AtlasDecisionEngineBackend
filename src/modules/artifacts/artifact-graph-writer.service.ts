@@ -181,6 +181,10 @@ export class ArtifactGraphWriterService {
              * podía llegar a producción, por un requisito que no había forma de cumplir.
              */
             semanticRole: (field.semanticRole ?? 'NONE') as OutputSemanticRole,
+            policyMinValue:
+              field.policyMinValue === undefined ? null : new Prisma.Decimal(field.policyMinValue),
+            policyMaxValue:
+              field.policyMaxValue === undefined ? null : new Prisma.Decimal(field.policyMaxValue),
           })),
           select: { id: true, fieldCode: true },
         });

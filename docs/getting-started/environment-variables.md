@@ -3,7 +3,7 @@
 
 # Variables de entorno
 
-313 variables declaradas. El esquema se valida al arrancar: un valor ausente o
+316 variables declaradas. El esquema se valida al arrancar: un valor ausente o
 fuera de rango impide el arranque en vez de degradar el comportamiento en caliente.
 
 | Variable | Obligatoria | Valor por defecto | Para qué |
@@ -101,6 +101,9 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `AUDIT_HASH_PREVIOUS_SECRETS` | no | — | JSON object of {keyId: secret} for retired keys, verification only. |
 | `DEFAULT_ENVIRONMENT` | **sí** | — | — |
 | `MAX_EXECUTION_STEPS` | no | `256` | — |
+| `DECISION_VALIDITY_SECONDS` | no | `3_600` | Cuánto vale una decisión aprobada para conceder (`decisionValidUntil`). El motor no reserva exposición: quien concede revalida, y no puede hacerlo con una decisión eterna. |
+| `ENABLING_BASIS_UNDECLARED_ORIGINATION` | **sí** | — | Artefacto de ORIGINACIÓN en producción que no declara base habilitante: REVIEW (por omisión, falla cerrado: sin base registrada va a revisión), BLOCK, o ALLOW_LEGACY (el comportamiento anterior, sólo para volver atrás de forma explícita). |
+| `FRESHNESS_UNKNOWN_POLICY` | no | `'DEGRADE'` | Variable CRÍTICA cuya frescura no se puede comprobar (sin sello o sin SLA positivo): DEGRADE (por omisión: se decide, marcada), REJECT (NO_DECISION) o MEASURE (sólo anota). |
 | `TEST_RUN_WORKER_ENABLED` | no | `true` | El worker de corridas de prueba era el único trabajo de fondo sin interruptor: se arrancaba en todo proceso que cargara el módulo, incluidas las réplicas de API. |
 | `TEST_RUN_WORKER_POLL_MS` | no | `500` | Suelo del sondeo. Con el despertar por señal activo, una corrida encolada arranca al commit y este valor solo gobierna la red de seguridad. |
 | `TEST_RUN_WORKER_MAX_POLL_MS` | no | `30_000` | Techo del retroceso cuando la cola lleva rato vacía. |
