@@ -1,4 +1,4 @@
-# Portal técnico del backend.
+﻿# Portal técnico del backend.
 #
 # Se construye SIEMPRE en contenedor (`yarn docs:build`), no con una instalación local de
 # Python: la versión de MkDocs y de sus extensiones forma parte del resultado, y una máquina
@@ -233,6 +233,7 @@ nav:
       - Resiliencia: operations/resilience.md
       - Reversión: operations/rollback.md
       - Recuperación ante desastres: operations/disaster-recovery.md
+      - Runbook de restore (ensayo P-17): operations/restore-runbook.md
       - Mantenimiento: operations/maintenance.md
       - Runbooks:
           - Índice: runbooks/README.md

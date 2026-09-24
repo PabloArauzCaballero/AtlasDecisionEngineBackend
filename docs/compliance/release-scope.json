@@ -74,11 +74,29 @@
       "packages": [
         "P-16"
       ],
-      "status": "BLOCKED",
+      "status": "IMPLEMENTED",
       "releaseIncluded": true,
       "ownerRole": "S",
-      "requirementsFile": [],
-      "blockedBy": "No hay benchmark del motor: docs/observability/05-performance-results.md sólo tiene el coste de la instrumentación y una referencia medida en AtlasBackend que NO es del motor. Lo cierra P-16."
+      "requirementsFile": [
+        "docs/compliance/requirements/P-16.json"
+      ],
+      "blockedBy": null,
+      "notes": "Benchmark propio del runtime: scripts/perf/decision-load.mjs + decision-bench.sh; resultados en docs/observability/06-engine-benchmark-2026-09-24.md (Mac de desarrollo, no SLO). El SLO acordado y la medición en el entorno objetivo siguen BLOCKED en P-16.json (B18-SLO)."
+    },
+    {
+      "id": "B19",
+      "title": "Restore, rollback, retención y dependencias operables",
+      "packages": [
+        "P-17"
+      ],
+      "status": "IMPLEMENTED",
+      "releaseIncluded": true,
+      "ownerRole": "S",
+      "requirementsFile": [
+        "docs/compliance/requirements/P-17.json"
+      ],
+      "blockedBy": null,
+      "notes": "Ensayo local de restore y política de rollback con prueba (P-17.json). RPO/RTO aprobados, retención, credenciales efectivas, objetos (MinIO) y ejecución por otra persona siguen BLOCKED en P-17.json."
     },
     {
       "id": "B20",
