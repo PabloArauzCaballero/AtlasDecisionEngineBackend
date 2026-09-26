@@ -983,6 +983,10 @@ services:
       # AtlasBackend is a separate Compose project reachable only via the host, hence
       # host.docker.internal rather than a service name on this project's default network.
       IDENTITY_PROVIDER_URL: ${IDENTITY_PROVIDER_URL:-http://host.docker.internal:53005/api/v1}
+      # Fakers del servidor mock (AtlasExternalProvidersMock), también fuera de este proyecto:
+      # por el anfitrión. Si no responde, el QA Lab usa su generador local y lo dice.
+      QA_FAKERS_BASE_URL: ${QA_FAKERS_BASE_URL:-http://host.docker.internal:4010/mock}
+      QA_FAKERS_TIMEOUT_MS: ${QA_FAKERS_TIMEOUT_MS:-4000}
       MANAGEMENT_API_KEY: ${MANAGEMENT_API_KEY:?set MANAGEMENT_API_KEY in .env}
       RUNTIME_API_KEY: ${RUNTIME_API_KEY:?set RUNTIME_API_KEY in .env}
       # Una credencial por PASO de aprobacion, con solo el rol de ese paso. Sin ellas el flujo de

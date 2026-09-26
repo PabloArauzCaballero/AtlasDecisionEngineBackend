@@ -6,6 +6,7 @@
  * entrada generada, que no es ni una corrida ni un contraejemplo.
  */
 import { ApiProperty } from '@nestjs/swagger';
+import { QaFakerReportDto } from './qa-lab.response.dto';
 
 export class SampleCaseDto {
   @ApiProperty({ example: 0, description: 'Posición dentro del lote, empezando en 0.' })
@@ -83,11 +84,19 @@ class SampleBatchDto {
   })
   seed!: string;
 
-  @ApiProperty({ example: 'atlas-qa-generator-1.2.0' })
+  @ApiProperty({ example: 'atlas-qa-generator-1.3.0' })
   generatorVersion!: string;
 
   @ApiProperty({ type: [SampleCaseDto] })
   cases!: SampleCaseDto[];
+
+  @ApiProperty({
+    type: QaFakerReportDto,
+    required: false,
+    description:
+      'De dónde salieron los valores con significado (nombre, carnet, celular…): fakers del servidor mock o, si no respondió, el generador local.',
+  })
+  fakers?: QaFakerReportDto;
 }
 
 /** `SampleInputService.generate`: contrato tomado del despliegue del ambiente. */

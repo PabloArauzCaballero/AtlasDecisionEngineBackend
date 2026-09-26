@@ -3,7 +3,7 @@
 
 # Variables de entorno
 
-316 variables declaradas. El esquema se valida al arrancar: un valor ausente o
+318 variables declaradas. El esquema se valida al arrancar: un valor ausente o
 fuera de rango impide el arranque en vez de degradar el comportamiento en caliente.
 
 | Variable | Obligatoria | Valor por defecto | Para qué |
@@ -94,6 +94,8 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `OTEL_TRACES_SAMPLER_ARG` | no | `1` | — |
 | `OTEL_PROPAGATORS` | no | `'tracecontext,baggage'` | — |
 | `OTEL_DIAG_LOG_LEVEL` | **sí** | — | — |
+| `QA_FAKERS_BASE_URL` | no | `'http://127.0.0.1:4010/mock'` | Fakers del servidor mock (AtlasExternalProvidersMock, `/mock/fakers`): de ahí salen los datos realistas —nombre, carnet, celular, ingreso— de las corridas del QA Lab y de los valores de prueba del simulador. Vacía = desactivados; si no responde, el lote sale del generador local y la corrida lo archiva con su motivo (`fakers.source`). |
+| `QA_FAKERS_TIMEOUT_MS` | no | `4_000` | — |
 | `VARIABLE_BACKEND_URL` | no | — | — |
 | `VARIABLE_BACKEND_TIMEOUT_MS` | no | `1_500` | — |
 | `AUDIT_HASH_SECRET` | **sí** | — | — |

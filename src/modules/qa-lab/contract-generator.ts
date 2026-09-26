@@ -222,7 +222,14 @@ function invalidCandidates(
     });
   }
   if (constraints.allowedValues?.length) {
-    candidates.push({ value: '__NO_ENUMERADO__', mutation: 'valor fuera de la enumeración' });
+    // Un valor PARECIDO a los admitidos, no un marcador: `APROBADO_X` o `aprobado` ponen a
+    // prueba la comparación exacta, que es donde falla de verdad una enumeración
+    // (mayúsculas, sufijos), y se leen en el informe como un dato y no como basura.
+    const first = String(constraints.allowedValues[0]);
+    const lower = first.toLowerCase();
+    if (lower !== first)
+      candidates.push({ value: lower, mutation: 'valor fuera de la enumeración (minúsculas)' });
+    candidates.push({ value: `${first}_X`, mutation: 'valor fuera de la enumeración' });
   }
   if (constraints.maxItems !== undefined && type === 'LIST') {
     candidates.push({

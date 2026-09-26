@@ -13,8 +13,8 @@ El grafo contiene **12281 nodos** y **29289 relaciones** repartidos en
 **31 módulos de dominio** en `src/modules/`, de los cuales
 todos están registrados en `src/app.module.ts` (comprobado sobre el fichero, no supuesto).
 
-El grafo cubre **715 de 725**
-ficheros TypeScript de `src/` (99 %).
+El grafo cubre **715 de 730**
+ficheros TypeScript de `src/` (98 %).
 Todos los módulos de dominio aparecen en el grafo.
 
 ## Inventario cuantitativo
@@ -112,11 +112,16 @@ Es la dirección que más daño hace: sobre un fichero ausente el grafo no devue
 consulta vacía se lee igual que «no existe». Por eso los catálogos del portal se generan del
 código y del contrato, nunca de este grafo.
 
-**10 de 725** ficheros `.ts` de `src/` no aparecen en el grafo. Se listan los primeros 20:
+**15 de 730** ficheros `.ts` de `src/` no aparecen en el grafo. Se listan los primeros 20:
 
 - `src/common/observability/redacting-span-processor.ts`
 - `src/common/observability/sql-redaction.ts`
 - `src/common/time/clock.ts`
+- `src/modules/qa-lab/faker-semantics.ts`
+- `src/modules/qa-lab/qa-fakers.client.ts`
+- `src/modules/qa-lab/qa-fakers.module.ts`
+- `src/modules/qa-lab/qa-fakers.service.ts`
+- `src/modules/qa-lab/qa-run-summary.ts`
 - `src/modules/risk-governance/enabling-basis.ts`
 - `src/modules/workers/identity-verification/core/forensics/document-color.ts`
 - `src/modules/workers/identity-verification/document-capture-source.ts`

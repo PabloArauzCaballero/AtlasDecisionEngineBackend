@@ -34,8 +34,14 @@ export class VariableDistributionDto {
 }
 
 export class GenerateQaRunDto {
-  /** Ambiente destino. PROD queda excluido: QA nunca ejecuta contra producción. */
-  @IsString() @Matches(/^[A-Z0-9_]{2,40}$/) environmentCode!: string;
+  /**
+   * OBSOLETO: se acepta por compatibilidad y se ignora.
+   *
+   * El QA Lab no ejecuta contra ningún ambiente: evalúa la versión compilada dentro del
+   * proceso de la API, sin persistir ejecuciones. El valor sólo se guardaba y aparentaba
+   * elegir algo. `PROD` se sigue rechazando para que un cliente antiguo no reciba un «sí».
+   */
+  @IsOptional() @IsString() @Matches(/^[A-Za-z0-9_]{2,40}$/) environmentCode?: string;
 
   @IsInt() @Min(1) @Max(5_000) caseCount!: number;
 

@@ -2,11 +2,12 @@
 import { Module } from '@nestjs/common';
 import { GraphModule } from '../graph/graph.module';
 import { VariableModule } from '../variables/variable.module';
+import { QaFakersModule } from './qa-fakers.module';
 import { QaLabController } from './qa-lab.controller';
 import { QaLabService } from './qa-lab.service';
 
 @Module({
-  imports: [GraphModule, VariableModule],
+  imports: [GraphModule, VariableModule, QaFakersModule],
   controllers: [QaLabController],
   providers: [QaLabService],
   exports: [QaLabService],
