@@ -1,0 +1,66 @@
+[
+  {
+    "requirementId": "B19-RESTORE",
+    "packageId": "P-17",
+    "repository": "AtlasDecisionEngineBackend",
+    "title": "Ensayo de restore local con conciliación idéntica y outbox que no reenvía lo despachado",
+    "releaseIncluded": true,
+    "ownerRole": "S",
+    "acceptance": "Base migrada con un ciclo sintético (ejecuciones, consentimiento otorgado y revocado, créditos, desenlaces, outbox PENDING/DISPATCHED/DEAD) → pg_dump -Fc → base nueva → conciliación idéntica línea a línea (conteos, md5 por tabla, desenlaces, créditos por moneda, estados de outbox y secuencias); RTO medido; con la API contra la restaurada el relay despacha exactamente los PENDING y no toca DISPATCHED ni DEAD.",
+    "tests": [
+      {
+        "file": "scripts/ops/restore-drill.sh",
+        "name": "restore con conciliación idéntica y relay que sólo despacha los PENDING",
+        "runner": "script",
+        "command": "yarn build && bash scripts/ops/restore-drill.sh"
+      }
+    ],
+    "requiresDatabase": true,
+    "blockedBy": null
+  },
+  {
+    "requirementId": "B19-ROLLBACK",
+    "packageId": "P-17",
+    "repository": "AtlasDecisionEngineBackend",
+    "title": "Rollback por corrección hacia adelante: las migraciones del plan son aditivas",
+    "releaseIncluded": true,
+    "ownerRole": "S",
+    "acceptance": "Toda migración desde 20260924 es aditiva (sin DROP/DELETE/UPDATE/TRUNCATE/cambio de tipo/RENAME/SET NOT NULL ni columna NOT NULL sin DEFAULT), de modo que revertir la aplicación no exige tocar el esquema ni destruye la evidencia de base habilitante y versión de consentimiento.",
+    "tests": [
+      {
+        "file": "test/migrations-forward-only.spec.ts",
+        "name": "20260924120000_enabling_basis_and_output_policy_range es aditiva"
+      },
+      {
+        "file": "test/migrations-forward-only.spec.ts",
+        "name": "el detector reconoce lo que destruiría hechos"
+      }
+    ],
+    "requiresDatabase": false,
+    "blockedBy": null
+  },
+  {
+    "requirementId": "B19-RPO-RTO",
+    "packageId": "P-17",
+    "repository": "AtlasDecisionEngineBackend",
+    "title": "RPO/RTO aprobados y restore ejecutado por alguien distinto del autor en entorno aislado",
+    "releaseIncluded": true,
+    "ownerRole": "S",
+    "acceptance": "RPO/RTO acordados; restore de la base de producción (copia) y de los objetos de MinIO (imágenes de identidad, extractos) en entorno aislado, con claves y credenciales efectivas recuperables, ejecutado por una persona distinta del autor del runbook.",
+    "tests": [],
+    "requiresDatabase": true,
+    "blockedBy": "Decisión de RPO/RTO (S), acceso a copias reales y a MinIO, credenciales efectivas del entorno y un ejecutor distinto del autor: nada de eso existe en local."
+  },
+  {
+    "requirementId": "B19-RETENCION",
+    "packageId": "P-17",
+    "repository": "AtlasDecisionEngineBackend",
+    "title": "Retención por conjunto de datos aprobada, con vencimiento, legal hold y borrado probados",
+    "releaseIncluded": true,
+    "ownerRole": "J",
+    "acceptance": "Plazos por conjunto (evidencia de identidad, extractos, decisiones, consentimientos, idempotencia, colas, logs) aprobados por J y probados: vencimiento, legal hold, acceso y eliminación permitida.",
+    "tests": [],
+    "requiresDatabase": true,
+    "blockedBy": "Plazos propuestos en docs/compliance/decisions.md (## P-17), pendientes de ratificación por J; hoy las imágenes de identidad se conservan sin plazo por decisión del 2026-09-11 (test/conservacion-indefinida.spec.ts)."
+  }
+]

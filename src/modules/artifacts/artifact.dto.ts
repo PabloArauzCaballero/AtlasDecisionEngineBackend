@@ -49,6 +49,39 @@ export const LEGAL_BASIS = [
   'HEALTH_PROTECTION',
 ] as const;
 
+/** Un requisito: una finalidad y las bases jurídicas que la habilitan. */
+export class EnablingBasisRequirementDto {
+  @IsString() @IsNotEmpty() @MaxLength(120) purpose!: string;
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(8)
+  @IsIn([...LEGAL_BASIS], { each: true })
+  acceptedBases!: string[];
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  @MaxLength(40, { each: true })
+  acceptedVersions?: string[];
+}
+
+/**
+ * Política de base habilitante de una versión (`risk-governance/enabling-basis.ts`).
+ *
+ * `onMissing`: `REVIEW` (por omisión) deja la decisión en revisión sin ejecutar el grafo;
+ * `BLOCK` rechaza la petición. Una lista vacía de requisitos es una exención y exige
+ * `justification`.
+ */
+export class EnablingBasisPolicyDto {
+  @IsOptional() @IsIn(['REVIEW', 'BLOCK']) onMissing?: 'REVIEW' | 'BLOCK';
+  @IsArray()
+  @ArrayMaxSize(20)
+  @ValidateNested({ each: true })
+  @Type(() => EnablingBasisRequirementDto)
+  requirements!: EnablingBasisRequirementDto[];
+  @IsOptional() @IsString() @MaxLength(4_000) justification?: string;
+}
+
 /**
  * Finalidad y base legal del TRATAMIENTO que hace una versión.
  *
@@ -59,6 +92,14 @@ export const LEGAL_BASIS = [
 export class ProcessingBasisDto {
   @IsOptional() @IsString() @MaxLength(8_000) processingPurpose?: string;
   @IsOptional() @IsIn([...LEGAL_BASIS]) legalBasis?: string;
+  /**
+   * Qué base habilitante exige esta versión, por finalidad, y qué hacer si falta.
+   * Sólo se puede cambiar en BORRADOR: se aprueba con la versión (doble control).
+   */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => EnablingBasisPolicyDto)
+  enablingBasisPolicy?: EnablingBasisPolicyDto;
 }
 
 export class CloneVersionDto {

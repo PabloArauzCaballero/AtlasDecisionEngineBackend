@@ -308,6 +308,18 @@ class OutputContractFieldSnapshotDto {
       'su PROBABILITY_OF_DEFAULT para poder desplegarse en producción.',
   })
   semanticRole!: string;
+  @ApiProperty({
+    nullable: true,
+    example: 0.18,
+    description: 'Suelo que la política admite para el campo; fuera de él la decisión no autoriza.',
+  })
+  policyMinValue!: number | null;
+  @ApiProperty({
+    nullable: true,
+    example: 0.45,
+    description: 'Techo que la política admite para el campo; fuera de él la decisión no autoriza.',
+  })
+  policyMaxValue!: number | null;
 }
 
 class GraphConditionDto {
@@ -576,4 +588,17 @@ export class ProcessingBasisResultDto {
     example: 'CREDIT_PROTECTION',
   })
   legalBasis!: string | null;
+  @ApiProperty({
+    nullable: true,
+    type: 'object',
+    additionalProperties: true,
+    example: {
+      onMissing: 'REVIEW',
+      requirements: [{ purpose: 'credit_underwriting', acceptedBases: ['CREDIT_PROTECTION'] }],
+    },
+    description:
+      'Base habilitante exigida por finalidad y qué hacer si falta. Nula = se deriva de ' +
+      '`legalBasis` o de la política por defecto del motor para originación en producción.',
+  })
+  enablingBasisPolicy!: Record<string, unknown> | null;
 }

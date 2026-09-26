@@ -102,6 +102,9 @@ describe('DeploymentResolverService (caché)', () => {
         compiled,
         subjectPolicy: 'REQUIRED',
         riskDomain: 'CREDIT_ORIGINATION',
+        isProductionEnvironment: true,
+        legalBasis: null,
+        enablingBasisPolicy: null,
       }),
     );
     const { prisma, calls } = makePrisma();
@@ -179,6 +182,35 @@ describe('DeploymentResolverService (caché)', () => {
     expect(calls.findFirst).toBe(1);
     expect(cacheCalls.del).toBe(1);
     expect(resolved.subjectPolicy).toBe('REQUIRED');
+  });
+
+  it('una entrada sin la política de base habilitante cae a la base en vez de servirla', async () => {
+    // Mismo riesgo que con `subjectPolicy`: una entrada de la versión anterior no trae si el
+    // ambiente es productivo ni la política de base, y servirla apagaría ese control en el TTL.
+    const { cache, calls: cacheCalls } = makeCache(
+      JSON.stringify({
+        deploymentId: '11',
+        artifactVersionId: '22',
+        environmentId: '3',
+        compiledArtifactId: '33',
+        environmentCode: 'PROD',
+        compiledChecksum: 'sha256:abc',
+        compiled,
+        subjectPolicy: 'REQUIRED',
+        riskDomain: 'CREDIT_ORIGINATION',
+      }),
+    );
+    const { prisma, calls } = makePrisma();
+    const resolved = await new DeploymentResolverService(prisma, cache).resolve(
+      TENANT,
+      'CREDIT',
+      'PROD',
+    );
+
+    expect(calls.findFirst).toBe(1);
+    expect(cacheCalls.del).toBe(1);
+    expect(resolved).toMatchObject({ legalBasis: null, enablingBasisPolicy: null });
+    expect(typeof resolved.isProductionEnvironment).toBe('boolean');
   });
 
   it('si el borrado de la entrada mala falla, la lectura autoritativa sigue adelante', async () => {

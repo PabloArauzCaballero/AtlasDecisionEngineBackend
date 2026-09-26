@@ -592,6 +592,11 @@ model DecisionArtifactVersion {
   /// Por qué esta decisión no tiene sujeto. Obligatoria con `NOT_APPLICABLE`: una exención
   /// sin motivo escrito no es una decisión, es un descuido que nadie puede revisar.
   subjectPolicyJustification String?                 @map("subject_policy_justification") @db.Text
+  /// Qué base habilitante exige esta versión, por finalidad, y qué hacer si falta
+  /// (`risk-governance/enabling-basis.ts`). Nula = se deriva de `legalBasis` o de la política
+  /// por defecto del motor para originación en producción. Se aprueba con la versión: cambiarla
+  /// después de aprobada sería saltarse el doble control.
+  enablingBasisPolicy        Json?                   @map("enabling_basis_policy")
 
   /// Expediente del modelo (SR 11-7 §V; CMN 4.557 art. 40). El material estaba disperso entre
   /// `DecisionApprovalEvidence`, `BusinessObjective` y `PolicyRequirement`; lo que faltaba era
@@ -1562,20 +1567,23 @@ model ExposureLimit {
 /// con fecha, y decidir con un dato cuyo permiso venció es una infracción aunque el dato siga en
 /// la caché. Las dos cosas son necesarias y ninguna sustituye a la otra.
 model SubjectConsent {
-  id          BigInt               @id @default(autoincrement())
-  tenantId    BigInt               @map("tenant_id")
-  subjectId   BigInt               @map("subject_id")
+  id             BigInt               @id @default(autoincrement())
+  tenantId       BigInt               @map("tenant_id")
+  subjectId      BigInt               @map("subject_id")
   /// Para qué: `BANK_STATEMENT_ANALYSIS`, `BUREAU_QUERY`, `BIOMETRIC_VERIFICATION`.
-  purpose     String               @db.VarChar(120)
-  basis       ProcessingLegalBasis
-  grantedAt   DateTime             @map("granted_at") @db.Timestamptz(6)
+  purpose        String               @db.VarChar(120)
+  basis          ProcessingLegalBasis
+  grantedAt      DateTime             @map("granted_at") @db.Timestamptz(6)
   /// Nulo = sin caducidad declarada. No es lo mismo que «para siempre»: es una decisión que
   /// alguien tiene que haber tomado, y la pantalla lo distingue.
-  expiresAt   DateTime?            @map("expires_at") @db.Timestamptz(6)
-  revokedAt   DateTime?            @map("revoked_at") @db.Timestamptz(6)
+  expiresAt      DateTime?            @map("expires_at") @db.Timestamptz(6)
+  revokedAt      DateTime?            @map("revoked_at") @db.Timestamptz(6)
   /// Dónde está la prueba: expediente, grabación, formulario firmado. Nunca el dato en claro.
-  evidenceRef String?              @map("evidence_ref") @db.VarChar(200)
-  recordedBy  String               @map("recorded_by") @db.VarChar(160)
+  evidenceRef    String?              @map("evidence_ref") @db.VarChar(200)
+  /// Versión del texto o de la política bajo la que se otorgó. La política de la versión del
+  /// artefacto puede exigir una lista cerrada (`acceptedVersions`).
+  consentVersion String?              @map("consent_version") @db.VarChar(40)
+  recordedBy     String               @map("recorded_by") @db.VarChar(160)
 
   subject DecisionSubject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
 
@@ -2262,6 +2270,10 @@ model DecisionOutputContractField {
   /// Qué significa económicamente este campo. Lo valida el motor: una probabilidad fuera de
   /// [0,1] es un defecto, no un valor, y sin el rol declarado nadie podía comprobarlo.
   semanticRole     OutputSemanticRole @default(NONE) @map("semantic_role")
+  /// Rango que la POLÍTICA admite para este campo, dentro del que ya impone su rol (p. ej. la
+  /// tasa entre el suelo y el techo del producto). Fuera de él la salida no autoriza nada.
+  policyMinValue   Decimal?           @map("policy_min_value") @db.Decimal(18, 6)
+  policyMaxValue   Decimal?           @map("policy_max_value") @db.Decimal(18, 6)
   /// Mapeo desde valores internos: { [valorInterno]: valorPublicado }.
   valueMappingJson Json?              @map("value_mapping_json")
 

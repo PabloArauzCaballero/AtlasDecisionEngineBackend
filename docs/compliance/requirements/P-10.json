@@ -1,0 +1,112 @@
+[
+  {
+    "requirementId": "B13",
+    "packageId": "P-10",
+    "repository": "AtlasDecisionEngineBackend",
+    "title": "Una salida económica inválida no es una autorización",
+    "releaseIncluded": true,
+    "ownerRole": "M",
+    "acceptance": "PD fuera de [0,1], monto negativo/no finito y precio fuera del rango de la política producen NO_DECISION 422 con motivo técnico (ECONOMIC_OUTPUT_INVALID, sin acción adversa), sin output en la respuesta; la ejecución se conserva con el resultado del grafo y un error por salida; una salida válida sale SUCCEEDED con decisionValidUntil.",
+    "tests": [
+      {
+        "file": "test/runtime-economic-output-gate.spec.ts",
+        "name": "una PD fuera de [0,1] no sale como autorización: NO_DECISION 422 con motivo técnico"
+      },
+      {
+        "file": "test/runtime-economic-output-gate.spec.ts",
+        "name": "un error del modelo no es un rechazo crediticio: sin acción adversa y de categoría técnica"
+      },
+      {
+        "file": "test/runtime-economic-output-gate.spec.ts",
+        "name": "conserva el expediente: la ejecución se escribe con el resultado del grafo y estado NO_DECISION"
+      },
+      {
+        "file": "test/runtime-economic-output-gate.spec.ts",
+        "name": "un límite negativo en el resultado es inválido aunque el artefacto no le declare rol"
+      },
+      {
+        "file": "test/runtime-economic-output-gate.spec.ts",
+        "name": "un importe no finito es inválido"
+      },
+      {
+        "file": "test/runtime-economic-output-gate.spec.ts",
+        "name": "un precio fuera del rango de la POLÍTICA no autoriza aunque sea una tasa plausible"
+      },
+      {
+        "file": "test/runtime-economic-output-gate.spec.ts",
+        "name": "una salida válida sale como siempre, con vencimiento y la exposición que vio"
+      }
+    ],
+    "requiresDatabase": false,
+    "blockedBy": null
+  },
+  {
+    "requirementId": "B14",
+    "packageId": "P-10",
+    "repository": "AtlasDecisionEngineBackend",
+    "title": "Frescura: fecha ausente, inválida o futura con política explícita y reloj inyectado",
+    "releaseIncluded": true,
+    "ownerRole": "M",
+    "acceptance": "Variable sin fecha, fecha futura (respecto del reloj de la decisión) e ilegible tienen tratamiento explícito y distinto del dato vencido; una fecha futura no se vuelve aceptable en silencio; variable crítica sin SLA positivo o sin sello queda como frescura desconocida (DEGRADE por omisión, REJECT configurable); FAIL_CLOSED es crítica; el mismo reloj se usa de punta a punta.",
+    "tests": [
+      {
+        "file": "test/freshness.spec.ts",
+        "name": "usa el reloj inyectado también para decidir qué es futuro"
+      },
+      {
+        "file": "test/freshness.spec.ts",
+        "name": "una fecha futura no se vuelve aceptable en silencio, tampoco sin SLA"
+      },
+      {
+        "file": "test/freshness.spec.ts",
+        "name": "una fecha ilegible no se vuelve «sin fecha»: se marca como sello inválido"
+      },
+      {
+        "file": "test/freshness.spec.ts",
+        "name": "variable crítica sin fecha: frescura desconocida, degradada por omisión"
+      },
+      {
+        "file": "test/freshness.spec.ts",
+        "name": "variable crítica sin fecha con política REJECT: rechazo"
+      },
+      {
+        "file": "test/freshness.spec.ts",
+        "name": "variable crítica sin SLA positivo: exige SLA, no se da por fresca"
+      },
+      {
+        "file": "test/freshness.spec.ts",
+        "name": "el dato vencido se distingue del sello dudoso por su motivo"
+      },
+      {
+        "file": "test/freshness.spec.ts",
+        "name": "FAIL_CLOSED es crítica: un dato vencido rechaza (antes sólo se degradaba)"
+      },
+      {
+        "file": "test/freshness.spec.ts",
+        "name": "un sello futuro respecto del reloj de la decisión se rechaza con su propio código"
+      },
+      {
+        "file": "test/freshness.spec.ts",
+        "name": "crítica sin sello: con REJECT configurado no hay decisión"
+      },
+      {
+        "file": "test/freshness.spec.ts",
+        "name": "crítica sin sello: por omisión se decide, pero la instantánea queda degradada y desconocida"
+      }
+    ],
+    "requiresDatabase": false,
+    "blockedBy": null
+  },
+  {
+    "requirementId": "B13-C",
+    "packageId": "P-10",
+    "repository": "AtlasDecisionEngineBackend",
+    "title": "Core no origina con estado técnico inválido, datos críticos desconocidos o revisión pendiente",
+    "releaseIncluded": true,
+    "ownerRole": "C",
+    "acceptance": "Core trata NO_DECISION como revisión y no concede con freshnessUnknown no vacío ni con decisionValidUntil vencido.",
+    "tests": [],
+    "requiresDatabase": false,
+    "blockedBy": "Implementación en AtlasBackend (Core), fuera de este repositorio."
+  }
+]

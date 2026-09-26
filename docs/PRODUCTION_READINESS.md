@@ -52,12 +52,30 @@ Esta versión está **endurecida y preparada como release candidate**, pero no d
 2. Buró, KYC, bancos, QR y notificaciones requieren contratos y sandbox.
 3. La comparación automática de un test run contra otro artefacto baseline aún no está
    implementada; la API rechaza el parámetro reservado para no generar evidencia incompleta.
-4. No existe aún una política legal final de retención por país/tipo de dato.
+4. No existe aún una política legal final de retención por país/tipo de dato. Ojo a los
+   conjuntos de datos, que no son intercambiables: `RetentionSweeperService` purga filas vencidas
+   de `decision_runtime_idempotency` (claves de reintento, sin valor probatorio) y NO archiva
+   nada; el archivado legal de `decision_execution` y sus satélites (umbral de 7 años de
+   ADR-0025) no tiene todavía el trabajo que lo ejecute, y `decision_audit_event` no se borra.
+   Ninguna prueba del sweeper de idempotencia es evidencia de retención legal de ejecuciones.
 5. Falta validar volumen real y comportamiento bajo saturación.
 6. El seed es demostrativo y no sustituye aprobación formal de políticas crediticias.
 7. La cobertura Jest unitaria/integración medida el 2026-07-28 es 50.14% de statements; los
    controladores y wiring se verifican principalmente en 58 pruebas E2E, pero conviene elevar la
    cobertura directa de servicios de despliegue, artefactos y runtime antes del Go-Live.
+
+8. El motor decide pero no concede: lee la exposición de los créditos registrados y NO la
+   reserva. Dos decisiones simultáneas del mismo titular pueden pasar las dos
+   (`test/exposure-reservation.integration.spec.ts`). La respuesta publica `exposure` y
+   `decisionValidUntil` para que el core reserve de forma atómica; hasta que el core lo haga, un
+   límite `SUBJECT_TOTAL` no es un control de concesión.
+9. Por omisión, originación en producción sin base habilitante registrada sale `NO_DECISION`
+   (P-09) y una variable crítica sin sello o sin SLA sale marcada en `freshnessUnknown` (P-10).
+   El core debe registrar la base antes de decidir y no conceder con `freshnessUnknown` no vacío;
+   ver `docs/compliance/decisions.md`.
+
+El alcance del release y el estado verificable de cada requisito están en
+`docs/compliance/release-scope.json`; esta página no certifica nada por sí misma.
 
 La evidencia reproducible más reciente está en `verification-2026-07-28.md`. Un release posterior
 debe volver a ejecutar los gates: el porcentaje y los resultados no son una certificación permanente.

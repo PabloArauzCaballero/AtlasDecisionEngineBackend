@@ -39,6 +39,7 @@ class ConsentDto {
   @ApiProperty({ example: '2026-01-15T00:00:00.000Z' }) grantedAt!: string;
   @ApiProperty({ nullable: true, example: '2027-01-15T00:00:00.000Z' }) expiresAt!: string | null;
   @ApiProperty({ nullable: true }) revokedAt!: string | null;
+  @ApiProperty({ nullable: true, example: 'v3' }) consentVersion!: string | null;
   @ApiProperty({ example: true }) valid!: boolean;
   @ApiProperty({
     example: 'EXPIRED',

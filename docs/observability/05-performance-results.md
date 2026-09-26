@@ -1,5 +1,16 @@
 # Fase 22 — Coste de la instrumentación
 
+!!! danger "Esto NO es un benchmark del motor (B18)"
+    Esta página mide el coste de la TELEMETRÍA (crear un span, latencia de una ruta que no
+    escribe en base con la telemetría encendida o apagada). La sección «Referencia medida en
+    AtlasBackend» es una medición de **otro servicio** (el core), trasladada aquí sólo como cota
+    del coste de la instrumentación: **no mide decisiones del motor**, ni su latencia, ni su
+    throughput, ni su comportamiento con Postgres, proveedores o el sandbox de scripts bajo
+    carga. El benchmark propio de `POST /v1/decisions/:artifactCode` está en
+    [06-engine-benchmark-2026-09-24.md](06-engine-benchmark-2026-09-24.md) (P-16). Ninguna cifra
+    de esta página sirve como evidencia de rendimiento del motor en
+    `docs/compliance/release-scope.json`.
+
 > **Lea esto antes que los números.** Se midió el **coste de crear un span** (microbanco) y la
 > **latencia de la API** contra el binario compilado, incluida la **línea base con la telemetría
 > apagada**. Lo que **no** se midió: CPU, memoria, uso de red y el comportamiento con el
@@ -164,6 +175,10 @@ conservador**, no una conclusión medida — así consta también en
 [01-architecture-design.md](01-architecture-design.md).
 
 ## Referencia medida en AtlasBackend (2026-09-19)
+
+> **Trasladada de otro repositorio.** Las cifras de esta sección se midieron en AtlasBackend
+> (core), no en el motor. Sirven para estimar el coste relativo de la instrumentación, que es la
+> misma capa; no son un benchmark del motor de decisiones.
 
 El microbanco de arriba mide el coste de CREAR un span; lo que falta aquí es el coste bajo
 carga sostenida, y eso no es una medición de este repositorio. Pero la capa de trazas es la misma, y en AtlasBackend sí se midió con carga real

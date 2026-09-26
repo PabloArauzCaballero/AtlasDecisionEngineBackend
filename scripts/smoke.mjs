@@ -131,6 +131,27 @@ async function main() {
     },
   });
 
+  // Como haría el core: la base habilitante de la evaluación crediticia se registra ANTES de la
+  // primera decisión. Sin ella, un artefacto de originación en producción deriva a revisión
+  // (`ENABLING_BASIS_UNDECLARED_ORIGINATION=REVIEW`) y la decisión no sale aprobada.
+  await call('enabling basis for the smoke subject', {
+    method: 'POST',
+    path: '/v1/risk-governance/consents',
+    headers: managementHeaders,
+    body: {
+      subjectReference: 'smoke-subject',
+      purpose: 'credit_underwriting',
+      basis: 'CREDIT_PROTECTION',
+      grantedAt: '2026-01-01T00:00:00.000Z',
+    },
+    assert: (status, body) => {
+      // 409 = ya estaba registrada por una corrida anterior contra la misma base: vale igual.
+      if (status !== 200 && !(status === 409 && body?.error?.code === 'CONSENT_GRANT_REPLAYED')) {
+        throw new Error(`status: expected 200, got ${status}`);
+      }
+    },
+  });
+
   const idempotencyKey = `smoke-${runTag}`;
   const first = await call('runtime decision (first call)', {
     method: 'POST',

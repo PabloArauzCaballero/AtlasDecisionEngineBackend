@@ -13,17 +13,38 @@ export class RowResultDto {
   @ApiProperty({ example: false }) accepted!: boolean;
   @ApiProperty({ required: false, example: 'FACILITY_NOT_FOUND' }) code?: string;
   @ApiProperty({ required: false }) message?: string;
+  @ApiProperty({
+    required: false,
+    example: true,
+    description:
+      'La fila ya estaba registrada con los mismos datos de identidad: se acepta sin volver a ' +
+      'escribir ni a contar. Es lo que hace seguro reenviar un lote entero.',
+  })
+  duplicate?: boolean;
 }
 
 export class FacilityRegistrationResultDto {
   @ApiProperty({ example: 812 }) registered!: number;
   @ApiProperty({ example: 3 }) rejected!: number;
+  @ApiProperty({
+    required: false,
+    example: 40,
+    description: 'De las registradas, cuántas ya existían (reenvío idempotente).',
+  })
+  duplicates?: number;
   @ApiProperty({ type: [RowResultDto] }) rows!: RowResultDto[];
 }
 
 export class OutcomeBatchResultDto {
   @ApiProperty({ example: 1998 }) accepted!: number;
   @ApiProperty({ example: 2 }) rejected!: number;
+  @ApiProperty({
+    required: false,
+    example: 12,
+    description:
+      'De las aceptadas, cuántas ya estaban observadas igual: no se reescriben ni cuentan.',
+  })
+  duplicates?: number;
   @ApiProperty({
     example: true,
     description: 'Si es cierto no se escribió nada: era una validación previa.',

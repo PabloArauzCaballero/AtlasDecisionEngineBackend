@@ -3,7 +3,7 @@
 
 # Catálogo de códigos de error
 
-254 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
+260 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
 el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 
 | Código | Mensaje de referencia | Origen |
@@ -69,6 +69,9 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `CODE_IMPORT_SOURCE_TOO_LARGE` | Source exceeds ${maxBytes} bytes | `src/modules/code-import/code-import.service.ts` |
 | `CODE_IMPORT_VARIABLE_NOT_IN_CATALOG` | These variables are not declared in the catalog: ${missing.join(', ')} | `src/modules/code-import/code-import.service.ts` |
 | `COMPILED_ARTIFACT_NOT_FOUND` | Compiled artifact not found | `src/modules/deployments/deployment.service.ts` |
+| `CONSENT_GRANT_REPLAYED` | El alta es anterior a la situación vigente de esta finalidad (una revocación o un alta | `src/modules/risk-governance/risk-governance.service.ts` |
+| `CONSENT_REVOCATION_IN_FUTURE` | Una revocación no puede fecharse en el futuro. | `src/modules/risk-governance/risk-governance.service.ts` |
+| `CONSENT_REVOCATION_STALE` | La revocación es anterior al alta vigente de esta finalidad: ya fue superada. | `src/modules/risk-governance/risk-governance.service.ts` |
 | `DEPLOYMENT_ALREADY_SUSPENDED` | Deployment is already suspended | `src/modules/deployments/deployment.service.ts` |
 | `DEPLOYMENT_NOT_ACTIVE` | Deployment is no longer the active deployment for this environment | `src/modules/deployments/deployment.service.ts` |
 | `DEPLOYMENT_NOT_FOUND` | Deployment not found | `src/modules/deployments/deployment.service.ts` |
@@ -76,6 +79,9 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `ECONOMIC_CONTRACT_INCOMPLETE` | ${problems.join(' ')} Si esta decisión no origina crédito, decláralo en su | `src/modules/deployments/deployment.service.ts` |
 | `EDGE_CONDITION_NOT_FOUND` | Edge ${edge.key} references unknown condition ${binding.conditionCode} | `src/modules/artifacts/artifact-graph-writer.service.ts` |
 | `EDGE_NODE_NOT_FOUND` | Edge ${edge.key} references an unknown node | `src/modules/artifacts/artifact-graph-writer.service.ts` |
+| `ENABLING_BASIS_INVALID` | La decisión exige una base habilitante que el titular no tiene vigente: | `src/modules/risk-governance/decision-guard.service.ts` |
+| `ENABLING_BASIS_POLICY_INVALID` | — | `src/modules/artifacts/artifact.service.ts` |
+| `ENABLING_BASIS_POLICY_LOCKED` | La política de base habilitante sólo se puede cambiar en una versión en borrador. | `src/modules/artifacts/artifact.service.ts` |
 | `ENVIRONMENT_NOT_FOUND` | Deployment environment not found or inactive | `src/modules/deployments/deployment.service.ts` |
 | `EXECUTION_NOT_FOUND` | Decision execution not found | `src/modules/audit-query/audit-query.service.ts` |
 | `EXECUTION_PERSISTENCE_CONFLICT` | The request or execution evidence already exists | `src/modules/runtime/execution-writer.service.ts` |

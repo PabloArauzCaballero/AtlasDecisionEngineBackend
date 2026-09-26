@@ -204,6 +204,7 @@ nav:
       - Seguridad de dependencias: security/dependency-security.md
       - Respuesta a incidentes: security/incident-response.md
       - Controles regulatorios: security/regulatory-controls.md
+      - Decisiones de política (plan de cumplimiento): compliance/decisions.md
   - Observabilidad:
       - Guía de trazabilidad: observability/README.md
       - Registros: observability/logging.md
@@ -219,6 +220,7 @@ nav:
           - Topología de producción: observability/03-production-topology.md
           - Política de privacidad de datos: observability/04-data-privacy-policy.md
           - Resultados de rendimiento: observability/05-performance-results.md
+          - Benchmark del runtime (2026-09-24): observability/06-engine-benchmark-2026-09-24.md
           - Runbook operativo: observability/06-operational-runbook.md
           - Informe de implementación: observability/07-implementation-report.md
   - Operación:
@@ -231,6 +233,7 @@ nav:
       - Resiliencia: operations/resilience.md
       - Reversión: operations/rollback.md
       - Recuperación ante desastres: operations/disaster-recovery.md
+      - Runbook de restore (ensayo P-17): operations/restore-runbook.md
       - Mantenimiento: operations/maintenance.md
       - Runbooks:
           - Índice: runbooks/README.md

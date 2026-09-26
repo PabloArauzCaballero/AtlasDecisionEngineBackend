@@ -31,6 +31,14 @@ export interface WriteExecutionInput {
     retryable: boolean;
     details?: unknown;
   }>;
+  /**
+   * Estado impuesto por el runtime cuando el grafo terminó pero su resultado no es utilizable
+   * (salida económica fuera de rango). Se conserva el resultado completo como evidencia y la
+   * ejecución queda `NO_DECISION`: sin esto, el estado se derivaba del grafo y salía SUCCEEDED.
+   */
+  statusOverride?: ExecutionStatus;
+  /** El reloj de la decisión: de él cuelgan las ventanas de observación y el plazo de revisión. */
+  decidedAt?: Date;
 }
 
 /**
@@ -94,13 +102,18 @@ export class ExecutionWriterService {
         // Una decision tomada con datos viejos sigue siendo valida; lo que no vale es que no se
         // pueda distinguir de una tomada con datos frescos.
         degradedInputs: input.variableSnapshots.some((variable) => variable.freshness?.degraded),
-        decisionStatus: this.executionStatus(result, input.errors),
+        decisionStatus: input.statusOverride ?? this.executionStatus(result, input.errors),
         businessOutcome: result?.outcome,
         durationMs: input.durationMs,
       },
     });
 
-    if (subjectId) await this.scheduleOutcomeWindows(tx, input, execution.id);
+    // Sólo una decisión TOMADA tiene desenlace que observar. Una ventana colgada de un
+    // `NO_DECISION` (base ausente, salida inválida, variables que faltan) nunca se puede cerrar:
+    // no hay crédito que la cierre, y engorda la cola de pendientes hasta que se ignora entera.
+    if (subjectId && execution.decisionStatus === ExecutionStatus.SUCCEEDED) {
+      await this.scheduleOutcomeWindows(tx, input, execution.id);
+    }
 
     if (input.variableSnapshots.length) {
       await tx.decisionExecutionVariable.createMany({
@@ -197,7 +210,9 @@ export class ExecutionWriterService {
             caseCode: manualReviewCaseCode(execution.id),
             queueCode: result.manualReview.queueCode,
             priority: result.manualReview.priority,
-            dueAt: new Date(Date.now() + result.manualReview.slaMinutes * 60_000),
+            dueAt: new Date(
+              (input.decidedAt ?? new Date()).getTime() + result.manualReview.slaMinutes * 60_000,
+            ),
             evidenceJson: result.manualReview.evidence as Prisma.InputJsonValue,
           },
         });
@@ -270,7 +285,7 @@ export class ExecutionWriterService {
       this.config.get<string>('OUTCOME_WINDOW_DAYS'),
     );
     if (!windows.length) return;
-    const decidedAt = new Date();
+    const decidedAt = input.decidedAt ?? new Date();
     await tx.outcomeWindowSchedule.createMany({
       data: windows.map((windowDays) => ({
         tenantId: input.tenantId,

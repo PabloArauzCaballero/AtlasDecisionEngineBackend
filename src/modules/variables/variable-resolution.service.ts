@@ -11,7 +11,12 @@ import {
 } from '../../common/contracts/constraint-engine';
 import type { ConstraintScope } from '../../common/contracts/constraints.types';
 import type { VariableContractSnapshot } from '../graph/graph.types';
-import { evaluateFreshness, type FreshnessVerdict } from './freshness';
+import {
+  evaluateFreshness,
+  parseUnknownFreshnessPolicy,
+  type FreshnessReason,
+  type FreshnessVerdict,
+} from './freshness';
 
 /** Persistable evidence describing how one variable was resolved. */
 export interface ResolvedVariableSnapshot {
@@ -68,8 +73,17 @@ export class VariableResolutionService {
        * cierto; el motor no puede adivinarlo y no debe suponerlo.
        */
       metadata?: Record<string, unknown>;
+      /**
+       * El reloj de la decisión. La frescura se juzga contra ESTE instante —también para decidir
+       * qué sello está en el futuro—, el mismo que usa la guardia para la vigencia de la base.
+       */
+      now?: Date;
     },
   ): Promise<VariableResolutionResult> {
+    const now = options.now ?? new Date();
+    const unknownPolicy = parseUnknownFreshnessPolicy(
+      this.config.get<string>('FRESHNESS_UNKNOWN_POLICY'),
+    );
     // Reject hidden inputs by construction: only declared, versioned contracts enter the engine.
     const values: Record<string, unknown> = Object.fromEntries(
       contracts
@@ -156,15 +170,18 @@ export class VariableResolutionService {
         (options.metadata?.[contract.code] ?? undefined) as never,
         strictestSla(contract.sources),
         freshnessPolicyOf(contract.fallbackPolicy),
+        now,
+        {
+          // Lo que el solicitante declara en su propia petición es cierto AL pedir: no tiene
+          // frescura que comprobar, y marcarlo como desconocido sólo añadiría ruido.
+          unknownPolicy: contract.expectedOrigin === 'REQUEST' ? 'MEASURE' : unknownPolicy,
+        },
       );
       if (freshness.reject) {
         errors.push({
-          code: 'VARIABLE_STALE',
+          code: FRESHNESS_ERROR_CODES[freshness.reason ?? 'STALE'],
           variable: contract.code,
-          message:
-            `El valor de ${contract.code} tenia ${freshness.ageSeconds} s cuando su compromiso de ` +
-            `frescura es de ${strictestSla(contract.sources)} s. Un dato viejo aqui no es menos ` +
-            `preciso: es la respuesta a otra pregunta.`,
+          message: freshnessMessage(contract.code, freshness, strictestSla(contract.sources)),
         });
       }
 
@@ -323,6 +340,38 @@ function strictestSla(sources: Array<{ freshnessSlaSeconds: number }>): number {
  * casualidad: la columna `freshness_policy` ya existe en el esquema y este mapeo se sustituye por
  * ella en cuanto el compilador la incluya.
  */
-function freshnessPolicyOf(fallbackPolicy: string): FreshnessPolicy {
-  return fallbackPolicy === 'FAIL' ? FreshnessPolicy.REJECT : FreshnessPolicy.DEGRADE;
+export function freshnessPolicyOf(fallbackPolicy: string): FreshnessPolicy {
+  // `FAIL_CLOSED` es el valor que escriben las dependencias de verdad; comparar sólo con `FAIL`
+  // dejaba el `REJECT` inalcanzable y toda variable crítica se degradaba en silencio.
+  return fallbackPolicy === 'FAIL' || fallbackPolicy === 'FAIL_CLOSED'
+    ? FreshnessPolicy.REJECT
+    : FreshnessPolicy.DEGRADE;
+}
+
+/** Código estable de error por motivo, para que el llamante distinga viejo de sello dudoso. */
+const FRESHNESS_ERROR_CODES: Record<FreshnessReason, string> = {
+  STALE: 'VARIABLE_STALE',
+  TIMESTAMP_FUTURE: 'VARIABLE_TIMESTAMP_FUTURE',
+  TIMESTAMP_INVALID: 'VARIABLE_TIMESTAMP_INVALID',
+  FRESHNESS_UNKNOWN: 'VARIABLE_FRESHNESS_UNKNOWN',
+  SLA_NOT_DECLARED: 'VARIABLE_FRESHNESS_SLA_MISSING',
+};
+
+function freshnessMessage(code: string, verdict: FreshnessVerdict, slaSeconds: number): string {
+  switch (verdict.reason) {
+    case 'TIMESTAMP_FUTURE':
+      return `El sello de ${code} es posterior al instante de la decisión: un reloj adelantado no produce un dato fresco.`;
+    case 'TIMESTAMP_INVALID':
+      return `El sello de ${code} no es una fecha legible.`;
+    case 'FRESHNESS_UNKNOWN':
+      return `${code} es crítica y llegó sin sello: su frescura no se puede comprobar.`;
+    case 'SLA_NOT_DECLARED':
+      return `${code} es crítica y ninguna de sus fuentes declara un SLA de frescura positivo.`;
+    default:
+      return (
+        `El valor de ${code} tenia ${verdict.ageSeconds} s cuando su compromiso de ` +
+        `frescura es de ${slaSeconds} s. Un dato viejo aqui no es menos ` +
+        `preciso: es la respuesta a otra pregunta.`
+      );
+  }
 }
