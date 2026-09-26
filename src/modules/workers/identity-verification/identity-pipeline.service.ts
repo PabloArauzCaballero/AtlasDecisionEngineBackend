@@ -190,9 +190,12 @@ export interface IdentityPipelineInput {
    *
    * Ausente o `camera` es el camino de siempre, sin una sola diferencia. Con
    * `system_scanner` —el escáner de VisionKit o de ML Kit, que ya entrega la
-   * tarjeta recortada y con la perspectiva corregida— se salta el recorte por
-   * densidad y el caso sale marcado como población no medida. Lo pone el
-   * invocador desde el `context` de la ejecución, no una variable del artefacto.
+   * tarjeta recortada y con la perspectiva corregida— el caso sale marcado como
+   * población no medida, se mide el color del anverso y un `FACE_NO_MATCH` sobre
+   * un anverso sin color va a una persona en vez de rechazar. El recorte por
+   * densidad corre IGUAL que por la cámara. Es el origen del ANVERSO (la cara que
+   * se recorta y se analiza; el reverso solo aporta la MRZ). Lo pone el invocador
+   * desde el `context` de la ejecución, no una variable del artefacto.
    */
   readonly documentCaptureSource?: DocumentCaptureSource | null;
   /** Se invoca al terminar cada etapa, con el avance en tanto por ciento. */
@@ -321,9 +324,14 @@ export class IdentityPipelineService {
      * clasificar, se vuelve a leer la entera antes de rechazar nada (abajo). Un
      * recorte de más nunca convierte un documento legible en un rechazo.
      *
-     * Con el escáner del sistema no se recorta: ver `encuadrar`.
+     * Con el escáner del sistema también se recorta, a propósito. La tarjeta
+     * escaneada ya llena el encuadre y la guarda del detector («si el documento
+     * ya llena el encuadre, no recortes») la deja como está. Se mantiene el mismo
+     * camino que por la cámara para que la fase 5 mida UNA diferencia entre las
+     * dos poblaciones (recodificación y filtro) y no dos; saltarse el recorte por
+     * el origen sólo ahorraba tiempo. El origen que llega es el del ANVERSO.
      */
-    let encuadre = await this.encuadrar(document.buffer, input);
+    let encuadre = await this.images.frame(document.buffer);
 
     // --- 3. OCR, orientación, clasificación y análisis ----------------------
     let reverso = input.documentBackImage
@@ -888,19 +896,18 @@ export class IdentityPipelineService {
      * recodificada, a veces sin color— y nadie ha medido todavía cómo la ven el
      * catálogo y el forense. Hasta que la fase 5 del plan del escáner lo mida,
      * el caso lo dice con la misma marca, y `DOCUMENT_CAPTURE_SYSTEM_SCANNER`
-     * dice por qué. Las tres marcas de este bloque son INFORMATIVAS: ninguna está
-     * en `escalantes`, el motor de decisión no las ve y el artefacto no las lee.
-     * Ver `docs/workers/identidad-escaner-del-sistema.md`.
+     * dice por qué. Las tres marcas de este bloque no están en `escalantes` ni las
+     * ve el motor de decisión: un VERIFICADO sigue VERIFICADO. La única que pesa
+     * es `DOCUMENT_GRAYSCALE`, y sólo hacia una persona: ver `grisSinMedir` más
+     * abajo. Ver `docs/workers/identidad-escaner-del-sistema.md`.
      */
     if (input.documentCaptureSource === 'system_scanner') {
       riskFlags.push('DOCUMENT_CAPTURE_SYSTEM_SCANNER');
     }
-    if (
+    const poblacionSinMedir =
       input.documentCaptureSource != null &&
-      !DOCUMENT_CAPTURE_SOURCES_MEASURED.has(input.documentCaptureSource)
-    ) {
-      riskFlags.push('THRESHOLD_PROFILE_UNMEASURED');
-    }
+      !DOCUMENT_CAPTURE_SOURCES_MEASURED.has(input.documentCaptureSource);
+    if (poblacionSinMedir) riskFlags.push('THRESHOLD_PROFILE_UNMEASURED');
     // El filtro gris o B/N de iOS: se pierde el retrato en color y la bandera.
     if (colorDelAnverso?.sinColor) riskFlags.push('DOCUMENT_GRAYSCALE');
 
@@ -985,14 +992,49 @@ export class IdentityPipelineService {
           : 'DOCUMENT_AUTHENTICITY_DOUBTFUL',
       );
     }
+    /*
+     * Un «no es la misma persona» sobre un anverso SIN COLOR de una población no
+     * medida no lo firma el worker: lo firma una persona.
+     *
+     * El filtro «Escala de grises» o «Blanco y negro» del escáner de iOS quita el
+     * color al retrato del carnet, y la selfie llega en color. Sobre las cédulas
+     * dibujadas eso solo ya baja el parecido de 0,95 a 0,72 y convierte en
+     * `FACE_NO_MATCH` a quien sí era la misma persona. Con rostros dibujados no
+     * se sabe cuánto pasa con uno real, y ésa es justo la razón: rechazar por una
+     * cifra que el filtro del teléfono pudo hundir, sin haberlo medido, sería
+     * acusar a alguien por haber tocado un botón de su móvil.
+     *
+     * Es el mismo criterio que la prueba de vida sin calibrar
+     * (`LIVENESS_PROFILE_UNCALIBRATED` en `identity-decision.engine.ts`): no se
+     * afloja nada —un parecido bajo NUNCA se aprueba—, cambia quién dice «no».
+     * Y es estrecho a propósito:
+     * - sólo el rechazo por parecido (`FACE_NO_MATCH`); un documento vencido o
+     *   una prueba de vida calibrada que falla siguen rechazando;
+     * - sólo si el anverso se MIDIÓ sin color; con color, o sin medida, nada;
+     * - sólo para una población no medida: con la cámara no se mide el color y
+     *   su camino no cambia; cuando la fase 5 declare medido el escáner, esto
+     *   deja de aplicarse sin tocar el código.
+     */
+    const grisSinMedir =
+      poblacionSinMedir &&
+      colorDelAnverso?.sinColor === true &&
+      decided.decision === IdentityDecision.NOT_VERIFIED &&
+      decided.reasonCodes.includes('FACE_NO_MATCH');
+    const decidido = grisSinMedir
+      ? {
+          decision: IdentityDecision.REVIEW_REQUIRED,
+          reasonCodes: [...decided.reasonCodes, 'DOCUMENT_GRAYSCALE'],
+          calibratedFaceDecision: 'REVIEW' as const,
+        }
+      : decided;
     const decision =
-      escalantes.length > 0 && decided.decision === IdentityDecision.VERIFIED
+      escalantes.length > 0 && decidido.decision === IdentityDecision.VERIFIED
         ? {
             decision: IdentityDecision.REVIEW_REQUIRED,
-            reasonCodes: [...decided.reasonCodes, ...escalantes],
+            reasonCodes: [...decidido.reasonCodes, ...escalantes],
             calibratedFaceDecision: 'REVIEW' as const,
           }
-        : decided;
+        : decidido;
 
     return {
       decision: decision.decision,
@@ -1068,7 +1110,6 @@ export class IdentityPipelineService {
         ? {
             capture: {
               source: 'system_scanner' as const,
-              encuadreOmitido: true,
               color: colorDelAnverso,
             },
           }
@@ -1086,26 +1127,6 @@ export class IdentityPipelineService {
         mrz: mrzDiagnostics(ocr.rawText),
       },
     };
-  }
-
-  /**
-   * El recorte del fondo, salvo cuando la imagen viene del escáner del sistema.
-   *
-   * VisionKit y ML Kit entregan la tarjeta ya recortada y con la perspectiva
-   * corregida: no hay fondo que quitar. La guarda del detector («si el
-   * documento ya llena el encuadre, no recortes») lo dejaría igual casi
-   * siempre, pero no siempre —un escaneo con un borde claro puede parecerle
-   * fondo— y en todo caso se gastaría el análisis para nada. Se devuelve la
-   * imagen tal cual, con la misma forma que un encuadre que no recortó.
-   */
-  private async encuadrar(
-    documento: Buffer,
-    input: IdentityPipelineInput,
-  ): Promise<DocumentFraming> {
-    if (input.documentCaptureSource === 'system_scanner') {
-      return { buffer: documento, recortado: false, areaConservada: 1 };
-    }
-    return this.images.frame(documento);
   }
 
   /**
@@ -1407,7 +1428,7 @@ export class IdentityPipelineService {
       const document = await this.images.normalize(
         await this.images.rotate(input.documentImage, grados),
       );
-      const encuadre = await this.encuadrar(document.buffer, input);
+      const encuadre = await this.images.frame(document.buffer);
 
       /*
        * La sonda decidió una ORIENTACIÓN y nada más. Los campos —número,

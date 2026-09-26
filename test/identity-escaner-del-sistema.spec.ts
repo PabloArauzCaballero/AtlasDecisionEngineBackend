@@ -7,14 +7,17 @@
  * 1. **Sin origen, o con `camera`, nada cambia.** El resultado entero sale igual
  *    que hoy, campo por campo. Es la condición para poder desplegar el Motor
  *    antes que la app: una app vieja no manda el origen.
- * 2. **Con `system_scanner` no se recorta el fondo**, porque el escáner ya
- *    entregó la tarjeta recortada, y el caso sale marcado como población no
- *    medida (`THRESHOLD_PROFILE_UNMEASURED` + `DOCUMENT_CAPTURE_SYSTEM_SCANNER`).
- * 3. **`DOCUMENT_GRAYSCALE` es informativa**: sobre la MISMA imagen gris, el
- *    veredicto, los motivos, el parecido y los campos leídos son idénticos por
- *    la cámara y por el escáner. Lo único que cambia son las marcas.
+ * 2. **Con `system_scanner` el caso sale marcado como población no medida**
+ *    (`THRESHOLD_PROFILE_UNMEASURED` + `DOCUMENT_CAPTURE_SYSTEM_SCANNER`) y el
+ *    recorte del fondo corre IGUAL que por la cámara, para medir una sola
+ *    diferencia entre las dos poblaciones. El origen es el del ANVERSO.
+ * 3. **`DOCUMENT_GRAYSCALE` nunca aprueba ni rechaza**: un VERIFICADO sigue
+ *    VERIFICADO, y un `FACE_NO_MATCH` sobre un anverso sin color pasa a una
+ *    persona en vez de rechazar. Todo lo demás —parecido, campos, calidades,
+ *    fraude— es idéntico por la cámara y por el escáner sobre la misma imagen.
  * 4. **El origen llega por el `context` de la ejecución** hasta el pipeline, sin
- *    tocar las variables del artefacto `IDENTIDAD_CARNET_MOVIL`.
+ *    tocar las variables del artefacto `IDENTIDAD_CARNET_MOVIL`, y sus marcas
+ *    salen en los `warnings` del nodo, que es lo que llega a la traza.
  *
  * Las imágenes son las cédulas DIBUJADAS de `fixtures/identity-card.ts`: ningún
  * dato ni foto de una persona real. La medición contra cédulas reales escaneadas
@@ -194,17 +197,13 @@ function redondear<T>(valor: T): T {
 }
 
 /**
- * Lo que DECIDE, separado de las marcas y del bloque informativo `capture`.
- *
- * Es lo que tiene que salir idéntico entre la cámara y el escáner sobre la
- * misma imagen. `framing` no entra: que el escáner no recorte es justo el cambio
- * declarado.
+ * Lo que MIDE el worker, sin el veredicto: lo que tiene que salir idéntico entre
+ * la cámara y el escáner sobre la misma imagen, incluido el encuadre (el recorte
+ * corre igual por los dos orígenes).
  */
-function loQueDecide(outcome: IdentityVerificationOutcome) {
+function loQueMide(outcome: IdentityVerificationOutcome) {
   return redondear({
-    decision: outcome.decision,
-    reasonCodes: outcome.reasonCodes,
-    calibratedFaceDecision: outcome.calibratedFaceDecision,
+    framing: outcome.framing,
     documentType: outcome.documentType,
     documentEvidence: outcome.documentEvidence,
     fields: outcome.fields,
@@ -214,6 +213,16 @@ function loQueDecide(outcome: IdentityVerificationOutcome) {
     fraudVerdict: outcome.fraud?.veredicto ?? null,
     fraudRisk: outcome.fraud?.riesgo ?? null,
   });
+}
+
+/** Lo que DECIDE: lo que mide más el veredicto y sus motivos. */
+function loQueDecide(outcome: IdentityVerificationOutcome) {
+  return {
+    ...loQueMide(outcome),
+    decision: outcome.decision,
+    reasonCodes: outcome.reasonCodes,
+    calibratedFaceDecision: outcome.calibratedFaceDecision,
+  };
 }
 
 /** La cédula en color pasada al gris como la deja el filtro de iOS: JPEG de 3 canales. */
@@ -336,7 +345,7 @@ describe('pipeline con el origen de la captura', () => {
     expect(outcome.capture).toBeUndefined();
   });
 
-  it('con `system_scanner` sobre la tarjeta YA recortada: no recorta y decide lo mismo', async () => {
+  it('con `system_scanner` sobre la tarjeta YA recortada: la guarda no recorta y decide lo mismo', async () => {
     const recortada = await yaRecortada(original);
 
     const porCamara = await verificar(recortada, 'camera');
@@ -345,11 +354,14 @@ describe('pipeline con el origen de la captura', () => {
     expect(porCamara.outcome.framing.recortado).toBe(false);
 
     const porEscaner = await verificar(recortada, 'system_scanner');
-    expect(porEscaner.recortes).toBe(0);
-    expect(porEscaner.outcome.framing).toEqual({ recortado: false, areaConservada: 1 });
+    // El detector corre también por el escáner, y su guarda («si ya llena el
+    // encuadre, no recortes») deja la tarjeta como llegó.
+    expect(porEscaner.recortes).toBe(porCamara.recortes);
+    expect(porEscaner.recortes).toBeGreaterThan(0);
+    expect(porEscaner.outcome.framing).toEqual(porCamara.outcome.framing);
+    expect(porEscaner.outcome.framing.recortado).toBe(false);
     expect(porEscaner.outcome.capture).toEqual({
       source: 'system_scanner',
-      encuadreOmitido: true,
       color: { sinColor: false, fraccionConColor: expect.any(Number) },
     });
     expect(porEscaner.outcome.riskFlags).toEqual(expect.arrayContaining(MARCAS_DEL_ESCANER));
@@ -362,21 +374,22 @@ describe('pipeline con el origen de la captura', () => {
   });
 
   /*
-   * La demostración de que `DOCUMENT_GRAYSCALE` es INFORMATIVA, en dos partes.
+   * Lo que hace `DOCUMENT_GRAYSCALE`, en dos partes.
    *
-   * Primero, sobre la MISMA tarjeta recortada y en grises, la cámara y el
-   * escáner deciden igual en los tres escenarios; lo único que cambia son las
-   * marcas del escáner.
+   * Primero, el anverso en grises. Sobre las cédulas dibujadas, pasar el anverso
+   * a grises baja el parecido con la selfie en color (medido: 0,95 → 0,72 en
+   * `identidad-aprobada`) y por la cámara los tres escenarios acaban en
+   * NOT_VERIFIED con `FACE_NO_MATCH`, también el de la persona correcta. Por el
+   * escáner, que SÍ mide el color, ese rechazo lo firma una persona: sale
+   * REVIEW_REQUIRED con `DOCUMENT_GRAYSCALE` entre los motivos. Todo lo que el
+   * worker mide —parecido, campos, calidades, fraude, encuadre— es idéntico.
    *
-   * Y un hallazgo que esto dejó a la vista, y que NO es de la marca: sobre las
-   * cédulas dibujadas, pasar el anverso a grises baja el parecido con la selfie
-   * en color (medido: 0,95 → 0,72 en `identidad-aprobada`) y los tres escenarios
-   * acaban en NOT_VERIFIED con `FACE_NO_MATCH`, por la cámara igual que por el
-   * escáner. Con rostros dibujados no dice nada de un rostro real; es justo lo
-   * que tiene que medir la fase 5 con las cédulas escaneadas con el filtro gris.
+   * El precio, declarado: el escenario `identidad-rechazada` (otra persona)
+   * también va a revisión en vez de rechazo. Un parecido bajo nunca se aprueba;
+   * lo que cambia es quién dice «no» mientras el filtro gris no esté medido.
    */
   it.each([['identidad-aprobada'], ['identidad-revision'], ['identidad-rechazada']])(
-    'sobre %s en grises, cámara y escáner deciden igual',
+    'sobre %s en grises, el rechazo por parecido del escáner va a una persona',
     async (code) => {
       const recortada = await yaRecortada(await imagenesDe(code));
       const gris: Imagenes = {
@@ -395,9 +408,18 @@ describe('pipeline con el origen de la captura', () => {
       expect(porCamara.outcome.riskFlags).not.toContain('DOCUMENT_GRAYSCALE');
       expect(porCamara.outcome.capture).toBeUndefined();
 
-      // Todo lo que decide, idéntico.
-      expect(loQueDecide(porEscaner.outcome)).toEqual(loQueDecide(porCamara.outcome));
-      expect(porEscaner.outcome.decision).toBe(porCamara.outcome.decision);
+      // Todo lo que mide, idéntico.
+      expect(loQueMide(porEscaner.outcome)).toEqual(loQueMide(porCamara.outcome));
+      // Por la cámara, el rechazo por parecido de siempre.
+      expect(porCamara.outcome.decision).toBe(IdentityDecision.NOT_VERIFIED);
+      expect(porCamara.outcome.reasonCodes).toContain('FACE_NO_MATCH');
+      // Por el escáner, a una persona, con el mismo motivo y el de los grises.
+      expect(porEscaner.outcome.decision).toBe(IdentityDecision.REVIEW_REQUIRED);
+      expect(porEscaner.outcome.calibratedFaceDecision).toBe('REVIEW');
+      expect(porEscaner.outcome.reasonCodes).toEqual([
+        ...porCamara.outcome.reasonCodes,
+        'DOCUMENT_GRAYSCALE',
+      ]);
 
       // Y la única diferencia en las marcas son las del escáner.
       const añadidas = porEscaner.outcome.riskFlags.filter(
@@ -472,10 +494,11 @@ describe('pipeline con el origen de la captura', () => {
     expect(porEscaner.decision).toBe(IdentityDecision.VERIFIED);
   });
 
-  it('con `system_scanner` tampoco se recorta una foto con fondo: el escáner manda', async () => {
-    // La tarjeta sobre un escritorio NO es lo que entrega un escáner, y por eso
-    // mismo sirve: demuestra que el salto del recorte no depende de la guarda
-    // «si ya llena el encuadre», sino del origen.
+  it('una foto con fondo marcada `system_scanner` se recorta igual que por la cámara', async () => {
+    // El caso mezclado: el origen es UNO para las dos caras y la app lo declara
+    // `system_scanner` si cualquiera salió del escáner. Un anverso de la cámara
+    // de respaldo —la tarjeta sobre un escritorio— llega marcado así y tiene
+    // que recortarse como cualquier foto.
     const escritorio = await imagenesDe('identidad-sobre-escritorio');
 
     const porCamara = await verificar(escritorio);
@@ -483,8 +506,41 @@ describe('pipeline con el origen de la captura', () => {
     expect(porCamara.outcome.framing.recortado).toBe(true);
 
     const porEscaner = await verificar(escritorio, 'system_scanner');
-    expect(porEscaner.recortes).toBe(0);
-    expect(porEscaner.outcome.framing).toEqual({ recortado: false, areaConservada: 1 });
+    expect(porEscaner.recortes).toBe(porCamara.recortes);
+    expect(porEscaner.outcome.framing).toEqual(porCamara.outcome.framing);
+    expect(loQueDecide(porEscaner.outcome)).toEqual(loQueDecide(porCamara.outcome));
+  });
+
+  it('con la población ya MEDIDA, el anverso en grises vuelve a rechazar como la cámara', async () => {
+    // Lo que manda a una persona es que el escáner no esté medido, no el escáner.
+    // Se simula el día en que la fase 5 lo declare medido.
+    const gris = await yaRecortada(original);
+    const enGris: Imagenes = { ...gris, document: await enGrises(gris.document) };
+    const medidas = DOCUMENT_CAPTURE_SOURCES_MEASURED as Set<DocumentCaptureSource>;
+    medidas.add('system_scanner');
+    let porEscaner: Awaited<ReturnType<typeof verificar>>;
+    try {
+      porEscaner = await verificar(enGris, 'system_scanner');
+    } finally {
+      medidas.delete('system_scanner');
+    }
+    expect(porEscaner.outcome.riskFlags).toContain('DOCUMENT_GRAYSCALE');
+    expect(porEscaner.outcome.decision).toBe(IdentityDecision.NOT_VERIFIED);
+    expect(porEscaner.outcome.reasonCodes).toContain('FACE_NO_MATCH');
+    expect(porEscaner.outcome.reasonCodes).not.toContain('DOCUMENT_GRAYSCALE');
+    expect([...DOCUMENT_CAPTURE_SOURCES_MEASURED]).toEqual(['camera']);
+  });
+
+  it('un documento vencido en grises sigue rechazando: sólo se aparta el rechazo por parecido', async () => {
+    const caducada = await yaRecortada(await imagenesDe('identidad-caducada'));
+    const enGris: Imagenes = { ...caducada, document: await enGrises(caducada.document) };
+    const porCamara = await verificar(enGris, 'camera');
+    const porEscaner = await verificar(enGris, 'system_scanner');
+    expect(porEscaner.outcome.riskFlags).toContain('DOCUMENT_GRAYSCALE');
+    // La premisa: por la cámara rechaza por la fecha, antes de comparar rostros.
+    expect(porCamara.outcome.decision).toBe(IdentityDecision.NOT_VERIFIED);
+    expect(porCamara.outcome.reasonCodes).toEqual(['DOCUMENT_EXPIRED']);
+    expect(loQueDecide(porEscaner.outcome)).toEqual(loQueDecide(porCamara.outcome));
   });
 });
 
@@ -543,7 +599,10 @@ describe('el origen llega desde el `context` de la ejecución hasta el pipeline'
     ).toString('base64');
   });
 
-  function invocador(context?: Record<string, unknown>) {
+  function invocador(
+    context?: Record<string, unknown>,
+    cambios: Partial<IdentityVerificationOutcome> = {},
+  ) {
     const run = jest.fn().mockResolvedValue({
       decision: IdentityDecision.VERIFIED,
       reasonCodes: [],
@@ -560,6 +619,7 @@ describe('el origen llega desde el `context` de la ejecución hasta el pipeline'
       framing: { recortado: false, areaConservada: 1 },
       riskFlags: [],
       providers: { ocr: 'x', face: 'x', liveness: 'x' },
+      ...cambios,
     } satisfies IdentityVerificationOutcome);
     const service = new WorkerServiceInvokerService(
       new ConfigService({ IDENTITY_VERIFICATION_WORKER_ENABLED: true }),
@@ -571,16 +631,81 @@ describe('el origen llega desde el `context` de la ejecución hasta el pipeline'
     return { invoker: service.bind(1n, principal, context), run };
   }
 
-  async function llamar(context?: Record<string, unknown>) {
-    const { invoker, run } = invocador(context);
-    await invoker.invoke({
+  async function responder(
+    context?: Record<string, unknown>,
+    cambios: Partial<IdentityVerificationOutcome> = {},
+  ) {
+    const { invoker, run } = invocador(context, cambios);
+    const respuesta = await invoker.invoke({
       service: 'identity-verification',
       operation: 'verify',
       nodeKey: 'VERIFICAR_IDENTIDAD',
       arguments: { documentBase64: png, selfieBase64: png, documentCountry: 'BO' },
     });
-    return run.mock.calls[0][0] as Record<string, unknown>;
+    return { respuesta, entrada: run.mock.calls[0][0] as Record<string, unknown> };
   }
+
+  async function llamar(context?: Record<string, unknown>) {
+    return (await responder(context)).entrada;
+  }
+
+  const DEL_ESCANER: Partial<IdentityVerificationOutcome> = {
+    riskFlags: [
+      'THRESHOLD_PROFILE_UNMEASURED',
+      'DOCUMENT_CAPTURE_SYSTEM_SCANNER',
+      'DOCUMENT_GRAYSCALE',
+      'MULTIPLE_FACES',
+    ],
+    capture: { source: 'system_scanner', color: { sinColor: true, fraccionConColor: 0 } },
+  };
+
+  it('las marcas del escáner van a los `warnings` del nodo sin cambiar el estado de un VERIFICADO', async () => {
+    const { respuesta } = await responder({ documentCaptureSource: 'system_scanner' }, DEL_ESCANER);
+    // `IDENTIDAD_CONFIRMADA` exige SUCCEEDED: las marcas no pueden tocarlo.
+    expect(respuesta.status).toBe('SUCCEEDED');
+    // Sólo las de la población; las demás marcas de riesgo no se copian.
+    expect(respuesta.warnings).toEqual([
+      'THRESHOLD_PROFILE_UNMEASURED',
+      'DOCUMENT_CAPTURE_SYSTEM_SCANNER',
+      'DOCUMENT_GRAYSCALE',
+    ]);
+    // Y el bloque `capture` —origen y fracción de color, nada de la persona— sube al resultado.
+    expect(respuesta.result.capture).toEqual({
+      source: 'system_scanner',
+      color: { sinColor: true, fraccionConColor: 0 },
+    });
+  });
+
+  it('sobre un veredicto no limpio, las marcas se suman a los motivos sin repetirse', async () => {
+    const { respuesta } = await responder(
+      { documentCaptureSource: 'system_scanner' },
+      {
+        ...DEL_ESCANER,
+        decision: IdentityDecision.REVIEW_REQUIRED,
+        reasonCodes: ['FACE_NO_MATCH', 'DOCUMENT_GRAYSCALE'],
+      },
+    );
+    expect(respuesta.status).toBe('SUCCEEDED_WITH_WARNINGS');
+    expect(respuesta.warnings).toEqual([
+      'REVIEW_REQUIRED',
+      'FACE_NO_MATCH',
+      'DOCUMENT_GRAYSCALE',
+      'THRESHOLD_PROFILE_UNMEASURED',
+      'DOCUMENT_CAPTURE_SYSTEM_SCANNER',
+    ]);
+  });
+
+  it('por la cámara la respuesta del nodo es la de siempre: sin `warnings` nuevos ni `capture`', async () => {
+    // Un perfil sintético pone THRESHOLD_PROFILE_UNMEASURED también por la cámara;
+    // eso no se copia a la traza, como hasta ahora.
+    const { respuesta } = await responder(
+      { documentCaptureSource: 'camera' },
+      { riskFlags: ['THRESHOLD_PROFILE_UNMEASURED'] },
+    );
+    expect(respuesta.status).toBe('SUCCEEDED');
+    expect(respuesta.warnings).toEqual([]);
+    expect('capture' in respuesta.result).toBe(false);
+  });
 
   it('`system_scanner` en el contexto llega al pipeline', async () => {
     const entrada = await llamar({

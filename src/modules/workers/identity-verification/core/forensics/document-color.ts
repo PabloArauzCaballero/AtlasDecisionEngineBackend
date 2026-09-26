@@ -7,13 +7,16 @@
  * eso quita evidencia: el retrato en color, los colores de la bandera y el fondo
  * de seguridad de la cédula dejan de estar para quien revisa el caso.
  *
- * ## Qué hace con eso: NADA que decida
+ * ## Qué hace con eso: nunca aprobar ni rechazar
  *
- * Devuelve una medida y el pipeline la convierte en la marca informativa
- * `DOCUMENT_GRAYSCALE`. No entra en la lista de marcas que escalan (ver
- * `escalantes` en `identity-pipeline.service.ts`), no entra en el motor de
- * decisión y el artefacto `IDENTIDAD_CARNET_MOVIL` no proyecta `riskFlags`
- * del resultado. El forense de píxeles ya trabaja en escala de grises
+ * Devuelve una medida y el pipeline la convierte en la marca
+ * `DOCUMENT_GRAYSCALE`. No entra en la lista de marcas que escalan un
+ * VERIFICADO (ver `escalantes` en `identity-pipeline.service.ts`), no entra en
+ * el motor de decisión y el artefacto `IDENTIDAD_CARNET_MOVIL` no proyecta
+ * `riskFlags` del resultado. Lo único que mueve, y sólo en una población no
+ * medida, es un `FACE_NO_MATCH` a revisión: un retrato sin color comparado con
+ * una selfie en color puede dar poco parecido siendo la misma persona (ver
+ * `grisSinMedir`). El forense de píxeles ya trabaja en escala de grises
  * (`image-tamper.analyzer.ts` convierte antes de medir), así que quitarle el
  * color a la entrada no le cambia la pregunta.
  *
@@ -52,6 +55,12 @@ const CROMA_CON_COLOR = 24;
  * Un 1 %: en la cédula sintética de `fixtures/identity-card.ts` el retrato solo
  * ya ocupa bastante más. Por debajo lo que queda es ruido de compresión en los
  * bordes de las letras, no color del documento.
+ *
+ * SIN MEDIR contra cédulas reales: el 24 y el 1 % salen sólo de la cédula
+ * dibujada. Una tarjeta real con retrato poco saturado y fondo pastel podría
+ * quedar por debajo en *Color* y marcarse sin color por error. La fase 5 mide
+ * `fraccionConColor` de cada escaneo real con `scripts/diagnosticar-carnets.ts`
+ * (columna `color`) y el umbral se fija con esa cifra.
  */
 const FRACCION_MINIMA_CON_COLOR = 0.01;
 

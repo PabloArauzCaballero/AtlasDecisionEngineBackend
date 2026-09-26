@@ -21,12 +21,16 @@
  *
  * ## Lo que NO hace
  *
- * No cambia el veredicto de nadie. Con el origen ausente, o `camera`, el
- * pipeline hace exactamente lo de siempre. Con `system_scanner` se salta un
- * recorte que el escáner ya hizo y se añaden marcas INFORMATIVAS. Un valor
- * desconocido se ignora —se trata como la cámara, que es la población
- * calibrada— en vez de rechazar la ejecución: quien lo manda mal no es la
- * persona que está delante del móvil.
+ * Con el origen ausente, o `camera`, el pipeline hace exactamente lo de
+ * siempre. Con `system_scanner` se añaden marcas que no aprueban ni rechazan a
+ * nadie, y un solo cambio de veredicto, hacia una persona: un `FACE_NO_MATCH`
+ * sobre un anverso medido SIN COLOR pasa a revisión en vez de rechazar (el
+ * filtro gris de iOS hunde el parecido y nadie lo ha medido). El recorte del
+ * fondo corre igual que por la cámara: así la fase 5 mide una sola diferencia
+ * (la recodificación y el filtro del escáner) y no dos. El origen que llega es
+ * el del ANVERSO, la cara que se recorta y se analiza. Un valor desconocido se ignora —se trata como la
+ * cámara, que es la población calibrada— en vez de rechazar la ejecución: quien
+ * lo manda mal no es la persona que está delante del móvil.
  */
 export const DOCUMENT_CAPTURE_SOURCES = ['camera', 'system_scanner'] as const;
 

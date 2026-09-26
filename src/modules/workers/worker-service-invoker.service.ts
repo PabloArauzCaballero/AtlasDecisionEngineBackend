@@ -39,6 +39,17 @@ import { documentCaptureSourceFromContext } from './identity-verification/docume
 import { buildAudioOutcome } from './audio-tts/audio-tts.result';
 import { AudioDomainError } from './audio-tts/core/domain/errors';
 
+/**
+ * Las marcas que dicen de qué POBLACIÓN salió la imagen del carnet, y que por eso
+ * van a la traza del nodo cuando el origen es el escáner del sistema. Ver
+ * `verifyIdentity`.
+ */
+const MARCAS_DE_LA_CAPTURA: ReadonlySet<string> = new Set([
+  'DOCUMENT_CAPTURE_SYSTEM_SCANNER',
+  'THRESHOLD_PROFILE_UNMEASURED',
+  'DOCUMENT_GRAYSCALE',
+]);
+
 /** Techo absoluto de una llamada desde un nodo, en milisegundos. */
 const MAX_CALL_TIMEOUT_MS = 120_000;
 
@@ -468,10 +479,32 @@ export class WorkerServiceInvokerService {
       );
 
       const limpio = outcome.decision === 'VERIFIED';
+      /*
+       * Las marcas de la población de la captura, en la TRAZA del nodo.
+       *
+       * El artefacto no proyecta `riskFlags` —y cambiarlo exige una versión
+       * firmada por dos personas—, así que por `result` no llegan a ninguna
+       * parte que se guarde. `warnings` sí: el motor de grafo las copia a la
+       * traza de cada paso (`evaluation.worker.warnings`), que se persiste con la
+       * ejecución y es lo que abre quien revisa el caso. Sólo con el escáner del
+       * sistema, así que por la cámara la traza sale como siempre.
+       *
+       * El `status` NO cambia por ellas: un VERIFICADO del escáner sigue
+       * `SUCCEEDED`, porque `IDENTIDAD_CONFIRMADA` exige ese estado y dejarlo en
+       * `SUCCEEDED_WITH_WARNINGS` mandaría a revisión a todo el que escanea.
+       */
+      const deLaCaptura = outcome.capture
+        ? outcome.riskFlags.filter((marca) => MARCAS_DE_LA_CAPTURA.has(marca))
+        : [];
       return {
         status: limpio ? 'SUCCEEDED' : 'SUCCEEDED_WITH_WARNINGS',
         result: toIdentityResult(outcome),
-        warnings: limpio ? [] : [outcome.decision, ...outcome.reasonCodes],
+        warnings: [
+          ...new Set([
+            ...(limpio ? [] : [outcome.decision, ...outcome.reasonCodes]),
+            ...deLaCaptura,
+          ]),
+        ],
         durationMs: Date.now() - started,
       };
     } catch (error) {
@@ -683,6 +716,12 @@ function toIdentityResult(outcome: IdentityVerificationOutcome): Record<string, 
     fraudVerdict: outcome.fraud?.veredicto ?? null,
     fraudRisk: outcome.fraud?.riesgo ?? null,
     riskFlags: outcome.riskFlags,
+    /*
+     * Sólo con el escáner del sistema: el origen y la medida del color (una
+     * fracción de píxeles, sin nada de la persona). Queda al alcance de una
+     * versión del artefacto que quiera leerlo; la de hoy no lo proyecta.
+     */
+    ...(outcome.capture ? { capture: outcome.capture } : {}),
   };
 }
 
