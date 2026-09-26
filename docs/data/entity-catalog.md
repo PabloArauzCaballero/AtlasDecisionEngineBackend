@@ -35,7 +35,7 @@ esquema, que es la fuente que las migraciones aplican.
 | [`DecisionArtifactCalculatedFieldUse`](#decisionartifactcalculatedfielduse) | `decision_artifact_calculated_field_use` | 13 | 2 | 2 |
 | [`DecisionArtifactReference`](#decisionartifactreference) | `decision_artifact_reference` | 22 | 3 | 0 |
 | [`DecisionArtifactVariableDependency`](#decisionartifactvariabledependency) | `decision_artifact_variable_dependency` | 10 | 1 | 2 |
-| [`DecisionArtifactVersion`](#decisionartifactversion) | `decision_artifact_version` | 47 | 2 | 3 |
+| [`DecisionArtifactVersion`](#decisionartifactversion) | `decision_artifact_version` | 48 | 2 | 3 |
 | [`DecisionAuditEvent`](#decisionauditevent) | `decision_audit_event` | 13 | 3 | 0 |
 | [`DecisionChangeLog`](#decisionchangelog) | `decision_change_log` | 11 | 1 | 1 |
 | [`DecisionCodeImport`](#decisioncodeimport) | `decision_code_import` | 15 | 2 | 0 |
@@ -59,7 +59,7 @@ esquema, que es la fuente que las migraciones aplican.
 | [`DecisionNodeScript`](#decisionnodescript) | `decision_node_script` | 13 | 2 | 1 |
 | [`DecisionOutboxEvent`](#decisionoutboxevent) | `decision_outbox_event` | 19 | 3 | 0 |
 | [`DecisionOutcomeObservation`](#decisionoutcomeobservation) | `decision_outcome_observation` | 14 | 3 | 2 |
-| [`DecisionOutputContractField`](#decisionoutputcontractfield) | `decision_output_contract_field` | 19 | 2 | 1 |
+| [`DecisionOutputContractField`](#decisionoutputcontractfield) | `decision_output_contract_field` | 21 | 2 | 1 |
 | [`DecisionOutputFieldReasonMap`](#decisionoutputfieldreasonmap) | `decision_output_field_reason_map` | 6 | 1 | 2 |
 | [`DecisionReasonCode`](#decisionreasoncode) | `decision_reason_code` | 12 | 2 | 0 |
 | [`DecisionRuleAction`](#decisionruleaction) | `decision_rule_action` | 11 | 1 | 1 |
@@ -106,7 +106,7 @@ esquema, que es la fuente que las migraciones aplican.
 | [`SemanticModelSetting`](#semanticmodelsetting) | `decision_semantic_model_setting` | 8 | 0 | 0 |
 | [`SemanticTenantBudget`](#semantictenantbudget) | `decision_semantic_tenant_budget` | 5 | 1 | 0 |
 | [`SqlConsoleQueryLog`](#sqlconsolequerylog) | `sql_console_query_log` | 13 | 2 | 0 |
-| [`SubjectConsent`](#subjectconsent) | `subject_consent` | 11 | 2 | 1 |
+| [`SubjectConsent`](#subjectconsent) | `subject_consent` | 12 | 2 | 1 |
 | [`UnresolvedClassification`](#unresolvedclassification) | `decision_unresolved_classification` | 20 | 3 | 0 |
 | [`UserTutorialProgress`](#usertutorialprogress) | `user_tutorial_progress` | 11 | 2 | 0 |
 
@@ -797,6 +797,7 @@ Tabla `decision_artifact_version`.
 | `legalBasis` | `ProcessingLegalBasis?` | @map("legal_basis") |
 | `subjectReferencePolicy` | `SubjectReferencePolicy?` | @map("subject_reference_policy") |
 | `subjectPolicyJustification` | `String?` | @map("subject_policy_justification") @db.Text |
+| `enablingBasisPolicy` | `Json?` | @map("enabling_basis_policy") |
 | `validatedBy` | `String?` | @map("validated_by") @db.VarChar(160) |
 | `validatedAt` | `DateTime?` | @map("validated_at") @db.Timestamptz(6) |
 | `revalidationDueAt` | `DateTime?` | @map("revalidation_due_at") @db.Timestamptz(6) |
@@ -1404,6 +1405,8 @@ Tabla `decision_output_contract_field`.
 | `sourceKind` | `OutputSourceKind` | @map("source_kind") |
 | `sourceRef` | `String` | @map("source_ref") @db.VarChar(500) |
 | `semanticRole` | `OutputSemanticRole` | @default(NONE) @map("semantic_role") |
+| `policyMinValue` | `Decimal?` | @map("policy_min_value") @db.Decimal(18, 6) |
+| `policyMaxValue` | `Decimal?` | @map("policy_max_value") @db.Decimal(18, 6) |
 | `valueMappingJson` | `Json?` | @map("value_mapping_json") |
 | `absenceReasons` | `String[]` | @map("absence_reasons") |
 | `exampleJson` | `Json?` | @map("example_json") |
@@ -2495,6 +2498,7 @@ Tabla `subject_consent`.
 | `expiresAt` | `DateTime?` | @map("expires_at") @db.Timestamptz(6) |
 | `revokedAt` | `DateTime?` | @map("revoked_at") @db.Timestamptz(6) |
 | `evidenceRef` | `String?` | @map("evidence_ref") @db.VarChar(200) |
+| `consentVersion` | `String?` | @map("consent_version") @db.VarChar(40) |
 | `recordedBy` | `String` | @map("recorded_by") @db.VarChar(160) |
 | `subject` | `DecisionSubject` | @relation(fields: [subjectId], references: [id], onDelete: Cascade) |
 

@@ -41,6 +41,8 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `CHECKSUM_MISMATCH`
 - `EDGE_CONDITION_NOT_FOUND`
 - `EDGE_NODE_NOT_FOUND`
+- `ENABLING_BASIS_POLICY_INVALID`
+- `ENABLING_BASIS_POLICY_LOCKED`
 - `INVALID_VERSION_TRANSITION`
 - `LOCK_CONFLICT`
 - `NODE_ACTION_NOT_FOUND`
@@ -84,6 +86,8 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `DependencyDto`
 - `EdgeConditionBindingDto`
 - `EdgeDto`
+- `EnablingBasisPolicyDto`
+- `EnablingBasisRequirementDto`
 - `GraphValidationReportDto`
 - `IntermediateVariableDto`
 - `NodeActionBindingDto`

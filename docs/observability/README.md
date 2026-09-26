@@ -204,6 +204,7 @@ Las unitarias usan un **exportador en memoria**: no necesitan Jaeger ni red.
 | [03 — Topología de producción](03-production-topology.md) | Collector, almacenamiento, seguridad |
 | [04 — Política de privacidad](04-data-privacy-policy.md) | Qué no puede entrar nunca en una traza |
 | [05 — Resultados de rendimiento](05-performance-results.md) | Coste medido de la instrumentación |
+| [06 — Benchmark del runtime (2026-09-24)](06-engine-benchmark-2026-09-24.md) | p50/p95/p99, throughput, caídas de Postgres/Redis y límite operativo propuesto (P-16) |
 | [06 — Runbook operativo](06-operational-runbook.md) | Diagnóstico cuando falla |
 | [07 — Informe de implementación](07-implementation-report.md) | Qué se hizo, con qué evidencia y qué queda |
 | [Trazas (visión general)](tracing.md) | Resumen operativo breve |

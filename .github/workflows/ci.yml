@@ -59,6 +59,10 @@ jobs:
         with:
           node-version: 22
           cache: yarn
+      - name: Verificar smoke post-deploy y selección del dominio
+        run: |
+          node --test .github/tests/post-deploy-smoke.test.mjs
+          python3 .github/tests/test_smoke_workflow.py
       - run: yarn install --frozen-lockfile
       - run: yarn prisma:generate
       - run: yarn prisma:validate
@@ -325,3 +329,21 @@ jobs:
             openapi/openapi.json
             docs/reports/*.json
           retention-days: 30
+
+  security:
+    name: Security gates
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: write
+    uses: ./.github/workflows/security.yml
+
+  deploy-dev:
+    name: Desplegar DEV sólo después de calidad, contrato y seguridad
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    needs:
+      - verify
+      - docs
+      - security
+    uses: ./.github/workflows/deploy-dev.yml
+    secrets: inherit

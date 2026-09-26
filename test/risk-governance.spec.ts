@@ -4,7 +4,16 @@
  *
  * Cada bloque fija una forma concreta de que un número correcto signifique algo falso.
  */
-import { OutputSemanticRole } from '@prisma/client';
+import { OutputSemanticRole, ProcessingLegalBasis } from '@prisma/client';
+import type { PrismaService } from '../src/common/prisma/prisma.service';
+import { DecisionGuardService } from '../src/modules/risk-governance/decision-guard.service';
+import {
+  evaluateEnablingBasis,
+  parseDeclaredPolicy,
+  parseUndeclaredBasisMode,
+  resolveEnablingBasisPolicy,
+  type EnablingBasisPolicy,
+} from '../src/modules/risk-governance/enabling-basis';
 import {
   canApproveReidentification,
   checkConsent,
@@ -177,5 +186,245 @@ describe('canApproveReidentification', () => {
     expect(canApproveReidentification('ana@atlas', 'ana@atlas')).toBe(false);
     expect(canApproveReidentification(' Ana@Atlas ', 'ana@atlas')).toBe(false);
     expect(canApproveReidentification('ana@atlas', 'luis@atlas')).toBe(true);
+  });
+});
+
+describe('resolveEnablingBasisPolicy · qué base exige cada decisión (P-09)', () => {
+  const base = {
+    declared: null,
+    legalBasis: null,
+    riskDomain: 'CREDIT_ORIGINATION',
+    isProductionEnvironment: true,
+    undeclaredMode: 'REVIEW' as const,
+  };
+
+  it('originación en producción sin declarar nada: exige credit_underwriting y va a revisión', () => {
+    // Antes: nada que comprobar, y la ausencia de base pasaba por permiso.
+    expect(resolveEnablingBasisPolicy(base)).toEqual({
+      source: 'ORIGINATION_DEFAULT',
+      onMissing: 'REVIEW',
+      requirements: [
+        {
+          purpose: 'credit_underwriting',
+          acceptedBases: ['CREDIT_PROTECTION', 'CONTRACT', 'CONSENT'],
+          acceptedVersions: [],
+        },
+      ],
+    });
+  });
+
+  it('consentimiento como ÚNICA base cuando el artefacto declara CONSENT', () => {
+    const policy = resolveEnablingBasisPolicy({ ...base, legalBasis: 'CONSENT' });
+    expect(policy.source).toBe('DERIVED_FROM_LEGAL_BASIS');
+    expect(policy.requirements[0].acceptedBases).toEqual([ProcessingLegalBasis.CONSENT]);
+  });
+
+  it('no impone consentimiento cuando el artefacto declara otra base', () => {
+    const policy = resolveEnablingBasisPolicy({ ...base, legalBasis: 'CREDIT_PROTECTION' });
+    expect(policy.requirements[0].acceptedBases).toEqual(['CREDIT_PROTECTION', 'CONSENT']);
+  });
+
+  it('lo declarado en la versión manda sobre lo derivado', () => {
+    const policy = resolveEnablingBasisPolicy({
+      ...base,
+      legalBasis: 'CONSENT',
+      declared: {
+        onMissing: 'BLOCK',
+        requirements: [
+          { purpose: 'BUREAU_QUERY', acceptedBases: ['CONSENT'], acceptedVersions: ['v3'] },
+        ],
+      },
+    });
+    expect(policy).toMatchObject({
+      source: 'DECLARED',
+      onMissing: 'BLOCK',
+      requirements: [{ purpose: 'BUREAU_QUERY', acceptedVersions: ['v3'] }],
+    });
+  });
+
+  it('un sandbox sin declaración no exige nada; ALLOW_LEGACY vuelve atrás de forma explícita', () => {
+    expect(resolveEnablingBasisPolicy({ ...base, isProductionEnvironment: false }).source).toBe(
+      'NONE',
+    );
+    expect(resolveEnablingBasisPolicy({ ...base, undeclaredMode: 'ALLOW_LEGACY' }).source).toBe(
+      'NONE',
+    );
+  });
+
+  it('un valor de configuración desconocido cae en REVIEW: falla cerrado', () => {
+    expect(parseUndeclaredBasisMode('lo-que-sea')).toBe('REVIEW');
+    expect(parseUndeclaredBasisMode(undefined)).toBe('REVIEW');
+    expect(parseUndeclaredBasisMode('block')).toBe('BLOCK');
+  });
+
+  it('una política declarada ilegible o una exención sin motivo se rechazan', () => {
+    expect(() => parseDeclaredPolicy({ requirements: [] })).toThrow(/justification/);
+    expect(() =>
+      parseDeclaredPolicy({ requirements: [{ purpose: 'x', acceptedBases: ['INVENTADA'] }] }),
+    ).toThrow(/base jurídica/);
+    expect(() => parseDeclaredPolicy('REVIEW')).toThrow();
+    expect(
+      parseDeclaredPolicy({ requirements: [], justification: 'Regla interna de enrutado' })
+        .requirements,
+    ).toEqual([]);
+  });
+});
+
+describe('evaluateEnablingBasis · motivos distinguibles (P-09)', () => {
+  const AHORA = new Date('2026-09-24T00:00:00.000Z');
+  const policy: EnablingBasisPolicy = {
+    source: 'DECLARED',
+    onMissing: 'REVIEW',
+    requirements: [
+      {
+        purpose: 'credit_underwriting',
+        acceptedBases: [ProcessingLegalBasis.CREDIT_PROTECTION, ProcessingLegalBasis.CONSENT],
+        acceptedVersions: [],
+      },
+    ],
+  };
+  const record = {
+    purpose: 'credit_underwriting',
+    basis: ProcessingLegalBasis.CREDIT_PROTECTION,
+    grantedAt: new Date('2026-01-01T00:00:00.000Z'),
+    expiresAt: null,
+    revokedAt: null,
+  };
+  const reasonOf = (records: Parameters<typeof evaluateEnablingBasis>[2], p = policy) =>
+    evaluateEnablingBasis(p, true, records, AHORA).failures.map((failure) => failure.reason);
+
+  it('vigente: satisfecha', () => {
+    expect(evaluateEnablingBasis(policy, true, [record], AHORA)).toEqual({
+      satisfied: true,
+      failures: [],
+    });
+  });
+
+  it('sin referencia de sujeto no se puede satisfacer', () => {
+    expect(evaluateEnablingBasis(policy, false, [], AHORA).failures).toEqual([
+      { purpose: 'credit_underwriting', reason: 'SUBJECT_REFERENCE_MISSING' },
+    ]);
+  });
+
+  it('ausente, finalidad no cubierta, expirada, revocada y base no aceptada se distinguen', () => {
+    expect(reasonOf([])).toEqual(['NO_BASIS_RECORDED']);
+    expect(reasonOf([{ ...record, purpose: 'BUREAU_QUERY' }])).toEqual(['PURPOSE_NOT_COVERED']);
+    expect(reasonOf([{ ...record, expiresAt: new Date('2026-09-01T00:00:00.000Z') }])).toEqual([
+      'EXPIRED',
+    ]);
+    expect(reasonOf([{ ...record, revokedAt: new Date('2026-09-01T00:00:00.000Z') }])).toEqual([
+      'REVOKED',
+    ]);
+    expect(reasonOf([{ ...record, basis: ProcessingLegalBasis.LEGITIMATE_INTEREST }])).toEqual([
+      'BASIS_NOT_ACCEPTED',
+    ]);
+    expect(reasonOf([{ ...record, grantedAt: new Date('2026-10-01T00:00:00.000Z') }])).toEqual([
+      'NOT_YET_GRANTED',
+    ]);
+  });
+
+  it('la versión del texto se exige cuando la política la declara', () => {
+    const versioned: EnablingBasisPolicy = {
+      ...policy,
+      requirements: [{ ...policy.requirements[0], acceptedVersions: ['v3'] }],
+    };
+    expect(reasonOf([{ ...record, consentVersion: 'v2' }], versioned)).toEqual([
+      'VERSION_NOT_ACCEPTED',
+    ]);
+    expect(reasonOf([{ ...record, consentVersion: 'v3' }], versioned)).toEqual([]);
+  });
+
+  it('sin requisitos no hay nada que comprobar', () => {
+    expect(evaluateEnablingBasis({ ...policy, requirements: [] }, false, [], AHORA).satisfied).toBe(
+      true,
+    );
+  });
+});
+
+describe('DecisionGuardService · el primer solicitante ya no elude los controles (P-09/P-11)', () => {
+  const AHORA = new Date('2026-09-24T00:00:00.000Z');
+  const NONE: EnablingBasisPolicy = { source: 'NONE', onMissing: 'REVIEW', requirements: [] };
+
+  function guard(limits: Array<{ maxValue: number; enforced: boolean }>, exposure = 0) {
+    const prisma = {
+      exposureLimit: {
+        findMany: () =>
+          Promise.resolve(
+            limits.map((limit) => ({
+              limitCode: 'SUBJECT_TOTAL',
+              segment: '',
+              currencyCode: 'BOB',
+              ...limit,
+            })),
+          ),
+      },
+      subjectConsent: { findMany: () => Promise.resolve([]) },
+      $transaction: (callback: (tx: unknown) => Promise<unknown>) =>
+        callback({ $queryRaw: () => Promise.resolve([{ total: exposure }]) }),
+    } as unknown as PrismaService;
+    return new DecisionGuardService(prisma);
+  }
+
+  it('sin sujeto materializado lo pedido se compara igual con el límite', async () => {
+    // Antes `assertCanDecide(tenant, null, …)` volvía sin mirar el límite.
+    await expect(
+      guard([{ maxValue: 1_000, enforced: true }]).checkBeforeDecision({
+        tenantId: 1n,
+        subjectId: null,
+        subjectReferencePresent: true,
+        requestedAmount: 2_000,
+        basisPolicy: NONE,
+        now: AHORA,
+      }),
+    ).rejects.toMatchObject({ code: 'EXPOSURE_LIMIT_EXCEEDED' });
+  });
+
+  it('publica el límite restante antes y después de la decisión', async () => {
+    const verdict = await guard([{ maxValue: 1_000, enforced: true }], 900).checkBeforeDecision({
+      tenantId: 1n,
+      subjectId: 7n,
+      subjectReferencePresent: true,
+      requestedAmount: 80,
+      basisPolicy: NONE,
+      now: AHORA,
+    });
+    expect(verdict.exposure).toEqual({
+      limitCode: 'SUBJECT_TOTAL',
+      currencyCode: 'BOB',
+      maxValue: 1_000,
+      enforced: true,
+      currentExposure: 900,
+      requestedAmount: 80,
+      remainingBeforeDecision: 100,
+      remainingAfterDecision: 20,
+    });
+  });
+
+  it('con política BLOCK una base ausente rechaza con motivo por finalidad', async () => {
+    await expect(
+      guard([]).checkBeforeDecision({
+        tenantId: 1n,
+        subjectId: null,
+        subjectReferencePresent: true,
+        requestedAmount: 0,
+        basisPolicy: {
+          source: 'DECLARED',
+          onMissing: 'BLOCK',
+          requirements: [
+            {
+              purpose: 'credit_underwriting',
+              acceptedBases: [ProcessingLegalBasis.CONSENT],
+              acceptedVersions: [],
+            },
+          ],
+        },
+        now: AHORA,
+      }),
+    ).rejects.toMatchObject({
+      code: 'ENABLING_BASIS_INVALID',
+      details: {
+        failures: [{ purpose: 'credit_underwriting', reason: 'NO_BASIS_RECORDED' }],
+      },
+    });
   });
 });

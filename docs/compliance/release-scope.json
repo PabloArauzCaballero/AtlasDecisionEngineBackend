@@ -1,0 +1,382 @@
+{
+  "schemaVersion": 1,
+  "repository": "AtlasDecisionEngineBackend",
+  "baseline": "cumplimiento/integracion (origin/dev + P-01) — 2026-09-24",
+  "policy": {
+    "statuses": "DECLARED (sólo lo afirma un documento) · IMPLEMENTED (hay código, sin prueba vinculada que haya pasado en el SHA candidato) · VERIFIED (lo declara el evaluador cuando las pruebas de docs/compliance/requirements/*.json pasaron en el SHA exacto) · BLOCKED (depende de algo externo o de otro repositorio/rol) · DEFERRED (excluido con motivo, impacto y aprobador).",
+    "noManualVerified": "Ninguna entrada de este archivo se escribe VERIFIED a mano: el estado VERIFIED sólo lo produce el evaluador contra evidencia del SHA candidato. MODEL_SUPPORTED o 'Implementado' en la matriz histórica nunca se traduce a VERIFIED.",
+    "releaseIncludedTrue": "Cuenta en el denominador del release y sólo suma cuando está VERIFIED.",
+    "releaseIncludedNull": "Decisión de alcance pendiente (pendingDecision); visible, fuera del denominador, hace fallar el modo estricto.",
+    "releaseIncludedFalse": "Diferido: exige exclusion.reason, exclusion.impact y exclusion.approvedBy."
+  },
+  "requirements": [
+    {
+      "id": "B11",
+      "title": "Guardia del motor: sujeto y base habilitante exigibles",
+      "packages": [
+        "P-09"
+      ],
+      "status": "IMPLEMENTED",
+      "releaseIncluded": true,
+      "ownerRole": "M",
+      "requirementsFile": [
+        "docs/compliance/requirements/P-09.json"
+      ],
+      "blockedBy": null,
+      "notes": "Pruebas en docs/compliance/requirements/P-09.json. La tabla finalidad→base espera ratificación de J (B11-J)."
+    },
+    {
+      "id": "B13",
+      "title": "Salidas económicas inválidas no autorizan",
+      "packages": [
+        "P-10"
+      ],
+      "status": "IMPLEMENTED",
+      "releaseIncluded": true,
+      "ownerRole": "M",
+      "requirementsFile": [
+        "docs/compliance/requirements/P-10.json"
+      ],
+      "blockedBy": null,
+      "notes": "Pruebas en P-10.json. Que Core no origine con NO_DECISION/freshnessUnknown es B13-C (Core)."
+    },
+    {
+      "id": "B14",
+      "title": "Frescura sin fecha, inválida o futura con política explícita",
+      "packages": [
+        "P-10"
+      ],
+      "status": "IMPLEMENTED",
+      "releaseIncluded": true,
+      "ownerRole": "M",
+      "requirementsFile": [
+        "docs/compliance/requirements/P-10.json"
+      ],
+      "blockedBy": null
+    },
+    {
+      "id": "B15",
+      "title": "Exposición concurrente con reserva en el dueño de la concesión",
+      "packages": [
+        "P-11"
+      ],
+      "status": "BLOCKED",
+      "releaseIncluded": true,
+      "ownerRole": "C",
+      "requirementsFile": [
+        "docs/compliance/requirements/P-11.json"
+      ],
+      "blockedBy": "Reserva atómica en AtlasBackend (Core). El motor publica exposure y decisionValidUntil (B15-M) y registra créditos/desenlaces de forma idempotente (B15-OUT)."
+    },
+    {
+      "id": "B18",
+      "title": "Rendimiento propio del motor",
+      "packages": [
+        "P-16"
+      ],
+      "status": "IMPLEMENTED",
+      "releaseIncluded": true,
+      "ownerRole": "S",
+      "requirementsFile": [
+        "docs/compliance/requirements/P-16.json"
+      ],
+      "blockedBy": null,
+      "notes": "Benchmark propio del runtime: scripts/perf/decision-load.mjs + decision-bench.sh; resultados en docs/observability/06-engine-benchmark-2026-09-24.md (Mac de desarrollo, no SLO). El SLO acordado y la medición en el entorno objetivo siguen BLOCKED en P-16.json (B18-SLO)."
+    },
+    {
+      "id": "B19",
+      "title": "Restore, rollback, retención y dependencias operables",
+      "packages": [
+        "P-17"
+      ],
+      "status": "IMPLEMENTED",
+      "releaseIncluded": true,
+      "ownerRole": "S",
+      "requirementsFile": [
+        "docs/compliance/requirements/P-17.json"
+      ],
+      "blockedBy": null,
+      "notes": "Ensayo local de restore y política de rollback con prueba (P-17.json). RPO/RTO aprobados, retención, credenciales efectivas, objetos (MinIO) y ejecución por otra persona siguen BLOCKED en P-17.json."
+    },
+    {
+      "id": "B20",
+      "title": "Ciclo S2S completo de los tres servicios con duplicados y fallos parciales",
+      "packages": [
+        "P-08",
+        "P-14",
+        "P-18"
+      ],
+      "status": "BLOCKED",
+      "releaseIncluded": true,
+      "ownerRole": "I",
+      "requirementsFile": [],
+      "blockedBy": "Requiere la jornada sintética conjunta (P-18) con Core y ERP; el motor aporta la idempotencia de facilities/outcomes (B15-OUT)."
+    }
+  ],
+  "diagrams": [
+    {
+      "id": "D01",
+      "name": "Modelo relacional",
+      "implementation": "`prisma/schema.prisma`, baseline SQL, índices, FKs y constraints",
+      "declaredStatus": "Implementado",
+      "status": "DECLARED",
+      "releaseIncluded": true,
+      "pendingDecision": null,
+      "exclusion": null,
+      "ownerRole": "M",
+      "tests": []
+    },
+    {
+      "id": "D02",
+      "name": "Clases y servicios",
+      "implementation": "Servicios pequeños por módulo; domain engine separado de HTTP/ORM",
+      "declaredStatus": "Implementado",
+      "status": "DECLARED",
+      "releaseIncluded": true,
+      "pendingDecision": null,
+      "exclusion": null,
+      "ownerRole": "M",
+      "tests": []
+    },
+    {
+      "id": "D03",
+      "name": "Casos de uso y SoD",
+      "implementation": "Controllers, decorators `@Roles`, guards y validaciones de autor/aprobador/desplegador",
+      "declaredStatus": "Implementado",
+      "status": "DECLARED",
+      "releaseIncluded": true,
+      "pendingDecision": null,
+      "exclusion": null,
+      "ownerRole": "M",
+      "tests": []
+    },
+    {
+      "id": "D04",
+      "name": "Ciclo de vida end-to-end",
+      "implementation": "artifact → validate → compile → test → review → approve → deploy",
+      "declaredStatus": "Implementado",
+      "status": "DECLARED",
+      "releaseIncluded": true,
+      "pendingDecision": null,
+      "exclusion": null,
+      "ownerRole": "M",
+      "tests": []
+    },
+    {
+      "id": "D05",
+      "name": "Estados de versión",
+      "implementation": "`VersionStateService` e historial persistido",
+      "declaredStatus": "Implementado",
+      "status": "DECLARED",
+      "releaseIncluded": true,
+      "pendingDecision": null,
+      "exclusion": null,
+      "ownerRole": "M",
+      "tests": []
+    },
+    {
+      "id": "D06",
+      "name": "Edición/validación/pruebas",
+      "implementation": "graph replace con optimistic lock, validator, compiler y test runner",
+      "declaredStatus": "Implementado",
+      "status": "DECLARED",
+      "releaseIncluded": true,
+      "pendingDecision": null,
+      "exclusion": null,
+      "ownerRole": "M",
+      "tests": []
+    },
+    {
+      "id": "D07",
+      "name": "Ejecución online",
+      "implementation": "deployment resolver, variable resolver, engine, execution writer y explicación",
+      "declaredStatus": "Implementado",
+      "status": "DECLARED",
+      "releaseIncluded": true,
+      "pendingDecision": null,
+      "exclusion": null,
+      "ownerRole": "M",
+      "tests": []
+    },
+    {
+      "id": "D08",
+      "name": "Aprobación/despliegue/rollback",
+      "implementation": "governance y deployment services",
+      "declaredStatus": "Implementado",
+      "status": "DECLARED",
+      "releaseIncluded": true,
+      "pendingDecision": null,
+      "exclusion": null,
+      "ownerRole": "M",
+      "tests": []
+    },
+    {
+      "id": "D09",
+      "name": "Control Plane/Data Plane",
+      "implementation": "audiencias, módulos y dependencias separadas dentro del monolito modular",
+      "declaredStatus": "Implementado, separable",
+      "status": "DECLARED",
+      "releaseIncluded": true,
+      "pendingDecision": null,
+      "exclusion": null,
+      "ownerRole": "M",
+      "tests": []
+    },
+    {
+      "id": "D10",
+      "name": "Infraestructura segura",
+      "implementation": "Dockerfile/Compose y puertos para PostgreSQL/Redis",
+      "declaredStatus": "Referencia local; AWS/WAF/KMS/WORM pendientes",
+      "status": "DECLARED",
+      "releaseIncluded": null,
+      "pendingDecision": "Alcance a decidir por L/R: la matriz declara una parte pendiente (Referencia local; AWS/WAF/KMS/WORM pendientes). Sin decisión cuenta como pendiente visible, no como cumplido.",
+      "exclusion": null,
+      "ownerRole": "M",
+      "tests": []
+    },
+    {
+      "id": "D11",
+      "name": "Contexto e integraciones",
+      "implementation": "Runtime API y `VARIABLE_BACKEND_URL` como puerto de integración",
+      "declaredStatus": "Contratos implementados; proveedores reales pendientes",
+      "status": "DECLARED",
+      "releaseIncluded": null,
+      "pendingDecision": "Alcance a decidir por L/R: la matriz declara una parte pendiente (Contratos implementados; proveedores reales pendientes). Sin decisión cuenta como pendiente visible, no como cumplido.",
+      "exclusion": null,
+      "ownerRole": "M",
+      "tests": []
+    },
+    {
+      "id": "D12",
+      "name": "Flujo crédito BNPL",
+      "implementation": "seed `BNPL_CREDIT_DECISION` con KYC, consentimiento, edad, fraude, score, límite y razones",
+      "declaredStatus": "Implementado",
+      "status": "DECLARED",
+      "releaseIncluded": true,
+      "pendingDecision": null,
+      "exclusion": null,
+      "ownerRole": "M",
+      "tests": []
+    },
+    {
+      "id": "D13",
+      "name": "Fraude/revisión manual",
+      "implementation": "acción `CREATE_MANUAL_REVIEW`, cola, asignación y resolución",
+      "declaredStatus": "Implementado",
+      "status": "DECLARED",
+      "releaseIncluded": true,
+      "pendingDecision": null,
+      "exclusion": null,
+      "ownerRole": "M",
+      "tests": []
+    },
+    {
+      "id": "D14",
+      "name": "Gobierno swimlanes",
+      "implementation": "request, steps, decisions, evidence y separación de funciones",
+      "declaredStatus": "Implementado",
+      "status": "DECLARED",
+      "releaseIncluded": true,
+      "pendingDecision": null,
+      "exclusion": null,
+      "ownerRole": "M",
+      "tests": []
+    },
+    {
+      "id": "D15",
+      "name": "Test bench/cobertura",
+      "implementation": "suites, casos, assertions, runs, node/edge/terminal coverage",
+      "declaredStatus": "Implementado",
+      "status": "DECLARED",
+      "releaseIncluded": true,
+      "pendingDecision": null,
+      "exclusion": null,
+      "ownerRole": "M",
+      "tests": []
+    },
+    {
+      "id": "D16",
+      "name": "Variables/linaje/snapshot",
+      "implementation": "definitions, versions, sources, rules, dependency snapshot y hashes",
+      "declaredStatus": "Implementado",
+      "status": "DECLARED",
+      "releaseIncluded": true,
+      "pendingDecision": null,
+      "exclusion": null,
+      "ownerRole": "M",
+      "tests": []
+    },
+    {
+      "id": "D17",
+      "name": "Auditoría/explicabilidad",
+      "implementation": "trace, reason codes, access audit, audit chain, metrics y queries",
+      "declaredStatus": "Implementado",
+      "status": "DECLARED",
+      "releaseIncluded": true,
+      "pendingDecision": null,
+      "exclusion": null,
+      "ownerRole": "M",
+      "tests": []
+    },
+    {
+      "id": "D18",
+      "name": "RBAC/multitenancy",
+      "implementation": "JWT/IdP, registro de clientes técnicos, scopes y acceso por tenant",
+      "declaredStatus": "Implementado; configuración del IdP productivo pendiente",
+      "status": "DECLARED",
+      "releaseIncluded": null,
+      "pendingDecision": "Alcance a decidir por L/R: la matriz declara una parte pendiente (Implementado; configuración del IdP productivo pendiente). Sin decisión cuenta como pendiente visible, no como cumplido.",
+      "exclusion": null,
+      "ownerRole": "M",
+      "tests": []
+    },
+    {
+      "id": "D19",
+      "name": "Privacidad/retención",
+      "implementation": "minimización, pseudonimización y no persistencia de sensibles crudos",
+      "declaredStatus": "Parcial: worker legal de retención pendiente",
+      "status": "DECLARED",
+      "releaseIncluded": null,
+      "pendingDecision": "Alcance a decidir por L/R: la matriz declara una parte pendiente (Parcial: worker legal de retención pendiente). Sin decisión cuenta como pendiente visible, no como cumplido.",
+      "exclusion": null,
+      "ownerRole": "M",
+      "tests": []
+    },
+    {
+      "id": "D20",
+      "name": "Reglas→scorecards→ML",
+      "implementation": "artefactos genéricos, contratos, checksums, traffic metadata y rollback",
+      "declaredStatus": "Base preparada; entrenamiento/serving ML pendiente",
+      "status": "DECLARED",
+      "releaseIncluded": null,
+      "pendingDecision": "Alcance a decidir por L/R: la matriz declara una parte pendiente (Base preparada; entrenamiento/serving ML pendiente). Sin decisión cuenta como pendiente visible, no como cumplido.",
+      "exclusion": null,
+      "ownerRole": "M",
+      "tests": []
+    },
+    {
+      "id": "D21",
+      "name": "Trazabilidad requisito-evidencia",
+      "implementation": "business objectives, policy requirements, links a versiones y test suites",
+      "declaredStatus": "Implementado",
+      "status": "DECLARED",
+      "releaseIncluded": true,
+      "pendingDecision": null,
+      "exclusion": null,
+      "ownerRole": "M",
+      "tests": []
+    },
+    {
+      "id": "D22",
+      "name": "Paquetes backend",
+      "implementation": "módulos NestJS por responsabilidad y núcleo de grafo desacoplado",
+      "declaredStatus": "Implementado",
+      "status": "DECLARED",
+      "releaseIncluded": true,
+      "pendingDecision": null,
+      "exclusion": null,
+      "ownerRole": "M",
+      "tests": []
+    }
+  ]
+}

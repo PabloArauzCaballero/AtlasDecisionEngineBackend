@@ -1,0 +1,107 @@
+[
+  {
+    "requirementId": "B11",
+    "packageId": "P-09",
+    "repository": "AtlasDecisionEngineBackend",
+    "title": "Sujeto y base habilitante exigibles antes de decidir (lado motor)",
+    "releaseIncluded": true,
+    "ownerRole": "M",
+    "acceptance": "Primer solicitante sin sujeto local, finalidad requerida ausente, revocación durante caída (réplica tardía fechada y alta vieja rechazada), vencimiento, replay (misma clave = misma decisión con su vencimiento; petición nueva tras revocar no pasa) y tenant ajeno. Con evidencia faltante: REVIEW (NO_DECISION 422 sin ejecutar el grafo) o BLOCK (403) según política, nunca una aprobación utilizable. Motivos distinguibles: ausente, finalidad no cubierta, base no aceptada, versión no aceptada, expirada, revocada. Sin ampliar scopes de runtime.",
+    "tests": [
+      {
+        "file": "test/consent-enforcement.integration.spec.ts",
+        "name": "primer solicitante sin sujeto local y sin base: NO_DECISION en revisión, sin ejecutar el grafo"
+      },
+      {
+        "file": "test/consent-enforcement.integration.spec.ts",
+        "name": "la base registrada ANTES de la primera decisión habilita al primer solicitante"
+      },
+      {
+        "file": "test/consent-enforcement.integration.spec.ts",
+        "name": "sin subjectReference una decisión que exige base no se puede aprobar"
+      },
+      {
+        "file": "test/consent-enforcement.integration.spec.ts",
+        "name": "finalidad requerida ausente: tener OTRA finalidad no habilita esta"
+      },
+      {
+        "file": "test/consent-enforcement.integration.spec.ts",
+        "name": "consentimiento como base cuando el artefacto lo declara: otra base no basta"
+      },
+      {
+        "file": "test/consent-enforcement.integration.spec.ts",
+        "name": "con política BLOCK la base ausente rechaza la petición (403) y no ejecuta"
+      },
+      {
+        "file": "test/consent-enforcement.integration.spec.ts",
+        "name": "vencimiento: una base expirada bloquea con su motivo"
+      },
+      {
+        "file": "test/consent-enforcement.integration.spec.ts",
+        "name": "revocación durante caída: la réplica tardía bloquea y un alta vieja no la resucita"
+      },
+      {
+        "file": "test/consent-enforcement.integration.spec.ts",
+        "name": "una revocación que llega ANTES que el alta deja lápida: el alta vieja no crea el permiso"
+      },
+      {
+        "file": "test/consent-enforcement.integration.spec.ts",
+        "name": "una revocación anterior a un alta posterior es obsoleta y no pisa el alta"
+      },
+      {
+        "file": "test/consent-enforcement.integration.spec.ts",
+        "name": "replay de la decisión: la misma clave devuelve la decisión original con su vencimiento, no una nueva aprobación"
+      },
+      {
+        "file": "test/consent-enforcement.integration.spec.ts",
+        "name": "tenant ajeno: la base registrada en otro tenant no habilita aquí"
+      },
+      {
+        "file": "test/consent-enforcement.integration.spec.ts",
+        "name": "la versión del texto aceptada se exige cuando la política la declara"
+      },
+      {
+        "file": "test/risk-governance.spec.ts",
+        "name": "originación en producción sin declarar nada: exige credit_underwriting y va a revisión"
+      },
+      {
+        "file": "test/risk-governance.spec.ts",
+        "name": "consentimiento como ÚNICA base cuando el artefacto declara CONSENT"
+      },
+      {
+        "file": "test/risk-governance.spec.ts",
+        "name": "no impone consentimiento cuando el artefacto declara otra base"
+      },
+      {
+        "file": "test/risk-governance.spec.ts",
+        "name": "ausente, finalidad no cubierta, expirada, revocada y base no aceptada se distinguen"
+      },
+      {
+        "file": "test/risk-governance.spec.ts",
+        "name": "sin sujeto materializado lo pedido se compara igual con el límite"
+      },
+      {
+        "file": "test/risk-governance.spec.ts",
+        "name": "con política BLOCK una base ausente rechaza con motivo por finalidad"
+      },
+      {
+        "file": "test/deployment-resolver-cache.spec.ts",
+        "name": "una entrada sin la política de base habilitante cae a la base en vez de servirla"
+      }
+    ],
+    "requiresDatabase": true,
+    "blockedBy": null
+  },
+  {
+    "requirementId": "B11-J",
+    "packageId": "P-09",
+    "repository": "AtlasDecisionEngineBackend",
+    "title": "Ratificación legal de la tabla finalidad → base habilitante",
+    "releaseIncluded": true,
+    "ownerRole": "J",
+    "acceptance": "Legal/Privacidad ratifica la tabla D-09.1 de docs/compliance/decisions.md (bases aceptadas por finalidad y valor por defecto REVIEW para originación sin declaración).",
+    "tests": [],
+    "requiresDatabase": false,
+    "blockedBy": "Aprobación humana de Legal/Privacidad (J); no se puede cerrar con una prueba."
+  }
+]
