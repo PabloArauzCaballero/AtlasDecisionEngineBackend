@@ -1,0 +1,109 @@
+{{!--
+  Cuerpo de `factura-fiscal@1.0.0`: representación gráfica de una factura de compra-venta (SIN).
+
+  Todo va escapado, también el QR: `src="{{data.qrDataUri}}"` —el esquema ya exige que sea un
+  data URI de imagen—. Los importes se imprimen tal cual llegan: son el texto del XML firmado.
+
+  En la modalidad en línea no existe «código de autorización»: su lugar lo ocupa el CUF, y por
+  eso no se imprime ese rótulo.
+
+  El estado decide lo que el papel afirma. `REPRESENTACION_INTERNA` lleva la marca grande (en la
+  cabecera y como filigrana en cada hoja) y NO la frase de documento fiscal digital.
+--}}
+{{#if (eq data.estado 'REPRESENTACION_INTERNA')}}
+  <div class="ff-filigrana" aria-hidden="true">REPRESENTACIÓN INTERNA</div>
+  <div class="ff-interna" role="note">REPRESENTACIÓN INTERNA — no es factura fiscal</div>
+{{/if}}
+
+<header class="ff-cabecera keep-together">
+  <div class="ff-emisor">
+    <p class="ff-emisor__nombre">{{data.emisor.razonSocial}}</p>
+    <p>{{#if (eq data.emisor.sucursal 0)}}CASA MATRIZ{{else}}SUCURSAL N° {{data.emisor.sucursal}}{{/if}}</p>
+    <p>N° Punto de Venta {{data.emisor.puntoVenta}}</p>
+    <p>{{data.emisor.direccion}}</p>
+    {{#if data.emisor.telefono}}<p>Teléfono: {{data.emisor.telefono}}</p>{{/if}}
+    <p>{{data.emisor.municipio}}</p>
+  </div>
+  <table class="ff-fiscal">
+    <tbody>
+      <tr><th scope="row">NIT</th><td class="mono">{{data.emisor.nit}}</td></tr>
+      <tr><th scope="row">FACTURA N°</th><td class="mono">{{data.numeroFactura}}</td></tr>
+      <tr><th scope="row">CUF</th><td class="mono ff-cuf">{{data.cuf}}</td></tr>
+    </tbody>
+  </table>
+</header>
+
+<div class="ff-titulo keep-together">
+  <h1 class="ff-titulo__principal">FACTURA</h1>
+  <p class="ff-titulo__sub">(Con Derecho a Crédito Fiscal)</p>
+</div>
+
+{{#if (eq data.estado 'FUERA_DE_LINEA')}}
+  <p class="ff-contingencia">Factura emitida fuera de línea (evento N° {{data.eventoContingencia}})</p>
+{{/if}}
+
+<section class="ff-receptor keep-together">
+  <div class="ff-par"><span class="ff-par__rotulo">Fecha:</span> {{data.fechaEmision}}</div>
+  <div class="ff-par">
+    <span class="ff-par__rotulo">NIT/CI/CEX:</span>
+    <span class="mono">{{data.receptor.numeroDocumento}}{{#if data.receptor.complemento}}-{{data.receptor.complemento}}{{/if}}</span>
+  </div>
+  <div class="ff-par"><span class="ff-par__rotulo">Nombre/Razón Social:</span> {{data.receptor.nombreRazonSocial}}</div>
+  <div class="ff-par"><span class="ff-par__rotulo">Cod. Cliente:</span> <span class="mono">{{data.receptor.codigoCliente}}</span></div>
+  <div class="ff-par"><span class="ff-par__rotulo">Tipo de documento:</span> {{data.receptor.tipoDocumento}}</div>
+  <div class="ff-par"><span class="ff-par__rotulo">Referencia interna:</span> <span class="mono">{{data.referenciaInterna}}</span></div>
+</section>
+
+<table class="table ff-detalle">
+  <thead>
+    <tr>
+      <th scope="col">CÓDIGO PRODUCTO / SERVICIO</th>
+      <th scope="col" class="ff-num">CANTIDAD</th>
+      <th scope="col">UNIDAD DE MEDIDA</th>
+      <th scope="col">DESCRIPCIÓN</th>
+      <th scope="col" class="ff-num">PRECIO UNITARIO</th>
+      <th scope="col" class="ff-num">DESCUENTO</th>
+      <th scope="col" class="ff-num">SUBTOTAL</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{#each data.detalle}}
+      <tr>
+        <td class="mono">{{this.codigoProducto}}</td>
+        <td class="ff-num">{{this.cantidad}}</td>
+        <td>{{this.unidadMedida}}</td>
+        <td>{{this.descripcion}}</td>
+        <td class="ff-num">{{this.precioUnitario}}</td>
+        <td class="ff-num">{{this.descuento}}</td>
+        <td class="ff-num">{{this.subTotal}}</td>
+      </tr>
+    {{/each}}
+  </tbody>
+</table>
+
+<table class="ff-totales keep-together">
+  <tbody>
+    <tr><th scope="row">SUBTOTAL Bs</th><td class="ff-num">{{data.totales.subtotal}}</td></tr>
+    <tr><th scope="row">DESCUENTO Bs</th><td class="ff-num">{{data.totales.descuentoAdicional}}</td></tr>
+    <tr><th scope="row">TOTAL Bs</th><td class="ff-num">{{data.totales.montoTotal}}</td></tr>
+    {{#if data.totales.montoGiftCard}}
+      <tr><th scope="row">MONTO GIFT CARD Bs</th><td class="ff-num">{{data.totales.montoGiftCard}}</td></tr>
+    {{/if}}
+    <tr class="ff-totales__pagar"><th scope="row">MONTO A PAGAR Bs</th><td class="ff-num">{{data.totales.montoAPagar}}</td></tr>
+    <tr><th scope="row">IMPORTE BASE CRÉDITO FISCAL</th><td class="ff-num">{{data.totales.importeBaseCreditoFiscal}}</td></tr>
+  </tbody>
+</table>
+
+<p class="ff-literal">{{data.totales.montoLiteral}}</p>
+<p class="ff-moneda">Moneda: {{data.moneda}}</p>
+
+<footer class="ff-pie keep-together">
+  <div class="ff-pie__textos">
+    <p class="ff-pie__ley">ESTA FACTURA CONTRIBUYE AL DESARROLLO DEL PAÍS, EL USO ILÍCITO SERÁ SANCIONADO PENALMENTE DE ACUERDO A LEY</p>
+    <p class="ff-pie__leyenda">{{data.leyenda}}</p>
+    {{#if (ne data.estado 'REPRESENTACION_INTERNA')}}
+      <p class="ff-pie__digital">“Este documento es la Representación Gráfica de un Documento Fiscal Digital emitido en una modalidad de facturación en línea”</p>
+    {{/if}}
+  </div>
+  <img class="ff-qr" src="{{data.qrDataUri}}" alt="Código QR de verificación de la factura" />
+</footer>
