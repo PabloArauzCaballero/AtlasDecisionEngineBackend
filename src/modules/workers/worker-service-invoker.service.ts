@@ -35,8 +35,20 @@ import { AudioTtsRuntimeFactory } from './audio-tts/audio-tts.runtime';
 import { IdentityPipelineService } from './identity-verification/identity-pipeline.service';
 import { validateIdentityUpload } from './identity-verification/identity-verification-input';
 import type { IdentityVerificationOutcome } from './identity-verification/identity-result';
+import { documentCaptureSourceFromContext } from './identity-verification/document-capture-source';
 import { buildAudioOutcome } from './audio-tts/audio-tts.result';
 import { AudioDomainError } from './audio-tts/core/domain/errors';
+
+/**
+ * Las marcas que dicen de qué POBLACIÓN salió la imagen del carnet, y que por eso
+ * van a la traza del nodo cuando el origen es el escáner del sistema. Ver
+ * `verifyIdentity`.
+ */
+const MARCAS_DE_LA_CAPTURA: ReadonlySet<string> = new Set([
+  'DOCUMENT_CAPTURE_SYSTEM_SCANNER',
+  'THRESHOLD_PROFILE_UNMEASURED',
+  'DOCUMENT_GRAYSCALE',
+]);
 
 /** Techo absoluto de una llamada desde un nodo, en milisegundos. */
 const MAX_CALL_TIMEOUT_MS = 120_000;
@@ -57,15 +69,31 @@ export class WorkerServiceInvokerService {
     private readonly identity: IdentityPipelineService,
   ) {}
 
-  /** Ata el invocador al tenant y al principal de UNA ejecución, para `engine.execute()`. */
-  bind(tenantId: bigint, principal: AuthenticatedPrincipal): WorkerServiceInvoker {
-    return { invoke: (request) => this.invoke(tenantId, principal, request) };
+  /**
+   * Ata el invocador al tenant, al principal y al CONTEXTO de UNA ejecución, para
+   * `engine.execute()`.
+   *
+   * El contexto es el `context` de la petición de decisión, el mismo que ya entra
+   * en su huella de idempotencia. Hasta ahora no pasaba de ahí: el motor de grafo
+   * sólo entrega a los nodos las variables del artefacto. Viaja por aquí, y no
+   * como variable, porque lo que trae son datos de CÓMO llegó la petición —hoy
+   * sólo el origen de la captura del carnet— y una variable nueva en un artefacto
+   * gobernado exige una versión firmada por dos personas. Cada servicio lee de él
+   * sólo la clave que conoce y la valida; lo demás lo ignora.
+   */
+  bind(
+    tenantId: bigint,
+    principal: AuthenticatedPrincipal,
+    context?: Readonly<Record<string, unknown>> | null,
+  ): WorkerServiceInvoker {
+    return { invoke: (request) => this.invoke(tenantId, principal, request, context ?? null) };
   }
 
   private async invoke(
     tenantId: bigint,
     principal: AuthenticatedPrincipal,
     request: WorkerServiceRequest,
+    context: Readonly<Record<string, unknown>> | null,
   ): Promise<WorkerServiceOutcome> {
     const started = Date.now();
     const key = `${request.service}.${request.operation}`;
@@ -77,7 +105,7 @@ export class WorkerServiceInvokerService {
       case 'audio-tts.speak':
         return this.speak(tenantId, principal, request, started);
       case 'identity-verification.verify':
-        return this.verifyIdentity(request, started);
+        return this.verifyIdentity(request, started, context);
       default:
         // El validador de grafo ya rechaza un servicio desconocido al aprobar el
         // artefacto. Llegar aquí significa que el catálogo del validador y el de este
@@ -390,6 +418,7 @@ export class WorkerServiceInvokerService {
   private async verifyIdentity(
     request: WorkerServiceRequest,
     started: number,
+    context: Readonly<Record<string, unknown>> | null,
   ): Promise<WorkerServiceOutcome> {
     this.assertAvailable(
       'identity-verification',
@@ -426,6 +455,7 @@ export class WorkerServiceInvokerService {
       'nodo',
     );
 
+    const documentCaptureSource = documentCaptureSourceFromContext(context);
     try {
       const outcome = await this.withTimeout(
         this.identity.run({
@@ -437,16 +467,44 @@ export class WorkerServiceInvokerService {
             this.config.get<string>('IDENTITY_DEFAULT_DOCUMENT_COUNTRY') ??
             'BO',
           correlationId: request.nodeKey,
+          /*
+           * De dónde salió la imagen del carnet, si la petición lo dice. Sólo se
+           * pasa un valor conocido; `camera`, igual que la ausencia o un valor
+           * desconocido, deja al pipeline en su camino de siempre.
+           */
+          ...(documentCaptureSource ? { documentCaptureSource } : {}),
         }),
         this.timeoutFor(request, this.config.get<number>('IDENTITY_TIMEOUT_MS') ?? 90_000),
         request,
       );
 
       const limpio = outcome.decision === 'VERIFIED';
+      /*
+       * Las marcas de la población de la captura, en la TRAZA del nodo.
+       *
+       * El artefacto no proyecta `riskFlags` —y cambiarlo exige una versión
+       * firmada por dos personas—, así que por `result` no llegan a ninguna
+       * parte que se guarde. `warnings` sí: el motor de grafo las copia a la
+       * traza de cada paso (`evaluation.worker.warnings`), que se persiste con la
+       * ejecución y es lo que abre quien revisa el caso. Sólo con el escáner del
+       * sistema, así que por la cámara la traza sale como siempre.
+       *
+       * El `status` NO cambia por ellas: un VERIFICADO del escáner sigue
+       * `SUCCEEDED`, porque `IDENTIDAD_CONFIRMADA` exige ese estado y dejarlo en
+       * `SUCCEEDED_WITH_WARNINGS` mandaría a revisión a todo el que escanea.
+       */
+      const deLaCaptura = outcome.capture
+        ? outcome.riskFlags.filter((marca) => MARCAS_DE_LA_CAPTURA.has(marca))
+        : [];
       return {
         status: limpio ? 'SUCCEEDED' : 'SUCCEEDED_WITH_WARNINGS',
         result: toIdentityResult(outcome),
-        warnings: limpio ? [] : [outcome.decision, ...outcome.reasonCodes],
+        warnings: [
+          ...new Set([
+            ...(limpio ? [] : [outcome.decision, ...outcome.reasonCodes]),
+            ...deLaCaptura,
+          ]),
+        ],
         durationMs: Date.now() - started,
       };
     } catch (error) {
@@ -658,6 +716,12 @@ function toIdentityResult(outcome: IdentityVerificationOutcome): Record<string, 
     fraudVerdict: outcome.fraud?.veredicto ?? null,
     fraudRisk: outcome.fraud?.riesgo ?? null,
     riskFlags: outcome.riskFlags,
+    /*
+     * Sólo con el escáner del sistema: el origen y la medida del color (una
+     * fracción de píxeles, sin nada de la persona). Queda al alcance de una
+     * versión del artefacto que quiera leerlo; la de hoy no lo proyecta.
+     */
+    ...(outcome.capture ? { capture: outcome.capture } : {}),
   };
 }
 

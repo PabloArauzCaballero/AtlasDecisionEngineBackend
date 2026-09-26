@@ -92,14 +92,23 @@ export class SimulationService {
       this.nestedTrees.bind(tenantId, principal),
       undefined,
       undefined,
-      this.workerServices.bind(tenantId, principal),
+      // El mismo `context` que recibiría la ejecución real: una simulación del carnet
+      // escaneado tiene que recorrer el camino del escáner, no el de la cámara.
+      this.workerServices.bind(tenantId, principal, dto.context),
     );
     const productionComparison = dto.compareWithProduction
-      ? await this.compareWithProduction(tenantId, artifactCode, principal, resolution.values, {
-          outcome: result.outcome,
-          output: result.output,
-          reasonCodes: result.reasons.map((reason) => reason.code),
-        })
+      ? await this.compareWithProduction(
+          tenantId,
+          artifactCode,
+          principal,
+          resolution.values,
+          dto.context,
+          {
+            outcome: result.outcome,
+            output: result.output,
+            reasonCodes: result.reasons.map((reason) => reason.code),
+          },
+        )
       : undefined;
     return {
       simulation: true,
@@ -174,6 +183,7 @@ export class SimulationService {
     artifactCode: string,
     principal: AuthenticatedPrincipal,
     values: Record<string, unknown>,
+    context: Record<string, unknown> | undefined,
     simulated: { outcome: string; output: Record<string, unknown>; reasonCodes: string[] },
   ): Promise<Record<string, unknown>> {
     let production;
@@ -190,7 +200,7 @@ export class SimulationService {
       this.nestedTrees.bind(tenantId, principal),
       undefined,
       undefined,
-      this.workerServices.bind(tenantId, principal),
+      this.workerServices.bind(tenantId, principal, context),
     );
     const productionReasonCodes = productionResult.reasons.map((reason) => reason.code);
     const differences: string[] = [];

@@ -220,6 +220,61 @@ describe('IDENTIDAD_CARNET_MOVIL 1.2.0 · la política de identidad con la bitá
     },
   );
 
+  /*
+   * El carnet del escáner del sistema, visto desde la política.
+   *
+   * El invocador pone las marcas de la población en `warnings` (ver
+   * `worker-service-invoker.service.ts`), porque el artefacto no proyecta
+   * `riskFlags`. Aquí se fija la otra mitad: que esos `warnings` quedan en la
+   * traza del paso —`evaluation.worker.warnings`, que `execution-writer` guarda
+   * en `evaluationResultJson`— y en `workerCalls`, sin cambiar lo que decide.
+   */
+  describe('carnet del escáner del sistema', () => {
+    const MARCAS = ['THRESHOLD_PROFILE_UNMEASURED', 'DOCUMENT_CAPTURE_SYSTEM_SCANNER'];
+    const conRespuesta = (caso: Caso, respuesta: WorkerServiceOutcome) =>
+      engine.execute(
+        compilado,
+        caso.input as Record<string, unknown>,
+        undefined,
+        undefined,
+        undefined,
+        { invoke: async () => respuesta },
+      );
+
+    it('un VERIFICADO con las marcas en `warnings` sigue VERIFICADO y las deja en la traza', async () => {
+      const caso = definicion.cases.find((c) => c.caseCode === 'ID-HUMANO-VERIFICA')!;
+      const verificado = WORKER.verificado() as WorkerServiceOutcome;
+      const resultado = await conRespuesta(caso, { ...verificado, warnings: MARCAS });
+
+      for (const [clave, valor] of Object.entries(caso.expectedResult)) {
+        expect({ [clave]: resultado.output[clave] }).toEqual({ [clave]: valor });
+      }
+      expect(resultado.workerCalls[0].warnings).toEqual(MARCAS);
+      const paso = resultado.trace.find((step) => step.nodeKey === 'VERIFICAR_IDENTIDAD');
+      expect(
+        (paso?.evaluation as { worker?: { warnings?: string[] } } | undefined)?.worker?.warnings,
+      ).toEqual(MARCAS);
+    });
+
+    it('el rechazo por parecido sobre un anverso gris que el worker manda a revisión termina en REVISION_HUMANA', async () => {
+      const caso = definicion.cases.find((c) => c.caseCode === 'ID-DUDOSO-REVISA')!;
+      const resultado = await conRespuesta(caso, {
+        status: 'SUCCEEDED_WITH_WARNINGS',
+        result: {
+          decision: 'REVIEW_REQUIRED',
+          faceSimilarity: 0.72,
+          documentEvidence: 0.9,
+          documentType: 'BO_CI',
+          liveness: 'PASSED',
+        },
+        warnings: ['REVIEW_REQUIRED', 'FACE_NO_MATCH', 'DOCUMENT_GRAYSCALE', ...MARCAS],
+        durationMs: 1200,
+      });
+      expect(resultado.output.identidad_resultado).toBe('REVISION_HUMANA');
+      expect(resultado.output.identidad_resultado).not.toBe('RECHAZADO');
+    });
+  });
+
   it('la señal de comportamiento abre caso en la cola IDENTIDAD con la evidencia de la bitácora', async () => {
     const caso = definicion.cases.find((c) => c.caseCode === 'ID-MECANICO-REVISA')!;
     const resultado = await ejecutar(caso);
