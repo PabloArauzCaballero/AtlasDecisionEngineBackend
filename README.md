@@ -78,6 +78,12 @@ Servicios:
 - Readiness: `GET /health/ready`
 - Métricas: `GET /metrics` con `Authorization: Bearer <METRICS_TOKEN>`
 
+En DEV, Coolify pasa `SOURCE_COMMIT` como `COMMIT_SHA` a API y worker. El gate post-deploy
+consulta `/health/live` y `/health/ready`, exige PostgreSQL y Redis reales (no el respaldo en
+memoria) y compara el commit servido con el SHA que pasó CI. Obtiene el dominio `api` de Coolify;
+si no hay uno registrado, se configura `DEV_SMOKE_BASE_URL` como variable del repositorio en
+GitHub. Sin un destino verificable, el despliegue falla.
+
 ## Autenticación
 
 ### Clientes de integración
