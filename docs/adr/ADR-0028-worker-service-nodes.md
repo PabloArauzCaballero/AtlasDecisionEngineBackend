@@ -116,5 +116,6 @@ menciona al servicio. Además se emite el aviso `WORKER_CALL_CONTINUES_ON_ERROR`
 ## Referencias
 
 - Detalle operativo: [Nodos que llaman a un servicio de worker](../workers/worker-service-nodes.md)
-- Demo ejecutable: `EXTRACTO_CAPACIDAD_PAGO`
-  (`src/modules/seeding/data/statement-worker-demo.graph.ts`)
+- Demo ejecutable: `EXTRACTO_CAPACIDAD_PAGO`, portado a `scripts/extracto-capacidad-pago.mjs` +
+  `scripts/lib/extracto-capacidad-pago.definicion.json` tras mover las semillas a una rama de
+  PostgreSQL (`c4084c9`)
