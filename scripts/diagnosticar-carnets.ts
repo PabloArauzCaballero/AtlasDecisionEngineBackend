@@ -49,6 +49,7 @@ import {
   UMBRALES_DE_FRAUDE_POR_DEFECTO,
 } from '../src/modules/workers/identity-verification/core/forensics/identity-fraud.scorer';
 import type { DocumentOcrResult } from '../src/modules/workers/identity-verification/core/ports/identity.ports';
+import { medirColorDelDocumento } from '../src/modules/workers/identity-verification/core/forensics/document-color';
 
 const IMAGENES = new Set(['.jpg', '.jpeg', '.png', '.webp', '.heic']);
 
@@ -90,6 +91,13 @@ interface Medicion {
   readonly motivos?: readonly string[];
   readonly observaciones?: readonly string[];
   readonly coberturaEvaluable?: boolean;
+  /**
+   * Fracción de píxeles del anverso con color, y si cuenta como «sin color».
+   * Es la cifra con la que la fase 5 del plan del escáner fija el umbral de
+   * `DOCUMENT_GRAYSCALE` (hoy 1 %, calibrado sólo con la cédula dibujada): un
+   * escaneo en *Color* o *Foto* por debajo sería un falso «sin color».
+   */
+  readonly color?: { sinColor: boolean; fraccionConColor: number } | null;
 }
 
 async function leer(buffer: Buffer, lado: number): Promise<DocumentOcrResult> {
@@ -160,6 +168,7 @@ async function diagnosticar(carpeta: string, mostrarTexto: boolean): Promise<Med
   const reverso = ordenadas.length > 1 ? ordenadas[ordenadas.length - 1] : null;
 
   const norm = await imagenes.normalize(anverso.buffer);
+  const color = await medirColorDelDocumento(norm.buffer);
   const enc = await imagenes.frame(norm.buffer);
   const front = await leer(enc.buffer, IDENTITY_DEFAULTS.ocrFineLongEdge);
   let back: DocumentOcrResult | null = null;
@@ -204,6 +213,9 @@ async function diagnosticar(carpeta: string, mostrarTexto: boolean): Promise<Med
   console.log(`  generación    : ${rec.mejor.generacion}  cobertura=${rec.mejor.cobertura.toFixed(3)}`);
   console.log(`  evidencia     : ${ev.confidence.toFixed(3)}  contra=${ev.contraindicator ?? '—'}`);
   console.log(`  MRZ           : ${mrz ? `sí  checks=${JSON.stringify(mrz.checks)}` : 'no'}`);
+  console.log(
+    `  color         : ${color ? `fracción=${color.fraccionConColor.toFixed(4)}  ${color.sinColor ? 'SIN COLOR' : 'con color'}` : 'no medible'}`,
+  );
   const f = parsed.fields;
   const campo = (n: string, v: { value: string | null; source?: string } | undefined) =>
     `    ${n.padEnd(16)} ${String(v?.value ?? '—').padEnd(40)} [${v?.source ?? '—'}]`;
@@ -294,6 +306,7 @@ async function diagnosticar(carpeta: string, mostrarTexto: boolean): Promise<Med
     motivos: fraude.motivos,
     observaciones: fraude.observaciones,
     coberturaEvaluable: plantilla.coberturaEvaluable,
+    color,
   };
 }
 

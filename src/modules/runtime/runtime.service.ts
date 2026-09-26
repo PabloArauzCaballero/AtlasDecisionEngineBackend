@@ -325,7 +325,9 @@ export class RuntimeService {
         this.nestedTrees.bind(tenantId, principal),
         undefined,
         undefined,
-        this.workerServices.bind(tenantId, principal),
+        // El `context` de la petición llega a los nodos WORKER por aquí (hoy: el origen
+        // de la captura del carnet). Ver `WorkerServiceInvokerService.bind`.
+        this.workerServices.bind(tenantId, principal, dto.context),
       );
       this.tracing.addEvent('engine.completed', {
         [DECISION_ATTRIBUTES.steps]: result.trace.length,

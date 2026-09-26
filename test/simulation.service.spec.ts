@@ -74,6 +74,7 @@ describe('SimulationService', () => {
       nestedTrees,
       nestedTreeResolver,
       workerServiceInvoker,
+      workerServices,
       metrics,
     };
   }
@@ -129,6 +130,42 @@ describe('SimulationService', () => {
         nested: [],
       },
     });
+  });
+
+  /*
+   * El `context` de la petición es lo único que lleva a los nodos WORKER datos de
+   * CÓMO llegó la petición (hoy, el origen de la captura del carnet). Si la
+   * simulación no lo pasara, una simulación del carnet escaneado recorrería el
+   * camino de la cámara sin decirlo.
+   */
+  it('ata el invocador de workers con el `context` de la petición', async () => {
+    const { service, workerServices } = setup();
+    await service.simulate(
+      7n,
+      'CREDIT_POLICY',
+      {
+        requestId: 'simulation-request-ctx',
+        environmentCode: 'DEV',
+        variables: { age: 30 },
+        context: { documentCaptureSource: 'system_scanner' },
+      },
+      principal,
+    );
+    expect(workerServices.bind).toHaveBeenCalledTimes(1);
+    expect(workerServices.bind).toHaveBeenCalledWith(7n, principal, {
+      documentCaptureSource: 'system_scanner',
+    });
+  });
+
+  it('sin `context` en la petición, el invocador se ata sin contexto', async () => {
+    const { service, workerServices } = setup();
+    await service.simulate(
+      7n,
+      'CREDIT_POLICY',
+      { requestId: 'simulation-request-noctx', environmentCode: 'DEV', variables: { age: 30 } },
+      principal,
+    );
+    expect(workerServices.bind).toHaveBeenCalledWith(7n, principal, undefined);
   });
 
   it('rejects production before resolving any deployment', async () => {
@@ -210,6 +247,20 @@ describe('SimulationService', () => {
       // Las variables se resuelven UNA sola vez y las dos pasadas reciben ese mismo objeto.
       expect(variables.resolve).toHaveBeenCalledTimes(1);
       expect(engine.execute.mock.calls[0][1]).toBe(engine.execute.mock.calls[1][1]);
+    });
+
+    it('la pasada de PROD recibe el MISMO `context` que la simulada', async () => {
+      const { service, workerServices } = setup();
+      await service.simulate(
+        7n,
+        'CREDIT_POLICY',
+        { ...simulate(true), context: { documentCaptureSource: 'system_scanner' } },
+        principal,
+      );
+      expect(workerServices.bind).toHaveBeenCalledTimes(2);
+      for (const llamada of workerServices.bind.mock.calls) {
+        expect(llamada).toEqual([7n, principal, { documentCaptureSource: 'system_scanner' }]);
+      }
     });
 
     it('no marca divergencia cuando PROD decide lo mismo', async () => {

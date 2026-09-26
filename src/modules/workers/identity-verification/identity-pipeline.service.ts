@@ -32,6 +32,11 @@ import {
 import { evaluarFraude, type EvaluacionDeFraude } from './core/forensics/identity-fraud.scorer';
 import { analizarVidaDeLaSelfie, SENALES_DE_VIDA } from './core/forensics/selfie-liveness';
 import { isoDateToUtcDate } from './core/parsers/spanish-date';
+import { medirColorDelDocumento, type ColorDelDocumento } from './core/forensics/document-color';
+import {
+  DOCUMENT_CAPTURE_SOURCES_MEASURED,
+  type DocumentCaptureSource,
+} from './document-capture-source';
 import type { DocumentParser } from './core/parsers/document-parser';
 import type {
   DocumentClassificationResult,
@@ -179,6 +184,20 @@ export interface IdentityPipelineInput {
    * archivo: es una decisión de un rol autorizado, no un parámetro de entrada.
    */
   readonly arbitratedDocumentType?: IdentityDocumentType | null;
+  /**
+   * Cómo se tomó la imagen del DOCUMENTO (anverso y reverso), si quien llama lo
+   * sabe. Ver `document-capture-source.ts`.
+   *
+   * Ausente o `camera` es el camino de siempre, sin una sola diferencia. Con
+   * `system_scanner` —el escáner de VisionKit o de ML Kit, que ya entrega la
+   * tarjeta recortada y con la perspectiva corregida— el caso sale marcado como
+   * población no medida, se mide el color del anverso y un `FACE_NO_MATCH` sobre
+   * un anverso sin color va a una persona en vez de rechazar. El recorte por
+   * densidad corre IGUAL que por la cámara. Es el origen del ANVERSO (la cara que
+   * se recorta y se analiza; el reverso solo aporta la MRZ). Lo pone el invocador
+   * desde el `context` de la ejecución, no una variable del artefacto.
+   */
+  readonly documentCaptureSource?: DocumentCaptureSource | null;
   /** Se invoca al terminar cada etapa, con el avance en tanto por ciento. */
   readonly onProgress?: (progress: number) => Promise<void>;
 }
@@ -278,6 +297,17 @@ export class IdentityPipelineService {
         this.options.minReadableShortEdge,
       );
     }
+    /*
+     * El escáner del sistema entrega la tarjeta YA recortada, y en iOS con el
+     * filtro que haya elegido el usuario. El color se mide aquí, sobre el anverso
+     * normalizado y antes de girar nada —el color no depende de la orientación—,
+     * y SÓLO para esa población: sobre una foto de cámara no se calcula nada, así
+     * que su camino no cambia ni en un milisegundo.
+     */
+    const escaneado = input.documentCaptureSource === 'system_scanner';
+    const colorDelAnverso: ColorDelDocumento | null = escaneado
+      ? await medirColorDelDocumento(document.buffer)
+      : null;
     await input.onProgress?.(20);
 
     // --- 2. Recorte del fondo ----------------------------------------------
@@ -293,6 +323,13 @@ export class IdentityPipelineService {
      * El recorte NO se da por bueno a ciegas: si la imagen recortada no se deja
      * clasificar, se vuelve a leer la entera antes de rechazar nada (abajo). Un
      * recorte de más nunca convierte un documento legible en un rechazo.
+     *
+     * Con el escáner del sistema también se recorta, a propósito. La tarjeta
+     * escaneada ya llena el encuadre y la guarda del detector («si el documento
+     * ya llena el encuadre, no recortes») la deja como está. Se mantiene el mismo
+     * camino que por la cámara para que la fase 5 mida UNA diferencia entre las
+     * dos poblaciones (recodificación y filtro) y no dos; saltarse el recorte por
+     * el origen sólo ahorraba tiempo. El origen que llega es el del ANVERSO.
      */
     let encuadre = await this.images.frame(document.buffer);
 
@@ -850,6 +887,29 @@ export class IdentityPipelineService {
     if (/^sintetico/i.test(this.options.thresholdProfileVersion)) {
       riskFlags.push('THRESHOLD_PROFILE_UNMEASURED');
     }
+    /*
+     * Y lo mismo cuando la POBLACIÓN de la imagen no está medida, aunque el
+     * perfil sí lo esté.
+     *
+     * El perfil se calibró con fotografías de cédulas; una imagen del escáner
+     * del sistema es otra cosa —recortada, con la perspectiva corregida,
+     * recodificada, a veces sin color— y nadie ha medido todavía cómo la ven el
+     * catálogo y el forense. Hasta que la fase 5 del plan del escáner lo mida,
+     * el caso lo dice con la misma marca, y `DOCUMENT_CAPTURE_SYSTEM_SCANNER`
+     * dice por qué. Las tres marcas de este bloque no están en `escalantes` ni las
+     * ve el motor de decisión: un VERIFICADO sigue VERIFICADO. La única que pesa
+     * es `DOCUMENT_GRAYSCALE`, y sólo hacia una persona: ver `grisSinMedir` más
+     * abajo. Ver `docs/workers/identidad-escaner-del-sistema.md`.
+     */
+    if (input.documentCaptureSource === 'system_scanner') {
+      riskFlags.push('DOCUMENT_CAPTURE_SYSTEM_SCANNER');
+    }
+    const poblacionSinMedir =
+      input.documentCaptureSource != null &&
+      !DOCUMENT_CAPTURE_SOURCES_MEASURED.has(input.documentCaptureSource);
+    if (poblacionSinMedir) riskFlags.push('THRESHOLD_PROFILE_UNMEASURED');
+    // El filtro gris o B/N de iOS: se pierde el retrato en color y la bandera.
+    if (colorDelAnverso?.sinColor) riskFlags.push('DOCUMENT_GRAYSCALE');
 
     // --- 8. Decisión --------------------------------------------------------
     const fields = campos;
@@ -932,14 +992,49 @@ export class IdentityPipelineService {
           : 'DOCUMENT_AUTHENTICITY_DOUBTFUL',
       );
     }
+    /*
+     * Un «no es la misma persona» sobre un anverso SIN COLOR de una población no
+     * medida no lo firma el worker: lo firma una persona.
+     *
+     * El filtro «Escala de grises» o «Blanco y negro» del escáner de iOS quita el
+     * color al retrato del carnet, y la selfie llega en color. Sobre las cédulas
+     * dibujadas eso solo ya baja el parecido de 0,95 a 0,72 y convierte en
+     * `FACE_NO_MATCH` a quien sí era la misma persona. Con rostros dibujados no
+     * se sabe cuánto pasa con uno real, y ésa es justo la razón: rechazar por una
+     * cifra que el filtro del teléfono pudo hundir, sin haberlo medido, sería
+     * acusar a alguien por haber tocado un botón de su móvil.
+     *
+     * Es el mismo criterio que la prueba de vida sin calibrar
+     * (`LIVENESS_PROFILE_UNCALIBRATED` en `identity-decision.engine.ts`): no se
+     * afloja nada —un parecido bajo NUNCA se aprueba—, cambia quién dice «no».
+     * Y es estrecho a propósito:
+     * - sólo el rechazo por parecido (`FACE_NO_MATCH`); un documento vencido o
+     *   una prueba de vida calibrada que falla siguen rechazando;
+     * - sólo si el anverso se MIDIÓ sin color; con color, o sin medida, nada;
+     * - sólo para una población no medida: con la cámara no se mide el color y
+     *   su camino no cambia; cuando la fase 5 declare medido el escáner, esto
+     *   deja de aplicarse sin tocar el código.
+     */
+    const grisSinMedir =
+      poblacionSinMedir &&
+      colorDelAnverso?.sinColor === true &&
+      decided.decision === IdentityDecision.NOT_VERIFIED &&
+      decided.reasonCodes.includes('FACE_NO_MATCH');
+    const decidido = grisSinMedir
+      ? {
+          decision: IdentityDecision.REVIEW_REQUIRED,
+          reasonCodes: [...decided.reasonCodes, 'DOCUMENT_GRAYSCALE'],
+          calibratedFaceDecision: 'REVIEW' as const,
+        }
+      : decided;
     const decision =
-      escalantes.length > 0 && decided.decision === IdentityDecision.VERIFIED
+      escalantes.length > 0 && decidido.decision === IdentityDecision.VERIFIED
         ? {
             decision: IdentityDecision.REVIEW_REQUIRED,
-            reasonCodes: [...decided.reasonCodes, ...escalantes],
+            reasonCodes: [...decidido.reasonCodes, ...escalantes],
             calibratedFaceDecision: 'REVIEW' as const,
           }
-        : decided;
+        : decidido;
 
     return {
       decision: decision.decision,
@@ -1007,6 +1102,18 @@ export class IdentityPipelineService {
         recortado: encuadre.recortado,
         areaConservada: Number(encuadre.areaConservada.toFixed(3)),
       },
+      /*
+       * Sólo con el escáner del sistema, y a propósito: con el origen ausente o
+       * `camera` el resultado sale idéntico al de siempre, campo por campo.
+       */
+      ...(escaneado
+        ? {
+            capture: {
+              source: 'system_scanner' as const,
+              color: colorDelAnverso,
+            },
+          }
+        : {}),
       providers: {
         ocr: front.provider,
         face: documentFaces.provider,

@@ -78,7 +78,12 @@ type Field = {
   policyMaxValue: number | null;
 };
 
-function harness(result: Partial<EngineExecutionResult>, fields: Field[] = []) {
+function harness(
+  result: Partial<EngineExecutionResult>,
+  fields: Field[] = [],
+  dtoExtra: Partial<ExecuteDecisionDto> = {},
+) {
+  const workerServicesBind = jest.fn().mockReturnValue(undefined);
   const config = new ConfigService({
     AUDIT_HASH_SECRET: 'test-secret-with-at-least-24-characters',
     DEFAULT_ENVIRONMENT: 'SANDBOX',
@@ -151,7 +156,7 @@ function harness(result: Partial<EngineExecutionResult>, fields: Field[] = []) {
     } as unknown as AuditService,
     new MetricsService(),
     { bind: () => undefined } as unknown as NestedTreeExecutionService,
-    { bind: () => undefined } as unknown as WorkerServiceInvokerService,
+    { bind: workerServicesBind } as unknown as WorkerServiceInvokerService,
     new TracingService(),
     new DecisionGuardService(prisma),
     () => AHORA,
@@ -161,9 +166,11 @@ function harness(result: Partial<EngineExecutionResult>, fields: Field[] = []) {
     idempotencyKey: 'k-1',
     subjectReference: 'solicitante-1',
     variables: { requested_amount: 80 },
+    ...dtoExtra,
   } as ExecuteDecisionDto;
   return {
     run: () => service.execute(1n, 'CREDITO', dto, principal),
+    workerServicesBind,
     writes,
     completed,
     failed,
@@ -290,5 +297,31 @@ describe('RuntimeService · compuerta de salidas económicas (P-10)', () => {
     });
     expect(h.writes[0].statusOverride).toBeUndefined();
     expect(h.completed).toHaveLength(1);
+  });
+});
+
+/*
+ * El `context` de la petición llega a los nodos WORKER sólo por el invocador que el runtime ata
+ * a la ejecución (hoy lleva el origen de la captura del carnet, `documentCaptureSource`). Si el
+ * runtime dejara de pasarlo, el carnet del escáner del sistema recorrería el camino de la cámara
+ * sin que nada se pusiera rojo.
+ */
+describe('RuntimeService · el `context` de la petición llega al invocador de workers', () => {
+  it('ata el invocador con el tenant, el principal y el `context`', async () => {
+    const h = harness({ output: {} }, [], {
+      context: { channel: 'MOBILE_APP', documentCaptureSource: 'system_scanner' },
+    });
+    await h.run();
+    expect(h.workerServicesBind).toHaveBeenCalledTimes(1);
+    expect(h.workerServicesBind).toHaveBeenCalledWith(1n, principal, {
+      channel: 'MOBILE_APP',
+      documentCaptureSource: 'system_scanner',
+    });
+  });
+
+  it('sin `context`, el invocador se ata sin él', async () => {
+    const h = harness({ output: {} });
+    await h.run();
+    expect(h.workerServicesBind).toHaveBeenCalledWith(1n, principal, undefined);
   });
 });
