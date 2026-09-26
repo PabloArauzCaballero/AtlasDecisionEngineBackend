@@ -1,3 +1,15 @@
+# Migración y siembra del catálogo BASE, en ese orden y en un solo Job.
+#
+# Antes este Job sólo corría `migrate deploy`, aunque `.env.example` y `docs/data/seeds.md`
+# lo nombran como la fuente de verdad de la siembra en despliegues orquestados. En la
+# práctica, en Kubernetes el catálogo mínimo —ambientes, variables, motivos, librerías,
+# clientes de integración— dependía de la red de seguridad del worker (`SeedingService`),
+# que es un respaldo: si el worker arranca con `WORKER_ROLE` de API, o con
+# `STARTUP_SEED_ENABLED=false`, nadie siembra y la instalación no opera.
+#
+# `initContainers` y no dos entradas en `containers`: los containers de un Pod arrancan a la
+# vez, así que sembrar en paralelo a la migración correría contra un esquema a medio migrar.
+# Los initContainers se ejecutan EN ORDEN y hasta terminar; sólo entonces empieza `seed`.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -9,13 +21,39 @@ spec:
     spec:
       restartPolicy: Never
       automountServiceAccountToken: false
-      containers:
+      initContainers:
         - name: migrate
           image: REGISTRY/atlas-decision-migrator:2.0.0
           args: ["migrate", "deploy"]
           envFrom:
             - secretRef:
                 name: atlas-decision-secrets
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+      containers:
+        - name: seed
+          image: REGISTRY/atlas-decision-migrator:2.0.0
+          args: ["db", "seed"]
+          envFrom:
+            - secretRef:
+                name: atlas-decision-secrets
+          env:
+            # Producción siembra el catálogo BASE y nada más, y ahora eso lo decide LA RAMA a la
+            # que apunta este Job, no una variable que hubiera que acordarse de poner: la rama de
+            # producción sencillamente no publica artefactos de demostración, así que no hay forma
+            # de pedirle unos despliegues ACTIVOS de ejemplo que en una base real son basura con
+            # aspecto de política aprobada.
+            #
+            # `env` gana sobre `envFrom`, de modo que esta línea manda sobre cualquier
+            # `SEED_SOURCE_DATABASE_URL` heredado del Secret.
+            - name: SEED_SOURCE_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: atlas-decision-secrets
+                  key: SEED_SOURCE_PRODUCTION_DATABASE_URL
           securityContext:
             allowPrivilegeEscalation: false
             runAsNonRoot: true

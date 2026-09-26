@@ -12,6 +12,20 @@ Separar la API del worker existe precisamente para poder escalarlos por separado
 Antes de la separación, escalar el plano de decisión multiplicaba la carga de fondo, que
 competía por el mismo pool justo en las réplicas sensibles a latencia.
 
+!!! danger "Escalar `worker` NO acelera el reparto del outbox"
+    Medido, no supuesto. Sobre lotes de 3000 eventos: 1 réplica 57 ev/s · 2 réplicas 59 ev/s ·
+    3 réplicas 63 ev/s. **Triplicar réplicas mejora un 10 %.**
+
+    El cuello de botella no es el worker: el relay procesa cada lote **en serie** y cada entrega
+    cuesta tres viajes a PostgreSQL. El límite lo pone la base, no el número de procesos que la
+    consultan.
+
+    Consecuencia práctica: ante una cola acumulada, `--scale worker=N` no es la palanca —
+    compruebe primero que alguien esté repartiendo
+    ([runbook](../runbooks/OPERATIONS.md#cola-acumulada)). Escalar el worker **sí** sirve para
+    los otros trabajos de fondo (corridas de prueba, análisis semántico, extractos), que sí son
+    paralelizables. Detalle y método en [resiliencia](resilience.md).
+
 ## El techo real: el pool de conexiones
 
 `DATABASE_POOL_MAX` (15) es **por réplica**. El total es

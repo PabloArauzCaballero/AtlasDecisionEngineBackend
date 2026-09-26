@@ -89,6 +89,36 @@ construya `new ConfigService({...})` hereda ese `REDIS_URL` y abre un socket rea
 explícitamente en la configuración de esa suite (la configuración interna gana sobre
 `process.env`).
 
+## `api` o `worker` aparecen `unhealthy` pero responden 200
+
+Fue un defecto real de la sonda, ya corregido, y conviene saber reconocerlo porque el síntoma
+apunta al sitio equivocado: el contenedor está sano y Docker dice que no.
+
+La sonda del `HEALTHCHECK` usaba `node -e "fetch(...)"`. `fetch` inicializa undici la primera
+vez que se invoca, y ese arranque cuesta caro con la CPU acotada. Medido dentro del contenedor
+de la API (5 repeticiones, cgroup de 2 CPU):
+
+| Sonda | mínimo | mediana | máximo |
+| --- | --- | --- | --- |
+| arranque de node (noop) | 73 ms | 328 ms | 901 ms |
+| `fetch()` | 2 532 ms | **3 398 ms** | 11 970 ms |
+| `node:http` | 435 ms | **844 ms** | 1 461 ms |
+
+Contra el `--timeout=3s` que tenía declarado, la variante con `fetch` **superaba el plazo ya en
+la mediana**. Docker mataba la sonda, la contaba como fallo y marcaba `unhealthy` un proceso
+que contestaba 200. No era cosmético: `depends_on: service_healthy` no se satisfacía nunca —el
+perfil `tools` con la prueba de humo no podía arrancar— y cualquier orquestador que actúe sobre
+el estado (Swarm, Coolify, un *liveness* de Kubernetes) reinicia en bucle un contenedor sano.
+
+La sonda vive ahora en `docker/healthcheck.mjs`, usa `node:http` y dispone de 5 s. Para
+diagnosticar un caso parecido, lo que hay que mirar no es el log de la aplicación:
+
+```bash
+docker inspect atlas-decision-engine-api-1 --format '{{json .State.Health}}'
+```
+
+`"Health check exceeded timeout"` señala una sonda lenta, no un servicio caído.
+
 ## El sidecar de scripts responde 503
 
 `SCRIPT_RUNNER_BUSY` es admisión, no avería: el sidecar rechaza en vez de encolar sin cota.

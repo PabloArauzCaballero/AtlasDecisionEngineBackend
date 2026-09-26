@@ -1,6 +1,6 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Prisma, VersionStatus } from '@prisma/client';
+import { Prisma, ProcessingLegalBasis, VersionStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { DomainException } from '../../common/errors/domain-exception';
 import { AuditService } from '../../common/audit/audit.service';
@@ -195,6 +195,67 @@ export class ArtifactService {
           actorId: principal.id,
           requestId: principal.requestId,
           payload: { length: notes?.length ?? 0 },
+        },
+        tx,
+      );
+      return updated;
+    });
+  }
+
+  /**
+   * Declara finalidad y base legal del tratamiento que hace esta versión.
+   *
+   * Van aquí y no en cada ejecución porque describen la OPERACIÓN de tratamiento, que es lo
+   * que registra el art. 37 de la LGPD; repetirlas por decisión duplicaría el mismo dato
+   * millones de veces y lo alejaría del punto donde alguien lo aprueba.
+   *
+   * Se audita el valor completo —no su longitud, como en las notas— porque la base legal es
+   * justamente la afirmación cuya trazabilidad se le pide al controlador: quién dijo, cuándo,
+   * bajo qué amparo se trata este dato.
+   */
+  async updateProcessingBasis(
+    tenantId: bigint,
+    versionId: bigint,
+    input: { processingPurpose?: string | null; legalBasis?: string | null },
+    principal: AuthenticatedPrincipal,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const version = await tx.decisionArtifactVersion.findFirst({
+        where: { id: versionId, artifact: { tenantId } },
+        select: { id: true, status: true },
+      });
+      if (!version)
+        throw new DomainException(
+          'VERSION_NOT_FOUND',
+          'Artifact version not found',
+          HttpStatus.NOT_FOUND,
+        );
+      const updated = await tx.decisionArtifactVersion.update({
+        where: { id: versionId },
+        data: {
+          // `undefined` deja el valor intacto; `null` lo borra. Distinguirlos permite
+          // corregir solo la finalidad sin tener que reafirmar la base legal.
+          ...(input.processingPurpose !== undefined
+            ? { processingPurpose: input.processingPurpose }
+            : {}),
+          ...(input.legalBasis !== undefined
+            ? { legalBasis: (input.legalBasis as ProcessingLegalBasis | null) ?? null }
+            : {}),
+        },
+        select: { id: true, processingPurpose: true, legalBasis: true },
+      });
+      await this.audit.append(
+        {
+          tenantId,
+          eventType: 'ARTIFACT_VERSION_PROCESSING_BASIS_UPDATED',
+          aggregateType: 'ArtifactVersion',
+          aggregateId: versionId.toString(),
+          actorId: principal.id,
+          requestId: principal.requestId,
+          payload: {
+            processingPurpose: updated.processingPurpose,
+            legalBasis: updated.legalBasis,
+          },
         },
         tx,
       );

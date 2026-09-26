@@ -45,6 +45,13 @@ jobs:
       AUDIT_HASH_SECRET: ci-audit-secret-with-at-least-32-characters-total
       METRICS_TOKEN: ci-metrics-token-with-enough-entropy
       REQUIRE_REDIS_IN_PRODUCTION: "true"
+      # El motor no arranca sin almacén (IDENTITY_IMAGE_RETENTION_REQUIRED, por omisión true), y
+      # `docs:openapi` construye el contexto de Nest de verdad. Aquí no se sube nada: basta con que
+      # la configuración exista para que la validación de entorno pase.
+      STORAGE_S3_ENDPOINT: http://127.0.0.1:9000
+      STORAGE_S3_BUCKET: atlas-decision
+      STORAGE_S3_ACCESS_KEY_ID: ci-storage-key
+      STORAGE_S3_SECRET_ACCESS_KEY: ci-storage-secret-with-enough-entropy
 
     steps:
       - uses: actions/checkout@v4
@@ -52,6 +59,10 @@ jobs:
         with:
           node-version: 22
           cache: yarn
+      - name: Verificar smoke post-deploy y selección del dominio
+        run: |
+          node --test .github/tests/post-deploy-smoke.test.mjs
+          python3 .github/tests/test_smoke_workflow.py
       - run: yarn install --frozen-lockfile
       - run: yarn prisma:generate
       - run: yarn prisma:validate
@@ -59,16 +70,93 @@ jobs:
       # Formatting is enforced now that the one-time global reformat has landed. Runs before
       # typecheck so a style-only failure is reported without waiting for the slower stages.
       - run: yarn format:check
+      # Análisis estático con tipos. Cubre lo que `tsc` no ve: promesas sin esperar,
+      # `any` implícitos y `console` fuera del logger estructurado. Va junto al resto de
+      # comprobaciones baratas, antes de compilar.
+      - run: yarn lint
       - run: yarn typecheck
+      # Que los catálogos derivados sigan saliendo del corpus del repositorio. La suite
+      # `corpus-catalogos-derivados` compara el SHA-256 que viaja DENTRO de lo generado con el
+      # del archivo real, y eso caza actualizar `corpus/` sin regenerar. No caza lo otro:
+      # editar el catálogo generado a mano deja el hash intacto y compila. Esto lo regenera y
+      # exige que salga idéntico, byte a byte.
+      - run: yarn corpus:check
       - run: yarn build
+      # La base se migra ANTES de las pruebas: la batería incluye suites de integración que
+      # hablan con Postgres de verdad, y correrlas contra una base vacía no las convierte en
+      # unitarias — las convierte en 115 fallos de «la tabla no existe» que tapan los reales.
+      - run: yarn prisma:migrate
+      # La siembra viene de una base PUBLICADORA (`SEED_SOURCE_*`) que vive en el VPS y que un runner
+      # de GitHub no alcanza: el único camino es Tailscale, que monta `deploy-dev.yml` y no este
+      # workflow. Sin esta guarda el paso mataba TODAS las corridas —cien seguidas en rojo al
+      # 2026-09-11— y con ellas la señal de los pasos siguientes, que sí miden el código. Cuando el
+      # origen esté declarado, siembra; mientras no, lo dice y sigue.
+      - name: Sembrar, si hay de dónde
+        run: |
+          if [ -n "${SEED_SOURCE_DATABASE_URL:-}" ] || [ -n "${SEED_SOURCE_HOST:-}" ]; then
+            yarn prisma:seed
+          else
+            echo "::notice::Sin SEED_SOURCE_* declarado: las suites corren contra una base migrada y vacía."
+          fi
+      # El generador documental compone con Chromium de verdad, y sus siete pruebas de integración
+      # son lo único que mide la paginación, que la página NO sale a la red y que se responde 429 al
+      # saturarse. Sin el navegador en el runner fallaban las siete, y ese rojo se leía como un fallo
+      # del generador. Sólo Chromium: los otros dos motores no los usa nadie aquí.
+      - name: Chromium para el generador documental
+        run: npx playwright install --with-deps chromium
       - run: yarn test:cov
       # Single source of truth for the audit threshold (package.json: yarn audit --level high).
       - run: yarn security:audit
-      - run: yarn prisma:migrate
-      - run: yarn prisma:seed
-      - run: yarn test:e2e
+      # Con cobertura: los controladores y el cableado de módulos SOLO los ejercita esta
+      # batería, así que medir únicamente la unitaria los dejaba al 10% y al 0% — no porque
+      # nadie los ejecute, sino porque quien los ejecuta no se estaba midiendo.
+      # Base PROPIA para las e2e, y no es un lujo: corriendo sobre la misma que acaba de usar la
+      # unitaria, heredan sus artefactos y despliegues, y los choques aparecen como «no despliega a
+      # DEV» en tres suites distintas. Medido: contra una base migrada y limpia pasan 14 de 15; en
+      # la compartida fallaban seis suites por estado ajeno.
+      - name: Base limpia para las e2e
+        run: |
+          psql "$DATABASE_URL" -c 'CREATE DATABASE atlas_decision_e2e' || true
+          DATABASE_URL="${DATABASE_URL/atlas_decision?/atlas_decision_e2e?}" yarn prisma:migrate
+      - run: yarn test:e2e:cov
+        env:
+          DATABASE_URL: postgresql://atlas:atlas@localhost:5432/atlas_decision_e2e?schema=public
+          ADMIN_DATABASE_URL: postgresql://atlas:atlas@localhost:5432/atlas_decision_e2e?schema=public
+          # La app SIEMBRA SU PROPIO arranque —ambientes, tenant, clientes de integración— y eso
+          # no tiene nada que ver con la base publicadora del VPS: sale del repositorio.
+          # `SeedingService` la apaga sola cuando `NODE_ENV=test` y nadie dice lo contrario, así
+          # que en CI la app levantaba SIN el ambiente DEV y desplegar devolvía 404 «Not Found».
+          # El síntoma engaña: parece que el despliegue está roto, y lo que falta es el destino.
+          STARTUP_SEED_ENABLED: "true"
+      # Une los dos mapas de Istanbul en un único informe. Es el número que describe el
+      # repositorio entero; los umbrales por batería siguen aplicándose en su propia corrida.
+      - run: yarn cov:merge
+      - name: Publicar la cobertura combinada
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ github.sha }}
+          path: coverage-merged/
+          retention-days: 14
       - name: Runtime smoke test
         shell: bash
+        env:
+          # La identidad de un llamante por clave de API vive en la BASE, y quien la escribe es la
+          # siembra de arranque leyendo el entorno. Con `NODE_ENV=test` se apaga sola, así que el
+          # humo levantaba una API sin ninguna credencial registrada y los cuatro escenarios que
+          # necesitan autenticarse respondían 401 — un rojo que se lee como «el humo está roto»
+          # cuando lo que faltaba era el registro. No siembra ningún catálogo: sin `SEED_SOURCE_*`
+          # sólo se registran las credenciales de este entorno.
+          STARTUP_SEED_ENABLED: "true"
+          # Y contra la base que acaban de dejar las e2e, no contra la vacía.
+          #
+          # El humo ejecuta una decisión REAL sobre `BNPL_CREDIT_DECISION`: sobre una base migrada y
+          # vacía ese artefacto no existe y el escenario respondía 404. Quien lo provisiona ahora es
+          # la propia batería (`test/e2e/support/demo-artifact.ts`), que lo deja desplegado en PROD
+          # tras pasar su gobierno — y el teardown lo conserva, porque está en `KEEP_ARTIFACT_CODES`.
+          # Así el humo mide más que antes: una decisión contra un artefacto que recorrió el ciclo
+          # completo en esta misma corrida, en vez de contra una siembra que nadie había gobernado.
+          DATABASE_URL: postgresql://atlas:atlas@localhost:5432/atlas_decision_e2e?schema=public
+          ADMIN_DATABASE_URL: postgresql://atlas:atlas@localhost:5432/atlas_decision_e2e?schema=public
         run: |
           node dist/main.js > /tmp/atlas-api.log 2>&1 &
           API_PID=$!
@@ -81,11 +169,52 @@ jobs:
           done
           curl -fsS http://localhost:3000/health/ready
           yarn smoke:sh
+      # Los ficheros de Compose se validan ANTES de construir nada: cuestan segundos y detectan
+      # una anulación mal escrita o una red inexistente, que de otro modo solo aparece cuando
+      # alguien intenta levantar el entorno.
+      - name: Validar los ficheros de Compose
+        env:
+          # Valores de relleno únicamente para que la interpolación `${VAR:?}` resuelva. No
+          # arrancan nada: `config` solo resuelve y comprueba el modelo.
+          POSTGRES_PASSWORD: ci-compose-validation
+          APP_DB_PASSWORD: ci-compose-validation
+          MANAGEMENT_API_KEY: ci-management-key-with-enough-entropy
+          RUNTIME_API_KEY: ci-runtime-key-with-different-entropy
+          AUDIT_HASH_SECRET: ci-audit-secret-with-at-least-32-characters-total
+          METRICS_TOKEN: ci-metrics-token-with-enough-entropy
+          GRAFANA_ADMIN_PASSWORD: ci-grafana-password
+          AUTH_MODE: IDENTITY_HYBRID
+          # `docker-compose.prod.yml` la exige con `:?` a propósito: un despliegue de PRODUCCIÓN no
+          # debe arrancar sin declarar de dónde salen sus datos maestros —arrancar con el catálogo
+          # vacío es peor que no arrancar—. Aquí sólo hace falta que la interpolación resuelva: este
+          # paso corre `config`, que resuelve el modelo y no levanta nada ni se conecta a ningún
+          # sitio. Sin el relleno, el paso fallaba con «required variable … is missing a value», que
+          # se lee como un compose roto cuando lo que falta es una variable del validador.
+          SEED_SOURCE_DATABASE_URL: postgresql://ci:ci@compose-validation:5432/seed?schema=public
+        run: |
+          docker compose -f docker-compose.yml config --quiet
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet
+          docker compose -f docker-compose.yml -f docker-compose.no-gvisor.yml config --quiet
+          docker compose -f docker-compose.yml -f compose.observability.yml config --quiet
+          docker compose -f compose.test.yml config --quiet
+
+      # La construcción es la única puerta que ejecuta una instalación LIMPIA desde el
+      # lockfile. Esa diferencia no es teórica: un `node_modules` construido de forma
+      # incremental en una máquina de desarrollo llegó a compilar código que fallaba aquí.
       - name: Build runtime, worker and migrator images
         run: |
           docker build --target runtime -t atlas-decision-engine:${{ github.sha }} .
           docker build --target worker -t atlas-decision-worker:${{ github.sha }} .
           docker build --target migrator -t atlas-decision-migrator:${{ github.sha }} .
+
+      # La batería dentro de contenedores, contra Postgres y Redis efímeros. Cubre el hueco que
+      # dejaban los servicios de GitHub Actions: aquí se ejercita la MISMA imagen que se
+      # despliega y la misma red por nombres de servicio, no un Node del runner contra
+      # `localhost`.
+      - name: Pruebas en contenedor (integración)
+        run: |
+          docker compose -f compose.test.yml run --rm integration
+          docker compose -f compose.test.yml down -v
 
   # Puerta documental. Corre aparte de `verify` para que un fallo de documentación se
   # distinga de un fallo de código, pero bloquea igual: una documentación desactualizada es
@@ -117,6 +246,13 @@ jobs:
       METRICS_TOKEN: ci-metrics-token-with-enough-entropy
       SWAGGER_ENABLED: "true"
       STARTUP_SEED_ENABLED: "false"
+      # `docs:openapi:generate` construye el contexto de Nest de verdad, así que la validación de
+      # entorno corre aquí también: sin almacén declarado el motor no arranca y el contrato no se
+      # genera. No se escribe ningún objeto en este job.
+      STORAGE_S3_ENDPOINT: http://127.0.0.1:9000
+      STORAGE_S3_BUCKET: atlas-decision
+      STORAGE_S3_ACCESS_KEY_ID: ci-storage-key
+      STORAGE_S3_SECRET_ACCESS_KEY: ci-storage-secret-with-enough-entropy
 
     steps:
       - uses: actions/checkout@v4
@@ -193,3 +329,21 @@ jobs:
             openapi/openapi.json
             docs/reports/*.json
           retention-days: 30
+
+  security:
+    name: Security gates
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: write
+    uses: ./.github/workflows/security.yml
+
+  deploy-dev:
+    name: Desplegar DEV sólo después de calidad, contrato y seguridad
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    needs:
+      - verify
+      - docs
+      - security
+    uses: ./.github/workflows/deploy-dev.yml
+    secrets: inherit

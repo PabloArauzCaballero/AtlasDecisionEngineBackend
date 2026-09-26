@@ -184,7 +184,7 @@ grafo recortado como si fuera el conjunto completo de dependencias.
   el grafo de dependencias, valida+compila el padre, corre su suite de pruebas
   bloqueante (esto expuso y corrigió un bug preexistente en `TestCaseExecutorService`:
   no filtraba variables de salida antes de resolver variables de entrada), lo gobierna
-  y despliega a SANDBOX, y finalmente ejecuta el simulador confirmando que la salida
+  y despliega a DEV, y finalmente ejecuta el simulador confirmando que la salida
   anidada llega correctamente para los casos aprobado y rechazado.
 
 ## Pendiente / fuera de alcance de esta rebanada

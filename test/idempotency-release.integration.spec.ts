@@ -39,7 +39,7 @@ describeDb('IdempotencyService release (integration)', () => {
     expect(first.kind).toBe('reserved');
 
     // Simulate the runtime releasing on a transient error.
-    if (first.kind === 'reserved') await service.release(first.id);
+    if (first.kind === 'reserved') await service.release(first.id, first.lease);
 
     const retry = await service.reserve(tenantId, artifactCode, key, 'hash-a');
     expect(retry.kind).toBe('reserved');
@@ -48,7 +48,7 @@ describeDb('IdempotencyService release (integration)', () => {
   it('replays a cached deterministic failure instead of re-reserving', async () => {
     const first = await service.reserve(tenantId, artifactCode, key, 'hash-a');
     if (first.kind !== 'reserved') throw new Error('expected reservation');
-    await service.fail(first.id, { httpStatus: 422, body: { status: 'FAILED' } });
+    await service.fail(first.id, first.lease, { httpStatus: 422, body: { status: 'FAILED' } });
 
     const retry = await service.reserve(tenantId, artifactCode, key, 'hash-a');
     expect(retry.kind).toBe('completed');
@@ -58,7 +58,7 @@ describeDb('IdempotencyService release (integration)', () => {
   it('rejects a retry that reuses the key with a different payload', async () => {
     const first = await service.reserve(tenantId, artifactCode, key, 'hash-a');
     if (first.kind !== 'reserved') throw new Error('expected reservation');
-    await service.complete(first.id, { httpStatus: 200, body: {} });
+    await service.complete(first.id, first.lease, { httpStatus: 200, body: {} });
 
     await expect(service.reserve(tenantId, artifactCode, key, 'hash-b')).rejects.toMatchObject({
       code: 'IDEMPOTENCY_PAYLOAD_MISMATCH',

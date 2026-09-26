@@ -95,7 +95,7 @@ correctas, y un evento ERROR antes de relanzar la excepción cuando un nodo
 falla.
 
 `test/e2e/live-execution.e2e-spec.ts` — contra Postgres real: despliega un
-artefacto de elegibilidad por edad a SANDBOX (gobernanza completa) y confirma
+artefacto de elegibilidad por edad a DEV (gobernanza completa) y confirma
 que el stream SSE realmente ejecuta la decisión, reporta `CHECK` completado
 con `branchTaken`/`discardedEdgeKeys` correctos, entrega un
 `execution_completed` con el `outcome` correcto, y rechaza PROD con un

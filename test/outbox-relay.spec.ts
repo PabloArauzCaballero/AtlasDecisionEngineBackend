@@ -4,6 +4,8 @@ import type { JobSchedulerService } from '../src/common/jobs/job-scheduler.servi
 import type { MetricsService } from '../src/common/observability/metrics.service';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
 import { OutboxRelayService } from '../src/modules/outbox-relay/outbox-relay.service';
+import { TracingService } from '../src/common/observability/tracing.service';
+import { MessagingTraceService } from '../src/common/observability/messaging-trace.service';
 
 type RelayInternals = {
   dispatchBatch: () => Promise<number>;
@@ -29,6 +31,16 @@ function claimedRow(overrides: Record<string, unknown> = {}) {
 }
 
 function build(prisma: unknown, bus: unknown, config: ConfigService) {
+  // La reclamación del lote va DENTRO de `$transaction`: `decision_outbox_event` tiene RLS
+  // forzada y una sentencia cruda suelta no fija `app.tenant_id` (ver
+  // `test/rls-guc-contamination.integration.spec.ts`). Se añade aquí, con la forma real
+  // —array de operaciones dentro, array de resultados fuera—, para que los dobles de cada
+  // caso sigan declarando sólo lo que ese caso necesita.
+  const withTransaction = {
+    $transaction: (operations: Promise<unknown>[]) => Promise.all(operations),
+    ...(prisma as Record<string, unknown>),
+  };
+  prisma = withTransaction;
   const metrics = {
     setOutboxPending: jest.fn(),
     recordOutboxDispatched: jest.fn(),
@@ -43,6 +55,7 @@ function build(prisma: unknown, bus: unknown, config: ConfigService) {
     config,
     metrics,
     scheduler,
+    new MessagingTraceService(new TracingService()),
   );
   return { relay: relay as unknown as RelayInternals, metrics };
 }

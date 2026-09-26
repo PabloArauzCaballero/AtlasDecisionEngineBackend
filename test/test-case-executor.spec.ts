@@ -32,6 +32,7 @@ describe('TestCaseExecutorService', () => {
           ),
       } as never,
       { bind: jest.fn() } as never,
+      { bind: jest.fn() } as never,
     );
   const payload = { variables: [] } as unknown as CompiledDecisionArtifact;
 

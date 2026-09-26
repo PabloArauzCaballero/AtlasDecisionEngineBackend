@@ -3,6 +3,8 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 import { AuditService } from '../src/common/audit/audit.service';
 import { AuditQueryService } from '../src/modules/audit-query/audit-query.service';
+import { PostgresDecisionAuditReadAdapter } from '../src/modules/audit-query/adapters/postgres-decision-audit-read.adapter';
+import { directReadAdapterFactory } from './support/read-adapter';
 import { HashService } from '../src/common/crypto/hash.service';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
 import { uniqueTenantId } from './support/unique-tenant';
@@ -23,7 +25,7 @@ describeDb('Audit chain batched verification (integration)', () => {
   const audit = new AuditService(prisma as unknown as PrismaService, hashes);
   // Batch size 2 forces multiple batches over a 5-event chain.
   const query = new AuditQueryService(
-    prisma as unknown as PrismaService,
+    new PostgresDecisionAuditReadAdapter(directReadAdapterFactory(prisma)),
     hashes,
     new ConfigService({ MAX_PAGE_SIZE: 100, AUDIT_VERIFY_BATCH_SIZE: 2 }),
   );

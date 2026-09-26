@@ -59,7 +59,10 @@ async function excludedPatterns(config) {
 }
 
 async function main() {
-  const config = await readFile(join(repoRoot, 'mkdocs.yml'), 'utf8');
+  // Normalizado a LF: el archivo se edita indistintamente en Windows y Linux, y un `\r\n`
+  // rompe en silencio el `\n` literal de los regex de abajo — el bloque de exclusión se leería
+  // vacío y todo pasaría a considerarse parte del portal.
+  const config = (await readFile(join(repoRoot, 'mkdocs.yml'), 'utf8')).replace(/\r\n/g, '\n');
   const allFiles = await markdownFiles(docsRoot);
   const nav = await navigationPaths(config);
   const excluded = await excludedPatterns(config);

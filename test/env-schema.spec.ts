@@ -2,6 +2,12 @@ import { validateEnvironment } from '../src/common/config/env.schema';
 
 const base = {
   DATABASE_URL: 'postgresql://atlas:atlas@localhost:5432/atlas_decision',
+  // Un entorno válido incluye almacén desde el 2026-09-11: sin él el motor no arranca, porque
+  // decidir sobre una persona y perder su cara al cerrar dejó de ser un desenlace aceptable.
+  STORAGE_S3_ENDPOINT: 'http://localhost:9000',
+  STORAGE_S3_BUCKET: 'atlas-decision',
+  STORAGE_S3_ACCESS_KEY_ID: 'storage-key',
+  STORAGE_S3_SECRET_ACCESS_KEY: 'storage-secret',
   REDIS_URL: 'redis://localhost:6379',
   MANAGEMENT_API_KEY: 'management-key-with-enough-entropy-123',
   RUNTIME_API_KEY: 'runtime-key-with-enough-entropy-456',
@@ -16,6 +22,110 @@ const jwtProduction = {
   JWT_ISSUER: 'https://identity.example.com/',
   METRICS_TOKEN: 'metrics-token-with-enough-entropy-789',
 };
+
+/**
+ * Compose pasa las credenciales opcionales como `${VAR:-}`: cuando no están configuradas, el
+ * contenedor recibe la CADENA VACÍA, no la ausencia de variable. Y `''` no es `undefined`, así que
+ * un `.optional()` con `min(1)` al lado tumbaba el arranque de cualquier despliegue que no usara
+ * el gateway — verificado en caliente, con la API entrando en bucle de reinicio.
+ */
+describe('variables opcionales que llegan vacías desde Docker', () => {
+  const vacias = {
+    LITELLM_API_KEY: '',
+    LITELLM_BASE_URL: '',
+    LITELLM_FAST_MODEL: '',
+    LITELLM_DEEP_MODEL: '',
+    LITELLM_EMBEDDING_MODEL: '',
+    LITELLM_TIMEOUT_MS: '',
+    LITELLM_MAX_ATTEMPTS: '',
+    LITELLM_MAX_OUTPUT_TOKENS: '',
+    SEMANTIC_CASCADE_LOCAL_TIMEOUT_MS: '',
+    SEMANTIC_CASCADE_REMOTE_PROVIDER: '',
+    OPENROUTER_API_KEY: '',
+    OPENROUTER_BASE_URL: '',
+    OPENROUTER_FAST_MODEL: '',
+    OPENROUTER_DEEP_MODEL: '',
+    OPENROUTER_TIMEOUT_MS: '',
+    OPENROUTER_MAX_ATTEMPTS: '',
+    OPENROUTER_MAX_OUTPUT_TOKENS: '',
+    OPENROUTER_APP_URL: '',
+    OPENROUTER_APP_TITLE: '',
+  };
+
+  it('un despliegue SIN gateway arranca aunque compose le pase las variables vacías', () => {
+    expect(() => validateEnvironment({ ...base, ...vacias })).not.toThrow();
+  });
+
+  it('una variable vacía se lee como ausente, no como cadena vacía', () => {
+    const result = validateEnvironment({ ...base, ...vacias });
+    expect(result.LITELLM_API_KEY).toBeUndefined();
+    expect(result.LITELLM_TIMEOUT_MS).toBeUndefined();
+    expect(result.OPENROUTER_API_KEY).toBeUndefined();
+    expect(result.SEMANTIC_CASCADE_REMOTE_PROVIDER).toBeUndefined();
+  });
+
+  it('con un valor de verdad, se sigue validando igual', () => {
+    expect(() => validateEnvironment({ ...base, LITELLM_TIMEOUT_MS: '5' })).toThrow(); // por debajo del mínimo de 1000 ms
+    const ok = validateEnvironment({ ...base, LITELLM_TIMEOUT_MS: '5000' });
+    expect(ok.LITELLM_TIMEOUT_MS).toBe(5000);
+  });
+});
+
+/**
+ * Un gateway sin credencial arranca sano y convierte cada glosa en un pendiente
+ * de revisión: es el modo de fallo más caro y hay que cortarlo al arrancar. La
+ * guarda mira el gateway que el despliegue VA A USAR, no «LiteLLM porque sí».
+ *
+ * Sólo en producción, como el resto de guardas del worker: en desarrollo se
+ * puede arrancar a medio configurar.
+ */
+describe('la credencial del gateway elegido', () => {
+  const conWorker = {
+    ...jwtProduction,
+    SEMANTIC_ANALYSIS_WORKER_ENABLED: 'true',
+    SEMANTIC_ALLOW_INTERNATIONAL_TRANSFER: 'true',
+  };
+
+  it('openrouter en directo exige OPENROUTER_API_KEY, y sólo esa', () => {
+    expect(() =>
+      validateEnvironment({ ...conWorker, SEMANTIC_ANALYSIS_PROVIDER: 'openrouter' }),
+    ).toThrow(/OPENROUTER_API_KEY/u);
+    expect(() =>
+      validateEnvironment({
+        ...conWorker,
+        SEMANTIC_ANALYSIS_PROVIDER: 'openrouter',
+        OPENROUTER_API_KEY: 'sk-or-v1-prueba',
+      }),
+    ).not.toThrow();
+  });
+
+  it('la cascada exige la credencial del escalón remoto elegido, no la del otro', () => {
+    expect(() =>
+      validateEnvironment({
+        ...conWorker,
+        SEMANTIC_ANALYSIS_PROVIDER: 'cascade',
+        SEMANTIC_CASCADE_REMOTE_PROVIDER: 'openrouter',
+        LITELLM_API_KEY: 'sk-gateway',
+      }),
+    ).toThrow(/OPENROUTER_API_KEY/u);
+    expect(() =>
+      validateEnvironment({
+        ...conWorker,
+        SEMANTIC_ANALYSIS_PROVIDER: 'cascade',
+        SEMANTIC_CASCADE_REMOTE_PROVIDER: 'openrouter',
+        OPENROUTER_API_KEY: 'sk-or-v1-prueba',
+      }),
+    ).not.toThrow();
+    // Sin declarar el remoto, sigue siendo LiteLLM, como antes.
+    expect(() =>
+      validateEnvironment({
+        ...conWorker,
+        SEMANTIC_ANALYSIS_PROVIDER: 'cascade',
+        OPENROUTER_API_KEY: 'sk-or-v1-prueba',
+      }),
+    ).toThrow(/LITELLM_API_KEY/u);
+  });
+});
 
 describe('environment validation', () => {
   it('accepts a secure production configuration', () => {
@@ -168,5 +278,119 @@ describe('environment validation', () => {
         VARIABLE_BACKEND_URL: 'https://variables.internal/api',
       }).VARIABLE_BACKEND_URL,
     ).toBe('https://variables.internal/api');
+  });
+  /*
+   * Locución con proveedor de pago.
+   *
+   * Estas guardas existen para que un despliegue mal configurado falle AL
+   * ARRANCAR y no en cada locución: una cola de errores contra un proveedor que
+   * cobra por petición es cara de descubrir y cara de parar.
+   */
+  describe('worker de locución', () => {
+    const conVoz = {
+      ...base,
+      AUDIO_TTS_WORKER_ENABLED: 'true',
+      AUDIO_TTS_PROVIDER: 'elevenlabs',
+      AUDIO_TTS_DATA_KEY: 'clave-de-datos-con-al-menos-32-caracteres',
+    };
+
+    it('exige la credencial del proveedor', () => {
+      expect(() => validateEnvironment(conVoz)).toThrow(/ELEVENLABS_API_KEY/);
+    });
+
+    it('exige la VOZ: elegirla es una decisión de marca, no un valor heredado', () => {
+      expect(() =>
+        validateEnvironment({ ...conVoz, ELEVENLABS_API_KEY: 'clave-de-proveedor' }),
+      ).toThrow(/ELEVENLABS_VOICE_ID/);
+    });
+
+    it('acepta la configuración completa', () => {
+      const resultado = validateEnvironment({
+        ...conVoz,
+        ELEVENLABS_API_KEY: 'clave-de-proveedor',
+        ELEVENLABS_VOICE_ID: 'voz-de-la-marca',
+      });
+      expect(resultado.AUDIO_TTS_PROVIDER).toBe('elevenlabs');
+    });
+
+    /*
+     * El texto locutado lleva dentro las variables —el nombre de una persona en
+     * la plantilla dinámica— y su única copia vive en la caché. Sin clave no hay
+     * dónde guardarlo cifrado.
+     */
+    it('exige la clave de cifrado del texto locutado', () => {
+      expect(() =>
+        validateEnvironment({
+          ...conVoz,
+          AUDIO_TTS_DATA_KEY: 'corta',
+          ELEVENLABS_API_KEY: 'clave-de-proveedor',
+          ELEVENLABS_VOICE_ID: 'voz-de-la-marca',
+        }),
+      ).toThrow(/AUDIO_TTS_DATA_KEY/);
+    });
+
+    // Un audio de prueba servido a una persona real es peor que no servir ninguno.
+    it('prohíbe el proveedor simulado en producción', () => {
+      expect(() =>
+        validateEnvironment({
+          ...jwtProduction,
+          AUDIO_TTS_WORKER_ENABLED: 'true',
+          AUDIO_TTS_PROVIDER: 'fake',
+          AUDIO_TTS_DATA_KEY: 'clave-de-datos-con-al-menos-32-caracteres',
+          AUDIO_TTS_PROD_LICENSE_CONFIRMED: 'true',
+        }),
+      ).toThrow(/AUDIO_TTS_PROVIDER/);
+    });
+
+    // Un arrendamiento más corto que la petición al proveedor deja que otra
+    // réplica reclame el trabajo y se pague la misma locución dos veces.
+    it('exige que el arrendamiento sobreviva a la petición más lenta', () => {
+      expect(() =>
+        validateEnvironment({
+          ...base,
+          AUDIO_TTS_LEASE_SECONDS: '30',
+          AUDIO_TTS_REQUEST_TIMEOUT_MS: '60000',
+        }),
+      ).toThrow(/AUDIO_TTS_LEASE_SECONDS/);
+    });
+  });
+});
+
+describe('conservar la evidencia es lo predeterminado', () => {
+  /*
+   * `IDENTITY_IMAGE_RETENTION_REQUIRED` estuvo por omisión en `false` —«acepto perder las
+   * imágenes»— y eso es exactamente lo que ocurría: el stack local no declaraba almacén y cada
+   * verificación se encolaba con un aviso en el log y las tres claves de objeto en `null`. Un
+   * valor por omisión que renuncia a la evidencia sobre la que se decide acerca de una persona no
+   * puede ser el que se aplica cuando nadie eligió nada.
+   */
+  const sinAlmacen = {
+    DATABASE_URL: 'postgresql://atlas:atlas@localhost:5432/atlas_decision',
+    REDIS_URL: 'redis://localhost:6379',
+    MANAGEMENT_API_KEY: 'management-key-with-enough-entropy-123',
+    RUNTIME_API_KEY: 'runtime-key-with-enough-entropy-456',
+    AUDIT_HASH_SECRET: 'audit-secret-with-at-least-thirty-two-characters',
+  };
+
+  it('un entorno sin almacén NO arranca, y el error nombra lo que falta', () => {
+    expect(() => validateEnvironment(sinAlmacen)).toThrow(/STORAGE_S3_ENDPOINT/);
+  });
+
+  it('renunciar a conservarlas sigue siendo posible, pero hay que declararlo', () => {
+    expect(() =>
+      validateEnvironment({ ...sinAlmacen, IDENTITY_IMAGE_RETENTION_REQUIRED: 'false' }),
+    ).not.toThrow();
+  });
+
+  it('con las cuatro declaradas, arranca', () => {
+    expect(() =>
+      validateEnvironment({
+        ...sinAlmacen,
+        STORAGE_S3_ENDPOINT: 'http://localhost:9000',
+        STORAGE_S3_BUCKET: 'atlas-decision',
+        STORAGE_S3_ACCESS_KEY_ID: 'storage-key',
+        STORAGE_S3_SECRET_ACCESS_KEY: 'storage-secret',
+      }),
+    ).not.toThrow();
   });
 });

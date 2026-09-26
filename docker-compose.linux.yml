@@ -1,0 +1,40 @@
+# Copiar a: AtlasDecisionEngineBackend/docker-compose.linux.yml
+#
+# El motor llama al anfitrion en DOS sitios, y los dos se rompen en Linux sin esto:
+#
+#   IDENTITY_PROVIDER_URL   -> AtlasBackend:3105/api/v1. El login del portal de riesgo lo
+#                              delega el motor en AtlasBackend. Si no resuelve, responde
+#                              503 IDENTITY_PROVIDER_UNAVAILABLE y el portal pinta
+#                              «El servicio de identidad no esta disponible», que manda a
+#                              buscar el fallo en AtlasBackend estando AtlasBackend sano.
+#   ATLAS_BACKEND_BASE_URL  -> el callback de la revision manual de identidad. Si no
+#                              resuelve, el caso se resuelve en el motor y nadie se entera:
+#                              solo queda un MANUAL_REVIEW_CALLBACK_FAILED en el log.
+#
+# Encadenarlo al final de la cadena que ya usas:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.no-gvisor.yml \
+#     -f docker-compose.host-expose.yml -f docker-compose.linux.yml \
+#     up -d migrate seed api worker
+#
+# EN UN VPS LINUX, PLANTEATE QUITAR `-f docker-compose.no-gvisor.yml`.
+# Ese archivo existe porque Docker Desktop (Windows/macOS) no tiene gVisor, y dice de si
+# mismo: «SOLO DESARROLLO LOCAL. Nunca en produccion ni en un ambiente compartido». Degrada
+# el sidecar que ejecuta el codigo importado por los analistas de `runsc` a `runc`, es decir
+# le devuelve el kernel del anfitrion. En Linux gVisor SI se puede instalar:
+#
+#   # https://gvisor.dev/docs/user_guide/install/  (paquete `runsc`)
+#   sudo runsc install && sudo systemctl restart docker
+#   docker info | grep -i runtimes     # debe listar `runsc`
+#
+# Con runsc instalado, la cadena queda sin el no-gvisor y el aislamiento vuelve a ser el que
+# describe la documentacion. Mientras tanto, SCRIPT_NODES_ENABLED=false es lo unico que
+# impide que un artefacto ejecute codigo ahi: no lo enciendas sin gVisor.
+
+services:
+  api:
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+  worker:
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'

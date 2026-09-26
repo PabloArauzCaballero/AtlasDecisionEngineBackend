@@ -9,7 +9,10 @@ import {
   VersionStatus,
 } from '@prisma/client';
 import { AuditService } from '../../common/audit/audit.service';
-import { DecisionEventType } from '../../common/events/event-types';
+import {
+  DecisionEventType,
+  type SecurityRiskDetectedPayload,
+} from '../../common/events/event-types';
 import { OutboxPublisherService } from '../../common/events/outbox-publisher.service';
 import { DomainException } from '../../common/errors/domain-exception';
 import { pageResult, paginationArgs } from '../../common/http/pagination';
@@ -17,6 +20,10 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { PlatformRole } from '../../common/security/platform-roles';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
 import { VersionStateService } from '../artifacts/version-state.service';
+import {
+  SecurityReviewService,
+  type SecurityFinding,
+} from '../security-review/security-review.service';
 import { TestExecutionService } from '../testing/test-execution.service';
 import {
   ApprovalRequestListQueryDto,
@@ -32,6 +39,7 @@ export class GovernanceService {
     private readonly states: VersionStateService,
     private readonly audit: AuditService,
     private readonly outbox: OutboxPublisherService,
+    private readonly securityReview: SecurityReviewService,
     private readonly config: ConfigService,
   ) {}
 
@@ -147,6 +155,21 @@ export class GovernanceService {
           ]
         : []),
     ];
+    /**
+     * Revisión de seguridad de la versión que entra en revisión.
+     *
+     * Se calcula ANTES de abrir la transacción: son varias consultas y no tienen por qué
+     * sostener un bloqueo. No decide nada —no bloquea el envío— porque su criterio ya está
+     * fijado en `computeFindings` y aquí sólo se avisa a quien debe mirarlo antes de aprobar.
+     *
+     * El momento es éste y no la lectura del panel: `review()` es un GET y emitir desde ahí
+     * dispararía un aviso por cada carga de página. El envío a revisión ocurre una vez, y es
+     * cuando cumplimiento y fraude todavía pueden actuar.
+     */
+    const security = await this.securityReview
+      .getVersionReview(tenantId, versionId)
+      .catch(() => undefined);
+
     const request = await this.prisma.$transaction(async (tx) => {
       const created = await tx.decisionApprovalRequest.create({
         data: {
@@ -201,6 +224,35 @@ export class GovernanceService {
           reviewerRoles: created.steps.map((step) => step.requiredRole),
         },
       });
+
+      // Sólo el riesgo ALTO avisa. Un aviso por cada hallazgo menor entrenaría a quien lo
+      // recibe a ignorarlos, que es peor que no mandarlos.
+      if (security?.severity === 'HIGH') {
+        await this.outbox.publish(tx, {
+          eventType: DecisionEventType.SECURITY_RISK_DETECTED,
+          tenantId,
+          aggregateType: 'DecisionArtifactVersion',
+          aggregateId: versionId.toString(),
+          actorId: principal.id,
+          correlationId: principal.requestId,
+          payload: {
+            versionId: versionId.toString(),
+            artifactCode: version.artifact.artifactCode,
+            versionNumber: version.versionNumber,
+            approvalRequestId: created.id.toString(),
+            severity: security.severity,
+            // El resumen viaja al cuerpo de la notificación: lleva los códigos de hallazgo,
+            // nunca el fuente revisado ni el valor de una variable sensible.
+            summary:
+              `${version.artifact.artifactCode} entró en revisión con riesgo ALTO: ` +
+              security.findings
+                .filter((finding: SecurityFinding) => finding.severity === 'HIGH')
+                .map((finding: SecurityFinding) => finding.code)
+                .join(', '),
+            findingCodes: security.findings.map((finding: SecurityFinding) => finding.code),
+          } satisfies SecurityRiskDetectedPayload,
+        });
+      }
       return created;
     });
     return request;
@@ -459,7 +511,8 @@ export class GovernanceService {
     });
     const approvedStatuses: VersionStatus[] = [
       VersionStatus.APPROVED,
-      VersionStatus.DEPLOYED_TO_SANDBOX,
+      VersionStatus.DEPLOYED_TO_DEV,
+      VersionStatus.DEPLOYED_TO_STAGING,
       VersionStatus.DEPLOYED_TO_TEST,
       VersionStatus.DEPLOYED_TO_PROD,
     ];

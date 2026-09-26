@@ -7,14 +7,18 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { DomainException } from '../../common/errors/domain-exception';
+import { DataSourceHealthService } from '../../common/persistence/health/data-source-health.service';
 import { Public, SkipRateLimit } from '../../common/security/security.decorators';
 import { HealthProbeService } from './health-probe.service';
-import { LivenessResponseDto, ReadinessResponseDto } from './health.dto';
+import { DataSourcesResponseDto, LivenessResponseDto, ReadinessResponseDto } from './health.dto';
 
 @ApiTags('Health')
 @Controller()
 export class HealthController {
-  constructor(private readonly probe: HealthProbeService) {}
+  constructor(
+    private readonly probe: HealthProbeService,
+    private readonly dataSourceHealth: DataSourceHealthService,
+  ) {}
 
   @Get('health/live')
   @ApiOperation({
@@ -66,6 +70,28 @@ export class HealthController {
       HttpStatus.SERVICE_UNAVAILABLE,
       { checks: report.checks },
     );
+  }
+
+  /**
+   * Estado de las fuentes de datos y de su enrutamiento.
+   *
+   * Responde 200 incluso degradado: `/health/ready` es quien decide si el proceso sale de
+   * rotación, y esta sonda existe para poder DIAGNOSTICAR cuál de las rutas falla. Un 503
+   * aquí escondería justo el cuerpo que se viene a leer.
+   */
+  @Get('health/data-sources')
+  @ApiOperation({
+    operationId: 'healthDataSources',
+    summary: 'Report registered data connections and their effective routing',
+  })
+  @ApiOkResponse({
+    description: 'Conexiones registradas, su veredicto y las reglas de enrutamiento vigentes.',
+    type: DataSourcesResponseDto,
+  })
+  @Public()
+  @SkipRateLimit()
+  dataSources() {
+    return this.dataSourceHealth.report();
   }
 
   /** Alias histórico de `/health/ready`; ver la nota de `liveAlias`. */

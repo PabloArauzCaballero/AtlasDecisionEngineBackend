@@ -1,0 +1,25 @@
+# Configuración de gitleaks (auditoría a producción, 2026-09-13).
+#
+# Reglas por defecto y NINGUNA excepción por archivo. Un fixture de prueba verificado se marca en
+# su propia línea con `// gitleaks:allow`: no deja el valor en esta configuración, sobrevive a que
+# la línea se mueva y no exime al resto del archivo. Una excepción por ruta sí lo haría: medido con
+# gitleaks 8.30, `[[allowlists]]` con `paths` + `regexes` y `condition = "AND"` se salta el archivo
+# ENTERO, así que un token nuevo con otro nombre en ese mismo archivo pasaba sin avisar.
+#
+# Local: gitleaks dir . --config .gitleaks.toml --redact   (el .env local no llega a la CI)
+
+title = "Atlas gitleaks config"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Artefactos y plantillas que no son código de Atlas"
+paths = [
+  '''(^|/)node_modules/''',
+  '''(^|/)(dist|coverage|\.next)/''',
+  '''(^|/)yarn\.lock$''',
+  '''(^|/)package-lock\.json$''',
+  '''\.env\.example$''',
+  '''(^|/)graphify-out/''',
+]

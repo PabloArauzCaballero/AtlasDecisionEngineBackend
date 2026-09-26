@@ -78,6 +78,12 @@ Servicios:
 - Readiness: `GET /health/ready`
 - Métricas: `GET /metrics` con `Authorization: Bearer <METRICS_TOKEN>`
 
+En DEV, Coolify pasa `SOURCE_COMMIT` como `COMMIT_SHA` a API y worker. El gate post-deploy
+consulta `/health/live` y `/health/ready`, exige PostgreSQL y Redis reales (no el respaldo en
+memoria) y compara el commit servido con el SHA que pasó CI. Obtiene el dominio `api` de Coolify;
+si no hay uno registrado, se configura `DEV_SMOKE_BASE_URL` como variable del repositorio en
+GitHub. Sin un destino verificable, el despliegue falla.
+
 ## Autenticación
 
 ### Clientes de integración
@@ -170,7 +176,7 @@ regla: ningún secreto tiene valor por defecto ahí, todos vienen del `.env`
 (véase `.env.example`).
 
 `LIVE_EXECUTION_STREAM_ENABLED` está desactivado por defecto: el stream ejecuta
-un grafo real de SANDBOX/TEST pero no crea una `DecisionExecution`, por lo que
+un grafo real de un ambiente no productivo pero no crea una `DecisionExecution`, por lo que
 debe habilitarse conscientemente sólo donde el portal use esa previsualización.
 
 Cada carpeta mantenida contiene un `README.md` que explica su propósito de

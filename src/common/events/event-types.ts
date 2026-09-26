@@ -49,3 +49,15 @@ export interface VersionPublishedPayload {
   deploymentId: string;
   environmentCode: string;
 }
+
+/** v1 payload of {@link DecisionEventType.SECURITY_RISK_DETECTED}. */
+export interface SecurityRiskDetectedPayload {
+  versionId: string;
+  artifactCode: string;
+  versionNumber: number;
+  approvalRequestId: string;
+  severity: string;
+  /** Human-readable line the notification shows; never carries the reviewed source code. */
+  summary: string;
+  findingCodes: string[];
+}

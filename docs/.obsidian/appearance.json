@@ -1,0 +1,8 @@
+{
+  "accentColor": "#3f51b5",
+  "theme": "system",
+  "baseFontSize": 16,
+  "showInlineTitle": true,
+  "showViewHeader": true,
+  "nativeMenus": false
+}

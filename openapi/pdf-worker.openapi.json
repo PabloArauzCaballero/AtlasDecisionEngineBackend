@@ -1,0 +1,1145 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/pdf/generate": {
+      "post": {
+        "description": "Con `Accept: application/pdf` responde el archivo; con cualquier otro valor, la ficha del documento en JSON. `metadata.idempotencyKey` hace la operación repetible.",
+        "operationId": "PdfGenerationController_generatePdf",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "templateId": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 64,
+                    "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+                  },
+                  "templateVersion": {
+                    "type": "string",
+                    "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                  },
+                  "payload": {},
+                  "brandId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "properties": {
+                      "documentId": {
+                        "type": "string",
+                        "pattern": "^DOC-[0-9A-F]{12}$"
+                      },
+                      "correlationId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "requestedBy": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 160
+                      },
+                      "locale": {
+                        "type": "string",
+                        "minLength": 2,
+                        "maxLength": 20
+                      },
+                      "timezone": {
+                        "type": "string",
+                        "minLength": 2,
+                        "maxLength": 60
+                      },
+                      "idempotencyKey": {
+                        "type": "string",
+                        "minLength": 8,
+                        "maxLength": 200
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "options": {
+                    "type": "object",
+                    "properties": {
+                      "persist": {
+                        "type": "boolean"
+                      },
+                      "filename": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 160
+                      },
+                      "classification": {
+                        "type": "string",
+                        "enum": [
+                          "PUBLIC",
+                          "INTERNAL",
+                          "CONFIDENTIAL",
+                          "RESTRICTED"
+                        ]
+                      },
+                      "returnContent": {
+                        "type": "boolean"
+                      },
+                      "page": {
+                        "type": "object",
+                        "properties": {
+                          "format": {
+                            "type": "string",
+                            "enum": [
+                              "A3",
+                              "A4",
+                              "A5",
+                              "Letter",
+                              "Legal",
+                              "Tabloid"
+                            ]
+                          },
+                          "orientation": {
+                            "type": "string",
+                            "enum": [
+                              "portrait",
+                              "landscape"
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "templateId",
+                  "payload"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Documento generado: la ficha en JSON, o el archivo si se pidió `application/pdf`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "documentId": {
+                      "type": "string"
+                    },
+                    "template": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "version": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "version"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "filename": {
+                      "type": "string"
+                    },
+                    "mimeType": {
+                      "type": "string",
+                      "enum": [
+                        "application/pdf"
+                      ]
+                    },
+                    "sizeBytes": {
+                      "type": "number"
+                    },
+                    "checksum": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "GENERATED",
+                        "REPLAYED",
+                        "FAILED"
+                      ]
+                    },
+                    "classification": {
+                      "type": "string",
+                      "enum": [
+                        "PUBLIC",
+                        "INTERNAL",
+                        "CONFIDENTIAL",
+                        "RESTRICTED"
+                      ]
+                    },
+                    "brandId": {
+                      "type": "string"
+                    },
+                    "storage": {
+                      "type": "object",
+                      "properties": {
+                        "provider": {
+                          "type": "string"
+                        },
+                        "key": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "provider",
+                        "key"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "trace": {
+                      "type": "object",
+                      "properties": {
+                        "correlationId": {
+                          "type": "string"
+                        },
+                        "requestedBy": {
+                          "type": "string"
+                        },
+                        "idempotencyKey": {
+                          "type": "string"
+                        },
+                        "renderer": {
+                          "type": "string"
+                        },
+                        "renderDurationMs": {
+                          "type": "number"
+                        },
+                        "pageCount": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "renderer",
+                        "renderDurationMs"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "documentId",
+                    "template",
+                    "filename",
+                    "mimeType",
+                    "sizeBytes",
+                    "checksum",
+                    "createdAt",
+                    "status",
+                    "brandId",
+                    "trace"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "El template o la versión no existen."
+          },
+          "409": {
+            "description": "Otra generación con la misma clave está en curso."
+          },
+          "422": {
+            "description": "El payload no cumple el contrato del template."
+          },
+          "429": {
+            "description": "Sin carriles de renderizado disponibles."
+          }
+        },
+        "summary": "Genera un documento PDF a partir de un template y su payload",
+        "tags": [
+          "pdf"
+        ]
+      }
+    },
+    "/pdf/generate/async": {
+      "post": {
+        "description": "Devuelve 202 con el identificador del trabajo. El documento se persiste y el desenlace se publica como PDF_GENERATED o PDF_GENERATION_FAILED. Requiere PDF_QUEUE_ENABLED=true.",
+        "operationId": "PdfGenerationController_generateAsync",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "templateId": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 64,
+                    "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+                  },
+                  "templateVersion": {
+                    "type": "string",
+                    "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                  },
+                  "payload": {},
+                  "brandId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "properties": {
+                      "documentId": {
+                        "type": "string",
+                        "pattern": "^DOC-[0-9A-F]{12}$"
+                      },
+                      "correlationId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "requestedBy": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 160
+                      },
+                      "locale": {
+                        "type": "string",
+                        "minLength": 2,
+                        "maxLength": 20
+                      },
+                      "timezone": {
+                        "type": "string",
+                        "minLength": 2,
+                        "maxLength": 60
+                      },
+                      "idempotencyKey": {
+                        "type": "string",
+                        "minLength": 8,
+                        "maxLength": 200
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "options": {
+                    "type": "object",
+                    "properties": {
+                      "persist": {
+                        "type": "boolean"
+                      },
+                      "filename": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 160
+                      },
+                      "classification": {
+                        "type": "string",
+                        "enum": [
+                          "PUBLIC",
+                          "INTERNAL",
+                          "CONFIDENTIAL",
+                          "RESTRICTED"
+                        ]
+                      },
+                      "returnContent": {
+                        "type": "boolean"
+                      },
+                      "page": {
+                        "type": "object",
+                        "properties": {
+                          "format": {
+                            "type": "string",
+                            "enum": [
+                              "A3",
+                              "A4",
+                              "A5",
+                              "Letter",
+                              "Legal",
+                              "Tabloid"
+                            ]
+                          },
+                          "orientation": {
+                            "type": "string",
+                            "enum": [
+                              "portrait",
+                              "landscape"
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "templateId",
+                  "payload"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Trabajo aceptado y encolado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "jobId": {
+                      "type": "string"
+                    },
+                    "queuedAhead": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "QUEUED"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "jobId",
+                    "queuedAhead",
+                    "status"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "El procesamiento asíncrono está desactivado."
+          }
+        },
+        "summary": "Encola la generación y responde de inmediato",
+        "tags": [
+          "pdf"
+        ]
+      }
+    },
+    "/pdf/preview": {
+      "post": {
+        "description": "Sin `payload` usa el fixture declarado por el template. Nunca persiste. Responde siempre el archivo, porque es lo único que sirve para mirar un diseño.",
+        "operationId": "PdfGenerationController_previewTemplate",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "templateId": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 64,
+                    "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+                  },
+                  "templateVersion": {
+                    "type": "string",
+                    "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                  },
+                  "brandId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  },
+                  "payload": {},
+                  "locale": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 20
+                  },
+                  "timezone": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 60
+                  }
+                },
+                "required": [
+                  "templateId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "El archivo previsualizado.",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Previsualiza un template con sus datos ficticios",
+        "tags": [
+          "pdf"
+        ]
+      }
+    },
+    "/pdf/templates": {
+      "get": {
+        "operationId": "PdfCatalogController_listTemplates",
+        "parameters": [
+          {
+            "name": "tag",
+            "required": false,
+            "in": "query",
+            "description": "Filtra por etiqueta de descubrimiento",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Templates publicados, cada uno en su última versión.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "templates": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "version": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "tags": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "classification": {
+                            "type": "string",
+                            "enum": [
+                              "PUBLIC",
+                              "INTERNAL",
+                              "CONFIDENTIAL",
+                              "RESTRICTED"
+                            ]
+                          },
+                          "requiredFields": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "deprecated": {
+                            "type": "object",
+                            "properties": {
+                              "since": {
+                                "type": "string"
+                              },
+                              "reason": {
+                                "type": "string"
+                              },
+                              "replacedBy": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "since",
+                              "reason"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "version",
+                          "title",
+                          "description",
+                          "tags",
+                          "requiredFields"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "templates"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "summary": "Lista los templates publicados, en su última versión",
+        "tags": [
+          "pdf"
+        ]
+      }
+    },
+    "/pdf/templates/{templateId}": {
+      "get": {
+        "operationId": "PdfCatalogController_definition",
+        "parameters": [
+          {
+            "name": "templateId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "generic-result-report",
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "1.0.0",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "404": {
+            "description": "El template no existe."
+          }
+        },
+        "summary": "Definición completa de un template",
+        "tags": [
+          "pdf"
+        ]
+      }
+    },
+    "/pdf/templates/{templateId}/schema": {
+      "get": {
+        "description": "Devuelve `fields` (legible), `jsonSchema` (JSON Schema completo, para validar en el lado del consumidor) y `example` (el mismo fixture que usa la vista previa).",
+        "operationId": "PdfCatalogController_schema",
+        "parameters": [
+          {
+            "name": "templateId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "credit-analysis-report",
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Contrato de datos que exige el template",
+        "tags": [
+          "pdf"
+        ]
+      }
+    },
+    "/pdf/templates/{templateId}/versions": {
+      "get": {
+        "operationId": "PdfCatalogController_versions",
+        "parameters": [
+          {
+            "name": "templateId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "credit-analysis-report",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Versiones publicadas del template.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "templateId": {
+                      "type": "string"
+                    },
+                    "versions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "templateId",
+                    "versions"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "summary": "Versiones publicadas, en orden semántico ascendente",
+        "tags": [
+          "pdf"
+        ]
+      }
+    },
+    "/pdf/templates/{templateId}/validate": {
+      "post": {
+        "description": "Responde 200 con `valid: false` y el detalle cuando el payload no cumple: aquí «inválido» es la respuesta a la pregunta, no un fallo de la llamada.",
+        "operationId": "PdfCatalogController_validatePayload",
+        "parameters": [
+          {
+            "name": "templateId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "templateVersion": {
+                    "type": "string",
+                    "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+                  },
+                  "payload": {}
+                },
+                "required": [
+                  "payload"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Comprueba un payload sin generar nada",
+        "tags": [
+          "pdf"
+        ]
+      }
+    },
+    "/pdf/artifacts": {
+      "get": {
+        "description": "Sólo los que declaran contrato de salida: sin él no hay nada con lo que casar. Responde 503 si este despliegue no puede consultarlos (generador suelto).",
+        "operationId": "PdfCatalogController_artifactsForBinding",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Artefactos publicados que pueden alimentar un documento",
+        "tags": [
+          "pdf"
+        ]
+      }
+    },
+    "/pdf/templates/{templateId}/compatibility": {
+      "get": {
+        "description": "Compara campo a campo el contrato de salida del artefacto con el contrato de datos del documento. Un campo obligatorio que el artefacto no publica es un error; uno del artefacto que el documento no usa NO lo es —un artefacto alimenta varios documentos y cada uno cuenta una parte—.",
+        "operationId": "PdfCatalogController_compatibility",
+        "parameters": [
+          {
+            "name": "templateId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "credit-analysis-report",
+              "type": "string"
+            }
+          },
+          {
+            "name": "artifact",
+            "required": true,
+            "in": "query",
+            "description": "Código del artefacto",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "required": false,
+            "in": "query",
+            "description": "Versión del template",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "artifactVersion",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "¿Lo que responde este artefacto lo acepta este documento?",
+        "tags": [
+          "pdf"
+        ]
+      }
+    },
+    "/pdf/templates/{templateId}/sample": {
+      "get": {
+        "description": "Sustituye al ejemplo escrito a mano: un fixture inventado demuestra que la plantilla maqueta, no que sirva para el artefacto que la va a usar. Los campos que el artefacto no puede rellenar se listan en «missing» en vez de rellenarse con un valor plausible.",
+        "operationId": "PdfCatalogController_sampleFromArtifact",
+        "parameters": [
+          {
+            "name": "templateId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "credit-analysis-report",
+              "type": "string"
+            }
+          },
+          {
+            "name": "artifact",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "artifactVersion",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Dato de prueba construido con la salida REAL de un artefacto",
+        "tags": [
+          "pdf"
+        ]
+      }
+    },
+    "/pdf/health": {
+      "get": {
+        "description": "Comprueba el motor de impresión, el catálogo de templates, los recursos, las fuentes y el almacenamiento. Responde 200 siempre: el veredicto está en `status`, y un 503 aquí escondería el cuerpo que se viene a leer.",
+        "operationId": "PdfCatalogController_healthReport",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Sonda del generador documental",
+        "tags": [
+          "pdf"
+        ]
+      }
+    },
+    "/pdf/template-format/example": {
+      "get": {
+        "description": "Se puede subir tal cual: se publica y genera un PDF. Ejercita todo el vocabulario —cada tipo de campo, enum, lista de objetos, límites— y usa los parciales compartidos, así que sirve de plantilla de partida. Cambie el identificador y ajuste los campos.",
+        "operationId": "PdfTemplateAdminController_exampleBundle",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Descarga un paquete de template de EJEMPLO, completo y funcional",
+        "tags": [
+          "pdf-templates"
+        ]
+      }
+    },
+    "/pdf/template-format/schema": {
+      "get": {
+        "description": "El contrato del FORMATO, no el de un template concreto. Permite validar un paquete en el lado del cliente antes de intentar publicarlo.",
+        "operationId": "PdfTemplateAdminController_formatSchema",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "JSON Schema del paquete que el backend acepta",
+        "tags": [
+          "pdf-templates"
+        ]
+      }
+    },
+    "/pdf/errors": {
+      "get": {
+        "description": "Todos los códigos que este worker puede devolver, con su estado HTTP, qué significan, por qué ocurren, cómo se resuelven, si reintentar sirve de algo y quién puede arreglarlos. Una prueba impide que este catálogo y el código se desincronicen.",
+        "operationId": "PdfTemplateAdminController_errorCatalog",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Catálogo completo de errores del generador documental",
+        "tags": [
+          "pdf-templates"
+        ]
+      }
+    },
+    "/pdf/admin/templates": {
+      "get": {
+        "description": "`origin` distingue los templates incorporados (viajan con el código) de los publicados por la API. Sólo estos últimos se pueden modificar o retirar.",
+        "operationId": "PdfTemplateAdminController_inventory",
+        "parameters": [],
+        "responses": {
+          "401": {
+            "description": "Credencial de administración ausente o inválida."
+          },
+          "404": {
+            "description": "La administración está desactivada."
+          }
+        },
+        "summary": "Inventario completo, con origen y estado de cada versión",
+        "tags": [
+          "pdf-templates"
+        ]
+      },
+      "post": {
+        "description": "Valida el paquete completo —formato, plantilla, estilos, contrato y datos de ejemplo—, lo compila y lo registra. Si la versión ya existe responde 409 sugiriendo la siguiente: las versiones publicadas son inmutables, porque un informe archivado declara con cuál salió. Actualizar un template es publicar otra versión.",
+        "operationId": "PdfTemplateAdminController_publish",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "description": "Paquete de template. Vea GET /pdf/template-format/example.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Template publicado y registrado."
+          },
+          "409": {
+            "description": "Esa versión ya está publicada."
+          },
+          "422": {
+            "description": "El paquete no cumple el formato."
+          }
+        },
+        "summary": "Publica un template nuevo",
+        "tags": [
+          "pdf-templates"
+        ]
+      }
+    },
+    "/pdf/admin/templates/{templateId}/{version}/source": {
+      "get": {
+        "description": "Devuelve el JSON tal cual se subió: es el punto de partida para publicar la versión siguiente. Un template incorporado responde 403 — se edita en el repositorio.",
+        "operationId": "PdfTemplateAdminController_source",
+        "parameters": [
+          {
+            "name": "templateId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "certificado-de-cuenta",
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "1.0.0",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Descarga el paquete de un template publicado por la API",
+        "tags": [
+          "pdf-templates"
+        ]
+      }
+    },
+    "/pdf/admin/templates/{templateId}/{version}/deprecate": {
+      "post": {
+        "description": "Es la forma recomendada de «borrar»: deja de recomendarse pero SIGUE generando, así que lo ya emitido con ella se puede reproducir.",
+        "operationId": "PdfTemplateAdminController_deprecate",
+        "parameters": [
+          {
+            "name": "templateId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Marca una versión como obsoleta",
+        "tags": [
+          "pdf-templates"
+        ]
+      }
+    },
+    "/pdf/admin/templates/{templateId}/{version}": {
+      "delete": {
+        "description": "Borrado REAL. Existe para deshacer una publicación equivocada. Si ya se emitieron documentos con esa versión, se pierde la capacidad de reproducirlos: use «deprecate».",
+        "operationId": "PdfTemplateAdminController_remove",
+        "parameters": [
+          {
+            "name": "templateId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Versión retirada del catálogo y del almacén."
+          },
+          "403": {
+            "description": "Es un template incorporado."
+          }
+        },
+        "summary": "Borra una versión publicada por la API",
+        "tags": [
+          "pdf-templates"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "ATLAS PDF Generator Worker",
+    "description": "Plataforma documental interna: los artefactos entregan datos estructurados y este servicio valida, maqueta, aplica la identidad institucional y devuelve el PDF.",
+    "version": "1.0.0",
+    "contact": {}
+  },
+  "tags": [
+    {
+      "name": "pdf",
+      "description": ""
+    },
+    {
+      "name": "pdf-templates",
+      "description": ""
+    }
+  ],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "admin": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-pdf-admin-key"
+      }
+    },
+    "schemas": {}
+  }
+}

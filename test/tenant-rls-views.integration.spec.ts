@@ -42,10 +42,33 @@ describeDb('Tenant RLS through views (integration)', () => {
     expect(unprotected).toEqual([]);
   });
 
+  /*
+   * La prueba SIEMBRA su propia fila, y eso es parte de lo que mide.
+   *
+   * Antes daba por hecho que el tenant 1 ya tenía algo en la vista, así que sólo pasaba contra una
+   * base sembrada. En CI —migrada y vacía— fallaba en `toBeGreaterThan(0)` y el rojo se leía como
+   * «la vista filtra mal», que es exactamente lo contrario de lo que pasaba: la vista filtraba
+   * bien y no había nada que ver. Un guardia de aislamiento que depende de que otro haya sembrado
+   * no guarda nada el día que la siembra cambia de sitio — y la de este repo ya cambió de sitio.
+   *
+   * La fila se inserta DENTRO de la transacción y el `ROLLBACK` final la deshace: no deja rastro ni
+   * en desarrollo ni en CI.
+   */
   it("does not leak another tenant's rows through a view for the runtime role", async () => {
-    await client.query('SET ROLE atlas_app');
     try {
       await client.query('BEGIN');
+      // Como dueño y con el GUC puesto: la fila mínima que hace aparecer un valor en la vista.
+      await client.query(`SELECT set_config('app.tenant_id', '1', true)`);
+      await client.query(
+        `INSERT INTO decision_reason_code
+           (tenant_id, reason_code, category, public_message, internal_message, severity)
+         VALUES (1, 'RLS_VIEW_GUARD', 'GUARD', 'guarda de aislamiento', 'sólo para esta prueba', 'LOW')
+         ON CONFLICT (tenant_id, reason_code) DO NOTHING`,
+      );
+
+      // `SET LOCAL`: el rol vuelve solo al cerrar la transacción, sin un RESET que pueda olvidarse.
+      await client.query('SET LOCAL ROLE atlas_app');
+
       await client.query(`SELECT set_config('app.tenant_id', '999999', true)`);
       const foreign = await client.query('SELECT count(*)::int n FROM vw_form_option');
       expect(foreign.rows[0].n).toBe(0);
@@ -55,7 +78,6 @@ describeDb('Tenant RLS through views (integration)', () => {
       expect(own.rows[0].n).toBeGreaterThan(0);
     } finally {
       await client.query('ROLLBACK').catch(() => undefined);
-      await client.query('RESET ROLE').catch(() => undefined);
     }
   });
 });

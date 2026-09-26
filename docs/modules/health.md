@@ -15,6 +15,7 @@ Etiquetas de API: **Health**.
 | Método | Ruta | Operación | Resumen |
 | --- | --- | --- | --- |
 | `GET` | `/health` | `healthLiveAlias` | Alias of /health/live kept for existing probes |
+| `GET` | `/health/data-sources` | `healthDataSources` | Report registered data connections and their effective routing |
 | `GET` | `/health/live` | `healthLive` | Report process liveness without checking dependencies |
 | `GET` | `/health/ready` | `healthReady` | Report database and cache readiness with redacted failures |
 | `GET` | `/ready` | `healthReadyAlias` | Alias of /health/ready kept for existing probes |
@@ -29,6 +30,7 @@ Este módulo no declara roles: o no expone rutas, o son públicas por diseño.
 
 ## Clases exportadas
 
+- `DataSourcesResponseDto`
 - `HealthController`
 - `HealthModule`
 - `HealthProbeService`

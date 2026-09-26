@@ -2,12 +2,13 @@
 import { Module } from '@nestjs/common';
 import { EventsModule } from '../../common/events/events.module';
 import { ArtifactModule } from '../artifacts/artifact.module';
+import { SecurityReviewModule } from '../security-review/security-review.module';
 import { TestingModule } from '../testing/testing.module';
 import { GovernanceController } from './governance.controller';
 import { GovernanceService } from './governance.service';
 
 @Module({
-  imports: [ArtifactModule, TestingModule, EventsModule],
+  imports: [ArtifactModule, TestingModule, EventsModule, SecurityReviewModule],
   controllers: [GovernanceController],
   providers: [GovernanceService],
   exports: [GovernanceService],

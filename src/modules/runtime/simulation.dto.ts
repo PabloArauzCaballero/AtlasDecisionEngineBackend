@@ -38,8 +38,14 @@ export class SimulateDecisionDto {
  */
 export class GenerateSampleInputsDto {
   @IsString() @Matches(/^[A-Z0-9_\-]{2,40}$/) environmentCode!: string;
-  /** VALID respeta el contrato; BOUNDARY va al límite; INVALID debe ser rechazado. */
-  @IsOptional() @IsIn(['VALID', 'BOUNDARY', 'INVALID']) kind?: 'VALID' | 'BOUNDARY' | 'INVALID';
+  /**
+   * VALID respeta el contrato; BOUNDARY va al límite; INVALID debe ser rechazado.
+   * OUTCOMES cambia de eje: un caso por cada desenlace del grafo, para que ninguna
+   * decisión que el artefacto sabe tomar se quede sin probar.
+   */
+  @IsOptional()
+  @IsIn(['VALID', 'BOUNDARY', 'INVALID', 'OUTCOMES'])
+  kind?: 'VALID' | 'BOUNDARY' | 'INVALID' | 'OUTCOMES';
   @IsOptional() @IsInt() @Min(1) @Max(50) count?: number;
   /** Semilla explícita: la misma semilla devuelve exactamente los mismos valores. */
   @IsOptional() @IsString() @MaxLength(64) seed?: string;

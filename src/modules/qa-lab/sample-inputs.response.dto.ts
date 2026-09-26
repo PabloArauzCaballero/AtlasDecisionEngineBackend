@@ -11,8 +11,35 @@ export class SampleCaseDto {
   @ApiProperty({ example: 0, description: 'Posición dentro del lote, empezando en 0.' })
   index!: number;
 
-  @ApiProperty({ example: 'BOUNDARY', enum: ['VALID', 'BOUNDARY', 'INVALID'] })
+  @ApiProperty({ example: 'BOUNDARY', enum: ['VALID', 'BOUNDARY', 'INVALID', 'OUTCOME'] })
   kind!: string;
+
+  @ApiProperty({
+    required: false,
+    example: 'APPROVED',
+    description: 'Sólo en OUTCOMES: desenlace del grafo que persigue el caso.',
+  })
+  outcome?: string;
+
+  @ApiProperty({ required: false, example: 'n_result_approved' })
+  nodeKey?: string;
+
+  @ApiProperty({
+    required: false,
+    type: [String],
+    example: ['n_start', 'n_score', 'n_result_approved'],
+    description: 'Camino de nodos por el que se espera que discurra la ejecución.',
+  })
+  path?: string[];
+
+  @ApiProperty({
+    required: false,
+    type: [String],
+    example: ['e_review: «dti_alto» no depende de las entradas'],
+    description:
+      'Condiciones del camino que NO se pueden forzar desde el payload (dependen de una variable intermedia o de un valor que calcula el propio grafo). El caso se entrega igual, pero esa rama no está garantizada.',
+  })
+  unresolved?: string[];
 
   @ApiProperty({
     required: false,
@@ -26,12 +53,29 @@ export class SampleCaseDto {
     description: 'Entradas generadas, listas para simular o para guardar como caso.',
   })
   input!: Record<string, unknown>;
+
+  @ApiProperty({
+    required: false,
+    type: [String],
+    example: ['correo_contacto'],
+    description:
+      'Variables cuyo contrato es contradictorio (p. ej. formato EMAIL con maxLength 4): ningún valor puede satisfacerlo, así que el valor entregado para ellas NO es válido. Lo que hay que corregir es el contrato.',
+  })
+  unsatisfiable?: string[];
 }
 
 /** Lo común a los dos caminos: qué se generó y cómo volver a generarlo igual. */
 class SampleBatchDto {
-  @ApiProperty({ example: 'VALID', enum: ['VALID', 'BOUNDARY', 'INVALID'] })
+  @ApiProperty({ example: 'VALID', enum: ['VALID', 'BOUNDARY', 'INVALID', 'OUTCOMES'] })
   kind!: string;
+
+  @ApiProperty({
+    required: false,
+    example: 4,
+    description:
+      'Sólo en OUTCOMES: cuántos desenlaces distintos tiene el grafo. Si supera el número de casos devueltos, el lote está recortado y faltan decisiones por cubrir.',
+  })
+  totalOutcomes?: number;
 
   @ApiProperty({
     example: 'k3f2m1a',
@@ -39,7 +83,7 @@ class SampleBatchDto {
   })
   seed!: string;
 
-  @ApiProperty({ example: 'atlas-qa-generator-1.0.0' })
+  @ApiProperty({ example: 'atlas-qa-generator-1.2.0' })
   generatorVersion!: string;
 
   @ApiProperty({ type: [SampleCaseDto] })
@@ -50,7 +94,7 @@ class SampleBatchDto {
 export class SimulatorSampleInputsDto extends SampleBatchDto {
   @ApiProperty({ example: 'BNPL_CREDIT_DECISION' }) artifactCode!: string;
 
-  @ApiProperty({ example: 'SANDBOX', description: 'Ambiente resuelto. PROD nunca.' })
+  @ApiProperty({ example: 'DEV', description: 'Ambiente resuelto. PROD nunca.' })
   environmentCode!: string;
 
   @ApiProperty({ example: '4001', description: 'Versión desplegada de la que salió el contrato.' })

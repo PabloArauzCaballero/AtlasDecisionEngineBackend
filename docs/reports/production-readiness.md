@@ -92,7 +92,22 @@ dicen exactamente qué falta.
 
 ## Requisitos que bloquean el cierre
 
-**Ninguno.** Los cuatro que bloqueaban la revisión anterior están cerrados:
+!!! danger "Revisión 2026-08-04: vuelve a haber bloqueantes"
+    Los cuatro de la revisión anterior siguen cerrados, pero la llegada de los dos workers
+    ([ADR-0026](../adr/ADR-0026-additional-workers-integration.md)) abrió tres requisitos nuevos.
+    **Ninguno es de contenido documental**: son una puerta en rojo, una configuración por
+    defecto incoherente y una aceptación pendiente.
+
+    | # | Requisito | Estado | Dueño |
+    | --- | --- | --- | --- |
+    | R5 | `mkdocs build --strict` sin enlaces rotos ni huérfanas | ❌ | Agente de observabilidad |
+    | R6 | `yarn typecheck` en verde | ❌ `runtime-failed-audit.spec.ts:59` pasa 11 argumentos donde se piden 12 | Agente de observabilidad |
+    | R7 | Aceptación formal de la deuda G32 (presupuesto del proveedor incoherente con el lease) | ❌ registrada y justificada, sin aceptar | Dueño del worker semántico |
+
+    Detalle y aritmética en [validación final](final-validation.md#revisión-2026-08-04-workers-adicionales)
+    y en [`AGENT-COORDINATION.md`](../AGENT-COORDINATION.md).
+
+Los cuatro que bloqueaban la revisión anterior están cerrados:
 
 | # | Requisito | Cómo se cerró |
 | --- | --- | --- |
@@ -111,6 +126,9 @@ No bloquean el cierre, pero se declaran para que nadie las descubra por sorpresa
 | L2 | El job que ejecuta el archivado de ejecuciones no existe todavía | La **decisión** está tomada (ADR-0025) y el mecanismo disponible; escribir el job es trabajo de ingeniería de seguimiento, ya no una decisión bloqueada |
 | L3 | Los equipos de GitHub de `CODEOWNERS` aún no existen | La revisión obligatoria ya es efectiva con el propietario de reserva; sustituirlo es administración de GitHub |
 | L4 | `GET /v1/audit/metrics` filtra el agregado crudo de Prisma | Documentado tal cual. Limpiarlo es un cambio incompatible que exige deprecación previa |
+| L5 | El grafo de Graphify desconoce el 31 % de `src/`, incluido el módulo `workers` entero | El CLI `graphify` no está instalado en este entorno. La auditoría lo **declara** y los catálogos del portal se generan del código y del contrato, nunca del grafo |
+| L6 | El PDF de una ejecución de extracto que nunca se procesa no vence | `file_bytes` se anula al cerrar la ejecución, pero no hay barrida para las que se quedan en `QUEUED` con el worker apagado. Encolar exige rol, y la cota de tamaño y la unicidad por hash limitan la acumulación |
+| L7 | Con `SEMANTIC_ANALYSIS_PROVIDER=openai`, la retención en el tercero es contractual y no técnica | Es inherente a delegar la inferencia. `ollama` mantiene la frontera cerrada y la capacidad viene **apagada** por defecto |
 
 ## Veredicto
 

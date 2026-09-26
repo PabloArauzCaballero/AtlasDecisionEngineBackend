@@ -43,6 +43,47 @@ el negocio junto a los [objetivos de servicio](service-level-objectives.md).
 | Divergencia DEV/PROD | `increase(atlas_dev_prod_result_diff_total{difference!="NONE"}[1h]) > 0` |
 | Espera del bloqueo de auditoría | p95 de `atlas_audit_chain_lock_wait_ms` creciente |
 
+## Cuáles están implementadas
+
+Las de esta página eran **propuestas**: expresiones acordadas pero sin nada que las evaluara.
+Un subconjunto ya vive como reglas ejecutables en `docker/observability/alerts.yml`, que carga
+el Prometheus del perfil `observability`:
+
+| Regla | Cubre |
+| --- | --- |
+| `AtlasOutboxBacklogGrowing` | `min_over_time(atlas_outbox_pending[10m]) > 500` |
+| `AtlasOutboxDeadLetter` | Eventos en cola muerta |
+| `AtlasBackgroundJobStalled` | Relay o cualquier trabajo sin éxito en 15 min |
+| `AtlasApiErrorRateHigh` | Más del 5 % de 5xx |
+| `AtlasApiLatencyP95High` | p95 por encima de 1 s |
+| `AtlasTargetDown` | El proceso ni acepta el raspado |
+
+`AtlasOutboxBacklogGrowing` usa `min_over_time` y no el valor instantáneo a propósito: una
+ráfaga legítima también sube el pendiente, y lo que se quiere detectar es que el suelo no baja.
+
+`AtlasBackgroundJobStalled` es la que cubre el fallo más silencioso descrito arriba —todo
+desplegado con `WORKER_ROLE=API`—, y lo hace sobre
+`atlas_job_last_success_timestamp_seconds`, que es una sonda de latido y no un contador: un
+contador que deja de crecer es indistinguible de uno que nunca tuvo trabajo.
+
+Levantarlas:
+
+```bash
+docker compose -f docker-compose.yml -f compose.observability.yml \
+  --profile observability up -d
+```
+
+!!! warning "Hay que raspar los DOS procesos"
+    `atlas_outbox_*`, `atlas_job_*` y `atlas_notification_created_total` **solo** los produce el
+    worker. `prometheus.yml` lo resuelve por DNS en el puerto 3001 para alcanzar todas las
+    réplicas; raspar únicamente la API deja el panel del outbox alimentado por un proceso que no
+    reparte nada.
+
+    El endpoint acepta el secreto como `X-Metrics-Token` o como `Authorization: Bearer`. El
+    segundo portador se añadió porque Prometheus **no** admite cabeceras arbitrarias en un
+    `scrape_config`: con solo el primero, la métrica estaba publicada, protegida e inalcanzable
+    para el único consumidor previsto.
+
 ## Lo que no se alerta por métrica
 
 **La integridad de la cadena de auditoría.** No es un porcentaje: es binaria. Se comprueba con

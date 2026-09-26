@@ -20,6 +20,8 @@ export async function seededVariableVersionId(
   app: INestApplication,
   headers: Record<string, string>,
   variableCode: string,
+  /** Tipo con el que se CREA si no existe. El que ya existe se usa tal cual. */
+  dataType: 'INTEGER' | 'DECIMAL' | 'STRING' | 'BOOLEAN' = 'INTEGER',
 ): Promise<string> {
   const pageSize = 100;
   for (let page = 1; page <= 20; page += 1) {
@@ -42,9 +44,65 @@ export async function seededVariableVersionId(
     }
     if (!response.body.hasNextPage) break;
   }
-  throw new Error(
-    `Seeded variable "${variableCode}" was not found. Run \`yarn prisma:seed\` against this database.`,
-  );
+  /*
+   * Si no está, se CREA por el mismo endpoint del producto.
+   *
+   * Antes esto lanzaba «Run `yarn prisma:seed`», y ese mensaje describía un mundo que ya no
+   * existe: el conjunto sembrado dejó de vivir en el repositorio y hoy lo publica una base en un
+   * servidor propio, que un runner de CI no alcanza. El resultado era que las e2e sólo pasaban
+   * contra una base previamente sembrada por alguien, y en CI fallaban las trece.
+   *
+   * Crear la variable aquí no es aflojar la prueba: lo que estas suites miden es el CICLO de un
+   * artefacto —validar, compilar, aprobar, desplegar, ejecutar—, no que el catálogo venga poblado.
+   * Y se crea POR HTTP, con el contrato que el producto exige, así que si el alta se rompiera la
+   * prueba lo diría igual.
+   */
+  return createVariable(app, headers, variableCode, dataType);
+}
+
+/** Da de alta la variable mínima que estas suites necesitan como dependencia de un grafo. */
+async function createVariable(
+  app: INestApplication,
+  headers: Record<string, string>,
+  variableCode: string,
+  dataType: string,
+): Promise<string> {
+  const created = await request(app.getHttpServer())
+    .post('/v1/variables')
+    .set(headers)
+    .send({
+      variableCode,
+      canonicalName: variableCode,
+      businessDescription: `Variable creada por la batería e2e para ${variableCode}.`,
+      dataClassification: 'INTERNAL',
+      ownerTeam: 'e2e',
+      isSensitive: false,
+      initialVersion: {
+        dataType,
+        nullable: false,
+        sources: [],
+        validationRules: [],
+      },
+    });
+
+  if (created.status !== 201 && created.status !== 200) {
+    throw new Error(
+      `No se pudo crear la variable "${variableCode}" para la batería e2e: ` +
+        `POST /v1/variables devolvió ${created.status}. ${JSON.stringify(created.body).slice(0, 300)}`,
+    );
+  }
+
+  const versionId =
+    created.body.versions?.[0]?.id ?? created.body.initialVersion?.id ?? created.body.versionId;
+  if (!versionId) {
+    // El alta responde con la definición y su primera versión; si eso cambia, hay que enterarse
+    // aquí y no dos suites más adelante con un `undefined` por identificador.
+    throw new Error(
+      `La variable "${variableCode}" se creó pero la respuesta no trae el id de su versión: ` +
+        JSON.stringify(created.body).slice(0, 300),
+    );
+  }
+  return versionId as string;
 }
 
 /**

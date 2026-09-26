@@ -9,6 +9,11 @@ import { PrismaService } from '../../../common/prisma/prisma.service';
 import { SemanticAnalysisProcessor } from './core/application/semantic-analysis.processor';
 import { isRetryable, toStableErrorCode } from './core/domain/semantic-analysis.errors';
 import type { SemanticAnalysisRequest } from './core/domain/semantic-analysis.types';
+import { MessagingTraceService } from '../../../common/observability/messaging-trace.service';
+import {
+  APP_ATTRIBUTES,
+  MESSAGING_SYSTEM,
+} from '../../../common/observability/telemetry.constants';
 
 /**
  * Worker de análisis semántico.
@@ -43,6 +48,7 @@ export class SemanticRunWorkerService implements OnModuleInit, OnModuleDestroy, 
     private readonly config: ConfigService,
     private readonly scheduler: JobSchedulerService,
     private readonly processor: SemanticAnalysisProcessor,
+    private readonly messagingTrace: MessagingTraceService,
   ) {
     this.minIdleIntervalMs = config.get<number>('SEMANTIC_ANALYSIS_WORKER_POLL_MS') ?? 500;
     this.maxIdleIntervalMs = Math.max(
@@ -65,7 +71,7 @@ export class SemanticRunWorkerService implements OnModuleInit, OnModuleDestroy, 
     // ejecuciones condenadas y el operador vería un worker «vivo».
     if ((this.config.get<string>('SEMANTIC_ANALYSIS_PROVIDER') ?? '') === '') {
       this.logger.warn(
-        'Worker semántico no arrancado: falta SEMANTIC_ANALYSIS_PROVIDER (openai | ollama)',
+        'Worker semántico no arrancado: falta SEMANTIC_ANALYSIS_PROVIDER (openai | transformer)',
       );
       return;
     }
@@ -85,7 +91,7 @@ export class SemanticRunWorkerService implements OnModuleInit, OnModuleDestroy, 
       const claimed = await this.claimNextRun();
       if (!claimed) break;
       started += 1;
-      const job = this.execute(claimed);
+      const job = this.executeTraced(claimed);
       this.activeJobs.add(job);
       void job
         .finally(() => {
@@ -110,7 +116,11 @@ export class SemanticRunWorkerService implements OnModuleInit, OnModuleDestroy, 
    */
   private async claimNextRun(): Promise<ClaimedRun | null> {
     const maxAttempts = this.config.get<number>('SEMANTIC_ANALYSIS_MAX_ATTEMPTS') ?? 3;
-    const rows = await this.prisma.$queryRaw<ClaimedRow[]>(Prisma.sql`
+    // `$transaction` obligatorio: `decision_semantic_analysis_run` tiene RLS FORZADA y una
+    // sentencia cruda suelta no fija `app.tenant_id`, así que sobre una conexión del pool
+    // que ya sirvió a un tenant la política aborta con 22P02. Ver `outbox-relay.service.ts`.
+    const [rows] = await this.prisma.$transaction([
+      this.prisma.$queryRaw<ClaimedRow[]>(Prisma.sql`
       UPDATE decision_semantic_analysis_run
       SET status = 'RUNNING',
           started_at = now(),
@@ -127,13 +137,15 @@ export class SemanticRunWorkerService implements OnModuleInit, OnModuleDestroy, 
         LIMIT 1
       )
       RETURNING id, tenant_id, request_id, idempotency_key, input_text,
-                input_metadata, requested_by, attempt_count
-    `);
+                input_metadata, requested_by, attempt_count, trace_carrier
+    `),
+    ]);
     const row = rows[0];
     if (!row) return null;
     return {
       id: row.id,
       attemptCount: row.attempt_count,
+      traceCarrier: row.trace_carrier,
       request: {
         requestId: row.request_id,
         idempotencyKey: row.idempotency_key,
@@ -143,6 +155,31 @@ export class SemanticRunWorkerService implements OnModuleInit, OnModuleDestroy, 
         ...(isRecord(row.input_metadata) ? { metadata: row.input_metadata } : {}),
       },
     };
+  }
+
+  /**
+   * Continúa la traza de quien solicitó el análisis.
+   *
+   * El portador se capturó al encolar, en el proceso de API. Sin él —una fila anterior a la
+   * columna, o encolada con la telemetría apagada— se abre una traza raíz y el análisis corre
+   * igual: perder la correlación nunca puede costar el trabajo.
+   */
+  private executeTraced(claimed: ClaimedRun): Promise<void> {
+    return this.messagingTrace.runAsConsumer(
+      'semantic.consume',
+      claimed.traceCarrier,
+      {
+        'messaging.system': MESSAGING_SYSTEM,
+        'messaging.destination.name': 'decision_semantic_analysis_run',
+        'messaging.operation.type': 'process',
+        'messaging.message.id': claimed.id.toString(),
+        [APP_ATTRIBUTES.module]: 'semantic-analysis',
+        [APP_ATTRIBUTES.operation]: 'consume',
+        [APP_ATTRIBUTES.jobName]: this.name,
+        [APP_ATTRIBUTES.jobAttempt]: claimed.attemptCount,
+      },
+      () => this.execute(claimed),
+    );
   }
 
   private async execute(claimed: ClaimedRun): Promise<void> {
@@ -211,11 +248,14 @@ export class SemanticRunWorkerService implements OnModuleInit, OnModuleDestroy, 
     if (Date.now() - this.lastRecoveryAt < intervalMs) return;
     this.lastRecoveryAt = Date.now();
 
+    const maxAttempts = this.config.get<number>('SEMANTIC_ANALYSIS_MAX_ATTEMPTS') ?? 3;
+    const leaseVencido = {
+      status: WorkerRunStatus.RUNNING,
+      OR: [{ leaseExpiresAt: null }, { leaseExpiresAt: { lt: new Date() } }],
+    };
+
     const recovered = await this.prisma.semanticAnalysisRun.updateMany({
-      where: {
-        status: WorkerRunStatus.RUNNING,
-        OR: [{ leaseExpiresAt: null }, { leaseExpiresAt: { lt: new Date() } }],
-      },
+      where: { ...leaseVencido, attemptCount: { lt: maxAttempts } },
       data: {
         status: WorkerRunStatus.QUEUED,
         startedAt: null,
@@ -225,6 +265,36 @@ export class SemanticRunWorkerService implements OnModuleInit, OnModuleDestroy, 
     });
     if (recovered.count > 0) {
       this.logger.warn(`Recuperados ${recovered.count} análisis con lease vencido`);
+    }
+
+    /*
+     * Lo que ya agotó sus intentos se CIERRA, no vuelve a la cola.
+     *
+     * `claimNextRun` filtra por `attempt_count < maxAttempts`, así que devolver
+     * a QUEUED una ejecución agotada la deja ahí para siempre: nadie la reclama
+     * y nadie la cierra. En pantalla se lee «En cola», que es una promesa —
+     * alguien la está esperando— sobre un trabajo que no va a ocurrir jamás.
+     *
+     * Se barre también lo que YA está en QUEUED con los intentos agotados, y no
+     * sólo lo que acaba de perder el lease: esas filas son el residuo de las
+     * recuperaciones anteriores y nada más las tocaría. Reclamarlas es imposible
+     * por ese mismo filtro, así que cerrarlas no compite con ningún worker.
+     */
+    const agotadas = await this.prisma.semanticAnalysisRun.updateMany({
+      where: {
+        attemptCount: { gte: maxAttempts },
+        OR: [leaseVencido, { status: WorkerRunStatus.QUEUED }],
+      },
+      data: {
+        status: WorkerRunStatus.FAILED,
+        errorCode: 'SEMANTIC_RETRIES_EXHAUSTED',
+        errorMessage: 'El análisis se interrumpió y ya no quedaban reintentos.',
+        finishedAt: new Date(),
+        leaseExpiresAt: null,
+      },
+    });
+    if (agotadas.count > 0) {
+      this.logger.warn(`Cerrados ${agotadas.count} análisis sin reintentos disponibles`);
     }
   }
 
@@ -271,11 +341,13 @@ interface ClaimedRow {
   input_metadata: unknown;
   requested_by: string;
   attempt_count: number;
+  trace_carrier: unknown;
 }
 
 interface ClaimedRun {
   readonly id: bigint;
   readonly attemptCount: number;
+  readonly traceCarrier: unknown;
   readonly request: SemanticAnalysisRequest;
 }
 

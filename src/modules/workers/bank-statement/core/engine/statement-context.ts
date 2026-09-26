@@ -1,5 +1,13 @@
 import { createHash } from 'node:crypto';
 import type { ExtractedPdf, PageLine } from '../domain/models';
+import type {
+  InstitutionKind,
+  InstitutionLicenseStatus,
+} from '../institutions/bolivia-institutions';
+import type { NonBankingIssuerKind } from '../institutions/non-banking-issuers';
+import type { InstitutionSignalDescriptor } from './similarity/institution-signals';
+import type { DocumentVerdict } from './document-triage';
+import type { DocumentRouting } from './document-routes';
 
 /**
  * Cómo se obtuvo el texto del documento.
@@ -31,6 +39,23 @@ export interface DocumentClassification {
   readonly isFinancialStatement: boolean;
   readonly confidence: number;
   readonly detectedSignals: readonly string[];
+  /**
+   * Qué hacer con el documento: procesarlo, preguntarle a una persona o
+   * rechazarlo. Se publica junto a `isFinancialStatement` —que sigue siendo
+   * `verdict === 'ACCEPT'`— porque «no es procesable» y «no es un extracto» son
+   * dos afirmaciones distintas y confundirlas fue lo que llenó la cola de
+   * revisión de documentos que nadie tenía que mirar.
+   */
+  readonly verdict: DocumentVerdict;
+  /**
+   * Qué clase de evidencia es este documento, cuando se pudo nombrar.
+   *
+   * No es un veredicto de fraude: un comprobante de transferencia, un
+   * certificado de saldo y una boleta de pago son documentos legítimos que no
+   * responden la pregunta que este worker hace. La ruta dice cuál es la que sí
+   * la responde, que es lo único accionable para quien subió el archivo.
+   */
+  readonly routing?: DocumentRouting;
 }
 
 export interface InstitutionDetection {
@@ -40,6 +65,46 @@ export interface InstitutionDetection {
   readonly detected: boolean;
   readonly confidence: number;
   readonly signals: readonly string[];
+  readonly kind?: InstitutionKind;
+  /**
+   * Situación de la licencia de la entidad atribuida. Presente sólo cuando
+   * `detected`, y es lo que separa «el banco que emitió esto ya no existe» —un
+   * caso para una persona— de «este documento no es de un banco».
+   */
+  readonly licenseStatus?: InstitutionLicenseStatus;
+  /** Si la entidad capta depósitos del público. Ver `BoliviaInstitution`. */
+  readonly retailDeposits?: boolean;
+  /**
+   * Si la atribución se hizo contra el padrón VIGENTE o contra la semilla de
+   * respaldo tras un fallo de carga. Ver `InstitutionRegistry.isAuthoritative`.
+   *
+   * Viaja con la detección y no aparte porque es una propiedad de ESTA lectura:
+   * el mismo documento, resuelto un minuto después con la base ya en pie, es
+   * una afirmación distinta.
+   */
+  readonly registryAuthoritative?: boolean;
+  /** Por qué la licencia no está vigente, cuando no lo está. */
+  readonly licenseNote?: string;
+  /**
+   * El descriptor de señales de la entidad atribuida, si el padrón lo tiene.
+   *
+   * Viaja con la detección y no se busca aparte porque la atribución y su
+   * descriptor son la misma lectura del padrón: resolverlos en dos momentos
+   * abriría la posibilidad de medir el parecido contra una entidad distinta de la
+   * que se atribuyó.
+   */
+  readonly signalDescriptor?: InstitutionSignalDescriptor;
+  /**
+   * Quién emitió el documento, cuando NO es una entidad del padrón y sí se
+   * reconoce como otra cosa: una telefónica, una aseguradora, un banco
+   * extranjero. Es la evidencia que convierte «no lo pude atribuir» en «sé de
+   * quién es, y no es de una entidad financiera boliviana».
+   */
+  readonly nonBankingIssuer?: {
+    readonly code: string;
+    readonly name: string;
+    readonly kind: NonBankingIssuerKind;
+  };
 }
 
 /**

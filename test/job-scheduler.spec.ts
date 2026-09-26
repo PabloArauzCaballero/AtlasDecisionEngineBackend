@@ -1,8 +1,10 @@
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { BackgroundJob } from '../src/common/jobs/background-job';
 import { JobSchedulerService } from '../src/common/jobs/job-scheduler.service';
 import type { JobSignalService } from '../src/common/jobs/job-signal.service';
 import type { MetricsService } from '../src/common/observability/metrics.service';
+import { TracingService } from '../src/common/observability/tracing.service';
 
 /**
  * Tiempos reales, no simulados: el orquestador se apoya en `setTimeout`/`unref` y en el
@@ -62,6 +64,7 @@ describe('JobSchedulerService', () => {
       new ConfigService({ JOB_BACKOFF_FACTOR: 2 }),
       fakeSignal(),
       fakeMetrics(),
+      new TracingService(),
     );
     scheduler.onModuleInit();
     scheduler.register(
@@ -86,6 +89,7 @@ describe('JobSchedulerService', () => {
       new ConfigService({ WORKER_ROLE: 'API' }),
       fakeSignal(),
       fakeMetrics(),
+      new TracingService(),
     );
     scheduler.onModuleInit();
     scheduler.register(job({ runOnce: async () => (calls += 1) }));
@@ -98,7 +102,12 @@ describe('JobSchedulerService', () => {
   });
 
   it('rejects a second job registered under the same name', () => {
-    const scheduler = new JobSchedulerService(new ConfigService({}), fakeSignal(), fakeMetrics());
+    const scheduler = new JobSchedulerService(
+      new ConfigService({}),
+      fakeSignal(),
+      fakeMetrics(),
+      new TracingService(),
+    );
     scheduler.register(job({ runOnce: async () => 0 }));
     expect(() => scheduler.register(job({ runOnce: async () => 0 }))).toThrow(/test-job/);
   });
@@ -109,6 +118,7 @@ describe('JobSchedulerService', () => {
       new ConfigService({ JOB_BACKOFF_FACTOR: 2 }),
       fakeSignal(),
       metrics,
+      new TracingService(),
     );
     scheduler.onModuleInit();
     scheduler.register(
@@ -134,6 +144,7 @@ describe('JobSchedulerService', () => {
       new ConfigService({ JOB_ERROR_INTERVAL_MS: 5, JOB_MAX_ERROR_INTERVAL_MS: 50 }),
       fakeSignal(),
       fakeMetrics(),
+      new TracingService(),
     );
     scheduler.onModuleInit();
     scheduler.register(
@@ -167,6 +178,7 @@ describe('JobSchedulerService', () => {
       new ConfigService({ JOB_MIN_IDLE_INTERVAL_MS: 200, JOB_MAX_IDLE_INTERVAL_MS: 500 }),
       signal,
       fakeMetrics(),
+      new TracingService(),
     );
     scheduler.onModuleInit();
     scheduler.register(
@@ -195,7 +207,12 @@ describe('JobSchedulerService', () => {
   it('waits for an in-flight batch before onModuleDestroy resolves', async () => {
     let resolveRun: (() => void) | undefined;
     let finished = false;
-    const scheduler = new JobSchedulerService(new ConfigService({}), fakeSignal(), fakeMetrics());
+    const scheduler = new JobSchedulerService(
+      new ConfigService({}),
+      fakeSignal(),
+      fakeMetrics(),
+      new TracingService(),
+    );
     scheduler.onModuleInit();
     scheduler.register(
       job({
@@ -218,8 +235,56 @@ describe('JobSchedulerService', () => {
     expect(finished).toBe(true);
   });
 
+  /**
+   * La cota del drenaje es lo que separa «apagado ordenado» de «SIGKILL del orquestador».
+   * Un lote que no termina —una extracción que superó su timeout sin poder cancelarse— no
+   * puede retener el proceso: se abandona, se deja constancia de cuál era, y el lease hace
+   * que otra réplica lo retome.
+   */
+  it('abandons an in-flight batch that outlives the drain deadline instead of hanging', async () => {
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    let started = false;
+    const scheduler = new JobSchedulerService(
+      // 50 ms de gracia => 40 ms de plazo de drenaje (DRAIN_SHARE = 0.8).
+      new ConfigService({ SHUTDOWN_GRACE_MS: 50 }),
+      fakeSignal(),
+      fakeMetrics(),
+      new TracingService(),
+    );
+    scheduler.onModuleInit();
+    scheduler.register(
+      job({
+        name: 'never-ending-job',
+        // Nunca resuelve: es justo el caso que antes colgaba el apagado para siempre.
+        runOnce: () =>
+          new Promise<number>(() => {
+            started = true;
+          }),
+      }),
+    );
+    scheduler.onApplicationBootstrap();
+    await waitFor(() => started);
+
+    const startedAt = Date.now();
+    await scheduler.onModuleDestroy();
+    const elapsed = Date.now() - startedAt;
+
+    // Resuelve por el plazo, no por el lote: sin la cota esta espera no terminaría nunca.
+    // La cota inferior es la que impide que la prueba pase por vacío —si el lote no hubiera
+    // estado en vuelo, el drenaje habría vuelto de inmediato sin llegar a esperar el plazo.
+    expect(elapsed).toBeGreaterThanOrEqual(30);
+    expect(elapsed).toBeLessThan(2_000);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('never-ending-job'));
+    warn.mockRestore();
+  });
+
   it('runNow executes a registered job outside its normal schedule', async () => {
-    const scheduler = new JobSchedulerService(new ConfigService({}), fakeSignal(), fakeMetrics());
+    const scheduler = new JobSchedulerService(
+      new ConfigService({}),
+      fakeSignal(),
+      fakeMetrics(),
+      new TracingService(),
+    );
     scheduler.register(job({ runOnce: async () => 7 }));
 
     await expect(scheduler.runNow('test-job')).resolves.toBe(7);

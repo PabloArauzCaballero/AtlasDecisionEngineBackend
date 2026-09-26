@@ -3,6 +3,7 @@ import type { BackgroundJob } from '../src/common/jobs/background-job';
 import { JobSchedulerService } from '../src/common/jobs/job-scheduler.service';
 import type { JobSignalService } from '../src/common/jobs/job-signal.service';
 import type { MetricsService } from '../src/common/observability/metrics.service';
+import { TracingService } from '../src/common/observability/tracing.service';
 
 /**
  * `JobSchedulerService` promete explícitamente una cosa sobre concurrencia: «dentro de un
@@ -68,6 +69,7 @@ describe('JobSchedulerService: exclusión mutua dentro del proceso', () => {
       }),
       fakeSignal(),
       fakeMetrics(),
+      new TracingService(),
     );
     return scheduler;
   }

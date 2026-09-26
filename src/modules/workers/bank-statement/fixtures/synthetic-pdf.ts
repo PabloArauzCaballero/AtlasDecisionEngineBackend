@@ -66,12 +66,28 @@ function toLatin(value: string): string {
 }
 
 /**
+ * Metadatos del contenedor, para los escenarios que los necesitan.
+ *
+ * Existe por la compuerta de autenticidad: sin poder escribir un `/Producer`, no
+ * hay forma de construir un escenario que demuestre que un extracto compuesto en
+ * un editor se rechaza — y un control que no tiene escenario es un control que
+ * nadie sabe si sigue funcionando.
+ */
+export interface PdfMetadata {
+  readonly producer?: string;
+  readonly creator?: string;
+  /** `AAAAMMDDHHMMSS`. */
+  readonly creationDate?: string;
+  readonly modificationDate?: string;
+}
+
+/**
  * Construye un PDF de una página con las celdas indicadas.
  *
  * Las coordenadas son las del PDF: el origen está abajo a la izquierda, así que
  * una `y` mayor está más arriba en la página.
  */
-export function buildSyntheticPdf(cells: readonly PdfCell[]): Buffer {
+export function buildSyntheticPdf(cells: readonly PdfCell[], metadata: PdfMetadata = {}): Buffer {
   const content =
     'BT\n/F1 ' +
     FONT_SIZE +
@@ -90,6 +106,9 @@ export function buildSyntheticPdf(cells: readonly PdfCell[]): Buffer {
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>',
   ];
 
+  const info = infoDictionary(metadata);
+  if (info) objects.push(info);
+
   // La tabla de referencias cruzadas guarda el desplazamiento EXACTO en bytes de
   // cada objeto. Por eso el archivo se arma midiendo mientras se escribe, en vez
   // de concatenar y calcular después: un desplazamiento equivocado produce un
@@ -107,10 +126,21 @@ export function buildSyntheticPdf(cells: readonly PdfCell[]): Buffer {
     pdf += `${offset.toString().padStart(10, '0')} 00000 n \n`;
   }
   pdf +=
-    `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\n` +
-    `startxref\n${xrefOffset}\n%%EOF\n`;
+    `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R` +
+    (info ? ` /Info ${objects.length} 0 R` : '') +
+    ` >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
 
   return Buffer.from(pdf, 'latin1');
+}
+
+/** El diccionario `/Info`, o nada si el escenario no declara metadatos. */
+function infoDictionary(metadata: PdfMetadata): string | null {
+  const entries: string[] = [];
+  if (metadata.producer) entries.push(`/Producer (${escapePdfText(toLatin(metadata.producer))})`);
+  if (metadata.creator) entries.push(`/Creator (${escapePdfText(toLatin(metadata.creator))})`);
+  if (metadata.creationDate) entries.push(`/CreationDate (D:${metadata.creationDate})`);
+  if (metadata.modificationDate) entries.push(`/ModDate (D:${metadata.modificationDate})`);
+  return entries.length > 0 ? `<< ${entries.join(' ')} >>` : null;
 }
 
 /** Altura de línea usada por los escenarios, en puntos. */

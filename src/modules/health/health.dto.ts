@@ -31,3 +31,34 @@ export class ReadinessResponseDto {
   checks!: Record<string, string>;
   @ApiProperty({ format: 'date-time' }) timestamp!: string;
 }
+
+/**
+ * Estado de las fuentes de datos registradas y de las reglas que las enrutan.
+ *
+ * Publica el nombre lógico, el motor, el rol y el veredicto. Nunca host, usuario, base ni
+ * cadena de conexión: es un endpoint público y una sonda que dibuja la topología interna
+ * es reconocimiento gratis para quien la consulta.
+ */
+export class DataSourcesResponseDto {
+  @ApiProperty({ example: 'up', enum: ['up', 'degraded'] }) status!: string;
+  @ApiProperty({
+    description: 'Veredicto por conexión lógica.',
+    example: {
+      'postgres-write': { status: 'up', role: 'write', engine: 'postgresql', latencyMs: 2 },
+      'postgres-read': { status: 'up', role: 'read', engine: 'postgresql', latencyMs: 1 },
+      'redis-cache': { status: 'up', role: 'read-write', engine: 'redis', detail: 'redis' },
+    },
+    additionalProperties: true,
+  })
+  connections!: Record<string, unknown>;
+  @ApiProperty({
+    description: 'Reglas efectivas: qué conexión sirve la lectura y la escritura de cada módulo.',
+    example: {
+      default: { read: 'postgres-read', write: 'postgres-write', consistency: 'strong' },
+      'audit-query': { read: 'postgres-read', write: 'postgres-write', consistency: 'eventual' },
+    },
+    additionalProperties: true,
+  })
+  routing!: Record<string, unknown>;
+  @ApiProperty({ format: 'date-time' }) timestamp!: string;
+}

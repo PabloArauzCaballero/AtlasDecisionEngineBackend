@@ -172,8 +172,7 @@ export class BankStatementController {
    * tipos posibles porque el formato lo elige `?format=`.
    */
   @ApiOkResponse({
-    description:
-      'Archivo del resultado, ya enmascarado. El nombre viaja en `Content-Disposition`.',
+    description: 'Archivo del resultado, ya enmascarado. El nombre viaja en `Content-Disposition`.',
     content: {
       'text/csv': { schema: { type: 'string', format: 'binary' } },
       'application/json': { schema: { type: 'string', format: 'binary' } },

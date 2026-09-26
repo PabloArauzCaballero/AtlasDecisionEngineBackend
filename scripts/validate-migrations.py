@@ -59,7 +59,13 @@ rls_enabled = _static(r'ALTER TABLE\s+"([^"]+)"\s+ENABLE ROW LEVEL SECURITY') | 
 rls_forced = _static(r'ALTER TABLE\s+"([^"]+)"\s+FORCE ROW LEVEL SECURITY') | _dynamic(
     r"ALTER TABLE %I FORCE ROW LEVEL SECURITY"
 )
-tenant_policies = _static(r'CREATE POLICY\s+tenant_isolation\s+ON\s+"([^"]+)"') | _dynamic(
+# El nombre de la política se acepta con comillas y sin ellas. En SQL son el mismo objeto
+# —`tenant_isolation` va en minúsculas y no necesita comillas—, pero leyendo sólo la forma
+# desnuda este gate declaraba desprotegida `decision_unresolved_classification`, que llevaba
+# sus tres sentencias desde el día que se creó. Es el mismo error que el bloque de arriba
+# documenta haber cometido con las tablas del DO-block: un control que acusa en falso se
+# desactiva a mano la segunda vez, y entonces ya no protege de nada.
+tenant_policies = _static(r'CREATE POLICY\s+"?tenant_isolation"?\s+ON\s+"([^"]+)"') | _dynamic(
     r"CREATE POLICY tenant_isolation ON %I.*?"
 )
 for label, protected in [
@@ -84,7 +90,20 @@ long_names = sorted(
 )
 if long_names:
     raise SystemExit(f"PostgreSQL identifiers exceed 63 bytes: {long_names}")
-duplicates = sorted(name for name, count in Counter(created_names).items() if count > 1)
+# Un índice que se BORRA y se vuelve a crear con el mismo nombre no es un duplicado: es el mismo
+# objeto rehecho, que es la forma correcta de cambiarle la definición (PostgreSQL no tiene ALTER
+# INDEX para eso). Contando sólo las creaciones, este gate acusaba de duplicado a un `DROP INDEX`
+# + `CREATE INDEX` legítimo — y la única salida que deja es renombrar el índice, es decir,
+# empeorar el esquema para contentar al validador.
+#
+# Se descuenta una creación por cada borrado previo del mismo nombre. Dos creaciones sin borrado
+# entre medias siguen siendo el error que este control busca.
+dropped_names = Counter(re.findall(r'DROP INDEX\s+(?:IF EXISTS\s+)?"([^"]+)"', sql))
+duplicates = sorted(
+    name
+    for name, count in Counter(created_names).items()
+    if count - dropped_names.get(name, 0) > 1
+)
 if duplicates:
     raise SystemExit(f"Duplicate SQL object names: {duplicates}")
 

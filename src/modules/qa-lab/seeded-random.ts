@@ -7,7 +7,13 @@
  * puede cambiar entre versiones menores, lo que rompería la reproducibilidad de una
  * corrida archivada. Aquí el algoritmo está congelado en el repositorio y versionado.
  */
-export const GENERATOR_VERSION = 'atlas-qa-generator-1.1.0';
+/**
+ * 1.2.0: la generación pasa a respetar `pattern`, `format`, `precision`, `itemType` y los
+ * límites de longitud, y los bordes se criban contra el contrato. Para la misma semilla,
+ * un contrato que declare esas restricciones ya no produce los mismos valores que en
+ * 1.1.0, así que la versión sube: una corrida archivada dice con qué versión se generó.
+ */
+export const GENERATOR_VERSION = 'atlas-qa-generator-1.2.0';
 
 /**
  * Formas de distribución admitidas al generar un valor dentro de su rango (§10.4).

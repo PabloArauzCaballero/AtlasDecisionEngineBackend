@@ -16,7 +16,7 @@ Etiquetas de API: **Manual Review**.
 | --- | --- | --- | --- |
 | `GET` | `/v1/manual-reviews` | `manualReviewList` | List manual-review cases visible to the tenant |
 | `GET` | `/v1/manual-reviews/{caseId}` | `manualReviewGet` | Get one manual-review case and decision context |
-| `POST` | `/v1/manual-reviews/{caseId}/assign` | `manualReviewAssign` | Assign an open case to an analyst |
+| `POST` | `/v1/manual-reviews/{caseId}/assign` | `manualReviewAssign` | Take an open case, or assign it to another analyst |
 | `POST` | `/v1/manual-reviews/{caseId}/resolve` | `manualReviewResolve` | Resolve a case as its assigned analyst |
 
 ## Autorización
@@ -26,6 +26,7 @@ Roles exigidos por sus rutas: `FRAUD_ANALYST`, `OPERATIONS`, `RISK_ANALYST`. La 
 ## Códigos de error propios
 
 - `MANUAL_REVIEW_ASSIGNEE_MISMATCH`
+- `MANUAL_REVIEW_ASSIGN_FORBIDDEN`
 - `MANUAL_REVIEW_CLOSED`
 - `MANUAL_REVIEW_NOT_ASSIGNED`
 - `MANUAL_REVIEW_NOT_FOUND`

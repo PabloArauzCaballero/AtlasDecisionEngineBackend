@@ -1,0 +1,18 @@
+# Aprovisionamiento declarativo del origen de datos. Va en fichero y no configurado a mano en
+# la interfaz para que recrear el contenedor de Grafana no cueste volver a apuntarlo a nada:
+# `docker compose down -v` y el panel vuelve conectado.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    # Nombre de servicio, nunca `localhost`: dentro de un contenedor, `localhost` es el propio
+    # contenedor de Grafana.
+    url: http://prometheus:9090
+    isDefault: true
+    jsonData:
+      # Debe coincidir con el `scrape_interval` de prometheus.yml, o los paneles calculan
+      # `rate()` sobre ventanas que no contienen dos muestras y pintan huecos.
+      timeInterval: 15s
+    editable: false

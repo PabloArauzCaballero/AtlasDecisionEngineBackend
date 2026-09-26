@@ -20,6 +20,34 @@ node scripts/set-app-db-role.mjs
 La contraseña del rol de aplicación **no vive en ninguna migración**: se aplica desde la
 variable de entorno, para que no entre en el historial de git.
 
+## Separar además lectura de escritura (opcional)
+
+`atlas_app` puede escribir en todo, así que una consulta de un panel llega a la base con el
+mismo privilegio que una escritura de decisión. Para separarlas hacen falta dos roles más,
+que se aprovisionan de forma idempotente:
+
+```bash
+# Requiere POSTGRES_WRITER_PASSWORD y POSTGRES_READER_PASSWORD en .env
+yarn db:provision:dev
+```
+
+Es reejecutable: no duplica roles, reafirma los atributos (deshace un `SUPERUSER` concedido
+a mano) y **verifica el resultado preguntando al motor**, no dando por hecho que el `GRANT`
+surtió efecto. Se niega a correr con `NODE_ENV=production`.
+
+Después basta con declarar la conexión de lectura y encender el interruptor:
+
+```env
+DATABASE_READ_URL=postgresql://atlas_reader:<secreto>@localhost:5432/atlas_decision?schema=public
+DATA_READ_ROUTING_ENABLED=true
+```
+
+Con ambas vacías el comportamiento es el de siempre: una sola conexión y un solo pool. El
+manual completo, con los seis escenarios soportados, está en
+[enrutamiento de lectura y escritura](../data/persistence/read-write-routing.md); los
+privilegios exactos de cada rol, en
+[roles y privilegios PostgreSQL](../data/persistence/postgres-roles.md).
+
 ## Migraciones
 
 ```bash

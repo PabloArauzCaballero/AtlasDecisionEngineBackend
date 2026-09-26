@@ -1,0 +1,2967 @@
+{
+  "manifest": {
+    "name": "Corpus de investigación pública de identidad de Bolivia — segunda tanda",
+    "version": "2.0.0",
+    "language": "es-BO",
+    "evidence_cutoff_requested": "2026-09-11",
+    "retrieved_utc_date": "2026-09-11",
+    "timezone": "America/La_Paz",
+    "status": "PARTIAL_PUBLIC_EVIDENCE_WITH_EXPLICIT_GAPS",
+    "contains_calibrated_credit_policy": false,
+    "not_a_production_calibration": true,
+    "prohibited_claims": [
+      "ratio ASFI vigente certificado",
+      "pesos de fraude calibrados",
+      "umbral de capacidad validado con mora",
+      "calibración de producción",
+      "67 plantillas bancarias verificadas",
+      "benchmark de la población del usuario ejecutado",
+      "ingesta v2 comprobada en el repositorio",
+      "ausencia global de un recurso por no encontrarlo"
+    ],
+    "null_semantics": "NO_VERIFICADO. No convertir null en cero, false, ausencia, vigencia indefinida ni intervalo temporal sin fin.",
+    "empty_array_semantics": "Conjunto de elementos verificados recuperados vacío; no prueba inexistencia en el mundo ni en documentos no vistos.",
+    "classification_semantics": "VERIFICADO identifica una afirmación observada en el alcance de su fuente; no certifica todos los campos del registro, consolidación normativa ni calibración. field_evidence y unresolved_fields prevalecen para cada campo.",
+    "serialization": {
+      "encoding": "UTF-8",
+      "singleton_collections": "Un registro en modules.E0n.records.",
+      "multiple_collections": "Un arreglo records por módulo; cada registro incluye collection con el nombre exacto de la colección solicitada.",
+      "extensions": "Metadatos aditivos: field_evidence, unresolved_fields, issuer_coverage, research_notes y proposed_regression_tests. No son nuevas mediciones."
+    },
+    "request_sha256": "f286082491a669f2179e854c8e0f5e48c2490dd0cf00277ef3da8712930ead2e",
+    "scope": "Investigación y estructuración de evidencia pública. El HTML previo es contexto, no una orden de implementar su beta. No se modificó el repositorio.",
+    "privacy": {
+      "contains_personal_document_images": false,
+      "contains_personal_records": false,
+      "embeds_third_party_media": false
+    },
+    "license_notice": "Atribución por fuente; no se otorga licencia MIT a contenido de terceros ni se incorporan medios restringidos.",
+    "source_date_semantics": "publicado es null cuando no se verificó la fecha de publicación de esa fuente; norm_fecha distingue fecha de la norma. Fecha de consulta no equivale a vigencia jurídica.",
+    "integration": {
+      "repository": "PabloArauzCaballero/AtlasDecisionEngineBackend",
+      "branch_observed": "dev",
+      "status": "REQUIRES_V2_IMPORT_ADAPTER_AND_REPOSITORY_TESTS",
+      "generator_executed": false,
+      "corpus_check_executed": false,
+      "population_benchmark_executed": false,
+      "observed_generator_blob_sha1": "9e667918e42ca8007aecae64ecfdc8d08ffe9cd4",
+      "reason": "El generador leído abre los archivos sin -v2 y consume módulos v1. Añadir estos archivos a corpus/ no demuestra su ingesta.",
+      "required_action": "Adaptar explícitamente el generador a los módulos E01–E09, conservar v1 y las nulidades, incorporar ambos hashes y ejecutar generación, comprobación y regresiones. No sustituir v1 renombrando estos archivos.",
+      "classification": "VERIFICADO",
+      "sources": [
+        {
+          "id": "GENERADOR",
+          "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/scripts/corpus/generar-catalogos.ts",
+          "titulo": "Generador de catálogos de Atlas, rama dev",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "CODIGO_DEL_REPOSITORIO",
+          "access_scope": "LECTURA_GITHUB; NO_EJECUTADO",
+          "limitacion": "Se observaron nombres v1 y acceso a módulos v1. La lectura no demuestra soporte para E01–E09 ni para los nombres -v2.",
+          "content_git_blob_sha1": "9e667918e42ca8007aecae64ecfdc8d08ffe9cd4"
+        },
+        {
+          "id": "ENCARGO",
+          "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/corpus/pedido-investigacion-v2.json",
+          "titulo": "Pedido de investigación v2 aportado por el usuario",
+          "publicado": "2026-09-11",
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "APORTADO_POR_USUARIO",
+          "access_scope": "ARCHIVO_ADJUNTO_LEIDO; COPIA_DEL_REPOSITORIO_LOCALIZADA",
+          "limitacion": "Sus mediciones internas se conservan como declaraciones del encargo, no como mediciones repetidas en esta entrega.",
+          "content_git_blob_sha1": "823e70df7e3d8bb0555970cf597e47a8a8391fca"
+        }
+      ]
+    },
+    "schema_exceptions": [],
+    "proposed_regression_tests": [
+      {
+        "id": "ID-T01",
+        "case": "Documento elegible para vigencia indefinida con fecha OCR finita",
+        "expected": "No rechazo incondicional; revisión de la excepción.",
+        "classification": "INFERIDO",
+        "sources": [
+          {
+            "id": "ENCARGO",
+            "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/corpus/pedido-investigacion-v2.json",
+            "titulo": "Pedido de investigación v2 aportado por el usuario",
+            "publicado": "2026-09-11",
+            "consultado": "2026-09-11",
+            "cita_literal": null,
+            "source_kind": "APORTADO_POR_USUARIO",
+            "access_scope": "ARCHIVO_ADJUNTO_LEIDO; COPIA_DEL_REPOSITORIO_LOCALIZADA",
+            "limitacion": "Sus mediciones internas se conservan como declaraciones del encargo, no como mediciones repetidas en esta entrega.",
+            "content_git_blob_sha1": "823e70df7e3d8bb0555970cf597e47a8a8391fca"
+          }
+        ],
+        "execution_status": "NO_EJECUTADO"
+      },
+      {
+        "id": "ID-T02",
+        "case": "Fecha 2049-12-31 sin evidencia SEGIP de centinela",
+        "expected": "No traducir automáticamente a no caduca.",
+        "classification": "INFERIDO",
+        "sources": [
+          {
+            "id": "ENCARGO",
+            "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/corpus/pedido-investigacion-v2.json",
+            "titulo": "Pedido de investigación v2 aportado por el usuario",
+            "publicado": "2026-09-11",
+            "consultado": "2026-09-11",
+            "cita_literal": null,
+            "source_kind": "APORTADO_POR_USUARIO",
+            "access_scope": "ARCHIVO_ADJUNTO_LEIDO; COPIA_DEL_REPOSITORIO_LOCALIZADA",
+            "limitacion": "Sus mediciones internas se conservan como declaraciones del encargo, no como mediciones repetidas en esta entrega.",
+            "content_git_blob_sha1": "823e70df7e3d8bb0555970cf597e47a8a8391fca"
+          }
+        ],
+        "execution_status": "NO_EJECUTADO"
+      },
+      {
+        "id": "ID-T03",
+        "case": "Cédula sin QR legible",
+        "expected": "No concluir falsedad ni rechazar sólo por QR.",
+        "classification": "INFERIDO",
+        "sources": [
+          {
+            "id": "ENCARGO",
+            "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/corpus/pedido-investigacion-v2.json",
+            "titulo": "Pedido de investigación v2 aportado por el usuario",
+            "publicado": "2026-09-11",
+            "consultado": "2026-09-11",
+            "cita_literal": null,
+            "source_kind": "APORTADO_POR_USUARIO",
+            "access_scope": "ARCHIVO_ADJUNTO_LEIDO; COPIA_DEL_REPOSITORIO_LOCALIZADA",
+            "limitacion": "Sus mediciones internas se conservan como declaraciones del encargo, no como mediciones repetidas en esta entrega.",
+            "content_git_blob_sha1": "823e70df7e3d8bb0555970cf597e47a8a8391fca"
+          }
+        ],
+        "execution_status": "NO_EJECUTADO"
+      },
+      {
+        "id": "ID-T04",
+        "case": "Cédula adulta sin PADRE/MADRE/TUTOR",
+        "expected": "No penalizar por rótulos condicionales de menores.",
+        "classification": "INFERIDO",
+        "sources": [
+          {
+            "id": "ENCARGO",
+            "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/corpus/pedido-investigacion-v2.json",
+            "titulo": "Pedido de investigación v2 aportado por el usuario",
+            "publicado": "2026-09-11",
+            "consultado": "2026-09-11",
+            "cita_literal": null,
+            "source_kind": "APORTADO_POR_USUARIO",
+            "access_scope": "ARCHIVO_ADJUNTO_LEIDO; COPIA_DEL_REPOSITORIO_LOCALIZADA",
+            "limitacion": "Sus mediciones internas se conservan como declaraciones del encargo, no como mediciones repetidas en esta entrega.",
+            "content_git_blob_sha1": "823e70df7e3d8bb0555970cf597e47a8a8391fca"
+          }
+        ],
+        "execution_status": "NO_EJECUTADO"
+      },
+      {
+        "id": "ID-T05",
+        "case": "Lugar OCR termina en SANTA y contiene basura",
+        "expected": "Conservar original, marcar truncamiento y proponer candidatos; no completar una localidad como hecho.",
+        "classification": "INFERIDO",
+        "sources": [
+          {
+            "id": "ENCARGO",
+            "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/corpus/pedido-investigacion-v2.json",
+            "titulo": "Pedido de investigación v2 aportado por el usuario",
+            "publicado": "2026-09-11",
+            "consultado": "2026-09-11",
+            "cita_literal": null,
+            "source_kind": "APORTADO_POR_USUARIO",
+            "access_scope": "ARCHIVO_ADJUNTO_LEIDO; COPIA_DEL_REPOSITORIO_LOCALIZADA",
+            "limitacion": "Sus mediciones internas se conservan como declaraciones del encargo, no como mediciones repetidas en esta entrega.",
+            "content_git_blob_sha1": "823e70df7e3d8bb0555970cf597e47a8a8391fca"
+          }
+        ],
+        "execution_status": "NO_EJECUTADO"
+      },
+      {
+        "id": "ID-T06",
+        "case": "Licencia con cobertura parcial del catálogo de cédula",
+        "expected": "No identificarla como cédula por cobertura sola.",
+        "classification": "INFERIDO",
+        "sources": [
+          {
+            "id": "ENCARGO",
+            "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/corpus/pedido-investigacion-v2.json",
+            "titulo": "Pedido de investigación v2 aportado por el usuario",
+            "publicado": "2026-09-11",
+            "consultado": "2026-09-11",
+            "cita_literal": null,
+            "source_kind": "APORTADO_POR_USUARIO",
+            "access_scope": "ARCHIVO_ADJUNTO_LEIDO; COPIA_DEL_REPOSITORIO_LOCALIZADA",
+            "limitacion": "Sus mediciones internas se conservan como declaraciones del encargo, no como mediciones repetidas en esta entrega.",
+            "content_git_blob_sha1": "823e70df7e3d8bb0555970cf597e47a8a8391fca"
+          }
+        ],
+        "execution_status": "NO_EJECUTADO"
+      },
+      {
+        "id": "ID-T07",
+        "case": "No hay población OCR para calcular delta_accuracy",
+        "expected": "Mantener null y no activar correcciones automáticas.",
+        "classification": "INFERIDO",
+        "sources": [
+          {
+            "id": "ENCARGO",
+            "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/corpus/pedido-investigacion-v2.json",
+            "titulo": "Pedido de investigación v2 aportado por el usuario",
+            "publicado": "2026-09-11",
+            "consultado": "2026-09-11",
+            "cita_literal": null,
+            "source_kind": "APORTADO_POR_USUARIO",
+            "access_scope": "ARCHIVO_ADJUNTO_LEIDO; COPIA_DEL_REPOSITORIO_LOCALIZADA",
+            "limitacion": "Sus mediciones internas se conservan como declaraciones del encargo, no como mediciones repetidas en esta entrega.",
+            "content_git_blob_sha1": "823e70df7e3d8bb0555970cf597e47a8a8391fca"
+          }
+        ],
+        "execution_status": "NO_EJECUTADO"
+      }
+    ],
+    "record_counts": {
+      "E03": 1,
+      "E04": 1,
+      "E05": 25,
+      "E06": 9,
+      "E09": 3
+    },
+    "counts": {
+      "sources": 13,
+      "gaps": 9,
+      "contradictions": 7,
+      "records_by_classification": {
+        "VERIFICADO": 26,
+        "NO_VERIFICADO": 4,
+        "INFERIDO": 9
+      }
+    },
+    "validation_status": "PASS_LOCAL_DATA_CHECKS",
+    "local_validation": {
+      "status": "PASS_LOCAL_DATA_CHECKS",
+      "checks": [
+        "UTF-8 estricto y JSON sin claves duplicadas ni NaN/Infinity",
+        "Nombres de módulos y campos requeridos por colección",
+        "Vocabularios controlados de los campos de datos",
+        "Referencias a fuentes existentes y coincidencia entre fuentes inline y registro global",
+        "Fechas ISO y orden de intervalos históricos",
+        "Recuentos de registros y unicidad de identificadores",
+        "Ausencia de valores inventados en tasas de detección, productores PDF, centinelas y topes",
+        "Separación de propuestas de pruebas y mediciones ejecutadas"
+      ],
+      "schema_caveat": "Comprobaciones locales del contrato descriptivo y de las excepciones declaradas; no equivalen a validación contra un JSON Schema oficial del consumidor, no suministrado.",
+      "repository_integration": "NO_EJECUTADA",
+      "empirical_calibration": "NO_EJECUTADA"
+    }
+  },
+  "sources": [
+    {
+      "id": "ENCARGO",
+      "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/corpus/pedido-investigacion-v2.json",
+      "titulo": "Pedido de investigación v2 aportado por el usuario",
+      "publicado": "2026-09-11",
+      "consultado": "2026-09-11",
+      "cita_literal": null,
+      "source_kind": "APORTADO_POR_USUARIO",
+      "access_scope": "ARCHIVO_ADJUNTO_LEIDO; COPIA_DEL_REPOSITORIO_LOCALIZADA",
+      "limitacion": "Sus mediciones internas se conservan como declaraciones del encargo, no como mediciones repetidas en esta entrega.",
+      "content_git_blob_sha1": "823e70df7e3d8bb0555970cf597e47a8a8391fca"
+    },
+    {
+      "id": "GENERADOR",
+      "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/scripts/corpus/generar-catalogos.ts",
+      "titulo": "Generador de catálogos de Atlas, rama dev",
+      "publicado": null,
+      "consultado": "2026-09-11",
+      "cita_literal": null,
+      "source_kind": "CODIGO_DEL_REPOSITORIO",
+      "access_scope": "LECTURA_GITHUB; NO_EJECUTADO",
+      "limitacion": "Se observaron nombres v1 y acceso a módulos v1. La lectura no demuestra soporte para E01–E09 ni para los nombres -v2.",
+      "content_git_blob_sha1": "9e667918e42ca8007aecae64ecfdc8d08ffe9cd4"
+    },
+    {
+      "id": "DS4861",
+      "url": "https://www.asfi.gob.bo/sites/default/files/2025-08/Decreto%20Supremo%20N%C2%B0%204861%20de%20fecha%2011%20de%20enero%20de%202023.pdf",
+      "titulo": "Decreto Supremo 4861: copia de Gaceta alojada por ASFI",
+      "publicado": null,
+      "consultado": "2026-09-11",
+      "cita_literal": null,
+      "source_kind": "OFICIAL",
+      "access_scope": "PDF_TEXTO_CONSULTADO; PAGINA_3_VERIFICADA_VISUALMENTE",
+      "norm_fecha": "2023-01-11",
+      "limitacion": "La fecha del directorio de alojamiento no se usa como fecha de publicación ni como reforma de la norma."
+    },
+    {
+      "id": "DS4924",
+      "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+      "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+      "publicado": null,
+      "consultado": "2026-09-11",
+      "cita_literal": null,
+      "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+      "access_scope": "CONTENIDO_CONSULTADO",
+      "norm_fecha": "2023-04-26",
+      "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+    },
+    {
+      "id": "DS5364",
+      "url": "https://www.pixilegal.com/normativa/decreto-5364-2025-04-02",
+      "titulo": "Decreto Supremo 5364: disposiciones adicionales sobre emisión automatizada de cédulas",
+      "publicado": null,
+      "consultado": "2026-09-11",
+      "cita_literal": null,
+      "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+      "access_scope": "CONTENIDO_CONSULTADO",
+      "norm_fecha": "2025-04-02"
+    },
+    {
+      "id": "SEGIP",
+      "url": "https://www.segip.gob.bo/",
+      "titulo": "SEGIP: portal institucional",
+      "publicado": null,
+      "consultado": "2026-09-11",
+      "cita_literal": null,
+      "source_kind": "OFICIAL",
+      "access_scope": "RESULTADO_INDEXADO; APERTURA_DIRECTA_403",
+      "limitacion": "No se recuperaron especificaciones públicas de payload QR, claves o gramática del número desde el portal."
+    },
+    {
+      "id": "SEGIP_APP",
+      "url": "https://play.google.com/store/apps/details?hl=es_BO&id=bo.gob.segip.miidentidad",
+      "titulo": "SEGIP: ficha de Mi Identidad",
+      "publicado": null,
+      "consultado": "2026-09-11",
+      "cita_literal": null,
+      "source_kind": "OFICIAL_DEL_EMISOR_EN_TIENDA",
+      "access_scope": "TEXTO_INDEXADO_CONSULTADO",
+      "limitacion": "La aplicación digital no acredita la codificación del QR impreso ni un algoritmo de firma."
+    },
+    {
+      "id": "INE_GEO",
+      "url": "https://anda.ine.gob.bo/index.php/catalog/82/variable/F15/V3286?name=s3_66deptocod",
+      "titulo": "INE ANDA: catálogo de variable con códigos geográficos",
+      "publicado": null,
+      "consultado": "2026-09-11",
+      "cita_literal": null,
+      "source_kind": "OFICIAL",
+      "access_scope": "TEXTO_INDEXADO_CONSULTADO",
+      "limitacion": "Se observaron cinco combinaciones de Santa Cruz–Andrés Ibañez. Es un catálogo de encuesta, no una especificación de impresión SEGIP ni una certificación territorial vigente."
+    },
+    {
+      "id": "SIN_COMPLEMENTO",
+      "url": "https://siatanexo.impuestos.gob.bo/index.php/archivos-xml-xsd-de-facturas-electronicas/factura-de-seguridad-alimentaria-y-abastecimiento",
+      "titulo": "SIN: campos XML de factura, complemento de documento de identidad",
+      "publicado": null,
+      "consultado": "2026-09-11",
+      "cita_literal": null,
+      "source_kind": "OFICIAL",
+      "access_scope": "TEXTO_INDEXADO_CONSULTADO",
+      "limitacion": "Contrato de facturación; sus tipos no prueban gramática completa de emisión del SEGIP."
+    },
+    {
+      "id": "TESSERACT",
+      "url": "https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html",
+      "titulo": "Tesseract: Improving the quality of the output",
+      "publicado": null,
+      "consultado": "2026-09-11",
+      "cita_literal": null,
+      "source_kind": "DOCUMENTACION_OFICIAL_DEL_PROYECTO",
+      "access_scope": "CONTENIDO_CONSULTADO",
+      "limitacion": "Recomendaciones técnicas sin matriz medida para spa, texto físico de 1–2 mm y población del usuario."
+    },
+    {
+      "id": "PASAPORTE",
+      "url": "https://www.pixilegal.com/normativa/decreto-3762-2018-12-26",
+      "titulo": "Decreto Supremo 3762: pasaporte electrónico, texto con modificaciones indicadas",
+      "publicado": null,
+      "consultado": "2026-09-11",
+      "cita_literal": null,
+      "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+      "access_scope": "CONTENIDO_CONSULTADO",
+      "norm_fecha": "2018-12-26",
+      "limitacion": "Regula pasaporte electrónico y autoridades de certificación; no acredita publicación actual de claves ni rótulos observados en un ejemplar."
+    },
+    {
+      "id": "CONSULADO",
+      "url": "https://consulados.cancilleria.gob.bo/base/pasaporte/",
+      "titulo": "Cancillería: servicio consular de pasaporte",
+      "publicado": null,
+      "consultado": "2026-09-11",
+      "cita_literal": null,
+      "source_kind": "OFICIAL",
+      "access_scope": "TEXTO_INDEXADO_CONSULTADO"
+    },
+    {
+      "id": "PRADO",
+      "url": "https://www.consilium.europa.eu/prado/en/search-by-document-title.html",
+      "titulo": "Consejo de la Unión Europea: búsqueda por documento en PRADO",
+      "publicado": null,
+      "consultado": "2026-09-11",
+      "cita_literal": null,
+      "source_kind": "OFICIAL",
+      "access_scope": "CONTENIDO_CONSULTADO",
+      "limitacion": "La búsqueda consultada no proporcionó una ficha boliviana utilizable. No demuestra inexistencia del documento."
+    }
+  ],
+  "modules": {
+    "E03": {
+      "collection": "qr_cedula",
+      "records": [
+        {
+          "exists": true,
+          "generations": [
+            "POST_2023"
+          ],
+          "encoding": null,
+          "payload_fields": [],
+          "signed": null,
+          "signature_algorithm": null,
+          "public_keys_published": null,
+          "public_key_location": null,
+          "offline_verifiable": null,
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "DS4924",
+              "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+              "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "norm_fecha": "2023-04-26",
+              "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+            },
+            {
+              "id": "DS4861",
+              "url": "https://www.asfi.gob.bo/sites/default/files/2025-08/Decreto%20Supremo%20N%C2%B0%204861%20de%20fecha%2011%20de%20enero%20de%202023.pdf",
+              "titulo": "Decreto Supremo 4861: copia de Gaceta alojada por ASFI",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "OFICIAL",
+              "access_scope": "PDF_TEXTO_CONSULTADO; PAGINA_3_VERIFICADA_VISUALMENTE",
+              "norm_fecha": "2023-01-11",
+              "limitacion": "La fecha del directorio de alojamiento no se usa como fecha de publicación ni como reforma de la norma."
+            },
+            {
+              "id": "SEGIP",
+              "url": "https://www.segip.gob.bo/",
+              "titulo": "SEGIP: portal institucional",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "OFICIAL",
+              "access_scope": "RESULTADO_INDEXADO; APERTURA_DIRECTA_403",
+              "limitacion": "No se recuperaron especificaciones públicas de payload QR, claves o gramática del número desde el portal."
+            },
+            {
+              "id": "SEGIP_APP",
+              "url": "https://play.google.com/store/apps/details?hl=es_BO&id=bo.gob.segip.miidentidad",
+              "titulo": "SEGIP: ficha de Mi Identidad",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "OFICIAL_DEL_EMISOR_EN_TIENDA",
+              "access_scope": "TEXTO_INDEXADO_CONSULTADO",
+              "limitacion": "La aplicación digital no acredita la codificación del QR impreso ni un algoritmo de firma."
+            }
+          ],
+          "evidence_scope": "Existencia del QR reconocida en la disposición final tercera de DS 4924; no se verificó cobertura universal por tarjeta ni se decodificó un QR.",
+          "field_evidence": {
+            "exists": {
+              "classification": "VERIFICADO",
+              "source_ids": [
+                "DS4924"
+              ],
+              "location": "Disposición final tercera.II"
+            },
+            "generations": {
+              "classification": "INFERIDO",
+              "source_ids": [
+                "DS4924"
+              ],
+              "scope": "Familia normativa posterior a 2023; no es fecha exacta de introducción del QR ni excluye tarjetas anteriores."
+            }
+          },
+          "unresolved_fields": {
+            "encoding": "No se recuperó especificación SEGIP ni bytes de un QR de muestra autorizada.",
+            "payload_fields": "El modelo RUI y los campos impresos no prueban el payload. No se infieren campos desde ellos.",
+            "signed": "Código de seguridad o consulta en línea no implica firma digital. Sin esquema ni test vector.",
+            "signature_algorithm": "No se publicó en la evidencia recuperada el algoritmo de firma del QR.",
+            "public_keys_published": "No se encontró catálogo, certificado o política de publicación verificable; no equivale a false.",
+            "public_key_location": "No se obtuvo un punto oficial de distribución de claves para el QR de la cédula.",
+            "offline_verifiable": "No se probó validación desconectada, cadena de confianza, revocación ni firma."
+          },
+          "reason_unresolved": "La norma reconoce el QR, pero no especifica su codificación ni autenticación criptográfica."
+        }
+      ],
+      "status": "PARTIAL",
+      "research_notes": [
+        {
+          "id": "E03-N1",
+          "statement": "DS 4924 dispone que QR o código de barras de la cédula no sean requisitos para trámites ante entidades públicas y privadas.",
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "DS4924",
+              "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+              "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "norm_fecha": "2023-04-26",
+              "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+            }
+          ]
+        },
+        {
+          "id": "E03-N2",
+          "statement": "El código único de seguridad previsto en DS 4861 no permite identificar por sí solo un algoritmo ni un esquema de claves.",
+          "classification": "INFERIDO",
+          "sources": [
+            {
+              "id": "DS4861",
+              "url": "https://www.asfi.gob.bo/sites/default/files/2025-08/Decreto%20Supremo%20N%C2%B0%204861%20de%20fecha%2011%20de%20enero%20de%202023.pdf",
+              "titulo": "Decreto Supremo 4861: copia de Gaceta alojada por ASFI",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "OFICIAL",
+              "access_scope": "PDF_TEXTO_CONSULTADO; PAGINA_3_VERIFICADA_VISUALMENTE",
+              "norm_fecha": "2023-01-11",
+              "limitacion": "La fecha del directorio de alojamiento no se usa como fecha de publicación ni como reforma de la norma."
+            }
+          ]
+        }
+      ],
+      "proposed_validation_protocol": {
+        "classification": "INFERIDO",
+        "sources": [
+          {
+            "id": "ENCARGO",
+            "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/corpus/pedido-investigacion-v2.json",
+            "titulo": "Pedido de investigación v2 aportado por el usuario",
+            "publicado": "2026-09-11",
+            "consultado": "2026-09-11",
+            "cita_literal": null,
+            "source_kind": "APORTADO_POR_USUARIO",
+            "access_scope": "ARCHIVO_ADJUNTO_LEIDO; COPIA_DEL_REPOSITORIO_LOCALIZADA",
+            "limitacion": "Sus mediciones internas se conservan como declaraciones del encargo, no como mediciones repetidas en esta entrega.",
+            "content_git_blob_sha1": "823e70df7e3d8bb0555970cf597e47a8a8391fca"
+          },
+          {
+            "id": "DS4861",
+            "url": "https://www.asfi.gob.bo/sites/default/files/2025-08/Decreto%20Supremo%20N%C2%B0%204861%20de%20fecha%2011%20de%20enero%20de%202023.pdf",
+            "titulo": "Decreto Supremo 4861: copia de Gaceta alojada por ASFI",
+            "publicado": null,
+            "consultado": "2026-09-11",
+            "cita_literal": null,
+            "source_kind": "OFICIAL",
+            "access_scope": "PDF_TEXTO_CONSULTADO; PAGINA_3_VERIFICADA_VISUALMENTE",
+            "norm_fecha": "2023-01-11",
+            "limitacion": "La fecha del directorio de alojamiento no se usa como fecha de publicación ni como reforma de la norma."
+          }
+        ],
+        "required_evidence": [
+          "Especificación oficial de bytes y campos, versionada.",
+          "Muestras sintéticas oficiales y vectores de prueba no personales.",
+          "Formato de firma, campos cubiertos y canonización.",
+          "Cadena de confianza, distribución/rotación/revocación de claves y política de vigencia.",
+          "Prueba offline reproducible separada de consulta en línea."
+        ],
+        "default_pending_evidence": "Revisión del documento por vías alternativas; no convertir QR ausente/ilegible en fraude ni declarar firma válida por la simple lectura."
+      }
+    },
+    "E04": {
+      "collection": "vigencia",
+      "records": [
+        {
+          "indefinite_validity_exists": true,
+          "who_qualifies": "En ambos formatos: bolivianas y bolivianos desde los 58 años; personas con discapacidad grave y muy grave, según DS 4861, art. 6.IV.",
+          "printed_expiry_for_indefinite": null,
+          "sentinel_dates": [],
+          "grace_period_days": null,
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "DS4861",
+              "url": "https://www.asfi.gob.bo/sites/default/files/2025-08/Decreto%20Supremo%20N%C2%B0%204861%20de%20fecha%2011%20de%20enero%20de%202023.pdf",
+              "titulo": "Decreto Supremo 4861: copia de Gaceta alojada por ASFI",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "OFICIAL",
+              "access_scope": "PDF_TEXTO_CONSULTADO; PAGINA_3_VERIFICADA_VISUALMENTE",
+              "norm_fecha": "2023-01-11",
+              "limitacion": "La fecha del directorio de alojamiento no se usa como fecha de publicación ni como reforma de la norma."
+            },
+            {
+              "id": "DS4924",
+              "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+              "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "norm_fecha": "2023-04-26",
+              "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+            }
+          ],
+          "field_evidence": {
+            "indefinite_validity_exists": {
+              "classification": "VERIFICADO",
+              "source_ids": [
+                "DS4861"
+              ],
+              "location": "Art. 6.IV"
+            },
+            "who_qualifies": {
+              "classification": "VERIFICADO",
+              "source_ids": [
+                "DS4861"
+              ],
+              "location": "Art. 6.IV"
+            }
+          },
+          "unresolved_fields": {
+            "printed_expiry_for_indefinite": "No se verificó instrucción de impresión ni un ejemplar que vincule un literal/fecha con vigencia indefinida.",
+            "sentinel_dates": "No se verificó 2049-12-31 ni otra fecha centinela. El arreglo vacío no niega que exista alguna implementación.",
+            "grace_period_days": "No se recuperó una regla general consolidada de gracia posterior al vencimiento; no se convierte renovación anticipada en tolerancia."
+          }
+        }
+      ],
+      "status": "PARTIAL",
+      "normative_context": [
+        {
+          "id": "E04-N1",
+          "statement": "DS 4861 distingue cinco años para formato físico y dos para digital; el régimen indefinido es una excepción.",
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "DS4861",
+              "url": "https://www.asfi.gob.bo/sites/default/files/2025-08/Decreto%20Supremo%20N%C2%B0%204861%20de%20fecha%2011%20de%20enero%20de%202023.pdf",
+              "titulo": "Decreto Supremo 4861: copia de Gaceta alojada por ASFI",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "OFICIAL",
+              "access_scope": "PDF_TEXTO_CONSULTADO; PAGINA_3_VERIFICADA_VISUALMENTE",
+              "norm_fecha": "2023-01-11",
+              "limitacion": "La fecha del directorio de alojamiento no se usa como fecha de publicación ni como reforma de la norma."
+            }
+          ]
+        },
+        {
+          "id": "E04-N2",
+          "statement": "La renovación permitida desde seis meses antes del vencimiento no es un periodo de gracia posterior.",
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "DS4861",
+              "url": "https://www.asfi.gob.bo/sites/default/files/2025-08/Decreto%20Supremo%20N%C2%B0%204861%20de%20fecha%2011%20de%20enero%20de%202023.pdf",
+              "titulo": "Decreto Supremo 4861: copia de Gaceta alojada por ASFI",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "OFICIAL",
+              "access_scope": "PDF_TEXTO_CONSULTADO; PAGINA_3_VERIFICADA_VISUALMENTE",
+              "norm_fecha": "2023-01-11",
+              "limitacion": "La fecha del directorio de alojamiento no se usa como fecha de publicación ni como reforma de la norma."
+            }
+          ]
+        },
+        {
+          "id": "E04-N3",
+          "statement": "Las cédulas previas al nuevo diseño mantienen la vigencia impresa; la reposición mantiene la fecha de la original.",
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "DS4861",
+              "url": "https://www.asfi.gob.bo/sites/default/files/2025-08/Decreto%20Supremo%20N%C2%B0%204861%20de%20fecha%2011%20de%20enero%20de%202023.pdf",
+              "titulo": "Decreto Supremo 4861: copia de Gaceta alojada por ASFI",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "OFICIAL",
+              "access_scope": "PDF_TEXTO_CONSULTADO; PAGINA_3_VERIFICADA_VISUALMENTE",
+              "norm_fecha": "2023-01-11",
+              "limitacion": "La fecha del directorio de alojamiento no se usa como fecha de publicación ni como reforma de la norma."
+            },
+            {
+              "id": "DS4924",
+              "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+              "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "norm_fecha": "2023-04-26",
+              "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+            }
+          ]
+        }
+      ],
+      "proposed_decision_guards": {
+        "classification": "INFERIDO",
+        "sources": [
+          {
+            "id": "ENCARGO",
+            "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/corpus/pedido-investigacion-v2.json",
+            "titulo": "Pedido de investigación v2 aportado por el usuario",
+            "publicado": "2026-09-11",
+            "consultado": "2026-09-11",
+            "cita_literal": null,
+            "source_kind": "APORTADO_POR_USUARIO",
+            "access_scope": "ARCHIVO_ADJUNTO_LEIDO; COPIA_DEL_REPOSITORIO_LOCALIZADA",
+            "limitacion": "Sus mediciones internas se conservan como declaraciones del encargo, no como mediciones repetidas en esta entrega.",
+            "content_git_blob_sha1": "823e70df7e3d8bb0555970cf597e47a8a8391fca"
+          },
+          {
+            "id": "DS4861",
+            "url": "https://www.asfi.gob.bo/sites/default/files/2025-08/Decreto%20Supremo%20N%C2%B0%204861%20de%20fecha%2011%20de%20enero%20de%202023.pdf",
+            "titulo": "Decreto Supremo 4861: copia de Gaceta alojada por ASFI",
+            "publicado": null,
+            "consultado": "2026-09-11",
+            "cita_literal": null,
+            "source_kind": "OFICIAL",
+            "access_scope": "PDF_TEXTO_CONSULTADO; PAGINA_3_VERIFICADA_VISUALMENTE",
+            "norm_fecha": "2023-01-11",
+            "limitacion": "La fecha del directorio de alojamiento no se usa como fecha de publicación ni como reforma de la norma."
+          },
+          {
+            "id": "DS4924",
+            "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+            "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+            "publicado": null,
+            "consultado": "2026-09-11",
+            "cita_literal": null,
+            "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+            "access_scope": "CONTENIDO_CONSULTADO",
+            "norm_fecha": "2023-04-26",
+            "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+          }
+        ],
+        "rules": [
+          "No codificar 2049-12-31 como no-caduca sin evidencia del SEGIP.",
+          "No recalcular automáticamente la expiración de una cédula antigua usando la duración de un formato nuevo.",
+          "Un conflicto entre posible vigencia indefinida y fecha OCR requiere revisión normativa/documental, no DOCUMENT_EXPIRED incondicional.",
+          "No deducir discapacidad desde fotografía u otros atributos; tampoco invalidar una tarjeta sólo porque no haya etiqueta impresa de esa condición.",
+          "La edad actual por sí sola no resuelve cómo el SEGIP implementa el cambio a vigencia indefinida en una tarjeta previamente emitida."
+        ],
+        "implementation_status": "PROPUESTA_NO_IMPLEMENTADA"
+      }
+    },
+    "E05": {
+      "records": [
+        {
+          "collection": "geografia",
+          "departamento": "Santa Cruz",
+          "provincia": "Andrés Ibañez",
+          "municipio": "Santa Cruz de la Sierra",
+          "abreviatura_impresa": null,
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "INE_GEO",
+              "url": "https://anda.ine.gob.bo/index.php/catalog/82/variable/F15/V3286?name=s3_66deptocod",
+              "titulo": "INE ANDA: catálogo de variable con códigos geográficos",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "OFICIAL",
+              "access_scope": "TEXTO_INDEXADO_CONSULTADO",
+              "limitacion": "Se observaron cinco combinaciones de Santa Cruz–Andrés Ibañez. Es un catálogo de encuesta, no una especificación de impresión SEGIP ni una certificación territorial vigente."
+            }
+          ],
+          "source_geographic_code": "70101",
+          "evidence_scope": "Combinación literal del catálogo INE consultado; no abreviatura ni formato de impresión SEGIP. Se conserva la grafía de la fuente.",
+          "unresolved_fields": {
+            "abreviatura_impresa": "No hay especificación o muestra SEGIP que pruebe cómo se abrevia o corta este lugar."
+          },
+          "normalization_policy": "Proponer candidatos al revisor; no completar automáticamente texto truncado ni cambiar el valor OCR original."
+        },
+        {
+          "collection": "geografia",
+          "departamento": "Santa Cruz",
+          "provincia": "Andrés Ibañez",
+          "municipio": "Cotoca",
+          "abreviatura_impresa": null,
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "INE_GEO",
+              "url": "https://anda.ine.gob.bo/index.php/catalog/82/variable/F15/V3286?name=s3_66deptocod",
+              "titulo": "INE ANDA: catálogo de variable con códigos geográficos",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "OFICIAL",
+              "access_scope": "TEXTO_INDEXADO_CONSULTADO",
+              "limitacion": "Se observaron cinco combinaciones de Santa Cruz–Andrés Ibañez. Es un catálogo de encuesta, no una especificación de impresión SEGIP ni una certificación territorial vigente."
+            }
+          ],
+          "source_geographic_code": "70102",
+          "evidence_scope": "Combinación literal del catálogo INE consultado; no abreviatura ni formato de impresión SEGIP. Se conserva la grafía de la fuente.",
+          "unresolved_fields": {
+            "abreviatura_impresa": "No hay especificación o muestra SEGIP que pruebe cómo se abrevia o corta este lugar."
+          },
+          "normalization_policy": "Proponer candidatos al revisor; no completar automáticamente texto truncado ni cambiar el valor OCR original."
+        },
+        {
+          "collection": "geografia",
+          "departamento": "Santa Cruz",
+          "provincia": "Andrés Ibañez",
+          "municipio": "Porongo",
+          "abreviatura_impresa": null,
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "INE_GEO",
+              "url": "https://anda.ine.gob.bo/index.php/catalog/82/variable/F15/V3286?name=s3_66deptocod",
+              "titulo": "INE ANDA: catálogo de variable con códigos geográficos",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "OFICIAL",
+              "access_scope": "TEXTO_INDEXADO_CONSULTADO",
+              "limitacion": "Se observaron cinco combinaciones de Santa Cruz–Andrés Ibañez. Es un catálogo de encuesta, no una especificación de impresión SEGIP ni una certificación territorial vigente."
+            }
+          ],
+          "source_geographic_code": "70103",
+          "evidence_scope": "Combinación literal del catálogo INE consultado; no abreviatura ni formato de impresión SEGIP. Se conserva la grafía de la fuente.",
+          "unresolved_fields": {
+            "abreviatura_impresa": "No hay especificación o muestra SEGIP que pruebe cómo se abrevia o corta este lugar."
+          },
+          "normalization_policy": "Proponer candidatos al revisor; no completar automáticamente texto truncado ni cambiar el valor OCR original."
+        },
+        {
+          "collection": "geografia",
+          "departamento": "Santa Cruz",
+          "provincia": "Andrés Ibañez",
+          "municipio": "La Guardia",
+          "abreviatura_impresa": null,
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "INE_GEO",
+              "url": "https://anda.ine.gob.bo/index.php/catalog/82/variable/F15/V3286?name=s3_66deptocod",
+              "titulo": "INE ANDA: catálogo de variable con códigos geográficos",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "OFICIAL",
+              "access_scope": "TEXTO_INDEXADO_CONSULTADO",
+              "limitacion": "Se observaron cinco combinaciones de Santa Cruz–Andrés Ibañez. Es un catálogo de encuesta, no una especificación de impresión SEGIP ni una certificación territorial vigente."
+            }
+          ],
+          "source_geographic_code": "70104",
+          "evidence_scope": "Combinación literal del catálogo INE consultado; no abreviatura ni formato de impresión SEGIP. Se conserva la grafía de la fuente.",
+          "unresolved_fields": {
+            "abreviatura_impresa": "No hay especificación o muestra SEGIP que pruebe cómo se abrevia o corta este lugar."
+          },
+          "normalization_policy": "Proponer candidatos al revisor; no completar automáticamente texto truncado ni cambiar el valor OCR original."
+        },
+        {
+          "collection": "geografia",
+          "departamento": "Santa Cruz",
+          "provincia": "Andrés Ibañez",
+          "municipio": "El Torno",
+          "abreviatura_impresa": null,
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "INE_GEO",
+              "url": "https://anda.ine.gob.bo/index.php/catalog/82/variable/F15/V3286?name=s3_66deptocod",
+              "titulo": "INE ANDA: catálogo de variable con códigos geográficos",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "OFICIAL",
+              "access_scope": "TEXTO_INDEXADO_CONSULTADO",
+              "limitacion": "Se observaron cinco combinaciones de Santa Cruz–Andrés Ibañez. Es un catálogo de encuesta, no una especificación de impresión SEGIP ni una certificación territorial vigente."
+            }
+          ],
+          "source_geographic_code": "70105",
+          "evidence_scope": "Combinación literal del catálogo INE consultado; no abreviatura ni formato de impresión SEGIP. Se conserva la grafía de la fuente.",
+          "unresolved_fields": {
+            "abreviatura_impresa": "No hay especificación o muestra SEGIP que pruebe cómo se abrevia o corta este lugar."
+          },
+          "normalization_policy": "Proponer candidatos al revisor; no completar automáticamente texto truncado ni cambiar el valor OCR original."
+        },
+        {
+          "collection": "numero_cedula",
+          "length_min": null,
+          "length_max": null,
+          "alphabet": null,
+          "complement_alphabet": null,
+          "complement_length": null,
+          "separator": null,
+          "check_digit": null,
+          "classification": "NO_VERIFICADO",
+          "sources": [
+            {
+              "id": "DS4861",
+              "url": "https://www.asfi.gob.bo/sites/default/files/2025-08/Decreto%20Supremo%20N%C2%B0%204861%20de%20fecha%2011%20de%20enero%20de%202023.pdf",
+              "titulo": "Decreto Supremo 4861: copia de Gaceta alojada por ASFI",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "OFICIAL",
+              "access_scope": "PDF_TEXTO_CONSULTADO; PAGINA_3_VERIFICADA_VISUALMENTE",
+              "norm_fecha": "2023-01-11",
+              "limitacion": "La fecha del directorio de alojamiento no se usa como fecha de publicación ni como reforma de la norma."
+            },
+            {
+              "id": "SIN_COMPLEMENTO",
+              "url": "https://siatanexo.impuestos.gob.bo/index.php/archivos-xml-xsd-de-facturas-electronicas/factura-de-seguridad-alimentaria-y-abastecimiento",
+              "titulo": "SIN: campos XML de factura, complemento de documento de identidad",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "OFICIAL",
+              "access_scope": "TEXTO_INDEXADO_CONSULTADO",
+              "limitacion": "Contrato de facturación; sus tipos no prueban gramática completa de emisión del SEGIP."
+            },
+            {
+              "id": "SEGIP",
+              "url": "https://www.segip.gob.bo/",
+              "titulo": "SEGIP: portal institucional",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "OFICIAL",
+              "access_scope": "RESULTADO_INDEXADO; APERTURA_DIRECTA_403",
+              "limitacion": "No se recuperaron especificaciones públicas de payload QR, claves o gramática del número desde el portal."
+            }
+          ],
+          "reason_unresolved": "La existencia de número y complemento no especifica longitudes, caracteres admitidos, separador ni dígito de control del SEGIP.",
+          "unresolved_fields": {
+            "length_min": "No se recuperó especificación exhaustiva de emisión SEGIP; el contrato XML del SIN no la sustituye.",
+            "length_max": "No se recuperó especificación exhaustiva de emisión SEGIP; el contrato XML del SIN no la sustituye.",
+            "alphabet": "No se recuperó especificación exhaustiva de emisión SEGIP; el contrato XML del SIN no la sustituye.",
+            "complement_alphabet": "No se recuperó especificación exhaustiva de emisión SEGIP; el contrato XML del SIN no la sustituye.",
+            "complement_length": "No se recuperó especificación exhaustiva de emisión SEGIP; el contrato XML del SIN no la sustituye.",
+            "separator": "No se recuperó especificación exhaustiva de emisión SEGIP; el contrato XML del SIN no la sustituye.",
+            "check_digit": "No se recuperó especificación exhaustiva de emisión SEGIP; el contrato XML del SIN no la sustituye."
+          },
+          "observation": {
+            "value": "La interfaz del SIN describe complemento alfanumérico opcional para determinados documentos con duplicidad.",
+            "classification": "VERIFICADO",
+            "sources": [
+              {
+                "id": "SIN_COMPLEMENTO",
+                "url": "https://siatanexo.impuestos.gob.bo/index.php/archivos-xml-xsd-de-facturas-electronicas/factura-de-seguridad-alimentaria-y-abastecimiento",
+                "titulo": "SIN: campos XML de factura, complemento de documento de identidad",
+                "publicado": null,
+                "consultado": "2026-09-11",
+                "cita_literal": null,
+                "source_kind": "OFICIAL",
+                "access_scope": "TEXTO_INDEXADO_CONSULTADO",
+                "limitacion": "Contrato de facturación; sus tipos no prueban gramática completa de emisión del SEGIP."
+              }
+            ],
+            "scope": "Interfaz de facturación; no gramática completa de cédula ni lista de caracteres exactos."
+          }
+        },
+        {
+          "collection": "rotulos_por_variante",
+          "generation": "POST_2023",
+          "label_literal": "ESTADO PLURINACIONAL DE BOLIVIA",
+          "zone": "ANVERSO_SUPERIOR_IZQUIERDA",
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "DS4924",
+              "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+              "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "norm_fecha": "2023-04-26",
+              "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+            }
+          ],
+          "source_location": "Art. 2.III.a.5",
+          "evidence_scope": "Literal y zona descritos en texto normativo; no observación de una tarjeta real.",
+          "mandatory_for_authenticity": null,
+          "unresolved_fields": {
+            "mandatory_for_authenticity": "Presencia en el catálogo legal no autoriza un umbral de rechazo por cobertura OCR."
+          }
+        },
+        {
+          "collection": "rotulos_por_variante",
+          "generation": "POST_2023",
+          "label_literal": "SERVICIO GENERAL DE IDENTIFICACIÓN PERSONAL",
+          "zone": "ANVERSO_SUPERIOR_IZQUIERDA",
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "DS4924",
+              "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+              "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "norm_fecha": "2023-04-26",
+              "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+            }
+          ],
+          "source_location": "Art. 2.III.a.5",
+          "evidence_scope": "Literal y zona descritos en texto normativo; no observación de una tarjeta real.",
+          "mandatory_for_authenticity": null,
+          "unresolved_fields": {
+            "mandatory_for_authenticity": "Presencia en el catálogo legal no autoriza un umbral de rechazo por cobertura OCR."
+          }
+        },
+        {
+          "collection": "rotulos_por_variante",
+          "generation": "POST_2023",
+          "label_literal": "CÉDULA DE IDENTIDAD",
+          "zone": "ANVERSO_SUPERIOR_DERECHA",
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "DS4924",
+              "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+              "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "norm_fecha": "2023-04-26",
+              "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+            }
+          ],
+          "source_location": "Art. 2.III.a.7",
+          "evidence_scope": "Literal y zona descritos en texto normativo; no observación de una tarjeta real.",
+          "mandatory_for_authenticity": null,
+          "unresolved_fields": {
+            "mandatory_for_authenticity": "Presencia en el catálogo legal no autoriza un umbral de rechazo por cobertura OCR."
+          }
+        },
+        {
+          "collection": "rotulos_por_variante",
+          "generation": "POST_2023",
+          "label_literal": "SERIE:",
+          "zone": "ANVERSO_CENTRAL",
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "DS4924",
+              "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+              "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "norm_fecha": "2023-04-26",
+              "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+            }
+          ],
+          "source_location": "Art. 2.III.a.9",
+          "evidence_scope": "Literal y zona descritos en texto normativo; no observación de una tarjeta real.",
+          "mandatory_for_authenticity": null,
+          "unresolved_fields": {
+            "mandatory_for_authenticity": "Presencia en el catálogo legal no autoriza un umbral de rechazo por cobertura OCR."
+          }
+        },
+        {
+          "collection": "rotulos_por_variante",
+          "generation": "POST_2023",
+          "label_literal": "SECCIÓN:",
+          "zone": "ANVERSO_CENTRAL",
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "DS4924",
+              "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+              "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "norm_fecha": "2023-04-26",
+              "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+            }
+          ],
+          "source_location": "Art. 2.III.a.9",
+          "evidence_scope": "Literal y zona descritos en texto normativo; no observación de una tarjeta real.",
+          "mandatory_for_authenticity": null,
+          "unresolved_fields": {
+            "mandatory_for_authenticity": "Presencia en el catálogo legal no autoriza un umbral de rechazo por cobertura OCR."
+          }
+        },
+        {
+          "collection": "rotulos_por_variante",
+          "generation": "POST_2023",
+          "label_literal": "NOMBRES:",
+          "zone": "ANVERSO_CENTRAL",
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "DS4924",
+              "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+              "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "norm_fecha": "2023-04-26",
+              "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+            }
+          ],
+          "source_location": "Art. 2.III.a.9",
+          "evidence_scope": "Literal y zona descritos en texto normativo; no observación de una tarjeta real.",
+          "mandatory_for_authenticity": null,
+          "unresolved_fields": {
+            "mandatory_for_authenticity": "Presencia en el catálogo legal no autoriza un umbral de rechazo por cobertura OCR."
+          }
+        },
+        {
+          "collection": "rotulos_por_variante",
+          "generation": "POST_2023",
+          "label_literal": "APELLIDOS:",
+          "zone": "ANVERSO_CENTRAL",
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "DS4924",
+              "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+              "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "norm_fecha": "2023-04-26",
+              "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+            }
+          ],
+          "source_location": "Art. 2.III.a.9",
+          "evidence_scope": "Literal y zona descritos en texto normativo; no observación de una tarjeta real.",
+          "mandatory_for_authenticity": null,
+          "unresolved_fields": {
+            "mandatory_for_authenticity": "Presencia en el catálogo legal no autoriza un umbral de rechazo por cobertura OCR."
+          }
+        },
+        {
+          "collection": "rotulos_por_variante",
+          "generation": "POST_2023",
+          "label_literal": "FECHA DE NACIMIENTO:",
+          "zone": "ANVERSO_CENTRAL",
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "DS4924",
+              "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+              "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "norm_fecha": "2023-04-26",
+              "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+            }
+          ],
+          "source_location": "Art. 2.III.a.9",
+          "evidence_scope": "Literal y zona descritos en texto normativo; no observación de una tarjeta real.",
+          "mandatory_for_authenticity": null,
+          "unresolved_fields": {
+            "mandatory_for_authenticity": "Presencia en el catálogo legal no autoriza un umbral de rechazo por cobertura OCR."
+          }
+        },
+        {
+          "collection": "rotulos_por_variante",
+          "generation": "POST_2023",
+          "label_literal": "FECHA DE EMISIÓN:",
+          "zone": "ANVERSO_CENTRAL",
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "DS4924",
+              "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+              "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "norm_fecha": "2023-04-26",
+              "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+            }
+          ],
+          "source_location": "Art. 2.III.a.9",
+          "evidence_scope": "Literal y zona descritos en texto normativo; no observación de una tarjeta real.",
+          "mandatory_for_authenticity": null,
+          "unresolved_fields": {
+            "mandatory_for_authenticity": "Presencia en el catálogo legal no autoriza un umbral de rechazo por cobertura OCR."
+          }
+        },
+        {
+          "collection": "rotulos_por_variante",
+          "generation": "POST_2023",
+          "label_literal": "FECHA DE EXPIRACIÓN:",
+          "zone": "ANVERSO_CENTRAL",
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "DS4924",
+              "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+              "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "norm_fecha": "2023-04-26",
+              "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+            }
+          ],
+          "source_location": "Art. 2.III.a.9",
+          "evidence_scope": "Literal y zona descritos en texto normativo; no observación de una tarjeta real.",
+          "mandatory_for_authenticity": null,
+          "unresolved_fields": {
+            "mandatory_for_authenticity": "Presencia en el catálogo legal no autoriza un umbral de rechazo por cobertura OCR."
+          }
+        },
+        {
+          "collection": "rotulos_por_variante",
+          "generation": "POST_2023",
+          "label_literal": "FIRMA DEL TITULAR",
+          "zone": "ANVERSO_INFERIOR_CENTRAL",
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "DS4924",
+              "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+              "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "norm_fecha": "2023-04-26",
+              "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+            }
+          ],
+          "source_location": "Art. 2.III.a.10",
+          "evidence_scope": "Literal y zona descritos en texto normativo; no observación de una tarjeta real.",
+          "mandatory_for_authenticity": null,
+          "unresolved_fields": {
+            "mandatory_for_authenticity": "Presencia en el catálogo legal no autoriza un umbral de rechazo por cobertura OCR."
+          }
+        },
+        {
+          "collection": "rotulos_por_variante",
+          "generation": "POST_2023",
+          "label_literal": "LUGAR DE NACIMIENTO:",
+          "zone": "REVERSO_CENTRAL",
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "DS4924",
+              "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+              "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "norm_fecha": "2023-04-26",
+              "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+            }
+          ],
+          "source_location": "Art. 2.III.b.7",
+          "evidence_scope": "Literal y zona descritos en texto normativo; no observación de una tarjeta real.",
+          "mandatory_for_authenticity": null,
+          "unresolved_fields": {
+            "mandatory_for_authenticity": "Presencia en el catálogo legal no autoriza un umbral de rechazo por cobertura OCR."
+          }
+        },
+        {
+          "collection": "rotulos_por_variante",
+          "generation": "POST_2023",
+          "label_literal": "DOMICILIO:",
+          "zone": "REVERSO_CENTRAL",
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "DS4924",
+              "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+              "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "norm_fecha": "2023-04-26",
+              "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+            }
+          ],
+          "source_location": "Art. 2.III.b.7",
+          "evidence_scope": "Literal y zona descritos en texto normativo; no observación de una tarjeta real.",
+          "mandatory_for_authenticity": null,
+          "unresolved_fields": {
+            "mandatory_for_authenticity": "Presencia en el catálogo legal no autoriza un umbral de rechazo por cobertura OCR."
+          }
+        },
+        {
+          "collection": "rotulos_por_variante",
+          "generation": "POST_2023",
+          "label_literal": "PROFESIÓN U OCUPACIÓN:",
+          "zone": "REVERSO_CENTRAL",
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "DS4924",
+              "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+              "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "norm_fecha": "2023-04-26",
+              "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+            }
+          ],
+          "source_location": "Art. 2.III.b.7",
+          "evidence_scope": "Literal y zona descritos en texto normativo; no observación de una tarjeta real.",
+          "mandatory_for_authenticity": null,
+          "unresolved_fields": {
+            "mandatory_for_authenticity": "Presencia en el catálogo legal no autoriza un umbral de rechazo por cobertura OCR."
+          }
+        },
+        {
+          "collection": "rotulos_por_variante",
+          "generation": "POST_2023",
+          "label_literal": "ESTADO CIVIL:",
+          "zone": "REVERSO_CENTRAL",
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "DS4924",
+              "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+              "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "norm_fecha": "2023-04-26",
+              "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+            }
+          ],
+          "source_location": "Art. 2.III.b.7",
+          "evidence_scope": "Literal y zona descritos en texto normativo; no observación de una tarjeta real.",
+          "mandatory_for_authenticity": null,
+          "unresolved_fields": {
+            "mandatory_for_authenticity": "Presencia en el catálogo legal no autoriza un umbral de rechazo por cobertura OCR."
+          }
+        },
+        {
+          "collection": "rotulos_por_variante",
+          "generation": "POST_2023",
+          "label_literal": "GRUPO SANGUÍNEO:",
+          "zone": "REVERSO_CENTRAL",
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "DS4924",
+              "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+              "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "norm_fecha": "2023-04-26",
+              "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+            }
+          ],
+          "source_location": "Art. 2.III.b.7",
+          "evidence_scope": "Literal y zona descritos en texto normativo; no observación de una tarjeta real.",
+          "mandatory_for_authenticity": null,
+          "condition": "Dato complementario cuando se solicita; no exigir contenido para reconocer autenticidad.",
+          "unresolved_fields": {
+            "mandatory_for_authenticity": "Presencia en el catálogo legal no autoriza un umbral de rechazo por cobertura OCR."
+          }
+        },
+        {
+          "collection": "rotulos_por_variante",
+          "generation": "POST_2023",
+          "label_literal": "PADRE:",
+          "zone": "REVERSO_CENTRAL",
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "DS4924",
+              "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+              "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "norm_fecha": "2023-04-26",
+              "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+            }
+          ],
+          "source_location": "Art. 2.III.b.9",
+          "evidence_scope": "Literal y zona descritos en texto normativo; no observación de una tarjeta real.",
+          "mandatory_for_authenticity": null,
+          "condition": "Datos alternativos para niñas, niños o adolescentes; no exigir los tres ni en cédulas de adultos.",
+          "unresolved_fields": {
+            "mandatory_for_authenticity": "Presencia en el catálogo legal no autoriza un umbral de rechazo por cobertura OCR."
+          }
+        },
+        {
+          "collection": "rotulos_por_variante",
+          "generation": "POST_2023",
+          "label_literal": "MADRE:",
+          "zone": "REVERSO_CENTRAL",
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "DS4924",
+              "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+              "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "norm_fecha": "2023-04-26",
+              "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+            }
+          ],
+          "source_location": "Art. 2.III.b.9",
+          "evidence_scope": "Literal y zona descritos en texto normativo; no observación de una tarjeta real.",
+          "mandatory_for_authenticity": null,
+          "condition": "Datos alternativos para niñas, niños o adolescentes; no exigir los tres ni en cédulas de adultos.",
+          "unresolved_fields": {
+            "mandatory_for_authenticity": "Presencia en el catálogo legal no autoriza un umbral de rechazo por cobertura OCR."
+          }
+        },
+        {
+          "collection": "rotulos_por_variante",
+          "generation": "POST_2023",
+          "label_literal": "TUTOR:",
+          "zone": "REVERSO_CENTRAL",
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "DS4924",
+              "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+              "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "norm_fecha": "2023-04-26",
+              "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+            }
+          ],
+          "source_location": "Art. 2.III.b.9",
+          "evidence_scope": "Literal y zona descritos en texto normativo; no observación de una tarjeta real.",
+          "mandatory_for_authenticity": null,
+          "condition": "Datos alternativos para niñas, niños o adolescentes; no exigir los tres ni en cédulas de adultos.",
+          "unresolved_fields": {
+            "mandatory_for_authenticity": "Presencia en el catálogo legal no autoriza un umbral de rechazo por cobertura OCR."
+          }
+        }
+      ],
+      "collections": [
+        "geografia",
+        "numero_cedula",
+        "rotulos_por_variante"
+      ],
+      "status": "PARTIAL",
+      "research_notes": [
+        {
+          "id": "E05-N1",
+          "statement": "Se incorpora sólo el catálogo POST_2023; el PRE_2023 ya verificado queda en v1.",
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "ENCARGO",
+              "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/corpus/pedido-investigacion-v2.json",
+              "titulo": "Pedido de investigación v2 aportado por el usuario",
+              "publicado": "2026-09-11",
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "APORTADO_POR_USUARIO",
+              "access_scope": "ARCHIVO_ADJUNTO_LEIDO; COPIA_DEL_REPOSITORIO_LOCALIZADA",
+              "limitacion": "Sus mediciones internas se conservan como declaraciones del encargo, no como mediciones repetidas en esta entrega.",
+              "content_git_blob_sha1": "823e70df7e3d8bb0555970cf597e47a8a8391fca"
+            }
+          ]
+        },
+        {
+          "id": "E05-N2",
+          "statement": "DS 4924 fija inicio del nuevo diseño en noviembre de 2023 y permite agotar material previo; la fecha de emisión no clasifica de forma infalible una variante.",
+          "classification": "INFERIDO",
+          "sources": [
+            {
+              "id": "DS4924",
+              "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+              "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "norm_fecha": "2023-04-26",
+              "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+            }
+          ]
+        },
+        {
+          "id": "E05-N3",
+          "statement": "DS 5364 modifica características de emisión automatizada y admite mapa troquelado u holograma. No debe fijarse una única geometría/material universal para POST_2023.",
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "DS5364",
+              "url": "https://www.pixilegal.com/normativa/decreto-5364-2025-04-02",
+              "titulo": "Decreto Supremo 5364: disposiciones adicionales sobre emisión automatizada de cédulas",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "norm_fecha": "2025-04-02"
+            }
+          ]
+        },
+        {
+          "id": "E05-N4",
+          "statement": "La mención de NPIOC no permitió decidir con certeza si el rótulo literal impreso es el acrónimo o toda la expresión; no se incorpora como literal exacto.",
+          "classification": "NO_VERIFICADO",
+          "sources": [
+            {
+              "id": "DS4924",
+              "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+              "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "norm_fecha": "2023-04-26",
+              "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+            }
+          ]
+        },
+        {
+          "id": "E05-N5",
+          "statement": "La norma describe microtexto en idiomas originarios; no se registra su traducción española como literal efectivamente impreso.",
+          "classification": "INFERIDO",
+          "sources": [
+            {
+              "id": "DS4924",
+              "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+              "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "norm_fecha": "2023-04-26",
+              "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+            }
+          ]
+        }
+      ],
+      "variant_notes": {
+        "classification": "INFERIDO",
+        "sources": [
+          {
+            "id": "DS4924",
+            "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+            "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+            "publicado": null,
+            "consultado": "2026-09-11",
+            "cita_literal": null,
+            "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+            "access_scope": "CONTENIDO_CONSULTADO",
+            "norm_fecha": "2023-04-26",
+            "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+          },
+          {
+            "id": "DS5364",
+            "url": "https://www.pixilegal.com/normativa/decreto-5364-2025-04-02",
+            "titulo": "Decreto Supremo 5364: disposiciones adicionales sobre emisión automatizada de cédulas",
+            "publicado": null,
+            "consultado": "2026-09-11",
+            "cita_literal": null,
+            "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+            "access_scope": "CONTENIDO_CONSULTADO",
+            "norm_fecha": "2025-04-02"
+          }
+        ],
+        "needed_discriminators": [
+          "Modalidad de emisión",
+          "Material y versión de diseño",
+          "Mayor o menor de edad",
+          "Cara del documento"
+        ],
+        "hard_rejection_from_layout_difference": false
+      }
+    },
+    "E06": {
+      "records": [
+        {
+          "collection": "preprocesamiento",
+          "step": "BASELINE_SIN_PREPROCESAR",
+          "long_edge_px": 600,
+          "delta_accuracy": null,
+          "measured_on": "NO_MEDIDO: experimento propuesto para la población del encargo; no se ejecutó Tesseract sobre cédulas en esta entrega.",
+          "classification": "INFERIDO",
+          "sources": [
+            {
+              "id": "TESSERACT",
+              "url": "https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html",
+              "titulo": "Tesseract: Improving the quality of the output",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "DOCUMENTACION_OFICIAL_DEL_PROYECTO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "limitacion": "Recomendaciones técnicas sin matriz medida para spa, texto físico de 1–2 mm y población del usuario."
+            },
+            {
+              "id": "ENCARGO",
+              "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/corpus/pedido-investigacion-v2.json",
+              "titulo": "Pedido de investigación v2 aportado por el usuario",
+              "publicado": "2026-09-11",
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "APORTADO_POR_USUARIO",
+              "access_scope": "ARCHIVO_ADJUNTO_LEIDO; COPIA_DEL_REPOSITORIO_LOCALIZADA",
+              "limitacion": "Sus mediciones internas se conservan como declaraciones del encargo, no como mediciones repetidas en esta entrega.",
+              "content_git_blob_sha1": "823e70df7e3d8bb0555970cf597e47a8a8391fca"
+            }
+          ],
+          "proposal_only": true,
+          "parameter_origin": "Los 600/1200 px proceden del contexto del motor; no son tamaños óptimos medidos.",
+          "reason_unresolved": "Sin imágenes consentidas, verdad de terreno por carácter, versión exacta del motor y resultados pareados.",
+          "unresolved_fields": {
+            "delta_accuracy": "No hay medición comparable; no asignar 0 ni un porcentaje estimado."
+          }
+        },
+        {
+          "collection": "preprocesamiento",
+          "step": "BASELINE_SIN_PREPROCESAR",
+          "long_edge_px": 1200,
+          "delta_accuracy": null,
+          "measured_on": "NO_MEDIDO: experimento propuesto para la población del encargo; no se ejecutó Tesseract sobre cédulas en esta entrega.",
+          "classification": "INFERIDO",
+          "sources": [
+            {
+              "id": "TESSERACT",
+              "url": "https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html",
+              "titulo": "Tesseract: Improving the quality of the output",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "DOCUMENTACION_OFICIAL_DEL_PROYECTO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "limitacion": "Recomendaciones técnicas sin matriz medida para spa, texto físico de 1–2 mm y población del usuario."
+            },
+            {
+              "id": "ENCARGO",
+              "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/corpus/pedido-investigacion-v2.json",
+              "titulo": "Pedido de investigación v2 aportado por el usuario",
+              "publicado": "2026-09-11",
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "APORTADO_POR_USUARIO",
+              "access_scope": "ARCHIVO_ADJUNTO_LEIDO; COPIA_DEL_REPOSITORIO_LOCALIZADA",
+              "limitacion": "Sus mediciones internas se conservan como declaraciones del encargo, no como mediciones repetidas en esta entrega.",
+              "content_git_blob_sha1": "823e70df7e3d8bb0555970cf597e47a8a8391fca"
+            }
+          ],
+          "proposal_only": true,
+          "parameter_origin": "Los 600/1200 px proceden del contexto del motor; no son tamaños óptimos medidos.",
+          "reason_unresolved": "Sin imágenes consentidas, verdad de terreno por carácter, versión exacta del motor y resultados pareados.",
+          "unresolved_fields": {
+            "delta_accuracy": "No hay medición comparable; no asignar 0 ni un porcentaje estimado."
+          }
+        },
+        {
+          "collection": "preprocesamiento",
+          "step": "COMPARAR_REESCALADO_CON_ALTO_DE_CARACTER",
+          "long_edge_px": 1200,
+          "delta_accuracy": null,
+          "measured_on": "NO_MEDIDO: experimento propuesto para la población del encargo; no se ejecutó Tesseract sobre cédulas en esta entrega.",
+          "classification": "INFERIDO",
+          "sources": [
+            {
+              "id": "TESSERACT",
+              "url": "https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html",
+              "titulo": "Tesseract: Improving the quality of the output",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "DOCUMENTACION_OFICIAL_DEL_PROYECTO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "limitacion": "Recomendaciones técnicas sin matriz medida para spa, texto físico de 1–2 mm y población del usuario."
+            },
+            {
+              "id": "ENCARGO",
+              "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/corpus/pedido-investigacion-v2.json",
+              "titulo": "Pedido de investigación v2 aportado por el usuario",
+              "publicado": "2026-09-11",
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "APORTADO_POR_USUARIO",
+              "access_scope": "ARCHIVO_ADJUNTO_LEIDO; COPIA_DEL_REPOSITORIO_LOCALIZADA",
+              "limitacion": "Sus mediciones internas se conservan como declaraciones del encargo, no como mediciones repetidas en esta entrega.",
+              "content_git_blob_sha1": "823e70df7e3d8bb0555970cf597e47a8a8391fca"
+            }
+          ],
+          "proposal_only": true,
+          "parameter_origin": "Los 600/1200 px proceden del contexto del motor; no son tamaños óptimos medidos.",
+          "reason_unresolved": "Sin imágenes consentidas, verdad de terreno por carácter, versión exacta del motor y resultados pareados.",
+          "unresolved_fields": {
+            "delta_accuracy": "No hay medición comparable; no asignar 0 ni un porcentaje estimado."
+          }
+        },
+        {
+          "collection": "preprocesamiento",
+          "step": "COMPARAR_OTSU_ADAPTATIVO",
+          "long_edge_px": 1200,
+          "delta_accuracy": null,
+          "measured_on": "NO_MEDIDO: experimento propuesto para la población del encargo; no se ejecutó Tesseract sobre cédulas en esta entrega.",
+          "classification": "INFERIDO",
+          "sources": [
+            {
+              "id": "TESSERACT",
+              "url": "https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html",
+              "titulo": "Tesseract: Improving the quality of the output",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "DOCUMENTACION_OFICIAL_DEL_PROYECTO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "limitacion": "Recomendaciones técnicas sin matriz medida para spa, texto físico de 1–2 mm y población del usuario."
+            },
+            {
+              "id": "ENCARGO",
+              "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/corpus/pedido-investigacion-v2.json",
+              "titulo": "Pedido de investigación v2 aportado por el usuario",
+              "publicado": "2026-09-11",
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "APORTADO_POR_USUARIO",
+              "access_scope": "ARCHIVO_ADJUNTO_LEIDO; COPIA_DEL_REPOSITORIO_LOCALIZADA",
+              "limitacion": "Sus mediciones internas se conservan como declaraciones del encargo, no como mediciones repetidas en esta entrega.",
+              "content_git_blob_sha1": "823e70df7e3d8bb0555970cf597e47a8a8391fca"
+            }
+          ],
+          "proposal_only": true,
+          "parameter_origin": "Los 600/1200 px proceden del contexto del motor; no son tamaños óptimos medidos.",
+          "reason_unresolved": "Sin imágenes consentidas, verdad de terreno por carácter, versión exacta del motor y resultados pareados.",
+          "unresolved_fields": {
+            "delta_accuracy": "No hay medición comparable; no asignar 0 ni un porcentaje estimado."
+          }
+        },
+        {
+          "collection": "preprocesamiento",
+          "step": "COMPARAR_SAUVOLA",
+          "long_edge_px": 1200,
+          "delta_accuracy": null,
+          "measured_on": "NO_MEDIDO: experimento propuesto para la población del encargo; no se ejecutó Tesseract sobre cédulas en esta entrega.",
+          "classification": "INFERIDO",
+          "sources": [
+            {
+              "id": "TESSERACT",
+              "url": "https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html",
+              "titulo": "Tesseract: Improving the quality of the output",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "DOCUMENTACION_OFICIAL_DEL_PROYECTO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "limitacion": "Recomendaciones técnicas sin matriz medida para spa, texto físico de 1–2 mm y población del usuario."
+            },
+            {
+              "id": "ENCARGO",
+              "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/corpus/pedido-investigacion-v2.json",
+              "titulo": "Pedido de investigación v2 aportado por el usuario",
+              "publicado": "2026-09-11",
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "APORTADO_POR_USUARIO",
+              "access_scope": "ARCHIVO_ADJUNTO_LEIDO; COPIA_DEL_REPOSITORIO_LOCALIZADA",
+              "limitacion": "Sus mediciones internas se conservan como declaraciones del encargo, no como mediciones repetidas en esta entrega.",
+              "content_git_blob_sha1": "823e70df7e3d8bb0555970cf597e47a8a8391fca"
+            }
+          ],
+          "proposal_only": true,
+          "parameter_origin": "Los 600/1200 px proceden del contexto del motor; no son tamaños óptimos medidos.",
+          "reason_unresolved": "Sin imágenes consentidas, verdad de terreno por carácter, versión exacta del motor y resultados pareados.",
+          "unresolved_fields": {
+            "delta_accuracy": "No hay medición comparable; no asignar 0 ni un porcentaje estimado."
+          }
+        },
+        {
+          "collection": "preprocesamiento",
+          "step": "CORREGIR_INCLINACION",
+          "long_edge_px": 1200,
+          "delta_accuracy": null,
+          "measured_on": "NO_MEDIDO: experimento propuesto para la población del encargo; no se ejecutó Tesseract sobre cédulas en esta entrega.",
+          "classification": "INFERIDO",
+          "sources": [
+            {
+              "id": "TESSERACT",
+              "url": "https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html",
+              "titulo": "Tesseract: Improving the quality of the output",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "DOCUMENTACION_OFICIAL_DEL_PROYECTO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "limitacion": "Recomendaciones técnicas sin matriz medida para spa, texto físico de 1–2 mm y población del usuario."
+            },
+            {
+              "id": "ENCARGO",
+              "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/corpus/pedido-investigacion-v2.json",
+              "titulo": "Pedido de investigación v2 aportado por el usuario",
+              "publicado": "2026-09-11",
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "APORTADO_POR_USUARIO",
+              "access_scope": "ARCHIVO_ADJUNTO_LEIDO; COPIA_DEL_REPOSITORIO_LOCALIZADA",
+              "limitacion": "Sus mediciones internas se conservan como declaraciones del encargo, no como mediciones repetidas en esta entrega.",
+              "content_git_blob_sha1": "823e70df7e3d8bb0555970cf597e47a8a8391fca"
+            }
+          ],
+          "proposal_only": true,
+          "parameter_origin": "Los 600/1200 px proceden del contexto del motor; no son tamaños óptimos medidos.",
+          "reason_unresolved": "Sin imágenes consentidas, verdad de terreno por carácter, versión exacta del motor y resultados pareados.",
+          "unresolved_fields": {
+            "delta_accuracy": "No hay medición comparable; no asignar 0 ni un porcentaje estimado."
+          }
+        },
+        {
+          "collection": "preprocesamiento",
+          "step": "COMPARAR_REDUCCION_DE_RUIDO",
+          "long_edge_px": 1200,
+          "delta_accuracy": null,
+          "measured_on": "NO_MEDIDO: experimento propuesto para la población del encargo; no se ejecutó Tesseract sobre cédulas en esta entrega.",
+          "classification": "INFERIDO",
+          "sources": [
+            {
+              "id": "TESSERACT",
+              "url": "https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html",
+              "titulo": "Tesseract: Improving the quality of the output",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "DOCUMENTACION_OFICIAL_DEL_PROYECTO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "limitacion": "Recomendaciones técnicas sin matriz medida para spa, texto físico de 1–2 mm y población del usuario."
+            },
+            {
+              "id": "ENCARGO",
+              "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/corpus/pedido-investigacion-v2.json",
+              "titulo": "Pedido de investigación v2 aportado por el usuario",
+              "publicado": "2026-09-11",
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "APORTADO_POR_USUARIO",
+              "access_scope": "ARCHIVO_ADJUNTO_LEIDO; COPIA_DEL_REPOSITORIO_LOCALIZADA",
+              "limitacion": "Sus mediciones internas se conservan como declaraciones del encargo, no como mediciones repetidas en esta entrega.",
+              "content_git_blob_sha1": "823e70df7e3d8bb0555970cf597e47a8a8391fca"
+            }
+          ],
+          "proposal_only": true,
+          "parameter_origin": "Los 600/1200 px proceden del contexto del motor; no son tamaños óptimos medidos.",
+          "reason_unresolved": "Sin imágenes consentidas, verdad de terreno por carácter, versión exacta del motor y resultados pareados.",
+          "unresolved_fields": {
+            "delta_accuracy": "No hay medición comparable; no asignar 0 ni un porcentaje estimado."
+          }
+        },
+        {
+          "collection": "preprocesamiento",
+          "step": "COMPARAR_BORDES_Y_RECORTE",
+          "long_edge_px": 1200,
+          "delta_accuracy": null,
+          "measured_on": "NO_MEDIDO: experimento propuesto para la población del encargo; no se ejecutó Tesseract sobre cédulas en esta entrega.",
+          "classification": "INFERIDO",
+          "sources": [
+            {
+              "id": "TESSERACT",
+              "url": "https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html",
+              "titulo": "Tesseract: Improving the quality of the output",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "DOCUMENTACION_OFICIAL_DEL_PROYECTO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "limitacion": "Recomendaciones técnicas sin matriz medida para spa, texto físico de 1–2 mm y población del usuario."
+            },
+            {
+              "id": "ENCARGO",
+              "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/corpus/pedido-investigacion-v2.json",
+              "titulo": "Pedido de investigación v2 aportado por el usuario",
+              "publicado": "2026-09-11",
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "APORTADO_POR_USUARIO",
+              "access_scope": "ARCHIVO_ADJUNTO_LEIDO; COPIA_DEL_REPOSITORIO_LOCALIZADA",
+              "limitacion": "Sus mediciones internas se conservan como declaraciones del encargo, no como mediciones repetidas en esta entrega.",
+              "content_git_blob_sha1": "823e70df7e3d8bb0555970cf597e47a8a8391fca"
+            }
+          ],
+          "proposal_only": true,
+          "parameter_origin": "Los 600/1200 px proceden del contexto del motor; no son tamaños óptimos medidos.",
+          "reason_unresolved": "Sin imágenes consentidas, verdad de terreno por carácter, versión exacta del motor y resultados pareados.",
+          "unresolved_fields": {
+            "delta_accuracy": "No hay medición comparable; no asignar 0 ni un porcentaje estimado."
+          }
+        },
+        {
+          "collection": "preprocesamiento",
+          "step": "COMPARAR_PSM_POR_ZONA",
+          "long_edge_px": 1200,
+          "delta_accuracy": null,
+          "measured_on": "NO_MEDIDO: experimento propuesto para la población del encargo; no se ejecutó Tesseract sobre cédulas en esta entrega.",
+          "classification": "INFERIDO",
+          "sources": [
+            {
+              "id": "TESSERACT",
+              "url": "https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html",
+              "titulo": "Tesseract: Improving the quality of the output",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "DOCUMENTACION_OFICIAL_DEL_PROYECTO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "limitacion": "Recomendaciones técnicas sin matriz medida para spa, texto físico de 1–2 mm y población del usuario."
+            },
+            {
+              "id": "ENCARGO",
+              "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/corpus/pedido-investigacion-v2.json",
+              "titulo": "Pedido de investigación v2 aportado por el usuario",
+              "publicado": "2026-09-11",
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "APORTADO_POR_USUARIO",
+              "access_scope": "ARCHIVO_ADJUNTO_LEIDO; COPIA_DEL_REPOSITORIO_LOCALIZADA",
+              "limitacion": "Sus mediciones internas se conservan como declaraciones del encargo, no como mediciones repetidas en esta entrega.",
+              "content_git_blob_sha1": "823e70df7e3d8bb0555970cf597e47a8a8391fca"
+            }
+          ],
+          "proposal_only": true,
+          "parameter_origin": "Los 600/1200 px proceden del contexto del motor; no son tamaños óptimos medidos.",
+          "reason_unresolved": "Sin imágenes consentidas, verdad de terreno por carácter, versión exacta del motor y resultados pareados.",
+          "unresolved_fields": {
+            "delta_accuracy": "No hay medición comparable; no asignar 0 ni un porcentaje estimado."
+          }
+        }
+      ],
+      "collections": [
+        "confusiones",
+        "preprocesamiento"
+      ],
+      "status": "UNRESOLVED",
+      "confusion_matrix_available": null,
+      "confusion_records": [],
+      "reason_unresolved": "La documentación oficial no proporciona una matriz cuantificada para Tesseract 5.x spa sobre texto boliviano de 1–2 mm.",
+      "research_notes": [
+        {
+          "id": "E06-N1",
+          "statement": "Tesseract documenta preprocesamiento y binarizaciones disponibles; no publica allí deltas de precisión para la población solicitada.",
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "TESSERACT",
+              "url": "https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html",
+              "titulo": "Tesseract: Improving the quality of the output",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "DOCUMENTACION_OFICIAL_DEL_PROYECTO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "limitacion": "Recomendaciones técnicas sin matriz medida para spa, texto físico de 1–2 mm y población del usuario."
+            }
+          ]
+        }
+      ],
+      "experiment_protocol": {
+        "classification": "INFERIDO",
+        "sources": [
+          {
+            "id": "TESSERACT",
+            "url": "https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html",
+            "titulo": "Tesseract: Improving the quality of the output",
+            "publicado": null,
+            "consultado": "2026-09-11",
+            "cita_literal": null,
+            "source_kind": "DOCUMENTACION_OFICIAL_DEL_PROYECTO",
+            "access_scope": "CONTENIDO_CONSULTADO",
+            "limitacion": "Recomendaciones técnicas sin matriz medida para spa, texto físico de 1–2 mm y población del usuario."
+          },
+          {
+            "id": "ENCARGO",
+            "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/corpus/pedido-investigacion-v2.json",
+            "titulo": "Pedido de investigación v2 aportado por el usuario",
+            "publicado": "2026-09-11",
+            "consultado": "2026-09-11",
+            "cita_literal": null,
+            "source_kind": "APORTADO_POR_USUARIO",
+            "access_scope": "ARCHIVO_ADJUNTO_LEIDO; COPIA_DEL_REPOSITORIO_LOCALIZADA",
+            "limitacion": "Sus mediciones internas se conservan como declaraciones del encargo, no como mediciones repetidas en esta entrega.",
+            "content_git_blob_sha1": "823e70df7e3d8bb0555970cf597e47a8a8391fca"
+          }
+        ],
+        "execution_status": "NO_EJECUTADO",
+        "freeze": [
+          "Versión exacta de Tesseract y Leptonica",
+          "Hash y familia del spa.traineddata",
+          "OEM/PSM, parámetros, sistema y librerías de imagen",
+          "Resolución original, recorte, escala y alto de carácter en píxeles"
+        ],
+        "ground_truth": "Transcripción revisada por dos personas, por zona/carácter y campo; conservar tildes, Ñ y errores del impreso. No usar la salida OCR como verdad.",
+        "split": "Separar por documento/persona antes de ajustar; ninguna cara, recorte o variante del mismo documento cruza entrenamiento y evaluación.",
+        "comparisons": "Mismo conjunto pareado, un cambio a la vez y combinaciones preespecificadas. Upsampling no recrea detalle perdido.",
+        "metrics": [
+          "CER con inserciones/eliminaciones/sustituciones",
+          "Exactitud por campo y documento",
+          "Conteos esperados→leídos con denominador por carácter",
+          "Latencia y tasa de campos no leídos"
+        ],
+        "uncertainty": "Intervalos y remuestreo a nivel de documento; no tratar caracteres correlacionados como documentos independientes.",
+        "frequency_definition": "Para cada carácter esperado: sustituciones por read_as divididas por apariciones del esperado en verdad de terreno; informar conteos y condiciones.",
+        "correction_guard": "No activar sustituciones globales O/0, I/1, Ñ/N ni completar nombres por diccionario sin evidencia contextual y revisión.",
+        "target_size_effect": null
+      }
+    },
+    "E09": {
+      "collection": "documentos",
+      "records": [
+        {
+          "document_type": "PASAPORTE_BOLIVIANO",
+          "generation": null,
+          "labels": [],
+          "mrz_format": null,
+          "anchors": [],
+          "classification": "NO_VERIFICADO",
+          "sources": [
+            {
+              "id": "PASAPORTE",
+              "url": "https://www.pixilegal.com/normativa/decreto-3762-2018-12-26",
+              "titulo": "Decreto Supremo 3762: pasaporte electrónico, texto con modificaciones indicadas",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "norm_fecha": "2018-12-26",
+              "limitacion": "Regula pasaporte electrónico y autoridades de certificación; no acredita publicación actual de claves ni rótulos observados en un ejemplar."
+            },
+            {
+              "id": "CONSULADO",
+              "url": "https://consulados.cancilleria.gob.bo/base/pasaporte/",
+              "titulo": "Cancillería: servicio consular de pasaporte",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "OFICIAL",
+              "access_scope": "TEXTO_INDEXADO_CONSULTADO"
+            },
+            {
+              "id": "PRADO",
+              "url": "https://www.consilium.europa.eu/prado/en/search-by-document-title.html",
+              "titulo": "Consejo de la Unión Europea: búsqueda por documento en PRADO",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "OFICIAL",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "limitacion": "La búsqueda consultada no proporcionó una ficha boliviana utilizable. No demuestra inexistencia del documento."
+            }
+          ],
+          "reason_unresolved": "Se verificó normativa de pasaporte electrónico, no una ficha visual o especificación literal que confirme sus rótulos y MRZ.",
+          "unresolved_fields": {
+            "generation": "No se verificó nomenclatura técnica de generaciones y cobertura por fecha.",
+            "labels": "No se transcriben rótulos desde memoria ni muestras de terceros.",
+            "mrz_format": "No se certifica TD1/TD2/TD3 ni NINGUNA sin especificación o documento observado.",
+            "anchors": "No se probaron rótulos exclusivos frente a las otras familias documentales."
+          }
+        },
+        {
+          "document_type": "LICENCIA_DE_CONDUCIR_BOLIVIANA",
+          "generation": null,
+          "labels": [],
+          "mrz_format": null,
+          "anchors": [],
+          "classification": "NO_VERIFICADO",
+          "sources": [
+            {
+              "id": "DS4861",
+              "url": "https://www.asfi.gob.bo/sites/default/files/2025-08/Decreto%20Supremo%20N%C2%B0%204861%20de%20fecha%2011%20de%20enero%20de%202023.pdf",
+              "titulo": "Decreto Supremo 4861: copia de Gaceta alojada por ASFI",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "OFICIAL",
+              "access_scope": "PDF_TEXTO_CONSULTADO; PAGINA_3_VERIFICADA_VISUALMENTE",
+              "norm_fecha": "2023-01-11",
+              "limitacion": "La fecha del directorio de alojamiento no se usa como fecha de publicación ni como reforma de la norma."
+            },
+            {
+              "id": "DS5364",
+              "url": "https://www.pixilegal.com/normativa/decreto-5364-2025-04-02",
+              "titulo": "Decreto Supremo 5364: disposiciones adicionales sobre emisión automatizada de cédulas",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "norm_fecha": "2025-04-02"
+            },
+            {
+              "id": "SEGIP",
+              "url": "https://www.segip.gob.bo/",
+              "titulo": "SEGIP: portal institucional",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "OFICIAL",
+              "access_scope": "RESULTADO_INDEXADO; APERTURA_DIRECTA_403",
+              "limitacion": "No se recuperaron especificaciones públicas de payload QR, claves o gramática del número desde el portal."
+            },
+            {
+              "id": "PRADO",
+              "url": "https://www.consilium.europa.eu/prado/en/search-by-document-title.html",
+              "titulo": "Consejo de la Unión Europea: búsqueda por documento en PRADO",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "OFICIAL",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "limitacion": "La búsqueda consultada no proporcionó una ficha boliviana utilizable. No demuestra inexistencia del documento."
+            }
+          ],
+          "reason_unresolved": "La normativa trata documentos de conducción y extensión digital; no se recuperó catálogo visual/literal por generación.",
+          "unresolved_fields": {
+            "generation": "No se verificó nomenclatura técnica de generaciones y cobertura por fecha.",
+            "labels": "No se transcriben rótulos desde memoria ni muestras de terceros.",
+            "mrz_format": "No se certifica TD1/TD2/TD3 ni NINGUNA sin especificación o documento observado.",
+            "anchors": "No se probaron rótulos exclusivos frente a las otras familias documentales."
+          }
+        },
+        {
+          "document_type": "CEDULA_DE_IDENTIDAD_DE_EXTRANJERO",
+          "generation": null,
+          "labels": [],
+          "mrz_format": null,
+          "anchors": [],
+          "classification": "NO_VERIFICADO",
+          "sources": [
+            {
+              "id": "SEGIP",
+              "url": "https://www.segip.gob.bo/",
+              "titulo": "SEGIP: portal institucional",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "OFICIAL",
+              "access_scope": "RESULTADO_INDEXADO; APERTURA_DIRECTA_403",
+              "limitacion": "No se recuperaron especificaciones públicas de payload QR, claves o gramática del número desde el portal."
+            },
+            {
+              "id": "PRADO",
+              "url": "https://www.consilium.europa.eu/prado/en/search-by-document-title.html",
+              "titulo": "Consejo de la Unión Europea: búsqueda por documento en PRADO",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "OFICIAL",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "limitacion": "La búsqueda consultada no proporcionó una ficha boliviana utilizable. No demuestra inexistencia del documento."
+            },
+            {
+              "id": "ENCARGO",
+              "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/corpus/pedido-investigacion-v2.json",
+              "titulo": "Pedido de investigación v2 aportado por el usuario",
+              "publicado": "2026-09-11",
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "APORTADO_POR_USUARIO",
+              "access_scope": "ARCHIVO_ADJUNTO_LEIDO; COPIA_DEL_REPOSITORIO_LOCALIZADA",
+              "limitacion": "Sus mediciones internas se conservan como declaraciones del encargo, no como mediciones repetidas en esta entrega.",
+              "content_git_blob_sha1": "823e70df7e3d8bb0555970cf597e47a8a8391fca"
+            }
+          ],
+          "reason_unresolved": "No se recuperó especificación oficial de rótulos, zonas y MRZ. La búsqueda negativa no implica que el documento carezca de MRZ.",
+          "unresolved_fields": {
+            "generation": "No se verificó nomenclatura técnica de generaciones y cobertura por fecha.",
+            "labels": "No se transcriben rótulos desde memoria ni muestras de terceros.",
+            "mrz_format": "No se certifica TD1/TD2/TD3 ni NINGUNA sin especificación o documento observado.",
+            "anchors": "No se probaron rótulos exclusivos frente a las otras familias documentales."
+          }
+        }
+      ],
+      "status": "PARTIAL",
+      "research_notes": [
+        {
+          "id": "E09-N1",
+          "statement": "DS 3762 contempla infraestructura de certificación para pasaporte electrónico. Esto no demuestra claves públicas disponibles para el QR de la cédula.",
+          "classification": "VERIFICADO",
+          "sources": [
+            {
+              "id": "PASAPORTE",
+              "url": "https://www.pixilegal.com/normativa/decreto-3762-2018-12-26",
+              "titulo": "Decreto Supremo 3762: pasaporte electrónico, texto con modificaciones indicadas",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "norm_fecha": "2018-12-26",
+              "limitacion": "Regula pasaporte electrónico y autoridades de certificación; no acredita publicación actual de claves ni rótulos observados en un ejemplar."
+            }
+          ]
+        },
+        {
+          "id": "E09-N2",
+          "statement": "La remisión normativa a ICAO 9303 no se toma como observación de la MRZ ni de rótulos de una muestra concreta.",
+          "classification": "INFERIDO",
+          "sources": [
+            {
+              "id": "PASAPORTE",
+              "url": "https://www.pixilegal.com/normativa/decreto-3762-2018-12-26",
+              "titulo": "Decreto Supremo 3762: pasaporte electrónico, texto con modificaciones indicadas",
+              "publicado": null,
+              "consultado": "2026-09-11",
+              "cita_literal": null,
+              "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+              "access_scope": "CONTENIDO_CONSULTADO",
+              "norm_fecha": "2018-12-26",
+              "limitacion": "Regula pasaporte electrónico y autoridades de certificación; no acredita publicación actual de claves ni rótulos observados en un ejemplar."
+            }
+          ]
+        }
+      ],
+      "proposed_router_behavior": {
+        "classification": "INFERIDO",
+        "sources": [
+          {
+            "id": "ENCARGO",
+            "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/corpus/pedido-investigacion-v2.json",
+            "titulo": "Pedido de investigación v2 aportado por el usuario",
+            "publicado": "2026-09-11",
+            "consultado": "2026-09-11",
+            "cita_literal": null,
+            "source_kind": "APORTADO_POR_USUARIO",
+            "access_scope": "ARCHIVO_ADJUNTO_LEIDO; COPIA_DEL_REPOSITORIO_LOCALIZADA",
+            "limitacion": "Sus mediciones internas se conservan como declaraciones del encargo, no como mediciones repetidas en esta entrega.",
+            "content_git_blob_sha1": "823e70df7e3d8bb0555970cf597e47a8a8391fca"
+          }
+        ],
+        "rule": "Conservar documento no soportado como motivo explícito y permitir ruta de revisión/alternativa; no clasificarlo como cédula por cobertura parcial ni acusar fraude por falta de analizador.",
+        "executed": false
+      }
+    }
+  },
+  "gaps": [
+    {
+      "id": "ID-G03",
+      "entregable": "E03",
+      "requirement": "Esquema, firma, claves y verificabilidad offline del QR",
+      "status": "PARTIAL",
+      "reason_unresolved": "La norma reconoce el QR, pero no especifica su codificación ni autenticación criptográfica.",
+      "search_and_limit": "DS 4861 y DS 4924 consultados; portal SEGIP respondió 403; ficha de app no contiene especificación del QR impreso.",
+      "classification": "INFERIDO",
+      "sources": [
+        {
+          "id": "DS4861",
+          "url": "https://www.asfi.gob.bo/sites/default/files/2025-08/Decreto%20Supremo%20N%C2%B0%204861%20de%20fecha%2011%20de%20enero%20de%202023.pdf",
+          "titulo": "Decreto Supremo 4861: copia de Gaceta alojada por ASFI",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "OFICIAL",
+          "access_scope": "PDF_TEXTO_CONSULTADO; PAGINA_3_VERIFICADA_VISUALMENTE",
+          "norm_fecha": "2023-01-11",
+          "limitacion": "La fecha del directorio de alojamiento no se usa como fecha de publicación ni como reforma de la norma."
+        },
+        {
+          "id": "DS4924",
+          "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+          "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+          "access_scope": "CONTENIDO_CONSULTADO",
+          "norm_fecha": "2023-04-26",
+          "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+        },
+        {
+          "id": "SEGIP",
+          "url": "https://www.segip.gob.bo/",
+          "titulo": "SEGIP: portal institucional",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "OFICIAL",
+          "access_scope": "RESULTADO_INDEXADO; APERTURA_DIRECTA_403",
+          "limitacion": "No se recuperaron especificaciones públicas de payload QR, claves o gramática del número desde el portal."
+        },
+        {
+          "id": "SEGIP_APP",
+          "url": "https://play.google.com/store/apps/details?hl=es_BO&id=bo.gob.segip.miidentidad",
+          "titulo": "SEGIP: ficha de Mi Identidad",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "OFICIAL_DEL_EMISOR_EN_TIENDA",
+          "access_scope": "TEXTO_INDEXADO_CONSULTADO",
+          "limitacion": "La aplicación digital no acredita la codificación del QR impreso ni un algoritmo de firma."
+        }
+      ],
+      "evidence_needed": "Especificación oficial y test vectors, sin imágenes ni datos de personas en Git."
+    },
+    {
+      "id": "ID-G04-A",
+      "entregable": "E04",
+      "requirement": "Literal/fecha de expiración impresa para vigencia indefinida y centinela",
+      "status": "PARTIAL",
+      "reason_unresolved": "No se verificó instrucción de impresión ni un ejemplar que vincule un literal/fecha con vigencia indefinida. No se verificó 2049-12-31 ni otra fecha centinela. El arreglo vacío no niega que exista alguna implementación.",
+      "search_and_limit": "Consulta normativa de vigencia y diseño; sin documentos reales ni manual técnico de impresión.",
+      "classification": "INFERIDO",
+      "sources": [
+        {
+          "id": "DS4861",
+          "url": "https://www.asfi.gob.bo/sites/default/files/2025-08/Decreto%20Supremo%20N%C2%B0%204861%20de%20fecha%2011%20de%20enero%20de%202023.pdf",
+          "titulo": "Decreto Supremo 4861: copia de Gaceta alojada por ASFI",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "OFICIAL",
+          "access_scope": "PDF_TEXTO_CONSULTADO; PAGINA_3_VERIFICADA_VISUALMENTE",
+          "norm_fecha": "2023-01-11",
+          "limitacion": "La fecha del directorio de alojamiento no se usa como fecha de publicación ni como reforma de la norma."
+        },
+        {
+          "id": "DS4924",
+          "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+          "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+          "access_scope": "CONTENIDO_CONSULTADO",
+          "norm_fecha": "2023-04-26",
+          "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+        },
+        {
+          "id": "ENCARGO",
+          "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/corpus/pedido-investigacion-v2.json",
+          "titulo": "Pedido de investigación v2 aportado por el usuario",
+          "publicado": "2026-09-11",
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "APORTADO_POR_USUARIO",
+          "access_scope": "ARCHIVO_ADJUNTO_LEIDO; COPIA_DEL_REPOSITORIO_LOCALIZADA",
+          "limitacion": "Sus mediciones internas se conservan como declaraciones del encargo, no como mediciones repetidas en esta entrega.",
+          "content_git_blob_sha1": "823e70df7e3d8bb0555970cf597e47a8a8391fca"
+        }
+      ]
+    },
+    {
+      "id": "ID-G04-B",
+      "entregable": "E04",
+      "requirement": "Periodo general de gracia y tratamiento de tarjetas preexistentes al cumplir 58 años",
+      "status": "UNRESOLVED",
+      "reason_unresolved": "La norma de renovación anticipada no determina gracia. No se verificó la regla operativa que resuelve una fecha finita antigua frente a elegibilidad posterior para vigencia indefinida.",
+      "search_and_limit": "Artículos 6–8 y disposiciones transitorias consultados; no hay circular SEGIP de implementación en la evidencia recuperada.",
+      "classification": "NO_VERIFICADO",
+      "sources": [
+        {
+          "id": "DS4861",
+          "url": "https://www.asfi.gob.bo/sites/default/files/2025-08/Decreto%20Supremo%20N%C2%B0%204861%20de%20fecha%2011%20de%20enero%20de%202023.pdf",
+          "titulo": "Decreto Supremo 4861: copia de Gaceta alojada por ASFI",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "OFICIAL",
+          "access_scope": "PDF_TEXTO_CONSULTADO; PAGINA_3_VERIFICADA_VISUALMENTE",
+          "norm_fecha": "2023-01-11",
+          "limitacion": "La fecha del directorio de alojamiento no se usa como fecha de publicación ni como reforma de la norma."
+        },
+        {
+          "id": "DS4924",
+          "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+          "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+          "access_scope": "CONTENIDO_CONSULTADO",
+          "norm_fecha": "2023-04-26",
+          "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+        }
+      ]
+    },
+    {
+      "id": "ID-G05-A",
+      "entregable": "E05",
+      "requirement": "Gramática formal del número, complemento y dígito de control",
+      "status": "UNRESOLVED",
+      "reason_unresolved": "La existencia de número y complemento no especifica longitudes, caracteres admitidos, separador ni dígito de control del SEGIP.",
+      "search_and_limit": "Se consultaron modelo RUI, interfaz XML del SIN y portal SEGIP; sin especificación de emisión. No se infieren longitudes a partir de ejemplos.",
+      "classification": "NO_VERIFICADO",
+      "sources": [
+        {
+          "id": "DS4861",
+          "url": "https://www.asfi.gob.bo/sites/default/files/2025-08/Decreto%20Supremo%20N%C2%B0%204861%20de%20fecha%2011%20de%20enero%20de%202023.pdf",
+          "titulo": "Decreto Supremo 4861: copia de Gaceta alojada por ASFI",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "OFICIAL",
+          "access_scope": "PDF_TEXTO_CONSULTADO; PAGINA_3_VERIFICADA_VISUALMENTE",
+          "norm_fecha": "2023-01-11",
+          "limitacion": "La fecha del directorio de alojamiento no se usa como fecha de publicación ni como reforma de la norma."
+        },
+        {
+          "id": "SIN_COMPLEMENTO",
+          "url": "https://siatanexo.impuestos.gob.bo/index.php/archivos-xml-xsd-de-facturas-electronicas/factura-de-seguridad-alimentaria-y-abastecimiento",
+          "titulo": "SIN: campos XML de factura, complemento de documento de identidad",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "OFICIAL",
+          "access_scope": "TEXTO_INDEXADO_CONSULTADO",
+          "limitacion": "Contrato de facturación; sus tipos no prueban gramática completa de emisión del SEGIP."
+        },
+        {
+          "id": "SEGIP",
+          "url": "https://www.segip.gob.bo/",
+          "titulo": "SEGIP: portal institucional",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "OFICIAL",
+          "access_scope": "RESULTADO_INDEXADO; APERTURA_DIRECTA_403",
+          "limitacion": "No se recuperaron especificaciones públicas de payload QR, claves o gramática del número desde el portal."
+        }
+      ]
+    },
+    {
+      "id": "ID-G05-B",
+      "entregable": "E05",
+      "requirement": "Abreviaturas impresas y catálogo completo de lugares SEGIP",
+      "status": "PARTIAL",
+      "reason_unresolved": "Se recuperaron cinco combinaciones de catálogo INE, no diccionario de impresión SEGIP ni lista geográfica nacional vigente exhaustiva.",
+      "search_and_limit": "Catálogo INE ANDA consultado. No hay tarjetas ni catálogo de abreviaturas del SEGIP en esta entrega.",
+      "classification": "INFERIDO",
+      "sources": [
+        {
+          "id": "INE_GEO",
+          "url": "https://anda.ine.gob.bo/index.php/catalog/82/variable/F15/V3286?name=s3_66deptocod",
+          "titulo": "INE ANDA: catálogo de variable con códigos geográficos",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "OFICIAL",
+          "access_scope": "TEXTO_INDEXADO_CONSULTADO",
+          "limitacion": "Se observaron cinco combinaciones de Santa Cruz–Andrés Ibañez. Es un catálogo de encuesta, no una especificación de impresión SEGIP ni una certificación territorial vigente."
+        },
+        {
+          "id": "DS4924",
+          "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+          "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+          "access_scope": "CONTENIDO_CONSULTADO",
+          "norm_fecha": "2023-04-26",
+          "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+        }
+      ]
+    },
+    {
+      "id": "ID-G05-C",
+      "entregable": "E05",
+      "requirement": "Rótulos de todas las subvariantes, incluido NPIOC y emisión automatizada",
+      "status": "PARTIAL",
+      "reason_unresolved": "Hay 19 rótulos normativos exactos, pero no corpus visual que confirme todas las variantes, abreviaciones, presencia condicional o calidad OCR.",
+      "search_and_limit": "DS 4924 original y cambios de DS 5364 revisados; no se aportaron tarjetas reales.",
+      "classification": "INFERIDO",
+      "sources": [
+        {
+          "id": "DS4924",
+          "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+          "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+          "access_scope": "CONTENIDO_CONSULTADO",
+          "norm_fecha": "2023-04-26",
+          "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+        },
+        {
+          "id": "DS5364",
+          "url": "https://www.pixilegal.com/normativa/decreto-5364-2025-04-02",
+          "titulo": "Decreto Supremo 5364: disposiciones adicionales sobre emisión automatizada de cédulas",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+          "access_scope": "CONTENIDO_CONSULTADO",
+          "norm_fecha": "2025-04-02"
+        },
+        {
+          "id": "ENCARGO",
+          "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/corpus/pedido-investigacion-v2.json",
+          "titulo": "Pedido de investigación v2 aportado por el usuario",
+          "publicado": "2026-09-11",
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "APORTADO_POR_USUARIO",
+          "access_scope": "ARCHIVO_ADJUNTO_LEIDO; COPIA_DEL_REPOSITORIO_LOCALIZADA",
+          "limitacion": "Sus mediciones internas se conservan como declaraciones del encargo, no como mediciones repetidas en esta entrega.",
+          "content_git_blob_sha1": "823e70df7e3d8bb0555970cf597e47a8a8391fca"
+        }
+      ]
+    },
+    {
+      "id": "ID-G06",
+      "entregable": "E06",
+      "requirement": "Matriz de confusiones y delta de precisión de preprocesamientos",
+      "status": "UNRESOLVED",
+      "reason_unresolved": "La documentación oficial no proporciona una matriz cuantificada para Tesseract 5.x spa sobre texto boliviano de 1–2 mm. Los nueve registros son condiciones experimentales propuestas, no resultados.",
+      "search_and_limit": "Documentación oficial ImproveQuality consultada; no corpus etiquetado ni ejecución local sobre documentos del usuario.",
+      "classification": "NO_VERIFICADO",
+      "sources": [
+        {
+          "id": "TESSERACT",
+          "url": "https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html",
+          "titulo": "Tesseract: Improving the quality of the output",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "DOCUMENTACION_OFICIAL_DEL_PROYECTO",
+          "access_scope": "CONTENIDO_CONSULTADO",
+          "limitacion": "Recomendaciones técnicas sin matriz medida para spa, texto físico de 1–2 mm y población del usuario."
+        },
+        {
+          "id": "ENCARGO",
+          "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/corpus/pedido-investigacion-v2.json",
+          "titulo": "Pedido de investigación v2 aportado por el usuario",
+          "publicado": "2026-09-11",
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "APORTADO_POR_USUARIO",
+          "access_scope": "ARCHIVO_ADJUNTO_LEIDO; COPIA_DEL_REPOSITORIO_LOCALIZADA",
+          "limitacion": "Sus mediciones internas se conservan como declaraciones del encargo, no como mediciones repetidas en esta entrega.",
+          "content_git_blob_sha1": "823e70df7e3d8bb0555970cf597e47a8a8391fca"
+        }
+      ],
+      "evidence_needed": "Imágenes consentidas privadas y transcripción revisada; ejecutar versiones fijadas y exportar sólo agregados no personales."
+    },
+    {
+      "id": "ID-G09",
+      "entregable": "E09",
+      "requirement": "Catálogo literal y validadores de pasaporte, licencia y cédula de extranjero",
+      "status": "PARTIAL",
+      "reason_unresolved": "No se obtuvo ficha literal/visual verificable de cada generación; permanecen sin confirmar zonas, anclas exclusivas y MRZ.",
+      "search_and_limit": "Normativa de pasaporte, normas SEGIP, servicio consular y búsqueda PRADO; sin ficha boliviana utilizable ni ejemplos oficiales no personales.",
+      "classification": "INFERIDO",
+      "sources": [
+        {
+          "id": "PASAPORTE",
+          "url": "https://www.pixilegal.com/normativa/decreto-3762-2018-12-26",
+          "titulo": "Decreto Supremo 3762: pasaporte electrónico, texto con modificaciones indicadas",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+          "access_scope": "CONTENIDO_CONSULTADO",
+          "norm_fecha": "2018-12-26",
+          "limitacion": "Regula pasaporte electrónico y autoridades de certificación; no acredita publicación actual de claves ni rótulos observados en un ejemplar."
+        },
+        {
+          "id": "CONSULADO",
+          "url": "https://consulados.cancilleria.gob.bo/base/pasaporte/",
+          "titulo": "Cancillería: servicio consular de pasaporte",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "OFICIAL",
+          "access_scope": "TEXTO_INDEXADO_CONSULTADO"
+        },
+        {
+          "id": "DS4861",
+          "url": "https://www.asfi.gob.bo/sites/default/files/2025-08/Decreto%20Supremo%20N%C2%B0%204861%20de%20fecha%2011%20de%20enero%20de%202023.pdf",
+          "titulo": "Decreto Supremo 4861: copia de Gaceta alojada por ASFI",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "OFICIAL",
+          "access_scope": "PDF_TEXTO_CONSULTADO; PAGINA_3_VERIFICADA_VISUALMENTE",
+          "norm_fecha": "2023-01-11",
+          "limitacion": "La fecha del directorio de alojamiento no se usa como fecha de publicación ni como reforma de la norma."
+        },
+        {
+          "id": "DS5364",
+          "url": "https://www.pixilegal.com/normativa/decreto-5364-2025-04-02",
+          "titulo": "Decreto Supremo 5364: disposiciones adicionales sobre emisión automatizada de cédulas",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+          "access_scope": "CONTENIDO_CONSULTADO",
+          "norm_fecha": "2025-04-02"
+        },
+        {
+          "id": "SEGIP",
+          "url": "https://www.segip.gob.bo/",
+          "titulo": "SEGIP: portal institucional",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "OFICIAL",
+          "access_scope": "RESULTADO_INDEXADO; APERTURA_DIRECTA_403",
+          "limitacion": "No se recuperaron especificaciones públicas de payload QR, claves o gramática del número desde el portal."
+        },
+        {
+          "id": "PRADO",
+          "url": "https://www.consilium.europa.eu/prado/en/search-by-document-title.html",
+          "titulo": "Consejo de la Unión Europea: búsqueda por documento en PRADO",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "OFICIAL",
+          "access_scope": "CONTENIDO_CONSULTADO",
+          "limitacion": "La búsqueda consultada no proporcionó una ficha boliviana utilizable. No demuestra inexistencia del documento."
+        }
+      ],
+      "evidence_needed": "Especímenes oficiales no personales, autorización de uso y normas de formato por generación; no usar una cédula como patrón universal."
+    },
+    {
+      "id": "ID-G-INGESTA",
+      "entregable": "E05",
+      "requirement": "Ingesta de estos JSON mediante yarn corpus:generar y corpus:check",
+      "status": "UNRESOLVED",
+      "reason_unresolved": "El generador consultado consume nombres y módulos v1; no se implementó adaptador v2 ni se ejecutaron los comandos del repositorio.",
+      "search_and_limit": "Lectura del generador en rama dev por GitHub; no modificación remota ni ejecución de la suite.",
+      "classification": "NO_VERIFICADO",
+      "sources": [
+        {
+          "id": "GENERADOR",
+          "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/scripts/corpus/generar-catalogos.ts",
+          "titulo": "Generador de catálogos de Atlas, rama dev",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "CODIGO_DEL_REPOSITORIO",
+          "access_scope": "LECTURA_GITHUB; NO_EJECUTADO",
+          "limitacion": "Se observaron nombres v1 y acceso a módulos v1. La lectura no demuestra soporte para E01–E09 ni para los nombres -v2.",
+          "content_git_blob_sha1": "9e667918e42ca8007aecae64ecfdc8d08ffe9cd4"
+        },
+        {
+          "id": "ENCARGO",
+          "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/corpus/pedido-investigacion-v2.json",
+          "titulo": "Pedido de investigación v2 aportado por el usuario",
+          "publicado": "2026-09-11",
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "APORTADO_POR_USUARIO",
+          "access_scope": "ARCHIVO_ADJUNTO_LEIDO; COPIA_DEL_REPOSITORIO_LOCALIZADA",
+          "limitacion": "Sus mediciones internas se conservan como declaraciones del encargo, no como mediciones repetidas en esta entrega.",
+          "content_git_blob_sha1": "823e70df7e3d8bb0555970cf597e47a8a8391fca"
+        }
+      ],
+      "evidence_needed": "Adaptador explícito y ejecución de pruebas en checkout autorizado; registrar hashes de ambos v2 y verificar que se incorporan sus registros."
+    }
+  ],
+  "contradictions": [
+    {
+      "id": "ID-C01",
+      "statement_a": "El encargo examina el QR como posible prueba criptográfica de autenticidad.",
+      "statement_b": "La normativa recuperada reconoce QR/código único, pero no publica en esas disposiciones algoritmo, payload o claves.",
+      "resolution": "exists=true en alcance normativo; signed, claves y offline_verifiable permanecen null.",
+      "criterio": "Presencia de código no implica firma ni verificación offline.",
+      "kind": "CONFLICTO_DE_ALCANCE_O_EVIDENCIA",
+      "classification": "INFERIDO",
+      "sources": [
+        {
+          "id": "ENCARGO",
+          "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/corpus/pedido-investigacion-v2.json",
+          "titulo": "Pedido de investigación v2 aportado por el usuario",
+          "publicado": "2026-09-11",
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "APORTADO_POR_USUARIO",
+          "access_scope": "ARCHIVO_ADJUNTO_LEIDO; COPIA_DEL_REPOSITORIO_LOCALIZADA",
+          "limitacion": "Sus mediciones internas se conservan como declaraciones del encargo, no como mediciones repetidas en esta entrega.",
+          "content_git_blob_sha1": "823e70df7e3d8bb0555970cf597e47a8a8391fca"
+        },
+        {
+          "id": "DS4924",
+          "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+          "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+          "access_scope": "CONTENIDO_CONSULTADO",
+          "norm_fecha": "2023-04-26",
+          "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+        },
+        {
+          "id": "DS4861",
+          "url": "https://www.asfi.gob.bo/sites/default/files/2025-08/Decreto%20Supremo%20N%C2%B0%204861%20de%20fecha%2011%20de%20enero%20de%202023.pdf",
+          "titulo": "Decreto Supremo 4861: copia de Gaceta alojada por ASFI",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "OFICIAL",
+          "access_scope": "PDF_TEXTO_CONSULTADO; PAGINA_3_VERIFICADA_VISUALMENTE",
+          "norm_fecha": "2023-01-11",
+          "limitacion": "La fecha del directorio de alojamiento no se usa como fecha de publicación ni como reforma de la norma."
+        }
+      ]
+    },
+    {
+      "id": "ID-C02",
+      "statement_a": "Una regla incondicional podría rechazar una cédula por fecha OCR vencida.",
+      "statement_b": "DS 4861 prevé vigencia indefinida para ciertos titulares, sin definir en la fuente consultada un centinela impreso.",
+      "resolution": "No inventar fecha centinela ni anular automáticamente la excepción; derivar los conflictos a revisión.",
+      "criterio": "Separar fecha observada, elegibilidad normativa y representación técnica no verificada.",
+      "kind": "CONFLICTO_DE_ALCANCE_O_EVIDENCIA",
+      "classification": "INFERIDO",
+      "sources": [
+        {
+          "id": "ENCARGO",
+          "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/corpus/pedido-investigacion-v2.json",
+          "titulo": "Pedido de investigación v2 aportado por el usuario",
+          "publicado": "2026-09-11",
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "APORTADO_POR_USUARIO",
+          "access_scope": "ARCHIVO_ADJUNTO_LEIDO; COPIA_DEL_REPOSITORIO_LOCALIZADA",
+          "limitacion": "Sus mediciones internas se conservan como declaraciones del encargo, no como mediciones repetidas en esta entrega.",
+          "content_git_blob_sha1": "823e70df7e3d8bb0555970cf597e47a8a8391fca"
+        },
+        {
+          "id": "DS4861",
+          "url": "https://www.asfi.gob.bo/sites/default/files/2025-08/Decreto%20Supremo%20N%C2%B0%204861%20de%20fecha%2011%20de%20enero%20de%202023.pdf",
+          "titulo": "Decreto Supremo 4861: copia de Gaceta alojada por ASFI",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "OFICIAL",
+          "access_scope": "PDF_TEXTO_CONSULTADO; PAGINA_3_VERIFICADA_VISUALMENTE",
+          "norm_fecha": "2023-01-11",
+          "limitacion": "La fecha del directorio de alojamiento no se usa como fecha de publicación ni como reforma de la norma."
+        }
+      ]
+    },
+    {
+      "id": "ID-C03",
+      "statement_a": "Interpretar seis meses de renovación como gracia después del vencimiento.",
+      "statement_b": "El artículo 7 de DS 4861 los sitúa antes de la fecha de vencimiento.",
+      "resolution": "Registrar renovación anticipada; grace_period_days=null, no 180 ni cero inventado.",
+      "criterio": "Dirección temporal expresa; no convertir meses en días fijos.",
+      "kind": "CONFLICTO_DE_ALCANCE_O_EVIDENCIA",
+      "classification": "INFERIDO",
+      "sources": [
+        {
+          "id": "DS4861",
+          "url": "https://www.asfi.gob.bo/sites/default/files/2025-08/Decreto%20Supremo%20N%C2%B0%204861%20de%20fecha%2011%20de%20enero%20de%202023.pdf",
+          "titulo": "Decreto Supremo 4861: copia de Gaceta alojada por ASFI",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "OFICIAL",
+          "access_scope": "PDF_TEXTO_CONSULTADO; PAGINA_3_VERIFICADA_VISUALMENTE",
+          "norm_fecha": "2023-01-11",
+          "limitacion": "La fecha del directorio de alojamiento no se usa como fecha de publicación ni como reforma de la norma."
+        }
+      ]
+    },
+    {
+      "id": "ID-C04",
+      "statement_a": "El diseño original de DS 4924 podría tratarse como única variante POST_2023.",
+      "statement_b": "Se permite agotar material previo y DS 5364 modifica la emisión automatizada y la representación del mapa.",
+      "resolution": "Versionar por modalidad/material además de fecha; no rechazar por un único patrón visual.",
+      "criterio": "Sucesión normativa y coexistencia de soporte, no falsedad por diferencia de plantilla.",
+      "kind": "SUCESION_Y_COEXISTENCIA_DE_VARIANTES",
+      "classification": "INFERIDO",
+      "sources": [
+        {
+          "id": "DS4924",
+          "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+          "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+          "access_scope": "CONTENIDO_CONSULTADO",
+          "norm_fecha": "2023-04-26",
+          "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+        },
+        {
+          "id": "DS5364",
+          "url": "https://www.pixilegal.com/normativa/decreto-5364-2025-04-02",
+          "titulo": "Decreto Supremo 5364: disposiciones adicionales sobre emisión automatizada de cédulas",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+          "access_scope": "CONTENIDO_CONSULTADO",
+          "norm_fecha": "2025-04-02"
+        }
+      ]
+    },
+    {
+      "id": "ID-C05",
+      "statement_a": "La geografía INE o el complemento XML del SIN podrían rellenar automáticamente campos SEGIP.",
+      "statement_b": "Ninguna de esas fuentes especifica aquí la abreviatura impresa o gramática completa del SEGIP.",
+      "resolution": "Mantener candidatos de geografía separados de OCR original y dejar gramática no verificada.",
+      "criterio": "No promover un catálogo estadístico o contrato de facturación a especificación documental.",
+      "kind": "CONFLICTO_DE_ALCANCE_O_EVIDENCIA",
+      "classification": "INFERIDO",
+      "sources": [
+        {
+          "id": "INE_GEO",
+          "url": "https://anda.ine.gob.bo/index.php/catalog/82/variable/F15/V3286?name=s3_66deptocod",
+          "titulo": "INE ANDA: catálogo de variable con códigos geográficos",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "OFICIAL",
+          "access_scope": "TEXTO_INDEXADO_CONSULTADO",
+          "limitacion": "Se observaron cinco combinaciones de Santa Cruz–Andrés Ibañez. Es un catálogo de encuesta, no una especificación de impresión SEGIP ni una certificación territorial vigente."
+        },
+        {
+          "id": "SIN_COMPLEMENTO",
+          "url": "https://siatanexo.impuestos.gob.bo/index.php/archivos-xml-xsd-de-facturas-electronicas/factura-de-seguridad-alimentaria-y-abastecimiento",
+          "titulo": "SIN: campos XML de factura, complemento de documento de identidad",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "OFICIAL",
+          "access_scope": "TEXTO_INDEXADO_CONSULTADO",
+          "limitacion": "Contrato de facturación; sus tipos no prueban gramática completa de emisión del SEGIP."
+        },
+        {
+          "id": "DS4861",
+          "url": "https://www.asfi.gob.bo/sites/default/files/2025-08/Decreto%20Supremo%20N%C2%B0%204861%20de%20fecha%2011%20de%20enero%20de%202023.pdf",
+          "titulo": "Decreto Supremo 4861: copia de Gaceta alojada por ASFI",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "OFICIAL",
+          "access_scope": "PDF_TEXTO_CONSULTADO; PAGINA_3_VERIFICADA_VISUALMENTE",
+          "norm_fecha": "2023-01-11",
+          "limitacion": "La fecha del directorio de alojamiento no se usa como fecha de publicación ni como reforma de la norma."
+        }
+      ]
+    },
+    {
+      "id": "ID-C06",
+      "statement_a": "Un QR no leído o ausente podría convertirse en requisito de trámite y rechazo.",
+      "statement_b": "DS 4924, disposición final tercera.II, excluye exigir esas medidas como requisito de trámite.",
+      "resolution": "Conservar vías alternativas de verificación y revisión; no introducir ausencia de QR como fraude automático.",
+      "criterio": "No confundir una capacidad técnica opcional con requisito jurídico.",
+      "kind": "CONFLICTO_DE_ALCANCE_O_EVIDENCIA",
+      "classification": "INFERIDO",
+      "sources": [
+        {
+          "id": "DS4924",
+          "url": "https://bolivia.infoleyes.com/norma/8019/decreto-supremo-4924",
+          "titulo": "Decreto Supremo 4924: estructura de la cédula, texto original",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "TEXTO_NORMATIVO_REPRODUCIDO_POR_TERCERO",
+          "access_scope": "CONTENIDO_CONSULTADO",
+          "norm_fecha": "2023-04-26",
+          "limitacion": "No es texto consolidado. Se coteja la modificación material de 2025; no se observaron tarjetas reales en esta entrega."
+        },
+        {
+          "id": "ENCARGO",
+          "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/corpus/pedido-investigacion-v2.json",
+          "titulo": "Pedido de investigación v2 aportado por el usuario",
+          "publicado": "2026-09-11",
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "APORTADO_POR_USUARIO",
+          "access_scope": "ARCHIVO_ADJUNTO_LEIDO; COPIA_DEL_REPOSITORIO_LOCALIZADA",
+          "limitacion": "Sus mediciones internas se conservan como declaraciones del encargo, no como mediciones repetidas en esta entrega.",
+          "content_git_blob_sha1": "823e70df7e3d8bb0555970cf597e47a8a8391fca"
+        }
+      ]
+    },
+    {
+      "id": "ID-C-INGESTA",
+      "statement_a": "El encargo indica que dejar ambos -v2 en corpus/ permite generar catálogos.",
+      "statement_b": "El código leído abre los nombres v1 y consulta módulos con nombres v1.",
+      "resolution": "Entregar corpus v2 por separado y declarar adaptador pendiente. No afirmar ingesta ni reemplazar archivos v1.",
+      "criterio": "El comportamiento observado del consumidor prevalece sobre una expectativa no probada.",
+      "kind": "CONTRATO_VS_IMPLEMENTACION",
+      "classification": "INFERIDO",
+      "sources": [
+        {
+          "id": "ENCARGO",
+          "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/corpus/pedido-investigacion-v2.json",
+          "titulo": "Pedido de investigación v2 aportado por el usuario",
+          "publicado": "2026-09-11",
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "APORTADO_POR_USUARIO",
+          "access_scope": "ARCHIVO_ADJUNTO_LEIDO; COPIA_DEL_REPOSITORIO_LOCALIZADA",
+          "limitacion": "Sus mediciones internas se conservan como declaraciones del encargo, no como mediciones repetidas en esta entrega.",
+          "content_git_blob_sha1": "823e70df7e3d8bb0555970cf597e47a8a8391fca"
+        },
+        {
+          "id": "GENERADOR",
+          "url": "https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/dev/scripts/corpus/generar-catalogos.ts",
+          "titulo": "Generador de catálogos de Atlas, rama dev",
+          "publicado": null,
+          "consultado": "2026-09-11",
+          "cita_literal": null,
+          "source_kind": "CODIGO_DEL_REPOSITORIO",
+          "access_scope": "LECTURA_GITHUB; NO_EJECUTADO",
+          "limitacion": "Se observaron nombres v1 y acceso a módulos v1. La lectura no demuestra soporte para E01–E09 ni para los nombres -v2.",
+          "content_git_blob_sha1": "9e667918e42ca8007aecae64ecfdc8d08ffe9cd4"
+        }
+      ]
+    }
+  ]
+}

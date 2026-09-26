@@ -1,0 +1,80 @@
+# ---------------------------------------------------------------------------
+# LiteLLM Proxy — despliegues del clasificador semántico
+#
+# Este fichero es la ÚNICA pieza que conoce proveedores físicos. El motor pide
+# alias lógicos (`semantic-classifier-fast`, `semantic-classifier-deep`,
+# `semantic-embedding`) y es aquí donde se decide quién los atiende. Cambiar de
+# proveedor, añadirle un suplente o abaratar el nivel rápido son ediciones de
+# este YAML y un reinicio del contenedor: el motor no se despliega.
+#
+# Ningún secreto vive aquí. `os.environ/<VAR>` los toma del entorno del
+# contenedor de LiteLLM, que es el único proceso que ve las claves de los
+# proveedores; el motor sólo conoce LITELLM_API_KEY.
+#
+# El nombre de cada alias debe coincidir con LITELLM_FAST_MODEL /
+# LITELLM_DEEP_MODEL / LITELLM_EMBEDDING_MODEL del motor. Si no coincide, el
+# gateway responde 400 `model_not_found`, que el adaptador trata como PERMANENTE
+# —no lo reintenta— y acaba en revisión humana.
+# ---------------------------------------------------------------------------
+
+model_list:
+  # --- Nivel rápido: la inmensa mayoría de las glosas ----------------------
+  # Se resuelve con el modelo más barato que sostenga la salida estructurada.
+  # Lo escala a `deep` el motor, no el gateway, y sólo cuando el nivel rápido
+  # queda ambiguo (ver DecisionEngine).
+  - model_name: semantic-classifier-fast
+    litellm_params:
+      model: os.environ/SEMANTIC_FAST_DEPLOYMENT
+      api_key: os.environ/SEMANTIC_FAST_API_KEY
+      # 0 o 1. El motor ya reintenta por su cuenta con su propio presupuesto de
+      # tiempo, y ese presupuesto NO ve los reintentos del gateway: subirlos aquí
+      # multiplica el peor caso por debajo de la comprobación que hace
+      # `assertProviderTimeoutFitsAnalysis`, y el análisis expira antes de que el
+      # gateway se rinda.
+      num_retries: 1
+
+  # Suplente del MISMO alias. LiteLLM reparte entre las entradas homónimas y cae
+  # a ésta cuando la primera falla: es lo que convierte una caída de un proveedor
+  # en latencia en vez de en una bandeja de revisión llena.
+  - model_name: semantic-classifier-fast
+    litellm_params:
+      model: os.environ/SEMANTIC_FAST_FALLBACK_DEPLOYMENT
+      api_key: os.environ/SEMANTIC_FAST_FALLBACK_API_KEY
+      num_retries: 1
+
+  # --- Nivel profundo: sólo lo que el rápido dejó ambiguo ------------------
+  - model_name: semantic-classifier-deep
+    litellm_params:
+      model: os.environ/SEMANTIC_DEEP_DEPLOYMENT
+      api_key: os.environ/SEMANTIC_DEEP_API_KEY
+      num_retries: 1
+
+  # --- Embeddings del recuperador híbrido (SEMANTIC_RETRIEVAL_MODE=hybrid) --
+  # Sólo hace falta si el recuperador corre en modo híbrido; en modo léxico este
+  # alias nunca se pide.
+  - model_name: semantic-embedding
+    litellm_params:
+      model: os.environ/SEMANTIC_EMBEDDING_DEPLOYMENT
+      api_key: os.environ/SEMANTIC_EMBEDDING_API_KEY
+
+litellm_settings:
+  # Sin caché del gateway: el motor YA cachea por glosa normalizada y firma de
+  # catálogo (`ClassificationCache`), que es una clave que entiende el dominio.
+  # Una segunda caché sobre el prompt crudo no aporta aciertos nuevos y sí
+  # sobrevive a un cambio de catálogo que debería invalidarlos.
+  cache: false
+  drop_params: true
+  # El texto clasificado sale de extractos bancarios. Que no quede una segunda
+  # copia en los registros del gateway además de la que ya audita el motor.
+  turn_off_message_logging: true
+
+router_settings:
+  # Por latencia y no por coste: entre despliegues del mismo alias ya se eligió
+  # el nivel de precio al escribirlos; lo que queda por optimizar es el reloj,
+  # que es lo que decide si una glosa se clasifica o se va a revisión.
+  routing_strategy: latency-based-routing
+  allowed_fails: 3
+  cooldown_time: 30
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY

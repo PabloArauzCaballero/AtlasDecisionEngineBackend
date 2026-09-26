@@ -13,6 +13,8 @@ import type { JobSchedulerService } from '../src/common/jobs/job-scheduler.servi
 import type { MetricsService } from '../src/common/observability/metrics.service';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
 import { uniqueTenantId } from './support/unique-tenant';
+import { TracingService } from '../src/common/observability/tracing.service';
+import { MessagingTraceService } from '../src/common/observability/messaging-trace.service';
 
 /**
  * End-to-end of the event backbone against a real database: a business transaction writes
@@ -43,7 +45,10 @@ describeDb('Outbox relay + notification projector (integration)', () => {
   const jobSignal = {
     notify: jest.fn().mockResolvedValue(undefined),
   } as unknown as JobSignalService;
-  const publisher = new OutboxPublisherService(jobSignal);
+  const publisher = new OutboxPublisherService(
+    jobSignal,
+    new MessagingTraceService(new TracingService()),
+  );
   // Aquí, como en la prueba unitaria del relay, dispatchBatch() se llama directamente y el
   // orquestador nunca entra en juego.
   const scheduler = { register: jest.fn() } as unknown as JobSchedulerService;
@@ -89,6 +94,7 @@ describeDb('Outbox relay + notification projector (integration)', () => {
       config,
       metrics,
       scheduler,
+      new MessagingTraceService(new TracingService()),
     );
 
     // A business transaction that also emits its event: both commit together.
@@ -162,6 +168,7 @@ describeDb('Outbox relay + notification projector (integration)', () => {
       config,
       metrics,
       scheduler,
+      new MessagingTraceService(new TracingService()),
     );
 
     await prisma.$transaction((tx) =>

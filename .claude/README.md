@@ -44,6 +44,22 @@ Procedimientos que Claude carga solo cuando la tarea los invoca:
 
 Detalle de trazabilidad en `docs/claude/skills-traceability.md`.
 
+## Espejo en la documentación
+
+`rules/` y `skills/` son la fuente canónica —Claude Code las carga desde aquí, por ruta y por
+nombre—, pero su contenido es documentación de diseño de pleno derecho y una carpeta oculta no
+es donde alguien la busca. Por eso se publican en el portal y en la bóveda de Obsidian:
+
+| Fuente canónica | Espejo publicado |
+|---|---|
+| `.claude/rules/` | `docs/design-rules/` |
+| `.claude/skills/<skill>/SKILL.md` | `docs/skills/` |
+
+El espejo se **genera**, no se copia a mano: `yarn docs:vault`. Y `yarn docs:validate` falla si
+se separa de la fuente, de modo que editar la copia rompa el gate en vez de publicar una página
+obsoleta. Las capas de contexto y los prompts operativos están documentados en
+`docs/prompts/`.
+
 ## Plugins
 
 La selección de plugins está en `docs/claude/plugin-selection-matrix.md`. La

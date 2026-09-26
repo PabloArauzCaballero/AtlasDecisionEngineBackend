@@ -35,6 +35,7 @@ describe('frontend read endpoints', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
       config,
     );
 

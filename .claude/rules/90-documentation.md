@@ -10,3 +10,9 @@
 - No copies documentos extensos dentro de `CLAUDE.md`; convierte procedimientos
   largos en skills (`.claude/skills/`) y reglas por ruta en `.claude/rules/`.
 - Mantén trazabilidad: un doc de feature enlaza a los archivos/servicios reales.
+- `docs/` es a la vez el origen del portal MkDocs y una bóveda de Obsidian: usa
+  enlaces Markdown relativos (nunca wikilinks) y añade toda página nueva a la
+  navegación de `mkdocs.yml`, o `yarn docs:links` la marcará como huérfana.
+- Tras editar `.claude/rules/**` o `.claude/skills/**`, ejecuta `yarn docs:vault`:
+  su espejo legible vive en `docs/design-rules/` y `docs/skills/`, y
+  `yarn docs:validate` falla si se separa de la fuente.

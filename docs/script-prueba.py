@@ -1,3 +1,18 @@
+# @atlas-contract
+# { "contractVersion": "1",
+#   "primaryOutputId": "clasificacion",
+#   "inputs": [
+#     { "id": "monto", "name": "Monto solicitado", "type": "NUMBER", "required": true },
+#     { "id": "cliente", "name": "Nombre del cliente", "type": "STRING", "required": false },
+#     { "id": "nivelRiesgo", "name": "Nivel de riesgo", "type": "INTEGER", "required": false }
+#   ],
+#   "outputs": [
+#     { "id": "aprobado", "name": "Aprobado", "type": "BOOLEAN", "required": true },
+#     { "id": "clasificacion", "name": "Clasificacion", "type": "STRING", "required": true },
+#     { "id": "limiteSugerido", "name": "Limite sugerido", "type": "INTEGER", "required": false },
+#     { "id": "mensaje", "name": "Mensaje", "type": "STRING", "required": true }
+#   ] }
+
 # Script de prueba para un nodo RESULT (modo SCRIPT, lenguaje PYTHON).
 #
 # Contrato del ejecutor (ScriptNodeRunnerService):

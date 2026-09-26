@@ -1,4 +1,9 @@
-import type { WorkerInputSource, WorkerRunStatus } from '@prisma/client';
+import type {
+  StatementRejectionReason,
+  StatementReviewReason,
+  WorkerInputSource,
+  WorkerRunStatus,
+} from '@prisma/client';
 import type { WorkerRunDto } from './workers.dto';
 
 /**
@@ -24,6 +29,14 @@ export interface WorkerRunRow {
   warningsJson?: unknown;
   errorCode: string | null;
   errorMessage: string | null;
+  /*
+   * Opcionales porque sólo el worker de extractos los tiene. Un worker sin
+   * franja de revisión no los envía en vez de mandarlos como `null`: `null`
+   * afirmaría «no hay motivo», y lo cierto es «esta pregunta no aplica aquí».
+   */
+  reviewReason?: StatementReviewReason | null;
+  rejectionReason?: StatementRejectionReason | null;
+  reviewPriority?: number | null;
 }
 
 /**
@@ -51,5 +64,8 @@ export function toWorkerRunDto(row: WorkerRunRow): WorkerRunDto {
     ...(row.warningsJson ? { warnings: row.warningsJson } : {}),
     errorCode: row.errorCode,
     errorMessage: row.errorMessage,
+    ...(row.reviewReason === undefined ? {} : { reviewReason: row.reviewReason }),
+    ...(row.rejectionReason === undefined ? {} : { rejectionReason: row.rejectionReason }),
+    ...(row.reviewPriority === undefined ? {} : { reviewPriority: row.reviewPriority }),
   };
 }

@@ -1,0 +1,742 @@
+/**
+ * CATÁLOGO DE LA CÉDULA DE IDENTIDAD BOLIVIANA.
+ *
+ * ## Qué es este archivo, y por qué no es una lista de expresiones regulares más
+ *
+ * Hasta ahora el worker sabía RECONOCER una cédula —`identity-evidence.ts` mide
+ * si hay un documento de identidad delante— pero no sabía cómo **debería verse**
+ * la cédula boliviana concreta. La diferencia importa exactamente donde importa
+ * el fraude: una falsificación casera contiene la palabra «CÉDULA DE IDENTIDAD»,
+ * lleva una foto y tiene la proporción de una tarjeta, así que supera con
+ * holgura la puerta de evidencia. Lo que NO tiene es la plantilla completa: le
+ * faltan rótulos, la MRZ no cuadra sus dígitos de control, el número no respeta
+ * el formato del SEGIP, las fechas no son coherentes entre sí y el lugar de
+ * expedición no existe.
+ *
+ * Este catálogo es esa plantilla, escrita como dato y no como código, para que
+ * la conformidad se pueda MEDIR campo a campo y para que quien revise un caso
+ * pueda leer qué faltaba. Es la referencia contra la que trabajan
+ * `core/forensics/*`.
+ *
+ * ## De dónde salen los datos
+ *
+ * De fuentes públicas, y están anotadas una a una en `FUENTES`. **No hay ni una
+ * sola imagen de una cédula real en este repositorio, ni la habrá**: una cédula
+ * de verdad es el dato con el que se suplanta a una persona, y guardar ejemplos
+ * «para calibrar» es fabricar exactamente la fuga que este worker existe para
+ * prevenir. Lo que se cataloga es la ESPECIFICACIÓN —qué rótulos lleva, en qué
+ * orden, con qué formato— que es información pública publicada por el propio
+ * emisor, y los ejemplares sintéticos de `fixtures/identity-card.ts`, dibujados
+ * por nosotros contra esta misma especificación.
+ *
+ * ## Las dos generaciones conviven, y las dos son válidas
+ *
+ * El DS 4924 (1 de noviembre de 2023) rediseñó la tarjeta entera y le añadió
+ * MRZ. Las cédulas emitidas antes siguen vigentes hasta su caducidad, así que
+ * durante años se van a presentar las dos. Exigir la plantilla nueva a una
+ * cédula legítima de 2021 la rechazaría por falsa, que es el peor error posible
+ * de este módulo: el falso positivo le cierra el producto a alguien que no hizo
+ * nada mal y no tiene forma de arreglarlo.
+ *
+ * Por eso la conformidad se mide contra CADA generación y se queda con la mejor:
+ * un documento tiene que parecerse mucho a *alguna* cédula boliviana real, no a
+ * la última.
+ */
+
+import { IdentityDocumentType } from '../domain/identity-enums';
+
+/** Las generaciones de la tarjeta que hoy pueden presentarse legítimamente. */
+export enum BoliviaCiGeneration {
+  /** Rediseño del DS 4924, vigente desde el 1 de noviembre de 2023. Lleva MRZ TD1. */
+  DS_4924_2023 = 'DS_4924_2023',
+  /** Formato rotulado anterior, con código QR (DS 4342, 2020) o código de barras (2011). */
+  PRE_2023 = 'PRE_2023',
+}
+
+/**
+ * Un anclaje del catálogo: algo que la tarjeta IMPRIME y que se puede buscar en
+ * el texto leído.
+ *
+ * `peso` no es una preferencia estética. Es cuánto cuesta falsificar ese
+ * anclaje: el rótulo «NOMBRES» lo escribe cualquiera en un editor de imágenes y
+ * pesa poco; la MRZ con sus dígitos de control cuadrados exige haber generado
+ * los checksums de la ICAO y pesa mucho.
+ */
+export interface AnclajeDeCatalogo {
+  readonly id: string;
+  /** Dónde se imprime. `AMBAS` cuando la cara depende de la generación. */
+  readonly cara: 'ANVERSO' | 'REVERSO' | 'AMBAS';
+  /**
+   * El patrón EXACTO. Se conserva porque describe el anclaje sin ambigüedad y
+   * porque sobre un texto limpio —los ejemplares sintéticos, una lectura de
+   * calidad— sigue siendo la comprobación más barata y más precisa.
+   */
+  readonly patron: RegExp;
+  /**
+   * Lo que la tarjeta IMPRIME, tal cual, para cotejarlo con tolerancia a las
+   * erratas del reconocedor (`approximate-match.ts`).
+   *
+   * Son ALTERNATIVAS de la misma cosa, no sinónimos: basta que case una. La
+   * grafía larga es el rótulo completo y la corta existe porque el reconocedor
+   * parte los rótulos largos con muchísima frecuencia —medido: `CÉDULA DE
+   * IDENTIDAD` vuelve como `CEI 1 DE` en un renglón e `IDENTIDAD` en otro—.
+   *
+   * Vacío para los anclajes ESTRUCTURALES —la MRZ y su emisor—, que no son texto
+   * impreso sino una forma, y cuya expresión regular sí es la comprobación
+   * correcta: una MRZ se reconoce por su alfabeto y su relleno, no por parecerse
+   * a una palabra.
+   */
+  readonly grafias: readonly string[];
+  readonly peso: number;
+  /**
+   * `true` cuando su ausencia, por sí sola, ya es motivo de sospecha: son los
+   * rótulos que TODA cédula de esa generación imprime sin excepción.
+   */
+  readonly obligatorio: boolean;
+  /** Para qué sirve, en una frase que un analista pueda leer en el caso. */
+  readonly descripcion: string;
+}
+
+/** La plantilla completa de una generación. */
+export interface PlantillaDeCedula {
+  readonly generacion: BoliviaCiGeneration;
+  readonly nombre: string;
+  readonly vigenteDesde: string;
+  readonly anclajes: readonly AnclajeDeCatalogo[];
+  /** Si esa generación imprime zona de lectura mecánica TD1 en el reverso. */
+  readonly llevaMrz: boolean;
+  /** Si imprime código QR (2020+) o código de barras (2011–2020). */
+  readonly codigoOptico: 'QR' | 'BARRAS' | 'NINGUNO';
+  /** Años de vigencia habituales de la tarjeta física. */
+  readonly vigenciaAnios: readonly number[];
+}
+
+/*
+ * ── Anclajes comunes a las dos generaciones ────────────────────────────────
+ *
+ * Se escriben una sola vez y se referencian desde las dos plantillas: dos copias
+ * de la misma expresión acaban separándose, y el día que se separen una cédula
+ * legítima puntuará distinto según qué generación se le suponga.
+ *
+ * Todos los patrones se evalúan sobre el texto YA PLEGADO —mayúsculas y sin
+ * tildes, `plegarTexto` de `identity-evidence.ts`—, así que aquí no hay
+ * variantes acentuadas: `CEDULA`, nunca `CÉDULA`.
+ */
+
+const ESTADO_EMISOR: AnclajeDeCatalogo = {
+  id: 'estado-emisor',
+  cara: 'ANVERSO',
+  patron: /ESTADO\s+PLURINACIONAL\s+DE\s+BOLIVIA/u,
+  grafias: ['ESTADO PLURINACIONAL DE BOLIVIA', 'PLURINACIONAL', 'DE BOLIVIA'],
+  peso: 0.1,
+  obligatorio: true,
+  descripcion: 'El rótulo del Estado emisor, en la cabecera del anverso.',
+};
+
+const AUTORIDAD_SEGIP: AnclajeDeCatalogo = {
+  id: 'autoridad-segip',
+  cara: 'ANVERSO',
+  patron: /SERVICIO\s+GENERAL\s+DE\s+IDENTIFICACION\s+PERSONAL|\bSEGIP\b/u,
+  grafias: ['SERVICIO GENERAL DE IDENTIFICACION PERSONAL', 'IDENTIFICACION PERSONAL', 'SEGIP'],
+  peso: 0.1,
+  obligatorio: true,
+  descripcion: 'La autoridad emisora: SEGIP, por su nombre completo o su sigla.',
+};
+
+const ROTULO_CEDULA: AnclajeDeCatalogo = {
+  id: 'rotulo-cedula',
+  cara: 'ANVERSO',
+  patron: /CEDULA\s+DE\s+IDENTIDAD/u,
+  grafias: ['CEDULA DE IDENTIDAD', 'IDENTIDAD', 'CEDULA'],
+  peso: 0.08,
+  obligatorio: true,
+  descripcion: 'El nombre del documento.',
+};
+
+/*
+ * NOMBRES y APELLIDOS ya NO son obligatorios, y el cambio está medido.
+ *
+ * Lo eran porque toda cédula los imprime —lo cual es cierto— pero «obligatorio»
+ * en este catálogo no significa «la tarjeta lo lleva» sino «que no aparezca ya es
+ * motivo de sospecha», y eso resultó ser falso. Los dos rótulos van impresos en
+ * gris claro, a cuerpo minúsculo, PEGADOS AL RETRATO, que es la peor vecindad
+ * posible para un reconocedor. Medido sobre una cédula boliviana auténtica del
+ * DS 4924 fotografiada con un móvil, a cuatro resoluciones distintas y con la
+ * tarjeta derecha y enfocada, el reconocedor devolvió en su lugar `CMI`, `Priti`
+ * y `PrELLI`: NINGUNA de las cuatro lecturas contenía los rótulos, y en las
+ * cuatro los VALORES —`PABLO`, `ARAUZ CABALLERO`— salieron perfectos.
+ *
+ * O sea que su ausencia no discrimina nada: aparece en la cédula legítima con
+ * la misma facilidad que aparecería en una falsificación. Mantenerlos como
+ * obligatorios convertía cada foto real en `TEMPLATE_REQUIRED_FIELDS_MISSING`,
+ * que es una acusación de plantilla incompleta contra el documento auténtico.
+ *
+ * Siguen en el catálogo y siguen pesando: encontrarlos suma, porque cuando el
+ * reconocedor SÍ los lee, están. Lo que ya no hacen es acusar por faltar.
+ */
+const CAMPO_NOMBRES: AnclajeDeCatalogo = {
+  id: 'campo-nombres',
+  cara: 'ANVERSO',
+  patron: /\bNOMBRES?\b/u,
+  grafias: ['NOMBRES'],
+  peso: 0.07,
+  obligatorio: false,
+  descripcion: 'El rótulo NOMBRES del anverso.',
+};
+
+const CAMPO_APELLIDOS: AnclajeDeCatalogo = {
+  id: 'campo-apellidos',
+  cara: 'ANVERSO',
+  patron: /\bAPELLIDOS?\b/u,
+  grafias: ['APELLIDOS'],
+  peso: 0.07,
+  obligatorio: false,
+  descripcion: 'El rótulo APELLIDOS del anverso.',
+};
+
+const CAMPO_NACIMIENTO: AnclajeDeCatalogo = {
+  id: 'campo-fecha-nacimiento',
+  cara: 'ANVERSO',
+  patron: /FECHA\s+DE\s+NACIMIENTO|NACID[OA]\s+EL/u,
+  grafias: ['FECHA DE NACIMIENTO', 'NACIMIENTO', 'NACIDO EL', 'NACIDA EL'],
+  peso: 0.07,
+  obligatorio: true,
+  descripcion: 'La fecha de nacimiento, rotulada o en la redacción del formato antiguo.',
+};
+
+const CAMPO_EXPIRACION: AnclajeDeCatalogo = {
+  id: 'campo-fecha-expiracion',
+  cara: 'ANVERSO',
+  patron: /FECHA\s+DE\s+(?:EXPIRACION|VENCIMIENTO|CADUCIDAD)|VALID[AO]\s+HASTA/u,
+  grafias: ['FECHA DE EXPIRACION', 'EXPIRACION', 'VENCIMIENTO', 'CADUCIDAD', 'VALIDA HASTA'],
+  peso: 0.07,
+  obligatorio: true,
+  descripcion: 'La caducidad impresa. Sin ella no se puede afirmar que el documento esté vigente.',
+};
+
+const CAMPO_EMISION: AnclajeDeCatalogo = {
+  id: 'campo-fecha-emision',
+  cara: 'ANVERSO',
+  patron: /FECHA\s+DE\s+(?:EMISION|EXPEDICION)/u,
+  grafias: ['FECHA DE EMISION', 'EMISION', 'EXPEDICION'],
+  peso: 0.04,
+  obligatorio: false,
+  descripcion: 'La fecha de emisión. El formato antiguo no siempre la rotula.',
+};
+
+/*
+ * SERIE y SECCIÓN son el par que casi nadie falsifica bien.
+ *
+ * Son dos campos administrativos del SEGIP que aparecen juntos en el anverso y
+ * que quien copia una cédula de una imagen de internet suele omitir, porque no
+ * significan nada evidente para el que la copia. Pesan más que un rótulo
+ * cualquiera por eso: no por lo que prueban, sino por lo que su AUSENCIA sugiere
+ * cuando el resto de la tarjeta sí está.
+ */
+const CAMPO_SERIE: AnclajeDeCatalogo = {
+  id: 'campo-serie',
+  cara: 'ANVERSO',
+  patron: /\bSERIE\b/u,
+  grafias: ['SERIE'],
+  peso: 0.05,
+  obligatorio: false,
+  descripcion: 'El campo SERIE del anverso, administrativo del SEGIP.',
+};
+
+const CAMPO_SECCION: AnclajeDeCatalogo = {
+  id: 'campo-seccion',
+  cara: 'ANVERSO',
+  patron: /\bSECCION\b/u,
+  grafias: ['SECCION'],
+  peso: 0.05,
+  obligatorio: false,
+  descripcion: 'El campo SECCIÓN del anverso, administrativo del SEGIP.',
+};
+
+const CAMPO_LUGAR_NACIMIENTO: AnclajeDeCatalogo = {
+  id: 'campo-lugar-nacimiento',
+  cara: 'REVERSO',
+  patron: /LUGAR\s+DE\s+NACIMIENTO/u,
+  grafias: ['LUGAR DE NACIMIENTO'],
+  peso: 0.06,
+  obligatorio: false,
+  descripcion: 'El lugar de nacimiento del reverso: departamento, provincia y localidad.',
+};
+
+const CAMPO_DOMICILIO: AnclajeDeCatalogo = {
+  id: 'campo-domicilio',
+  cara: 'REVERSO',
+  patron: /\bDOMICILIO\b/u,
+  grafias: ['DOMICILIO'],
+  peso: 0.05,
+  obligatorio: false,
+  descripcion: 'El domicilio declarado, en el reverso.',
+};
+
+const CAMPO_ESTADO_CIVIL: AnclajeDeCatalogo = {
+  id: 'campo-estado-civil',
+  cara: 'REVERSO',
+  patron: /ESTADO\s+CIVIL/u,
+  grafias: ['ESTADO CIVIL'],
+  peso: 0.04,
+  obligatorio: false,
+  descripcion: 'El estado civil, en el reverso.',
+};
+
+const CAMPO_OCUPACION: AnclajeDeCatalogo = {
+  id: 'campo-ocupacion',
+  cara: 'REVERSO',
+  patron: /PROFESION\s+U\s+OCUPACION|\bOCUPACION\b/u,
+  grafias: ['PROFESION U OCUPACION', 'OCUPACION'],
+  peso: 0.04,
+  obligatorio: false,
+  descripcion: 'La profesión u ocupación, en el reverso.',
+};
+
+/*
+ * Los dos campos que SÓLO existen en la tarjeta del DS 4924.
+ *
+ * El grupo sanguíneo es opcional para el titular, así que su ausencia no dice
+ * nada; su PRESENCIA, en cambio, sitúa la tarjeta en la generación nueva sin
+ * ambigüedad. El NPIOC es específico de la normativa boliviana y no aparece en
+ * ningún documento de identidad de otro país: es de los anclajes más difíciles
+ * de acertar por casualidad.
+ */
+const CAMPO_GRUPO_SANGUINEO: AnclajeDeCatalogo = {
+  id: 'campo-grupo-sanguineo',
+  cara: 'REVERSO',
+  patron: /GRUPO\s+SANGUINEO/u,
+  grafias: ['GRUPO SANGUINEO'],
+  peso: 0.05,
+  obligatorio: false,
+  descripcion: 'El grupo sanguíneo, opcional para el titular y exclusivo del formato 2023.',
+};
+
+const CAMPO_NPIOC: AnclajeDeCatalogo = {
+  id: 'campo-npioc',
+  cara: 'REVERSO',
+  patron: /NACION\s+O\s+PUEBLO\s+INDIGENA|\bNPIOC\b/u,
+  grafias: ['NACION O PUEBLO INDIGENA', 'NPIOC'],
+  peso: 0.06,
+  obligatorio: false,
+  descripcion:
+    'La nación o pueblo indígena originario campesino. Exclusivo de la normativa boliviana.',
+};
+
+/*
+ * ── Anclajes de VALOR ──────────────────────────────────────────────────────
+ *
+ * Los de arriba buscan RÓTULOS. Éstos buscan lo que la tarjeta imprime GRANDE, y
+ * existen porque el reparto de tamaños de una cédula es exactamente el contrario
+ * del que un catálogo de rótulos supone: los rótulos van en gris a 1,2 mm y los
+ * valores en negro al doble de cuerpo. Medido sobre una cédula real, el
+ * reconocedor pierde `NOMBRES` y `SERIE` y en cambio entrega `N° 7689658`,
+ * `07/12/2001` y `SANTA CRUZ` sin un solo error a las cuatro resoluciones
+ * probadas.
+ *
+ * No sustituyen a los rótulos: comprueban otra cosa. Un rótulo dice que la
+ * PLANTILLA es la del SEGIP; un valor con la forma correcta dice que lo escrito
+ * encima de esa plantilla también lo es. Los dos juntos son lo que un montaje
+ * tiene que acertar a la vez.
+ *
+ * Pesan poco a propósito, por lo mismo que la proporción ID-1 en
+ * `identity-evidence.ts`: una fecha y un número de siete cifras los lleva
+ * cualquier papel, así que su valor está en SUMAR sobre una plantilla ya
+ * reconocida, nunca en reconocer una por su cuenta.
+ */
+
+const NUMERO_IMPRESO: AnclajeDeCatalogo = {
+  id: 'numero-de-cedula-impreso',
+  cara: 'ANVERSO',
+  // `N°` con las grafías que el reconocedor le da (`N*`, `N”`, `Nº`, `No`) y el
+  // número con la forma del SEGIP. Es el dato más grande del anverso.
+  patron: /\bN\s*[°º*"'”\u00B0]?\s*\.?\s*(?!0)\d{5,8}\b/u,
+  grafias: [],
+  peso: 0.06,
+  obligatorio: false,
+  descripcion: 'El número de cédula impreso en grande en el anverso, precedido de N°.',
+};
+
+const PAR_DE_FECHAS: AnclajeDeCatalogo = {
+  id: 'par-de-fechas-del-anverso',
+  cara: 'ANVERSO',
+  /*
+   * DOS fechas y no una. Una sola la lleva cualquier recibo; el PAR —emisión y
+   * expiración, impresas una al lado de la otra— es de la tarjeta. Y con la
+   * fecha de nacimiento arriba, un anverso legible entrega tres.
+   */
+  patron: /\b\d{1,2}[/\-.]\d{1,2}[/\-.]\d{4}\b[\s\S]{0,120}?\b\d{1,2}[/\-.]\d{1,2}[/\-.]\d{4}\b/u,
+  grafias: [],
+  peso: 0.05,
+  obligatorio: false,
+  descripcion: 'Las fechas del anverso: nacimiento, emisión y expiración en formato DD/MM/AAAA.',
+};
+
+const DEPARTAMENTO_DE_NACIMIENTO: AnclajeDeCatalogo = {
+  id: 'departamento-en-lugar-de-nacimiento',
+  cara: 'REVERSO',
+  /*
+   * El lugar de nacimiento del reverso nombra un departamento de Bolivia, y va
+   * en negro y a buen cuerpo. Es el anclaje del reverso que mejor sobrevive
+   * cuando el rótulo `LUGAR DE NACIMIENTO` se pierde, que es lo habitual.
+   *
+   * El patrón se genera de `NOMBRES_DE_DEPARTAMENTO` más abajo; aquí queda la
+   * alternancia literal para que el anclaje sea legible de un vistazo.
+   */
+  patron: /CHUQUISACA|LA\s+PAZ|COCHABAMBA|ORURO|POTOSI|TARIJA|SANTA\s+CRUZ|\bBENI\b|\bPANDO\b/u,
+  grafias: ['CHUQUISACA', 'COCHABAMBA', 'POTOSI', 'TARIJA', 'SANTA CRUZ', 'ORURO'],
+  peso: 0.05,
+  obligatorio: false,
+  descripcion: 'Un departamento de Bolivia nombrado en el lugar de nacimiento del reverso.',
+};
+
+/**
+ * La MRZ, y el anclaje que MÁS pesa de todo el catálogo.
+ *
+ * Aquí sólo se comprueba que el renglón exista con la forma de una TD1. Que sus
+ * dígitos de control CUADREN es una comprobación aparte y mucho más fuerte, y la
+ * hace `parseMrzTd1` — este anclaje mide presencia, no validez.
+ */
+const ZONA_MRZ: AnclajeDeCatalogo = {
+  id: 'zona-mrz-td1',
+  cara: 'REVERSO',
+  patron: /(?:^|\n)\s*(?:I|ID)[A-Z<]{2,}[A-Z0-9<]{10,}/u,
+  grafias: [],
+  peso: 0.12,
+  obligatorio: true,
+  descripcion: 'La zona de lectura mecánica TD1 del reverso, obligatoria desde el DS 4924.',
+};
+
+/** El emisor declarado dentro de la MRZ. `BOL` es el código ISO 3166-1 de Bolivia. */
+const MRZ_EMISOR_BOL: AnclajeDeCatalogo = {
+  id: 'mrz-emisor-bol',
+  cara: 'REVERSO',
+  patron: /(?:^|\n)\s*I?D?[A-Z<]{0,2}BOL/u,
+  grafias: [],
+  peso: 0.06,
+  obligatorio: false,
+  descripcion: 'El código de emisor BOL dentro de la MRZ.',
+};
+
+export const PLANTILLA_DS_4924_2023: PlantillaDeCedula = {
+  generacion: BoliviaCiGeneration.DS_4924_2023,
+  nombre: 'Cédula de identidad del Bicentenario (DS 4924)',
+  vigenteDesde: '2023-11-01',
+  llevaMrz: true,
+  codigoOptico: 'QR',
+  // Cinco años para el común de los titulares; indefinida a partir de los 58 y
+  // para personas con discapacidad grave; dos para el formato digital.
+  vigenciaAnios: [2, 5],
+  anclajes: [
+    ESTADO_EMISOR,
+    AUTORIDAD_SEGIP,
+    ROTULO_CEDULA,
+    CAMPO_NOMBRES,
+    CAMPO_APELLIDOS,
+    CAMPO_NACIMIENTO,
+    CAMPO_EMISION,
+    CAMPO_EXPIRACION,
+    CAMPO_SERIE,
+    CAMPO_SECCION,
+    CAMPO_LUGAR_NACIMIENTO,
+    CAMPO_DOMICILIO,
+    CAMPO_ESTADO_CIVIL,
+    CAMPO_OCUPACION,
+    CAMPO_GRUPO_SANGUINEO,
+    CAMPO_NPIOC,
+    NUMERO_IMPRESO,
+    PAR_DE_FECHAS,
+    DEPARTAMENTO_DE_NACIMIENTO,
+    ZONA_MRZ,
+    MRZ_EMISOR_BOL,
+  ],
+};
+
+export const PLANTILLA_PRE_2023: PlantillaDeCedula = {
+  generacion: BoliviaCiGeneration.PRE_2023,
+  nombre: 'Cédula de identidad anterior al DS 4924',
+  vigenteDesde: '2011-01-01',
+  llevaMrz: false,
+  codigoOptico: 'QR',
+  vigenciaAnios: [5, 10],
+  anclajes: [
+    ESTADO_EMISOR,
+    AUTORIDAD_SEGIP,
+    ROTULO_CEDULA,
+    CAMPO_NOMBRES,
+    CAMPO_APELLIDOS,
+    CAMPO_NACIMIENTO,
+    CAMPO_EXPIRACION,
+    CAMPO_SERIE,
+    CAMPO_SECCION,
+    CAMPO_LUGAR_NACIMIENTO,
+    CAMPO_DOMICILIO,
+    CAMPO_ESTADO_CIVIL,
+    CAMPO_OCUPACION,
+    NUMERO_IMPRESO,
+    PAR_DE_FECHAS,
+    DEPARTAMENTO_DE_NACIMIENTO,
+  ],
+};
+
+export const PLANTILLAS: readonly PlantillaDeCedula[] = [
+  PLANTILLA_DS_4924_2023,
+  PLANTILLA_PRE_2023,
+];
+
+/*
+ * ── El número de cédula ────────────────────────────────────────────────────
+ */
+
+/**
+ * El número de cédula boliviano, con su complemento opcional.
+ *
+ * **Esto es un BUSCADOR, no un validador**, y la distinción decide si se
+ * rechaza a alguien. Sirve para elegir, entre los números que un OCR encuentra
+ * en una tarjeta llena de cifras —el de control de impresión, el del código de
+ * barras, una fecha pegada—, cuál parece el de la cédula. Para eso un patrón
+ * estrecho es exactamente lo que hace falta.
+ *
+ * Lo que NO puede hacer es acusar. La gramática del SEGIP **no está
+ * verificada**: el corpus de identidad la buscó y devolvió `exact_min_length:
+ * null`, `exact_max_length: null` y `leading_zero_assignment_policy: null`, con
+ * la instrucción de conservar los ceros y de no rechazar con una longitud que
+ * nadie ha confirmado (hueco G04). Y sobre el complemento resolvió una
+ * contradicción del encargo: el Servicio de Impuestos Nacionales lo publica como
+ * **alfanumérico**, no como dos letras, así que imponer `[A-Z]{2}` descartaría
+ * complementos legítimos (contradicción C02).
+ *
+ * Por eso `template-conformance.ts` ya no levanta una incoherencia cuando un
+ * número no encaja aquí: lo anota como observación y sigue.
+ *
+ * La forma que este buscador usa:
+ * - Entre cinco y ocho dígitos, que es lo observado en las cédulas reales de las
+ *   que disponemos; no una regla del emisor.
+ * - Sin cero a la izquierda, por la misma razón y con la misma reserva.
+ * - Complemento opcional de uno o dos caracteres alfanuméricos tras un guion.
+ */
+export const NUMERO_CEDULA = /^(?!0)(\d{5,8})(?:-([0-9A-Z]{1,2}))?$/u;
+
+/** ¿Este texto tiene la forma de un número de cédula boliviano? */
+export function esNumeroDeCedulaValido(valor: string | null | undefined): boolean {
+  if (!valor) return false;
+  return NUMERO_CEDULA.test(valor.trim().toUpperCase());
+}
+
+/**
+ * Los nueve departamentos, más la abreviatura CANDIDATA con la que cada uno
+ * aparece junto al número —`1234567 SC`—.
+ *
+ * **Candidata, y la palabra importa.** El corpus fue a buscar la tabla oficial
+ * del emisor (la RPT038 que la normativa referencia) y no la obtuvo:
+ * `official_SEGIP_code_list_verified: false`, y los nueve códigos llegan
+ * marcados uno a uno como `official_verified: false` (hueco G05). Su instrucción
+ * es explícita: son candidatos para revisión, **no una lista oficial ni una
+ * regla de rechazo**.
+ *
+ * Aquí decía lo contrario —«un lugar de expedición que no esté en esta lista es
+ * un dato que el SEGIP no puede haber impreso»— y esa frase es la que convierte
+ * una tabla reconstruida en un motivo para rechazar a una persona. Se usa para
+ * RECONOCER lo que se leyó; lo que no se reconoce se queda sin reconocer.
+ */
+export const DEPARTAMENTOS_DE_EXPEDICION: Readonly<Record<string, string>> = {
+  CH: 'Chuquisaca',
+  LP: 'La Paz',
+  CB: 'Cochabamba',
+  OR: 'Oruro',
+  PT: 'Potosí',
+  TJ: 'Tarija',
+  SC: 'Santa Cruz',
+  BE: 'Beni',
+  PD: 'Pando',
+};
+
+/** Nombres completos de departamento, plegados, para reconocerlos en el texto. */
+export const NOMBRES_DE_DEPARTAMENTO: readonly string[] = [
+  'CHUQUISACA',
+  'LA PAZ',
+  'COCHABAMBA',
+  'ORURO',
+  'POTOSI',
+  'TARIJA',
+  'SANTA CRUZ',
+  'BENI',
+  'PANDO',
+];
+
+/*
+ * ── Sondas para el clasificador por transformers ───────────────────────────
+ *
+ * El clasificador semántico no busca palabras: proyecta el texto leído y estas
+ * sondas al mismo espacio vectorial y mide el coseno. Por eso las sondas están
+ * REDACTADAS como frases y no como listas de rótulos — un vector de una lista de
+ * palabras sueltas no representa nada.
+ *
+ * Las NEGATIVAS son la mitad que hace el trabajo. Sin contraejemplos, el
+ * clasificador contesta «se parece bastante» a cualquier documento oficial del
+ * mundo, porque todos los documentos oficiales se parecen entre sí más de lo que
+ * se parecen a un recibo. Con ellas, la pregunta pasa a ser la correcta: ¿se
+ * parece MÁS a una cédula boliviana que a un DNI peruano, a una licencia de
+ * conducir o a una plantilla descargada de internet?
+ */
+
+export interface SondaDeCatalogo {
+  readonly id: string;
+  readonly texto: string;
+  /** `true` describe una cédula boliviana legítima; `false`, algo que no lo es. */
+  readonly positiva: boolean;
+}
+
+export const SONDAS_BOLIVIA_CI: readonly SondaDeCatalogo[] = [
+  {
+    id: 'ci-2023-anverso',
+    positiva: true,
+    texto:
+      'Estado Plurinacional de Bolivia. Servicio General de Identificación Personal. Cédula de identidad con nombres, apellidos, fecha de nacimiento, fecha de emisión y fecha de expiración, con serie y sección, número de cédula y fotografía del titular.',
+  },
+  {
+    id: 'ci-2023-reverso',
+    positiva: true,
+    texto:
+      'Reverso de la cédula de identidad boliviana con lugar de nacimiento por departamento, provincia y localidad, domicilio, profesión u ocupación, estado civil, grupo sanguíneo, nación o pueblo indígena originario campesino, firma del titular y zona de lectura mecánica.',
+  },
+  {
+    id: 'ci-antigua',
+    positiva: true,
+    texto:
+      'Cédula de identidad boliviana del formato anterior expedida por el SEGIP, válida hasta una fecha, con el nombre del titular, nacido el día indicado, en una localidad de Bolivia, con serie y sección y el número de cédula seguido de la sigla del departamento de expedición.',
+  },
+  {
+    id: 'ci-mrz',
+    positiva: true,
+    texto:
+      'Documento de identidad boliviano con zona de lectura mecánica de tres renglones en formato TD1, código de emisor BOL, número de documento con dígito de control, fecha de nacimiento, sexo, fecha de expiración y apellidos separados de los nombres por dobles chevrones.',
+  },
+  {
+    id: 'no-factura',
+    positiva: false,
+    texto:
+      'Factura electrónica con número de autorización, código de control, NIT del emisor, detalle de productos, subtotal, importe total y la leyenda de que contribuye al desarrollo del país.',
+  },
+  {
+    id: 'no-extracto',
+    positiva: false,
+    texto:
+      'Extracto de cuenta bancaria con saldo anterior, movimientos por fecha, débitos, créditos y saldo final del período.',
+  },
+  {
+    id: 'no-licencia',
+    positiva: false,
+    texto:
+      'Licencia para conducir con categoría del vehículo, restricciones médicas, número de licencia, fecha de emisión y autoridad de tránsito.',
+  },
+  {
+    id: 'no-pasaporte',
+    positiva: false,
+    texto:
+      'Pasaporte con tipo P, código de país, número de pasaporte, autoridad de expedición, lugar de nacimiento y zona de lectura mecánica de dos renglones de cuarenta y cuatro caracteres.',
+  },
+  {
+    id: 'no-documento-extranjero',
+    positiva: false,
+    texto:
+      'Documento nacional de identidad de otro país sudamericano con número de registro civil, nombre completo, fecha de nacimiento y sello del registro nacional de identificación de ese país.',
+  },
+  {
+    id: 'no-plantilla',
+    positiva: false,
+    texto:
+      'Plantilla de muestra descargada de internet con campos de ejemplo, texto lorem ipsum, la palabra SPECIMEN o MUESTRA sobreimpresa y marcas de agua del sitio que la distribuye.',
+  },
+  {
+    id: 'no-certificado',
+    positiva: false,
+    texto:
+      'Certificado de nacimiento o partida de nacimiento emitida por el registro civil, con número de partida, libro, folio y firma del oficial de registro.',
+  },
+  {
+    id: 'no-carnet-privado',
+    positiva: false,
+    texto:
+      'Credencial de una empresa o universidad con el nombre de la institución, el cargo o la carrera del portador, un número de legajo y la fecha de validez del gafete.',
+  },
+];
+
+/**
+ * Marcas que un documento LEGÍTIMO nunca imprime y que delatan una plantilla,
+ * una muestra o un montaje.
+ *
+ * Van aparte de los contraindicadores de `identity-evidence.ts` —que reconocen
+ * OTRO documento— porque éstas no dicen «esto es una factura»: dicen «esto es
+ * una cédula, y es falsa». La consecuencia también es distinta: allí el caso se
+ * cierra, aquí el caso ESCALA con una marca de fraude, porque afirmar que un
+ * documento está falsificado es una acusación y no la debe firmar una heurística
+ * a solas.
+ */
+export const MARCAS_DE_FALSIFICACION: ReadonlyArray<{
+  readonly codigo: string;
+  readonly patron: RegExp;
+  readonly descripcion: string;
+}> = [
+  {
+    codigo: 'SPECIMEN_WATERMARK',
+    patron: /\bSPECIMEN\b|\bMUESTRA\b|\bSAMPLE\b|\bVOID\b|\bDUMMY\b/u,
+    descripcion: 'La tarjeta lleva sobreimpresa la marca de un ejemplar de muestra.',
+  },
+  {
+    codigo: 'TEMPLATE_PLACEHOLDER',
+    patron:
+      /LOREM\s+IPSUM|\bXXXX+\b|\bNOMBRE\s+APELLIDO\b|\bJOHN\s+DOE\b|\bYOUR\s+NAME\b|\bTU\s+NOMBRE\b/u,
+    descripcion: 'Quedan textos de relleno de una plantilla sin completar.',
+  },
+  {
+    codigo: 'STOCK_IMAGE_MARK',
+    patron: /SHUTTERSTOCK|GETTY\s*IMAGES|ALAMY|DREAMSTIME|123RF|FREEPIK|ISTOCKPHOTO/u,
+    descripcion: 'La imagen lleva la marca de agua de un banco de imágenes.',
+  },
+  {
+    codigo: 'EDITOR_ARTIFACT',
+    patron: /PHOTOSHOP|\bPSD\b|CANVA\.COM|EDITABLE\s+TEMPLATE|PLANTILLA\s+EDITABLE/u,
+    descripcion: 'Hay rastros del editor con el que se compuso la imagen.',
+  },
+  {
+    codigo: 'DOCUMENT_NOT_VALID_MARK',
+    patron: /NO\s+VALIDO\s+COMO\s+DOCUMENTO|SIN\s+VALOR\s+LEGAL|NOT\s+FOR\s+OFFICIAL\s+USE/u,
+    descripcion: 'El propio documento declara por escrito que no tiene validez.',
+  },
+];
+
+/** El tipo de documento al que se refiere todo este catálogo. */
+export const TIPO_CATALOGADO = IdentityDocumentType.BOLIVIA_CI;
+
+/**
+ * De dónde sale cada dato de este archivo.
+ *
+ * Están aquí y no en un `docs/` aparte a propósito: quien vaya a mover un peso o
+ * a añadir un anclaje tiene que poder comprobar la fuente sin salir del archivo,
+ * porque la tentación de «ajustar hasta que pase el caso que me trajo» es
+ * exactamente lo que convierte un catálogo en una superstición.
+ */
+export const FUENTES: ReadonlyArray<{ readonly que: string; readonly donde: string }> = [
+  {
+    que: 'Rótulos impresos, medidas, material, campos del anverso y del reverso, vigencias e historia de versiones (2011, DS 4342 de 2020, DS 4861 y DS 4924 de 2023).',
+    donde: 'https://es.wikipedia.org/wiki/C%C3%A9dula_de_identidad_(Bolivia)',
+  },
+  {
+    que: 'Medidas de seguridad del rediseño de 2023: MRZ, código QR, microimpresiones, guilloché tricolor, fotografía sin fondo blanco, firma y huella digitalizadas.',
+    donde:
+      'https://www.reduno.com.bo/noticias/gobierno-presenta-la-nueva-cedula-de-identidad-y-asi-se-ve-202311195818',
+  },
+  {
+    que: 'Competencia del SEGIP sobre el Registro Único de Identificación y la emisión de la cédula.',
+    donde: 'https://www.segip.gob.bo/',
+  },
+  {
+    que: 'Complemento alfanumérico del número de cédula: por qué existe y qué forma tiene.',
+    donde: 'https://boliviaimpuestos.com/complemento-del-carnet-de-identidad/',
+  },
+  {
+    que: 'Estructura de la MRZ TD1 de tres renglones de 30 caracteres y sus dígitos de control.',
+    donde: 'ICAO Doc 9303, parte 5 — implementada en core/parsers/mrz-td1.ts',
+  },
+];

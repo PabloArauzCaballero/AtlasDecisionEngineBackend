@@ -1,0 +1,1236 @@
+{
+  "artifact": {
+    "artifactCode": "IDENTIDAD_CARNET_MOVIL",
+    "artifactType": "IDENTITY_POLICY",
+    "riskDomain": "IDENTITY_VERIFICATION",
+    "ownerTeam": "RISK_DECISIONING",
+    "name": "Verificación de identidad con carnet para el front móvil",
+    "description": "Llama al worker de identidad (lee el carnet, comprueba que lo sea y compara el retrato con la selfie) y aplica la política de aceptación. Desde la 1.2.0 recibe además CÓMO se hizo el alta (la bitácora de la app resumida por AtlasBackend): pegado en el carnet sin correcciones y en segundos, cámara interrumpida por un cambio de app, o una heurística de automatización alta, mandan el caso a una persona. Nunca rechazan: el comportamiento escala, no niega.",
+    "businessPurpose": "Que quien entre con un carnet sea quien dice ser, y que un guion o un suplantador con datos ajenos no pase por una foto bien tomada.",
+    "semanticVersion": "1.2.0",
+    "authoringNotes": "v1.1.1 (seed.system, 2026-08-23) + tres derivaciones a revisión por comportamiento (2026-09-18). Las nueve variables identidad_comportamiento_* son opcionales: sin bitácora se decide exactamente como la v1.1.1. El rechazo del worker manda sobre cualquier señal de comportamiento."
+  },
+  "queueCode": "IDENTIDAD",
+  "inputs": [
+    {
+      "code": "identidad_carnet_frente_base64",
+      "dataType": "STRING",
+      "name": "Anverso del carnet (base64)",
+      "description": "Foto del anverso del documento, en base64 puro.",
+      "optional": false,
+      "sensitive": true
+    },
+    {
+      "code": "identidad_carnet_reverso_base64",
+      "dataType": "STRING",
+      "name": "Reverso del carnet (base64)",
+      "description": "Foto del reverso, si la hay.",
+      "optional": true,
+      "sensitive": true
+    },
+    {
+      "code": "identidad_selfie_base64",
+      "dataType": "STRING",
+      "name": "Selfie (base64)",
+      "description": "Foto de la cara de la persona, en base64 puro.",
+      "optional": false,
+      "sensitive": true
+    },
+    {
+      "code": "identidad_pais_documento",
+      "dataType": "STRING",
+      "name": "País del documento",
+      "description": "ISO-3166 alfa-2 del país emisor (BO).",
+      "optional": false,
+      "sensitive": false
+    },
+    {
+      "code": "identidad_comportamiento_disponible",
+      "dataType": "BOOLEAN",
+      "name": "Bitácora del alta disponible",
+      "description": "Si AtlasBackend pudo calcular el resumen de comportamiento del alta. Ausente = menos evidencia, nunca en contra.",
+      "optional": true,
+      "sensitive": false
+    },
+    {
+      "code": "identidad_comportamiento_segundos_total",
+      "dataType": "INTEGER",
+      "name": "Segundos totales del alta",
+      "description": "Tiempo del alta descontando el segundo plano.",
+      "optional": true,
+      "sensitive": false
+    },
+    {
+      "code": "identidad_comportamiento_segundos_identidad",
+      "dataType": "INTEGER",
+      "name": "Segundos en la fase de identidad",
+      "description": "Tiempo acumulado en las pantallas de identidad.",
+      "optional": true,
+      "sensitive": false
+    },
+    {
+      "code": "identidad_comportamiento_pegado_en_carnet",
+      "dataType": "BOOLEAN",
+      "name": "Pegado en campos de identidad",
+      "description": "Si se pegó texto en el número de carnet, nombres o nacimiento.",
+      "optional": true,
+      "sensitive": false
+    },
+    {
+      "code": "identidad_comportamiento_correcciones_ocr",
+      "dataType": "INTEGER",
+      "name": "Correcciones sobre lo leído",
+      "description": "Cuántas veces corrigió lo que el OCR prellenó.",
+      "optional": true,
+      "sensitive": false
+    },
+    {
+      "code": "identidad_comportamiento_ratio_errores",
+      "dataType": "DECIMAL",
+      "name": "Tasa de errores de formulario",
+      "description": "Errores de envío y validación sobre envíos.",
+      "optional": true,
+      "sensitive": false
+    },
+    {
+      "code": "identidad_comportamiento_segundo_plano_en_captura",
+      "dataType": "BOOLEAN",
+      "name": "Captura interrumpida",
+      "description": "Si la app pasó a segundo plano con la cámara abierta (posible foto de una foto).",
+      "optional": true,
+      "sensitive": false
+    },
+    {
+      "code": "identidad_comportamiento_abandonos_previos",
+      "dataType": "INTEGER",
+      "name": "Altas abandonadas antes",
+      "description": "Flujos de alta anteriores del mismo cliente que quedaron abandonados.",
+      "optional": true,
+      "sensitive": false
+    },
+    {
+      "code": "identidad_comportamiento_bot_score",
+      "dataType": "DECIMAL",
+      "name": "Heurística de automatización",
+      "description": "0-1; behavior-summary-v1 de AtlasBackend. Sólo escala a revisión.",
+      "optional": true,
+      "sensitive": false
+    }
+  ],
+  "outputs": [
+    {
+      "code": "identidad_resultado",
+      "dataType": "STRING",
+      "usageType": "OUTPUT_PRIMARY",
+      "name": "Decisión de identidad",
+      "description": "VERIFICADO, RECHAZADO o REVISION_HUMANA."
+    },
+    {
+      "code": "identidad_motivo",
+      "dataType": "STRING",
+      "usageType": "OUTPUT",
+      "name": "Motivo de la decisión",
+      "description": "Código explicable del desenlace."
+    },
+    {
+      "code": "identidad_parecido",
+      "dataType": "DECIMAL",
+      "usageType": "OUTPUT",
+      "name": "Parecido biométrico",
+      "description": "Similitud entre el retrato del carnet y la selfie."
+    },
+    {
+      "code": "identidad_evidencia_documento",
+      "dataType": "DECIMAL",
+      "usageType": "OUTPUT",
+      "name": "Evidencia de documento",
+      "description": "Cuánta evidencia hay de que la imagen es un carnet."
+    },
+    {
+      "code": "identidad_senal_comportamiento",
+      "dataType": "STRING",
+      "usageType": "OUTPUT",
+      "name": "Señal de comportamiento",
+      "description": "La señal de la bitácora que escaló el caso, o NINGUNA."
+    }
+  ],
+  "reasonCodes": [],
+  "intermediates": [
+    {
+      "code": "id_estado_llamada",
+      "name": "Estado de la llamada al worker",
+      "description": "Estado de la llamada al worker. Sólo existe durante la ejecución que la crea.",
+      "dataType": "STRING",
+      "producerNodeKey": "VERIFICAR_IDENTIDAD",
+      "consumerNodeKeys": []
+    },
+    {
+      "code": "id_codigo_error",
+      "name": "Código de error del worker",
+      "description": "Código de error del worker. Sólo existe durante la ejecución que la crea.",
+      "dataType": "STRING",
+      "producerNodeKey": "VERIFICAR_IDENTIDAD",
+      "consumerNodeKeys": []
+    },
+    {
+      "code": "id_decision",
+      "name": "Veredicto técnico del worker",
+      "description": "Veredicto técnico del worker. Sólo existe durante la ejecución que la crea.",
+      "dataType": "STRING",
+      "producerNodeKey": "VERIFICAR_IDENTIDAD",
+      "consumerNodeKeys": []
+    },
+    {
+      "code": "id_parecido",
+      "name": "Parecido entre el retrato y la selfie",
+      "description": "Parecido entre el retrato y la selfie. Sólo existe durante la ejecución que la crea.",
+      "dataType": "DECIMAL",
+      "producerNodeKey": "VERIFICAR_IDENTIDAD",
+      "consumerNodeKeys": []
+    },
+    {
+      "code": "id_evidencia",
+      "name": "Evidencia de que la imagen es un carnet",
+      "description": "Evidencia de que la imagen es un carnet. Sólo existe durante la ejecución que la crea.",
+      "dataType": "DECIMAL",
+      "producerNodeKey": "VERIFICAR_IDENTIDAD",
+      "consumerNodeKeys": []
+    },
+    {
+      "code": "id_tipo_documento",
+      "name": "Tipo de documento reconocido",
+      "description": "Tipo de documento reconocido. Sólo existe durante la ejecución que la crea.",
+      "dataType": "STRING",
+      "producerNodeKey": "VERIFICAR_IDENTIDAD",
+      "consumerNodeKeys": []
+    },
+    {
+      "code": "id_liveness",
+      "name": "Desenlace de la prueba de vida",
+      "description": "Desenlace de la prueba de vida. Sólo existe durante la ejecución que la crea.",
+      "dataType": "STRING",
+      "producerNodeKey": "VERIFICAR_IDENTIDAD",
+      "consumerNodeKeys": []
+    }
+  ],
+  "conditions": [
+    {
+      "code": "DOCUMENTO_NO_VALIDO",
+      "name": "La imagen no es un carnet admisible",
+      "expressionType": "JSON_AST",
+      "expression": {
+        "op": "or",
+        "args": [
+          {
+            "op": "eq",
+            "left": {
+              "var": "intermediate.id_codigo_error"
+            },
+            "right": {
+              "value": "IDENTITY_DOCUMENT_NOT_IDENTITY"
+            }
+          },
+          {
+            "op": "eq",
+            "left": {
+              "var": "intermediate.id_codigo_error"
+            },
+            "right": {
+              "value": "IDENTITY_DOCUMENT_TYPE_NOT_ACCEPTED"
+            }
+          },
+          {
+            "op": "eq",
+            "left": {
+              "var": "intermediate.id_codigo_error"
+            },
+            "right": {
+              "value": "IDENTITY_DOCUMENT_UNSUPPORTED"
+            }
+          }
+        ]
+      },
+      "severity": "BLOCKING",
+      "reusable": false
+    },
+    {
+      "code": "IDENTIDAD_CONFIRMADA",
+      "name": "Verificado por el worker y por encima de los suelos de esta política",
+      "expressionType": "JSON_AST",
+      "expression": {
+        "op": "and",
+        "args": [
+          {
+            "op": "eq",
+            "left": {
+              "var": "intermediate.id_estado_llamada"
+            },
+            "right": {
+              "value": "SUCCEEDED"
+            }
+          },
+          {
+            "op": "eq",
+            "left": {
+              "var": "intermediate.id_decision"
+            },
+            "right": {
+              "value": "VERIFIED"
+            }
+          },
+          {
+            "op": "gte",
+            "left": {
+              "var": "intermediate.id_parecido"
+            },
+            "right": {
+              "value": 0.82
+            }
+          },
+          {
+            "op": "gte",
+            "left": {
+              "var": "intermediate.id_evidencia"
+            },
+            "right": {
+              "value": 0.7
+            }
+          }
+        ]
+      },
+      "severity": "BLOCKING",
+      "reusable": false
+    },
+    {
+      "code": "IDENTIDAD_NO_COINCIDE",
+      "name": "El worker afirma que no es la misma persona",
+      "expressionType": "JSON_AST",
+      "expression": {
+        "op": "eq",
+        "left": {
+          "var": "intermediate.id_decision"
+        },
+        "right": {
+          "value": "NOT_VERIFIED"
+        }
+      },
+      "severity": "BLOCKING",
+      "reusable": false
+    },
+    {
+      "code": "COMPORTAMIENTO_MECANICO",
+      "name": "Pegó el carnet, no corrigió nada y la fase de identidad duró menos de 40 s",
+      "expressionType": "JSON_AST",
+      "expression": {
+        "op": "and",
+        "args": [
+          {
+            "op": "eq",
+            "left": {
+              "var": "identidad_comportamiento_disponible"
+            },
+            "right": {
+              "value": true
+            }
+          },
+          {
+            "op": "eq",
+            "left": {
+              "var": "identidad_comportamiento_pegado_en_carnet"
+            },
+            "right": {
+              "value": true
+            }
+          },
+          {
+            "op": "eq",
+            "left": {
+              "var": "identidad_comportamiento_correcciones_ocr"
+            },
+            "right": {
+              "value": 0
+            }
+          },
+          {
+            "op": "lt",
+            "left": {
+              "var": "identidad_comportamiento_segundos_identidad"
+            },
+            "right": {
+              "value": 40
+            }
+          }
+        ]
+      },
+      "severity": "BLOCKING",
+      "reusable": false
+    },
+    {
+      "code": "CAPTURA_INTERRUMPIDA",
+      "name": "La app pasó a segundo plano con la cámara abierta",
+      "expressionType": "JSON_AST",
+      "expression": {
+        "op": "and",
+        "args": [
+          {
+            "op": "eq",
+            "left": {
+              "var": "identidad_comportamiento_disponible"
+            },
+            "right": {
+              "value": true
+            }
+          },
+          {
+            "op": "eq",
+            "left": {
+              "var": "identidad_comportamiento_segundo_plano_en_captura"
+            },
+            "right": {
+              "value": true
+            }
+          }
+        ]
+      },
+      "severity": "BLOCKING",
+      "reusable": false
+    },
+    {
+      "code": "COMPORTAMIENTO_AUTOMATIZADO",
+      "name": "La heurística de automatización llega a 0,7",
+      "expressionType": "JSON_AST",
+      "expression": {
+        "op": "and",
+        "args": [
+          {
+            "op": "eq",
+            "left": {
+              "var": "identidad_comportamiento_disponible"
+            },
+            "right": {
+              "value": true
+            }
+          },
+          {
+            "op": "gte",
+            "left": {
+              "var": "identidad_comportamiento_bot_score"
+            },
+            "right": {
+              "value": 0.7
+            }
+          }
+        ]
+      },
+      "severity": "BLOCKING",
+      "reusable": false
+    }
+  ],
+  "actions": [],
+  "nodes": [
+    {
+      "key": "START",
+      "type": "START",
+      "label": "Inicio",
+      "terminal": false,
+      "config": {
+        "description": "Recibe las fotos del carnet (anverso y, si la hay, reverso) y la selfie, en base64."
+      },
+      "actions": []
+    },
+    {
+      "key": "APROBAR",
+      "type": "RESULT",
+      "label": "Verificado",
+      "terminal": true,
+      "config": {
+        "mode": "MAPPING",
+        "assignments": [
+          {
+            "value": "VERIFICADO",
+            "source": "LITERAL",
+            "outputCode": "identidad_resultado"
+          },
+          {
+            "value": "IDENTIDAD_CONFIRMADA",
+            "source": "LITERAL",
+            "outputCode": "identidad_motivo"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.id_parecido"
+            },
+            "outputCode": "identidad_parecido"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.id_evidencia"
+            },
+            "outputCode": "identidad_evidencia_documento"
+          },
+          {
+            "value": "NINGUNA",
+            "source": "LITERAL",
+            "outputCode": "identidad_senal_comportamiento"
+          }
+        ]
+      },
+      "actions": []
+    },
+    {
+      "key": "EVALUAR",
+      "type": "CONDITION",
+      "label": "Decidir sobre la identidad",
+      "terminal": false,
+      "config": {
+        "description": "Traduce el veredicto técnico del worker a la decisión de negocio, con la política de este artefacto."
+      },
+      "actions": []
+    },
+    {
+      "key": "REVISAR",
+      "type": "MANUAL_REVIEW",
+      "label": "A revisión humana",
+      "terminal": true,
+      "config": {
+        "mode": "MAPPING",
+        "evidence": {
+          "motivo": "REQUIERE_REVISION",
+          "parecido": "{{intermediate.id_parecido}}",
+          "pruebaDeVida": "{{intermediate.id_liveness}}",
+          "tipoDocumento": "{{intermediate.id_tipo_documento}}",
+          "decisionDelWorker": "{{intermediate.id_decision}}"
+        },
+        "priority": 50,
+        "queueCode": "IDENTIDAD",
+        "slaMinutes": 240,
+        "assignments": [
+          {
+            "value": "REVISION_HUMANA",
+            "source": "LITERAL",
+            "outputCode": "identidad_resultado"
+          },
+          {
+            "value": "REQUIERE_REVISION",
+            "source": "LITERAL",
+            "outputCode": "identidad_motivo"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.id_parecido"
+            },
+            "outputCode": "identidad_parecido"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.id_evidencia"
+            },
+            "outputCode": "identidad_evidencia_documento"
+          },
+          {
+            "value": "NINGUNA",
+            "source": "LITERAL",
+            "outputCode": "identidad_senal_comportamiento"
+          }
+        ]
+      },
+      "actions": []
+    },
+    {
+      "key": "RECHAZAR_DOCUMENTO",
+      "type": "RESULT",
+      "label": "Rechazar: no es un carnet",
+      "terminal": true,
+      "config": {
+        "mode": "MAPPING",
+        "assignments": [
+          {
+            "value": "RECHAZADO",
+            "source": "LITERAL",
+            "outputCode": "identidad_resultado"
+          },
+          {
+            "value": "DOCUMENTO_NO_VALIDO",
+            "source": "LITERAL",
+            "outputCode": "identidad_motivo"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.id_parecido"
+            },
+            "outputCode": "identidad_parecido"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.id_evidencia"
+            },
+            "outputCode": "identidad_evidencia_documento"
+          },
+          {
+            "value": "NINGUNA",
+            "source": "LITERAL",
+            "outputCode": "identidad_senal_comportamiento"
+          }
+        ]
+      },
+      "actions": []
+    },
+    {
+      "key": "RECHAZAR_IDENTIDAD",
+      "type": "RESULT",
+      "label": "Rechazar: no es la misma persona",
+      "terminal": true,
+      "config": {
+        "mode": "MAPPING",
+        "assignments": [
+          {
+            "value": "RECHAZADO",
+            "source": "LITERAL",
+            "outputCode": "identidad_resultado"
+          },
+          {
+            "value": "IDENTIDAD_NO_COINCIDE",
+            "source": "LITERAL",
+            "outputCode": "identidad_motivo"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.id_parecido"
+            },
+            "outputCode": "identidad_parecido"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.id_evidencia"
+            },
+            "outputCode": "identidad_evidencia_documento"
+          },
+          {
+            "value": "NINGUNA",
+            "source": "LITERAL",
+            "outputCode": "identidad_senal_comportamiento"
+          }
+        ]
+      },
+      "actions": []
+    },
+    {
+      "key": "VERIFICAR_IDENTIDAD",
+      "type": "WORKER",
+      "label": "Verificar el carnet contra la selfie",
+      "terminal": false,
+      "config": {
+        "onError": "CONTINUE",
+        "outputs": [
+          {
+            "path": "call.status",
+            "defaultValue": "FAILED",
+            "intermediateCode": "id_estado_llamada"
+          },
+          {
+            "path": "call.errorCode",
+            "defaultValue": "",
+            "intermediateCode": "id_codigo_error"
+          },
+          {
+            "path": "result.decision",
+            "defaultValue": "INCONCLUSIVE",
+            "intermediateCode": "id_decision"
+          },
+          {
+            "path": "result.faceSimilarity",
+            "defaultValue": 0,
+            "intermediateCode": "id_parecido"
+          },
+          {
+            "path": "result.documentEvidence",
+            "defaultValue": 0,
+            "intermediateCode": "id_evidencia"
+          },
+          {
+            "path": "result.documentType",
+            "defaultValue": "UNKNOWN",
+            "intermediateCode": "id_tipo_documento"
+          },
+          {
+            "path": "result.liveness",
+            "defaultValue": "NOT_RUN",
+            "intermediateCode": "id_liveness"
+          }
+        ],
+        "service": "identity-verification",
+        "arguments": {
+          "selfieBase64": {
+            "path": "identidad_selfie_base64",
+            "source": "VARIABLE"
+          },
+          "documentBase64": {
+            "path": "identidad_carnet_frente_base64",
+            "source": "VARIABLE"
+          },
+          "documentCountry": {
+            "path": "identidad_pais_documento",
+            "source": "VARIABLE"
+          },
+          "documentBackBase64": {
+            "path": "identidad_carnet_reverso_base64",
+            "source": "VARIABLE"
+          }
+        },
+        "operation": "verify",
+        "timeoutMs": 90000,
+        "description": "Llama al worker de identidad: lee el carnet, comprueba que lo sea, y compara su retrato con la selfie."
+      },
+      "actions": []
+    },
+    {
+      "key": "REVISAR_COMPORTAMIENTO",
+      "type": "MANUAL_REVIEW",
+      "label": "A revisión: alta mecánica",
+      "terminal": true,
+      "actions": [],
+      "config": {
+        "mode": "MAPPING",
+        "queueCode": "IDENTIDAD",
+        "priority": 40,
+        "slaMinutes": 240,
+        "evidence": {
+          "motivo": "COMPORTAMIENTO_IDENTIDAD_MECANICO",
+          "senal": "COMPORTAMIENTO_MECANICO",
+          "parecido": "{{intermediate.id_parecido}}",
+          "pruebaDeVida": "{{intermediate.id_liveness}}",
+          "decisionDelWorker": "{{intermediate.id_decision}}",
+          "segundosTotal": "{{identidad_comportamiento_segundos_total}}",
+          "segundosIdentidad": "{{identidad_comportamiento_segundos_identidad}}",
+          "pegadoEnCarnet": "{{identidad_comportamiento_pegado_en_carnet}}",
+          "correccionesOcr": "{{identidad_comportamiento_correcciones_ocr}}",
+          "capturaInterrumpida": "{{identidad_comportamiento_segundo_plano_en_captura}}",
+          "abandonosPrevios": "{{identidad_comportamiento_abandonos_previos}}",
+          "botScore": "{{identidad_comportamiento_bot_score}}"
+        },
+        "assignments": [
+          {
+            "value": "REVISION_HUMANA",
+            "source": "LITERAL",
+            "outputCode": "identidad_resultado"
+          },
+          {
+            "value": "COMPORTAMIENTO_IDENTIDAD_MECANICO",
+            "source": "LITERAL",
+            "outputCode": "identidad_motivo"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.id_parecido"
+            },
+            "outputCode": "identidad_parecido"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.id_evidencia"
+            },
+            "outputCode": "identidad_evidencia_documento"
+          },
+          {
+            "value": "COMPORTAMIENTO_MECANICO",
+            "source": "LITERAL",
+            "outputCode": "identidad_senal_comportamiento"
+          }
+        ]
+      }
+    },
+    {
+      "key": "REVISAR_CAPTURA",
+      "type": "MANUAL_REVIEW",
+      "label": "A revisión: captura interrumpida",
+      "terminal": true,
+      "actions": [],
+      "config": {
+        "mode": "MAPPING",
+        "queueCode": "IDENTIDAD",
+        "priority": 40,
+        "slaMinutes": 240,
+        "evidence": {
+          "motivo": "CAPTURA_INTERRUMPIDA",
+          "senal": "CAPTURA_INTERRUMPIDA",
+          "parecido": "{{intermediate.id_parecido}}",
+          "pruebaDeVida": "{{intermediate.id_liveness}}",
+          "decisionDelWorker": "{{intermediate.id_decision}}",
+          "segundosTotal": "{{identidad_comportamiento_segundos_total}}",
+          "segundosIdentidad": "{{identidad_comportamiento_segundos_identidad}}",
+          "pegadoEnCarnet": "{{identidad_comportamiento_pegado_en_carnet}}",
+          "correccionesOcr": "{{identidad_comportamiento_correcciones_ocr}}",
+          "capturaInterrumpida": "{{identidad_comportamiento_segundo_plano_en_captura}}",
+          "abandonosPrevios": "{{identidad_comportamiento_abandonos_previos}}",
+          "botScore": "{{identidad_comportamiento_bot_score}}"
+        },
+        "assignments": [
+          {
+            "value": "REVISION_HUMANA",
+            "source": "LITERAL",
+            "outputCode": "identidad_resultado"
+          },
+          {
+            "value": "CAPTURA_INTERRUMPIDA",
+            "source": "LITERAL",
+            "outputCode": "identidad_motivo"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.id_parecido"
+            },
+            "outputCode": "identidad_parecido"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.id_evidencia"
+            },
+            "outputCode": "identidad_evidencia_documento"
+          },
+          {
+            "value": "CAPTURA_INTERRUMPIDA",
+            "source": "LITERAL",
+            "outputCode": "identidad_senal_comportamiento"
+          }
+        ]
+      }
+    },
+    {
+      "key": "REVISAR_AUTOMATIZADO",
+      "type": "MANUAL_REVIEW",
+      "label": "A revisión: comportamiento automatizado",
+      "terminal": true,
+      "actions": [],
+      "config": {
+        "mode": "MAPPING",
+        "queueCode": "IDENTIDAD",
+        "priority": 40,
+        "slaMinutes": 240,
+        "evidence": {
+          "motivo": "COMPORTAMIENTO_AUTOMATIZADO",
+          "senal": "COMPORTAMIENTO_AUTOMATIZADO",
+          "parecido": "{{intermediate.id_parecido}}",
+          "pruebaDeVida": "{{intermediate.id_liveness}}",
+          "decisionDelWorker": "{{intermediate.id_decision}}",
+          "segundosTotal": "{{identidad_comportamiento_segundos_total}}",
+          "segundosIdentidad": "{{identidad_comportamiento_segundos_identidad}}",
+          "pegadoEnCarnet": "{{identidad_comportamiento_pegado_en_carnet}}",
+          "correccionesOcr": "{{identidad_comportamiento_correcciones_ocr}}",
+          "capturaInterrumpida": "{{identidad_comportamiento_segundo_plano_en_captura}}",
+          "abandonosPrevios": "{{identidad_comportamiento_abandonos_previos}}",
+          "botScore": "{{identidad_comportamiento_bot_score}}"
+        },
+        "assignments": [
+          {
+            "value": "REVISION_HUMANA",
+            "source": "LITERAL",
+            "outputCode": "identidad_resultado"
+          },
+          {
+            "value": "COMPORTAMIENTO_AUTOMATIZADO",
+            "source": "LITERAL",
+            "outputCode": "identidad_motivo"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.id_parecido"
+            },
+            "outputCode": "identidad_parecido"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.id_evidencia"
+            },
+            "outputCode": "identidad_evidencia_documento"
+          },
+          {
+            "value": "COMPORTAMIENTO_AUTOMATIZADO",
+            "source": "LITERAL",
+            "outputCode": "identidad_senal_comportamiento"
+          }
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "key": "E_START",
+      "from": "START",
+      "to": "VERIFICAR_IDENTIDAD",
+      "type": "DEFAULT",
+      "priority": 1,
+      "default": true,
+      "conditions": []
+    },
+    {
+      "key": "E_LLAMADA",
+      "from": "VERIFICAR_IDENTIDAD",
+      "to": "EVALUAR",
+      "type": "DEFAULT",
+      "priority": 1,
+      "default": true,
+      "conditions": []
+    },
+    {
+      "key": "E_DOC_INVALIDO",
+      "from": "EVALUAR",
+      "to": "RECHAZAR_DOCUMENTO",
+      "type": "CONDITIONAL",
+      "priority": 1,
+      "default": false,
+      "conditions": [
+        {
+          "conditionCode": "DOCUMENTO_NO_VALIDO",
+          "order": 1
+        }
+      ]
+    },
+    {
+      "key": "E_NO_COINCIDE",
+      "from": "EVALUAR",
+      "to": "RECHAZAR_IDENTIDAD",
+      "type": "CONDITIONAL",
+      "priority": 2,
+      "default": false,
+      "conditions": [
+        {
+          "conditionCode": "IDENTIDAD_NO_COINCIDE",
+          "order": 1
+        }
+      ]
+    },
+    {
+      "key": "E_MECANICO",
+      "from": "EVALUAR",
+      "to": "REVISAR_COMPORTAMIENTO",
+      "type": "CONDITIONAL",
+      "priority": 3,
+      "default": false,
+      "conditions": [
+        {
+          "conditionCode": "COMPORTAMIENTO_MECANICO",
+          "order": 1
+        }
+      ]
+    },
+    {
+      "key": "E_CAPTURA",
+      "from": "EVALUAR",
+      "to": "REVISAR_CAPTURA",
+      "type": "CONDITIONAL",
+      "priority": 4,
+      "default": false,
+      "conditions": [
+        {
+          "conditionCode": "CAPTURA_INTERRUMPIDA",
+          "order": 1
+        }
+      ]
+    },
+    {
+      "key": "E_AUTOMATIZADO",
+      "from": "EVALUAR",
+      "to": "REVISAR_AUTOMATIZADO",
+      "type": "CONDITIONAL",
+      "priority": 5,
+      "default": false,
+      "conditions": [
+        {
+          "conditionCode": "COMPORTAMIENTO_AUTOMATIZADO",
+          "order": 1
+        }
+      ]
+    },
+    {
+      "key": "E_APROBAR",
+      "from": "EVALUAR",
+      "to": "APROBAR",
+      "type": "CONDITIONAL",
+      "priority": 6,
+      "default": false,
+      "conditions": [
+        {
+          "conditionCode": "IDENTIDAD_CONFIRMADA",
+          "order": 1
+        }
+      ]
+    },
+    {
+      "key": "E_REVISAR",
+      "from": "EVALUAR",
+      "to": "REVISAR",
+      "type": "DEFAULT",
+      "priority": 7,
+      "default": true,
+      "conditions": []
+    }
+  ],
+  "cases": [
+    {
+      "caseCode": "ID-HUMANO-VERIFICA",
+      "testName": "Worker verifica y el comportamiento es humano: VERIFICADO",
+      "worker": "verificado",
+      "input": {
+        "identidad_carnet_frente_base64": "IMG",
+        "identidad_carnet_reverso_base64": null,
+        "identidad_selfie_base64": "IMG",
+        "identidad_pais_documento": "BO",
+        "identidad_comportamiento_disponible": true,
+        "identidad_comportamiento_segundos_total": 240,
+        "identidad_comportamiento_segundos_identidad": 95,
+        "identidad_comportamiento_pegado_en_carnet": false,
+        "identidad_comportamiento_correcciones_ocr": 1,
+        "identidad_comportamiento_ratio_errores": 0.0,
+        "identidad_comportamiento_segundo_plano_en_captura": false,
+        "identidad_comportamiento_abandonos_previos": 0,
+        "identidad_comportamiento_bot_score": 0.0
+      },
+      "expectedResult": {
+        "identidad_resultado": "VERIFICADO",
+        "identidad_motivo": "IDENTIDAD_CONFIRMADA",
+        "identidad_senal_comportamiento": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "ID-SIN-BITACORA-VERIFICA",
+      "testName": "Sin bitácora (app vieja): decide igual que la v1",
+      "worker": "verificado",
+      "input": {
+        "identidad_carnet_frente_base64": "IMG",
+        "identidad_carnet_reverso_base64": null,
+        "identidad_selfie_base64": "IMG",
+        "identidad_pais_documento": "BO",
+        "identidad_comportamiento_disponible": false,
+        "identidad_comportamiento_segundos_total": null,
+        "identidad_comportamiento_segundos_identidad": null,
+        "identidad_comportamiento_pegado_en_carnet": null,
+        "identidad_comportamiento_correcciones_ocr": null,
+        "identidad_comportamiento_ratio_errores": null,
+        "identidad_comportamiento_segundo_plano_en_captura": null,
+        "identidad_comportamiento_abandonos_previos": null,
+        "identidad_comportamiento_bot_score": null
+      },
+      "expectedResult": {
+        "identidad_resultado": "VERIFICADO",
+        "identidad_senal_comportamiento": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "ID-MECANICO-REVISA",
+      "testName": "Pegó el carnet, 0 correcciones y 30 s: a una persona",
+      "worker": "verificado",
+      "input": {
+        "identidad_carnet_frente_base64": "IMG",
+        "identidad_carnet_reverso_base64": null,
+        "identidad_selfie_base64": "IMG",
+        "identidad_pais_documento": "BO",
+        "identidad_comportamiento_disponible": true,
+        "identidad_comportamiento_segundos_total": 240,
+        "identidad_comportamiento_segundos_identidad": 30,
+        "identidad_comportamiento_pegado_en_carnet": true,
+        "identidad_comportamiento_correcciones_ocr": 0,
+        "identidad_comportamiento_ratio_errores": 0.0,
+        "identidad_comportamiento_segundo_plano_en_captura": false,
+        "identidad_comportamiento_abandonos_previos": 0,
+        "identidad_comportamiento_bot_score": 0.0
+      },
+      "expectedResult": {
+        "identidad_resultado": "REVISION_HUMANA",
+        "identidad_motivo": "COMPORTAMIENTO_IDENTIDAD_MECANICO",
+        "identidad_senal_comportamiento": "COMPORTAMIENTO_MECANICO"
+      }
+    },
+    {
+      "caseCode": "ID-CAPTURA-INTERRUMPIDA-REVISA",
+      "testName": "La app se fue al fondo con la cámara abierta: a una persona",
+      "worker": "verificado",
+      "input": {
+        "identidad_carnet_frente_base64": "IMG",
+        "identidad_carnet_reverso_base64": null,
+        "identidad_selfie_base64": "IMG",
+        "identidad_pais_documento": "BO",
+        "identidad_comportamiento_disponible": true,
+        "identidad_comportamiento_segundos_total": 240,
+        "identidad_comportamiento_segundos_identidad": 95,
+        "identidad_comportamiento_pegado_en_carnet": false,
+        "identidad_comportamiento_correcciones_ocr": 1,
+        "identidad_comportamiento_ratio_errores": 0.0,
+        "identidad_comportamiento_segundo_plano_en_captura": true,
+        "identidad_comportamiento_abandonos_previos": 0,
+        "identidad_comportamiento_bot_score": 0.0
+      },
+      "expectedResult": {
+        "identidad_resultado": "REVISION_HUMANA",
+        "identidad_motivo": "CAPTURA_INTERRUMPIDA",
+        "identidad_senal_comportamiento": "CAPTURA_INTERRUMPIDA"
+      }
+    },
+    {
+      "caseCode": "ID-BOT-069-VERIFICA",
+      "testName": "bot_score 0,69 no escala",
+      "worker": "verificado",
+      "input": {
+        "identidad_carnet_frente_base64": "IMG",
+        "identidad_carnet_reverso_base64": null,
+        "identidad_selfie_base64": "IMG",
+        "identidad_pais_documento": "BO",
+        "identidad_comportamiento_disponible": true,
+        "identidad_comportamiento_segundos_total": 240,
+        "identidad_comportamiento_segundos_identidad": 95,
+        "identidad_comportamiento_pegado_en_carnet": false,
+        "identidad_comportamiento_correcciones_ocr": 1,
+        "identidad_comportamiento_ratio_errores": 0.0,
+        "identidad_comportamiento_segundo_plano_en_captura": false,
+        "identidad_comportamiento_abandonos_previos": 0,
+        "identidad_comportamiento_bot_score": 0.69
+      },
+      "expectedResult": {
+        "identidad_resultado": "VERIFICADO",
+        "identidad_senal_comportamiento": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "ID-BOT-070-REVISA",
+      "testName": "bot_score 0,70 escala a una persona",
+      "worker": "verificado",
+      "input": {
+        "identidad_carnet_frente_base64": "IMG",
+        "identidad_carnet_reverso_base64": null,
+        "identidad_selfie_base64": "IMG",
+        "identidad_pais_documento": "BO",
+        "identidad_comportamiento_disponible": true,
+        "identidad_comportamiento_segundos_total": 240,
+        "identidad_comportamiento_segundos_identidad": 95,
+        "identidad_comportamiento_pegado_en_carnet": false,
+        "identidad_comportamiento_correcciones_ocr": 1,
+        "identidad_comportamiento_ratio_errores": 0.0,
+        "identidad_comportamiento_segundo_plano_en_captura": false,
+        "identidad_comportamiento_abandonos_previos": 0,
+        "identidad_comportamiento_bot_score": 0.7
+      },
+      "expectedResult": {
+        "identidad_resultado": "REVISION_HUMANA",
+        "identidad_motivo": "COMPORTAMIENTO_AUTOMATIZADO",
+        "identidad_senal_comportamiento": "COMPORTAMIENTO_AUTOMATIZADO"
+      }
+    },
+    {
+      "caseCode": "ID-NO-COINCIDE-RECHAZA",
+      "testName": "El worker dice que no es la misma persona: rechazo, aunque el comportamiento sea perfecto",
+      "worker": "no_coincide",
+      "input": {
+        "identidad_carnet_frente_base64": "IMG",
+        "identidad_carnet_reverso_base64": null,
+        "identidad_selfie_base64": "IMG",
+        "identidad_pais_documento": "BO",
+        "identidad_comportamiento_disponible": true,
+        "identidad_comportamiento_segundos_total": 240,
+        "identidad_comportamiento_segundos_identidad": 95,
+        "identidad_comportamiento_pegado_en_carnet": false,
+        "identidad_comportamiento_correcciones_ocr": 1,
+        "identidad_comportamiento_ratio_errores": 0.0,
+        "identidad_comportamiento_segundo_plano_en_captura": false,
+        "identidad_comportamiento_abandonos_previos": 0,
+        "identidad_comportamiento_bot_score": 0.0
+      },
+      "expectedResult": {
+        "identidad_resultado": "RECHAZADO",
+        "identidad_motivo": "IDENTIDAD_NO_COINCIDE"
+      }
+    },
+    {
+      "caseCode": "ID-DOC-INVALIDO-RECHAZA",
+      "testName": "No es un carnet: rechazo del documento",
+      "worker": "documento_invalido",
+      "input": {
+        "identidad_carnet_frente_base64": "IMG",
+        "identidad_carnet_reverso_base64": null,
+        "identidad_selfie_base64": "IMG",
+        "identidad_pais_documento": "BO",
+        "identidad_comportamiento_disponible": true,
+        "identidad_comportamiento_segundos_total": 240,
+        "identidad_comportamiento_segundos_identidad": 95,
+        "identidad_comportamiento_pegado_en_carnet": false,
+        "identidad_comportamiento_correcciones_ocr": 1,
+        "identidad_comportamiento_ratio_errores": 0.0,
+        "identidad_comportamiento_segundo_plano_en_captura": false,
+        "identidad_comportamiento_abandonos_previos": 0,
+        "identidad_comportamiento_bot_score": 0.0
+      },
+      "expectedResult": {
+        "identidad_resultado": "RECHAZADO",
+        "identidad_motivo": "DOCUMENTO_NO_VALIDO"
+      }
+    },
+    {
+      "caseCode": "ID-DUDOSO-REVISA",
+      "testName": "El worker no concluye: a una persona (por defecto), sin señal de comportamiento",
+      "worker": "dudoso",
+      "input": {
+        "identidad_carnet_frente_base64": "IMG",
+        "identidad_carnet_reverso_base64": null,
+        "identidad_selfie_base64": "IMG",
+        "identidad_pais_documento": "BO",
+        "identidad_comportamiento_disponible": true,
+        "identidad_comportamiento_segundos_total": 240,
+        "identidad_comportamiento_segundos_identidad": 95,
+        "identidad_comportamiento_pegado_en_carnet": false,
+        "identidad_comportamiento_correcciones_ocr": 1,
+        "identidad_comportamiento_ratio_errores": 0.0,
+        "identidad_comportamiento_segundo_plano_en_captura": false,
+        "identidad_comportamiento_abandonos_previos": 0,
+        "identidad_comportamiento_bot_score": 0.0
+      },
+      "expectedResult": {
+        "identidad_resultado": "REVISION_HUMANA",
+        "identidad_motivo": "REQUIERE_REVISION",
+        "identidad_senal_comportamiento": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "ID-MECANICO-Y-NO-COINCIDE-RECHAZA",
+      "testName": "El rechazo del worker manda sobre la señal de comportamiento",
+      "worker": "no_coincide",
+      "input": {
+        "identidad_carnet_frente_base64": "IMG",
+        "identidad_carnet_reverso_base64": null,
+        "identidad_selfie_base64": "IMG",
+        "identidad_pais_documento": "BO",
+        "identidad_comportamiento_disponible": true,
+        "identidad_comportamiento_segundos_total": 240,
+        "identidad_comportamiento_segundos_identidad": 10,
+        "identidad_comportamiento_pegado_en_carnet": true,
+        "identidad_comportamiento_correcciones_ocr": 0,
+        "identidad_comportamiento_ratio_errores": 0.0,
+        "identidad_comportamiento_segundo_plano_en_captura": false,
+        "identidad_comportamiento_abandonos_previos": 0,
+        "identidad_comportamiento_bot_score": 0.0
+      },
+      "expectedResult": {
+        "identidad_resultado": "RECHAZADO",
+        "identidad_motivo": "IDENTIDAD_NO_COINCIDE"
+      }
+    }
+  ],
+  "suite": {
+    "suiteCode": "IDENTIDAD-DESENLACES",
+    "name": "Identidad móvil: los desenlaces, con y sin bitácora",
+    "suiteType": "REGRESSION",
+    "isBlocking": true
+  },
+  "workerNodeKey": "VERIFICAR_IDENTIDAD"
+}

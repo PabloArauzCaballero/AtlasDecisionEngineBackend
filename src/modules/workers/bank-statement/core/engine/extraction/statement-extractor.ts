@@ -46,6 +46,16 @@ export class StatementExtractor {
 
   async extract(buffer: Buffer): Promise<ExtractionOutcome> {
     const pdf = await this.reader.extract(buffer);
+    // Un PDF válido sin ninguna página es un archivo, no un documento. Se separa
+    // del escaneado —que sí tiene páginas, sólo que en imagen— porque el
+    // desenlace es distinto: aquí no hay nada que una persona pueda revisar.
+    if (pdf.pageCount === 0) {
+      throw new StatementProcessingError(
+        'EMPTY_DOCUMENT',
+        'El PDF no contiene ninguna página.',
+        422,
+      );
+    }
     const imagePages = pagesWithoutText(pdf);
 
     if (imagePages.length === 0) {

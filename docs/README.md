@@ -1,6 +1,12 @@
 # Documentación del backend
 
-Esta carpeta existe para convertir la implementación del motor en conocimiento operativo y
+Esta carpeta cumple dos papeles con un solo contenido: es el origen del **portal técnico**
+(MkDocs, `yarn docs:build`) y es una **bóveda de Obsidian** (configuración en `.obsidian/`,
+mapas de contenido y plantillas en `vault/`). Cómo conviven, qué formato de enlace lo hace
+posible y qué reglas evitan romper el build: [`vault/README.md`](vault/README.md). Nota de
+entrada de la bóveda: [`vault/inicio.md`](vault/inicio.md).
+
+Existe para convertir la implementación del motor en conocimiento operativo y
 auditable. A nivel de negocio, permite que Riesgo, Fraude, Compliance, QA y Operaciones entiendan
 qué garantías ofrece la plataforma y qué decisiones siguen requiriendo aprobación humana. A nivel
 de sistema, describe contratos, límites, despliegue, seguridad y procedimientos que no deben
@@ -46,6 +52,18 @@ estado actual sin contrastarlos con este índice y con los gates vigentes.
 | `claude/*.md` | Registra cómo se configuró la asistencia de desarrollo. | Gobernanza de herramientas; no arquitectura de runtime. |
 | `AtlasDecisionEngineContext.docx` | Conserva el contexto de negocio fuente. | Entrada documental, no contrato ejecutable. |
 | `script-prueba.js` / `script-prueba.py` | Ofrecen ejemplos legibles de código importable. | Fixtures manuales; las garantías reales están en las pruebas automatizadas. |
+
+## Documentación generada (no editar a mano)
+
+| Carpeta | Fuente | Comando |
+|---|---|---|
+| `modules/`, `api/endpoint-catalog.md`, `data/entity-catalog.md`, `api/error-catalog.md` | El contrato OpenAPI, el esquema de Prisma y el código real. | `yarn docs:catalog` |
+| `design-rules/` | `.claude/rules/` — reglas que la herramienta de asistencia carga por ruta. | `yarn docs:vault` |
+| `skills/` (salvo `entorno.md`) | `.claude/skills/<skill>/SKILL.md`. | `yarn docs:vault` |
+
+Cada página generada lleva su aviso y su fuente en la cabecera. `yarn docs:validate` falla si un
+espejo se separa de su origen, de modo que editar la copia rompa el gate en vez de publicar una
+página obsoleta.
 
 ## Regla de mantenimiento
 

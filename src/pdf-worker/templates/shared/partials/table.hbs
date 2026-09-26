@@ -1,0 +1,31 @@
+{{!--
+  Tabla de columnas dinámicas. Uso:
+    {{> atlas/table columns=section.table.columns rows=section.table.rows caption=section.title}}
+
+  El `<thead>` es un elemento real y no una primera fila con estilo: es lo que permite que
+  `print.css` le diga al motor que lo REPITA en cada página. Una tabla larga sin `<thead>` deja
+  las columnas sin nombre a partir de la segunda hoja, y ese defecto no se ve nunca en
+  desarrollo, donde los datos de prueba caben en una.
+
+  El caso vacío se pinta, no se omite. Una sección que desaparece porque no hay filas se lee
+  como «esto no aplica»; una que dice «sin datos» se lee como lo que es.
+--}}
+<table class="table table--numeric">
+  {{#if caption}}<caption>{{caption}}</caption>{{/if}}
+  <thead>
+    <tr>
+      {{#each columns}}<th scope="col">{{this.label}}</th>{{/each}}
+    </tr>
+  </thead>
+  <tbody>
+    {{#each rows}}
+      <tr>
+        {{#each ../columns}}<td>{{cell ../this this.key}}</td>{{/each}}
+      </tr>
+    {{else}}
+      <tr>
+        <td class="table__empty" colspan="{{columns.length}}">Sin datos para este apartado.</td>
+      </tr>
+    {{/each}}
+  </tbody>
+</table>

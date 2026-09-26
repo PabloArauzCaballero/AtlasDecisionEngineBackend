@@ -6,3 +6,7 @@ sistema ordena inventario, revisión de invariantes y gates no destructivos.
 
 Cada subcarpeta incluye un `SKILL.md` autosuficiente. Estos procedimientos no autorizan tocar
 producción, publicar cambios ni resetear datos.
+
+Esta carpeta es la fuente canónica; su espejo legible en el portal es `docs/skills/`, generado
+con `yarn docs:vault`. Tras cambiar una skill, ejecútalo: `yarn docs:validate` falla si el
+espejo quedó atrás.

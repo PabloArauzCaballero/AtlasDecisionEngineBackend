@@ -46,6 +46,12 @@ describe('WORKER_ROLE', () => {
   it('el env schema solo admite los roles del catálogo', () => {
     const base = {
       DATABASE_URL: 'postgresql://u:p@localhost:5432/db',
+      // Un entorno válido incluye almacén desde el 2026-09-11: sin él el motor no arranca, porque
+      // decidir sobre una persona y perder su cara al cerrar dejó de ser un desenlace aceptable.
+      STORAGE_S3_ENDPOINT: 'http://localhost:9000',
+      STORAGE_S3_BUCKET: 'atlas-decision',
+      STORAGE_S3_ACCESS_KEY_ID: 'storage-key',
+      STORAGE_S3_SECRET_ACCESS_KEY: 'storage-secret',
       AUDIT_HASH_SECRET: 'x'.repeat(32),
       MANAGEMENT_API_KEY: 'm'.repeat(24),
       RUNTIME_API_KEY: 'r'.repeat(24),
@@ -61,6 +67,12 @@ describe('WORKER_ROLE', () => {
     // reiniciarlo: el worker necesita el suyo, distinto del de la API.
     const parsed = envSchema.parse({
       DATABASE_URL: 'postgresql://u:p@localhost:5432/db',
+      // Un entorno válido incluye almacén desde el 2026-09-11: sin él el motor no arranca, porque
+      // decidir sobre una persona y perder su cara al cerrar dejó de ser un desenlace aceptable.
+      STORAGE_S3_ENDPOINT: 'http://localhost:9000',
+      STORAGE_S3_BUCKET: 'atlas-decision',
+      STORAGE_S3_ACCESS_KEY_ID: 'storage-key',
+      STORAGE_S3_SECRET_ACCESS_KEY: 'storage-secret',
       AUDIT_HASH_SECRET: 'x'.repeat(32),
       MANAGEMENT_API_KEY: 'm'.repeat(24),
       RUNTIME_API_KEY: 'r'.repeat(24),

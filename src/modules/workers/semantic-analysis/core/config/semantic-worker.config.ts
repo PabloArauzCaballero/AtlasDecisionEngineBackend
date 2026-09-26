@@ -38,6 +38,35 @@ export const semanticWorkerConfigSchema = z
     shutdownTimeoutSeconds: z.number().int().min(1).max(300).default(30),
     candidateLimit: z.number().int().min(1).max(50).default(8),
     ambiguityMargin: z.number().min(0).max(0.5).default(0.08),
+
+    /**
+     * Deja que una regla de rubro literal resuelva SIN llamar al modelo.
+     *
+     * `PAGO SERVICIO ELFEC` o `YPFB SURTIDOR` no necesitan un clasificador: el
+     * rubro está escrito con todas sus letras y la regla que lo lee es más
+     * fiable que una similitud. Saltarse el modelo ahí no es una optimización
+     * cosmética —es lo que impide que un extracto de trescientas filas gaste
+     * trescientas llamadas y acabe agotando el reloj en las últimas—.
+     *
+     * Se puede apagar para medir cuánto aporta el modelo por su cuenta.
+     */
+    ruleFastPathEnabled: z.boolean().default(true),
+
+    /**
+     * Convierte un análisis que agotó el reloj en una decisión por reglas.
+     *
+     * Sin esto, tardar demasiado es un FALLO: la ejecución muere, la cola
+     * reintenta y el mismo texto vuelve a tardar lo mismo. Con esto, la glosa se
+     * lee por reglas —que no consultan a nadie y responden en microsegundos—, se
+     * publica lo que el texto afirma por sí solo y el caso queda marcado para
+     * revisión. La diferencia para quien recibe el informe es entre una fila con
+     * categoría y una nota, o ninguna fila.
+     *
+     * **Sólo rescata la LENTITUD.** Un error del proveedor sigue fallando y
+     * reintentándose: ahí no se sabe si el modelo habría dicho otra cosa, y
+     * fingir una respuesta escondería una caída detrás de miles de «otros gastos».
+     */
+    timeoutRescueEnabled: z.boolean().default(true),
     healthPort: z.number().int().min(0).max(65_535).default(3001),
 
     /**
@@ -45,6 +74,16 @@ export const semanticWorkerConfigSchema = z
      * trabajo los consultaba de nuevo. `0` desactiva la caché.
      */
     catalogCacheTtlSeconds: z.number().int().min(0).max(3_600).default(60),
+
+    /**
+     * Vida de la caché de clasificación. Su clave incluye la firma del catálogo,
+     * así que el TTL no protege contra datos obsoletos —de eso se encarga la
+     * firma— sino que acota cuánta memoria retiene un proceso de vida larga.
+     * `0` desactiva la caché.
+     */
+    classificationCacheTtlSeconds: z.number().int().min(0).max(86_400).default(3_600),
+    /** Glosas distintas que se recuerdan a la vez. `0` desactiva la caché. */
+    classificationCacheSize: z.number().int().min(0).max(1_000_000).default(5_000),
 
     /**
      * `lexical` conserva el comportamiento sin coste adicional. `hybrid` añade similitud por
@@ -119,8 +158,12 @@ const environmentSchema = z.object({
   SEMANTIC_WORKER_SHUTDOWN_TIMEOUT_SECONDS: z.coerce.number().int().default(30),
   SEMANTIC_CANDIDATE_LIMIT: z.coerce.number().int().default(8),
   SEMANTIC_AMBIGUITY_MARGIN: z.coerce.number().default(0.08),
+  SEMANTIC_RULE_FAST_PATH_ENABLED: booleanFromEnvironment(true),
+  SEMANTIC_TIMEOUT_RESCUE_ENABLED: booleanFromEnvironment(true),
   SEMANTIC_HEALTH_PORT: z.coerce.number().int().default(3001),
   SEMANTIC_CATALOG_CACHE_TTL_SECONDS: z.coerce.number().int().default(60),
+  SEMANTIC_CLASSIFICATION_CACHE_TTL_SECONDS: z.coerce.number().int().default(3_600),
+  SEMANTIC_CLASSIFICATION_CACHE_SIZE: z.coerce.number().int().default(5_000),
   SEMANTIC_RETRIEVAL_MODE: z.enum(['lexical', 'hybrid']).default('lexical'),
   SEMANTIC_RETRIEVAL_SEMANTIC_WEIGHT: z.coerce.number().default(0.6),
   SEMANTIC_AUDIT_RETENTION_DAYS: z.coerce.number().int().default(90),
@@ -160,8 +203,12 @@ export function loadSemanticWorkerConfig(
     shutdownTimeoutSeconds: parsed.SEMANTIC_WORKER_SHUTDOWN_TIMEOUT_SECONDS,
     candidateLimit: parsed.SEMANTIC_CANDIDATE_LIMIT,
     ambiguityMargin: parsed.SEMANTIC_AMBIGUITY_MARGIN,
+    ruleFastPathEnabled: parsed.SEMANTIC_RULE_FAST_PATH_ENABLED,
+    timeoutRescueEnabled: parsed.SEMANTIC_TIMEOUT_RESCUE_ENABLED,
     healthPort: parsed.SEMANTIC_HEALTH_PORT,
     catalogCacheTtlSeconds: parsed.SEMANTIC_CATALOG_CACHE_TTL_SECONDS,
+    classificationCacheTtlSeconds: parsed.SEMANTIC_CLASSIFICATION_CACHE_TTL_SECONDS,
+    classificationCacheSize: parsed.SEMANTIC_CLASSIFICATION_CACHE_SIZE,
     retrievalMode: parsed.SEMANTIC_RETRIEVAL_MODE,
     retrievalSemanticWeight: parsed.SEMANTIC_RETRIEVAL_SEMANTIC_WEIGHT,
     auditRetentionDays: parsed.SEMANTIC_AUDIT_RETENTION_DAYS,

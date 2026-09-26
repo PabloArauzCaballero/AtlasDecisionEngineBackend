@@ -20,6 +20,7 @@ ejecuta cada decisión dejando evidencia reproducible y auditable.
 | Gobierno, aprobaciones y segregación de funciones | [Flujos críticos](business/critical-workflows.md) |
 | Pruebas deterministas y generación masiva guiada por contrato | [Estrategia de pruebas](testing/strategy.md) |
 | Auditoría encadenada por hash, append-only | [Auditabilidad](security/auditability.md) |
+| Reglas que gobiernan un cambio aceptable | [Reglas de diseño](design-rules/index.md) |
 
 ## Contexto en una imagen
 
@@ -63,12 +64,25 @@ excepciones que el código lanza; el de variables de entorno, del esquema de val
 
 ```bash
 yarn docs:openapi:generate   # contrato desde la aplicación real
-yarn docs:validate           # contrato + catálogos + cobertura + enlaces
+yarn docs:vault              # espejo de las reglas de diseño y las skills de `.claude/`
+yarn docs:validate           # contrato + catálogos + espejo + cobertura + enlaces
 yarn docs:build              # portal en contenedor, modo estricto
 ```
 
 Ver [política de documentación](governance/documentation-policy.md) y
 [ADR-0023](adr/ADR-0023-generated-documentation.md).
+
+Esta misma carpeta es además una **bóveda de Obsidian**: el mismo contenido, recorrible como
+grafo de notas enlazadas. Su configuración vive en `docs/.obsidian/` y sus mapas de contenido en
+`docs/vault/`, fuera del portal para no duplicar esta navegación. Abra `docs` como bóveda y
+empiece por `vault/inicio.md`.
+
+## Cómo se decide un cambio aceptable
+
+Las [reglas de diseño](design-rules/index.md) fijan precedencia, arquitectura, seguridad, datos,
+pruebas y dependencias; el [entorno de trabajo](prompts/index.md) documenta las capas de
+contexto y los [procedimientos repetibles](skills/index.md) que producen la evidencia exigida
+antes de declarar algo listo.
 
 ## Propiedad y versión
 

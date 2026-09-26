@@ -1,9 +1,8 @@
 {
-  "generatedAt": "2026-08-04T05:06:20.728Z",
-  "modules": 24,
-  "endpoints": 110,
-  "entities": 69,
+  "modules": 31,
+  "endpoints": 239,
+  "entities": 100,
   "events": 6,
-  "errorCodes": 166,
-  "environmentVariables": 118
+  "errorCodes": 254,
+  "environmentVariables": 313
 }

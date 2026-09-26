@@ -27,7 +27,10 @@ describe('ScriptNodeRunnerService production guard', () => {
       new ConfigService({
         NODE_ENV: 'development',
         SCRIPT_NODES_ENABLED: true,
-        SCRIPT_NODE_TIMEOUT_MS: 3000,
+        // Lo que se comprueba es que NO salte la guardia de producción, no cuánto tarda.
+        // El presupuesto debe cubrir el arranque del proceso hijo, que en una máquina de
+        // desarrollo cargada llega a 2,9 s y agotaba los 3 s que había aquí antes.
+        SCRIPT_NODE_TIMEOUT_MS: 15_000,
       }),
     );
     // It runs (returns a value); the point is it does not throw the production guard error.

@@ -52,6 +52,30 @@ export class QaRunListItemDto {
   counterexamples!: number;
   @ApiProperty({ example: '2026-07-20T10:00:00.000Z' }) startedAt!: string;
   @ApiProperty({ nullable: true }) finishedAt!: string | null;
+  @ApiProperty({
+    example: 512,
+    description:
+      'Casos que la corrida iba a ejecutar. Mientras está `RUNNING`, `totalCases` sólo cuenta los ya ejecutados. Vale 0 en corridas anteriores al campo.',
+  })
+  plannedCases!: number;
+  @ApiProperty({
+    // `type` explícito: de `number | null` Swagger infiere `object`, y entonces el
+    // ejemplo contradice el esquema que él mismo publicó. Lo detecta `redocly lint`.
+    type: Number,
+    example: 1,
+    nullable: true,
+    description:
+      'Casos ejecutados a la vez. `null` en corridas que no la archivaron. Sin este dato, `durationMs / totalCases` NO es comparable entre corridas.',
+  })
+  concurrency!: number | null;
+  @ApiProperty({
+    type: Boolean,
+    example: true,
+    nullable: true,
+    description:
+      'Si cada caso se ejecutó DOS veces para comprobar determinismo. Duplica el trabajo real de la corrida, así que condiciona cualquier lectura de rendimiento.',
+  })
+  checkDeterminism!: boolean | null;
 }
 
 /** `QaLabService.presentRun`: forma común de `run` (201) y `getRun` (200). */
@@ -71,7 +95,18 @@ export class QaRunDto {
   @ApiProperty({ example: 5 }) failedCases!: number;
   @ApiProperty({ example: 0 }) erroredCases!: number;
   @ApiProperty({ example: 8420 }) durationMs!: number;
-  @ApiProperty({ example: { OUTPUT_CONTRACT_RESPECTED: 5 } }) summary!: Record<string, unknown>;
+  @ApiProperty({
+    example: 512,
+    description:
+      'Casos que la corrida va a ejecutar en total. Mientras está `RUNNING`, `totalCases` sólo cuenta los ya ejecutados: el avance es `totalCases` sobre esto. Vale 0 en corridas anteriores a este campo.',
+  })
+  plannedCases!: number;
+  @ApiProperty({
+    example: { OUTPUT_CONTRACT_RESPECTED: 5 },
+    description:
+      'Conteo por propiedad violada. En una corrida `FAILED` trae en su lugar `{ failureCode, failureMessage }`: el motivo por el que se abortó.',
+  })
+  summary!: Record<string, unknown>;
   @ApiProperty({ example: '2026-07-20T10:00:00.000Z' }) startedAt!: string;
   @ApiProperty({ nullable: true }) finishedAt!: string | null;
   @ApiProperty({ type: [QaCounterexampleDto] }) counterexamples!: QaCounterexampleDto[];

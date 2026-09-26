@@ -8,10 +8,12 @@ import { ApiArrayResponse, ApiPagedResponse } from '../../../common/http/paginat
 import { CurrentPrincipal, Roles, TenantId } from '../../../common/security/security.decorators';
 import type { AuthenticatedPrincipal } from '../../../common/security/security.types';
 import {
+  CreateSemanticAnalysisBatchDto,
   CreateSemanticAnalysisRunDto,
   WorkerFixtureDto,
   WorkerRunDto,
   WorkerRunQueryDto,
+  WorkerRunStatusQueryDto,
 } from '../workers.dto';
 import { toWorkerRunDto } from '../workers.mapper';
 import { SEMANTIC_FIXTURES, findSemanticFixture } from './fixtures/semantic-fixtures';
@@ -81,6 +83,43 @@ export class SemanticAnalysisController {
       { fixtureCode: resolved.fixtureCode, idempotencyKey: dto.idempotencyKey },
     );
     return toWorkerRunDto({ ...run, warningsJson: run.warningsJson });
+  }
+
+  @Post('runs/batch')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({ summary: 'Encola varios análisis semánticos de una vez' })
+  @ApiAcceptedResponse({
+    description: 'Ejecuciones encoladas, en el orden en que se pidieron.',
+    type: [WorkerRunDto],
+  })
+  @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'OPERATIONS')
+  async createRunBatch(
+    @TenantId() tenantId: bigint,
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() dto: CreateSemanticAnalysisBatchDto,
+  ): Promise<WorkerRunDto[]> {
+    // Se valida cada texto ANTES de escribir nada: un lote con una glosa vacía
+    // se rechaza entero y con el mismo mensaje que tendría suelta, en vez de
+    // encolar noventa y nueve y dejar la centésima sin explicación.
+    const items = dto.items.map((item) => ({
+      text: this.analyses.validateText(item.text),
+      ...(item.idempotencyKey === undefined ? {} : { idempotencyKey: item.idempotencyKey }),
+    }));
+    const runs = await this.analyses.createRunBatch(tenantId, principal, items);
+    return runs.map((run) => toWorkerRunDto(run));
+  }
+
+  @Post('runs/status')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Estado y resultado de varias ejecuciones' })
+  @ApiOkResponse({ type: [WorkerRunDto] })
+  @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST', 'OPERATIONS', 'COMPLIANCE', 'AUDITOR')
+  async getRunStatuses(
+    @TenantId() tenantId: bigint,
+    @Body() dto: WorkerRunStatusQueryDto,
+  ): Promise<WorkerRunDto[]> {
+    const runs = await this.analyses.getRuns(tenantId, dto.requestIds);
+    return runs.map(toWorkerRunDto);
   }
 
   @Get('runs')

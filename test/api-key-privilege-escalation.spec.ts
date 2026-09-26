@@ -18,7 +18,7 @@ import type {
  * through to the API key path whenever no bearer token is sent.
  */
 describe('AuthenticationGuard API key privilege escalation', () => {
-  const API_KEY = 'integration-key-with-enough-entropy-0123456789';
+  const API_KEY = 'integration-key-with-enough-entropy-0123456789'; // gitleaks:allow — fixture inventado
 
   // The registry entry a well-behaved caller is entitled to: one tenant, one role.
   const registered: ResolvedIntegrationClient = {

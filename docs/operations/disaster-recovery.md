@@ -52,6 +52,41 @@ restaurada. El worker y la API son la misma imagen con distinto arranque.
     Antes de hacerlo hay que decidir qué se hace con ellas: es una decisión de negocio, no de
     operación.
 
+## Cómo se toma y se repone la copia
+
+```bash
+./scripts/backup.sh                       # a ./backups
+BACKUP_DIR=/mnt/nas RETENTION_DAYS=30 ./scripts/backup.sh
+./scripts/restore.sh backups/atlas-20260804T221500Z.dump
+```
+
+Ambos se ejecutan **dentro** del contenedor de PostgreSQL (`docker compose exec`) y no con un
+cliente del anfitrión, por dos razones que no son de comodidad:
+
+1. `pg_dump` debe ser de versión igual o mayor que la del servidor. Un cliente 14 contra un
+   servidor 16 aborta, y el momento de descubrirlo no puede ser el primer intento de copia
+   antes de una migración.
+2. Con la superposición de producción, PostgreSQL **no publica ningún puerto**. Un cliente del
+   anfitrión no tendría por dónde conectarse; `exec` no lo necesita.
+
+Detalles que cambian el resultado:
+
+- Formato `custom` (`-Fc`), comprimido y no legible con un editor — es un volcado que contiene
+  decisiones de crédito. Permite además restaurar tablas sueltas y paralelizar.
+- `docker compose exec -T`: **sin** TTY. Con TTY, Docker traduce saltos de línea y corrompe el
+  binario en silencio; solo se descubre al intentar restaurar.
+- `backup.sh` escribe un `.sha256` junto al volcado y verifica el archivo con
+  `pg_restore --list` antes de darlo por bueno. La purga por retención ocurre **después** de esa
+  verificación: al revés, quedaría una ventana en la que se han borrado las copias antiguas y
+  la nueva no sirve.
+- `restore.sh` comprueba la suma antes de tocar nada, detiene `api` y `worker` mientras dura la
+  operación (y los repone pase lo que pase), usa `--single-transaction --exit-on-error` para
+  que sea todo o nada, y exige escribir el nombre de la base para confirmar. Un «sí» reflejo
+  sobre la consola equivocada es exactamente cómo se pierde el entorno bueno.
+- Tras restaurar reejecuta `bootstrap-app-role` y `migrate`. La contraseña de `atlas_app`
+  **no** viaja en el volcado (`--no-privileges`); sin reponerla, la API arranca en bucle con un
+  error de autenticación que no parece tener relación con la restauración.
+
 ## Prueba periódica
 
 Un respaldo no probado no es un respaldo. Cadencia mínima mensual, en un ambiente aislado:

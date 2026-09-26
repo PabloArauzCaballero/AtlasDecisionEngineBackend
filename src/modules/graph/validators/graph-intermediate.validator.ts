@@ -8,6 +8,7 @@
  */
 import { normalizeDataTypeOrString } from '../../../common/contracts/data-types';
 import { extractTemplateReferences } from '../template-reference';
+import { workerArgumentIntermediatesOf, workerOutputCodesOf } from '../worker-call';
 import type { ArtifactGraphSnapshot, GraphNodeSnapshot, ValidationIssue } from '../graph.types';
 import type { GraphLookups } from './graph-lookups';
 import { issue } from './validation-issue';
@@ -212,8 +213,9 @@ export function validateGraphIntermediates(
 
 /**
  * Escrituras declaradas por cada nodo: las asignaciones directas de
- * `config.intermediateAssignments` y los resultados de los campos calculados que el nodo
- * invoca. Ambas pasan por la misma autorización, así que ambas cuentan como productor.
+ * `config.intermediateAssignments`, los resultados de los campos calculados que el nodo
+ * invoca y las proyecciones de la respuesta de un servicio en un nodo `WORKER`. Las tres
+ * pasan por la misma autorización, así que las tres cuentan como productor.
  */
 function collectWrites(snapshot: ArtifactGraphSnapshot): IntermediateWrite[] {
   return snapshot.nodes.flatMap((node) => [
@@ -224,6 +226,7 @@ function collectWrites(snapshot: ArtifactGraphSnapshot): IntermediateWrite[] {
     ...(node.calculatedFieldCalls ?? [])
       .filter((call) => call.target?.kind === 'INTERMEDIATE')
       .map((call) => ({ nodeKey: node.key, code: call.target.code })),
+    ...workerOutputCodesOf(node).map((code) => ({ nodeKey: node.key, code })),
   ]);
 }
 
@@ -246,16 +249,27 @@ function collectReads(snapshot: ArtifactGraphSnapshot): Map<string, Set<string>>
     reads.set(nodeKey, existing);
   };
 
+  const addBareCode = (nodeKey: string, code: string): void => {
+    const existing = reads.get(nodeKey) ?? new Set<string>();
+    existing.add(code);
+    reads.set(nodeKey, existing);
+  };
+
   for (const node of snapshot.nodes) {
     add(node.key, node.config);
     for (const call of node.calculatedFieldCalls ?? []) {
       for (const entry of Object.values(call.inputMapping ?? {})) {
         if (entry.source === 'INTERMEDIATE' && entry.path) {
-          const existing = reads.get(node.key) ?? new Set<string>();
-          existing.add(String(entry.path));
-          reads.set(node.key, existing);
+          addBareCode(node.key, String(entry.path));
         }
       }
+    }
+    // Un argumento de una llamada a servicio nombra la intermedia SIN el prefijo
+    // `intermediate.`, igual que la entrada de un campo calculado, así que el recorrido de
+    // cadenas de `add()` no lo ve. Sin esto, un nodo `WORKER` podría alimentar su llamada
+    // con una variable que en ese punto del grafo todavía no existe.
+    for (const code of workerArgumentIntermediatesOf(node)) {
+      addBareCode(node.key, code);
     }
     for (const binding of node.conditions) {
       add(node.key, conditionsByCode.get(binding.code)?.expression);

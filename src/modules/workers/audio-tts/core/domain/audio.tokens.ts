@@ -1,0 +1,9 @@
+export const AUDIO_TTS_CONFIG = Symbol('AUDIO_TTS_CONFIG');
+export const AUDIO_ASSET_REPOSITORY = Symbol('AUDIO_ASSET_REPOSITORY');
+export const AUDIO_SEGMENT_REPOSITORY = Symbol('AUDIO_SEGMENT_REPOSITORY');
+export const AUDIO_QUOTA_REPOSITORY = Symbol('AUDIO_QUOTA_REPOSITORY');
+export const AUDIO_QUEUE = Symbol('AUDIO_QUEUE');
+export const AUDIO_STORAGE = Symbol('AUDIO_STORAGE');
+export const AUDIO_TTS_PROVIDER = Symbol('AUDIO_TTS_PROVIDER');
+export const AUDIO_LOGGER = Symbol('AUDIO_LOGGER');
+export const AUDIO_METRICS = Symbol('AUDIO_METRICS');

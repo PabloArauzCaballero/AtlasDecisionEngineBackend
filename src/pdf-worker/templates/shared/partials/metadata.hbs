@@ -1,0 +1,14 @@
+{{!--
+  Pie de metadatos del cuerpo (§14). Uso: {{> atlas/metadata}}
+
+  No lleva parámetros: lee el contexto raíz, que es donde el compositor pone el identificador
+  del documento, el template con su versión y quién lo pidió. Pasárselos desde cada plantilla
+  sería tres oportunidades más de que uno se quede sin actualizar.
+--}}
+<p class="metadata">
+  <span class="metadata__item mono">{{document.id}}</span>
+  <span class="metadata__item mono">{{document.templateId}}@{{document.templateVersion}}</span>
+  <span class="metadata__item">{{document.createdAtLabel}}</span>
+  {{#if meta.requestedBy}}<span class="metadata__item">Solicitado por {{meta.requestedBy}}</span>{{/if}}
+  {{#if meta.correlationId}}<span class="metadata__item mono">{{meta.correlationId}}</span>{{/if}}
+</p>

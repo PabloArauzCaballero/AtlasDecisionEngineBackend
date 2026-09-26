@@ -12,6 +12,7 @@ import {
   ArtifactListQueryDto,
   CloneVersionDto,
   CreateArtifactDto,
+  ProcessingBasisDto,
   ReplaceGraphDto,
   UpdateVersionNotesDto,
 } from './artifact.dto';
@@ -25,6 +26,7 @@ import {
   ArtifactVersionDiffDto,
   CompiledArtifactSummaryDto,
   GraphValidationReportDto,
+  ProcessingBasisResultDto,
   ValidateAndCompileResultDto,
   VersionWriteResultDto,
 } from './artifact.response.dto';
@@ -153,6 +155,33 @@ export class ArtifactController {
       tenantId,
       parseBigIntId(versionId, 'versionId'),
       dto.notes ?? null,
+      principal,
+    );
+  }
+
+  /**
+   * Finalidad y base legal del tratamiento (LGPD arts. 6 I, 7 y 11).
+   *
+   * Es requisito para publicar una versión que consuma una variable de categoría especial:
+   * el validador de grafo la rechaza mientras no esté declarada.
+   */
+  @Patch('artifact-versions/:versionId/processing-basis')
+  @ApiOperation({ summary: 'Declare the processing purpose and legal basis of a version' })
+  @ApiOkResponse({
+    description: 'Finalidad y base legal actualizadas.',
+    type: ProcessingBasisResultDto,
+  })
+  @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'COMPLIANCE')
+  updateProcessingBasis(
+    @TenantId() tenantId: bigint,
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('versionId') versionId: string,
+    @Body() dto: ProcessingBasisDto,
+  ) {
+    return this.artifacts.updateProcessingBasis(
+      tenantId,
+      parseBigIntId(versionId, 'versionId'),
+      dto,
       principal,
     );
   }

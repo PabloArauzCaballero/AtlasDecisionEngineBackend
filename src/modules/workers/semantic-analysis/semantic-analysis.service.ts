@@ -7,6 +7,8 @@ import { JobName } from '../../../common/jobs/job-names';
 import { JobSignalService } from '../../../common/jobs/job-signal.service';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import type { AuthenticatedPrincipal } from '../../../common/security/security.types';
+import { persistableCarrier } from '../../../common/events/trace-carrier';
+import { MessagingTraceService } from '../../../common/observability/messaging-trace.service';
 
 /**
  * Todo lo que ocupa sitio sin mostrar nada.
@@ -67,6 +69,7 @@ export class SemanticAnalysisService {
     private readonly prisma: PrismaService,
     private readonly jobSignal: JobSignalService,
     private readonly config: ConfigService,
+    private readonly messagingTrace: MessagingTraceService,
   ) {}
 
   /**
@@ -126,6 +129,10 @@ export class SemanticAnalysisService {
             fixtureCode: options.fixtureCode ?? null,
             requestedBy: principal.id,
             correlationId: principal.requestId,
+            // Contexto de traza capturado AQUÍ, en el proceso de API: tras el commit se pierde,
+            // y el worker que reclame esta fila en otro proceso ya no podría recuperarlo. Sin
+            // traza activa queda nulo y el worker abre una traza raíz.
+            traceCarrier: persistableCarrier(this.messagingTrace.inject()),
           },
           select: RUN_SELECTION,
         });
@@ -143,6 +150,99 @@ export class SemanticAnalysisService {
       this.logger.debug(`Análisis ya encolado con esa clave; se devuelve ${existing.requestId}`);
       return { run: existing, deduplicated: true };
     }
+  }
+
+  /**
+   * Encola varios análisis con una sola ida a la base.
+   *
+   * ## Qué conserva del alta de una en una
+   *
+   * Todo lo que importa: una fila por texto, con su `requestId`, su clave de
+   * idempotencia y su traza. El lote no es un modo de ejecución distinto, es la
+   * misma alta hecha de golpe — el worker no distingue una ejecución encolada
+   * así de una encolada sola.
+   *
+   * ## Las dos deduplicaciones
+   *
+   * Hay que resolver DOS, y son distintas:
+   *
+   * 1. **Dentro del lote.** El mismo texto dos veces en la misma petición es una
+   *    sola fila. Sin esto, las dos filas comparten clave y el `INSERT` entero
+   *    se cae por la restricción de unicidad — el lote completo perdido por una
+   *    glosa repetida.
+   * 2. **Contra lo ya encolado.** `skipDuplicates` deja intacta la ejecución que
+   *    ya existía con esa clave, que es exactamente lo que promete la
+   *    idempotencia. Por eso las filas se RELEEN después de insertar en vez de
+   *    devolver lo que se acaba de construir: para una clave repetida, la
+   *    ejecución buena es la vieja, con su `requestId` y su resultado, y devolver
+   *    el identificador recién generado apuntaría a una fila que no se escribió.
+   *
+   * El orden de salida es el de entrada: quien pidió cien glosas espera cien
+   * respuestas colocadas donde las dejó.
+   */
+  async createRunBatch(
+    tenantId: bigint,
+    principal: AuthenticatedPrincipal,
+    items: readonly { text: string; idempotencyKey?: string }[],
+  ): Promise<SemanticRunView[]> {
+    const carrier = persistableCarrier(this.messagingTrace.inject());
+    const claveDe = (item: { text: string; idempotencyKey?: string }): string =>
+      item.idempotencyKey ?? createHash('sha256').update(item.text).digest('hex');
+
+    const porClave = new Map<string, { text: string; idempotencyKey: string }>();
+    const claves = items.map((item) => {
+      const idempotencyKey = claveDe(item);
+      if (!porClave.has(idempotencyKey)) porClave.set(idempotencyKey, { ...item, idempotencyKey });
+      return idempotencyKey;
+    });
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.semanticAnalysisRun.createMany({
+        data: [...porClave.values()].map((item) => ({
+          tenantId,
+          requestId: randomUUID(),
+          idempotencyKey: item.idempotencyKey,
+          status: WorkerRunStatus.QUEUED,
+          inputSource: WorkerInputSource.INLINE,
+          inputText: item.text,
+          requestedBy: principal.id,
+          correlationId: principal.requestId,
+          traceCarrier: carrier,
+        })),
+        skipDuplicates: true,
+      });
+      // Una sola señal para todo el lote: el worker drena hasta vaciar la cola,
+      // así que avisarle cien veces no adelanta ni una clasificación.
+      await this.jobSignal.notify(tx, JobName.SemanticAnalysis);
+    });
+
+    const filas = await this.prisma.semanticAnalysisRun.findMany({
+      where: { tenantId, idempotencyKey: { in: [...porClave.keys()] } },
+      select: { ...RUN_SELECTION, idempotencyKey: true },
+    });
+    const porClaveGuardada = new Map(filas.map((fila) => [fila.idempotencyKey, fila]));
+
+    this.logger.debug(
+      `Lote de ${String(items.length)} textos encolado como ${String(porClave.size)} ejecuciones`,
+    );
+    return claves.flatMap((clave) => {
+      const fila = porClaveGuardada.get(clave);
+      return fila === undefined ? [] : [fila];
+    });
+  }
+
+  /**
+   * Estado de varias ejecuciones a la vez.
+   *
+   * Las que no existan simplemente no salen, sin error: un lote donde una clave
+   * se perdió sigue siendo útil, y fallar entero por ella dejaría al cliente sin
+   * las otras noventa y nueve.
+   */
+  async getRuns(tenantId: bigint, requestIds: readonly string[]): Promise<SemanticRunView[]> {
+    return this.prisma.semanticAnalysisRun.findMany({
+      where: { tenantId, requestId: { in: [...requestIds] } },
+      select: RUN_SELECTION,
+    });
   }
 
   async getRun(tenantId: bigint, requestId: string): Promise<SemanticRunView> {

@@ -66,6 +66,8 @@ export function toNormalizedStatement(analysis: StatementAnalysis): NormalizedBa
     totals: {
       debit: toNumber(analysis.printedTotals.debit),
       credit: toNumber(analysis.printedTotals.credit),
+      debitExtracted: sumOf(statement.transactions, 'debit'),
+      creditExtracted: sumOf(statement.transactions, 'credit'),
     },
     processing: {
       documentType: context.classification.documentType,
@@ -78,6 +80,30 @@ export function toNormalizedStatement(analysis: StatementAnalysis): NormalizedBa
     transactions: statement.transactions.map((transaction, index) =>
       toNormalizedTransaction(transaction, index, context.source.fileHash),
     ),
+    authenticity: {
+      verdict: analysis.authenticity.verdict,
+      suspicionScore: analysis.authenticity.report.suspicionScore,
+      producer: blankToNull(analysis.authenticity.report.provenance.producer ?? undefined),
+      creator: blankToNull(analysis.authenticity.report.provenance.creator ?? undefined),
+      incrementalUpdates: analysis.authenticity.report.provenance.incrementalUpdates,
+      signals: analysis.authenticity.report.signals.map((signal) => signal.code),
+    },
+    affordability: analysis.affordability,
+    similarity: {
+      verdict: analysis.similarity.verdict,
+      score: analysis.similarity.score,
+      descriptorProvenance: analysis.similarity.descriptorProvenance,
+      sampleSize: analysis.similarity.sampleSize,
+      corroborates: analysis.similarity.corroborates,
+      matched: analysis.similarity.signals.filter((s) => s.matched).map((s) => s.id),
+      missing: analysis.similarity.signals.filter((s) => !s.matched).map((s) => s.id),
+    },
+    recency: {
+      verdict: analysis.recency.verdict,
+      periodTo: analysis.recency.periodTo,
+      ageDays: analysis.recency.ageDays,
+      evaluatedOn: analysis.recency.evaluatedOn,
+    },
     quality: {
       documentConfidence: quality.documentConfidence,
       institutionConfidence: quality.institutionConfidence,
@@ -132,6 +158,22 @@ function toNormalizedTransaction(
     warnings: transaction.warnings ?? [],
     accountMasked: transaction.account ? maskAccountNumber(transaction.account) : null,
   };
+}
+
+/**
+ * Suma una columna de importes de los movimientos leídos.
+ *
+ * Se suman los mismos campos que concilia `validateStatement` —`debit` y
+ * `credit`, no el signo de `amount`—, para que el total publicado y el total
+ * con el que se compara lo impreso no puedan divergir por criterio.
+ *
+ * El redondeo a dos decimales es al final y no por sumando: acumular en coma
+ * flotante deja restos de 1e-13 que, publicados, se leen como un total que no
+ * cuadra con la suma que cualquiera haría a mano.
+ */
+function sumOf(transactions: readonly BankTransaction[], field: 'debit' | 'credit'): number {
+  const total = transactions.reduce((sum, item) => sum + (Number(item[field]) || 0), 0);
+  return Number(total.toFixed(2));
 }
 
 /**

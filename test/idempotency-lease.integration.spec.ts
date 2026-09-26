@@ -115,4 +115,60 @@ describeDb('IdempotencyService PROCESSING lease (integration)', () => {
     const reserved = results.filter((r) => r.status === 'fulfilled' && r.value.kind === 'reserved');
     expect(reserved).toHaveLength(1);
   });
+
+  /*
+   * El caso que faltaba: no el que reclama, sino el titular ORIGINAL que vuelve tarde.
+   *
+   * Si su ejecución se pasó del lease, la fila ya pertenece a otra petición. Cerrarla o
+   * borrarla por `id` a secas —como se hacía— pisaba a un titular vivo: su respuesta se
+   * sobrescribía con la del caducado, o su reserva desaparecía y después fallaba al cerrarla.
+   * El comprobante de lease que devuelve `reserve()` es lo que lo impide.
+   */
+  it('el titular caducado no puede cerrar la reserva que otro reclamó', async () => {
+    const stale = await heldLeaseService.reserve(tenantId, artifactCode, 'k-stale', 'hash-a');
+    if (stale.kind !== 'reserved') throw new Error('expected reservation');
+    await expireLease('k-stale');
+    const winner = await heldLeaseService.reserve(tenantId, artifactCode, 'k-stale', 'hash-a');
+    if (winner.kind !== 'reserved') throw new Error('expected reclaim');
+    expect(winner.id).toBe(stale.id);
+
+    // El titular caducado termina y trata de cachear SU resultado. No debe pisar al nuevo.
+    await heldLeaseService.complete(stale.id, stale.lease, {
+      httpStatus: 200,
+      body: { of: 'stale' },
+    });
+
+    const row = await prisma.runtimeIdempotency.findUniqueOrThrow({ where: { id: stale.id } });
+    expect(row.status).toBe('PROCESSING');
+    expect(row.responseJson).toBeNull();
+    expect(row.leaseExpiresAt.getTime()).toBe(winner.lease.getTime());
+  });
+
+  it('el titular caducado tampoco puede borrar la reserva que otro reclamó', async () => {
+    const stale = await heldLeaseService.reserve(tenantId, artifactCode, 'k-stale-rel', 'hash-a');
+    if (stale.kind !== 'reserved') throw new Error('expected reservation');
+    await expireLease('k-stale-rel');
+    const winner = await heldLeaseService.reserve(tenantId, artifactCode, 'k-stale-rel', 'hash-a');
+    if (winner.kind !== 'reserved') throw new Error('expected reclaim');
+
+    // Fallo transitorio en el titular caducado: antes esto borraba la fila del nuevo titular.
+    await heldLeaseService.release(stale.id, stale.lease);
+
+    const row = await prisma.runtimeIdempotency.findUnique({ where: { id: stale.id } });
+    expect(row).not.toBeNull();
+    expect(row?.leaseExpiresAt.getTime()).toBe(winner.lease.getTime());
+  });
+
+  it('el titular vigente sí cierra y sí libera su propia reserva', async () => {
+    const held = await heldLeaseService.reserve(tenantId, artifactCode, 'k-owner', 'hash-a');
+    if (held.kind !== 'reserved') throw new Error('expected reservation');
+    await heldLeaseService.complete(held.id, held.lease, { httpStatus: 200, body: { ok: true } });
+    const completed = await prisma.runtimeIdempotency.findUniqueOrThrow({ where: { id: held.id } });
+    expect(completed.status).toBe('COMPLETED');
+
+    const other = await heldLeaseService.reserve(tenantId, artifactCode, 'k-owner-rel', 'hash-a');
+    if (other.kind !== 'reserved') throw new Error('expected reservation');
+    await heldLeaseService.release(other.id, other.lease);
+    expect(await prisma.runtimeIdempotency.findUnique({ where: { id: other.id } })).toBeNull();
+  });
 });

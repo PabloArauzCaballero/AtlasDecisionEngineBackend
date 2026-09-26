@@ -11,9 +11,12 @@ import type { NestedTreeExecutionService } from '../src/modules/nested-trees/nes
 import type { VariableResolutionService } from '../src/modules/variables/variable-resolution.service';
 import type { ExecutionWriterService } from '../src/modules/runtime/execution-writer.service';
 import type { IdempotencyService } from '../src/modules/runtime/idempotency.service';
+import { DecisionGuardService } from '../src/modules/risk-governance/decision-guard.service';
 import { RuntimeService } from '../src/modules/runtime/runtime.service';
 import type { ExecuteDecisionDto } from '../src/modules/runtime/runtime.dto';
 import type { AuthenticatedPrincipal } from '../src/common/security/security.types';
+import { TracingService } from '../src/common/observability/tracing.service';
+import type { WorkerServiceInvokerService } from '../src/modules/workers/worker-service-invoker.service';
 
 /**
  * A deterministic failure is a decision the platform actually took: the caller is told "no",
@@ -44,9 +47,12 @@ describe('RuntimeService: evidencia de una decisión fallida', () => {
     variables: {},
   } as ExecuteDecisionDto;
 
+  /** Comprobante de propiedad de la reserva; fijo para poder afirmar identidad. */
+  const LEASE = new Date('2026-08-07T00:01:00.000Z');
+
   function makeService(failure: unknown) {
     const audited: Array<{ eventType: string; tx: unknown }> = [];
-    const failed: Array<{ id: bigint; tx: unknown }> = [];
+    const failed: Array<{ id: bigint; lease: Date; tx: unknown }> = [];
     let released = 0;
 
     // Un token opaco identifica la transacción: sirve para comprobar que la escritura de
@@ -61,10 +67,13 @@ describe('RuntimeService: evidencia de una decisión fallida', () => {
       prisma,
       new HashService(config),
       {
-        reserve: () => Promise.resolve({ kind: 'reserved' as const, id: 42n }),
+        // `lease` es el comprobante de propiedad que `reserve()` devuelve y que `fail()`/
+        // `release()` exigen: sin él, un titular cuya ejecución se pasó del lease pisaría la
+        // reserva que otra petición ya reclamó.
+        reserve: () => Promise.resolve({ kind: 'reserved' as const, id: 42n, lease: LEASE }),
         complete: () => Promise.resolve(),
-        fail: (id: bigint, _response: unknown, tx?: unknown) => {
-          failed.push({ id, tx });
+        fail: (id: bigint, lease: Date, _response: unknown, tx?: unknown) => {
+          failed.push({ id, lease, tx });
           return Promise.resolve();
         },
         release: () => {
@@ -86,6 +95,17 @@ describe('RuntimeService: evidencia de una decisión fallida', () => {
       } as unknown as AuditService,
       new MetricsService(),
       { bind: () => undefined } as unknown as NestedTreeExecutionService,
+      { bind: () => undefined } as unknown as WorkerServiceInvokerService,
+      new TracingService(),
+      /*
+       * El guardia de decisión (apetito de cartera y licitud vigente) no participa en lo que esta
+       * prueba afirma: aquí el despliegue falla ANTES de llegar a él. Un doble inerte deja el
+       * caso exactamente donde estaba y evita que la prueba dependa de una base de datos.
+       */
+      {
+        assertCanDecide: () => Promise.resolve(),
+        reviewOutputs: () => Promise.resolve([]),
+      } as unknown as DecisionGuardService,
     );
 
     return { service, audited, failed, released, transactionToken, releasedCount: () => released };
@@ -103,7 +123,8 @@ describe('RuntimeService: evidencia de una decisión fallida', () => {
     expect(harness.audited).toEqual([
       { eventType: 'DECISION_FAILED', tx: harness.transactionToken },
     ]);
-    expect(harness.failed).toEqual([{ id: 42n, tx: harness.transactionToken }]);
+    // El comprobante que llega a `fail()` tiene que ser EL MISMO que devolvió `reserve()`.
+    expect(harness.failed).toEqual([{ id: 42n, lease: LEASE, tx: harness.transactionToken }]);
   });
 
   /**

@@ -2,6 +2,8 @@ import type { Prisma } from '@prisma/client';
 import { OutboxPublisherService } from '../src/common/events/outbox-publisher.service';
 import type { JobSignalService } from '../src/common/jobs/job-signal.service';
 import { DecisionEventType } from '../src/common/events/event-types';
+import { TracingService } from '../src/common/observability/tracing.service';
+import { MessagingTraceService } from '../src/common/observability/messaging-trace.service';
 
 function fakeJobSignal(): JobSignalService {
   return { notify: jest.fn().mockResolvedValue(undefined) } as unknown as JobSignalService;
@@ -12,7 +14,10 @@ describe('OutboxPublisherService', () => {
     const create = jest.fn().mockResolvedValue({ id: 99n });
     const tx = { decisionOutboxEvent: { create } } as unknown as Prisma.TransactionClient;
     const jobSignal = fakeJobSignal();
-    const publisher = new OutboxPublisherService(jobSignal);
+    const publisher = new OutboxPublisherService(
+      jobSignal,
+      new MessagingTraceService(new TracingService()),
+    );
 
     await publisher.publish(tx, {
       eventType: DecisionEventType.VERSION_APPROVED,
@@ -47,7 +52,10 @@ describe('OutboxPublisherService', () => {
     const create = jest.fn().mockResolvedValue({ id: 1n });
     const tx = { decisionOutboxEvent: { create } } as unknown as Prisma.TransactionClient;
 
-    await new OutboxPublisherService(fakeJobSignal()).publish(tx, {
+    await new OutboxPublisherService(
+      fakeJobSignal(),
+      new MessagingTraceService(new TracingService()),
+    ).publish(tx, {
       eventType: 'version.approved',
       schemaVersion: '2',
       tenantId: 1n,

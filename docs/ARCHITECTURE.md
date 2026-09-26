@@ -117,7 +117,7 @@ Siguientes extracciones naturales, sin reescribir dominio:
 - **Código → Flow:** transforma JavaScript/Python aceptado en un grafo gobernable cuando puede
   demostrar sus ramas y outputs. Si no puede preservar el contrato, genera un nodo `SCRIPT`
   aislado en vez de inventar semántica visual.
-- **Ejecución en vivo:** es una previsualización management-only para SANDBOX/TEST. No escribe
+- **Ejecución en vivo:** es una previsualización management-only para ambientes no productivos (DEV/STAGING/TEST). No escribe
   `DecisionExecution`, auditoría ni outbox, y por eso está desactivada por defecto.
 - **Outbox y notificaciones:** publican efectos secundarios at-least-once desde la misma
   transacción de negocio. Los consumidores deben ser idempotentes; una notificación nunca es la

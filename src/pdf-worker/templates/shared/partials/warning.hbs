@@ -1,0 +1,11 @@
+{{!--
+  Aviso. Uso: {{> atlas/warning level='caution' title='Revisión manual' text=data.reason}}
+
+  `level` admite `caution`, `critical`, `positive` o nada. Se compone la clase concatenando un
+  literal con el valor porque la hoja sólo define esas cuatro variantes: un `level` inventado
+  produce una clase que no existe y el aviso sale neutro, que es el fallo correcto.
+--}}
+<div class="notice notice--{{fallback level 'neutral'}} keep-together">
+  {{#if title}}<p class="notice__title">{{title}}</p>{{/if}}
+  {{#if text}}<p>{{text}}</p>{{/if}}
+</div>

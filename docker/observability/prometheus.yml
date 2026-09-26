@@ -1,0 +1,51 @@
+# Configuración de raspado. Ambos procesos —API y worker— publican `/metrics`, y hay que
+# raspar LOS DOS: `atlas_job_*`, `atlas_outbox_*` y `atlas_notification_created_total` solo se
+# producen en el worker, mientras que `atlas_http_*` y `atlas_decisions_total` solo en la API.
+# Raspar únicamente la API deja el panel del outbox alimentado por un proceso que no reparte
+# nada.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    environment: development
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  - job_name: atlas-api
+    metrics_path: /metrics
+    # `authorization` emite `Authorization: Bearer <token>`. Prometheus NO permite cabeceras
+    # arbitrarias en un scrape_config, así que la cabecera original `X-Metrics-Token` era
+    # inalcanzable desde aquí; el endpoint acepta los dos portadores para el mismo secreto
+    # (src/common/observability/metrics-token.ts).
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/metrics-token
+    static_configs:
+      - targets: ["api:3000"]
+        labels:
+          service: atlas-decision-engine
+          role: API
+
+  - job_name: atlas-worker
+    metrics_path: /metrics
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/metrics-token
+    # Nombre de servicio y NO `localhost`: con `--scale worker=N`, la resolución DNS de
+    # Compose devuelve todas las réplicas y Prometheus las raspa como destinos distintos.
+    dns_sd_configs:
+      - names: ["worker"]
+        type: A
+        port: 3001
+        refresh_interval: 30s
+    relabel_configs:
+      - target_label: service
+        replacement: atlas-decision-engine
+      - target_label: role
+        replacement: WORKER
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

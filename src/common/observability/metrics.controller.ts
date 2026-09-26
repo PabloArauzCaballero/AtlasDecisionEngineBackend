@@ -7,6 +7,7 @@ import type { Response } from 'express';
 import { HashService } from '../crypto/hash.service';
 import { DomainException } from '../errors/domain-exception';
 import { Public } from '../security/security.decorators';
+import { extractMetricsToken, isAuthorizedMetricsRequest } from './metrics-token';
 import { MetricsService } from './metrics.service';
 
 @ApiExcludeController()
@@ -24,6 +25,7 @@ export class MetricsController {
   @Public()
   async getMetrics(
     @Headers('x-metrics-token') token: string | undefined,
+    @Headers('authorization') authorization: string | undefined,
     @Res() response: Response,
   ): Promise<void> {
     if (!(this.config.get<boolean>('METRICS_ENABLED') ?? true)) {
@@ -34,9 +36,17 @@ export class MetricsController {
       );
     }
     const expected = this.config.get<string>('METRICS_TOKEN') ?? '';
+    const presented = extractMetricsToken({
+      'x-metrics-token': token,
+      authorization,
+    });
     if (
-      expected &&
-      (!token || !this.hashes.equals(this.hashes.sha256(token), this.hashes.sha256(expected)))
+      !isAuthorizedMetricsRequest(
+        presented,
+        expected,
+        (a, b) => this.hashes.equals(a, b),
+        (value) => this.hashes.sha256(value),
+      )
     ) {
       throw new DomainException('UNAUTHORIZED', 'Invalid metrics token', HttpStatus.UNAUTHORIZED);
     }

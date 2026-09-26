@@ -1,0 +1,344 @@
+# Despliegue del motor de decisión gestionado por COOLIFY.
+#
+# Va aparte de `docker-compose.dev.yml` —el del VPS operado a mano, con los `.env` en
+# `/opt/atlas/env`— porque las dos formas de configurar son incompatibles.
+#
+# ## La configuración NO se declara aquí, y eso es deliberado
+#
+# Coolify añade `env_file: - .env` a CADA servicio por su cuenta, con las variables de
+# **Application → Environment Variables** dentro. Se comprobó leyendo el compose ya resuelto que
+# publica su propio panel. Eso tiene dos consecuencias que ahorran mucho trabajo y un error:
+#
+# 1. **No hay que nombrar las variables una a una.** El `motor.env` de este despliegue define 156
+#    claves; declararlas en un ancla `x-` sería copiarlas a mano y mantener dos listas.
+# 2. **Una clave que no pongas llega AUSENTE, no vacía.** Es la diferencia que tumbó el
+#    despliegue de AtlasBackend: con un ancla, `${VAR:-}` escribe la cadena vacía, y de las 156
+#    claves del motor **108 la rechazan** —el arranque muere hablando del campo, no de la causa—.
+#    Con el `.env` de Coolify, lo que no está simplemente no está, que es lo que el esquema
+#    espera de un valor opcional.
+#
+# Aquí sólo se fijan los ajustes que distinguen un servicio de otro (rol, puerto, planificador),
+# que son los que NO pueden vivir en un `.env` compartido por los tres.
+#
+# ## Cómo se sube la configuración
+#
+# Pega el contenido de `atlas-vps-testing/env/motor.env` en Environment Variables. En bloque, no
+# clave por clave: pegando de una vez, las que no tengan valor no se crean.
+#
+# ## Lo que este archivo NO trae, y por qué
+#
+# **La red externa `atlas_vps` ni puertos del host.** Los bloques se encuentran por la red
+# compartida `coolify` con un alias estable; ver la nota del final del archivo.
+#
+# **`script-runner`, `litellm` y `transformer`.** Igual que en el compose del VPS: el sidecar de
+# scripts sólo es tolerable bajo gVisor, y los otros dos son imágenes de varios gigas. Consecuencia
+# que hay que conocer antes de reportar un fallo: los nodos de script están APAGADOS
+# (`SCRIPT_NODES_ENABLED=false`) y el análisis semántico responde «proveedor no configurado». Es lo
+# esperado de este despliegue, no una avería.
+#
+# ## Lo que hay que tener resuelto ANTES de desplegar
+#
+# **El DNS del demonio de Docker.** En Ubuntu, `/etc/resolv.conf` apunta a `127.0.0.53`, que
+# dentro de un contenedor es el propio contenedor: `apt-get` y `yarn` fallan sin decir por qué.
+# Se arregla con `"dns": ["1.1.1.1","8.8.8.8"]` en `/etc/docker/daemon.json` —FUSIONÁNDOLO, no
+# sobrescribiéndolo— y se comprueba con `docker run --rm alpine nslookup registry.yarnpkg.com`.
+#
+# **La base es `atlas_decision` en `atlas-postgres`**, el PostgreSQL propio del host, no un
+# servicio gestionado: sin pooler, así que los cerrojos de sesión de la siembra, el `LISTEN` de
+# los trabajos de fondo y las migraciones ya no llevan la advertencia que exigía Neon. Se llega
+# SIEMPRE por el alias de red, nunca por la IP del host: `ufw` sólo abre 22/80/443.
+
+name: atlas-motor
+
+x-common: &common
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: '10m'
+      max-file: '3'
+
+# La imagen se construye UNA VEZ, y sólo `migrate` la declara.
+#
+# Los tres servicios son EL MISMO artefacto con distinto `WORKER_ROLE`, así que los tres apuntan
+# al mismo tag. Si los tres llevaran `build:`, Compose lanzaría tres construcciones CONCURRENTES
+# de la misma imagen —en el log de Coolify se lee «Building» tres veces— y en un VPS eso agota la
+# memoria: el OOM se lleva una, distinta en cada intento. Pasó con AtlasBackend y el objetivo que
+# moría iba bailando entre `worker` y `api`, que es la firma de una carrera por recursos y no de
+# un fallo del código.
+x-image: &image
+  image: atlas-decision:coolify
+  # `never`, y es lo que hace desplegable este archivo.
+  #
+  # Coolify ejecuta `docker compose pull --ignore-buildable` antes de levantar. `--ignore-buildable`
+  # salta `migrate` —el único que declara `build:`—, pero `api` y `worker` sólo declaran `image:`, así
+  # que Compose los toma por imágenes de registro y sale a buscarlas: «pull access denied for
+  # atlas-decision, repository does not exist». En esta máquina NO hay registro; el tag lo produce el
+  # build del propio despliegue. Y el fallo del pull ABORTA el despliegue completo, con lo que el
+  # contenedor que sigue sirviendo es el anterior — un despliegue que no despliega.
+  #
+  # `never` le dice a Compose lo que es verdad: esta imagen no se trae, se construye aquí.
+  pull_policy: never
+
+x-build: &build
+  image: atlas-decision:coolify
+  build:
+    context: .
+    dockerfile: Dockerfile.dev
+    target: app
+    # La caché de build la guarda el DEMONIO, y Coolify la borra cada noche.
+    #
+    # Aquí había un `cache_from: ['<imagen>:coolify']` que fallaba SIEMPRE —`pull access denied`, en
+    # esta máquina no hay registro—. Quitarlo no devuelve caché: sólo deja de fallar y de ensuciar el
+    # log. Se retira porque era ruido, no porque estuviera dando algo.
+    #
+    # Y no se sustituye por `cache_to: type=local`, aunque el driver lo soporte: **el exportador local
+    # es del lado del CLIENTE**, y Coolify construye dentro de un contenedor efímero (`docker run
+    # --rm`, que sólo monta el socket). Medido: la caché aterriza DENTRO de ese contenedor y se va con
+    # él. Sería trabajo por nada.
+    #
+    # La caché que de verdad se usa es la del propio buildkit del demonio, automática y sin declarar
+    # nada. Lo que la tira es `docker builder prune -af` que Coolify ejecuta A DIARIO cuando el
+    # servidor tiene `force_docker_cleanup` activo — con esa bandera no mira el umbral de disco, borra
+    # igual. Medido el 2026-09-07: los builds de después de la limpieza tardaban 19-27 min y uno murió
+    # con `ESOCKETTIMEDOUT` bajando una dependencia; los del mismo día con la caché ya caliente,
+    # 1-5 min.
+    #
+    # Es decir: esto se arregla en el SERVIDOR (Settings -> Docker Cleanup -> desactivar el forzado,
+    # dejando el umbral del 80%), no en este archivo.
+
+services:
+  # Redis PROPIO, y aquí no se comparte con AtlasBackend.
+  #
+  # El compose del VPS operado a mano no lo traía: tomaba prestado el de AtlasBackend por la red
+  # compartida `atlas_vps` (`REDIS_URL=redis://redis:6379`). En Coolify cada aplicación tiene su
+  # propia red, así que ese nombre no resuelve — y el fallo NO es ruidoso: `CacheService` cae a un
+  # respaldo EN MEMORIA y el proceso sigue. `/health/data-sources` publica entonces
+  # `redis-cache: up` con `detail: "memory"`, que es fácil de leer como que todo va bien.
+  #
+  # Lo que se pierde con el respaldo en memoria no es rendimiento: es que la caché deja de ser
+  # COMPARTIDA. `api` y `worker` son dos procesos, así que cada uno cachea por su cuenta y ninguno
+  # ve las invalidaciones del otro — un despliegue que publica una versión de artefacto puede
+  # seguir sirviendo la anterior desde el proceso que no se enteró.
+  #
+  # 256 MB con `allkeys-lru`: es una caché, no un almacén. Si se llena, que tire lo más viejo en
+  # vez de empezar a rechazar escrituras.
+  # El servicio se LLAMA `motor-redis`, no `redis`, y el nombre no es cosmetico.
+  #
+  # `api` y `worker` estan tambien en la red COMPARTIDA de Coolify, donde `coolify-redis` —el Redis
+  # interno de Coolify— ya registra el alias `redis`. Con un contenedor en varias redes Docker no
+  # garantiza cual gana, y ganaba esa: `redis` resolvia a la infraestructura de Coolify. Es
+  # precisamente el fallo silencioso que describe el parrafo de arriba, y se midio: desde el `api`,
+  # `redis` daba 10.0.1.2 mientras este contenedor estaba en 10.0.3.2, y `/health/data-sources`
+  # publicaba `redis-cache: up` con `detail: "memory"`.
+  #
+  # Y va en el NOMBRE del servicio, no en `networks: {default: {aliases: [...]}}`: un alias se
+  # registra solo en la red donde se declara, y `worker` no declara `networks:`, asi que Coolify lo
+  # deja fuera de `default` y el nombre no le llegaria. El nombre del servicio, en cambio, Compose
+  # lo registra en TODAS las redes que ocupe.
+  #
+  # Un nombre generico compartido con Coolify vuelve a romperlo. Se comprueba resolviendo el nombre
+  # DENTRO del api Y del worker, y comparando con la IP de este contenedor.
+  motor-redis:
+    <<: *common
+    image: redis:7-alpine
+    command:
+      ['redis-server', '--appendonly', 'yes', '--maxmemory', '256mb', '--maxmemory-policy', 'allkeys-lru']
+    volumes: ['redis-data:/data']
+    # `start_interval`: mientras dura `start_period`, la sonda corre cada segundo en vez de cada 10.
+    # `api` y `worker` esperan a `service_healthy`, y un Redis que responde al segundo 1 se daba por
+    # sano en el 10: diez segundos de motor caído en CADA despliegue esperando sólo esto (medido en
+    # AtlasBackend el 2026-09-13, con el mismo healthcheck).
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+      start_interval: 1s
+
+  # Job de UN SOLO DISPARO. `prisma migrate deploy` es idempotente —aplica sólo lo que falta— así
+  # que corre en cada despliegue sin coste.
+  #
+  # **No siembra, y es deliberado.** `prisma db seed` ejecuta `ts-node`, que esta imagen no lleva.
+  # Quien siembra es `SeedingService` al arrancar el WORKER: mismo trabajo desde código compilado,
+  # con el mismo cerrojo consultivo y la misma guarda (la marca de `atlas_seed.load_log`, no el
+  # número de filas). Una base que ya la tiene no se toca; una virgen se siembra.
+  #
+  # Que `migrate` aparezca como EXITED en el panel es lo correcto: terminó. Lo que hay que mirar
+  # es su código de salida — si fuera distinto de cero, `api` y `worker` no arrancarían nunca,
+  # porque esperan a `service_completed_successfully`.
+  migrate:
+    <<: *build
+    init: true
+    environment:
+      WORKER_ROLE: API
+    # Migrar y SERVIR no se hacen con el mismo rol de base de datos.
+    #
+    # `migrate` crea el rol `atlas_app`, escribe políticas RLS y revoca permisos
+    # (`20260719080000_tenant_rls_and_app_role`), así que necesita un rol elevado; la API y el worker
+    # deben conectarse como `atlas_app` o las políticas por inquilino quedan INERTES: un superusuario
+    # se salta RLS mande lo que mande la política, y el propio arranque lo avisa por registro.
+    # `prisma.config.ts` no lee `ADMIN_DATABASE_URL` —Prisma migra con `DATABASE_URL`— y los tres
+    # servicios heredan el mismo `.env` de Coolify, así que hay que separarlos aquí.
+    #
+    # La decisión se toma en el ARRANQUE del contenedor y no con `${VAR:-otra}` en este archivo:
+    # **Coolify no interpola el valor por defecto anidado**. Medido el 2026-09-15 en Contabo: con
+    # `${APP_DATABASE_URL:-${DATABASE_URL}}` el compose generado se quedó con el respaldo y la API
+    # siguió entrando como superusuario, con las dos variables correctas ahí al lado. En cambio `sh`
+    # dentro del contenedor sí decide bien, y donde la variable no existe —DEV— no cambia nada.
+    # El `$$` evita que Compose interpole: la variable tiene que llegar VIVA al contenedor.
+    command:
+      - sh
+      - -c
+      - |
+        if [ -n "$$MIGRATE_DATABASE_URL" ]; then export DATABASE_URL="$$MIGRATE_DATABASE_URL"; fi
+        exec npx prisma migrate deploy
+    restart: 'no'
+
+  api:
+    # Alias ESTABLE en la red compartida: es como lo encuentran los otros bloques.
+    # El nombre del contenedor lleva una marca de tiempo y cambia en cada despliegue;
+    # este alias no.
+    networks:
+      default: {}
+      coolify:
+        aliases: ['motor']
+    <<: [*common, *image]
+    init: true
+    environment:
+      WORKER_ROLE: API
+      COMMIT_SHA: '${SOURCE_COMMIT:-local}'
+      PORT: '3000'
+      # La sonda del HEALTHCHECK elige puerto con `HEALTHCHECK_PORT ?? WORKER_HEALTH_PORT ??
+      # PORT`, y la IMAGEN fija `WORKER_HEALTH_PORT=3001` para el worker. Sin esta línea, el
+      # contenedor de la API hereda ese 3001 y se sondea a sí mismo en un puerto donde no
+      # escucha nadie: queda `unhealthy` para siempre aunque responda 200 en el 3000, y Coolify
+      # lo pinta como «degraded». El worker sí está sano, que es lo que despista — usan la misma
+      # imagen y la misma sonda, y sólo difieren en el puerto.
+      HEALTHCHECK_PORT: '3000'
+      # La API no ejecuta trabajos de fondo: de eso se encarga `worker`. Dos planificadores
+      # compitiendo por el mismo cerrojo son trabajo duplicado y contención en la base.
+      JOB_SCHEDULER_ENABLED: 'false'
+      # La API no ejecuta el worker de extractos —`runsBackgroundJobs` lo impide con
+      # `WORKER_ROLE: API`—, pero sí lee esta bandera para dos cosas: el `available` que publica
+      # `workers.controller` y la comprobación de `worker-service-invoker`. Si aquí faltara, el
+      # catálogo diría «no disponible» de un worker que está corriendo en el otro contenedor.
+      # Por eso va en los dos servicios, igual que en el `docker-compose.yml` local.
+      BANK_STATEMENT_WORKER_ENABLED: '${BANK_STATEMENT_WORKER_ENABLED:-true}'
+      # El worker de LOCUCION, encendido por lo mismo y con la misma prueba: el resto ya estaba
+      # cableado —`AUDIO_TTS_PROVIDER=elevenlabs`, generacion en tiempo de ejecucion permitida y
+      # la clave de datos presente— y solo faltaba la bandera, asi que arrancaba diciendo
+      # "Worker de locucion deshabilitado por configuracion". Mismo patron que extractos: el
+      # compose local lo pone en `true` y este se quedo sin el.
+      AUDIO_TTS_WORKER_ENABLED: '${AUDIO_TTS_WORKER_ENABLED:-true}'
+    # Sirve como `atlas_app` cuando esa variable existe. Ver el comentario de `migrate`.
+    command:
+      - sh
+      - -c
+      - |
+        if [ -n "$$APP_DATABASE_URL" ]; then export DATABASE_URL="$$APP_DATABASE_URL"; fi
+        exec node dist/main.js
+    expose: ['3000']
+    depends_on:
+      motor-redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    stop_grace_period: 25s
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  worker:
+    # El worker SALE de su red privada a propósito: llama a otros bloques por sus alias de la red
+    # compartida, y sin declararla Compose lo deja sólo en `default`, donde esos nombres no
+    # resuelven. No lleva alias porque nadie lo llama a él: sólo llama.
+    networks:
+      default: {}
+      coolify: {}
+    <<: [*common, *image]
+    init: true
+    environment:
+      WORKER_ROLE: WORKER
+      COMMIT_SHA: '${SOURCE_COMMIT:-local}'
+      WORKER_HEALTH_PORT: '3001'
+      JOB_SCHEDULER_ENABLED: 'true'
+      # EL WORKER DE EXTRACTOS, ENCENDIDO EXPLÍCITAMENTE.
+      #
+      # Sin esta línea cae al `?? false` de `bank-statement-run-worker.service.ts` y el motor
+      # ACEPTA el extracto, lo deja en `QUEUED` y no lo procesa nunca. Aguas arriba se ve así:
+      # AtlasBackend lo encola, sondea 180 s, se rinde y deja la revisión «en cola» — que es su
+      # comportamiento correcto ante un motor que no contesta, pero desde el portal se lee como un
+      # worker apagado. Lo estaba, por OMISIÓN y no por decisión: el `docker-compose.yml` local sí
+      # lo pone en `true`, y sólo este compose se quedó sin él, así que el defecto no aparecía en
+      # local. Tampoco existía como variable en Coolify: ni atada ni huérfana.
+      BANK_STATEMENT_WORKER_ENABLED: '${BANK_STATEMENT_WORKER_ENABLED:-true}'
+      # El worker de LOCUCION, encendido por lo mismo y con la misma prueba: el resto ya estaba
+      # cableado —`AUDIO_TTS_PROVIDER=elevenlabs`, generacion en tiempo de ejecucion permitida y
+      # la clave de datos presente— y solo faltaba la bandera, asi que arrancaba diciendo
+      # "Worker de locucion deshabilitado por configuracion". Mismo patron que extractos: el
+      # compose local lo pone en `true` y este se quedo sin el.
+      AUDIO_TTS_WORKER_ENABLED: '${AUDIO_TTS_WORKER_ENABLED:-true}'
+      # Pool más pequeño que el de la API: la concurrencia del worker la fija el número de
+      # trabajos, no el tráfico. Y en `atlas-postgres` las conexiones se cuentan igual — dos
+      # procesos con 15 cada uno agotan el `max_connections` del contenedor, y el fallo aparece
+      # en el que llegue tarde, no en el que las gastó.
+      DATABASE_POOL_MAX: '5'
+    # Sólo en el bucle local: es la sonda de salud, no atiende tráfico de negocio.
+    ports: ['127.0.0.1:3021:3001']
+    depends_on:
+      motor-redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    # Mismo rol que la API: el worker también lee y escribe datos de inquilinos.
+    command:
+      - sh
+      - -c
+      - |
+        if [ -n "$$APP_DATABASE_URL" ]; then export DATABASE_URL="$$APP_DATABASE_URL"; fi
+        exec node dist/worker.js
+    stop_grace_period: 30s
+    deploy:
+      resources:
+        limits:
+          # 1,25 GB y no 768 MB, y el número sale de MEDIR el worker de identidad: una
+          # verificación completa —Tesseract con el modelo del español, las cinco redes de Human
+          # sobre tfjs-wasm y los búferes de sharp— llega a **712 MB de RSS de pico**. Con el tope
+          # en 768 MB quedaban 56 MB de margen y la segunda verificación simultánea lo cruzaba: el
+          # contenedor moría por OOM y el síntoma —«el worker se reinicia solo»— no menciona la
+          # memoria. Por eso `IDENTITY_WORKER_CONCURRENCY=1` en `motor.env`.
+          #
+          # El heap de V8 NO es la restricción: medido, `heapUsed` pica en 56 MB de 560, y 293 MB
+          # del RSS son «external» —la memoria lineal del WASM de tfjs y de Tesseract, más los
+          # búferes de sharp—. Subir `--max-old-space-size` no arregla nada; lo que cuenta es este
+          # tope.
+          memory: 1250m
+
+volumes:
+  redis-data:
+
+# ---------------------------------------------------------------------------------------------
+# La red COMPARTIDA de Coolify, y por qué no se publican puertos del host.
+#
+# Coolify nombra cada contenedor con una MARCA DE TIEMPO —`api-<uuid>-124239539875`—, así que en
+# cada despliegue crea uno NUEVO en vez de reemplazar el anterior. Con un puerto fijo del host eso
+# choca siempre: el contenedor viejo sigue sujetando el puerto y el nuevo muere con
+# `failed to bind host port ...: address already in use`. No es un puerto mal elegido: es que
+# publicar un puerto fijo es incompatible con cómo despliega Coolify.
+#
+# La salida es la red compartida `coolify`, a la que se unen todas las aplicaciones, con un ALIAS
+# estable por servicio. El alias no cambia entre despliegues —el nombre del contenedor sí— así que
+# los bloques se encuentran por nombre igual que hacían en el VPS operado a mano, y sin abrir un
+# solo puerto en el host.
+#
+# **Hace falta activar «Connect To Predefined Network» en esta aplicación dentro de Coolify.** Sin
+# eso la red no existe para ella y el despliegue falla diciendo que no la encuentra, que es un
+# fallo claro y no silencioso.
+networks:
+  default: {}
+  coolify:
+    external: true
+    name: coolify

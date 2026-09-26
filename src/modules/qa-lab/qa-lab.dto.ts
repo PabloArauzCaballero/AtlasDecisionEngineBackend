@@ -39,8 +39,14 @@ export class GenerateQaRunDto {
 
   @IsInt() @Min(1) @Max(5_000) caseCount!: number;
 
-  /** Semilla explícita para reproducir una corrida anterior. */
-  @IsOptional() @IsString() @MaxLength(64) seed?: string;
+  /**
+   * Semilla explícita para reproducir una corrida anterior.
+   *
+   * El alfabeto se acota porque la semilla se archiva y se vuelve a mostrar junto a cada
+   * contraejemplo (`replayPath`): dejarla libre metía saltos de línea y separadores en un
+   * campo que la gente lee y copia para reproducir el fallo.
+   */
+  @IsOptional() @IsString() @MaxLength(64) @Matches(/^[A-Za-z0-9_.:-]+$/) seed?: string;
 
   @IsOptional() @IsInt() @Min(0) @Max(100) validPercent?: number;
   @IsOptional() @IsInt() @Min(0) @Max(100) invalidPercent?: number;
@@ -68,6 +74,31 @@ export class GenerateQaRunDto {
   @ValidateNested({ each: true })
   @Type(() => VariableDistributionDto)
   distributions?: VariableDistributionDto[];
+
+  /**
+   * Cómo se reparte la porción VÁLIDA del lote entre los desenlaces del grafo (§10.4).
+   *
+   * Las claves son `nodeKey` de nodos terminales alcanzables; los valores, pesos
+   * relativos que se normalizan (no hace falta que sumen 100). Sin esto los válidos se
+   * generan a ciegas y la mezcla real la decide el contrato: con un rango de score de
+   * 300 a 900 y un corte en 750, cuatro de cada cinco casos «válidos» caen en la misma
+   * rama y las otras se prueban de milagro. `validPercent` sigue decidiendo CUÁNTOS son
+   * válidos; esto decide DÓNDE acaban.
+   *
+   * Una clave que no sea un desenlace de esta versión se rechaza en vez de ignorarse:
+   * un peso que no se aplica deja una corrida verde presumiendo de un reparto que nunca
+   * ocurrió.
+   */
+  @IsOptional() @IsObject() outcomeWeights?: Record<string, number>;
+
+  /**
+   * Añade a la tanda un caso por cada DESENLACE del grafo, además de los que salen de la
+   * mezcla. Activo por omisión: una corrida de mil casos válidos puede recorrer siempre
+   * la misma rama, y entonces el informe dice «mil pasaron» sobre un algoritmo cuya
+   * mitad de decisiones no se ejecutó nunca. Estos casos NO consumen `caseCount`; se
+   * suman, porque cuántos hay lo decide el grafo, no quien lanza la corrida.
+   */
+  @IsOptional() @Type(() => Boolean) @IsBoolean() coverOutcomes?: boolean;
 }
 
 export class QaRunQueryDto extends PaginationQueryDto {
@@ -87,7 +118,10 @@ export class ReplayCounterexampleDto {
  * dos contratos que pueden no coincidir, y el caso guardado quedaría contra el equivocado.
  */
 export class GenerateSampleCasesDto {
-  @IsOptional() @IsIn(['VALID', 'BOUNDARY', 'INVALID']) kind?: 'VALID' | 'BOUNDARY' | 'INVALID';
+  /** `OUTCOMES` genera un caso por cada desenlace del grafo; ver `outcome-coverage.ts`. */
+  @IsOptional()
+  @IsIn(['VALID', 'BOUNDARY', 'INVALID', 'OUTCOMES'])
+  kind?: 'VALID' | 'BOUNDARY' | 'INVALID' | 'OUTCOMES';
   @IsOptional() @IsInt() @Min(1) @Max(50) count?: number;
   /** Semilla explícita: la misma semilla devuelve exactamente los mismos valores. */
   @IsOptional() @IsString() @MaxLength(64) seed?: string;

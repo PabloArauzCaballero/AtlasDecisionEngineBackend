@@ -3,6 +3,8 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 import { AuditService } from '../src/common/audit/audit.service';
 import { AuditQueryService } from '../src/modules/audit-query/audit-query.service';
+import { PostgresDecisionAuditReadAdapter } from '../src/modules/audit-query/adapters/postgres-decision-audit-read.adapter';
+import { directReadAdapterFactory } from './support/read-adapter';
 import { HashService } from '../src/common/crypto/hash.service';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
 import { uniqueTenantId } from './support/unique-tenant';
@@ -23,7 +25,7 @@ describeDb('Audit canonical payload verification (integration)', () => {
   );
   const audit = new AuditService(prisma as unknown as PrismaService, hashes);
   const query = new AuditQueryService(
-    prisma as unknown as PrismaService,
+    new PostgresDecisionAuditReadAdapter(directReadAdapterFactory(prisma)),
     hashes,
     new ConfigService({ MAX_PAGE_SIZE: 100 }),
   );
@@ -43,6 +45,10 @@ describeDb('Audit canonical payload verification (integration)', () => {
       aggregateType: 'Test',
       aggregateId: '1',
       actorId: 'tester',
+      // Perder precisión al leerlo es EXACTAMENTE lo que esta prueba comprueba (D-9): que
+      // congelar la carga canónica evita que la normalización numérica de JSONB convierta
+      // un evento válido en una discrepancia de hash al verificarlo.
+      // eslint-disable-next-line no-loss-of-precision
       payload: { amount: 1.23456789012345678, note: 'high precision' },
     });
     await audit.append({
@@ -51,6 +57,8 @@ describeDb('Audit canonical payload verification (integration)', () => {
       aggregateType: 'Test',
       aggregateId: '2',
       actorId: 'tester',
+      // Por encima de Number.MAX_SAFE_INTEGER, también a propósito.
+      // eslint-disable-next-line no-loss-of-precision
       payload: { values: [1.0, 2.5, 9007199254740993] },
     });
 

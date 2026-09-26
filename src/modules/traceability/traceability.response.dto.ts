@@ -94,8 +94,15 @@ class CoverageMatrixObjectiveDto {
   @ApiProperty({ example: 'REDUCE_ADVERSE_ACTION_APPEALS' }) objectiveCode!: string;
   @ApiProperty({ example: 'Reduce upheld adverse-action appeals' }) name!: string;
   @ApiProperty({
-    example: { NO_ADVERSE_ACTION_WITHOUT_REASON: 'COMPLETE', DUAL_APPROVAL: 'PARTIAL' },
-    description: '`{ [policyCode]: "COMPLETE"|"PARTIAL"|"GAP" }`.',
+    example: {
+      NO_ADVERSE_ACTION_WITHOUT_REASON: 'COMPLETE',
+      DUAL_APPROVAL: 'PARTIAL',
+      SEGREGATION_OF_DUTIES: 'NOT_APPLICABLE',
+    },
+    description:
+      '`{ [policyCode]: "COMPLETE"|"PARTIAL"|"GAP"|"NOT_APPLICABLE" }`. `NOT_APPLICABLE` es una ' +
+      'política que pertenece a OTRO objetivo: la celda existe para que la rejilla sea ' +
+      'rectangular, pero no es un requisito de esta fila y no entra en `total`.',
   })
   coverage!: Record<string, string>;
 }
@@ -109,7 +116,14 @@ export class CoverageMatrixDto {
   policies!: Array<{ id: string; policyCode: string }>;
   @ApiProperty({ type: [CoverageMatrixObjectiveDto] }) objectives!: CoverageMatrixObjectiveDto[];
   @ApiProperty({ example: 9, description: 'Celdas en estado COMPLETE.' }) covered!: number;
-  @ApiProperty({ example: 12, description: 'políticas × objetivos.' }) total!: number;
+  @ApiProperty({
+    example: 12,
+    description:
+      'Requisitos de política declarados: el denominador de `covered`. NO es políticas × ' +
+      'objetivos — esa cuenta incluía los cruces `NOT_APPLICABLE`, y con ella el porcentaje ' +
+      'no podía llegar a 100 ni con toda la evidencia enlazada.',
+  })
+  total!: number;
 }
 
 export class PolicyArtifactLinkCreatedDto {

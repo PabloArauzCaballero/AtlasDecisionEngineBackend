@@ -1,0 +1,115 @@
+# OpenTelemetry Collector — staging y producción.
+#
+# Existe por tres razones que la exportación directa a Jaeger no cubre:
+#   1. **Desacople.** El motor exporta a un destino estable. Cambiar Jaeger de sitio, de
+#      versión o de backend no toca ni una variable de la aplicación.
+#   2. **Absorción de fallos.** La cola con reintento vive aquí, no en el camino de la
+#      decisión. Que Jaeger caiga no puede tener consecuencia alguna sobre una petición.
+#   3. **Última red de privacidad.** Si un atributo sensible se cuela pese a los controles del
+#      código, se borra aquí antes de persistirse. Ver docs/observability/04-data-privacy-policy.md.
+#
+# El Collector NUNCA se expone a Internet: escucha sólo en la red privada del despliegue.
+
+receivers:
+  otlp:
+    protocols:
+      http:
+        # Sin `0.0.0.0`: se liga a la interfaz interna que el despliegue inyecte.
+        endpoint: ${env:OTEL_COLLECTOR_BIND_HOST}:4318
+      grpc:
+        endpoint: ${env:OTEL_COLLECTOR_BIND_HOST}:4317
+
+processors:
+  # PRIMERO en la cadena, siempre. Rechaza datos cuando la memoria supera el umbral, en vez de
+  # dejar que el Collector muera por OOM y se lleve por delante los lotes ya aceptados.
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 75
+    spike_limit_percentage: 20
+
+  # Borrado de atributos sensibles. Es defensa en profundidad: el código ya no los emite —no se
+  # capturan cabeceras, `enhancedDatabaseReporting` está apagado— pero una instrumentación nueva
+  # o una actualización de biblioteca podría empezar a hacerlo sin que nadie lo note. Aquí no
+  # llega a almacenarse.
+  attributes/redact:
+    actions:
+      - key: http.request.header.authorization
+        action: delete
+      - key: http.request.header.cookie
+        action: delete
+      - key: http.request.header.x-api-key
+        action: delete
+      - key: http.response.header.set-cookie
+        action: delete
+      - key: db.statement.parameters
+        action: delete
+      # La URL completa puede llevar identificadores en la cadena de consulta. Se conserva la
+      # ruta (`url.path`), que es lo que sirve para diagnosticar.
+      - key: url.query
+        action: delete
+
+  # Las sondas de salud ya se excluyen en el proceso; esto cubre cualquier otro emisor que
+  # apunte a este Collector y no lo haga.
+  filter/drop_health:
+    error_mode: ignore
+    traces:
+      span:
+        - 'attributes["url.path"] == "/health"'
+        - 'attributes["url.path"] == "/health/live"'
+        - 'attributes["url.path"] == "/health/ready"'
+        - 'attributes["url.path"] == "/metrics"'
+
+  resource/deployment:
+    attributes:
+      - key: deployment.environment.name
+        value: ${env:OTEL_DEPLOYMENT_ENVIRONMENT}
+        action: upsert
+
+  # ÚLTIMO antes de exportar: agrupar en lotes es lo que evita una petición de red por span.
+  batch:
+    timeout: 5s
+    send_batch_size: 512
+    send_batch_max_size: 1024
+
+exporters:
+  otlp/jaeger:
+    endpoint: ${env:JAEGER_COLLECTOR_ENDPOINT}
+    tls:
+      insecure: false
+    # La cola es la razón por la que una caída de Jaeger no se propaga hacia atrás: los lotes
+    # esperan aquí. `num_consumers` acotado para no convertir una recuperación en una avalancha.
+    sending_queue:
+      enabled: true
+      num_consumers: 4
+      queue_size: 1000
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      # Acotado: reintentar indefinidamente sólo consigue que la cola nunca drene y que se
+      # pierdan los lotes NUEVOS, que son los que interesan durante un incidente.
+      max_elapsed_time: 300s
+
+extensions:
+  health_check:
+    endpoint: ${env:OTEL_COLLECTOR_BIND_HOST}:13133
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors:
+        - memory_limiter
+        - filter/drop_health
+        - attributes/redact
+        - resource/deployment
+        - batch
+      exporters: [otlp/jaeger]
+  telemetry:
+    logs:
+      level: warn
+    metrics:
+      # Métricas internas del propio Collector: sin ellas no se puede saber si está
+      # descartando spans, que es exactamente lo que hay que mirar cuando "faltan trazas".
+      level: normal

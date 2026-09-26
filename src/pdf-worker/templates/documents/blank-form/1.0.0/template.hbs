@@ -1,0 +1,196 @@
+{{!--
+  Cuerpo de `blank-form@1.0.0`.
+
+  Aquí no hay valores: hay HUECOS. Cada campo se dibuja según su `kind` (Handlebars no admite «@» en el nombre de un parcial local, así que va en línea), y la
+  tabla imprime tantos renglones vacíos como pida el contrato. Lo institucional lo pone el
+  layout base; el número de serie (documentId) sale en el pie de cada página.
+--}}
+{{> atlas/heading title=data.title subtitle=data.subtitle}}
+
+<div class="form-id">
+  <span class="form-id__code mono">{{data.formCode}}</span>
+  <span class="form-id__version">versión {{data.formVersion}}</span>
+  <span class="form-id__hint">Escriba con letra clara, en mayúsculas. Los campos con * son obligatorios.</span>
+</div>
+
+{{#if data.instructions}}
+  <ol class="form-instructions">
+    {{#each data.instructions}}<li>{{this}}</li>{{/each}}
+  </ol>
+{{/if}}
+
+{{#if data.context}}
+  <section class="section form-context">
+    {{> atlas/section-header title="Datos ya registrados"}}
+    <div class="section__body">
+      {{> atlas/key-value-list items=data.context}}
+    </div>
+  </section>
+{{/if}}
+
+{{#each data.sections}}
+  <section class="section{{#if this.pageBreakBefore}} page-break-before{{/if}}">
+    {{> atlas/section-header title=this.title description=this.description}}
+    <div class="section__body">
+      {{#if this.fields}}
+        <div class="form-grid">
+          {{#each this.fields}}
+            <div class="form-field form-field--w{{fallback this.width 1}} form-field--{{this.kind}}">
+              <div class="form-field__label">{{this.label}}{{#if this.required}}<span class="form-field__required"> *</span>{{/if}}</div>
+              {{#if this.hint}}<div class="form-field__hint">{{this.hint}}</div>{{/if}}
+
+              {{#if (not (isEmpty this.prefilled))}}
+                <div class="form-field__prefilled">{{fmtValue this.prefilled}}</div>
+              {{else}}
+
+                {{#if (eq this.kind 'date')}}
+                  <div class="form-boxes" aria-label="día mes año">
+                    <span class="form-box"></span><span class="form-box"></span><span class="form-boxes__sep">/</span>
+                    <span class="form-box"></span><span class="form-box"></span><span class="form-boxes__sep">/</span>
+                    <span class="form-box"></span><span class="form-box"></span><span class="form-box"></span><span class="form-box"></span>
+                  </div>
+                  <div class="form-boxes__legend">DD / MM / AAAA</div>
+                {{/if}}
+
+                {{#if (eq this.kind 'datetime')}}
+                  <div class="form-boxes">
+                    <span class="form-box"></span><span class="form-box"></span><span class="form-boxes__sep">/</span>
+                    <span class="form-box"></span><span class="form-box"></span><span class="form-boxes__sep">/</span>
+                    <span class="form-box"></span><span class="form-box"></span><span class="form-box"></span><span class="form-box"></span>
+                    <span class="form-boxes__gap"></span>
+                    <span class="form-box"></span><span class="form-box"></span><span class="form-boxes__sep">:</span>
+                    <span class="form-box"></span><span class="form-box"></span>
+                  </div>
+                  <div class="form-boxes__legend">DD / MM / AAAA · HH : MM (24 h)</div>
+                {{/if}}
+
+                {{#if (eq this.kind 'boolean')}}
+                  <div class="form-options">
+                    <span class="form-option"><span class="form-check"></span>Sí</span>
+                    <span class="form-option"><span class="form-check"></span>No</span>
+                  </div>
+                {{/if}}
+
+                {{#if (or (eq this.kind 'select') (eq this.kind 'multiselect'))}}
+                  {{#if this.options}}
+                    <div class="form-options">
+                      {{#each this.options}}
+                        <span class="form-option"><span class="form-check"></span>{{this.label}}{{#if this.code}} <span class="form-option__code mono">[{{this.code}}]</span>{{/if}}</span>
+                      {{/each}}
+                    </div>
+                    {{#if (eq this.kind 'multiselect')}}<div class="form-boxes__legend">Puede marcar más de una.</div>{{/if}}
+                  {{else}}
+                    <div class="form-line"></div>
+                    <div class="form-boxes__legend">Escriba el código{{#if this.catalogRef}} del anexo «{{this.catalogRef}}»{{/if}}.</div>
+                  {{/if}}
+                {{/if}}
+
+                {{#if (eq this.kind 'number')}}
+                  <div class="form-line form-line--numeric"></div>
+                {{/if}}
+
+                {{#if (or (eq this.kind 'text') (or (eq this.kind 'email') (or (eq this.kind 'url') (eq this.kind 'phone'))))}}
+                  <div class="form-line"></div>
+                {{/if}}
+
+                {{#if (eq this.kind 'textarea')}}
+                  {{#each (times (fallback this.lines 3))}}<div class="form-line"></div>{{/each}}
+                {{/if}}
+
+                {{#if (eq this.kind 'chips')}}
+                  {{#each (times (fallback this.lines 3))}}<div class="form-line form-line--chip"><span class="form-line__n">{{this}}.</span></div>{{/each}}
+                {{/if}}
+
+                {{#if (eq this.kind 'countryCity')}}
+                  <div class="form-split">
+                    <div><div class="form-field__sub">País</div><div class="form-line"></div></div>
+                    <div><div class="form-field__sub">Ciudad</div><div class="form-line"></div></div>
+                  </div>
+                {{/if}}
+
+                {{#if (eq this.kind 'address')}}
+                  {{#each (times (fallback this.lines 2))}}<div class="form-line"></div>{{/each}}
+                  <div class="form-field__sub">Referencia (zona, edificio, punto conocido)</div>
+                  <div class="form-line"></div>
+                {{/if}}
+
+                {{#if (eq this.kind 'file')}}
+                  <div class="form-options">
+                    <span class="form-option"><span class="form-check"></span>Adjunto (fotocopia o impresión) entregado con este formulario</span>
+                  </div>
+                {{/if}}
+
+              {{/if}}
+            </div>
+          {{/each}}
+        </div>
+      {{/if}}
+      {{#if this.table}}
+        <table class="table form-table">
+          <thead>
+            <tr>
+              <th class="form-table__n">Nº</th>
+              {{#each this.table.columns}}
+                <th class="form-table__w{{fallback this.width 1}}{{#if this.numeric}} form-table__num{{/if}}">{{this.label}}</th>
+              {{/each}}
+            </tr>
+          </thead>
+          <tbody>
+            {{#each (times this.table.rows)}}
+              <tr class="form-table__row">
+                <td class="form-table__n">{{this}}</td>
+                {{#each ../this.table.columns}}<td></td>{{/each}}
+              </tr>
+            {{/each}}
+          </tbody>
+          {{#if this.table.totalRow}}
+            <tbody>
+              <tr class="form-table__total">
+                <td class="form-table__n"></td>
+                {{#each this.table.columns}}
+                  <td>{{#if @first}}Total{{/if}}</td>
+                {{/each}}
+              </tr>
+            </tbody>
+          {{/if}}
+        </table>
+      {{/if}}
+    </div>
+  </section>
+{{/each}}
+
+{{#if data.declarations}}
+  <section class="section form-declarations">
+    {{> atlas/section-header title="Declaración"}}
+    <div class="section__body">
+      {{#each data.declarations}}<p>{{this}}</p>{{/each}}
+    </div>
+  </section>
+{{/if}}
+
+{{> atlas/signature signatures=data.signatures}}
+
+<div class="form-office">
+  <span class="form-office__title">Uso interno · transcripción</span>
+  <span>Transcrito por: <span class="form-office__line"></span></span>
+  <span>Fecha: <span class="form-office__line form-office__line--short"></span></span>
+  <span>Nº de registro en el sistema: <span class="form-office__line"></span></span>
+</div>
+
+{{#each data.annexes}}
+  <section class="section page-break-before form-annex">
+    {{> atlas/section-header title=(concat "Anexo · " this.title) description="Copie el CÓDIGO en el campo correspondiente del formulario."}}
+    <div class="section__body">
+      <table class="table form-annex__table">
+        <thead><tr><th>Código</th><th>Nombre</th></tr></thead>
+        <tbody>
+          {{#each this.entries}}
+            <tr><td class="mono">{{this.code}}</td><td>{{this.label}}</td></tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{{/each}}
+
+<footer class="doc-footnote">{{> atlas/metadata}}</footer>

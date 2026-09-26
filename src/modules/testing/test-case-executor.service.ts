@@ -3,6 +3,7 @@ import { TestCaseRunStatus } from '@prisma/client';
 import { ExecutionEngineService } from '../graph/execution-engine.service';
 import type { CompiledDecisionArtifact } from '../graph/graph.types';
 import { NestedTreeExecutionService } from '../nested-trees/nested-tree-execution.service';
+import { WorkerServiceInvokerService } from '../workers/worker-service-invoker.service';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
 import { VariableResolutionService } from '../variables/variable-resolution.service';
 
@@ -56,6 +57,11 @@ export class TestCaseExecutorService {
     private readonly engine: ExecutionEngineService,
     private readonly variables: VariableResolutionService,
     private readonly nestedTrees: NestedTreeExecutionService,
+    /**
+     * Puente hacia los servicios de los workers (nodos `WORKER`). Se ata al tenant y al
+     * principal de la petición y se entrega al motor como argumento de llamada.
+     */
+    private readonly workerServices: WorkerServiceInvokerService,
   ) {}
 
   async execute(input: {
@@ -103,6 +109,9 @@ export class TestCaseExecutorService {
           payload,
           resolution.values,
           this.nestedTrees.bind(tenantId, systemPrincipal(tenantId)),
+          undefined,
+          undefined,
+          this.workerServices.bind(tenantId, systemPrincipal(tenantId)),
         );
         visitedNodeKeys = result.visitedNodeKeys;
         traversedEdgeKeys = result.traversedEdgeKeys;

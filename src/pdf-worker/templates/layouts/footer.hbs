@@ -1,0 +1,50 @@
+{{!--
+  Pie corrido (§14).
+
+  `<span class="pageNumber">` y `<span class="totalPages">` son ganchos que rellena el propio
+  motor de impresión. Es la única forma de escribir «Página 2 de 7»: el número total sólo se
+  conoce cuando ya se ha paginado el documento entero, así que ninguna plantilla del cuerpo
+  puede calcularlo — lo intentaría y acabaría imprimiendo «Página 1 de 1» en las siete hojas.
+
+  Las clases `date`, `title` y `url` también las rellena Chromium. NO se usan: `date` daría la
+  hora del reloj del contenedor —normalmente UTC— en lugar de la fecha de generación ya
+  formateada en la zona que pidió el llamante, y `url` filtraría `about:blank`.
+--}}
+<style>{{{fontFaceCss}}}</style>
+<div
+  style="
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0 {{margins.right}} 6mm {{margins.left}};
+    font-family: {{type.fontFamily}};
+    font-size: 7pt;
+    color: {{colors.inkMuted}};
+    -webkit-print-color-adjust: exact;
+  "
+>
+  <table style="width: 100%; border-collapse: collapse; border-top: 0.5pt solid {{colors.line}};">
+    <tr>
+      <td style="padding: 2mm 0 0 0; vertical-align: top;">
+        {{#if footer.institutionalText}}
+          <div>{{footer.institutionalText}}</div>
+        {{/if}}
+        {{#if footer.showGeneratedAt}}
+          <div>Generado el {{document.createdAtLabel}}</div>
+        {{/if}}
+      </td>
+      <td style="padding: 2mm 0 0 0; vertical-align: top; text-align: right;">
+        {{#if footer.showDocumentId}}
+          <div>ID: {{document.id}} · {{document.templateId}}@{{document.templateVersion}}</div>
+        {{/if}}
+        {{#if footer.showPageNumbers}}
+          <div style="color: {{colors.ink}};">
+            Página <span class="pageNumber"></span> de <span class="totalPages"></span>
+          </div>
+        {{/if}}
+        {{#if document.classificationLabel}}
+          <div style="color: {{colors.caution}};">{{document.classificationLabel}}</div>
+        {{/if}}
+      </td>
+    </tr>
+  </table>
+</div>

@@ -94,6 +94,22 @@ describe('ContractValidatorService', () => {
     expect(issues.some((issue) => issue.code === 'CONTRACT_ID_DUPLICATE')).toBe(true);
     expect(issues.some((issue) => issue.code === 'CONTRACT_INPUT_UNUSED')).toBe(true);
   });
+
+  it('reconoce las salidas de un diccionario Python repartido en varias líneas', () => {
+    const issues = validator.validate(
+      {
+        contractVersion: '1',
+        inputs: [{ id: 'edad', name: 'Edad', type: 'INTEGER', required: true }],
+        outputs: [
+          { id: 'decision', name: 'Decisión', type: 'STRING', required: true },
+          { id: 'motivo', name: 'Motivo', type: 'STRING', required: true },
+        ],
+      },
+      'PYTHON',
+      `edad = variables.get('edad')\nresult = {\n    'decision': 'APROBADO' if edad >= 18 else 'RECHAZADO',\n    'motivo': 'AGE',\n}\n`,
+    );
+    expect(issues).toEqual([]);
+  });
 });
 
 describe('SecurityAnalyzerService', () => {

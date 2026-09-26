@@ -1,3 +1,4 @@
+import { isPotentiallyCatastrophic } from '../../../../../../common/validation/safe-regex';
 import type { CanonicalField } from '../generic/header-lexicon';
 
 /**
@@ -148,6 +149,16 @@ function toRegExpList(value: unknown, path: string): RegExp[] {
   return value.map((pattern) => {
     if (typeof pattern !== 'string') {
       throw new InvalidProfileError(`\`${path}\` solo admite cadenas.`);
+    }
+    // Estos patrones se ejecutan después contra el texto extraído de un PDF, que es entrada
+    // externa y de longitud arbitraria: un patrón con retroceso catastrófico bloquearía el
+    // hilo del worker. Mismo criterio que aplica el motor a los patrones de validación de
+    // variables (`constraint-engine.ts`), y se rechaza al PARSEAR el perfil —no al usarlo—
+    // para que el fallo salga donde se declara y no a mitad de un análisis.
+    if (isPotentiallyCatastrophic(pattern)) {
+      throw new InvalidProfileError(
+        `\`${path}\` contiene una expresión regular con retroceso catastrófico: ${pattern}`,
+      );
     }
     try {
       return new RegExp(pattern, 'i');

@@ -1,0 +1,118 @@
+# Generador documental de Atlas, desplegable por Coolify.
+#
+# Es el MISMO servicio que `docker-compose.pdf-worker.yml`, y ese archivo se queda como está: sirve
+# para levantarlo en una máquina de trabajo junto al resto del stack local. Éste existe porque aquel
+# NO se puede desplegar en Coolify, por dos motivos que no se arreglan con variables:
+#
+#   1. **Publica un puerto fijo del anfitrión** (`127.0.0.1:3100:3100`). Coolify nombra cada
+#      contenedor con una marca de tiempo y crea el NUEVO antes de retirar el viejo, así que el
+#      viejo sigue sujetando el puerto y el nuevo muere con `address already in use`. No es un
+#      puerto mal elegido: publicar un puerto fijo desde el compose es incompatible con cómo
+#      despliega Coolify. Aquí va `expose`, y quien publica es el proxy.
+#   2. **Usa la red `atlas_app`**, que es la del compose local del motor. En Coolify la red
+#      compartida se llama `coolify`, y es donde viven los alias `motor`, `erp` y `atlas-backend`.
+#
+# Sin este archivo el worker sencillamente no estaba desplegado en ningún entorno gestionado, y el
+# síntoma no lo decía: el ERP llama a `http://pdf-worker:3100` y el nombre no resolvía, mientras la
+# API del motor respondía **502 «el navegador no está disponible»** —Chromium sólo vive en esta
+# imagen, a propósito, porque pesa ~450 MiB—. Medido en el VPS de TEST el 2026-09-16.
+#
+# Se despliega como una aplicación de Coolify APARTE, apuntando a este archivo, sobre el mismo
+# repositorio. Es deliberado que no vaya dentro de `docker-compose.coolify.yml`: el worker no
+# depende de Postgres, ni de Redis, ni del motor, y meterlo ahí lo ataría al ciclo de vida de
+# servicios que no necesita. Lo primero que se pierde con eso es la comprobación de que sigue
+# siendo independiente.
+#
+# ## La clave de servicio va en TRES sitios y es la MISMA
+#
+#   `PDF_SERVICE_API_KEY`      -> el motor  y  este worker
+#   `PDF_WORKER_SERVICE_KEY`   -> el portal del motor  y  el ERP
+#
+# La cabecera es `x-pdf-service-key`, **no** `x-api-key` (ésa es la del motor). Con la equivocada:
+# 401 `SERVICE_UNAUTHORIZED`.
+
+name: atlas-pdf-worker
+
+services:
+  pdf-worker:
+    image: atlas-pdf-worker:coolify
+    build:
+      context: .
+      target: pdf-worker
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+    environment:
+      NODE_ENV: production
+      PDF_WORKER_PORT: '3100'
+      PDF_SWAGGER_ENABLED: '${PDF_SWAGGER_ENABLED:-false}'
+      # Clave de servicio. Sin ella el worker NO arranca: la puerta viene encendida por omisión y
+      # el esquema de entorno aborta antes que degradar a modo abierto.
+      PDF_SERVICE_AUTH_ENABLED: '${PDF_SERVICE_AUTH_ENABLED:-true}'
+      PDF_SERVICE_API_KEY: '${PDF_SERVICE_API_KEY:?define PDF_SERVICE_API_KEY (32+ caracteres) en Coolify}'
+      PDF_ORG_NAME: '${PDF_ORG_NAME:-ATLAS Decision Engine}'
+      PDF_ORG_LEGAL_NAME: '${PDF_ORG_LEGAL_NAME:-}'
+      PDF_ORG_TAX_ID: '${PDF_ORG_TAX_ID:-}'
+      PDF_ORG_ADDRESS: '${PDF_ORG_ADDRESS:-}'
+      PDF_ORG_EMAIL: '${PDF_ORG_EMAIL:-}'
+      PDF_ORG_LOGO: '${PDF_ORG_LOGO:-}'
+      # Concurrencia y memoria van EMPAREJADAS. Cada carril es una pestaña de Chromium
+      # rasterizando: subir la una sin la otra no da velocidad, da un OOM. Con el tope de 2 GiB de
+      # abajo, dos carriles es lo que entra holgado en un servidor compartido.
+      PDF_RENDER_CONCURRENCY: '${PDF_RENDER_CONCURRENCY:-2}'
+      PDF_RENDER_TIMEOUT_MS: '${PDF_RENDER_TIMEOUT_MS:-30000}'
+      PDF_STORAGE_ENABLED: '${PDF_STORAGE_ENABLED:-true}'
+      PDF_STORAGE_PATH: /app/var/pdf-worker
+
+    # Alias ESTABLE en la red compartida: es como lo encuentran el ERP y el portal del motor. El
+    # nombre del contenedor lleva una marca de tiempo y cambia en cada despliegue; este alias no.
+    networks:
+      default: {}
+      coolify:
+        aliases: ['pdf-worker']
+
+    # SIN `ports:` — ver la nota de arriba. `expose` deja el puerto visible dentro de las redes.
+    expose: ['3100']
+
+    volumes:
+      - pdf-documents:/app/var/pdf-worker
+
+    # `/dev/shm` por defecto son 64 MiB y Chromium los agota rasterizando una hoja grande. El
+    # adaptador ya pasa `--disable-dev-shm-usage` (usa /tmp), así que esto es el cinturón sobre los
+    # tirantes: con ambos, ni la memoria compartida ni el disco temporal se quedan cortos.
+    shm_size: '512mb'
+    security_opt:
+      - seccomp:unconfined
+
+    stop_grace_period: 20s
+    deploy:
+      resources:
+        limits:
+          # 2 carriles x ~180 MiB de pico por pestaña, más el heap de Node y el propio navegador.
+          memory: 2g
+
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3100/pdf/health').then(r=>r.json()).then(b=>process.exit(b.status==='ok'?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 10s
+      # Arrancar Chromium y registrar las plantillas lleva su tiempo; con menos, el primer sondeo
+      # falla y Coolify da el despliegue por malo cuando en realidad estaba levantando.
+      start_period: 60s
+      retries: 5
+
+volumes:
+  pdf-documents:
+
+networks:
+  default: {}
+  coolify:
+    external: true
+    name: coolify

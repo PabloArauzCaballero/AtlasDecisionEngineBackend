@@ -1,6 +1,6 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Prisma } from '@prisma/client';
+import { DecisionUseRestriction, Prisma } from '@prisma/client';
 import { AuditService } from '../../common/audit/audit.service';
 import { DomainException } from '../../common/errors/domain-exception';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -14,6 +14,9 @@ import {
   VariableListQueryDto,
 } from './variable.dto';
 import { pageResult, paginationArgs } from '../../common/http/pagination';
+
+/** Techo de filas del listado de dependencias; ver la nota en `dependencies`. */
+const MAX_DEPENDENCY_ROWS = 1_000;
 
 @Injectable()
 export class VariableService {
@@ -48,6 +51,10 @@ export class VariableService {
           dataClassification: dto.dataClassification,
           ownerTeam: dto.ownerTeam,
           isSensitive: dto.isSensitive,
+          // Eje de licitud de uso, independiente de `isSensitive`/`dataClassification`.
+          ...(dto.decisionUseRestriction
+            ? { decisionUseRestriction: dto.decisionUseRestriction as DecisionUseRestriction }
+            : {}),
           versions: {
             create: this.versionCreateData(1, dto.initialVersion),
           },
@@ -354,6 +361,10 @@ export class VariableService {
         },
       },
       orderBy: { id: 'asc' },
+      // Una variable muy reutilizada la referencian todas las versiones de todos los
+      // artefactos que la usan, y aquí se materializa la lista entera. La cota convierte el
+      // peor caso en una respuesta truncada en vez de una respuesta que no termina.
+      take: MAX_DEPENDENCY_ROWS,
     });
     const items = uses.map((use) => ({
       artifactCode: use.artifactVersion.artifact.artifactCode,

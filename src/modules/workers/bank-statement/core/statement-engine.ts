@@ -3,10 +3,28 @@ import type { ParsedStatement } from './domain/models';
 import type { StatementProcessingContext } from './domain/processing-context';
 import type { StatementParser } from './domain/statement-parser';
 import { DocumentClassifier } from './engine/document-classifier';
+import type { TriageThresholds } from './engine/document-triage';
 import type { StatementOcrPort } from './engine/extraction/ocr-port';
 import { StatementExtractor } from './engine/extraction/statement-extractor';
 import { GenericStatementStrategy } from './engine/generic/generic-statement.strategy';
+import type { StatementColumnAdvisorPort } from './engine/generic/column-advisor';
 import { InstitutionDetector } from './engine/institution-detector';
+import { DEFAULT_ISSUER_GATE_OPTIONS, type IssuerGateOptions } from './engine/issuer-gate';
+import {
+  DEFAULT_AUTHENTICITY_OPTIONS,
+  type AuthenticityGateOptions,
+} from './engine/authenticity/authenticity-gate';
+import {
+  normalizeAffordabilityPolicy,
+  type AffordabilityPolicy,
+} from './engine/affordability/affordability-policy';
+import { normalizeRecencyOptions, type RecencyGateOptions } from './engine/recency/recency-gate';
+import {
+  DEFAULT_SIMILARITY_THRESHOLDS,
+  type SimilarityMode,
+  type SimilarityThresholds,
+} from './engine/similarity/similarity-scorer';
+import { ASFI_SEED_REGISTRY, type InstitutionRegistry } from './institutions/institution-registry';
 import { toNormalizedStatement } from './engine/normalized/normalized-mapper';
 import type { NormalizedBankStatement } from './engine/normalized/normalized-model';
 import {
@@ -31,6 +49,43 @@ import { LayoutPdfReader } from './pdf/layout-pdf-reader';
 export interface StatementEngineOptions {
   /** Límites de tamaño, páginas y tiempo. Se completan con los de por defecto. */
   readonly limits?: Partial<BankStatementModuleOptions>;
+  /**
+   * Fronteras entre procesar, preguntar y rechazar. Se dejan configurables
+   * porque son lo primero que hay que recalibrar con documentos reales, y
+   * hacerlo no puede exigir recompilar el motor.
+   */
+  readonly triage?: Partial<TriageThresholds>;
+  /**
+   * De dónde sale el padrón de entidades. Por defecto, la nómina de ASFI
+   * compilada; el motor desplegado inyecta aquí la tabla administrable.
+   */
+  readonly institutions?: InstitutionRegistry;
+  /** Exigencia sobre el emisor del documento. Ver `engine/issuer-gate.ts`. */
+  readonly issuerGate?: Partial<IssuerGateOptions>;
+  /**
+   * Exigencia sobre el CONTENEDOR: si el archivo es el que emitió un banco o lo
+   * fabricó alguien. Ver `engine/authenticity/authenticity-gate.ts`.
+   */
+  readonly authenticityGate?: Partial<AuthenticityGateOptions>;
+  /**
+   * Política de capacidad de pago, con la exigencia de meses completos dentro.
+   * El mínimo de tres no se puede bajar por configuración; ver
+   * `engine/affordability/affordability-policy.ts`.
+   */
+  readonly affordability?: Partial<AffordabilityPolicy>;
+  /**
+   * Exigencia sobre la VIGENCIA: hasta cuándo llega el extracto. Ver
+   * `engine/recency/recency-gate.ts`. Su reloj es inyectable, que es lo que
+   * permite reevaluar una cola atrasada contra la fecha en que cada documento
+   * se recibió en vez de contra la de hoy.
+   */
+  readonly recencyGate?: Partial<RecencyGateOptions>;
+  /**
+   * Umbrales del PARECIDO con el descriptor de señales de la entidad, y qué se
+   * hace con él. Ver `engine/similarity/similarity-scorer.ts`.
+   */
+  readonly similarity?: Partial<SimilarityThresholds>;
+  readonly similarityMode?: SimilarityMode;
   /** Reconocimiento óptico, si el anfitrión lo aporta. */
   readonly ocr?: StatementOcrPort;
   /** Perfiles de formato en JSON, validados al construir el motor. */
@@ -43,6 +98,14 @@ export interface StatementEngineOptions {
   readonly parsers?: readonly StatementParser[];
   /** Registrar el motor generalista al final de la cascada. Por defecto, sí. */
   readonly includeGenericEngine?: boolean;
+  /**
+   * Consejero de columnas para el motor generalista. Ausente por omisión.
+   *
+   * Sólo interviene cuando el saldo corriente NO cuadra y hay rótulos que el
+   * diccionario no supo nombrar, y su propuesta se acepta únicamente si el saldo
+   * pasa a cuadrar entero. Ver `engine/generic/column-advisor.ts`.
+   */
+  readonly columnAdvisor?: StatementColumnAdvisorPort;
 }
 
 export interface StatementEngine {
@@ -94,16 +157,22 @@ export function createStatementEngine(options: StatementEngineOptions = {}): Sta
     registry.register(new ProfileStatementStrategy(profile));
   }
   if (options.includeGenericEngine !== false) {
-    registry.register(new GenericStatementStrategy());
+    registry.register(new GenericStatementStrategy(options.columnAdvisor ?? null));
   }
 
   const metrics = new ConversionMetrics();
   const worker = new BankStatementWorkerService(
     new StatementExtractor(new LayoutPdfReader(limits), options.ocr),
     registry,
-    new DocumentClassifier(),
-    new InstitutionDetector(),
+    new DocumentClassifier(options.triage ?? {}),
+    new InstitutionDetector(options.institutions ?? ASFI_SEED_REGISTRY),
     metrics,
+    { ...DEFAULT_ISSUER_GATE_OPTIONS, ...options.issuerGate },
+    { ...DEFAULT_AUTHENTICITY_OPTIONS, ...options.authenticityGate },
+    normalizeAffordabilityPolicy(options.affordability),
+    normalizeRecencyOptions(options.recencyGate),
+    { ...DEFAULT_SIMILARITY_THRESHOLDS, ...options.similarity },
+    options.similarityMode ?? 'CORROBORATE',
   );
 
   return {

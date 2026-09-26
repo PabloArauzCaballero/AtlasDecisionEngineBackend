@@ -85,7 +85,13 @@ export class RetentionSweeperService implements OnModuleInit, BackgroundJob {
   async sweep(): Promise<number> {
     const cutoff = new Date(Date.now() - this.graceMs);
     try {
-      const purged = await this.prisma.$executeRaw(Prisma.sql`
+      // Dentro de `$transaction` porque `decision_runtime_idempotency` tiene RLS FORZADA y
+      // una sentencia cruda suelta no fija `app.tenant_id`: sobre una conexión del pool que
+      // ya sirvió a un tenant la política evalúa `''::bigint` y aborta con 22P02. Ver la
+      // nota extensa en `outbox-relay.service.ts`. El `catch` de abajo lo convertía en un
+      // «barrido fallido» periódico que nunca purgaba nada.
+      const [purged] = await this.prisma.$transaction([
+        this.prisma.$executeRaw(Prisma.sql`
         DELETE FROM decision_runtime_idempotency
         WHERE id IN (
           SELECT id
@@ -94,7 +100,8 @@ export class RetentionSweeperService implements OnModuleInit, BackgroundJob {
           ORDER BY expires_at ASC
           LIMIT ${this.batchSize}
         )
-      `);
+      `),
+      ]);
       if (purged > 0) {
         this.logger.log(`Purged ${purged} expired runtime idempotency row(s)`);
       }

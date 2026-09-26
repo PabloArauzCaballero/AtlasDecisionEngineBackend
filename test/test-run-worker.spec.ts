@@ -10,7 +10,7 @@ const fakeScheduler = { register: jest.fn(), wake: jest.fn() } as unknown as Job
 describe('TestRunWorkerService', () => {
   function worker(prisma: unknown): TestRunWorkerService {
     return new TestRunWorkerService(
-      prisma as unknown as PrismaService,
+      prisma as PrismaService,
       {} as TestExecutionService,
       new ConfigService({}),
       fakeScheduler,

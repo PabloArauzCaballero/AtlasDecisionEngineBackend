@@ -36,7 +36,7 @@ export class ExpressionEvaluator {
       case 'or':
         return args.some((arg) => Boolean(this.evaluate(arg, context)));
       case 'not':
-        return !Boolean(this.evaluate(node.arg ?? args[0], context));
+        return !this.evaluate(node.arg ?? args[0], context);
       case 'coalesce': {
         for (const arg of args) {
           const value = this.evaluate(arg, context);
@@ -45,7 +45,7 @@ export class ExpressionEvaluator {
         return null;
       }
       case 'if':
-        return Boolean(this.evaluate(node.condition, context))
+        return this.evaluate(node.condition, context)
           ? this.evaluate(node.then, context)
           : this.evaluate(node.else, context);
       case 'exists': {

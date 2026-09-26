@@ -9,7 +9,7 @@ import { JobSignalService } from '../../common/jobs/job-signal.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
 import type { CompiledDecisionArtifact } from '../graph/graph.types';
-import { TestCaseExecutorService, type EvaluatedTestCase } from './test-case-executor.service';
+import { TestCaseExecutorService } from './test-case-executor.service';
 import { RunTestSuiteDto } from './testing.dto';
 
 @Injectable()
@@ -315,7 +315,7 @@ export class TestExecutionService {
     const workers = Array.from({ length: Math.min(concurrency, values.length) }, async () => {
       while (cursor < values.length) {
         const index = cursor++;
-        results[index] = await mapper(values[index] as T);
+        results[index] = await mapper(values[index]);
       }
     });
     await Promise.all(workers);

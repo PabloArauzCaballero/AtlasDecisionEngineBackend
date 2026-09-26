@@ -1,0 +1,66 @@
+{{!--
+  Armazón único de todo documento (§10).
+
+  Es el ÚNICO archivo del worker autorizado a usar interpolación sin escapar, y sólo para tres
+  valores que fabrica este mismo código: los tokens de la marca, la hoja de estilos y el cuerpo
+  ya renderizado. `template-source.lint.ts` prohíbe `{{{ }}}` en cualquier plantilla de
+  documento, que es por donde un payload se convertiría en marcado.
+
+  El membrete COMPLETO —el bloque grande con dirección, teléfono y correo— sale una sola vez,
+  al principio. En las páginas siguientes queda la banda corrida que dibuja `header.hbs` en el
+  margen superior. Repetir el bloque entero en cada hoja gastaría un cuarto de página en datos
+  que ya se leyeron.
+--}}
+<!doctype html>
+<html lang="{{fallback meta.locale 'es'}}">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="generator" content="atlas-pdf-worker" />
+    <title>{{document.title}}</title>
+    {{!--
+      Orden de la cascada, y no da igual: primero las hojas compartidas —que declaran los
+      tokens con valores por defecto— y DESPUÉS el bloque de la marca, que los pisa. Al revés,
+      los defaults ganarían y ninguna marca cambiaría nada.
+    --}}
+    <style>{{{styles}}}</style>
+    <style>{{{tokens}}}</style>
+  </head>
+  <body class="doc">
+    {{!--
+      El bloque grande sale en la PRIMERA hoja tanto con `first-page` como con `every-page`.
+      La diferencia entre los dos modos está en la banda corrida del margen superior, que sólo
+      emite `every-page` (lo decide `DocumentComposer`): ahí es donde el membrete acompaña al
+      documento hoja a hoja. Es la disposición de cualquier papel timbrado — membrete completo
+      arriba del todo, identificación breve en las páginas siguientes— y evita el defecto que
+      tenía la versión anterior: con `every-page`, la dirección, el teléfono y el correo de la
+      organización no aparecían en ninguna parte del documento.
+    --}}
+    {{#if (ne letterhead.mode 'none')}}
+      <section class="letterhead" aria-label="Membrete">
+          <div class="letterhead__identity">
+            {{#if letterhead.logoDataUri}}
+              <img class="letterhead__logo" src="{{letterhead.logoDataUri}}" alt="" />
+            {{/if}}
+            <div>
+              <p class="letterhead__org">{{letterhead.organizationName}}</p>
+              {{#if letterhead.legalName}}
+                <p class="letterhead__legal">{{letterhead.legalName}}</p>
+              {{/if}}
+              {{#if letterhead.secondaryText}}
+                <p class="letterhead__secondary">{{letterhead.secondaryText}}</p>
+              {{/if}}
+            </div>
+          </div>
+          <address class="letterhead__contact">
+            {{#if letterhead.taxId}}<span>{{letterhead.taxId}}</span>{{/if}}
+            {{#if letterhead.address}}<span>{{letterhead.address}}</span>{{/if}}
+            {{#if letterhead.phone}}<span>{{letterhead.phone}}</span>{{/if}}
+            {{#if letterhead.email}}<span>{{letterhead.email}}</span>{{/if}}
+            {{#if letterhead.website}}<span>{{letterhead.website}}</span>{{/if}}
+          </address>
+      </section>
+    {{/if}}
+
+    <main class="doc__body">{{{content}}}</main>
+  </body>
+</html>

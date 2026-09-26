@@ -92,7 +92,7 @@ describe('ExecutionEngineService', () => {
       RESULT: [],
     };
 
-    const result = await engine.execute(compiled as CompiledDecisionArtifact, { score: 700 });
+    const result = await engine.execute(compiled, { score: 700 });
 
     expect(result.status).toBe('SUCCEEDED');
     expect(result.primaryResult).toEqual({ code: 'scoring', value: 0 });

@@ -1,6 +1,6 @@
 import { Controller, HttpStatus, Logger, MessageEvent, Query, Sse } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Observable, type Subscriber } from 'rxjs';
 import { DomainException } from '../../common/errors/domain-exception';
 import { CurrentPrincipal, Roles, TenantId } from '../../common/security/security.decorators';
@@ -37,6 +37,19 @@ export class LiveExecutionController {
 
   @Sse('stream')
   @ApiOperation({ summary: 'Stream an opt-in non-production decision preview node by node' })
+  /*
+   * El cuerpo se declara aunque `@Sse` no lo infiera. Sin esto, la única
+   * operación del motor sin esquema de respuesta era ésta, y un consumidor no
+   * puede tipar lo que no está descrito: tenía que leer `LiveStepEvent` en el
+   * código del motor para saber qué llega por el canal. Se describe como el
+   * flujo que es —`text/event-stream`, una línea `data:` por evento— y no como
+   * un objeto, porque lo que se recibe no es un cuerpo único.
+   */
+  @ApiOkResponse({
+    description:
+      'Flujo de eventos SSE. Cada mensaje es un `LiveStepEvent` serializado en el campo `data:`.',
+    content: { 'text/event-stream': { schema: { type: 'string', format: 'binary' } } },
+  })
   @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST')
   stream(
     @TenantId() tenantId: bigint,

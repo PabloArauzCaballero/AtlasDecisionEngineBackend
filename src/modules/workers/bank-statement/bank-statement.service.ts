@@ -5,8 +5,30 @@ import { DomainException } from '../../../common/errors/domain-exception';
 import { JobName } from '../../../common/jobs/job-names';
 import { JobSignalService } from '../../../common/jobs/job-signal.service';
 import { PrismaService } from '../../../common/prisma/prisma.service';
+import { ObjectStorageService } from '../../../common/storage/object-storage.service';
 import type { AuthenticatedPrincipal } from '../../../common/security/security.types';
 import { newRequestId, type ValidatedStatementInput } from './bank-statement-input';
+import { persistableCarrier } from '../../../common/events/trace-carrier';
+import { MessagingTraceService } from '../../../common/observability/messaging-trace.service';
+
+/**
+ * Estados terminales SIN resultado: subir otra vez el mismo documento vuelve a
+ * intentarlo en lugar de devolver el intento anterior. Ver `createRun`.
+ */
+const RETRYABLE_STATUSES: readonly WorkerRunStatus[] = [
+  WorkerRunStatus.FAILED,
+  WorkerRunStatus.CANCELLED,
+  /*
+   * `PDF_INVALID` está aquí por el MISMO motivo que `FAILED`, y es fácil de
+   * pasar por alto: un rechazo es un veredicto del clasificador de ese día. Si
+   * no fuera reintentable, ninguna recalibración de los umbrales ni ninguna
+   * señal nueva alcanzaría jamás a los documentos que la motivaron —se afina el
+   * triage, el mismo archivo sigue devolviendo «PDF no válido», y lo razonable
+   * es concluir que el arreglo no sirvió—. Volver a subirlo es exactamente lo
+   * que hace quien no está de acuerdo con el rechazo.
+   */
+  WorkerRunStatus.PDF_INVALID,
+];
 
 /** Estados desde los que ya no puede pasar nada más. */
 const TERMINAL_STATUSES: readonly WorkerRunStatus[] = [
@@ -14,6 +36,7 @@ const TERMINAL_STATUSES: readonly WorkerRunStatus[] = [
   WorkerRunStatus.SUCCEEDED_WITH_WARNINGS,
   WorkerRunStatus.FAILED,
   WorkerRunStatus.CANCELLED,
+  WorkerRunStatus.PDF_INVALID,
 ];
 
 /** Columnas que se devuelven al cliente. `fileBytes` NUNCA está entre ellas. */
@@ -29,10 +52,20 @@ const RUN_SELECTION = {
   resultJson: true,
   warningsJson: true,
   confidence: true,
+  documentTypeConfidence: true,
   institutionId: true,
   transactionCount: true,
   errorCode: true,
   errorMessage: true,
+  reviewReason: true,
+  rejectionReason: true,
+  reviewPriority: true,
+  reviewOpenedAt: true,
+  reviewClaimedBy: true,
+  reviewClaimedAt: true,
+  reviewResolvedBy: true,
+  reviewResolvedAt: true,
+  reviewNotes: true,
   attemptCount: true,
   queuedAt: true,
   startedAt: true,
@@ -61,6 +94,8 @@ export class BankStatementService {
     private readonly prisma: PrismaService,
     private readonly jobSignal: JobSignalService,
     private readonly config: ConfigService,
+    private readonly messagingTrace: MessagingTraceService,
+    private readonly objectStorage: ObjectStorageService,
   ) {}
 
   /**
@@ -80,12 +115,24 @@ export class BankStatementService {
     source: WorkerInputSource,
     fixtureCode?: string,
   ): Promise<{ run: BankStatementRunView; deduplicated: boolean }> {
+    // El `requestId` sale del `create` porque ahora forma parte de la RUTA del objeto, y la ruta
+    // hay que conocerla antes de escribirlo.
+    const requestId = newRequestId();
+
+    /*
+     * El extracto se copia al almacén ANTES de crear la fila, por lo mismo que las imágenes de
+     * identidad: al revés, una caída entre las dos operaciones deja una ejecución que se procesa,
+     * decide y cierra sin que su documento se guardara nunca. Si el almacén falla no hay alta y el
+     * cliente reintenta, que es preferible a una capacidad de pago sin el extracto que la sostiene.
+     */
+    const guardado = await this.storeStatementFile(tenantId, requestId, input, source);
+
     try {
       const run = await this.prisma.$transaction(async (tx) => {
         const created = await tx.bankStatementRun.create({
           data: {
             tenantId,
-            requestId: newRequestId(),
+            requestId,
             status: WorkerRunStatus.QUEUED,
             inputSource: source,
             fixtureCode: fixtureCode ?? null,
@@ -98,8 +145,15 @@ export class BankStatementService {
             // subida, con 10 MiB de techo— en lugar de resolverlo con un cast:
             // un cast escondería que los dos tipos no son intercambiables.
             fileBytes: new Uint8Array(input.bytes),
+            // La copia que SOBREVIVE al cierre. `fileBytes` se sigue borrando igual.
+            fileObjectKey: guardado?.objectKey ?? null,
+            fileSha256: guardado?.sha256 ?? null,
             requestedBy: principal.id,
             correlationId: principal.requestId,
+            // Contexto de traza capturado AQUÍ, en el proceso de API: tras el commit se pierde,
+            // y el worker que reclame esta fila en otro proceso ya no podría recuperarlo. Sin
+            // traza activa queda nulo y el worker abre una traza raíz.
+            traceCarrier: persistableCarrier(this.messagingTrace.inject()),
           },
           select: RUN_SELECTION,
         });
@@ -111,6 +165,11 @@ export class BankStatementService {
       });
       return { run, deduplicated: false };
     } catch (error) {
+      // El objeto que se acaba de escribir quedó sin fila que lo referencie: la ruta lleva un
+      // `requestId` que ya no va a existir. Se borra aquí y no en un barrido posterior porque este
+      // es el único momento en que se sabe cuál es. Si la huella resulta duplicada y hay que
+      // reencolar, `requeue` escribe el suyo bajo el `requestId` que sí sobrevive.
+      if (guardado) await this.objectStorage.remove(guardado.objectKey);
       if (!isUniqueViolation(error)) throw error;
       const existing = await this.prisma.bankStatementRun.findFirst({
         where: { tenantId, fileHash: input.fileHash },
@@ -120,9 +179,167 @@ export class BankStatementService {
       // entre las dos consultas. Propagar el error original es más honesto que
       // fingir un resultado.
       if (!existing) throw error;
+      /*
+       * Un intento FALLIDO no se sirve de la caché: se vuelve a intentar.
+       *
+       * La deduplicación es por huella del archivo y no caduca, así que un
+       * documento que falló una vez respondía con ese fallo PARA SIEMPRE.
+       * Volver a subirlo no cambiaba nada, y tampoco había clave con la que
+       * forzar el reanálisis —el de extractos, a diferencia del semántico y el
+       * de identidad, no admite `idempotencyKey`—. El efecto es que ninguna
+       * corrección del lector de PDF alcanzaba jamás a los documentos que la
+       * necesitaban: se arreglaba el motor, el mismo archivo seguía devolviendo
+       * el error de antes, y lo razonable era concluir que el arreglo no servía.
+       *
+       * Lo que la deduplicación protege es no repetir TRABAJO YA HECHO. Un
+       * fallo no es trabajo hecho: es la ausencia de resultado. Reintentarlo
+       * cuesta lo mismo que costó fallar, y es lo que quiere decir quien vuelve
+       * a subir el mismo archivo.
+       */
+      if (RETRYABLE_STATUSES.includes(existing.status)) {
+        this.logger.debug(
+          `Extracto con intento ${existing.status} para esta huella; se reencola ${existing.requestId}`,
+        );
+        return {
+          run: await this.requeue(
+            existing.requestId,
+            tenantId,
+            principal,
+            input,
+            source,
+            fixtureCode,
+          ),
+          deduplicated: false,
+        };
+      }
       this.logger.debug(`Extracto ya encolado para esta huella; se devuelve ${existing.requestId}`);
       return { run: existing, deduplicated: true };
     }
+  }
+
+  /**
+   * Copia el extracto al almacén y devuelve su clave.
+   *
+   * **Una subida real sin almacén se RECHAZA**, por lo mismo que en identidad: el aviso en el log
+   * no lo lee nadie, la ejecución decidía y cerraba, y el extracto sobre el que se calculó una
+   * capacidad de pago no existía al día siguiente para responder a una impugnación. Los ESCENARIOS
+   * (`fixtureCode`) siguen pasando sin almacén: su PDF lo genera el motor y no es de nadie.
+   *
+   * Si el almacén SÍ está y rechaza la escritura, se propaga: «no hay almacén» y «hay almacén y no
+   * me deja escribir» son dos cosas distintas, y tratarlas igual deja claves de objetos que nunca
+   * existieron.
+   */
+  private async storeStatementFile(
+    tenantId: bigint,
+    requestId: string,
+    input: ValidatedStatementInput,
+    source: WorkerInputSource,
+  ): Promise<{ objectKey: string; sha256: string | null } | null> {
+    if (!this.objectStorage.isConfigured()) {
+      if (source === WorkerInputSource.UPLOAD) {
+        throw new DomainException(
+          'STATEMENT_FILE_STORAGE_NOT_CONFIGURED',
+          'No se puede analizar un extracto sin un sitio donde conservarlo: declara ' +
+            'STORAGE_S3_ENDPOINT, STORAGE_S3_BUCKET, STORAGE_S3_ACCESS_KEY_ID y ' +
+            'STORAGE_S3_SECRET_ACCESS_KEY. Se rechaza la subida en vez de calcular una capacidad ' +
+            'de pago y perder el documento que la sostiene.',
+          HttpStatus.SERVICE_UNAVAILABLE,
+        );
+      }
+      this.logger.warn(
+        `El escenario ${requestId} se encola sin copia persistente: no hay almacén configurado. ` +
+          'Su PDF es generado, así que no hay documento de nadie que perder.',
+      );
+      return null;
+    }
+
+    // Siempre PDF: `validateStatementUpload` comprueba los bytes mágicos antes de llegar aquí, así
+    // que el tipo no sale de lo que declare quien sube.
+    const objectKey = this.objectStorage.buildStatementKey({
+      tenantId,
+      requestId,
+      extension: 'pdf',
+    });
+    // El almacén ya calcula la huella al escribir. Se guarda con la clave: sin ella, la copia no
+    // se puede contrastar con el PDF que subió el cliente.
+    const guardado = await this.objectStorage.put(objectKey, input.bytes, 'application/pdf');
+    return { objectKey, sha256: guardado?.sha256Hex ?? null };
+  }
+
+  /**
+   * Devuelve a la cola una ejecución que terminó sin resultado.
+   *
+   * Se ACTUALIZA la fila en vez de crear otra porque la huella es única por
+   * tenant: dos filas para el mismo documento no caben, y borrar y recrear
+   * perdería el `requestId` que alguien pueda estar siguiendo.
+   *
+   * Los bytes se reponen desde la subida nueva, y no es un detalle: el worker
+   * borra `fileBytes` en la misma transacción con la que cierra la ejecución
+   * —es la decisión de privacidad de esta tabla—, así que la fila que se
+   * reencola ya no tiene documento que analizar.
+   */
+  private async requeue(
+    requestId: string,
+    tenantId: bigint,
+    principal: AuthenticatedPrincipal,
+    input: ValidatedStatementInput,
+    source: WorkerInputSource,
+    fixtureCode?: string,
+  ): Promise<BankStatementRunView> {
+    const guardado = await this.storeStatementFile(tenantId, requestId, input, source);
+
+    return this.prisma.$transaction(async (tx) => {
+      const requeued = await tx.bankStatementRun.update({
+        where: { tenantId_requestId: { tenantId, requestId } },
+        data: {
+          status: WorkerRunStatus.QUEUED,
+          progress: 0,
+          inputSource: source,
+          fixtureCode: fixtureCode ?? null,
+          fileName: input.fileName,
+          fileSizeBytes: input.bytes.byteLength,
+          fileBytes: new Uint8Array(input.bytes),
+          // La copia duradera del intento NUEVO. Se repone junto con los bytes y por la misma
+          // razón: la fila que se reencola perdió su documento al cerrarse el intento anterior.
+          fileObjectKey: guardado?.objectKey ?? null,
+          fileSha256: guardado?.sha256 ?? null,
+          // El rastro del intento anterior se limpia entero: dejar el código de
+          // error junto a un estado QUEUED describiría una ejecución que no
+          // existe.
+          resultJson: Prisma.DbNull,
+          warningsJson: Prisma.DbNull,
+          confidence: null,
+          documentTypeConfidence: null,
+          institutionId: null,
+          transactionCount: null,
+          errorCode: null,
+          errorMessage: null,
+          // El expediente de revisión del intento anterior se limpia entero: un
+          // motivo de revisión sobre una fila en cola describe un caso que ya no
+          // existe, y la restricción de la base lo rechazaría de todos modos.
+          reviewReason: null,
+          rejectionReason: null,
+          reviewPriority: null,
+          reviewOpenedAt: null,
+          reviewClaimedBy: null,
+          reviewClaimedAt: null,
+          reviewResolvedBy: null,
+          reviewResolvedAt: null,
+          reviewNotes: null,
+          attemptCount: 0,
+          leaseExpiresAt: null,
+          queuedAt: new Date(),
+          startedAt: null,
+          finishedAt: null,
+          requestedBy: principal.id,
+          correlationId: principal.requestId,
+          traceCarrier: persistableCarrier(this.messagingTrace.inject()),
+        },
+        select: RUN_SELECTION,
+      });
+      await this.jobSignal.notify(tx, JobName.BankStatement);
+      return requeued;
+    });
   }
 
   /** Una ejecución del tenant. Ajena o inexistente responden igual: 404. */

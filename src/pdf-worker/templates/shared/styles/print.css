@@ -1,0 +1,98 @@
+/*
+ * Comportamiento en papel (§27).
+ *
+ * Es la hoja que separa un documento de una captura de pantalla larga. Lo que resuelve:
+ *
+ *  - Una tabla de doscientas filas que cruza cinco páginas y deja las CABECERAS en la primera:
+ *    a partir de la hoja dos, las columnas dejan de tener nombre. `thead { display:
+ *    table-header-group }` hace que el motor las repita.
+ *  - Filas partidas por la mitad, con la letra cortada en horizontal. `break-inside: avoid`
+ *    sobre `tr` lo impide.
+ *  - Un título de sección que cae en la última línea de una página y su contenido en la
+ *    siguiente. `break-after: avoid` lo mantiene con lo que encabeza.
+ *  - Líneas viudas y huérfanas: una sola línea de un párrafo sola al final o al principio de
+ *    una hoja.
+ *
+ * **Aquí NO se declara `@page { margin }`.** Parece inofensivo y no lo es: en Chromium el margen
+ * del CSS GANA sobre el que recibe la API de impresión. Con `margin: 0` —que es lo que había—
+ * el cuerpo pasaba a ocupar la hoja entera y el membrete y el pie, que se dibujan DENTRO de los
+ * márgenes, quedaban encima del texto: el título bajo la banda institucional y la última fila
+ * de la tabla cruzada por el pie. No lo detectó ninguna prueba, porque el HTML era correcto y
+ * el PDF tenía su firma, su tamaño y sus páginas; se vio abriendo el documento.
+ *
+ * Los márgenes los fija el `PageSetup` del dominio, que es la única fuente de verdad y la que
+ * `assertPageSetup` valida.
+ */
+
+@media print {
+  .doc {
+    /* Sin esto, el navegador «optimiza» los fondos y la cebra de las tablas desaparece
+       incluso con `printBackground` activo. */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  p,
+  li {
+    orphans: 3;
+    widows: 3;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tfoot {
+    display: table-footer-group;
+  }
+
+  tr,
+  .kv__row,
+  .signature,
+  .summary,
+  .notice {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .section__title,
+  .doc-title,
+  .doc-subtitle,
+  caption {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  /* Una sección corta no debe quedar partida; una larga tiene que poder fluir, o el motor la
+     empuja entera a la hoja siguiente y deja media página en blanco. El compromiso es evitar
+     el corte sólo en el arranque de la sección. */
+  .section {
+    break-inside: auto;
+  }
+
+  .section__header {
+    break-inside: avoid;
+    break-after: avoid;
+  }
+
+  img,
+  figure {
+    break-inside: avoid;
+  }
+
+  /* Saltos explícitos, para que un template pueda forzar una hoja nueva sin inventar CSS. */
+  .page-break-before {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  .page-break-after {
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .keep-together {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

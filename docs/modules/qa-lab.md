@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/qa-lab/`](https://github.com/) · 10 ficheros TypeScript.
+Código: [`src/modules/qa-lab/`](https://github.com/) · 14 ficheros TypeScript.
 
 Etiquetas de API: **QA Lab**.
 
@@ -18,7 +18,8 @@ Etiquetas de API: **QA Lab**.
 | `GET` | `/v1/qa-lab/properties` | `qaLabProperties` | Propiedades que el QA Lab verifica en cada ejecución |
 | `GET` | `/v1/qa-lab/runs` | `qaLabListRuns` | Historial de corridas generativas |
 | `GET` | `/v1/qa-lab/runs/{runId}` | `qaLabGetRun` | Detalle de una corrida con sus contraejemplos mínimos |
-| `POST` | `/v1/qa-lab/versions/{versionId}/runs` | `qaLabRun` | Generar y ejecutar un lote de casos contra una versión compilada |
+| `GET` | `/v1/qa-lab/versions/{versionId}/outcomes` | `qaLabListOutcomes` | Desenlaces que alcanza el grafo de una versión |
+| `POST` | `/v1/qa-lab/versions/{versionId}/runs` | `qaLabRun` | Lanzar un lote de casos contra una versión compilada |
 | `POST` | `/v1/qa-lab/versions/{versionId}/sample-inputs` | `qaLabSampleInputs` | Generar valores de prueba de una versión compilada, sin ejecutarlos |
 
 ## Autorización
@@ -33,6 +34,8 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `PLATFOR
 - `QA_DISTRIBUTION_VARIABLE_UNKNOWN`
 - `QA_DISTRIBUTION_WEIGHT_INVALID`
 - `QA_RUN_NOT_FOUND`
+- `QA_RUN_OUTCOME_UNKNOWN`
+- `QA_RUN_OUTCOME_WEIGHT_INVALID`
 - `QA_RUN_PROD_FORBIDDEN`
 - `QA_VERSION_NOT_COMPILED`
 

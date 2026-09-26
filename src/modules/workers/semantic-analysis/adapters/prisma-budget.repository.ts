@@ -36,14 +36,22 @@ export class PrismaTenantBudgetRepository implements TenantBudgetRepository {
    */
   async tryConsume(tenantId: string, windowSeconds: number, maxAnalyses: number): Promise<boolean> {
     const windowStart = this.windowStart(windowSeconds);
-    const rows = await this.prisma.$queryRaw<Array<{ analyses: number }>>(Prisma.sql`
+    // Sigue siendo UNA sentencia; la transacción de una sola operación no cambia su
+    // atomicidad. Está aquí porque `decision_semantic_tenant_budget` tiene RLS FORZADA y
+    // `$queryRaw` suelto no fija `app.tenant_id` (ver `outbox-relay.service.ts`): sobre una
+    // conexión del pool que ya sirvió a un tenant la política evalúa `''::bigint` y aborta
+    // con 22P02 — y aquí eso no degrada un trabajo de fondo, tumba la reserva de
+    // presupuesto de un análisis en curso.
+    const [rows] = await this.prisma.$transaction([
+      this.prisma.$queryRaw<Array<{ analyses: number }>>(Prisma.sql`
       INSERT INTO decision_semantic_tenant_budget (tenant_id, window_start, analyses, provider_calls)
       VALUES (${BigInt(tenantId)}, ${windowStart}, 1, 0)
       ON CONFLICT (tenant_id, window_start) DO UPDATE
         SET analyses = decision_semantic_tenant_budget.analyses + 1
         WHERE decision_semantic_tenant_budget.analyses < ${maxAnalyses}
       RETURNING analyses
-    `);
+    `),
+    ]);
     return rows.length > 0;
   }
 
@@ -52,12 +60,15 @@ export class PrismaTenantBudgetRepository implements TenantBudgetRepository {
     const windowStart = this.windowStart(windowSeconds);
     // Sin cota: esto CONTABILIZA lo ya gastado, no autoriza gasto. Rechazar
     // aquí no devolvería la llamada al proveedor, sólo perdería su registro.
-    await this.prisma.$executeRaw(Prisma.sql`
+    // `$transaction` por la RLS forzada de la tabla, igual que en `tryConsume`.
+    await this.prisma.$transaction([
+      this.prisma.$executeRaw(Prisma.sql`
       INSERT INTO decision_semantic_tenant_budget (tenant_id, window_start, analyses, provider_calls)
       VALUES (${BigInt(tenantId)}, ${windowStart}, 0, ${calls})
       ON CONFLICT (tenant_id, window_start) DO UPDATE
         SET provider_calls = decision_semantic_tenant_budget.provider_calls + ${calls}
-    `);
+    `),
+    ]);
   }
 
   async findUsage(tenantId: string, windowSeconds: number): Promise<TenantBudgetUsage | undefined> {
@@ -117,13 +128,17 @@ export class PrismaAuditRetentionRepository implements AuditRetentionRepository 
   async minimizeOlderThan(days: number): Promise<number> {
     // `md5` del propio Postgres: la huella se calcula donde está el dato, sin
     // traer a memoria del worker textos que precisamente se quieren dejar de
-    // retener.
-    return this.prisma.$executeRaw(Prisma.sql`
+    // retener. `$transaction` por la RLS forzada de la tabla; ver
+    // `outbox-relay.service.ts`.
+    const [minimized] = await this.prisma.$transaction([
+      this.prisma.$executeRaw(Prisma.sql`
       UPDATE decision_semantic_analysis_run
       SET input_text = 'minimizado:' || md5(input_text)
       WHERE finished_at < ${daysAgo(days)}
         AND input_text NOT LIKE 'minimizado:%'
-    `);
+    `),
+    ]);
+    return minimized;
   }
 }
 

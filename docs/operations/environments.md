@@ -6,21 +6,30 @@
     | | Ambiente de despliegue | Ambiente de decisión |
     | --- | --- | --- |
     | Qué es | Dónde corre el software | Contra qué versión se decide |
-    | Ejemplos | local, staging, producción | `SANDBOX`, `TEST`, `PROD` |
+    | Ejemplos | local, staging, producción | `DEV`, `STAGING`, `TEST`, `PROD` |
     | Se configura en | Variables de entorno | Fila de `decision_environment` |
 
     Una instalación productiva sirve decisiones de **varios** ambientes de decisión: un analista
     prueba contra `TEST` en el mismo despliegue que atiende `PROD`.
 
+    Los dos juegos comparten la palabra «staging» y NO son lo mismo: el despliegue de staging es
+    una instalación entera del motor; `STAGING` es una fila del catálogo que cualquier instalación
+    —incluida la productiva— puede servir.
+
 ## Ambientes de decisión
 
 | Código | Para qué | Restricciones propias |
 | --- | --- | --- |
-| `SANDBOX` | Diseño y exploración | Permite simulación y stream en vivo |
+| `DEV` | Diseño y exploración | Permite simulación y stream en vivo |
 | `TEST` | Regresión y QA | El QA Lab puede ejecutar aquí |
+| `STAGING` | Ensayo previo a producción | Mismas restricciones que `PROD` salvo que no decide sobre clientes |
 | `PROD` | Decisiones reales | **Excluido del QA Lab**; una referencia a otro artefacto exige versión exacta |
 
 `DEFAULT_ENVIRONMENT` (`PROD`) es el que se asume cuando no se indica otro.
+
+`DEV` se llamaba `SANDBOX` hasta la migración `20260808120000_four_decision_environments`, que lo
+renombra —no lo duplica— para no partir en dos el histórico de despliegues y ejecuciones. Una base
+que todavía no la haya aplicado sigue funcionando: el motor acepta `SANDBOX` como sinónimo de `DEV`.
 
 Que PROD esté excluido del QA Lab no es una precaución genérica: una corrida mete miles de
 ejecuciones sintéticas que contaminarían métricas y datos reales.
@@ -55,3 +64,7 @@ No son recomendaciones: el arranque falla.
 
 Se promueve una **versión aprobada**, no un contenido copiado: el artefacto compilado es el
 mismo binario lógico en `TEST` y en `PROD`. Ver [despliegue](deployment.md).
+
+El camino previsto es `DEV → TEST → STAGING → PROD`. `TEST → PROD` sigue permitido: `STAGING` es
+un escalón que se ofrece, no un peaje nuevo, y convertirlo en obligatorio habría invalidado de
+golpe promociones ya auditadas.

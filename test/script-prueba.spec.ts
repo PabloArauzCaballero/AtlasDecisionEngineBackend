@@ -12,7 +12,20 @@ import { ScriptNodeRunnerService } from '../src/modules/graph/script-node-runner
 const JS = fs.readFileSync(path.join(__dirname, '..', 'docs', 'script-prueba.js'), 'utf8');
 const PY = fs.readFileSync(path.join(__dirname, '..', 'docs', 'script-prueba.py'), 'utf8');
 
-function runner(timeoutMs = 3000) {
+/**
+ * Presupuesto por defecto de los casos que ejecutan un script de verdad.
+ *
+ * Cubre el arranque del proceso hijo, que no es cosa de este código: en una máquina de
+ * desarrollo Windows con contenedores activos, `node -e 0` mide entre 1 356 y 2 919 ms, así que
+ * los 3 s que había aquí se agotaban antes de ejecutar una línea y la prueba fallaba con
+ * `script timed out` sin nada roto. Python arranca aún más despacio. Es un techo, no una espera:
+ * subirlo no ralentiza ninguna prueba, sólo evita matarlas antes de tiempo.
+ *
+ * El caso de timeout de más abajo pasa su propio valor corto a propósito.
+ */
+const SPAWN_BUDGET_MS = 15_000;
+
+function runner(timeoutMs = SPAWN_BUDGET_MS) {
   return new ScriptNodeRunnerService(
     new ConfigService({ SCRIPT_NODES_ENABLED: true, SCRIPT_NODE_TIMEOUT_MS: timeoutMs }),
   );
@@ -20,7 +33,10 @@ function runner(timeoutMs = 3000) {
 
 const ctx = (variables: Record<string, unknown>) => ({ variables, decision: {}, output: {} });
 
-jest.setTimeout(30_000);
+// Varios casos arrancan DOS intérpretes (JavaScript y Python) en la misma prueba. Con un
+// arranque lento, 30 s se quedaban justos y el fallo aparecía como un timeout de Jest, que
+// apunta al sitio equivocado. Es el plazo del arnés, no una aserción.
+jest.setTimeout(60_000);
 
 describe('scripts de prueba del ejecutor (IN_PROCESS)', () => {
   it('JavaScript: aprueba una solicitud de riesgo medio', async () => {

@@ -26,6 +26,36 @@ return { riskLevel: variables.age >= 21 ? 'LOW' : 'HIGH' };
 
   beforeAll(async () => {
     app = await createTestApp();
+
+    /**
+     * La salida que el contrato del código declara tiene que existir en el catálogo.
+     *
+     * El analizador rechaza importar código que nombra variables que nadie definió
+     * (`CODE_IMPORT_VARIABLE_NOT_IN_CATALOG`), porque el grafo resultante no podría
+     * resolverlas. `riskLevel` no está en el catálogo sembrado —que usa snake_case— así que
+     * la crea la propia prueba, igual que crea sus artefactos. Sembrarla en
+     * `variable-catalog.data.ts` metería un dato de prueba en el catálogo de referencia que
+     * se mantiene en producción.
+     */
+    await request(server())
+      .post('/v1/variables')
+      .set(author)
+      .send({
+        variableCode: 'riskLevel',
+        canonicalName: 'Nivel de riesgo',
+        businessDescription: 'Salida declarada por el código importado en esta prueba.',
+        dataClassification: 'INTERNAL',
+        ownerTeam: 'RISK_DECISIONING',
+        isSensitive: false,
+        initialVersion: {
+          dataType: 'STRING',
+          nullable: false,
+          sources: [],
+          validationRules: [],
+        },
+      });
+    // Sin `.expect(...)`: si ya existe de una corrida anterior responde 409 y da igual, lo
+    // que importa es que esté antes de analizar.
   });
 
   afterAll(async () => {
@@ -236,7 +266,7 @@ const x = ;
     await request(server())
       .post(`/v1/artifact-versions/${versionId}/deployments`)
       .set(deployer)
-      .send({ environmentCode: 'SANDBOX', deploymentMode: 'DIRECT', traffic: [] })
+      .send({ environmentCode: 'DEV', deploymentMode: 'DIRECT', traffic: [] })
       .expect(201);
 
     const simulated = await request(server())
@@ -244,7 +274,7 @@ const x = ;
       .set(author)
       .send({
         requestId: `code-import-sim-${runId}`,
-        environmentCode: 'SANDBOX',
+        environmentCode: 'DEV',
         variables: { age: 30 },
       })
       .expect(201);

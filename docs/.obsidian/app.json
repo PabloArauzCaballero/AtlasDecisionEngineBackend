@@ -1,0 +1,14 @@
+{
+  "useMarkdownLinks": true,
+  "newLinkFormat": "relative",
+  "alwaysUpdateLinks": true,
+  "attachmentFolderPath": "vault/adjuntos",
+  "showUnsupportedFiles": true,
+  "trashOption": "system",
+  "promptDelete": true,
+  "strictLineBreaks": false,
+  "readableLineLength": true,
+  "defaultViewMode": "source",
+  "livePreview": true,
+  "spellcheckLanguages": ["es-ES", "en-US"]
+}

@@ -1,0 +1,43 @@
+{{!--
+  Cuerpo de `generic-result-report@1.0.0`.
+
+  Todo lo institucional —membrete, pie, numeración, tipografía, márgenes— lo pone el layout
+  base. Aquí sólo está el CONTENIDO, y por eso esta plantilla cabe en una pantalla. Cuando un
+  template de negocio empieza a crecer suele ser porque está reimplementando algo que el
+  armazón ya hace.
+
+  Ni un `{{{ }}}` ni un color escrito a mano: lo primero lo impide `template-source.lint.ts` al
+  cargar, lo segundo es la regla de `tokens.css`.
+--}}
+{{> atlas/heading title=data.title subtitle=data.subtitle}}
+
+{{#if data.summary}}
+  <div class="summary-row">
+    {{#each data.summary}}
+      {{> atlas/summary label=this.label value=this.value caption=this.caption}}
+    {{/each}}
+  </div>
+{{/if}}
+
+{{#each data.notices}}
+  {{> atlas/warning level=this.level title=this.title text=this.text}}
+{{/each}}
+
+{{#each data.sections}}
+  <section class="section{{#if this.pageBreakBefore}} page-break-before{{/if}}">
+    {{> atlas/section-header title=this.title description=this.description}}
+    <div class="section__body">
+      {{> atlas/key-value-list items=this.fields}}
+      {{#if this.table}}
+        {{> atlas/table columns=this.table.columns rows=this.table.rows}}
+      {{/if}}
+      {{#if (and (isEmpty this.fields) (not this.table))}}
+        <p class="table__empty">Este apartado no aporta datos.</p>
+      {{/if}}
+    </div>
+  </section>
+{{/each}}
+
+{{> atlas/signature signatures=data.signatures}}
+
+<footer class="doc-footnote">{{> atlas/metadata}}</footer>

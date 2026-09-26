@@ -416,7 +416,7 @@ describe('Nested decision trees (e2e)', () => {
     expect(run.body.status).toBe('PASSED');
   }, 20_000);
 
-  it('governs and deploys the parent to SANDBOX', async () => {
+  it('governs and deploys the parent to DEV', async () => {
     const submitted = await request(server())
       .post(`/v1/artifact-versions/${parentVersionId}/submit-for-review`)
       .set(author)
@@ -439,7 +439,7 @@ describe('Nested decision trees (e2e)', () => {
     const deployed = await request(server())
       .post(`/v1/artifact-versions/${parentVersionId}/deployments`)
       .set(deployer)
-      .send({ environmentCode: 'SANDBOX', deploymentMode: 'DIRECT', traffic: [] })
+      .send({ environmentCode: 'DEV', deploymentMode: 'DIRECT', traffic: [] })
       .expect(201);
     expect(deployed.body.deploymentStatus).toBe('ACTIVE');
   });
@@ -450,7 +450,7 @@ describe('Nested decision trees (e2e)', () => {
       .set(author)
       .send({
         requestId: `nested-sim-${runId}`,
-        environmentCode: 'SANDBOX',
+        environmentCode: 'DEV',
         variables: { age: 30 },
       })
       .expect(201);
@@ -471,7 +471,7 @@ describe('Nested decision trees (e2e)', () => {
       .set(author)
       .send({
         requestId: `nested-sim-decline-${runId}`,
-        environmentCode: 'SANDBOX',
+        environmentCode: 'DEV',
         variables: { age: 19 },
       })
       .expect(201);

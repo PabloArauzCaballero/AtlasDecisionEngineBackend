@@ -17,6 +17,8 @@ import type { PrismaService } from '../src/common/prisma/prisma.service';
 import type { AuthenticatedPrincipal } from '../src/common/security/security.types';
 import type { TestExecutionService } from '../src/modules/testing/test-execution.service';
 import { uniqueTenantId } from './support/unique-tenant';
+import { TracingService } from '../src/common/observability/tracing.service';
+import { MessagingTraceService } from '../src/common/observability/messaging-trace.service';
 
 /**
  * Governance / separation-of-duties guard rails on `recordDecision`.
@@ -42,9 +44,15 @@ describeDb('GovernanceService separation of duties (integration)', () => {
     { verifyBlockingTests } as unknown as TestExecutionService,
     new VersionStateService(prisma as unknown as PrismaService),
     new AuditService(prisma as unknown as PrismaService, new HashService(config)),
-    new OutboxPublisherService({
-      notify: jest.fn().mockResolvedValue(undefined),
-    } as unknown as JobSignalService),
+    new OutboxPublisherService(
+      {
+        notify: jest.fn().mockResolvedValue(undefined),
+      } as unknown as JobSignalService,
+      new MessagingTraceService(new TracingService()),
+    ),
+    // La revisión de seguridad sólo decide si se emite el aviso de riesgo alto; aquí lo que
+    // se prueba es el orden de las aprobaciones, así que devuelve el caso sin hallazgos.
+    { getVersionReview: jest.fn().mockResolvedValue({ severity: 'LOW', findings: [] }) } as never,
     config,
   );
 

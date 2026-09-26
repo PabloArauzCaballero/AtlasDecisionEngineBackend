@@ -27,6 +27,37 @@ const NODE_KEY = /^[A-Za-z0-9_\-]{2,120}$/;
 /** Mismo formato que `decision_reason_code.reason_code` (VarChar(120)). */
 const REASON_CODE = /^[A-Za-z0-9_\-]{2,120}$/;
 
+/**
+ * Qué SIGNIFICA económicamente cada salida del artefacto.
+ *
+ * ## Por qué faltaba, y por qué importa
+ *
+ * La columna existía en la base, el gate de despliegue la leía y el guardián de decisiones la
+ * validaba — pero NINGÚN camino de autoría la escribía. Es decir: el motor exigía a un artefacto de
+ * originación declarar su probabilidad de incumplimiento para llegar a producción, y no ofrecía
+ * ninguna forma de declararla. Todos los contratos quedaban en `NONE`, así que la política de
+ * crédito real no podía publicarse en PROD por un requisito que era imposible de cumplir.
+ *
+ * ## Por qué el gate está bien y lo que estaba mal era el hueco
+ *
+ * Un artefacto que decide quién recibe crédito y no dice cuál es su probabilidad de incumplimiento
+ * no se puede calibrar contra lo que realmente pasó, así que nadie podrá saber nunca si acierta.
+ * La salida correcta no era relajar el gate: era permitir cumplirlo.
+ */
+const SEMANTIC_ROLES = [
+  'NONE',
+  'PROBABILITY_OF_DEFAULT',
+  'LOSS_GIVEN_DEFAULT',
+  'EXPOSURE_AT_DEFAULT',
+  'EXPECTED_LOSS',
+  'RISK_GRADE',
+  'PRICED_RATE',
+  'APPROVED_LIMIT',
+  'APPROVED_TERM',
+] as const;
+
+export type SemanticRoleDto = (typeof SEMANTIC_ROLES)[number];
+
 const SENSITIVITY = [
   'PUBLIC',
   'INTERNAL',
@@ -103,6 +134,18 @@ export class OutputContractFieldDto {
   @IsString() @MaxLength(20) contractVersion!: string;
   @IsIn([...SENSITIVITY]) sensitivityClass!: string;
   @IsIn([...TRACE_POLICIES]) tracePolicy!: 'FULL' | 'MASKED' | 'REDACTED' | 'EXCLUDED';
+
+  /**
+   * Qué representa este campo en términos de riesgo.
+   *
+   * Opcional y con `NONE` por defecto: la inmensa mayoría de las salidas de un artefacto no son
+   * magnitudes económicas —un motivo, una etiqueta, un identificador— y obligar a clasificarlas
+   * todas convertiría una declaración significativa en un trámite que se rellena sin mirar.
+   *
+   * Pero un artefacto de ORIGINACIÓN sí tiene que declarar su `PROBABILITY_OF_DEFAULT` antes de
+   * llegar a producción, y hasta ahora no había manera de hacerlo: la columna sólo se leía.
+   */
+  @IsOptional() @IsIn([...SEMANTIC_ROLES]) semanticRole?: SemanticRoleDto;
 }
 
 /** Origen de una entrada de campo calculado dentro del grafo (§5.1). */

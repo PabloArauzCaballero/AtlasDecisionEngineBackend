@@ -6,27 +6,32 @@ import {
 import { SemanticProviderError } from '../../domain/semantic-analysis.errors';
 
 /**
- * Contrato de clasificación compartido por todos los adaptadores de modelo.
+ * Contrato de clasificación de los adaptadores GENERATIVOS.
  *
  * Vive fuera de cada adaptador porque la instrucción, el esquema de salida y la validación de
- * códigos deben ser idénticos entre proveedores: comparar un modelo alojado con uno local sólo
- * tiene sentido si ambos reciben exactamente el mismo encargo. Duplicar el prompt en cada
- * adaptador invalidaría la comparación en cuanto uno de los dos derivara.
+ * códigos deben ser idénticos entre proveedores: comparar dos modelos que escriben sólo tiene
+ * sentido si ambos reciben exactamente el mismo encargo. Duplicar el prompt en cada adaptador
+ * invalidaría la comparación en cuanto uno de los dos derivara.
+ *
+ * El adaptador de transformers usa de aquí una sola función, `assertOnlyCandidateCodes`. Del resto
+ * no necesita nada: un codificador no recibe instrucciones ni emite JSON, así que no hay prompt que
+ * compartir ni gramática que imponerle. Esa asimetría es la diferencia real entre pedirle un juicio
+ * a un modelo y medir un parecido.
  */
 
 /**
  * Esquema de la salida estructurada, construido para el conjunto candidato de cada análisis.
  *
- * Se envía tal cual a OpenAI (`text.format.json_schema`) y a Ollama (`format`), que lo convierte en
- * una gramática de decodificación. `additionalProperties: false` y `required` completos son
- * obligatorios para el modo `strict` de OpenAI; Ollama los acepta sin efectos adversos.
+ * Se envía tal cual a OpenAI (`text.format.json_schema`). `additionalProperties: false` y `required`
+ * completos son obligatorios para su modo `strict`.
  *
  * **`categoryCode` se enumera con los códigos candidatos** en lugar de declararse como cadena
- * libre. La diferencia es material en un modelo local: qwen3:4b llegó a prefijar todos los códigos
- * de una respuesta (`FINANC:PAYMENT_OPERATION`) con el juicio por lo demás correcto, y una cadena
- * libre no se lo impide — la enumeración sí, porque la gramática deja de poder emitir otra cosa.
- * `assertOnlyCandidateCodes` se mantiene: un proveedor puede ignorar el esquema, y esa comprobación
- * es la que garantiza que la decisión nunca recaiga sobre una categoría no propuesta.
+ * libre. La diferencia se midió contra un modelo pequeño servido en local, que llegó a prefijar
+ * todos los códigos de una respuesta (`FINANC:PAYMENT_OPERATION`) con el juicio por lo demás
+ * correcto: una cadena libre no se lo impide, y la enumeración sí, porque la gramática deja de
+ * poder emitir otra cosa. `assertOnlyCandidateCodes` se mantiene: un proveedor puede ignorar el
+ * esquema, y esa comprobación es la que garantiza que la decisión nunca recaiga sobre una categoría
+ * no propuesta.
  */
 export function buildClassificationSchema(
   candidateCodes: readonly string[],

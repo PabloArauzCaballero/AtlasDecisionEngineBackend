@@ -1,0 +1,58 @@
+# Anulación para levantar el stack en un anfitrión donde `no-new-privileges` rompe el `exec`.
+#
+# ┌──────────────────────────────────────────────────────────────────────────────────────┐
+# │  SOLO DESARROLLO LOCAL. Nunca en producción ni en un ambiente compartido.             │
+# └──────────────────────────────────────────────────────────────────────────────────────┘
+#
+# ## El síntoma
+#
+# Todo contenedor que declara `no-new-privileges:true` muere nada más arrancar con
+#
+#     exec /usr/local/bin/node: operation not permitted
+#
+# y `restart: unless-stopped` lo convierte en un bucle de reinicio silencioso: el stack
+# «arranca» y el sidecar nunca llega a servir.
+#
+# ## No es del proyecto
+#
+# Es el anfitrión. Con Docker 29.6.1 sobre el kernel 7.0.0-29-generic de esta máquina,
+# CUALQUIER imagen falla igual — reproducido con `postgres:16-alpine`, que no tiene nada
+# que ver con este repositorio:
+#
+#     docker run --rm --security-opt no-new-privileges:true --entrypoint sh postgres:16-alpine -c 'echo ok'
+#     exec /bin/sh: operation not permitted
+#
+# Sin la opción, la misma orden imprime `ok`. No es AppArmor ni seccomp: forzar
+# `apparmor=unconfined` y `seccomp=unconfined` no cambia nada. Cuando el anfitrión se
+# actualice y la orden de arriba vuelva a imprimir `ok`, este fichero sobra: bórralo.
+#
+# ## Lo que se pierde
+#
+# `no_new_privs` impide que un binario setuid dentro del contenedor eleve privilegios.
+# Sin él, esa vía queda abierta. Lo demás sigue en pie: sin red, `cap_drop: ALL`, raíz de
+# solo lectura, usuario no root y las cotas de CPU, memoria y pids.
+#
+# Es un fichero aparte y NO `docker-compose.override.yml` a propósito —igual que
+# `docker-compose.no-gvisor.yml`—: el override se carga solo, y eso significaría
+# desactivar la protección en silencio también en la máquina que sí la soporta. Aquí hay
+# que pedirlo a mano:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.no-gvisor.yml -f docker-compose.no-nnp.yml up -d
+#
+# La etiqueta `!override` es obligatoria aquí. Sin ella Compose FUSIONA las listas —las
+# concatena— y el resultado conserva `no-new-privileges:true` junto al valor nuevo: el
+# fichero parece aplicarse, `docker compose config` muestra las dos entradas y el
+# contenedor sigue en el mismo bucle de reinicio. `!override` reemplaza la lista entera.
+#
+# El valor que queda, `label:disable`, es inocuo donde SELinux no está activo —esta
+# máquina— y deja `security_opt` con un valor válido en vez de una lista vacía.
+services:
+  script-runner:
+    security_opt: !override
+      - label:disable
+  worker:
+    security_opt: !override
+      - label:disable
+  api:
+    security_opt: !override
+      - label:disable

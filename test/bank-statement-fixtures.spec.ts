@@ -38,6 +38,27 @@ describe('escenarios de prueba del worker de extractos', () => {
         maxPageCount: 60,
         processingTimeoutMs: 30_000,
       },
+      /*
+       * El reloj se FIJA, y es la única forma de que estos escenarios sigan
+       * demostrando algo.
+       *
+       * Los fixtures imprimen un periodo fijo —enero a marzo de 2026— porque su
+       * determinismo es lo que permite probar la deduplicación por SHA-256: unas
+       * fechas relativas a hoy cambiarían los bytes cada día. Desde que existe la
+       * compuerta de vigencia eso los convierte en extractos caducados, y sin
+       * fijar el reloj esta suite dejaría de medir el motor para medir el
+       * calendario: los mismos escenarios que hoy pasan fallarían mañana sin que
+       * nadie hubiera tocado una línea.
+       *
+       * Se evalúan contra el 1 de abril de 2026, que es la fecha de creación que
+       * los propios PDF declaran: el día en que el banco los habría emitido.
+       *
+       * Ojo: los fixtures se ejecutan TAMBIÉN desde el laboratorio del portal, y
+       * ahí corren contra el reloj real. Mientras sigan fechados en el primer
+       * trimestre, `BANK_STATEMENT_RECENCY_ENFORCE=true` los rechazará a todos
+       * por vencidos. Reanclarlos a una ventana móvil es lo que cierra ese hueco.
+       */
+      recencyGate: { now: () => new Date('2026-04-01T09:00:00Z') },
     });
   });
 
@@ -58,23 +79,189 @@ describe('escenarios de prueba del worker de extractos', () => {
     }
   });
 
-  it('«valid-basic» detecta la institución y lee sus movimientos', async () => {
+  it('«valid-basic» detecta la institución y lee sus tres meses de movimientos', async () => {
     const fixture = findBankStatementFixture('valid-basic');
     const result = await engine.normalize(fixture!.build(), { fileName: fixture!.fileName });
 
     expect(result.institution.detected).toBe(true);
     expect(result.institution.id).toBe('BGA');
-    expect(result.transactions).toHaveLength(2);
+    // Ocho movimientos por mes, tres meses. El número exacto importa: si el
+    // motor perdiera una fila, la mediana mensual del ingreso cambiaría y la
+    // capacidad de pago con ella.
+    expect(result.transactions).toHaveLength(24);
     expect(result.balances.opening).toBe(10_000);
-    expect(result.balances.closing).toBe(11_250);
 
-    const [debit, credit] = result.transactions;
-    expect(debit?.movementType).toBe('DEBIT');
-    expect(debit?.transactionDate).toBe('2026-03-02');
-    // El paréntesis de la glosa es el caso que rompería un PDF mal escapado.
-    expect(debit?.description).toContain('(CUOTA 3)');
-    expect(credit?.movementType).toBe('CREDIT');
-    expect(credit?.amount).toBe(1_500);
+    const first = result.transactions[0];
+    expect(first?.movementType).toBe('DEBIT');
+    expect(first?.transactionDate).toBe('2026-01-03');
+    const salaries = result.transactions.filter((item) => item.movementType === 'CREDIT');
+    expect(salaries).toHaveLength(3);
+  });
+
+  /*
+   * La capacidad de pago, de punta a punta.
+   *
+   * Se comprueba aquí y no en una suite propia por el mismo motivo que la
+   * compuerta de emisor: `pdfjs-dist` sólo puede cargarse en una máquina virtual
+   * de Jest por corrida, así que todo lo que necesite leer un PDF real vive en
+   * esta suite. Lo que se fija es el CONTRATO —hay evaluación, cubre tres meses,
+   * el ingreso reconocido es el sueldo y no la suma de abonos, y la cuota máxima
+   * no supera ninguno de los tres topes— y no cifras exactas, que se recalibran.
+   */
+  it('«valid-basic» calcula la capacidad de pago sobre los tres meses', async () => {
+    const fixture = findBankStatementFixture('valid-basic');
+    const result = await engine.normalize(fixture!.build(), { fileName: fixture!.fileName });
+    const { affordability } = result;
+
+    expect(affordability.eligible).toBe(true);
+    expect(affordability.coverage.monthsComplete).toBeGreaterThanOrEqual(3);
+    expect(affordability.coverage.minimumMonthsRequired).toBe(3);
+    expect(affordability.months).toHaveLength(3);
+
+    // El ingreso reconocido es del orden del sueldo mensual, no de la suma de
+    // los tres. Es la comprobación que separa «mediana mensual» de «total».
+    expect(affordability.income.monthlyRecognized).toBeGreaterThan(7_000);
+    expect(affordability.income.monthlyRecognized).toBeLessThan(9_000);
+
+    // La cuota del préstamo y el seguro son compromiso con un tercero; el
+    // supermercado y el restaurante no.
+    expect(affordability.obligations.monthly).toBeGreaterThan(1_000);
+    expect(affordability.capacity.maxAffordableInstallment).toBeGreaterThan(0);
+    expect(affordability.capacity.maxAffordableInstallment).toBeLessThanOrEqual(
+      affordability.income.monthlyRecognized * 0.15,
+    );
+    expect(affordability.score).toBeGreaterThan(0);
+  });
+
+  it('no cuenta como ingreso el traspaso entre cuentas propias', async () => {
+    /*
+     * El defecto que esta prueba fija, y que es el más caro de todos: sumar
+     * TODO lo que entra. Este escenario recibe cada mes 3.000 desde otra cuenta
+     * del propio titular y los devuelve al día siguiente. Contarlos inflaría el
+     * ingreso un 30 % con dinero que la persona ya tenía.
+     */
+    const fixture = findBankStatementFixture('valid-complete');
+    const result = await engine.normalize(fixture!.build(), { fileName: fixture!.fileName });
+    const { affordability } = result;
+
+    expect(affordability.eligible).toBe(true);
+    const abonos = result.totals.creditExtracted;
+    expect(abonos).toBeGreaterThan(affordability.income.monthlyRecognized * 3);
+    expect(affordability.income.excluded.INTERNAL_TRANSFER).toBeGreaterThan(0);
+    // El cobro por QR sí se reconoce: su glosa no lo identifica como ingreso,
+    // pero se repite los tres meses y la cadencia lo rescata.
+    expect(affordability.income.monthlyRecognized).toBeGreaterThan(8_000);
+  });
+
+  it('«strained-capacity» se acepta y sale con motivos, que no es lo mismo que aprobar', async () => {
+    const fixture = findBankStatementFixture('strained-capacity');
+    const result = await engine.normalize(fixture!.build(), { fileName: fixture!.fileName });
+    const { affordability } = result;
+
+    expect(affordability.eligible).toBe(true);
+    const codes = affordability.reasons.map((reason) => reason.code);
+    expect(codes).toContain('AFF_RECHAZOS_POR_FONDOS');
+    expect(codes).toContain('AFF_INGRESO_DECRECIENTE');
+    expect(codes).toContain('AFF_DEUDA_CRECIENTE');
+    expect(affordability.signals.nsfEvents).toBeGreaterThan(0);
+    expect(affordability.band).not.toBe('SOLIDA');
+  });
+
+  /*
+   * «short-period» cambió de bando, y el porqué es una medición.
+   *
+   * El extracto es impecable: entidad reconocida, movimientos legibles, saldos que
+   * cuadran. Lo único que le falta son meses. Eso RECHAZABA, y rechazaba de más:
+   * los meses se cuentan naturales y completos, así que el extracto que la banca
+   * por internet entrega como «últimos 3 meses» aporta dos y caía en el mismo
+   * saco que éste. Ahora se admite y se advierte — la capacidad de pago con un
+   * mes es menos fiable, no inexistente.
+   */
+  it('«short-period» se admite con una advertencia de cobertura, no se rechaza', async () => {
+    const fixture = findBankStatementFixture('short-period');
+    const result = await engine.normalize(fixture!.build(), { fileName: fixture!.fileName });
+
+    expect(result.affordability.coverage.satisfied).toBe(false);
+    expect(result.affordability.coverage.monthsComplete).toBeLessThan(3);
+    // La advertencia es lo único que separa «se midió y no alcanza» de «nadie lo
+    // miró»: sin ella, este extracto y uno de seis meses salen idénticos.
+    expect(result.quality.warnings.some((w) => w.startsWith('cobertura-insuficiente'))).toBe(true);
+  });
+
+  it('con la exigencia encendida, ese mismo extracto vuelve a rechazarse', async () => {
+    // La palanca tiene que llegar hasta el desenlace, no sólo hasta la política:
+    // una configuración que se lee y no se aplica es peor que no tenerla.
+    const exigente = createStatementEngine({
+      limits: { maxFileSizeBytes: 10 * 1_048_576, maxPageCount: 60, processingTimeoutMs: 30_000 },
+      affordability: { enforceMinimumMonths: true },
+      recencyGate: { now: () => new Date('2026-04-01T09:00:00Z') },
+    });
+    const fixture = findBankStatementFixture('short-period');
+
+    await expect(
+      exigente.normalize(fixture!.build(), { fileName: fixture!.fileName }),
+    ).rejects.toMatchObject({ code: 'INSUFFICIENT_STATEMENT_PERIOD' });
+  });
+
+  it('rechaza por VIGENCIA el extracto correcto que ya no describe el presente', async () => {
+    /*
+     * Mismo documento que «valid-basic» —el camino feliz— evaluado seis meses
+     * después. Nada del archivo cambia: lo que cambia es el día contra el que se
+     * mide, y eso basta. Es la única compuerta que puede cambiar de veredicto sin
+     * que nadie toque el documento.
+     */
+    const tarde = createStatementEngine({
+      limits: { maxFileSizeBytes: 10 * 1_048_576, maxPageCount: 60, processingTimeoutMs: 30_000 },
+      recencyGate: { now: () => new Date('2026-10-01T09:00:00Z') },
+    });
+    const fixture = findBankStatementFixture('valid-basic');
+
+    await expect(
+      tarde.normalize(fixture!.build(), { fileName: fixture!.fileName }),
+    ).rejects.toMatchObject({ code: 'STALE_STATEMENT' });
+  });
+
+  it('«tampered-document» se rechaza por su CONTENEDOR, con el mismo contenido que se acepta', async () => {
+    /*
+     * Este escenario y «valid-basic» imprimen exactamente lo mismo: misma
+     * entidad, mismas glosas, mismos importes. El clasificador acepta los dos y
+     * la compuerta de emisor también. Lo único que los separa es con qué se
+     * fabricó el archivo, que es lo que ninguna de las otras dos compuertas
+     * puede ver — y por eso hace falta la tercera.
+     */
+    const tampered = findBankStatementFixture('tampered-document');
+    await expect(
+      engine.normalize(tampered!.build(), { fileName: tampered!.fileName }),
+    ).rejects.toMatchObject({ code: 'TAMPERED_DOCUMENT' });
+
+    const clean = findBankStatementFixture('valid-basic');
+    const result = await engine.normalize(clean!.build(), { fileName: clean!.fileName });
+    expect(result.authenticity.verdict).toBe('AUTHENTIC');
+  });
+
+  it('publica los totales SUMADOS aunque el documento no imprima ninguno', async () => {
+    /*
+     * El defecto que esta prueba fija: `totals.debit`/`totals.credit` son los totales
+     * que IMPRIME el banco, y las estrategias especializadas —las de los siete formatos
+     * bolivianos— no los publican, así que llegaban `null` y quien los leía se quedaba
+     * sin el dato. El algoritmo `EXTRACTO_CAPACIDAD_PAGO` los leía para derivar el
+     * ingreso: con `null` caía a su valor por defecto y rechazaba por «cobertura
+     * insuficiente» extractos de los que había leído cada movimiento. Los sumados no
+     * dependen de lo que el banco decidiera imprimir.
+     */
+    const fixture = findBankStatementFixture('valid-basic');
+    const result = await engine.normalize(fixture!.build(), { fileName: fixture!.fileName });
+
+    expect(result.totals.debit).toBeNull();
+    expect(result.totals.credit).toBeNull();
+    expect(result.totals.debitExtracted).toBeGreaterThan(0);
+    expect(result.totals.creditExtracted).toBeGreaterThan(0);
+
+    // Y cuadran con los movimientos publicados, que es lo que los hace verificables.
+    const sum = (field: 'debit' | 'credit'): number =>
+      result.transactions.reduce((total, item) => total + (item[field] ?? 0), 0);
+    expect(result.totals.debitExtracted).toBeCloseTo(sum('debit'), 2);
+    expect(result.totals.creditExtracted).toBeCloseTo(sum('credit'), 2);
   });
 
   it('nunca publica el número de cuenta completo', async () => {
@@ -89,13 +276,12 @@ describe('escenarios de prueba del worker de extractos', () => {
     expect(JSON.stringify(result)).not.toContain('1234567890');
   });
 
-  it('«valid-complete» lee los seis movimientos y cuadra los saldos', async () => {
+  it('«valid-complete» lee los treinta y tres movimientos y cuadra los saldos', async () => {
     const fixture = findBankStatementFixture('valid-complete');
     const result = await engine.normalize(fixture!.build(), { fileName: fixture!.fileName });
 
-    expect(result.transactions).toHaveLength(6);
+    expect(result.transactions).toHaveLength(33);
     expect(result.balances.opening).toBe(25_000);
-    expect(result.balances.closing).toBe(31_278.25);
     expect(result.quality.checksPassed).toBeGreaterThan(0);
   });
 
@@ -120,6 +306,30 @@ describe('escenarios de prueba del worker de extractos', () => {
     ).rejects.toBeInstanceOf(StatementProcessingError);
   });
 
+  /*
+   * La compuerta de EMISOR, de punta a punta. Vive en esta suite y no en
+   * `statement-issuer-gate.spec.ts` porque `pdfjs-dist` sólo puede cargarse en
+   * una máquina virtual de Jest por corrida: dos suites leyendo PDF reales hacen
+   * fallar a la segunda con `PDF_EXTRACTION_FAILED`, un error que señala al
+   * documento y no al entorno. Allí se mide todo lo demás sobre texto ya
+   * extraído, incluida la mitad que da sentido a esto: que el clasificador, por
+   * sí solo, acepta este mismo documento.
+   */
+  it('«foreign-issuer» se rechaza por su emisor, no por su forma', async () => {
+    const fixture = findBankStatementFixture('foreign-issuer');
+
+    await expect(
+      engine.normalize(fixture!.build(), { fileName: fixture!.fileName }),
+    ).rejects.toMatchObject({ code: 'NON_BANKING_ISSUER' });
+  });
+
+  it('ese rechazo es un error de negocio, así que no consume reintentos', async () => {
+    const fixture = findBankStatementFixture('foreign-issuer');
+    await expect(
+      engine.normalize(fixture!.build(), { fileName: fixture!.fileName }),
+    ).rejects.toBeInstanceOf(StatementProcessingError);
+  });
+
   it('escapa los caracteres que romperían el PDF', async () => {
     // `(`, `)` y `\` tienen significado dentro de una cadena literal de PDF.
     // Sin escaparlos el archivo queda corrupto y el lector falla, así que esto
@@ -135,7 +345,16 @@ describe('escenarios de prueba del worker de extractos', () => {
     const codes = BANK_STATEMENT_FIXTURES.map((fixture) => fixture.code);
     expect(new Set(codes).size).toBe(codes.length);
     expect(codes).toEqual(
-      expect.arrayContaining(['valid-basic', 'valid-complete', 'boundary-case', 'invalid-example']),
+      expect.arrayContaining([
+        'valid-basic',
+        'valid-complete',
+        'strained-capacity',
+        'boundary-case',
+        'short-period',
+        'tampered-document',
+        'foreign-issuer',
+        'invalid-example',
+      ]),
     );
   });
 });

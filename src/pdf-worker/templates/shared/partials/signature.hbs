@@ -1,0 +1,19 @@
+{{!--
+  Bloque de firmas. Uso: {{> atlas/signature signatures=data.signatures}}
+
+  La línea se dibuja con `border-top` sobre una caja vacía y no con guiones bajos: los guiones
+  se rompen al justificar y su longitud depende de la fuente, así que dos firmas contiguas
+  salían de distinto ancho.
+--}}
+{{#if signatures}}
+  <div class="signatures">
+    {{#each signatures}}
+      <div class="signature">
+        <div class="signature__line">
+          <p>{{this.name}}</p>
+          {{#if this.role}}<p class="signature__role">{{this.role}}</p>{{/if}}
+        </div>
+      </div>
+    {{/each}}
+  </div>
+{{/if}}

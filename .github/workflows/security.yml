@@ -1,12 +1,9 @@
 name: Security
 
-# Static analysis and supply-chain checks, kept separate from the functional CI job so a
-# scanner outage never blocks a correctness-only change, and so CodeQL can run on its own
-# schedule (advisories land after code stops changing).
+# Static analysis and supply-chain checks. CI los invoca para bloquear un deploy inseguro;
+# el schedule conserva el reescaneo semanal de advisories nuevos.
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_call:
   schedule:
     # Weekly re-scan: new advisories apply to code that has not changed.
     - cron: '0 6 * * 1'
@@ -45,19 +42,86 @@ jobs:
         with:
           fail-on-severity: high
 
-  image-scan:
-    name: Container image scan
+  # Análisis estático de los Dockerfile. Barato y detecta justo la clase de defecto que una
+  # revisión humana pasa por alto: una etiqueta flotante, un `apt-get` sin `--no-install-
+  # recommends`, un `USER` que falta.
+  dockerfile-lint:
+    name: Dockerfile lint (hadolint)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build runtime image
-        run: docker build --target runtime -t atlas-decision-engine:scan .
-      - name: Scan image for OS and library vulnerabilities
-        uses: aquasecurity/trivy-action@0.24.0
+      - uses: hadolint/hadolint-action@v3.1.0
         with:
-          image-ref: atlas-decision-engine:scan
+          dockerfile: Dockerfile
+          # `failure-threshold: warning` y no `error`: las reglas de aviso de hadolint son las
+          # que cubren fijar versiones y limpiar cachés, que es precisamente lo que se quiere
+          # sostener aquí. Las excepciones se declaran en .hadolint.yaml con su motivo.
+          failure-threshold: warning
+
+  image-scan:
+    name: Container image scan
+    runs-on: ubuntu-latest
+    # Se escanean las TRES imágenes que se despliegan, no solo la de la API. `migrator` es la
+    # que más superficie tiene —lleva el CLI de Prisma y el árbol de desarrollo— y era la única
+    # que nadie miraba; que sea un contenedor efímero no la hace inofensiva: corre con la
+    # credencial de superusuario de la base de datos.
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [runtime, worker, migrator]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build ${{ matrix.target }} image
+        run: docker build --target ${{ matrix.target }} -t atlas-decision-engine:scan-${{ matrix.target }} .
+
+      - name: Scan image for OS and library vulnerabilities
+        # Fijada por SHA (v0.36.0). La etiqueta `0.24.0` dejó de existir y el paso fallaba en
+        # «Set up job» antes de escanear nada; una etiqueta puede moverse, un commit no.
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: atlas-decision-engine:scan-${{ matrix.target }}
           format: table
           # Matches the yarn audit threshold so the two gates agree.
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '1'
+
+      # El SBOM se genera de la IMAGEN construida y no del manifiesto del repositorio: el
+      # manifiesto dice lo que se pidió, la imagen dice lo que se embarcó. Cuando llegue un
+      # aviso sobre un paquete del sistema base, esta es la lista que responde «¿nos afecta?»
+      # sin tener que reconstruir una imagen que quizá ya no compila igual.
+      - name: Generate SBOM (SPDX)
+        uses: anchore/sbom-action@v0
+        with:
+          image: atlas-decision-engine:scan-${{ matrix.target }}
+          format: spdx-json
+          artifact-name: sbom-${{ matrix.target }}.spdx.json
+          output-file: ${{ runner.temp }}/sbom-${{ matrix.target }}.spdx.json
+
+      - name: Publish SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ matrix.target }}-${{ github.sha }}
+          path: ${{ runner.temp }}/sbom-${{ matrix.target }}.spdx.json
+          # Más retención que la documentación: un SBOM sirve para responder a un aviso que
+          # llega semanas después de que la versión se desplegó.
+          retention-days: 90
+
+  # Escaneo de secretos del árbol (auditoría a producción, 2026-09-13). Este repositorio es
+  # PÚBLICO: lo que entra en un commit queda indexado aunque se borre después. Corre antes de
+  # instalar dependencias, así que sólo mira código de Atlas. Alcance: el árbol (`dir`), no el
+  # historial; impide secretos NUEVOS. Las excepciones viven en la propia línea
+  # (`// gitleaks:allow`) y .gitleaks.toml explica por qué no hay excepciones por ruta.
+  secret-scan:
+    name: Escaneo de secretos (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Instalar gitleaks 8.30.1 (versión y checksum fijados)
+        run: |
+          curl -sSfL -o gitleaks.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz"
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf gitleaks.tar.gz gitleaks && sudo install gitleaks /usr/local/bin/gitleaks && rm gitleaks gitleaks.tar.gz
+      - name: Escanear el árbol
+        run: gitleaks dir . --config .gitleaks.toml --redact --exit-code 1

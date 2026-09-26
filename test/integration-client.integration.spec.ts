@@ -21,7 +21,7 @@ describeDb('IntegrationClientService (integration)', () => {
 
   const secrets = {
     active: 'secret-active-0123456789abcdef',
-    revokedCredential: 'secret-revoked-0123456789abcdef',
+    revokedCredential: 'secret-revoked-0123456789abcdef', // gitleaks:allow — fixture inventado
     expired: 'secret-expired-0123456789abcdef',
     suspendedClient: 'secret-suspended-0123456789abcdef',
     runtime: 'secret-runtime-0123456789abcdef',

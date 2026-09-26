@@ -1,0 +1,60 @@
+/*
+ * Valores por defecto de los tokens y escalas derivadas.
+ *
+ * Esta hoja se inserta ANTES del bloque que genera `brand-tokens.ts`, así que todo lo de aquí
+ * es un respaldo: una marca que declare `--ink` lo pisa por cascada. El orden lo fija
+ * `base-document.hbs` y está comentado allí, porque invertirlo deja las marcas sin efecto y no
+ * hay ningún error que lo delate.
+ *
+ * Ninguna hoja escribe un color literal fuera de este archivo. Un `#0f172a` suelto dentro de un
+ * componente sobrevive al cambio de marca y produce un documento con dos identidades: la de la
+ * organización en el membrete y la del programador en la tabla.
+ */
+
+:root {
+  --ink: #111827;
+  --ink-muted: #4b5563;
+  --accent: #1d4ed8;
+  --surface: #ffffff;
+  --surface-muted: #f4f5f7;
+  --line: #d4d7dd;
+  --positive: #047857;
+  --caution: #b45309;
+  --critical: #b91c1c;
+
+  --font-sans: 'Liberation Sans', 'DejaVu Sans', Arial, sans-serif;
+  --font-mono: 'Liberation Mono', 'DejaVu Sans Mono', monospace;
+  --type-base: 9.5pt;
+  --leading: 1.45;
+
+  /* Escala tipográfica en `em`, relativa a `--type-base`: cambiar el tamaño base de la marca
+     mueve el documento entero de forma proporcionada, sin tocar una sola regla. */
+  --type-xs: 0.78em;
+  --type-sm: 0.88em;
+  --type-md: 1em;
+  --type-lg: 1.22em;
+  --type-xl: 1.5em;
+  --type-2xl: 1.9em;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-bold: 700;
+
+  --gap-block: 4mm;
+  --gap-section: 8mm;
+  --cell-pad-y: 1.6mm;
+  --cell-pad-x: 2.4mm;
+
+  --radius-sm: 1mm;
+  --radius-md: 1.6mm;
+  --hairline: 0.4pt;
+  --rule: 0.8pt;
+
+  /* Lavados de estado. Se derivan aquí y no en la marca porque son función del color de
+     estado, no una decisión de identidad: una marca que eligiera su propio ámbar de fondo
+     acabaría con un aviso que no contrasta con su propio texto. */
+  --wash-positive: color-mix(in srgb, var(--positive) 8%, var(--surface));
+  --wash-caution: color-mix(in srgb, var(--caution) 10%, var(--surface));
+  --wash-critical: color-mix(in srgb, var(--critical) 8%, var(--surface));
+  --wash-accent: color-mix(in srgb, var(--accent) 7%, var(--surface));
+}

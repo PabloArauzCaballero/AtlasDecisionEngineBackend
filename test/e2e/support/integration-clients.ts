@@ -1,6 +1,7 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 import { createHash } from 'node:crypto';
+import { RUNTIME_DECISION_ROLE } from '../../../src/common/security/platform-roles';
 
 export const TENANT_ID = '1';
 
@@ -52,13 +53,13 @@ export const E2E_CLIENTS = {
   },
   qaAnalyst: {
     clientKey: 'e2e-qa',
-    secret: 'e2e-qa-secret-0123456789abcdef',
+    secret: 'e2e-qa-secret-0123456789abcdef', // gitleaks:allow — fixture inventado
     audience: 'management',
     roles: ['QA_ANALYST'],
   },
   riskAnalyst: {
     clientKey: 'e2e-risk',
-    secret: 'e2e-risk-secret-0123456789abcdef',
+    secret: 'e2e-risk-secret-0123456789abcdef', // gitleaks:allow — fixture inventado
     audience: 'management',
     roles: ['RISK_ANALYST'],
   },
@@ -72,7 +73,7 @@ export const E2E_CLIENTS = {
     clientKey: 'e2e-runtime',
     secret: 'e2e-runtime-secret-0123456789abcdef',
     audience: 'runtime',
-    roles: ['DECISION_RUNTIME'],
+    roles: [RUNTIME_DECISION_ROLE],
   },
 } as const;
 
@@ -89,6 +90,32 @@ export async function provisionE2eClients(): Promise<void> {
   const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 
   try {
+    /*
+     * Los AMBIENTES también son fixture de esta batería, y hasta ahora no lo eran.
+     *
+     * `decision_environment` sólo existía en el conjunto sembrado que publica una base del VPS, y
+     * un runner de CI no la alcanza. El efecto no se parecía a una carencia de datos: desplegar
+     * devolvía 404 en cuatro suites y se leía como «el despliegue está roto», cuando lo que
+     * faltaba era el DESTINO. La siembra de arranque tampoco ayuda —tira del mismo `SEED_SOURCE_*`
+     * y se salta sola sin él—, y el propio `SeedingService` dice que las pruebas provisionan sus
+     * fixtures. Esto es hacerle caso.
+     *
+     * `upsert` y no `create`: contra una base ya sembrada no debe pisar lo que haya, y contra una
+     * limpia lo crea. DEV no es producción; PROD sí, y de eso depende que la compuerta económica
+     * se exija o no.
+     */
+    for (const ambiente of [
+      { code: 'DEV', name: 'Desarrollo', environmentType: 'DEVELOPMENT', isProduction: false },
+      { code: 'STAGING', name: 'Preproducción', environmentType: 'STAGING', isProduction: false },
+      { code: 'PROD', name: 'Producción', environmentType: 'PRODUCTION', isProduction: true },
+    ]) {
+      await prisma.decisionEnvironment.upsert({
+        where: { code: ambiente.code },
+        update: { status: 'ACTIVE' },
+        create: { ...ambiente, status: 'ACTIVE' },
+      });
+    }
+
     for (const definition of Object.values(E2E_CLIENTS)) {
       await prisma.integrationClient.deleteMany({ where: { clientKey: definition.clientKey } });
       await prisma.integrationClient.create({

@@ -58,6 +58,7 @@ export class PrismaSemanticCategoryRepository implements SemanticCategoryReposit
       code: row.code,
       name: row.name,
       description: row.description,
+      parentCode: row.parentCode,
       positiveExamples: toStringArray(row.positiveExamples),
       counterExamples: toStringArray(row.counterExamples),
       restrictions: toStringArray(row.restrictions),

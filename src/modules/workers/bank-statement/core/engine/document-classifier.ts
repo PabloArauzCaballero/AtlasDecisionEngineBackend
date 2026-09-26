@@ -1,6 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import type { ExtractedPdf } from '../domain/models';
+import {
+  DEFAULT_TRIAGE_THRESHOLDS,
+  normalizeThresholds,
+  triageDocument,
+  type TriageThresholds,
+} from './document-triage';
 import type { DocumentClassification } from './statement-context';
+import { routeForDocumentType } from './document-routes';
 
 /**
  * Señal de que un documento es —o no es— un estado de cuenta.
@@ -18,6 +25,16 @@ interface ClassificationSignal {
 
 interface DocumentEvidence {
   readonly text: string;
+  /**
+   * Encabezado: donde un documento DICE lo que es.
+   *
+   * Se separa del cuerpo porque las dos preguntas son distintas. «¿De qué habla
+   * este documento?» se responde con el texto entero; «¿qué dice ser?» sólo con
+   * su cabecera, y confundirlas es lo que hacía que un extracto de sesenta
+   * páginas se rechazara por llevar la palabra «contrato» en la glosa de una
+   * cuota de hipoteca.
+   */
+  readonly header: string;
   readonly dateRows: number;
   readonly amountRows: number;
 }
@@ -49,9 +66,80 @@ const DOCUMENT_TYPES: ReadonlyArray<{ type: string; pattern: RegExp }> = [
   },
 ];
 
+/**
+ * Títulos de documentos que NO son extractos, y que aun así conviene nombrar.
+ *
+ * Viven en su propia lista y no en `DOCUMENT_TYPES` por un motivo concreto: esa
+ * otra lista alimenta una SEÑAL POSITIVA del clasificador —«el documento se
+ * titula como un estado de cuenta»— y meter aquí una boleta de pago le regalaría
+ * peso a un documento que no es un extracto. Se reconocen para poder explicar,
+ * no para puntuar.
+ *
+ * Antes caían todos en `UNKNOWN_DOCUMENT` y recibían la misma frase —«no reúne
+ * señales suficientes de ser un estado de cuenta»—, que es verdadera y no dice
+ * qué hacer. Con el tipo reconocido, `document-routes.ts` puede decir que a un
+ * comprobante le falta el periodo, que un certificado de saldo es una foto y no
+ * una historia, y que un resumen de tarjeta describe deuda y no ingreso.
+ */
+const OTHER_DOCUMENT_TYPES: ReadonlyArray<{ type: string; pattern: RegExp }> = [
+  {
+    type: 'TRANSFER_RECEIPT',
+    pattern:
+      /comprobante\s+de\s+(?:transferencia|pago|dep[oó]sito|env[ií]o)|constancia\s+de\s+transferencia/i,
+  },
+  {
+    type: 'BALANCE_CERTIFICATE',
+    pattern: /certificad[oa]\s+de\s+(?:saldo|cuenta|dep[oó]sito)/i,
+  },
+  {
+    type: 'PAYSLIP',
+    pattern: /boleta\s+de\s+pago|recibo\s+de\s+(?:sueldo|haberes)|papeleta\s+de\s+pago/i,
+  },
+  {
+    type: 'WALLET_STATEMENT',
+    pattern: /billetera\s+m[oó]vil|\bTIGO\s*MONEY\b|\bE-?\s?FECTIVO\b/i,
+  },
+];
+
 /** Documentos que se parecen a un extracto pero no lo son. */
 const COUNTER_INDICATORS =
-  /\bfactura\b|\binvoice\b|nota\s+fiscal|\bcontrato\b|\bcertificad[oa]\b|\bp[oó]liza\b|\bcurr[ií]culum\b|informe\s+de\s+laboratorio|\brecibo\s+de\s+(?:sueldo|haberes)\b/i;
+  /\bfactura\b|\binvoice\b|nota\s+fiscal|\bcontrato\b|\bcertificad[oa]\b|\bp[oó]liza\b|\bcurr[ií]culum\b|informe\s+de\s+laboratorio|\brecibo\s+de\s+(?:sueldo|haberes)\b|\bcotizaci[oó]n\b|\bpresupuesto\b|\borden\s+de\s+compra\b|\bnota\s+de\s+remisi[oó]n\b|\bdeclaraci[oó]n\s+jurada\b|\bplan\s+de\s+(?:pagos|amortizaci[oó]n)\b|\bkardex\b/i;
+
+/**
+ * Lo que un extracto bancario NO lleva jamás, y por tanto cierra la pregunta.
+ *
+ * La penalización de 0.35 es una opinión sobre cuánta evidencia resta un rótulo
+ * ambiguo, y para el documento ambiguo está bien calibrada. Pero hay documentos
+ * que no son ambiguos en absoluto y aun así superaban el umbral, porque suman
+ * todas las señales legítimas a la vez: **la factura boliviana** —que imprime
+ * «Estado de Cuenta» del cliente, número de cuenta, saldo, columna de importes y
+ * una tabla de consumos fechados— alcanza 1.00 sobre 1.00 y se quedaba en 0.65
+ * después de restar. Se procesaba.
+ *
+ * Lo que hay aquí no son palabras que «suenan» a otra cosa: son marcas que sólo
+ * existen en ese otro documento. El código de control y el número de
+ * autorización los pone el SIN en cada factura; la leyenda de la Ley 453 la
+ * imprime la propia factura; una cláusula numerada o un testimonio notarial sólo
+ * están en un contrato. Ningún banco los imprime en un extracto, así que
+ * encontrarlos en la carátula no es evidencia en contra: es la respuesta.
+ */
+const DECISIVE_COUNTER_INDICATORS: ReadonlyArray<{ type: string; pattern: RegExp }> = [
+  {
+    type: 'TAX_INVOICE',
+    pattern:
+      /C[OÓ]DIGO\s+DE\s+CONTROL|N[UÚ]MERO\s+DE\s+AUTORIZACI[OÓ]N|ESTA\s+FACTURA\s+CONTRIBUYE|FACTURA\s+(?:ELECTR[OÓ]NICA|COMPUTARIZADA)|LEY\s+N[°º.]?\s*453/i,
+  },
+  {
+    type: 'CONTRACT',
+    pattern:
+      /CL[AÁ]USULA\s+(?:PRIMERA|SEGUNDA|TERCERA)|TESTIMONIO\s+N[°º]|MINUTA\s+DE\s+(?:COMPRA|VENTA|PR[EÉ]STAMO|CONTRATO)/i,
+  },
+  { type: 'RESUME', pattern: /HOJA\s+DE\s+VIDA|CURR[IÍ]CULUM\s+VITAE/i },
+  {
+    type: 'PAYROLL_SLIP',
+    pattern: /BOLETA\s+DE\s+PAGO|PLANILLA\s+DE\s+(?:SUELDOS|HABERES)|APORTES\s+PATRONALES/i,
+  },
+];
 
 const AMOUNT = /(?<![\d.,])-?(?:Bs|\$us|USD)?\s?\d{1,3}(?:[.,]\d{3})*[.,]\d{2}\b/;
 const DATE =
@@ -104,11 +192,22 @@ const SIGNALS: readonly ClassificationSignal[] = [
 ];
 
 /**
- * Peso que se resta cuando el documento se anuncia como otra cosa. No es
+ * Peso que se resta cuando el documento **se anuncia** como otra cosa. No es
  * definitivo a propósito: un extracto puede contener la palabra «factura» en la
  * glosa de un pago, así que resta en lugar de descartar.
  */
 const COUNTER_INDICATOR_PENALTY = 0.35;
+
+/**
+ * Tope del encabezado, para el documento que nunca llega a tener tabla.
+ *
+ * El encabezado termina de verdad donde EMPIEZA LA TABLA —la primera línea con
+ * fecha e importe a la vez—, no en un número fijo de líneas: así se ajusta solo
+ * a un extracto de sesenta páginas y a uno de cinco. Este tope sólo actúa cuando
+ * no hay ninguna fila de datos, que es el caso de un documento que no es un
+ * extracto en absoluto.
+ */
+const MAX_HEADER_LINES = 40;
 
 /**
  * Umbral a partir del cual se acepta procesar el documento.
@@ -117,8 +216,11 @@ const COUNTER_INDICATOR_PENALTY = 0.35;
  * con fecha y filas con importe—, y un documento que solo tenga fechas e
  * importes, como una factura, se queda en 0.40 antes de la penalización. El
  * umbral se sitúa entre ambos.
+ *
+ * Es el mismo valor que `DEFAULT_TRIAGE_THRESHOLDS.accept` y se deriva de él:
+ * dos constantes con el mismo significado se separan a la primera calibración.
  */
-export const FINANCIAL_STATEMENT_THRESHOLD = 0.55;
+export const FINANCIAL_STATEMENT_THRESHOLD = DEFAULT_TRIAGE_THRESHOLDS.accept;
 
 /**
  * Decide si un PDF es un estado de cuenta **antes** de intentar extraer
@@ -131,8 +233,38 @@ export const FINANCIAL_STATEMENT_THRESHOLD = 0.55;
  */
 @Injectable()
 export class DocumentClassifier {
+  private readonly thresholds: TriageThresholds;
+
+  /**
+   * Las fronteras se inyectan para poder calibrarlas con datos reales sin
+   * recompilar. Omitirlas deja las medidas sobre los documentos del módulo.
+   */
+  constructor(thresholds: Partial<TriageThresholds> = {}) {
+    this.thresholds = normalizeThresholds(thresholds);
+  }
+
   classify(pdf: ExtractedPdf): DocumentClassification {
     const evidence = this.collect(pdf);
+    const decisive = DECISIVE_COUNTER_INDICATORS.find((candidate) =>
+      candidate.pattern.test(evidence.header),
+    );
+    if (decisive) {
+      /*
+       * Se sale antes de sumar nada. No es un atajo de rendimiento: sumar las
+       * señales y restar después dejaría un número entre 0 y 1 que invita a
+       * recalibrarlo, y aquí no hay nada que calibrar. El documento trae impresa
+       * la marca de otro documento.
+       */
+      return {
+        documentType: decisive.type,
+        isFinancialStatement: false,
+        confidence: 0,
+        detectedSignals: [`documento-de-otra-clase:${decisive.type}`],
+        verdict: 'REJECT',
+        routing: routeForDocumentType(decisive.type),
+      };
+    }
+
     const detectedSignals: string[] = [];
     let score = 0;
 
@@ -142,17 +274,22 @@ export class DocumentClassifier {
       score += signal.weight;
     }
 
-    if (COUNTER_INDICATORS.test(evidence.text)) {
+    // Sólo en el encabezado: ahí es donde un documento dice lo que es.
+    if (COUNTER_INDICATORS.test(evidence.header)) {
       detectedSignals.push('contraindicador-de-otro-documento');
       score -= COUNTER_INDICATOR_PENALTY;
     }
 
     const confidence = Math.max(0, Math.min(1, Number(score.toFixed(2))));
+    const verdict = triageDocument(confidence, this.thresholds);
+    const documentType = this.documentType(evidence.text, confidence);
     return {
-      documentType: this.documentType(evidence.text, confidence),
-      isFinancialStatement: confidence >= FINANCIAL_STATEMENT_THRESHOLD,
+      documentType,
+      isFinancialStatement: verdict === 'ACCEPT',
       confidence,
       detectedSignals,
+      verdict,
+      routing: routeForDocumentType(documentType),
     };
   }
 
@@ -163,12 +300,33 @@ export class DocumentClassifier {
       if (DATE.test(line.text)) dateRows += 1;
       if (AMOUNT.test(line.text)) amountRows += 1;
     }
-    return { text: pdf.text, dateRows, amountRows };
+    return { text: pdf.text, header: this.header(pdf), dateRows, amountRows };
+  }
+
+  /**
+   * Lo que va ANTES de la primera fila de movimientos.
+   *
+   * Una fila de movimiento lleva fecha e importe en la misma línea; en cuanto
+   * aparece una, lo que sigue son datos y ya no es el documento hablando de sí
+   * mismo. Cortar ahí es lo que permite que la palabra «contrato» de una cuota de
+   * hipoteca no se lea como «este documento es un contrato».
+   */
+  private header(pdf: ExtractedPdf): string {
+    const encabezado: string[] = [];
+    for (const line of pdf.lines.slice(0, MAX_HEADER_LINES)) {
+      if (DATE.test(line.text) && AMOUNT.test(line.text)) break;
+      encabezado.push(line.text);
+    }
+    return encabezado.join('\n');
   }
 
   private documentType(text: string, confidence: number): string {
     const matched = DOCUMENT_TYPES.find((candidate) => candidate.pattern.test(text));
     if (matched) return matched.type;
-    return confidence >= FINANCIAL_STATEMENT_THRESHOLD ? 'FINANCIAL_DOCUMENT' : 'UNKNOWN_DOCUMENT';
+    // Los otros títulos se miran DESPUÉS: un extracto que además menciona un
+    // comprobante en una glosa sigue siendo un extracto.
+    const other = OTHER_DOCUMENT_TYPES.find((candidate) => candidate.pattern.test(text));
+    if (other) return other.type;
+    return confidence >= this.thresholds.accept ? 'FINANCIAL_DOCUMENT' : 'UNKNOWN_DOCUMENT';
   }
 }

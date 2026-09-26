@@ -160,7 +160,7 @@ export class AuthenticationGuard implements CanActivate {
     const requested = this.header(request, 'x-tenant-id');
     if (!requested) {
       // Selecting a tenant implicitly is only unambiguous for single-tenant clients.
-      if (allowed.length === 1) return allowed[0] as bigint;
+      if (allowed.length === 1) return allowed[0];
       throw new DomainException(
         'INVALID_SECURITY_CONTEXT',
         'x-tenant-id is required for clients authorised on multiple tenants',

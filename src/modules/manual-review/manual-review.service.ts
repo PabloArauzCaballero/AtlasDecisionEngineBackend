@@ -1,8 +1,9 @@
 /** Enforces tenant ownership and assignee-only resolution with transactional audit evidence. */
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ManualReviewStatus, Prisma } from '@prisma/client';
 import { AuditService } from '../../common/audit/audit.service';
+import { PlatformRole } from '../../common/security/platform-roles';
 import { DomainException } from '../../common/errors/domain-exception';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
@@ -13,8 +14,69 @@ import {
 } from './manual-review.dto';
 import { pageResult, paginationArgs } from '../../common/http/pagination';
 
+/**
+ * Quién puede intervenir sobre el caso de OTRO analista.
+ *
+ * La segregación de funciones vale entre PARES, no frente a quien supervisa. Exigir que sólo el
+ * asignado resuelva impide que cualquiera abra y cierre un caso ajeno, y eso está bien; aplicado
+ * también a supervisión produce un callejón sin salida real: un analista toma un caso, se va de
+ * vacaciones o deja la empresa, y ese caso queda bloqueado para siempre —con un cliente esperando
+ * al otro lado— porque el único que podía resolverlo ya no está.
+ *
+ * **Los nombres salen de `PlatformRole`, no de literales sueltos.** La lista decía
+ * `['ADMIN', 'PLATFORM_ADMIN', 'OPERATIONS']` y `ADMIN` **no existe en esta plataforma**: no rompía
+ * la compilación ni ninguna prueba, simplemente no lo tiene nadie y el permiso que este fichero
+ * creía conceder no se concedía jamás. Es el fallo silencioso contra el que avisa
+ * `platform-roles.ts`, y sólo el tipo lo atrapa.
+ */
+const SUPERVISION_ROLES: readonly string[] = [PlatformRole.OPERATIONS];
+
+/**
+ * `PLATFORM_ADMIN` cuenta aparte y sólo sobre identidad firmada, igual que en `RolesGuard`.
+ *
+ * Es un comodín global y el guard se niega a honrarlo en una clave de API, que ningún humano
+ * custodia. Repetir aquí esa condición no es paranoia: sin ella, una clave con `PLATFORM_ADMIN` y
+ * un rol concreto de la ruta entra por el rol concreto y recoge la supervisión por el comodín —
+ * exactamente lo que el guard acaba de negarle una capa más arriba.
+ */
+function supervisa(principal: AuthenticatedPrincipal): boolean {
+  const roles = principal.roles ?? [];
+  const comodinFirmado =
+    roles.includes(PlatformRole.PLATFORM_ADMIN) &&
+    (principal.authMethod === 'jwt' || principal.authMethod === 'identity_provider');
+  return comodinFirmado || roles.some((role) => SUPERVISION_ROLES.includes(role));
+}
+
+/** La cola cuyas resoluciones tienen que volver al backend de identidad. */
+const COLA_DE_IDENTIDAD = 'IDENTIDAD';
+
+/**
+ * A donde vuelve cada resolucion, por cola.
+ *
+ * Hasta el 2026-09-14 solo la cola de IDENTIDAD avisaba a AtlasBackend. Las otras dos que Atlas
+ * delega —riesgo de onboarding y credito— se resolvian aqui y alla nadie se enteraba: el caso local
+ * quedaba delegado (409 `MANUAL_REVIEW_DELEGADA_AL_MOTOR`) y la solicitud `under_review` para
+ * siempre. Un callejon sin salida con las dos puertas cerradas a proposito.
+ *
+ * `MERCHANT_KYB` no esta y es correcto: AtlasBackend lo sincroniza por tiron (`sync_partner_kyb_reviews`).
+ * Cualquier cola que no este aqui no avisa, y lo deja escrito en el log: es preferible a adivinar un
+ * destino y llenar la auditoria de callbacks fallidos.
+ */
+export const RUTA_DE_CALLBACK_POR_COLA: Readonly<Record<string, string>> = {
+  [COLA_DE_IDENTIDAD]: '/internal/identity/manual-review-callback',
+  RIESGO_ONBOARDING: '/internal/risk/manual-review-callback',
+  CREDIT_REVIEW: '/internal/credit/manual-review-callback',
+};
+
+/** La ruta de vuelta para una cola, o `null` si esa cola no se devuelve por callback. */
+export function rutaDeCallback(queueCode: string | null | undefined): string | null {
+  return RUTA_DE_CALLBACK_POR_COLA[String(queueCode ?? '')] ?? null;
+}
+
 @Injectable()
 export class ManualReviewService {
+  private readonly logger = new Logger(ManualReviewService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
@@ -100,10 +162,42 @@ export class ManualReviewService {
         HttpStatus.CONFLICT,
       );
     }
-    return this.prisma.$transaction(async (tx) => {
+    /*
+     * Un caso que YA es de otra persona sólo lo mueve quien supervisa.
+     *
+     * Sin esta comprobación la segregación de `resolve()` es decorativa: bastaba con reasignarse el
+     * caso ajeno y resolverlo a continuación —dos llamadas que cualquier rol de la ruta podía
+     * hacer—. El comentario de abajo ya decía «para que un SUPERVISOR pueda asignar el caso a otro
+     * analista» y nada comprobaba que quien llamaba lo fuera.
+     *
+     * Lo que se prohíbe es QUITAR, no dar: ceder el caso propio a un compañero y repartir un caso
+     * que todavía no es de nadie siguen abiertos a cualquiera, porque los dos entregan la decisión
+     * en vez de apropiársela.
+     */
+    if (review.assignedTo && review.assignedTo !== principal.id && !supervisa(principal)) {
+      throw new DomainException(
+        'MANUAL_REVIEW_ASSIGN_FORBIDDEN',
+        'Only a supervisor may reassign a case already held by another analyst',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+    const resuelto = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.decisionManualReviewCase.update({
         where: { id: caseId },
-        data: { assignedTo: dto.assignedTo, status: ManualReviewStatus.ASSIGNED },
+        /*
+         * Se guarda la identidad del PRINCIPAL, no la que mande el cliente.
+         *
+         * `resolve()` compara `review.assignedTo !== principal.id`, asi que si aqui se guarda otra
+         * cosa —el correo del analista, por ejemplo, que es lo que enviaba el portal— el caso queda
+         * asignado a una identidad que nunca va a coincidir: se puede tomar el caso y despues es
+         * imposible resolverlo, con el mensaje «solo el analista asignado puede resolverlo»
+         * senalando a quien SI lo tiene asignado. Las dos operaciones tienen que hablar de la misma
+         * persona con el mismo nombre.
+         *
+         * `dto.assignedTo` se sigue aceptando para que un supervisor pueda asignar el caso a OTRO
+         * analista; cuando no viene, el caso es de quien lo toma.
+         */
+        data: { assignedTo: dto.assignedTo ?? principal.id, status: ManualReviewStatus.ASSIGNED },
       });
       await this.audit.append(
         {
@@ -113,12 +207,27 @@ export class ManualReviewService {
           aggregateId: caseId.toString(),
           actorId: principal.id,
           requestId: principal.requestId,
-          payload: { assignedTo: dto.assignedTo },
+          /*
+            `previousAssignee` es la mitad que faltaba.
+
+            Sin él, reasignar un caso deja en la auditoría «ahora es de Ana» y ningún rastro de que
+            antes era de Luis. Justo la operación que sólo un supervisor puede hacer —quitarle un
+            caso a otro analista— era la que menos evidencia dejaba. Va `null` cuando el caso no
+            era de nadie, que es el gesto normal de tomarlo.
+          */
+          payload: {
+            assignedTo: dto.assignedTo ?? principal.id,
+            previousAssignee: review.assignedTo ?? null,
+          },
         },
         tx,
       );
       return updated;
     });
+
+    // El controlador hace `return this.reviews.assign(...)`, así que sin esto la respuesta del
+    // endpoint salía vacía: el portal reasignaba el caso y no recibía el caso reasignado.
+    return resuelto;
   }
 
   async resolve(
@@ -158,20 +267,27 @@ export class ManualReviewService {
         HttpStatus.CONFLICT,
       );
     }
-    if (review.assignedTo !== principal.id) {
+    if (review.assignedTo !== principal.id && !supervisa(principal)) {
       throw new DomainException(
         'MANUAL_REVIEW_ASSIGNEE_MISMATCH',
         'Only the analyst assigned to this manual review case may resolve it',
         HttpStatus.FORBIDDEN,
       );
     }
+    /*
+      Que quien resuelve NO sea el asignado es exactamente lo que la segregación de funciones
+      permite sólo a supervisión, y hasta ahora no se distinguía de una resolución corriente:
+      el guard de arriba la dejaba pasar y la auditoría escribía la misma fila que en el caso
+      normal. Auditar un override exige poder encontrarlo, y para encontrarlo hay que marcarlo.
+    */
+    const porSupervision = review.assignedTo !== principal.id;
     const status =
       dto.decision === 'APPROVE'
         ? ManualReviewStatus.RESOLVED_APPROVED
         : dto.decision === 'DECLINE'
           ? ManualReviewStatus.RESOLVED_DECLINED
           : ManualReviewStatus.CANCELLED;
-    return this.prisma.$transaction(async (tx) => {
+    const resuelto = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.decisionManualReviewCase.update({
         where: { id: caseId },
         data: {
@@ -194,11 +310,103 @@ export class ManualReviewService {
           aggregateId: caseId.toString(),
           actorId: principal.id,
           requestId: principal.requestId,
-          payload: { decision: dto.decision, reason: dto.reason },
+          payload: {
+            decision: dto.decision,
+            reason: dto.reason,
+            assignedTo: review.assignedTo,
+            supervisorOverride: porSupervision,
+          },
         },
         tx,
       );
       return updated;
     });
+
+    /*
+     * Y se le dice a AtlasBackend, que es donde vive la identidad del cliente.
+     *
+     * Va FUERA de la transaccion y despues de que haya confirmado: la decision del analista ya esta
+     * tomada y no puede perderse porque otro servicio no conteste. Si el aviso falla, la resolucion
+     * se mantiene y el fallo queda en la auditoria —con su motivo— en vez de desaparecer: un
+     * circuito que se rompe en silencio es exactamente lo que este codigo existe para evitar.
+     */
+    const ruta = rutaDeCallback(review.queueCode);
+    if (ruta) {
+      await this.avisarResolucion(ruta, tenantId, review.executionId, dto, principal, resuelto);
+    } else {
+      this.logger.log(
+        `Revision ${resuelto.id} resuelta en la cola ${review.queueCode}: esa cola no se devuelve por callback.`,
+      );
+    }
+
+    return resuelto;
+  }
+
+  /**
+   * Devuelve a AtlasBackend la resolucion de una revision delegada (identidad, riesgo o credito).
+   *
+   * El motor no sabe de que CLIENTE o SOLICITUD es el caso, y no tiene por que: solo sabe de que
+   * ejecucion. El puente es `executionId`, que AtlasBackend guarda en el intento, en el caso de
+   * riesgo o en la solicitud cuando pide la decision. La ruta la decide la cola (`rutaDeCallback`).
+   *
+   * Antes esto no existia. El analista aprobaba aqui, el caso quedaba `RESOLVED_APPROVED`, y alla el
+   * cliente seguia `IN_REVIEW` para siempre: no podia pedir credito y nada avisaba de que faltaba
+   * un paso que alguien tenia que dar a mano.
+   */
+  private async avisarResolucion(
+    ruta: string,
+    tenantId: bigint,
+    executionId: bigint,
+    dto: ResolveManualReviewDto,
+    principal: AuthenticatedPrincipal,
+    caso: { id: bigint },
+  ): Promise<void> {
+    const base = this.config.get<string>('ATLAS_BACKEND_BASE_URL');
+    const clave = this.config.get<string>('ENGINE_CALLBACK_API_KEY');
+    if (!base || !clave) {
+      this.logger.warn(
+        `Revision ${caso.id} resuelta sin devolver a AtlasBackend (${ruta}): falta ATLAS_BACKEND_BASE_URL o ENGINE_CALLBACK_API_KEY`,
+      );
+      return;
+    }
+
+    try {
+      const respuesta = await fetch(`${base.replace(/\/+$/, '')}${ruta}`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-tenant-id': tenantId.toString(),
+          'x-engine-callback-key': clave,
+        },
+        body: JSON.stringify({
+          executionId: executionId.toString(),
+          decision: dto.decision,
+          reason: dto.reason,
+          resolvedByInternalUserId: principal.id,
+        }),
+        signal: AbortSignal.timeout(10_000),
+      });
+
+      if (!respuesta.ok) {
+        throw new Error(`HTTP ${respuesta.status}: ${(await respuesta.text()).slice(0, 300)}`);
+      }
+      this.logger.log(
+        `Resolucion devuelta a AtlasBackend (${ruta}) para la ejecucion ${executionId}`,
+      );
+    } catch (error) {
+      const motivo = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `No se pudo devolver la revision ${caso.id} a AtlasBackend (${ruta}): ${motivo}`,
+      );
+      await this.audit.append({
+        tenantId,
+        eventType: 'MANUAL_REVIEW_CALLBACK_FAILED',
+        aggregateType: 'ManualReviewCase',
+        aggregateId: caso.id.toString(),
+        actorId: principal.id,
+        requestId: principal.requestId,
+        payload: { executionId: executionId.toString(), decision: dto.decision, motivo },
+      });
+    }
   }
 }
