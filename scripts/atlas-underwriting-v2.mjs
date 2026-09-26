@@ -230,8 +230,6 @@ async function asegurarVariables() {
 /* Grafo                                                                                       */
 /* ------------------------------------------------------------------------------------------ */
 
-const outputsByCode = new Map(DEFINICION.outputs.map((o) => [o.code, o]));
-
 function cuerpoDelGrafo(versiones, reasonIds) {
   return {
     dependencies: [
@@ -427,10 +425,8 @@ async function main() {
   }
 
   let versionId;
-  let lockVersion;
   if (borradorPropio) {
     versionId = borradorPropio.id;
-    lockVersion = borradorPropio.lockVersion ?? 1;
     console.log(`Reutilizando el borrador de v2 ya escrito (id ${versionId}).`);
   } else {
     // La vigente para clonar es la última NO-borrador (normalmente la v1 desplegada).
@@ -463,7 +459,7 @@ async function main() {
       }),
     });
     versionId = clon.id ?? clon.versionId;
-    lockVersion = clon.lockVersion ?? 1;
+    const lockVersion = clon.lockVersion ?? 1;
     console.log(`Clonada como versión id ${versionId}.`);
 
     const escrito = await api(`/v1/artifact-versions/${versionId}/graph`, {
