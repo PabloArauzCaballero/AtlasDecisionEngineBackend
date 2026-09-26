@@ -167,19 +167,27 @@ contemplan el caso.
 
 ## Demo ejecutable
 
-`EXTRACTO_CAPACIDAD_PAGO` — «Capacidad de pago verificada por extracto bancario». Se siembra
-con el resto de datos de demostración y queda activo en DEV.
+`EXTRACTO_CAPACIDAD_PAGO` — «Capacidad de pago verificada por extracto bancario».
+
+Hasta el 2026-09-14 se sembraba junto con el resto de datos de demostración
+(`src/modules/seeding/data/statement-worker-demo.{graph,seed}.ts`); esas semillas se movieron a
+una rama de PostgreSQL (`c4084c9`) y con ellas se fue la única definición que existía del
+artefacto. Hoy se publica por la API de gestión como cualquier otro artefacto revisable:
 
 ```txt
 START → ANALIZAR_EXTRACTO (WORKER) → DERIVAR_CAPACIDAD → EVALUAR → 4 resultados
 ```
 
-- El grafo puro está en
-  [`statement-worker-demo.graph.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/modules/seeding/data/statement-worker-demo.graph.ts)
-  y su siembra en
-  [`statement-worker-demo.seed.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/src/modules/seeding/data/statement-worker-demo.seed.ts).
-- `test/statement-worker-demo-seed.spec.ts` lo ejecuta contra el motor real y comprueba las
-  cuatro ramas.
+- La definición vive en
+  [`scripts/lib/extracto-capacidad-pago.definicion.json`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/scripts/lib/extracto-capacidad-pago.definicion.json)
+  y la publica
+  [`scripts/extracto-capacidad-pago.mjs`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/scripts/extracto-capacidad-pago.mjs)
+  por la API de gestión — creación, grafo, suite bloqueante y envío a revisión; el despliegue,
+  una vez aprobado por dos personas, es un paso aparte del mismo guion.
+- `test/extracto-capacidad-pago.spec.ts` ejecuta el grafo con el motor real y el servicio de
+  extractos doblado (el algoritmo); `scripts/verificar-suite-extracto.ts` ejecuta los mismos
+  casos con el worker de extractos REAL leyendo PDF (la suite), fuera de Jest porque
+  `pdfjs-dist` no admite dos suites de Jest leyendo PDF en el mismo proceso.
 
 ## Pruebas
 
@@ -188,7 +196,8 @@ START → ANALIZAR_EXTRACTO (WORKER) → DERIVAR_CAPACIDAD → EVALUAR → 4 res
 | `test/worker-node.spec.ts`                 | Mecánica del nodo en el motor: argumentos, proyecciones, `onError`, traza        |
 | `test/graph-worker-validator.spec.ts`      | Reglas estáticas del nodo                                                       |
 | `test/worker-service-invoker.spec.ts`      | Guardas del invocador: qué rechaza antes de gastar una conversión               |
-| `test/statement-worker-demo-seed.spec.ts`  | El demo sembrado, ejecutado con el motor real                                   |
+| `test/extracto-capacidad-pago.spec.ts`     | `EXTRACTO_CAPACIDAD_PAGO`: el algoritmo, con el servicio doblado                 |
+| `scripts/verificar-suite-extracto.ts`      | `EXTRACTO_CAPACIDAD_PAGO`: la suite, con el worker de extractos real (no es Jest) |
 | `test/e2e/worker-service-nodes.e2e-spec.ts`| Autoría, validación, gobierno, despliegue y decisión por HTTP con un PDF real   |
 
 Dos avisos al ejecutarlas:

@@ -1,0 +1,717 @@
+{
+  "procedencia": {
+    "artefacto": "PARTNER_KYB_REVIEW",
+    "origen": "versión 1 (1.0.0) publicada en el Motor de DEV (H310), extraída por la API de lectura el 2026-09-25",
+    "estadoEnOrigen": "DEPLOYED_TO_TEST",
+    "checksumEnOrigen": "1eed682f49851824240c233aadc7d7efe884c4963d39c4968d3dcdd7cc611832",
+    "nota": "El checksum de una versión se calcula sobre identificadores de cada base: la copia creada por el guion NO tendrá el mismo. Lo que se conserva es la estructura, comprobada nodo por nodo contra la lectura del origen."
+  },
+  "artifact": {
+    "artifactCode": "PARTNER_KYB_REVIEW",
+    "artifactType": "RISK_POLICY",
+    "riskDomain": "MERCHANT_ONBOARDING",
+    "ownerTeam": "MERCHANT_RISK",
+    "name": "Verificación del expediente del comercio (KYB)",
+    "description": "Decide si un comercio puede operar: aprueba el expediente completo y sin señales, manda a revisión manual el que exige criterio humano, y rechaza el que no cubre los requisitos que impiden cobrar.",
+    "businessPurpose": "Dar trazabilidad y versión a la verificación del expediente de un comercio, que hasta ahora se resolvía dentro del backend de altas sin ejecución que auditar.",
+    "semanticVersion": "1.0.0",
+    "authoringNotes": "Los requisitos duros no se compensan entre sí: cualquiera que falte rechaza. Las señales nunca aprueban solas — mandan a una persona. Limitación conocida de esta versión: REVISAR es un nodo RESULT, así que el desenlace REVISION_MANUAL se devuelve pero NO abre caso en ninguna cola (`manualReview` sale vacío). La versión siguiente lo corrige convirtiéndolo en MANUAL_REVIEW con la cola MERCHANT_KYB (`scripts/kyb-revision-manual.mjs`); no se adelanta aquí porque este guion porta la versión base tal cual estaba publicada."
+  },
+  "inputs": [
+    {
+      "code": "kyb_tiene_matricula",
+      "dataType": "BOOLEAN",
+      "name": "Matrícula de comercio registrada",
+      "description": "El expediente declara la matrícula con la que la empresa está inscrita."
+    },
+    {
+      "code": "kyb_representante_acreditado",
+      "dataType": "BOOLEAN",
+      "name": "Representante legal acreditado",
+      "description": "Hay representante declarado Y su poder notarial está subido. Declarar no es acreditar."
+    },
+    {
+      "code": "kyb_qr_negocio",
+      "dataType": "BOOLEAN",
+      "name": "QR del negocio registrado",
+      "description": "El comercio subió el QR de su negocio y el registro lo aceptó como código legible."
+    },
+    {
+      "code": "kyb_qr_bancario",
+      "dataType": "BOOLEAN",
+      "name": "QR bancario de cobro registrado",
+      "description": "El QR que dice a qué cuenta va el dinero del cliente."
+    },
+    {
+      "code": "kyb_correo_verificado",
+      "dataType": "BOOLEAN",
+      "name": "Correo de contacto verificado",
+      "description": "El correo del expediente respondió al código de verificación."
+    },
+    {
+      "code": "kyb_sucursales",
+      "dataType": "INTEGER",
+      "name": "Sucursales registradas",
+      "description": "Cuántos locales declaró el comercio. Sin ninguno no se sabe dónde opera.",
+      "constraints": {
+        "min": 0,
+        "max": 5000
+      }
+    },
+    {
+      "code": "kyb_antiguedad_dias",
+      "dataType": "INTEGER",
+      "name": "Antigüedad del expediente (días)",
+      "description": "Días desde que se abrió. Un expediente viejo puede describir un negocio que ya cambió.",
+      "constraints": {
+        "min": 0,
+        "max": 10000
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "code": "kyb_decision",
+      "dataType": "STRING",
+      "usageType": "OUTPUT_PRIMARY",
+      "expectedOrigin": "DERIVED",
+      "name": "Decisión sobre el expediente",
+      "description": "Resultado principal de la verificación KYB.",
+      "constraints": {
+        "allowedValues": [
+          "APROBADO",
+          "REVISION_MANUAL",
+          "RECHAZADO"
+        ]
+      },
+      "sourceKind": "NODE",
+      "sourceRef": "EVALUAR"
+    },
+    {
+      "code": "kyb_motivo",
+      "dataType": "STRING",
+      "usageType": "OUTPUT",
+      "expectedOrigin": "DERIVED",
+      "name": "Motivo de la decisión KYB",
+      "description": "Código explicable del resultado.",
+      "sourceKind": "NODE",
+      "sourceRef": "EVALUAR"
+    },
+    {
+      "code": "kyb_requisitos_faltantes",
+      "dataType": "INTEGER",
+      "usageType": "OUTPUT",
+      "expectedOrigin": "DERIVED",
+      "name": "Requisitos pendientes",
+      "description": "Cuántos requisitos que impiden operar siguen sin cubrirse.",
+      "constraints": {
+        "min": 0,
+        "max": 4
+      },
+      "sourceKind": "INTERMEDIATE",
+      "sourceRef": "requisitos_faltantes"
+    },
+    {
+      "code": "kyb_senales_operativas",
+      "dataType": "INTEGER",
+      "usageType": "OUTPUT",
+      "expectedOrigin": "DERIVED",
+      "name": "Señales operativas",
+      "description": "Avisos que no bloquean pero exigen revisión humana.",
+      "constraints": {
+        "min": 0,
+        "max": 3
+      },
+      "sourceKind": "INTERMEDIATE",
+      "sourceRef": "senales_operativas"
+    }
+  ],
+  "reasonCodes": [],
+  "intermediates": [
+    {
+      "code": "requisitos_faltantes",
+      "name": "Requisitos duros pendientes",
+      "description": "Cuántos de los cuatro requisitos que impiden operar siguen sin cubrirse.",
+      "dataType": "INTEGER",
+      "producerNodeKey": "CONTAR_REQUISITOS",
+      "consumerNodeKeys": [
+        "EVALUAR",
+        "APROBAR",
+        "REVISAR",
+        "RECHAZAR"
+      ]
+    },
+    {
+      "code": "senales_operativas",
+      "name": "Señales operativas",
+      "description": "Avisos que no bloquean pero exigen que una persona mire el expediente.",
+      "dataType": "INTEGER",
+      "producerNodeKey": "MEDIR_SENALES",
+      "consumerNodeKeys": [
+        "EVALUAR",
+        "APROBAR",
+        "REVISAR",
+        "RECHAZAR"
+      ]
+    }
+  ],
+  "conditions": [
+    {
+      "code": "FALTAN_REQUISITOS",
+      "name": "Faltan requisitos para operar",
+      "expressionType": "JSON_AST",
+      "expression": {
+        "op": "gt",
+        "left": {
+          "var": "intermediate.requisitos_faltantes"
+        },
+        "right": {
+          "value": 0
+        }
+      },
+      "severity": "BLOCKING",
+      "reusable": true
+    },
+    {
+      "code": "HAY_SENALES",
+      "name": "El expediente trae señales operativas",
+      "expressionType": "JSON_AST",
+      "expression": {
+        "op": "gt",
+        "left": {
+          "var": "intermediate.senales_operativas"
+        },
+        "right": {
+          "value": 0
+        }
+      },
+      "severity": "BLOCKING",
+      "reusable": true
+    }
+  ],
+  "actions": [],
+  "nodes": [
+    {
+      "key": "START",
+      "type": "START",
+      "label": "START",
+      "x": 0,
+      "y": 0,
+      "terminal": false,
+      "config": {},
+      "actions": []
+    },
+    {
+      "key": "CONTAR_REQUISITOS",
+      "type": "EXPRESSION",
+      "label": "Contar requisitos duros pendientes",
+      "x": 260,
+      "y": 0,
+      "terminal": false,
+      "actions": [],
+      "config": {
+        "intermediateAssignments": [
+          {
+            "code": "requisitos_faltantes",
+            "source": "EXPRESSION",
+            "expression": {
+              "op": "add",
+              "args": [
+                {
+                  "op": "if",
+                  "condition": {
+                    "op": "not",
+                    "arg": {
+                      "var": "kyb_tiene_matricula"
+                    }
+                  },
+                  "then": {
+                    "value": 1
+                  },
+                  "else": {
+                    "value": 0
+                  }
+                },
+                {
+                  "op": "if",
+                  "condition": {
+                    "op": "not",
+                    "arg": {
+                      "var": "kyb_representante_acreditado"
+                    }
+                  },
+                  "then": {
+                    "value": 1
+                  },
+                  "else": {
+                    "value": 0
+                  }
+                },
+                {
+                  "op": "if",
+                  "condition": {
+                    "op": "not",
+                    "arg": {
+                      "var": "kyb_qr_negocio"
+                    }
+                  },
+                  "then": {
+                    "value": 1
+                  },
+                  "else": {
+                    "value": 0
+                  }
+                },
+                {
+                  "op": "if",
+                  "condition": {
+                    "op": "not",
+                    "arg": {
+                      "var": "kyb_qr_bancario"
+                    }
+                  },
+                  "then": {
+                    "value": 1
+                  },
+                  "else": {
+                    "value": 0
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "key": "MEDIR_SENALES",
+      "type": "EXPRESSION",
+      "label": "Medir señales operativas",
+      "x": 520,
+      "y": 0,
+      "terminal": false,
+      "actions": [],
+      "config": {
+        "intermediateAssignments": [
+          {
+            "code": "senales_operativas",
+            "source": "EXPRESSION",
+            "expression": {
+              "op": "add",
+              "args": [
+                {
+                  "op": "if",
+                  "condition": {
+                    "op": "not",
+                    "arg": {
+                      "var": "kyb_correo_verificado"
+                    }
+                  },
+                  "then": {
+                    "value": 1
+                  },
+                  "else": {
+                    "value": 0
+                  }
+                },
+                {
+                  "op": "if",
+                  "condition": {
+                    "op": "lt",
+                    "left": {
+                      "var": "kyb_sucursales"
+                    },
+                    "right": {
+                      "value": 1
+                    }
+                  },
+                  "then": {
+                    "value": 1
+                  },
+                  "else": {
+                    "value": 0
+                  }
+                },
+                {
+                  "op": "if",
+                  "condition": {
+                    "op": "gt",
+                    "left": {
+                      "var": "kyb_antiguedad_dias"
+                    },
+                    "right": {
+                      "value": 120
+                    }
+                  },
+                  "then": {
+                    "value": 1
+                  },
+                  "else": {
+                    "value": 0
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "key": "EVALUAR",
+      "type": "CONDITION",
+      "label": "Evaluar el expediente",
+      "x": 780,
+      "y": 0,
+      "terminal": false,
+      "config": {},
+      "actions": []
+    },
+    {
+      "key": "APROBAR",
+      "type": "RESULT",
+      "label": "Apto para operar",
+      "x": 1040,
+      "y": 160,
+      "terminal": true,
+      "actions": [],
+      "config": {
+        "mode": "MAPPING",
+        "assignments": [
+          {
+            "source": "LITERAL",
+            "value": "APROBADO",
+            "outputCode": "kyb_decision"
+          },
+          {
+            "source": "LITERAL",
+            "value": "KYB_COMPLETO",
+            "outputCode": "kyb_motivo"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.requisitos_faltantes"
+            },
+            "outputCode": "kyb_requisitos_faltantes"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.senales_operativas"
+            },
+            "outputCode": "kyb_senales_operativas"
+          }
+        ]
+      }
+    },
+    {
+      "key": "REVISAR",
+      "type": "RESULT",
+      "label": "Revisión manual",
+      "x": 1040,
+      "y": 0,
+      "terminal": true,
+      "actions": [],
+      "config": {
+        "mode": "MAPPING",
+        "assignments": [
+          {
+            "source": "LITERAL",
+            "value": "REVISION_MANUAL",
+            "outputCode": "kyb_decision"
+          },
+          {
+            "source": "LITERAL",
+            "value": "KYB_SENALES_OPERATIVAS",
+            "outputCode": "kyb_motivo"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.requisitos_faltantes"
+            },
+            "outputCode": "kyb_requisitos_faltantes"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.senales_operativas"
+            },
+            "outputCode": "kyb_senales_operativas"
+          }
+        ]
+      }
+    },
+    {
+      "key": "RECHAZAR",
+      "type": "RESULT",
+      "label": "Incompleto",
+      "x": 1040,
+      "y": -160,
+      "terminal": true,
+      "actions": [],
+      "config": {
+        "mode": "MAPPING",
+        "assignments": [
+          {
+            "source": "LITERAL",
+            "value": "RECHAZADO",
+            "outputCode": "kyb_decision"
+          },
+          {
+            "source": "LITERAL",
+            "value": "KYB_REQUISITOS_INCOMPLETOS",
+            "outputCode": "kyb_motivo"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.requisitos_faltantes"
+            },
+            "outputCode": "kyb_requisitos_faltantes"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.senales_operativas"
+            },
+            "outputCode": "kyb_senales_operativas"
+          }
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "key": "E_START",
+      "from": "START",
+      "to": "CONTAR_REQUISITOS",
+      "type": "DEFAULT",
+      "priority": 1,
+      "default": true,
+      "conditions": []
+    },
+    {
+      "key": "E_REQUISITOS",
+      "from": "CONTAR_REQUISITOS",
+      "to": "MEDIR_SENALES",
+      "type": "DEFAULT",
+      "priority": 1,
+      "default": true,
+      "conditions": []
+    },
+    {
+      "key": "E_SENALES",
+      "from": "MEDIR_SENALES",
+      "to": "EVALUAR",
+      "type": "DEFAULT",
+      "priority": 1,
+      "default": true,
+      "conditions": []
+    },
+    {
+      "key": "E_INCOMPLETO",
+      "from": "EVALUAR",
+      "to": "RECHAZAR",
+      "type": "CONDITIONAL",
+      "priority": 1,
+      "default": false,
+      "conditions": [
+        {
+          "conditionCode": "FALTAN_REQUISITOS",
+          "order": 1
+        }
+      ]
+    },
+    {
+      "key": "E_REVISION",
+      "from": "EVALUAR",
+      "to": "REVISAR",
+      "type": "CONDITIONAL",
+      "priority": 2,
+      "default": false,
+      "conditions": [
+        {
+          "conditionCode": "HAY_SENALES",
+          "order": 1
+        }
+      ]
+    },
+    {
+      "key": "E_APROBACION",
+      "from": "EVALUAR",
+      "to": "APROBAR",
+      "type": "DEFAULT",
+      "priority": 3,
+      "default": true,
+      "conditions": []
+    }
+  ],
+  "cases": [
+    {
+      "caseCode": "KYB-COMPLETO-APRUEBA",
+      "testName": "Expediente completo y sin señales: aprueba",
+      "input": {
+        "kyb_tiene_matricula": true,
+        "kyb_representante_acreditado": true,
+        "kyb_qr_negocio": true,
+        "kyb_qr_bancario": true,
+        "kyb_correo_verificado": true,
+        "kyb_sucursales": 1,
+        "kyb_antiguedad_dias": 20
+      },
+      "expectedResult": {
+        "kyb_decision": "APROBADO",
+        "kyb_motivo": "KYB_COMPLETO",
+        "kyb_requisitos_faltantes": 0
+      }
+    },
+    {
+      "caseCode": "KYB-SIN-QR-BANCARIO-RECHAZA",
+      "testName": "Falta el QR de cobro: rechaza aunque todo lo demás esté",
+      "input": {
+        "kyb_tiene_matricula": true,
+        "kyb_representante_acreditado": true,
+        "kyb_qr_negocio": true,
+        "kyb_qr_bancario": false,
+        "kyb_correo_verificado": true,
+        "kyb_sucursales": 1,
+        "kyb_antiguedad_dias": 20
+      },
+      "expectedResult": {
+        "kyb_decision": "RECHAZADO",
+        "kyb_motivo": "KYB_REQUISITOS_INCOMPLETOS",
+        "kyb_requisitos_faltantes": 1
+      }
+    },
+    {
+      "caseCode": "KYB-DUROS-NO-COMPENSAN",
+      "testName": "Un requisito duro que falta rechaza aunque además haya señales",
+      "input": {
+        "kyb_tiene_matricula": true,
+        "kyb_representante_acreditado": true,
+        "kyb_qr_negocio": false,
+        "kyb_qr_bancario": true,
+        "kyb_correo_verificado": false,
+        "kyb_sucursales": 0,
+        "kyb_antiguedad_dias": 20
+      },
+      "expectedResult": {
+        "kyb_decision": "RECHAZADO",
+        "kyb_senales_operativas": 2
+      }
+    },
+    {
+      "caseCode": "KYB-CORREO-SIN-PROBAR-REVISA",
+      "testName": "Completo con el correo sin verificar: a revisión (REVISAR es RESULT: NO abre caso todavía)",
+      "input": {
+        "kyb_tiene_matricula": true,
+        "kyb_representante_acreditado": true,
+        "kyb_qr_negocio": true,
+        "kyb_qr_bancario": true,
+        "kyb_correo_verificado": false,
+        "kyb_sucursales": 1,
+        "kyb_antiguedad_dias": 20
+      },
+      "expectedResult": {
+        "kyb_decision": "REVISION_MANUAL",
+        "kyb_motivo": "KYB_SENALES_OPERATIVAS",
+        "kyb_senales_operativas": 1,
+        "outcome": "REVISION_MANUAL"
+      }
+    },
+    {
+      "caseCode": "KYB-SIN-SUCURSALES-REVISA",
+      "testName": "Sin sucursal declarada: a revisión",
+      "input": {
+        "kyb_tiene_matricula": true,
+        "kyb_representante_acreditado": true,
+        "kyb_qr_negocio": true,
+        "kyb_qr_bancario": true,
+        "kyb_correo_verificado": true,
+        "kyb_sucursales": 0,
+        "kyb_antiguedad_dias": 20
+      },
+      "expectedResult": {
+        "kyb_decision": "REVISION_MANUAL",
+        "kyb_senales_operativas": 1
+      }
+    },
+    {
+      "caseCode": "KYB-EXPEDIENTE-VIEJO-REVISA",
+      "testName": "Expediente abierto hace demasiado: la antigüedad es señal, no defecto",
+      "input": {
+        "kyb_tiene_matricula": true,
+        "kyb_representante_acreditado": true,
+        "kyb_qr_negocio": true,
+        "kyb_qr_bancario": true,
+        "kyb_correo_verificado": true,
+        "kyb_sucursales": 1,
+        "kyb_antiguedad_dias": 121
+      },
+      "expectedResult": {
+        "kyb_decision": "REVISION_MANUAL",
+        "kyb_senales_operativas": 1
+      }
+    },
+    {
+      "caseCode": "KYB-ANTIGUEDAD-120-APRUEBA",
+      "testName": "En el límite exacto de 120 días todavía no es señal: aprueba",
+      "input": {
+        "kyb_tiene_matricula": true,
+        "kyb_representante_acreditado": true,
+        "kyb_qr_negocio": true,
+        "kyb_qr_bancario": true,
+        "kyb_correo_verificado": true,
+        "kyb_sucursales": 1,
+        "kyb_antiguedad_dias": 120
+      },
+      "expectedResult": {
+        "kyb_decision": "APROBADO",
+        "kyb_senales_operativas": 0
+      }
+    },
+    {
+      "caseCode": "KYB-TRES-SENALES-REVISA",
+      "testName": "Las tres señales a la vez siguen siendo revisión, nunca rechazo",
+      "input": {
+        "kyb_tiene_matricula": true,
+        "kyb_representante_acreditado": true,
+        "kyb_qr_negocio": true,
+        "kyb_qr_bancario": true,
+        "kyb_correo_verificado": false,
+        "kyb_sucursales": 0,
+        "kyb_antiguedad_dias": 121
+      },
+      "expectedResult": {
+        "kyb_decision": "REVISION_MANUAL",
+        "kyb_requisitos_faltantes": 0,
+        "kyb_senales_operativas": 3
+      }
+    },
+    {
+      "caseCode": "KYB-CUATRO-REQUISITOS-RECHAZA",
+      "testName": "Sin ninguno de los cuatro requisitos duros: rechaza contándolos todos",
+      "input": {
+        "kyb_tiene_matricula": false,
+        "kyb_representante_acreditado": false,
+        "kyb_qr_negocio": false,
+        "kyb_qr_bancario": false,
+        "kyb_correo_verificado": true,
+        "kyb_sucursales": 1,
+        "kyb_antiguedad_dias": 20
+      },
+      "expectedResult": {
+        "kyb_decision": "RECHAZADO",
+        "kyb_motivo": "KYB_REQUISITOS_INCOMPLETOS",
+        "kyb_requisitos_faltantes": 4
+      }
+    }
+  ],
+  "suite": {
+    "suiteCode": "KYB-DESENLACES",
+    "name": "Verificación KYB del comercio: los tres desenlaces",
+    "suiteType": "REGRESSION",
+    "isBlocking": true
+  }
+}

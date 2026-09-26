@@ -1,0 +1,798 @@
+{
+  "artifact": {
+    "artifactCode": "EXTRACTO_CAPACIDAD_PAGO",
+    "artifactType": "CREDIT_POLICY",
+    "riskDomain": "CREDIT_ORIGINATION",
+    "ownerTeam": "RISK_DECISIONING",
+    "name": "Capacidad de pago verificada por extracto bancario",
+    "description": "Demostración de un nodo que LLAMA a un servicio de worker: convierte el extracto en PDF a movimientos normalizados, guarda el resultado en variables intermedias y decide con ellas.",
+    "businessPurpose": "Servir de referencia ejecutable de cómo un algoritmo consume los servicios de los workers absorbidos (ADR-0026) como variables del motor.",
+    "semanticVersion": "1.1.0",
+    "authoringNotes": "El nodo ANALIZAR_EXTRACTO continúa ante un fallo del servicio con los valores por defecto declarados; la rama EXTRACTO_NO_CONFIABLE es la que recoge ese caso. Portada al repositorio desde la versión 1 (1.1.0) sembrada en DEV, checksum 91769ea02681b2dd507a2d04ed9c6484e312db8e4b4500e7b19b268159c94a01: mismo grafo, mismas condiciones y mismos umbrales (confianza 0,6; 5 movimientos; cobertura 3 y 1,5). El ingreso verificado son los abonos del periodo tal como los suma el motor de extractos (`totals.creditExtracted`), no el total impreso por el banco, que ningún formato especializado publica."
+  },
+  "inputs": [
+    {
+      "code": "extracto_pdf_base64",
+      "dataType": "STRING",
+      "name": "Extracto bancario (PDF en base64)",
+      "description": "Documento que la solicitud adjunta. Lo consume el nodo que llama al servicio de extractos; nunca se persiste su valor, sólo su huella.",
+      "dataClassification": "PII",
+      "isSensitive": true,
+      "fallbackPolicy": "FAIL_CLOSED",
+      "_sensitivityClassEnOrigen": "PII",
+      "_sensitivityClassNota": "El JSON real de v3 trae sensitivityClass='PII' en la columna de gobierno (no confundir con dataClassification, que es OTRA columna). POST /v1/variables no acepta sensitivityClass — sólo UpdateVariableDefinitionDto lo declara, y ese endpoint no está cableado a ninguna ruta (variable.controller.ts no lo expone): al crear esta variable en un Motor vacío queda con el default de esquema INTERNAL, no PII. El guion lo detecta y avisa; corregirlo de verdad es tarea del Motor (exponer un PATCH), no de este puerto."
+    },
+    {
+      "code": "extracto_nombre_archivo",
+      "dataType": "STRING",
+      "name": "Nombre del archivo del extracto",
+      "description": "Nombre original del PDF. Viaja al servicio sólo para la traza.",
+      "dataClassification": "INTERNAL",
+      "isSensitive": false,
+      "fallbackPolicy": "FAIL_CLOSED"
+    },
+    {
+      "code": "cuota_solicitada_extracto",
+      "dataType": "DECIMAL",
+      "name": "Cuota mensual solicitada",
+      "description": "Cuota del crédito que se solicita, en la moneda de la cuenta.",
+      "unitCode": "BOB",
+      "constraints": {
+        "max": 1000000,
+        "scale": 2,
+        "exclusiveMin": 0
+      },
+      "dataClassification": "INTERNAL",
+      "isSensitive": false,
+      "fallbackPolicy": "FAIL_CLOSED"
+    }
+  ],
+  "outputs": [
+    {
+      "code": "decision_extracto",
+      "dataType": "STRING",
+      "usageType": "OUTPUT_PRIMARY",
+      "name": "Decisión sobre el extracto",
+      "description": "Resultado principal del análisis de capacidad de pago sobre el extracto.",
+      "constraints": {
+        "allowedValues": [
+          "APROBADO",
+          "APROBADO_CON_CONDICIONES",
+          "REVISION_MANUAL",
+          "RECHAZADO"
+        ]
+      },
+      "dataClassification": "INTERNAL",
+      "isSensitive": false,
+      "fallbackPolicy": "NOT_APPLICABLE"
+    },
+    {
+      "code": "motivo_extracto",
+      "dataType": "STRING",
+      "usageType": "OUTPUT",
+      "name": "Motivo de la decisión",
+      "description": "Código explicable del resultado.",
+      "dataClassification": "INTERNAL",
+      "isSensitive": false,
+      "fallbackPolicy": "NOT_APPLICABLE"
+    },
+    {
+      "code": "ingreso_verificado",
+      "dataType": "DECIMAL",
+      "usageType": "OUTPUT",
+      "name": "Ingreso verificado",
+      "description": "Abonos del periodo leídos del extracto, publicados al consumidor.",
+      "unitCode": "BOB",
+      "dataClassification": "INTERNAL",
+      "isSensitive": false,
+      "fallbackPolicy": "NOT_APPLICABLE"
+    },
+    {
+      "code": "confianza_extracto",
+      "dataType": "DECIMAL",
+      "usageType": "OUTPUT",
+      "name": "Confianza del extracto",
+      "description": "Confianza compuesta con la que el servicio leyó el documento.",
+      "dataClassification": "INTERNAL",
+      "isSensitive": false,
+      "fallbackPolicy": "NOT_APPLICABLE"
+    }
+  ],
+  "intermediates": [
+    {
+      "code": "ext_estado_llamada",
+      "name": "Estado de la llamada al servicio",
+      "description": "Estado de la llamada al servicio. Sólo existe durante la ejecución que la crea.",
+      "dataType": "STRING",
+      "producerNodeKey": "ANALIZAR_EXTRACTO",
+      "consumerNodeKeys": []
+    },
+    {
+      "code": "ext_codigo_error",
+      "name": "Código de error del servicio",
+      "description": "Código de error del servicio. Sólo existe durante la ejecución que la crea.",
+      "dataType": "STRING",
+      "producerNodeKey": "ANALIZAR_EXTRACTO",
+      "consumerNodeKeys": []
+    },
+    {
+      "code": "ext_confianza",
+      "name": "Confianza del análisis del extracto",
+      "description": "Confianza del análisis del extracto. Sólo existe durante la ejecución que la crea.",
+      "dataType": "DECIMAL",
+      "producerNodeKey": "ANALIZAR_EXTRACTO",
+      "consumerNodeKeys": []
+    },
+    {
+      "code": "ext_total_creditos",
+      "name": "Abonos del periodo",
+      "description": "Abonos del periodo. Sólo existe durante la ejecución que la crea.",
+      "dataType": "DECIMAL",
+      "producerNodeKey": "ANALIZAR_EXTRACTO",
+      "consumerNodeKeys": []
+    },
+    {
+      "code": "ext_total_debitos",
+      "name": "Cargos del periodo",
+      "description": "Cargos del periodo. Sólo existe durante la ejecución que la crea.",
+      "dataType": "DECIMAL",
+      "producerNodeKey": "ANALIZAR_EXTRACTO",
+      "consumerNodeKeys": []
+    },
+    {
+      "code": "ext_saldo_final",
+      "name": "Saldo final del periodo",
+      "description": "Saldo final del periodo. Sólo existe durante la ejecución que la crea.",
+      "dataType": "DECIMAL",
+      "producerNodeKey": "ANALIZAR_EXTRACTO",
+      "consumerNodeKeys": []
+    },
+    {
+      "code": "ext_movimientos",
+      "name": "Movimientos leídos",
+      "description": "Movimientos leídos. Sólo existe durante la ejecución que la crea.",
+      "dataType": "INTEGER",
+      "producerNodeKey": "ANALIZAR_EXTRACTO",
+      "consumerNodeKeys": []
+    },
+    {
+      "code": "ext_moneda",
+      "name": "Moneda de la cuenta",
+      "description": "Moneda de la cuenta. Sólo existe durante la ejecución que la crea.",
+      "dataType": "STRING",
+      "producerNodeKey": "ANALIZAR_EXTRACTO",
+      "consumerNodeKeys": []
+    },
+    {
+      "code": "ext_ingreso_mensual",
+      "name": "Ingreso mensual verificado",
+      "description": "Ingreso mensual verificado. Sólo existe durante la ejecución que la crea.",
+      "dataType": "DECIMAL",
+      "producerNodeKey": "DERIVAR_CAPACIDAD",
+      "consumerNodeKeys": []
+    },
+    {
+      "code": "ext_cobertura_cuota",
+      "name": "Veces que el ingreso cubre la cuota",
+      "description": "Veces que el ingreso cubre la cuota. Sólo existe durante la ejecución que la crea.",
+      "dataType": "DECIMAL",
+      "producerNodeKey": "DERIVAR_CAPACIDAD",
+      "consumerNodeKeys": []
+    }
+  ],
+  "conditions": [
+    {
+      "code": "EXTRACTO_NO_CONFIABLE",
+      "name": "El extracto no es fiable",
+      "expressionType": "JSON_AST",
+      "expression": {
+        "op": "or",
+        "args": [
+          {
+            "op": "eq",
+            "left": {
+              "var": "intermediate.ext_estado_llamada"
+            },
+            "right": {
+              "value": "FAILED"
+            }
+          },
+          {
+            "op": "lt",
+            "left": {
+              "var": "intermediate.ext_confianza"
+            },
+            "right": {
+              "value": 0.6
+            }
+          },
+          {
+            "op": "lt",
+            "left": {
+              "var": "intermediate.ext_movimientos"
+            },
+            "right": {
+              "value": 5
+            }
+          }
+        ]
+      },
+      "severity": "BLOCKING",
+      "reusable": true
+    },
+    {
+      "code": "COBERTURA_HOLGADA",
+      "name": "Los abonos cubren la cuota con holgura",
+      "expressionType": "JSON_AST",
+      "expression": {
+        "op": "gte",
+        "left": {
+          "var": "intermediate.ext_cobertura_cuota"
+        },
+        "right": {
+          "value": 3
+        }
+      },
+      "severity": "BLOCKING",
+      "reusable": true
+    },
+    {
+      "code": "COBERTURA_SUFICIENTE",
+      "name": "Los abonos cubren la cuota de forma ajustada",
+      "expressionType": "JSON_AST",
+      "expression": {
+        "op": "gte",
+        "left": {
+          "var": "intermediate.ext_cobertura_cuota"
+        },
+        "right": {
+          "value": 1.5
+        }
+      },
+      "severity": "BLOCKING",
+      "reusable": true
+    }
+  ],
+  "actions": [],
+  "nodes": [
+    {
+      "key": "START",
+      "type": "START",
+      "label": "Inicio",
+      "terminal": false,
+      "config": {
+        "description": "Recibe el extracto bancario en PDF (base64) y la cuota mensual solicitada."
+      },
+      "actions": []
+    },
+    {
+      "key": "ANALIZAR_EXTRACTO",
+      "type": "WORKER",
+      "label": "Analizar el extracto bancario",
+      "terminal": false,
+      "config": {
+        "onError": "CONTINUE",
+        "outputs": [
+          {
+            "path": "call.status",
+            "defaultValue": "FAILED",
+            "intermediateCode": "ext_estado_llamada"
+          },
+          {
+            "path": "call.errorCode",
+            "defaultValue": "",
+            "intermediateCode": "ext_codigo_error"
+          },
+          {
+            "path": "result.quality.overallConfidence",
+            "defaultValue": 0,
+            "intermediateCode": "ext_confianza"
+          },
+          {
+            "path": "result.totals.creditExtracted",
+            "defaultValue": 0,
+            "intermediateCode": "ext_total_creditos"
+          },
+          {
+            "path": "result.totals.debitExtracted",
+            "defaultValue": 0,
+            "intermediateCode": "ext_total_debitos"
+          },
+          {
+            "path": "result.balances.closing",
+            "defaultValue": 0,
+            "intermediateCode": "ext_saldo_final"
+          },
+          {
+            "path": "result.transactions.length",
+            "defaultValue": 0,
+            "intermediateCode": "ext_movimientos"
+          },
+          {
+            "path": "result.account.currency",
+            "defaultValue": "DESCONOCIDA",
+            "intermediateCode": "ext_moneda"
+          }
+        ],
+        "service": "bank-statement",
+        "arguments": {
+          "fileName": {
+            "path": "extracto_nombre_archivo",
+            "source": "VARIABLE"
+          },
+          "documentBase64": {
+            "path": "extracto_pdf_base64",
+            "source": "VARIABLE"
+          }
+        },
+        "operation": "normalize",
+        "timeoutMs": 30000,
+        "description": "Llama al servicio de extractos con el PDF de la solicitud y guarda lo que devuelve en variables intermedias."
+      },
+      "actions": []
+    },
+    {
+      "key": "DERIVAR_CAPACIDAD",
+      "type": "EXPRESSION",
+      "label": "Derivar capacidad de pago",
+      "terminal": false,
+      "config": {
+        "description": "Toma los abonos del periodo como ingreso verificado y calcula cuántas veces cubren la cuota.",
+        "intermediateAssignments": [
+          {
+            "code": "ext_ingreso_mensual",
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.ext_total_creditos"
+            }
+          },
+          {
+            "code": "ext_cobertura_cuota",
+            "source": "EXPRESSION",
+            "expression": {
+              "op": "div",
+              "left": {
+                "var": "intermediate.ext_ingreso_mensual"
+              },
+              "right": {
+                "var": "cuota_solicitada_extracto"
+              }
+            }
+          }
+        ]
+      },
+      "actions": []
+    },
+    {
+      "key": "EVALUAR",
+      "type": "CONDITION",
+      "label": "Evaluar capacidad de pago",
+      "terminal": false,
+      "config": {
+        "description": "Decide según la fiabilidad del extracto y la cobertura de la cuota."
+      },
+      "actions": []
+    },
+    {
+      "key": "APROBAR",
+      "type": "RESULT",
+      "label": "Aprobar",
+      "terminal": true,
+      "config": {
+        "mode": "MAPPING",
+        "assignments": [
+          {
+            "value": "APROBADO",
+            "source": "LITERAL",
+            "outputCode": "decision_extracto"
+          },
+          {
+            "value": "COBERTURA_HOLGADA",
+            "source": "LITERAL",
+            "outputCode": "motivo_extracto"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.ext_ingreso_mensual"
+            },
+            "outputCode": "ingreso_verificado"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.ext_confianza"
+            },
+            "outputCode": "confianza_extracto"
+          }
+        ]
+      },
+      "actions": []
+    },
+    {
+      "key": "APROBAR_CONDICIONADO",
+      "type": "RESULT",
+      "label": "Aprobar con condiciones",
+      "terminal": true,
+      "config": {
+        "mode": "MAPPING",
+        "assignments": [
+          {
+            "value": "APROBADO_CON_CONDICIONES",
+            "source": "LITERAL",
+            "outputCode": "decision_extracto"
+          },
+          {
+            "value": "COBERTURA_AJUSTADA",
+            "source": "LITERAL",
+            "outputCode": "motivo_extracto"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.ext_ingreso_mensual"
+            },
+            "outputCode": "ingreso_verificado"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.ext_confianza"
+            },
+            "outputCode": "confianza_extracto"
+          }
+        ]
+      },
+      "actions": []
+    },
+    {
+      "key": "REVISAR",
+      "type": "RESULT",
+      "label": "Revisión manual",
+      "terminal": true,
+      "config": {
+        "mode": "MAPPING",
+        "assignments": [
+          {
+            "value": "REVISION_MANUAL",
+            "source": "LITERAL",
+            "outputCode": "decision_extracto"
+          },
+          {
+            "value": "EXTRACTO_NO_CONFIABLE",
+            "source": "LITERAL",
+            "outputCode": "motivo_extracto"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.ext_ingreso_mensual"
+            },
+            "outputCode": "ingreso_verificado"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.ext_confianza"
+            },
+            "outputCode": "confianza_extracto"
+          }
+        ]
+      },
+      "actions": []
+    },
+    {
+      "key": "RECHAZAR",
+      "type": "RESULT",
+      "label": "Rechazar",
+      "terminal": true,
+      "config": {
+        "mode": "MAPPING",
+        "assignments": [
+          {
+            "value": "RECHAZADO",
+            "source": "LITERAL",
+            "outputCode": "decision_extracto"
+          },
+          {
+            "value": "COBERTURA_INSUFICIENTE",
+            "source": "LITERAL",
+            "outputCode": "motivo_extracto"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.ext_ingreso_mensual"
+            },
+            "outputCode": "ingreso_verificado"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.ext_confianza"
+            },
+            "outputCode": "confianza_extracto"
+          }
+        ]
+      },
+      "actions": []
+    }
+  ],
+  "edges": [
+    {
+      "key": "E_START",
+      "from": "START",
+      "to": "ANALIZAR_EXTRACTO",
+      "type": "DEFAULT",
+      "priority": 1,
+      "default": true,
+      "conditions": []
+    },
+    {
+      "key": "E_ANALISIS",
+      "from": "ANALIZAR_EXTRACTO",
+      "to": "DERIVAR_CAPACIDAD",
+      "type": "DEFAULT",
+      "priority": 1,
+      "default": true,
+      "conditions": []
+    },
+    {
+      "key": "E_DERIVACION",
+      "from": "DERIVAR_CAPACIDAD",
+      "to": "EVALUAR",
+      "type": "DEFAULT",
+      "priority": 1,
+      "default": true,
+      "conditions": []
+    },
+    {
+      "key": "E_REVISION",
+      "from": "EVALUAR",
+      "to": "REVISAR",
+      "type": "CONDITIONAL",
+      "priority": 1,
+      "default": false,
+      "conditions": [
+        {
+          "conditionCode": "EXTRACTO_NO_CONFIABLE",
+          "order": 1
+        }
+      ]
+    },
+    {
+      "key": "E_APROBACION",
+      "from": "EVALUAR",
+      "to": "APROBAR",
+      "type": "CONDITIONAL",
+      "priority": 2,
+      "default": false,
+      "conditions": [
+        {
+          "conditionCode": "COBERTURA_HOLGADA",
+          "order": 1
+        }
+      ]
+    },
+    {
+      "key": "E_CONDICIONADA",
+      "from": "EVALUAR",
+      "to": "APROBAR_CONDICIONADO",
+      "type": "CONDITIONAL",
+      "priority": 3,
+      "default": false,
+      "conditions": [
+        {
+          "conditionCode": "COBERTURA_SUFICIENTE",
+          "order": 1
+        }
+      ]
+    },
+    {
+      "key": "E_RECHAZO",
+      "from": "EVALUAR",
+      "to": "RECHAZAR",
+      "type": "DEFAULT",
+      "priority": 4,
+      "default": true,
+      "conditions": []
+    }
+  ],
+  "outputContract": [
+    {
+      "code": "decision_extracto",
+      "name": "Decisión sobre el extracto",
+      "sourceKind": "NODE",
+      "sourceRef": "EVALUAR"
+    },
+    {
+      "code": "motivo_extracto",
+      "name": "Motivo de la decisión",
+      "sourceKind": "NODE",
+      "sourceRef": "EVALUAR"
+    },
+    {
+      "code": "ingreso_verificado",
+      "name": "Ingreso verificado",
+      "sourceKind": "INTERMEDIATE",
+      "sourceRef": "ext_ingreso_mensual"
+    },
+    {
+      "code": "confianza_extracto",
+      "name": "Confianza del extracto",
+      "sourceKind": "INTERMEDIATE",
+      "sourceRef": "ext_confianza"
+    }
+  ],
+  "suite": {
+    "suiteCode": "EXTRACTO-DESENLACES",
+    "name": "Capacidad de pago por extracto: los cuatro desenlaces y los bordes de cada umbral",
+    "suiteType": "REGRESSION",
+    "isBlocking": true
+  },
+  "documentos": {
+    "tres-meses": {
+      "tipo": "tres-meses",
+      "ingresoMensual": 5000
+    },
+    "pocos-movimientos": {
+      "tipo": "pocos-movimientos",
+      "ingresoMensual": 5000
+    },
+    "ilegible": {
+      "tipo": "ilegible",
+      "base64": "JVBERi0xLjQ="
+    }
+  },
+  "cases": [
+    {
+      "caseCode": "EXTRACTO-APRUEBA-HOLGADO",
+      "testName": "Abonos 15.000 y cuota 2.000: cubre 7,5 veces, aprueba",
+      "documento": "tres-meses",
+      "cuota": 2000,
+      "expectedResult": {
+        "decision_extracto": "APROBADO",
+        "motivo_extracto": "COBERTURA_HOLGADA",
+        "ingreso_verificado": 15000,
+        "trace": {
+          "terminal": "APROBAR"
+        }
+      }
+    },
+    {
+      "caseCode": "EXTRACTO-APRUEBA-EN-EL-3-EXACTO",
+      "testName": "Cuota 5.000: cubre exactamente 3 veces y el umbral es «mayor o igual»",
+      "documento": "tres-meses",
+      "cuota": 5000,
+      "expectedResult": {
+        "decision_extracto": "APROBADO",
+        "motivo_extracto": "COBERTURA_HOLGADA",
+        "ingreso_verificado": 15000,
+        "trace": {
+          "terminal": "APROBAR"
+        }
+      }
+    },
+    {
+      "caseCode": "EXTRACTO-CONDICIONADA-JUSTO-BAJO-3",
+      "testName": "Cuota 5.000,01: cubre 2,99998 veces, no llega a 3",
+      "documento": "tres-meses",
+      "cuota": 5000.01,
+      "expectedResult": {
+        "decision_extracto": "APROBADO_CON_CONDICIONES",
+        "motivo_extracto": "COBERTURA_AJUSTADA",
+        "ingreso_verificado": 15000,
+        "trace": {
+          "terminal": "APROBAR_CONDICIONADO"
+        }
+      }
+    },
+    {
+      "caseCode": "EXTRACTO-CONDICIONADA-2-5",
+      "testName": "Cuota 6.000: cubre 2,5 veces, aprueba con condiciones",
+      "documento": "tres-meses",
+      "cuota": 6000,
+      "expectedResult": {
+        "decision_extracto": "APROBADO_CON_CONDICIONES",
+        "motivo_extracto": "COBERTURA_AJUSTADA",
+        "ingreso_verificado": 15000,
+        "trace": {
+          "terminal": "APROBAR_CONDICIONADO"
+        }
+      }
+    },
+    {
+      "caseCode": "EXTRACTO-CONDICIONADA-EN-EL-1-5-EXACTO",
+      "testName": "Cuota 10.000: cubre exactamente 1,5 veces y el umbral es «mayor o igual»",
+      "documento": "tres-meses",
+      "cuota": 10000,
+      "expectedResult": {
+        "decision_extracto": "APROBADO_CON_CONDICIONES",
+        "motivo_extracto": "COBERTURA_AJUSTADA",
+        "ingreso_verificado": 15000,
+        "trace": {
+          "terminal": "APROBAR_CONDICIONADO"
+        }
+      }
+    },
+    {
+      "caseCode": "EXTRACTO-RECHAZA-JUSTO-BAJO-1-5",
+      "testName": "Cuota 10.000,01: cubre 1,49999 veces, no llega a 1,5",
+      "documento": "tres-meses",
+      "cuota": 10000.01,
+      "expectedResult": {
+        "decision_extracto": "RECHAZADO",
+        "motivo_extracto": "COBERTURA_INSUFICIENTE",
+        "ingreso_verificado": 15000,
+        "trace": {
+          "terminal": "RECHAZAR"
+        }
+      }
+    },
+    {
+      "caseCode": "EXTRACTO-RECHAZA-1-25",
+      "testName": "Cuota 12.000: cubre 1,25 veces, rechaza",
+      "documento": "tres-meses",
+      "cuota": 12000,
+      "expectedResult": {
+        "decision_extracto": "RECHAZADO",
+        "motivo_extracto": "COBERTURA_INSUFICIENTE",
+        "ingreso_verificado": 15000,
+        "trace": {
+          "terminal": "RECHAZAR"
+        }
+      }
+    },
+    {
+      "caseCode": "EXTRACTO-POCOS-MOVIMIENTOS-REVISA",
+      "testName": "Tres movimientos en el periodo: no describen la cuenta, va a una persona aunque la cobertura sobre",
+      "documento": "pocos-movimientos",
+      "cuota": 1000,
+      "expectedResult": {
+        "decision_extracto": "REVISION_MANUAL",
+        "motivo_extracto": "EXTRACTO_NO_CONFIABLE",
+        "trace": {
+          "terminal": "REVISAR"
+        }
+      }
+    },
+    {
+      "caseCode": "EXTRACTO-PDF-ILEGIBLE-REVISA",
+      "testName": "PDF que no se puede leer: la llamada falla, el algoritmo sigue con los valores por defecto y va a una persona",
+      "documento": "ilegible",
+      "cuota": 3500,
+      "expectedResult": {
+        "decision_extracto": "REVISION_MANUAL",
+        "motivo_extracto": "EXTRACTO_NO_CONFIABLE",
+        "ingreso_verificado": 0,
+        "trace": {
+          "terminal": "REVISAR"
+        }
+      }
+    },
+    {
+      "caseCode": "EXTRACTO-CUOTA-CERO-SIN-DECISION",
+      "testName": "Cuota 0: el contrato de entrada exige mayor que cero, no hay decisión",
+      "documento": "tres-meses",
+      "cuota": 0,
+      "expectedResult": {
+        "outcome": "NO_DECISION",
+        "reasonCodes": [
+          "VARIABLE_MISSING_OR_INVALID"
+        ]
+      }
+    },
+    {
+      "caseCode": "EXTRACTO-CUOTA-SOBRE-EL-TOPE-SIN-DECISION",
+      "testName": "Cuota 1.000.000,01: supera el máximo del contrato de entrada, no hay decisión",
+      "documento": "tres-meses",
+      "cuota": 1000000.01,
+      "expectedResult": {
+        "outcome": "NO_DECISION",
+        "reasonCodes": [
+          "VARIABLE_MISSING_OR_INVALID"
+        ]
+      }
+    }
+  ]
+}
