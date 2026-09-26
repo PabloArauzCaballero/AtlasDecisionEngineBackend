@@ -17656,6 +17656,18 @@
             ],
             "example": "PROBABILITY_OF_DEFAULT",
             "description": "Qué representa el campo en términos de riesgo. Un artefacto de originación necesita declarar su PROBABILITY_OF_DEFAULT para poder desplegarse en producción."
+          },
+          "policyMinValue": {
+            "type": "number",
+            "nullable": true,
+            "example": 0.18,
+            "description": "Suelo que la política admite para el campo; fuera de él la decisión no autoriza."
+          },
+          "policyMaxValue": {
+            "type": "number",
+            "nullable": true,
+            "example": 0.45,
+            "description": "Techo que la política admite para el campo; fuera de él la decisión no autoriza."
           }
         },
         "required": [
@@ -17668,7 +17680,9 @@
           "contractVersion",
           "sensitivityClass",
           "tracePolicy",
-          "semanticRole"
+          "semanticRole",
+          "policyMinValue",
+          "policyMaxValue"
         ]
       },
       "GraphConditionDto": {
@@ -18759,6 +18773,13 @@
               "APPROVED_LIMIT",
               "APPROVED_TERM"
             ]
+          },
+          "policyMinValue": {
+            "type": "number",
+            "description": "Rango que la POLÍTICA admite para este campo, además del de su rol: el suelo y el techo de\nla tasa del producto, el importe máximo que esta política puede aprobar. Una salida fuera de\nél no es una autorización: la decisión sale `NO_DECISION` con motivo técnico."
+          },
+          "policyMaxValue": {
+            "type": "number"
           }
         },
         "required": [
@@ -18872,6 +18893,71 @@
           }
         }
       },
+      "EnablingBasisRequirementDto": {
+        "type": "object",
+        "properties": {
+          "purpose": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "acceptedBases": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 8,
+            "items": {
+              "type": "string",
+              "enum": [
+                "CONSENT",
+                "CONTRACT",
+                "LEGAL_OBLIGATION",
+                "REGULATORY_EXERCISE",
+                "CREDIT_PROTECTION",
+                "LEGITIMATE_INTEREST",
+                "VITAL_INTEREST",
+                "HEALTH_PROTECTION"
+              ]
+            }
+          },
+          "acceptedVersions": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 40
+            }
+          }
+        },
+        "required": [
+          "purpose",
+          "acceptedBases"
+        ]
+      },
+      "EnablingBasisPolicyDto": {
+        "type": "object",
+        "properties": {
+          "onMissing": {
+            "type": "string",
+            "enum": [
+              "REVIEW",
+              "BLOCK"
+            ]
+          },
+          "requirements": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnablingBasisRequirementDto"
+            }
+          },
+          "justification": {
+            "type": "string",
+            "maxLength": 4000
+          }
+        },
+        "required": [
+          "requirements"
+        ]
+      },
       "ProcessingBasisDto": {
         "type": "object",
         "properties": {
@@ -18890,6 +18976,14 @@
               "LEGITIMATE_INTEREST",
               "VITAL_INTEREST",
               "HEALTH_PROTECTION"
+            ]
+          },
+          "enablingBasisPolicy": {
+            "description": "Qué base habilitante exige esta versión, por finalidad, y qué hacer si falta.\nSólo se puede cambiar en BORRADOR: se aprueba con la versión (doble control).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EnablingBasisPolicyDto"
+              }
             ]
           }
         }
@@ -18920,12 +19014,30 @@
               "HEALTH_PROTECTION"
             ],
             "example": "CREDIT_PROTECTION"
+          },
+          "enablingBasisPolicy": {
+            "type": "object",
+            "additionalProperties": true,
+            "nullable": true,
+            "example": {
+              "onMissing": "REVIEW",
+              "requirements": [
+                {
+                  "purpose": "credit_underwriting",
+                  "acceptedBases": [
+                    "CREDIT_PROTECTION"
+                  ]
+                }
+              ]
+            },
+            "description": "Base habilitante exigida por finalidad y qué hacer si falta. Nula = se deriva de `legalBasis` o de la política por defecto del motor para originación en producción."
           }
         },
         "required": [
           "id",
           "processingPurpose",
-          "legalBasis"
+          "legalBasis",
+          "enablingBasisPolicy"
         ]
       },
       "ValidationIssueDto": {
@@ -25503,6 +25615,11 @@
             "type": "string",
             "maxLength": 120,
             "example": "BANK_STATEMENT_ANALYSIS"
+          },
+          "revokedAt": {
+            "type": "string",
+            "example": "2026-09-20T10:00:00.000Z",
+            "description": "Cuándo revocó el titular, si la réplica llega tarde (p. ej. el motor estaba caído). Vacío = ahora. Una revocación anterior a un alta posterior se rechaza como obsoleta."
           }
         },
         "required": [
@@ -25538,6 +25655,11 @@
             "type": "string",
             "nullable": true
           },
+          "consentVersion": {
+            "type": "string",
+            "nullable": true,
+            "example": "v3"
+          },
           "valid": {
             "type": "boolean",
             "example": true
@@ -25560,6 +25682,7 @@
           "grantedAt",
           "expiresAt",
           "revokedAt",
+          "consentVersion",
           "valid",
           "reason",
           "daysRemaining"
@@ -25619,6 +25742,12 @@
             "maxLength": 200,
             "example": "EXP-2026-0091",
             "description": "Dónde está la prueba. Nunca el dato."
+          },
+          "consentVersion": {
+            "type": "string",
+            "maxLength": 40,
+            "example": "v3",
+            "description": "Versión del texto o de la política bajo la que se otorgó. Una versión de artefacto puede exigir una lista cerrada de versiones aceptadas."
           }
         },
         "required": [
@@ -26650,6 +26779,11 @@
           },
           "message": {
             "type": "string"
+          },
+          "duplicate": {
+            "type": "boolean",
+            "example": true,
+            "description": "La fila ya estaba registrada con los mismos datos de identidad: se acepta sin volver a escribir ni a contar. Es lo que hace seguro reenviar un lote entero."
           }
         },
         "required": [
@@ -26667,6 +26801,11 @@
           "rejected": {
             "type": "number",
             "example": 3
+          },
+          "duplicates": {
+            "type": "number",
+            "example": 40,
+            "description": "De las registradas, cuántas ya existían (reenvío idempotente)."
           },
           "rows": {
             "type": "array",
@@ -26760,6 +26899,11 @@
           "rejected": {
             "type": "number",
             "example": 2
+          },
+          "duplicates": {
+            "type": "number",
+            "example": 12,
+            "description": "De las aceptadas, cuántas ya estaban observadas igual: no se reescriben ni cuentan."
           },
           "dryRun": {
             "type": "boolean",

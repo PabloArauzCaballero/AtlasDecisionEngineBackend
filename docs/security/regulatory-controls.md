@@ -101,7 +101,7 @@ una prueba desaparece, la fila queda sin respaldo y eso se ve.
 | Verificación de la cadena bajo demanda | SOX | `GET /v1/audit/chain/verify`, por lotes con cursor | `test/audit-chain-verification.spec.ts` |
 | La rotación de secreto no invalida la historia | — | `hashKeyId` persistido por evento | `test/audit-chain-verification.spec.ts` |
 | Acción y evidencia son atómicas | LGPD art. 37 | `AuditService.append(input, tx)` dentro de la transacción del negocio | `test/audit-transactional.integration.spec.ts` |
-| Retención por familia de datos | Reg B §1002.12 (25 meses); AML (5 años); SOX (7) | 7 años, razonado en [ADR-0025](../adr/ADR-0025-execution-archival-threshold.md); ver [retención](../data/retention.md) | `test/retention-sweeper.spec.ts` |
+| Retención por familia de datos | Reg B §1002.12 (25 meses); AML (5 años); SOX (7) | Umbral de 7 años para `decision_execution`, razonado en [ADR-0025](../adr/ADR-0025-execution-archival-threshold.md); ver [retención](../data/retention.md). **El archivado de ejecuciones no está implementado**: no hay trabajo que lo ejecute | Ninguna. `test/retention-sweeper.spec.ts` prueba sólo la purga de `decision_runtime_idempotency`, que no es archivado legal |
 
 ## Seguridad de la información
 

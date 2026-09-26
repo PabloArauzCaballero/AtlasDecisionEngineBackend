@@ -1,0 +1,77 @@
+[
+  {
+    "requirementId": "B15",
+    "packageId": "P-11",
+    "repository": "AtlasDecisionEngineBackend",
+    "title": "Exposición concurrente: como máximo una concesión válida dentro del límite",
+    "releaseIncluded": true,
+    "ownerRole": "C",
+    "acceptance": "Exposición 900, límite 1.000 y dos solicitudes concurrentes de 80 dejan como máximo una concesión válida; la cancelación libera la reserva una sola vez. El motor lo reproduce (las dos decisiones pasan: no reserva) y publica exposure/decisionValidUntil; la reserva atómica es de Core.",
+    "tests": [
+      {
+        "file": "test/exposure-reservation.integration.spec.ts",
+        "name": "exposición 900, límite 1.000 y dos decisiones simultáneas de 80: el motor NO reserva y lo dice"
+      }
+    ],
+    "requiresDatabase": true,
+    "blockedBy": "Reserva atómica en el dueño de la concesión (AtlasBackend/Core, P-11 lado Core)."
+  },
+  {
+    "requirementId": "B15-M",
+    "packageId": "P-11",
+    "repository": "AtlasDecisionEngineBackend",
+    "title": "La decisión expresa el límite restante y su vencimiento",
+    "releaseIncluded": true,
+    "ownerRole": "M",
+    "acceptance": "La respuesta SUCCEEDED lleva exposure {limitCode, currencyCode, maxValue, enforced, currentExposure, requestedAmount, remainingBeforeDecision, remainingAfterDecision} y decisionValidUntil; cualquier otro estado lleva decisionValidUntil null; un sujeto no materializado compara lo pedido con el límite.",
+    "tests": [
+      {
+        "file": "test/exposure-reservation.integration.spec.ts",
+        "name": "exposición 900, límite 1.000 y dos decisiones simultáneas de 80: el motor NO reserva y lo dice"
+      },
+      {
+        "file": "test/risk-governance.spec.ts",
+        "name": "publica el límite restante antes y después de la decisión"
+      },
+      {
+        "file": "test/risk-governance.spec.ts",
+        "name": "sin sujeto materializado lo pedido se compara igual con el límite"
+      },
+      {
+        "file": "test/runtime-economic-output-gate.spec.ts",
+        "name": "una salida válida sale como siempre, con vencimiento y la exposición que vio"
+      }
+    ],
+    "requiresDatabase": true,
+    "blockedBy": null
+  },
+  {
+    "requirementId": "B15-OUT",
+    "packageId": "P-11",
+    "repository": "AtlasDecisionEngineBackend",
+    "title": "Registro de créditos y desenlaces idempotente, sin cambio de sujeto y con error parcial por fila",
+    "releaseIncluded": true,
+    "ownerRole": "M",
+    "acceptance": "Un crédito reenviado no cambia de sujeto ni de decisión (conflicto explícito); una fila que falla no se lleva el lote y reenviarlo no duplica; un outcome duplicado no incrementa numeradores ni mueve observedAt y deja la ventana cerrada; un conflicto de etiqueta se rechaza.",
+    "tests": [
+      {
+        "file": "test/exposure-reservation.integration.spec.ts",
+        "name": "el registro de un crédito es idempotente por referencia externa y no cambia de sujeto al reenviarse"
+      },
+      {
+        "file": "test/exposure-reservation.integration.spec.ts",
+        "name": "error parcial por fila: la fila mala vuelve con su código y el resto del lote se registra"
+      },
+      {
+        "file": "test/exposure-reservation.integration.spec.ts",
+        "name": "un desenlace duplicado no incrementa numeradores ni deja la ventana pendiente"
+      },
+      {
+        "file": "test/exposure-reservation.integration.spec.ts",
+        "name": "un reenvío cierra la ventana que una carga por la vía antigua dejó pendiente"
+      }
+    ],
+    "requiresDatabase": true,
+    "blockedBy": null
+  }
+]

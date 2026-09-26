@@ -29,6 +29,15 @@ export interface ResolvedDeployment {
    * crédito y, por tanto, si se le programan ventanas de observación.
    */
   riskDomain: string;
+  /**
+   * El ambiente es de producción. Decide si a un artefacto de originación que no declara base
+   * habilitante se le aplica la política por defecto del motor (`enabling-basis.ts`).
+   */
+  isProductionEnvironment: boolean;
+  /** Base legal declarada en la versión. De ella se deriva la exigencia si no hay política. */
+  legalBasis: string | null;
+  /** Política de base habilitante declarada en la versión, tal cual se guardó. */
+  enablingBasisPolicy: unknown;
 }
 
 @Injectable()
@@ -103,6 +112,9 @@ export class DeploymentResolverService {
       compiled: binding.activeDeployment.compiledArtifact
         .compiledPayloadJson as unknown as CompiledDecisionArtifact,
       riskDomain: binding.activeDeployment.artifactVersion.artifact.riskDomain,
+      isProductionEnvironment: binding.environment.isProduction === true,
+      legalBasis: binding.activeDeployment.artifactVersion.legalBasis ?? null,
+      enablingBasisPolicy: binding.activeDeployment.artifactVersion.enablingBasisPolicy ?? null,
       subjectPolicy: effectiveSubjectPolicy(
         binding.environment.subjectReferencePolicy,
         binding.activeDeployment.artifactVersion.subjectReferencePolicy,
@@ -144,7 +156,12 @@ export class DeploymentResolverService {
       !parsed.compiled ||
       !parsed.compiledChecksum ||
       !parsed.subjectPolicy ||
-      !parsed.riskDomain
+      !parsed.riskDomain ||
+      // Igual que `subjectPolicy`: una entrada de la versión anterior no trae la política de base
+      // habilitante, y servirla dejaría el control apagado durante el TTL tras cada despliegue.
+      typeof parsed.isProductionEnvironment !== 'boolean' ||
+      !('legalBasis' in parsed) ||
+      !('enablingBasisPolicy' in parsed)
     ) {
       throw new Error('missing required deployment fields');
     }

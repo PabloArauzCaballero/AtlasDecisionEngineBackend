@@ -3,6 +3,6 @@
   "endpoints": 239,
   "entities": 100,
   "events": 6,
-  "errorCodes": 254,
-  "environmentVariables": 313
+  "errorCodes": 260,
+  "environmentVariables": 316
 }

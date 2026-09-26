@@ -1,14 +1,9 @@
 name: Security
 
-# Static analysis and supply-chain checks, kept separate from the functional CI job so a
-# scanner outage never blocks a correctness-only change, and so CodeQL can run on its own
-# schedule (advisories land after code stops changing).
+# Static analysis and supply-chain checks. CI los invoca para bloquear un deploy inseguro;
+# el schedule conserva el reescaneo semanal de advisories nuevos.
 on:
-  push:
-    # `dev` es la rama donde se integra y la que se despliega: con sólo `main`, este workflow
-    # llevaba desde el 2026-08-03 sin mirar una línea del código que corre.
-    branches: [main, dev]
-  pull_request:
+  workflow_call:
   schedule:
     # Weekly re-scan: new advisories apply to code that has not changed.
     - cron: '0 6 * * 1'

@@ -15,8 +15,10 @@
  *    valor lo produce un script en tiempo de ejecución: al compilar sólo existe la promesa.
  *
  * Todo lo que hace este guardia está acotado por una condición de entrada: si no hay límites
- * `enforced`, ni permisos registrados, ni salidas con rol declarado, no consulta nada. Un motor
- * sin gobierno configurado no paga por tenerlo disponible.
+ * activos, ni sujeto, ni salidas con rol o rango declarado, no consulta nada. Un motor sin
+ * gobierno configurado no paga por tenerlo disponible. Lo que SÍ se evalúa siempre es la política
+ * de base habilitante (`enabling-basis.ts`), porque su ausencia es justo lo que no puede pasar
+ * por permiso.
  */
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { OutputSemanticRole, Prisma } from '@prisma/client';
@@ -25,12 +27,45 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { checkConsent, checkLimit, type LimitVerdict } from './exposure-rules';
 import { validateSemanticOutput, type RoleViolation } from './semantic-outputs';
 import { consultaCrudaConTenant } from '../../common/prisma/tenant-scoped-raw';
+import {
+  evaluateEnablingBasis,
+  type BasisEvaluation,
+  type BasisRecord,
+  type EnablingBasisPolicy,
+} from './enabling-basis';
 
 /** Límite de la exposición acumulada de UN solicitante. */
 const SUBJECT_TOTAL = 'SUBJECT_TOTAL';
 
 interface ExposureRow {
   total: Prisma.Decimal | null;
+}
+
+/**
+ * La exposición que vio la decisión, para que quien CONCEDE pueda revalidarla.
+ *
+ * El motor lee los créditos ya registrados; no reserva. Dos decisiones simultáneas del mismo
+ * solicitante ven la misma exposición y las dos pueden pasar. Por eso la respuesta publica cuánto
+ * quedaba y la decisión vence (`decisionValidUntil`): el dueño de la concesión (el core) reserva
+ * contra su propio libro con un bloqueo o una condición atómica, y no concede con una decisión
+ * vencida ni por encima de `remainingAfterDecision`.
+ */
+export interface ExposureSnapshot {
+  limitCode: string;
+  currencyCode: string;
+  maxValue: number;
+  enforced: boolean;
+  currentExposure: number;
+  requestedAmount: number;
+  /** Lo que quedaba ANTES de esta decisión. Nunca negativo. */
+  remainingBeforeDecision: number;
+  /** Lo que queda si se concede lo pedido. Negativo = esta decisión lo supera. */
+  remainingAfterDecision: number;
+}
+
+export interface GuardVerdict {
+  basis: BasisEvaluation & { policy: EnablingBasisPolicy };
+  exposure: ExposureSnapshot | null;
 }
 
 @Injectable()
@@ -40,20 +75,57 @@ export class DecisionGuardService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Comprueba lo que tiene que estar bien ANTES de ejecutar.
+   * Comprueba lo que tiene que estar bien ANTES de ejecutar, y devuelve lo que vio.
    *
-   * Sin sujeto no se comprueba nada y no es un descuido: los dos controles son sobre una persona
-   * concreta —cuánto debe ya, qué permisos tiene— y sin identificarla no hay nada que mirar. Que
-   * eso sea así es un motivo más para exigir sujeto, no una excusa para no exigirlo.
+   * Un `subjectReference` válido que todavía no tiene fila en el motor (`subjectId` nulo: el
+   * primer solicitante) YA NO elude nada: su exposición es cero —y aun así lo pedido se compara
+   * con el límite— y no tiene bases registradas, así que una política que las exige falla. Antes,
+   * sin sujeto resuelto se volvía sin comprobar ninguna de las dos cosas.
+   *
+   * Lanza cuando la respuesta es «no» por apetito de cartera (409), por un permiso registrado que
+   * ya no vale (403) o por una base ausente con política `BLOCK` (403). Con política `REVIEW`
+   * NO lanza: devuelve el veredicto y el runtime deja la decisión en revisión con evidencia.
    */
-  async assertCanDecide(
-    tenantId: bigint,
-    subjectId: bigint | null,
-    requestedAmount: number,
-  ): Promise<void> {
-    if (!subjectId) return;
-    await this.assertWithinLimits(tenantId, subjectId, requestedAmount);
-    await this.assertConsentsValid(tenantId, subjectId);
+  async checkBeforeDecision(input: {
+    tenantId: bigint;
+    subjectId: bigint | null;
+    subjectReferencePresent: boolean;
+    requestedAmount: number;
+    basisPolicy: EnablingBasisPolicy;
+    now: Date;
+  }): Promise<GuardVerdict> {
+    const exposure = await this.checkLimits(input.tenantId, input.subjectId, input.requestedAmount);
+    const records = input.subjectId
+      ? await this.prisma.subjectConsent.findMany({
+          where: { tenantId: input.tenantId, subjectId: input.subjectId },
+          select: {
+            purpose: true,
+            basis: true,
+            grantedAt: true,
+            expiresAt: true,
+            revokedAt: true,
+            consentVersion: true,
+          },
+        })
+      : [];
+    this.assertRegisteredBasesValid(records, input.now);
+
+    const basis = evaluateEnablingBasis(
+      input.basisPolicy,
+      input.subjectReferencePresent,
+      records,
+      input.now,
+    );
+    if (!basis.satisfied && input.basisPolicy.onMissing === 'BLOCK') {
+      throw new DomainException(
+        'ENABLING_BASIS_INVALID',
+        'La decisión exige una base habilitante que el titular no tiene vigente: ' +
+          basis.failures.map((failure) => `${failure.purpose} (${failure.reason})`).join(', '),
+        HttpStatus.FORBIDDEN,
+        { policySource: input.basisPolicy.source, failures: basis.failures },
+      );
+    }
+    return { basis: { ...basis, policy: input.basisPolicy }, exposure };
   }
 
   /**
@@ -63,20 +135,57 @@ export class DecisionGuardService {
    * el límite —el saldo estaba por debajo justo antes de concederla—, que es lo que convierte un
    * límite de concentración en decorativo.
    *
-   * Sólo bloquean los límites `enforced`. Los demás se miden y se registran, que es como se
-   * estrena un límite sin parar la originación el primer día.
+   * Sólo bloquean los límites `enforced`; los demás se miden y se publican en la respuesta. Sin
+   * sujeto resuelto la exposición actual es cero, pero lo pedido se compara igual.
    */
-  private async assertWithinLimits(
+  private async checkLimits(
     tenantId: bigint,
-    subjectId: bigint,
+    subjectId: bigint | null,
     requestedAmount: number,
-  ): Promise<void> {
+  ): Promise<ExposureSnapshot | null> {
     const limits = await this.prisma.exposureLimit.findMany({
-      where: { tenantId, isActive: true, enforced: true, limitCode: SUBJECT_TOTAL },
-      select: { limitCode: true, segment: true, maxValue: true, enforced: true },
+      where: { tenantId, isActive: true, limitCode: SUBJECT_TOTAL },
+      select: {
+        limitCode: true,
+        segment: true,
+        maxValue: true,
+        enforced: true,
+        currencyCode: true,
+      },
     });
-    if (!limits.length) return;
+    if (!limits.length) return null;
 
+    const currentValue = subjectId ? await this.currentExposure(tenantId, subjectId) : 0;
+    let snapshot: ExposureSnapshot | null = null;
+    for (const limit of limits) {
+      const maxValue = Number(limit.maxValue);
+      const verdict = checkLimit({
+        limitCode: limit.limitCode,
+        segment: limit.segment,
+        maxValue,
+        enforced: limit.enforced,
+        currentValue,
+        requestedValue: requestedAmount,
+      });
+      if (verdict.blocking) throw this.limitExceeded(verdict);
+      // Se publica el límite más estrecho: es el que manda al conceder.
+      if (!snapshot || maxValue < snapshot.maxValue) {
+        snapshot = {
+          limitCode: limit.limitCode,
+          currencyCode: limit.currencyCode,
+          maxValue,
+          enforced: limit.enforced,
+          currentExposure: currentValue,
+          requestedAmount,
+          remainingBeforeDecision: round4(Math.max(0, maxValue - currentValue)),
+          remainingAfterDecision: round4(maxValue - verdict.projectedValue),
+        };
+      }
+    }
+    return snapshot;
+  }
+
+  private async currentExposure(tenantId: bigint, subjectId: bigint): Promise<number> {
     const [row] = await consultaCrudaConTenant(
       this.prisma,
       (tx) => tx.$queryRaw<ExposureRow[]>`
@@ -87,19 +196,7 @@ export class DecisionGuardService {
         AND f."closed_at" IS NULL
     `,
     );
-    const currentValue = row?.total ? Number(row.total) : 0;
-
-    for (const limit of limits) {
-      const verdict = checkLimit({
-        limitCode: limit.limitCode,
-        segment: limit.segment,
-        maxValue: Number(limit.maxValue),
-        enforced: limit.enforced,
-        currentValue,
-        requestedValue: requestedAmount,
-      });
-      if (verdict.blocking) throw this.limitExceeded(verdict);
-    }
+    return row?.total ? Number(row.total) : 0;
   }
 
   private limitExceeded(verdict: LimitVerdict): DomainException {
@@ -118,23 +215,27 @@ export class DecisionGuardService {
   }
 
   /**
-   * Ningún permiso registrado puede estar vencido o revocado.
+   * Ningún permiso REGISTRADO puede estar vencido o revocado, lo exija o no esta decisión.
    *
-   * Ojo a lo que NO se comprueba: la AUSENCIA de permiso no bloquea. Es deliberado y es la única
-   * forma de estrenar esto sin parar el motor —hoy casi ningún titular tiene consentimiento
-   * cargado—. Lo que sí bloquea es un permiso que EXISTE y ya no vale: eso no es una laguna de
-   * migración, es tratar datos contra una voluntad expresada, y sigue siendo una infracción
-   * aunque el dato ya esté en la caché.
+   * Es anterior a la política de base habilitante y se conserva tal cual: tratar datos de alguien
+   * que revocó un permiso sigue siendo una infracción aunque esta decisión no lo necesite, y no
+   * se relaja un control para introducir otro. La AUSENCIA ya no se trata aquí sino en
+   * `evaluateEnablingBasis`, que sí sabe qué finalidades exige cada decisión.
    */
-  private async assertConsentsValid(tenantId: bigint, subjectId: bigint): Promise<void> {
-    const consents = await this.prisma.subjectConsent.findMany({
-      where: { tenantId, subjectId },
-      select: { purpose: true, grantedAt: true, expiresAt: true, revokedAt: true },
-    });
-    if (!consents.length) return;
-
-    const invalid = consents
-      .map((consent) => checkConsent(consent, consent.purpose))
+  private assertRegisteredBasesValid(records: BasisRecord[], now: Date): void {
+    const invalid = records
+      .map((record) =>
+        checkConsent(
+          {
+            purpose: record.purpose,
+            grantedAt: record.grantedAt,
+            expiresAt: record.expiresAt,
+            revokedAt: record.revokedAt,
+          },
+          record.purpose,
+          now,
+        ),
+      )
       .filter((verdict) => !verdict.valid && verdict.reason !== 'MISSING');
     if (!invalid.length) return;
 
@@ -150,34 +251,59 @@ export class DecisionGuardService {
   }
 
   /**
-   * Comprueba el rango de las salidas económicas DESPUÉS de ejecutar.
+   * Comprueba las salidas económicas DESPUÉS de ejecutar y devuelve lo que no vale.
    *
-   * No lanza: registra y devuelve las violaciones. Una PD fuera de rango es un defecto del
-   * artefacto, y tirar la decisión ya calculada por él castigaría al solicitante por un error
-   * ajeno. Lo que sí hace es dejar constancia — y el gate del contrato económico impide que un
-   * artefacto así llegue a producción, que es donde corresponde atajarlo.
+   * No lanza, y el runtime SÍ usa la lista: una salida fuera de rango no puede salir como una
+   * autorización. La ejecución se conserva completa como evidencia y la respuesta es
+   * `NO_DECISION` con motivo técnico —un error del modelo no es un rechazo crediticio del
+   * solicitante—.
+   *
+   * Se comprueba el rango del ROL (PD en [0,1], importes no negativos…), el rango de la POLÍTICA
+   * declarado en el contrato de salida (`policyMinValue`/`policyMaxValue`, p. ej. la tasa del
+   * producto), y el `limit` de primer nivel del resultado, que el core lee como importe aprobado
+   * aunque el artefacto no le haya declarado rol.
    */
   async reviewOutputs(
     tenantId: bigint,
     artifactVersionId: bigint,
     output: Record<string, unknown> | undefined,
+    topLevel: { limit?: unknown } = {},
   ): Promise<RoleViolation[]> {
-    if (!output) return [];
-    const fields = await this.prisma.decisionOutputContractField.findMany({
-      where: {
-        tenantId,
-        artifactVersionId,
-        semanticRole: { not: OutputSemanticRole.NONE },
-      },
-      select: { fieldCode: true, semanticRole: true },
-    });
-    if (!fields.length) return [];
+    const violations: RoleViolation[] = [];
+    const limitViolation = validateTopLevelLimit(topLevel.limit);
+    if (limitViolation) violations.push(limitViolation);
 
-    const violations = fields
-      .map((field) =>
-        validateSemanticOutput(field.fieldCode, field.semanticRole, output[field.fieldCode]),
-      )
-      .filter((violation): violation is RoleViolation => violation !== null);
+    if (output) {
+      const fields = await this.prisma.decisionOutputContractField.findMany({
+        where: {
+          tenantId,
+          artifactVersionId,
+          OR: [
+            { semanticRole: { not: OutputSemanticRole.NONE } },
+            { policyMinValue: { not: null } },
+            { policyMaxValue: { not: null } },
+          ],
+        },
+        select: {
+          fieldCode: true,
+          semanticRole: true,
+          policyMinValue: true,
+          policyMaxValue: true,
+        },
+      });
+      for (const field of fields) {
+        const violation = validateSemanticOutput(
+          field.fieldCode,
+          field.semanticRole,
+          output[field.fieldCode],
+          {
+            min: field.policyMinValue === null ? undefined : Number(field.policyMinValue),
+            max: field.policyMaxValue === null ? undefined : Number(field.policyMaxValue),
+          },
+        );
+        if (violation) violations.push(violation);
+      }
+    }
 
     for (const violation of violations) {
       this.logger.error(
@@ -186,4 +312,14 @@ export class DecisionGuardService {
     }
     return violations;
   }
+}
+
+/** `limit` de primer nivel: si viene, tiene que ser un importe finito y no negativo. */
+function validateTopLevelLimit(limit: unknown): RoleViolation | null {
+  if (limit === null || limit === undefined) return null;
+  return validateSemanticOutput('limit', OutputSemanticRole.APPROVED_LIMIT, limit);
+}
+
+function round4(value: number): number {
+  return Number(value.toFixed(4));
 }

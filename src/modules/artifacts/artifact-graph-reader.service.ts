@@ -179,6 +179,8 @@ export class ArtifactGraphReaderService {
         // lo guardaba de nuevo sin el campo y lo dejaba en `NONE`. Un dato que sólo se escribe y
         // nunca se relee se borra solo la primera vez que alguien toca otra cosa.
         semanticRole: field.semanticRole,
+        policyMinValue: field.policyMinValue === null ? null : Number(field.policyMinValue),
+        policyMaxValue: field.policyMaxValue === null ? null : Number(field.policyMaxValue),
       })),
       conditions: version.conditions.map((condition) => ({
         id: condition.id.toString(),

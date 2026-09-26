@@ -64,14 +64,16 @@ export function validateSemanticOutput(
   fieldCode: string,
   role: OutputSemanticRole,
   value: unknown,
+  policyRange: { min?: number; max?: number } = {},
 ): RoleViolation | null {
   const spec = ROLE_SPECS[role];
-  if (!spec || role === OutputSemanticRole.NONE) return null;
+  const hasPolicyRange = policyRange.min !== undefined || policyRange.max !== undefined;
+  if (!spec || (role === OutputSemanticRole.NONE && !hasPolicyRange)) return null;
   // Una salida ausente es asunto del contrato de salida (`absenceReasons`), no de este control:
   // aquí sólo se juzga lo que SÍ se produjo.
   if (value === null || value === undefined) return null;
 
-  if (!spec.numeric) return null;
+  if (!spec.numeric && !hasPolicyRange) return null;
   const numeric = typeof value === 'number' ? value : Number(value);
   if (!Number.isFinite(numeric)) {
     return {
@@ -95,6 +97,25 @@ export function validateSemanticOutput(
       role,
       code: 'SEMANTIC_OUTPUT_ABOVE_RANGE',
       message: `«${spec.label}» no puede ser mayor que ${spec.max}; llegó ${numeric}.`,
+    };
+  }
+  // El rango de la POLÍTICA (p. ej. la tasa entre el suelo y el techo del producto) se comprueba
+  // después del rango del rol: un valor puede ser una tasa plausible y aun así no ser un precio
+  // que esta política pueda ofrecer.
+  if (policyRange.min !== undefined && numeric < policyRange.min) {
+    return {
+      fieldCode,
+      role,
+      code: 'OUTPUT_BELOW_POLICY_RANGE',
+      message: `«${fieldCode}» no puede ser menor que ${policyRange.min} según la política; llegó ${numeric}.`,
+    };
+  }
+  if (policyRange.max !== undefined && numeric > policyRange.max) {
+    return {
+      fieldCode,
+      role,
+      code: 'OUTPUT_ABOVE_POLICY_RANGE',
+      message: `«${fieldCode}» no puede ser mayor que ${policyRange.max} según la política; llegó ${numeric}.`,
     };
   }
   return null;

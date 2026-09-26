@@ -7,6 +7,7 @@ import { AuditService } from '../../common/audit/audit.service';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
 import { ArtifactListQueryDto, CloneVersionDto, CreateArtifactDto } from './artifact.dto';
 import { pageResult, paginationArgs } from '../../common/http/pagination';
+import { EnablingBasisPolicyError, parseDeclaredPolicy } from '../risk-governance/enabling-basis';
 
 @Injectable()
 export class ArtifactService {
@@ -216,7 +217,11 @@ export class ArtifactService {
   async updateProcessingBasis(
     tenantId: bigint,
     versionId: bigint,
-    input: { processingPurpose?: string | null; legalBasis?: string | null },
+    input: {
+      processingPurpose?: string | null;
+      legalBasis?: string | null;
+      enablingBasisPolicy?: unknown;
+    },
     principal: AuthenticatedPrincipal,
   ) {
     return this.prisma.$transaction(async (tx) => {
@@ -230,6 +235,29 @@ export class ArtifactService {
           'Artifact version not found',
           HttpStatus.NOT_FOUND,
         );
+      if (input.enablingBasisPolicy !== undefined) {
+        // La política de base habilitante es un CONTROL de la versión: cambiarla después de
+        // aprobada sería saltarse el doble control con un PATCH.
+        if (version.status !== VersionStatus.DRAFT) {
+          throw new DomainException(
+            'ENABLING_BASIS_POLICY_LOCKED',
+            'La política de base habilitante sólo se puede cambiar en una versión en borrador.',
+            HttpStatus.CONFLICT,
+          );
+        }
+        try {
+          parseDeclaredPolicy(input.enablingBasisPolicy);
+        } catch (error) {
+          if (error instanceof EnablingBasisPolicyError) {
+            throw new DomainException(
+              'ENABLING_BASIS_POLICY_INVALID',
+              error.message,
+              HttpStatus.BAD_REQUEST,
+            );
+          }
+          throw error;
+        }
+      }
       const updated = await tx.decisionArtifactVersion.update({
         where: { id: versionId },
         data: {
@@ -241,8 +269,20 @@ export class ArtifactService {
           ...(input.legalBasis !== undefined
             ? { legalBasis: (input.legalBasis as ProcessingLegalBasis | null) ?? null }
             : {}),
+          ...(input.enablingBasisPolicy !== undefined
+            ? {
+                enablingBasisPolicy: JSON.parse(
+                  JSON.stringify(input.enablingBasisPolicy),
+                ) as Prisma.InputJsonValue,
+              }
+            : {}),
         },
-        select: { id: true, processingPurpose: true, legalBasis: true },
+        select: {
+          id: true,
+          processingPurpose: true,
+          legalBasis: true,
+          enablingBasisPolicy: true,
+        },
       });
       await this.audit.append(
         {
@@ -255,6 +295,7 @@ export class ArtifactService {
           payload: {
             processingPurpose: updated.processingPurpose,
             legalBasis: updated.legalBasis,
+            enablingBasisPolicy: updated.enablingBasisPolicy ?? null,
           },
         },
         tx,

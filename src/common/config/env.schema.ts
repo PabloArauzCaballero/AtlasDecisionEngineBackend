@@ -289,6 +289,18 @@ export const envSchema = z
       .regex(/^[A-Z0-9_-]{2,40}$/)
       .default('PROD'),
     MAX_EXECUTION_STEPS: z.coerce.number().int().min(16).max(10_000).default(256),
+    // Cuánto vale una decisión aprobada para conceder (`decisionValidUntil`). El motor no
+    // reserva exposición: quien concede revalida, y no puede hacerlo con una decisión eterna.
+    DECISION_VALIDITY_SECONDS: z.coerce.number().int().min(60).max(604_800).default(259_200),
+    // Artefacto de ORIGINACIÓN en producción que no declara base habilitante: REVIEW (por
+    // omisión, falla cerrado: sin base registrada va a revisión), BLOCK, o ALLOW_LEGACY (el
+    // comportamiento anterior, sólo para volver atrás de forma explícita).
+    ENABLING_BASIS_UNDECLARED_ORIGINATION: z
+      .enum(['REVIEW', 'BLOCK', 'ALLOW_LEGACY'])
+      .default('REVIEW'),
+    // Variable CRÍTICA cuya frescura no se puede comprobar (sin sello o sin SLA positivo):
+    // DEGRADE (por omisión: se decide, marcada), REJECT (NO_DECISION) o MEASURE (sólo anota).
+    FRESHNESS_UNKNOWN_POLICY: z.enum(['REJECT', 'DEGRADE', 'MEASURE']).default('DEGRADE'),
     // El worker de corridas de prueba era el único trabajo de fondo sin interruptor: se
     // arrancaba en todo proceso que cargara el módulo, incluidas las réplicas de API.
     TEST_RUN_WORKER_ENABLED: booleanFromString.default(true),
