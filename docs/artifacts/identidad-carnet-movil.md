@@ -39,6 +39,14 @@ Ninguna rechaza: **el comportamiento escala, no niega**. Y el rechazo del worker
 cualquier señal (`ID-MECANICO-Y-NO-COINCIDE-RECHAZA`). La evidencia del caso lleva las cifras de la
 bitácora para quien lo revise. Salida nueva: `identidad_senal_comportamiento` (`NINGUNA` o la señal).
 
+## Lo que llega por el contexto y no por variables
+
+`context.documentCaptureSource` (`camera` o `system_scanner`) dice si el carnet se tomó con la
+cámara de la app o con el escáner de documentos del teléfono. **No es una variable de este
+artefacto** y no cambia su grafo: lo lee el worker de identidad directamente del `context` de la
+ejecución, así que no hizo falta ninguna versión nueva. Qué hace el worker con él, y por qué sus
+marcas no deciden nada: [el carnet tomado con el escáner del sistema](../workers/identidad-escaner-del-sistema.md).
+
 ## Los diez casos
 
 `ID-HUMANO-VERIFICA`, `ID-SIN-BITACORA-VERIFICA` (regresión de la 1.1.1), `ID-MECANICO-REVISA`,

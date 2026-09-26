@@ -32,6 +32,11 @@ import {
 import { evaluarFraude, type EvaluacionDeFraude } from './core/forensics/identity-fraud.scorer';
 import { analizarVidaDeLaSelfie, SENALES_DE_VIDA } from './core/forensics/selfie-liveness';
 import { isoDateToUtcDate } from './core/parsers/spanish-date';
+import { medirColorDelDocumento, type ColorDelDocumento } from './core/forensics/document-color';
+import {
+  DOCUMENT_CAPTURE_SOURCES_MEASURED,
+  type DocumentCaptureSource,
+} from './document-capture-source';
 import type { DocumentParser } from './core/parsers/document-parser';
 import type {
   DocumentClassificationResult,
@@ -179,6 +184,17 @@ export interface IdentityPipelineInput {
    * archivo: es una decisión de un rol autorizado, no un parámetro de entrada.
    */
   readonly arbitratedDocumentType?: IdentityDocumentType | null;
+  /**
+   * Cómo se tomó la imagen del DOCUMENTO (anverso y reverso), si quien llama lo
+   * sabe. Ver `document-capture-source.ts`.
+   *
+   * Ausente o `camera` es el camino de siempre, sin una sola diferencia. Con
+   * `system_scanner` —el escáner de VisionKit o de ML Kit, que ya entrega la
+   * tarjeta recortada y con la perspectiva corregida— se salta el recorte por
+   * densidad y el caso sale marcado como población no medida. Lo pone el
+   * invocador desde el `context` de la ejecución, no una variable del artefacto.
+   */
+  readonly documentCaptureSource?: DocumentCaptureSource | null;
   /** Se invoca al terminar cada etapa, con el avance en tanto por ciento. */
   readonly onProgress?: (progress: number) => Promise<void>;
 }
@@ -278,6 +294,17 @@ export class IdentityPipelineService {
         this.options.minReadableShortEdge,
       );
     }
+    /*
+     * El escáner del sistema entrega la tarjeta YA recortada, y en iOS con el
+     * filtro que haya elegido el usuario. El color se mide aquí, sobre el anverso
+     * normalizado y antes de girar nada —el color no depende de la orientación—,
+     * y SÓLO para esa población: sobre una foto de cámara no se calcula nada, así
+     * que su camino no cambia ni en un milisegundo.
+     */
+    const escaneado = input.documentCaptureSource === 'system_scanner';
+    const colorDelAnverso: ColorDelDocumento | null = escaneado
+      ? await medirColorDelDocumento(document.buffer)
+      : null;
     await input.onProgress?.(20);
 
     // --- 2. Recorte del fondo ----------------------------------------------
@@ -293,8 +320,10 @@ export class IdentityPipelineService {
      * El recorte NO se da por bueno a ciegas: si la imagen recortada no se deja
      * clasificar, se vuelve a leer la entera antes de rechazar nada (abajo). Un
      * recorte de más nunca convierte un documento legible en un rechazo.
+     *
+     * Con el escáner del sistema no se recorta: ver `encuadrar`.
      */
-    let encuadre = await this.images.frame(document.buffer);
+    let encuadre = await this.encuadrar(document.buffer, input);
 
     // --- 3. OCR, orientación, clasificación y análisis ----------------------
     let reverso = input.documentBackImage
@@ -850,6 +879,30 @@ export class IdentityPipelineService {
     if (/^sintetico/i.test(this.options.thresholdProfileVersion)) {
       riskFlags.push('THRESHOLD_PROFILE_UNMEASURED');
     }
+    /*
+     * Y lo mismo cuando la POBLACIÓN de la imagen no está medida, aunque el
+     * perfil sí lo esté.
+     *
+     * El perfil se calibró con fotografías de cédulas; una imagen del escáner
+     * del sistema es otra cosa —recortada, con la perspectiva corregida,
+     * recodificada, a veces sin color— y nadie ha medido todavía cómo la ven el
+     * catálogo y el forense. Hasta que la fase 5 del plan del escáner lo mida,
+     * el caso lo dice con la misma marca, y `DOCUMENT_CAPTURE_SYSTEM_SCANNER`
+     * dice por qué. Las tres marcas de este bloque son INFORMATIVAS: ninguna está
+     * en `escalantes`, el motor de decisión no las ve y el artefacto no las lee.
+     * Ver `docs/workers/identidad-escaner-del-sistema.md`.
+     */
+    if (input.documentCaptureSource === 'system_scanner') {
+      riskFlags.push('DOCUMENT_CAPTURE_SYSTEM_SCANNER');
+    }
+    if (
+      input.documentCaptureSource != null &&
+      !DOCUMENT_CAPTURE_SOURCES_MEASURED.has(input.documentCaptureSource)
+    ) {
+      riskFlags.push('THRESHOLD_PROFILE_UNMEASURED');
+    }
+    // El filtro gris o B/N de iOS: se pierde el retrato en color y la bandera.
+    if (colorDelAnverso?.sinColor) riskFlags.push('DOCUMENT_GRAYSCALE');
 
     // --- 8. Decisión --------------------------------------------------------
     const fields = campos;
@@ -1007,6 +1060,19 @@ export class IdentityPipelineService {
         recortado: encuadre.recortado,
         areaConservada: Number(encuadre.areaConservada.toFixed(3)),
       },
+      /*
+       * Sólo con el escáner del sistema, y a propósito: con el origen ausente o
+       * `camera` el resultado sale idéntico al de siempre, campo por campo.
+       */
+      ...(escaneado
+        ? {
+            capture: {
+              source: 'system_scanner' as const,
+              encuadreOmitido: true,
+              color: colorDelAnverso,
+            },
+          }
+        : {}),
       providers: {
         ocr: front.provider,
         face: documentFaces.provider,
@@ -1020,6 +1086,26 @@ export class IdentityPipelineService {
         mrz: mrzDiagnostics(ocr.rawText),
       },
     };
+  }
+
+  /**
+   * El recorte del fondo, salvo cuando la imagen viene del escáner del sistema.
+   *
+   * VisionKit y ML Kit entregan la tarjeta ya recortada y con la perspectiva
+   * corregida: no hay fondo que quitar. La guarda del detector («si el
+   * documento ya llena el encuadre, no recortes») lo dejaría igual casi
+   * siempre, pero no siempre —un escaneo con un borde claro puede parecerle
+   * fondo— y en todo caso se gastaría el análisis para nada. Se devuelve la
+   * imagen tal cual, con la misma forma que un encuadre que no recortó.
+   */
+  private async encuadrar(
+    documento: Buffer,
+    input: IdentityPipelineInput,
+  ): Promise<DocumentFraming> {
+    if (input.documentCaptureSource === 'system_scanner') {
+      return { buffer: documento, recortado: false, areaConservada: 1 };
+    }
+    return this.images.frame(documento);
   }
 
   /**
@@ -1321,7 +1407,7 @@ export class IdentityPipelineService {
       const document = await this.images.normalize(
         await this.images.rotate(input.documentImage, grados),
       );
-      const encuadre = await this.images.frame(document.buffer);
+      const encuadre = await this.encuadrar(document.buffer, input);
 
       /*
        * La sonda decidió una ORIENTACIÓN y nada más. Los campos —número,

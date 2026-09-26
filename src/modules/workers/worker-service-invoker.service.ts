@@ -35,6 +35,7 @@ import { AudioTtsRuntimeFactory } from './audio-tts/audio-tts.runtime';
 import { IdentityPipelineService } from './identity-verification/identity-pipeline.service';
 import { validateIdentityUpload } from './identity-verification/identity-verification-input';
 import type { IdentityVerificationOutcome } from './identity-verification/identity-result';
+import { documentCaptureSourceFromContext } from './identity-verification/document-capture-source';
 import { buildAudioOutcome } from './audio-tts/audio-tts.result';
 import { AudioDomainError } from './audio-tts/core/domain/errors';
 
@@ -57,15 +58,31 @@ export class WorkerServiceInvokerService {
     private readonly identity: IdentityPipelineService,
   ) {}
 
-  /** Ata el invocador al tenant y al principal de UNA ejecución, para `engine.execute()`. */
-  bind(tenantId: bigint, principal: AuthenticatedPrincipal): WorkerServiceInvoker {
-    return { invoke: (request) => this.invoke(tenantId, principal, request) };
+  /**
+   * Ata el invocador al tenant, al principal y al CONTEXTO de UNA ejecución, para
+   * `engine.execute()`.
+   *
+   * El contexto es el `context` de la petición de decisión, el mismo que ya entra
+   * en su huella de idempotencia. Hasta ahora no pasaba de ahí: el motor de grafo
+   * sólo entrega a los nodos las variables del artefacto. Viaja por aquí, y no
+   * como variable, porque lo que trae son datos de CÓMO llegó la petición —hoy
+   * sólo el origen de la captura del carnet— y una variable nueva en un artefacto
+   * gobernado exige una versión firmada por dos personas. Cada servicio lee de él
+   * sólo la clave que conoce y la valida; lo demás lo ignora.
+   */
+  bind(
+    tenantId: bigint,
+    principal: AuthenticatedPrincipal,
+    context?: Readonly<Record<string, unknown>> | null,
+  ): WorkerServiceInvoker {
+    return { invoke: (request) => this.invoke(tenantId, principal, request, context ?? null) };
   }
 
   private async invoke(
     tenantId: bigint,
     principal: AuthenticatedPrincipal,
     request: WorkerServiceRequest,
+    context: Readonly<Record<string, unknown>> | null,
   ): Promise<WorkerServiceOutcome> {
     const started = Date.now();
     const key = `${request.service}.${request.operation}`;
@@ -77,7 +94,7 @@ export class WorkerServiceInvokerService {
       case 'audio-tts.speak':
         return this.speak(tenantId, principal, request, started);
       case 'identity-verification.verify':
-        return this.verifyIdentity(request, started);
+        return this.verifyIdentity(request, started, context);
       default:
         // El validador de grafo ya rechaza un servicio desconocido al aprobar el
         // artefacto. Llegar aquí significa que el catálogo del validador y el de este
@@ -390,6 +407,7 @@ export class WorkerServiceInvokerService {
   private async verifyIdentity(
     request: WorkerServiceRequest,
     started: number,
+    context: Readonly<Record<string, unknown>> | null,
   ): Promise<WorkerServiceOutcome> {
     this.assertAvailable(
       'identity-verification',
@@ -426,6 +444,7 @@ export class WorkerServiceInvokerService {
       'nodo',
     );
 
+    const documentCaptureSource = documentCaptureSourceFromContext(context);
     try {
       const outcome = await this.withTimeout(
         this.identity.run({
@@ -437,6 +456,12 @@ export class WorkerServiceInvokerService {
             this.config.get<string>('IDENTITY_DEFAULT_DOCUMENT_COUNTRY') ??
             'BO',
           correlationId: request.nodeKey,
+          /*
+           * De dónde salió la imagen del carnet, si la petición lo dice. Sólo se
+           * pasa un valor conocido; `camera`, igual que la ausencia o un valor
+           * desconocido, deja al pipeline en su camino de siempre.
+           */
+          ...(documentCaptureSource ? { documentCaptureSource } : {}),
         }),
         this.timeoutFor(request, this.config.get<number>('IDENTITY_TIMEOUT_MS') ?? 90_000),
         request,

@@ -59,6 +59,21 @@ export interface IdentityVerificationOutcome {
    */
   framing: { recortado: boolean; areaConservada: number };
 
+  /**
+   * Cómo se tomó el documento, SÓLO cuando no fue la cámara de la app.
+   *
+   * Hoy sólo aparece con el escáner del sistema (`system_scanner`): el recorte
+   * por densidad no se aplicó porque el escáner ya entregó la tarjeta recortada,
+   * y `color` dice si el anverso llegó sin color —el filtro gris o B/N de iOS—.
+   * `color: null` es «no se pudo medir», no «tiene color». Con el origen ausente
+   * o `camera` el campo no existe y el resultado es el de siempre.
+   */
+  capture?: {
+    source: 'system_scanner';
+    encuadreOmitido: true;
+    color: { sinColor: boolean; fraccionConColor: number } | null;
+  };
+
   riskFlags: string[];
 
   /**
