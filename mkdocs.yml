@@ -125,6 +125,7 @@ nav:
       - Capacidades: business/capabilities.md
       - Casos de uso: business/use-cases.md
       - Flujos críticos: business/critical-workflows.md
+      - Procesos de Atlas que pasan por el Motor: processes/README.md
       - Reglas de negocio: business/business-rules.md
       - Glosario: business/glossary.md
   - Arquitectura:
