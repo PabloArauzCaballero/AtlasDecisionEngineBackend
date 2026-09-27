@@ -1,0 +1,4082 @@
+{
+ "artifact": {
+  "artifactCode": "ATLAS_BNPL_UNDERWRITING",
+  "artifactType": "CREDIT_UNDERWRITING",
+  "riskDomain": "CREDIT_ORIGINATION",
+  "ownerTeam": "RISK_DECISIONING",
+  "name": "Underwriting BNPL",
+  "description": "Decide identidad/fraude/AML antes de puntuar (Paso 0), produce un puntaje de riesgo entero a partir de las señales que ya manda Core, lo traduce a probabilidad de incumplimiento y banda A-E, y tarifa (prima por banda sobre la tasa base del producto) sólo si aprueba. v2 sustituye a la v1 (START->APPROVE/DECLINE con 5 entradas y sin score) por una política con score real y precio auditable.",
+  "businessPurpose": "Que el precio del crédito BNPL salga de un score y una PD declarados y gobernados (contrato económico del Motor), no de la tasa fija del producto ni de lo que escriba el operador al desembolsar (T-1..T-5 del plan).",
+  "semanticVersion": "2.0.0",
+  "authoringNotes": "v2 de ATLAS_BNPL_UNDERWRITING (Frente 3A, plan _plan-motor-decisiones-tasa-2026-09-25). Las primas por banda (A:0 B:6 C:14 D:24 pt) están aprobadas por Pablo (D-P2, 2026-09-25). Los DEMÁS umbrales numéricos (los tramos de cada factor del puntaje, los cortes de la tabla PD y los cortes de banda) son una calibración inicial pendiente de datos reales de cartera, el mismo tratamiento que ya se le dio a los umbrales de identidad (I-4 del mismo plan). device_risk_score/ip_address_risk_score/account_takeover_risk_score llegan siempre en 0 porque el core aún no manda señales reales de dispositivo (C-6): la fórmula queda lista para cuando existan. worst_delinquency_status usa el enum REAL de AtlasBackend (underwriting-numbers.ts: CURRENT/DPD_30/DPD_60/DPD_90/DPD_120_PLUS/CHARGE_OFF), que colapsa los tramos '1-29' y '30-59' del texto original en un solo valor DPD_30: se le asignó +15 (el valor más alto de los dos propuestos, conservador) y DPD_120_PLUS (que el texto no distinguía de '90_PLUS') se calibró en +60, entre +50 (90 días) y +70 (castigo), preservando el orden de severidad. floor(x) no existe como operador del DSL de expresiones (expression-evaluator.ts sólo trae add/sub/mul/div/min/max/round): floor(oldest_trade_age_months/4) se implementó como round(v/4 - 0,5), exacto para todo entero v>=0 (verificado por fuerza bruta 0..400 antes de publicar)."
+ },
+ "queueCode": "BNPL_UNDERWRITING",
+ "inputs": [
+  {
+   "code": "kyc_status",
+   "dataType": "STRING",
+   "name": "Estado KYC",
+   "description": "Resultado vigente de verificación de identidad del consumidor."
+  },
+  {
+   "code": "national_id_verified",
+   "dataType": "BOOLEAN",
+   "name": "Documento nacional verificado",
+   "description": "El documento de identidad fue validado contra el registro civil o equivalente."
+  },
+  {
+   "code": "sanctions_screening_result",
+   "dataType": "STRING",
+   "name": "Resultado de listas de sanciones",
+   "description": "Resultado del cribado contra listas de sanciones internacionales."
+  },
+  {
+   "code": "fraud_signal",
+   "dataType": "BOOLEAN",
+   "name": "Señal de fraude",
+   "description": "Bandera consolidada de señales críticas de fraude o identidad."
+  },
+  {
+   "code": "known_fraud_device_flag",
+   "dataType": "BOOLEAN",
+   "name": "Dispositivo con fraude conocido",
+   "description": "El dispositivo aparece en casos de fraude confirmados previamente."
+  },
+  {
+   "code": "known_fraud_email_flag",
+   "dataType": "BOOLEAN",
+   "name": "Correo con fraude conocido",
+   "description": "El correo aparece en casos de fraude confirmados previamente."
+  },
+  {
+   "code": "known_fraud_phone_flag",
+   "dataType": "BOOLEAN",
+   "name": "Teléfono con fraude conocido",
+   "description": "El teléfono aparece en casos de fraude confirmados previamente."
+  },
+  {
+   "code": "high_risk_jurisdiction_flag",
+   "dataType": "BOOLEAN",
+   "name": "Jurisdicción de alto riesgo",
+   "description": "El cliente u operación involucra una jurisdicción de alto riesgo AML."
+  },
+  {
+   "code": "ip_tor_detected",
+   "dataType": "BOOLEAN",
+   "name": "Red Tor detectada",
+   "description": "Indica si la conexión proviene de la red de anonimización Tor."
+  },
+  {
+   "code": "sim_swap_detected",
+   "dataType": "BOOLEAN",
+   "name": "Cambio de SIM detectado",
+   "description": "Indica un cambio reciente de SIM en el número declarado."
+  },
+  {
+   "code": "browser_automation_detected",
+   "dataType": "BOOLEAN",
+   "name": "Automatización de navegador detectada",
+   "description": "Indica el uso de herramientas de automatización de navegador."
+  },
+  {
+   "code": "geolocation_mismatch_flag",
+   "dataType": "BOOLEAN",
+   "name": "Discrepancia de geolocalización",
+   "description": "Indica discrepancia entre el domicilio declarado y la geolocalización."
+  },
+  {
+   "code": "affordability_ratio",
+   "dataType": "DECIMAL",
+   "name": "Índice de capacidad de pago",
+   "description": "Proporción entre la cuota propuesta y el ingreso disponible.",
+   "constraints": {
+    "minimum": 0
+   }
+  },
+  {
+   "code": "debt_to_income_ratio",
+   "dataType": "DECIMAL",
+   "name": "Relación deuda-ingreso",
+   "description": "Proporción entre el servicio de deuda mensual y el ingreso mensual.",
+   "constraints": {
+    "minimum": 0
+   }
+  },
+  {
+   "code": "income_stability_score",
+   "dataType": "DECIMAL",
+   "name": "Puntaje de estabilidad de ingreso",
+   "description": "Puntaje que resume la estabilidad histórica del ingreso declarado (0-100).",
+   "constraints": {
+    "minimum": 0,
+    "maximum": 100
+   }
+  },
+  {
+   "code": "employment_status",
+   "dataType": "STRING",
+   "name": "Situación laboral",
+   "description": "Situación laboral vigente del solicitante."
+  },
+  {
+   "code": "self_employed_flag",
+   "dataType": "BOOLEAN",
+   "name": "Trabajador independiente",
+   "description": "Indica si el solicitante es trabajador independiente."
+  },
+  {
+   "code": "no_hit_flag",
+   "dataType": "BOOLEAN",
+   "name": "Sin coincidencia en buró",
+   "description": "Indica que no se encontró historial crediticio en el buró consultado."
+  },
+  {
+   "code": "thin_file_flag",
+   "dataType": "BOOLEAN",
+   "name": "Historial crediticio delgado",
+   "description": "Indica que el solicitante tiene historial crediticio insuficiente."
+  },
+  {
+   "code": "worst_delinquency_status",
+   "dataType": "STRING",
+   "name": "Peor estado de mora",
+   "description": "Peor categoría de mora reportada en el historial crediticio."
+  },
+  {
+   "code": "delinquency_count_12m",
+   "dataType": "INTEGER",
+   "name": "Moras en 12 meses",
+   "description": "Cantidad de pagos en mora reportados en los últimos 12 meses.",
+   "constraints": {
+    "minimum": 0
+   }
+  },
+  {
+   "code": "charge_off_count",
+   "dataType": "INTEGER",
+   "name": "Castigos contables",
+   "description": "Cantidad de líneas castigadas contablemente por incobrabilidad.",
+   "constraints": {
+    "minimum": 0
+   }
+  },
+  {
+   "code": "bankruptcy_flag",
+   "dataType": "BOOLEAN",
+   "name": "Bancarrota registrada",
+   "description": "Indica si existe una bancarrota vigente o reciente en el historial."
+  },
+  {
+   "code": "oldest_trade_age_months",
+   "dataType": "INTEGER",
+   "name": "Antigüedad de línea más antigua",
+   "description": "Antigüedad en meses de la línea de crédito más antigua.",
+   "constraints": {
+    "minimum": 0
+   }
+  },
+  {
+   "code": "inquiries_last_6m",
+   "dataType": "INTEGER",
+   "name": "Consultas en 6 meses",
+   "description": "Cantidad de consultas de crédito duras en los últimos 6 meses.",
+   "constraints": {
+    "minimum": 0
+   }
+  },
+  {
+   "code": "revolving_utilization_ratio",
+   "dataType": "DECIMAL",
+   "name": "Utilización de crédito rotativo",
+   "description": "Proporción entre saldo y límite en líneas de crédito rotativo.",
+   "constraints": {
+    "minimum": 0
+   }
+  },
+  {
+   "code": "payment_history_score",
+   "dataType": "DECIMAL",
+   "name": "Puntaje de historial de pagos",
+   "description": "Puntaje que resume la puntualidad histórica de pagos (0-100).",
+   "constraints": {
+    "minimum": 0,
+    "maximum": 100
+   }
+  },
+  {
+   "code": "device_risk_score",
+   "dataType": "DECIMAL",
+   "name": "Puntaje de riesgo de dispositivo",
+   "description": "Puntaje de riesgo consolidado del dispositivo (0-100).",
+   "constraints": {
+    "minimum": 0,
+    "maximum": 100
+   }
+  },
+  {
+   "code": "ip_address_risk_score",
+   "dataType": "DECIMAL",
+   "name": "Puntaje de riesgo de IP",
+   "description": "Puntaje de riesgo asociado a la dirección IP de origen (0-100).",
+   "constraints": {
+    "minimum": 0,
+    "maximum": 100
+   }
+  },
+  {
+   "code": "account_takeover_risk_score",
+   "dataType": "DECIMAL",
+   "name": "Puntaje de riesgo de apropiación de cuenta",
+   "description": "Probabilidad de apropiación indebida de la cuenta (0-100).",
+   "constraints": {
+    "minimum": 0,
+    "maximum": 100
+   }
+  },
+  {
+   "code": "velocity_applications_24h",
+   "dataType": "INTEGER",
+   "name": "Solicitudes en 24 horas",
+   "description": "Cantidad de solicitudes asociadas a la misma identidad en 24 horas.",
+   "constraints": {
+    "minimum": 0
+   }
+  },
+  {
+   "code": "product_base_annual_rate",
+   "dataType": "DECIMAL",
+   "name": "Tasa base anual del producto",
+   "description": "Tasa anual base del producto de crédito (credit_products.annual_interest_rate de Core, convertida a tanto por uno antes de mandarla al Motor). Única variable de entrada nueva de esta versión; las 32 restantes ya existían en el catálogo.",
+   "constraints": {
+    "minimum": 0,
+    "maximum": 10
+   }
+  }
+ ],
+ "outputs": [
+  {
+   "code": "probability_of_default",
+   "dataType": "DECIMAL",
+   "usageType": "OUTPUT",
+   "name": "Probabilidad de incumplimiento",
+   "description": "Probabilidad estimada de default en el horizonte de la política (0-1).",
+   "semanticRole": "PROBABILITY_OF_DEFAULT",
+   "required": true,
+   "absenceReasons": []
+  },
+  {
+   "code": "risk_band",
+   "dataType": "STRING",
+   "usageType": "OUTPUT",
+   "name": "Banda de riesgo",
+   "description": "Clasificación categórica del riesgo crediticio (A-E) asignada por el modelo.",
+   "semanticRole": "NONE",
+   "required": true,
+   "absenceReasons": []
+  },
+  {
+   "code": "pricing_tier",
+   "dataType": "STRING",
+   "usageType": "OUTPUT",
+   "name": "Nivel de precio (pricing)",
+   "description": "Nivel de precio/tasa asignado según el riesgo del solicitante; igual a risk_band.",
+   "semanticRole": "NONE",
+   "required": false,
+   "absenceReasons": [
+    "RIESGO_EXCEDE_EL_LIMITE"
+   ]
+  },
+  {
+   "code": "annual_percentage_rate",
+   "dataType": "DECIMAL",
+   "usageType": "OUTPUT",
+   "name": "Tasa anual efectiva",
+   "description": "Tasa anual efectiva ofrecida (tanto por uno) = product_base_annual_rate + prima/100.",
+   "semanticRole": "PRICED_RATE",
+   "required": false,
+   "absenceReasons": [
+    "RIESGO_EXCEDE_EL_LIMITE"
+   ]
+  },
+  {
+   "code": "decision_outcome",
+   "dataType": "STRING",
+   "usageType": "OUTPUT_PRIMARY",
+   "name": "Desenlace de la suscripción",
+   "description": "Resultado principal: aprobar y tarifar, o rechazar por riesgo excesivo.",
+   "semanticRole": "NONE",
+   "required": false,
+   "absenceReasons": [
+    "MANUAL_REVIEW"
+   ],
+   "constraints": {
+    "allowedValues": [
+     "APPROVE",
+     "DECLINE"
+    ]
+   }
+  }
+ ],
+ "reasonCodes": [
+  {
+   "reasonCode": "IDENTIDAD_NO_VERIFICADA",
+   "category": "CREDIT_UNDERWRITING",
+   "publicMessage": "No se pudo confirmar tu identidad.",
+   "internalMessage": "kyc_status distinto de VERIFIED o national_id_verified=false; defensa en profundidad, el alta debería haberlo bloqueado antes.",
+   "severity": "HIGH",
+   "isAdverseAction": false
+  },
+  {
+   "reasonCode": "COINCIDENCIA_LISTA_RESTRICTIVA",
+   "category": "CREDIT_UNDERWRITING",
+   "publicMessage": "Tu solicitud requiere una revisión adicional.",
+   "internalMessage": "sanctions_screening_result=POTENTIAL_MATCH.",
+   "severity": "HIGH",
+   "isAdverseAction": false
+  },
+  {
+   "reasonCode": "SENAL_DE_FRAUDE",
+   "category": "CREDIT_UNDERWRITING",
+   "publicMessage": "Tu solicitud requiere una revisión adicional.",
+   "internalMessage": "fraud_signal, known_fraud_device_flag, known_fraud_email_flag o known_fraud_phone_flag en true.",
+   "severity": "HIGH",
+   "isAdverseAction": false
+  },
+  {
+   "reasonCode": "JURISDICCION_DE_ALTO_RIESGO",
+   "category": "CREDIT_UNDERWRITING",
+   "publicMessage": "Tu solicitud requiere una revisión adicional.",
+   "internalMessage": "high_risk_jurisdiction_flag=true.",
+   "severity": "MEDIUM",
+   "isAdverseAction": false
+  },
+  {
+   "reasonCode": "SENAL_TECNICA_DE_RIESGO",
+   "category": "CREDIT_UNDERWRITING",
+   "publicMessage": "Tu solicitud requiere una revisión adicional.",
+   "internalMessage": "ip_tor_detected, sim_swap_detected, browser_automation_detected o geolocation_mismatch_flag en true.",
+   "severity": "MEDIUM",
+   "isAdverseAction": false
+  },
+  {
+   "reasonCode": "RIESGO_EXCEDE_EL_LIMITE",
+   "category": "CREDIT_UNDERWRITING",
+   "publicMessage": "No podemos aprobar esta solicitud de crédito por ahora.",
+   "internalMessage": "risk_band=E (probability_of_default > 0.25); rechazo real, a diferencia de RIESGO_ONBOARDING_CLIENTE que nunca rechaza (D-P3).",
+   "severity": "HIGH",
+   "isAdverseAction": true
+  },
+  {
+   "reasonCode": "APROBADO_UNDERWRITING_V2",
+   "category": "CREDIT_UNDERWRITING",
+   "publicMessage": "Tu solicitud fue aprobada.",
+   "internalMessage": "risk_band en A-D; se tarifa con la prima de la banda sobre la tasa base del producto.",
+   "severity": "LOW",
+   "isAdverseAction": false
+  }
+ ],
+ "intermediates": [
+  {
+   "code": "add_afford",
+   "name": "Puntos por capacidad de pago",
+   "description": "Aporte de affordability_ratio al puntaje.",
+   "dataType": "DECIMAL",
+   "producerNodeKey": "SC_1",
+   "consumerNodeKeys": []
+  },
+  {
+   "code": "add_dti",
+   "name": "Puntos por deuda-ingreso",
+   "description": "Aporte de debt_to_income_ratio al puntaje.",
+   "dataType": "DECIMAL",
+   "producerNodeKey": "SC_1",
+   "consumerNodeKeys": []
+  },
+  {
+   "code": "add_income_stab",
+   "name": "Puntos por estabilidad de ingreso",
+   "description": "round((100-income_stability_score)*0.25).",
+   "dataType": "DECIMAL",
+   "producerNodeKey": "SC_1",
+   "consumerNodeKeys": []
+  },
+  {
+   "code": "add_employment",
+   "name": "Puntos por situación laboral",
+   "description": "Desempleo +60 y autónomo +8, no excluyentes.",
+   "dataType": "DECIMAL",
+   "producerNodeKey": "SC_1",
+   "consumerNodeKeys": []
+  },
+  {
+   "code": "add_bureau_hit",
+   "name": "Puntos por buró",
+   "description": "no_hit_flag +15, si no thin_file_flag +8; excluyentes.",
+   "dataType": "DECIMAL",
+   "producerNodeKey": "SC_2",
+   "consumerNodeKeys": []
+  },
+  {
+   "code": "add_delinq_status",
+   "name": "Puntos por peor estado de mora",
+   "description": "Según el enum real de severidad de mora.",
+   "dataType": "DECIMAL",
+   "producerNodeKey": "SC_2",
+   "consumerNodeKeys": []
+  },
+  {
+   "code": "add_delinq_count",
+   "name": "Puntos por conteo de moras",
+   "description": "max(0,delinquency_count_12m-1)*10.",
+   "dataType": "DECIMAL",
+   "producerNodeKey": "SC_2",
+   "consumerNodeKeys": []
+  },
+  {
+   "code": "add_chargeoff",
+   "name": "Puntos por castigos contables",
+   "description": "min(charge_off_count,2)*60.",
+   "dataType": "DECIMAL",
+   "producerNodeKey": "SC_2",
+   "consumerNodeKeys": []
+  },
+  {
+   "code": "add_bankruptcy",
+   "name": "Puntos por bancarrota",
+   "description": "bankruptcy_flag ? 90 : 0.",
+   "dataType": "DECIMAL",
+   "producerNodeKey": "SC_3",
+   "consumerNodeKeys": []
+  },
+  {
+   "code": "trade_age_penalty",
+   "name": "Descuento por antigüedad",
+   "description": "min(30, floor(oldest_trade_age_months/4)); resta del total.",
+   "dataType": "DECIMAL",
+   "producerNodeKey": "SC_3",
+   "consumerNodeKeys": []
+  },
+  {
+   "code": "add_inquiries",
+   "name": "Puntos por consultas duras",
+   "description": "min(40, max(0,inquiries_last_6m-2)*8).",
+   "dataType": "DECIMAL",
+   "producerNodeKey": "SC_3",
+   "consumerNodeKeys": []
+  },
+  {
+   "code": "add_utilization",
+   "name": "Puntos por utilización rotativa",
+   "description": "Tramos de revolving_utilization_ratio.",
+   "dataType": "DECIMAL",
+   "producerNodeKey": "SC_3",
+   "consumerNodeKeys": []
+  },
+  {
+   "code": "add_payment_history",
+   "name": "Puntos por historial de pago",
+   "description": "round((70-payment_history_score)*0.4); puede ser negativo.",
+   "dataType": "DECIMAL",
+   "producerNodeKey": "SC_4",
+   "consumerNodeKeys": []
+  },
+  {
+   "code": "add_device_risk",
+   "name": "Puntos por riesgo de dispositivo",
+   "description": "round(device_risk_score*0.3); hoy siempre 0 (C-6).",
+   "dataType": "DECIMAL",
+   "producerNodeKey": "SC_4",
+   "consumerNodeKeys": []
+  },
+  {
+   "code": "add_ip_risk",
+   "name": "Puntos por riesgo de IP",
+   "description": "round(ip_address_risk_score*0.2); hoy siempre 0 (C-6).",
+   "dataType": "DECIMAL",
+   "producerNodeKey": "SC_4",
+   "consumerNodeKeys": []
+  },
+  {
+   "code": "add_ato_risk",
+   "name": "Puntos por apropiación de cuenta",
+   "description": "round(account_takeover_risk_score*0.3); hoy siempre 0 (C-6).",
+   "dataType": "DECIMAL",
+   "producerNodeKey": "SC_4",
+   "consumerNodeKeys": []
+  },
+  {
+   "code": "add_velocity",
+   "name": "Puntos por velocidad de solicitudes",
+   "description": "min(60, max(0,velocity_applications_24h-1)*15).",
+   "dataType": "DECIMAL",
+   "producerNodeKey": "SC_5",
+   "consumerNodeKeys": []
+  },
+  {
+   "code": "total_before_floor",
+   "name": "Puntaje antes del piso en 0",
+   "description": "Suma de todos los aportes menos el descuento de antigüedad.",
+   "dataType": "DECIMAL",
+   "producerNodeKey": "SC_TOTAL",
+   "consumerNodeKeys": []
+  },
+  {
+   "code": "total_score",
+   "name": "Puntaje total de riesgo",
+   "description": "max(0, total_before_floor); nunca negativo.",
+   "dataType": "DECIMAL",
+   "producerNodeKey": "SC_TOTAL",
+   "consumerNodeKeys": []
+  },
+  {
+   "code": "pd",
+   "name": "Probabilidad de incumplimiento (interna)",
+   "description": "Tabla por tramos de total_score.",
+   "dataType": "DECIMAL",
+   "producerNodeKey": "SC_PD_BAND",
+   "consumerNodeKeys": []
+  },
+  {
+   "code": "risk_score_band",
+   "name": "Banda de riesgo (interna)",
+   "description": "Tabla por tramos de pd.",
+   "dataType": "STRING",
+   "producerNodeKey": "SC_PD_BAND",
+   "consumerNodeKeys": []
+  },
+  {
+   "code": "prima_pct",
+   "name": "Prima en puntos porcentuales",
+   "description": "Según risk_band: A:0 B:6 C:14 D:24 (D-P2).",
+   "dataType": "DECIMAL",
+   "producerNodeKey": "SC_PRICING",
+   "consumerNodeKeys": []
+  },
+  {
+   "code": "apr",
+   "name": "Tasa anual ofrecida (interna)",
+   "description": "product_base_annual_rate + prima_pct/100.",
+   "dataType": "DECIMAL",
+   "producerNodeKey": "SC_PRICING",
+   "consumerNodeKeys": []
+  }
+ ],
+ "conditions": [
+  {
+   "code": "G1_IDENTIDAD",
+   "name": "Identidad no verificada",
+   "expressionType": "JSON_AST",
+   "expression": {
+    "op": "or",
+    "args": [
+     {
+      "op": "neq",
+      "left": {
+       "var": "kyc_status"
+      },
+      "right": {
+       "value": "VERIFIED"
+      }
+     },
+     {
+      "op": "not",
+      "arg": {
+       "var": "national_id_verified"
+      }
+     }
+    ]
+   },
+   "severity": "BLOCKING",
+   "reusable": true
+  },
+  {
+   "code": "G2_SANCIONES",
+   "name": "Coincidencia en listas restrictivas",
+   "expressionType": "JSON_AST",
+   "expression": {
+    "op": "eq",
+    "left": {
+     "var": "sanctions_screening_result"
+    },
+    "right": {
+     "value": "POTENTIAL_MATCH"
+    }
+   },
+   "severity": "BLOCKING",
+   "reusable": true
+  },
+  {
+   "code": "G3_FRAUDE",
+   "name": "Señal de fraude",
+   "expressionType": "JSON_AST",
+   "expression": {
+    "op": "or",
+    "args": [
+     {
+      "var": "fraud_signal"
+     },
+     {
+      "var": "known_fraud_device_flag"
+     },
+     {
+      "var": "known_fraud_email_flag"
+     },
+     {
+      "var": "known_fraud_phone_flag"
+     }
+    ]
+   },
+   "severity": "BLOCKING",
+   "reusable": true
+  },
+  {
+   "code": "G4_JURISDICCION",
+   "name": "Jurisdicción de alto riesgo",
+   "expressionType": "JSON_AST",
+   "expression": {
+    "var": "high_risk_jurisdiction_flag"
+   },
+   "severity": "BLOCKING",
+   "reusable": true
+  },
+  {
+   "code": "G5_TECNICA",
+   "name": "Señal técnica de riesgo",
+   "expressionType": "JSON_AST",
+   "expression": {
+    "op": "or",
+    "args": [
+     {
+      "var": "ip_tor_detected"
+     },
+     {
+      "var": "sim_swap_detected"
+     },
+     {
+      "var": "browser_automation_detected"
+     },
+     {
+      "var": "geolocation_mismatch_flag"
+     }
+    ]
+   },
+   "severity": "BLOCKING",
+   "reusable": true
+  },
+  {
+   "code": "BANDA_ES_E",
+   "name": "La banda de riesgo es E",
+   "expressionType": "JSON_AST",
+   "expression": {
+    "op": "eq",
+    "left": {
+     "var": "intermediate.risk_score_band"
+    },
+    "right": {
+     "value": "E"
+    }
+   },
+   "severity": "BLOCKING",
+   "reusable": true
+  }
+ ],
+ "actions": [
+  {
+   "code": "ACT_IDENTIDAD",
+   "type": "EMIT_REASON",
+   "payload": {},
+   "terminal": false,
+   "reasonCodes": [
+    {
+     "reasonCode": "IDENTIDAD_NO_VERIFICADA",
+     "priority": 1
+    }
+   ]
+  },
+  {
+   "code": "ACT_SANCIONES",
+   "type": "EMIT_REASON",
+   "payload": {},
+   "terminal": false,
+   "reasonCodes": [
+    {
+     "reasonCode": "COINCIDENCIA_LISTA_RESTRICTIVA",
+     "priority": 1
+    }
+   ]
+  },
+  {
+   "code": "ACT_FRAUDE",
+   "type": "EMIT_REASON",
+   "payload": {},
+   "terminal": false,
+   "reasonCodes": [
+    {
+     "reasonCode": "SENAL_DE_FRAUDE",
+     "priority": 1
+    }
+   ]
+  },
+  {
+   "code": "ACT_JURISDICCION",
+   "type": "EMIT_REASON",
+   "payload": {},
+   "terminal": false,
+   "reasonCodes": [
+    {
+     "reasonCode": "JURISDICCION_DE_ALTO_RIESGO",
+     "priority": 1
+    }
+   ]
+  },
+  {
+   "code": "ACT_TECNICA",
+   "type": "EMIT_REASON",
+   "payload": {},
+   "terminal": false,
+   "reasonCodes": [
+    {
+     "reasonCode": "SENAL_TECNICA_DE_RIESGO",
+     "priority": 1
+    }
+   ]
+  },
+  {
+   "code": "ACT_RECHAZAR",
+   "type": "EMIT_REASON",
+   "payload": {},
+   "terminal": false,
+   "reasonCodes": [
+    {
+     "reasonCode": "RIESGO_EXCEDE_EL_LIMITE",
+     "priority": 1
+    }
+   ]
+  },
+  {
+   "code": "ACT_APROBAR",
+   "type": "EMIT_REASON",
+   "payload": {},
+   "terminal": false,
+   "reasonCodes": [
+    {
+     "reasonCode": "APROBADO_UNDERWRITING_V2",
+     "priority": 1
+    }
+   ]
+  }
+ ],
+ "nodes": [
+  {
+   "key": "START",
+   "type": "START",
+   "label": "Inicio",
+   "terminal": false,
+   "config": {},
+   "actions": []
+  },
+  {
+   "key": "EVALUAR_COMPUERTAS",
+   "type": "CONDITION",
+   "label": "Paso 0: compuertas duras",
+   "terminal": false,
+   "config": {
+    "description": "Evalúa, en orden de prioridad, las cinco compuertas que mandan a revisión humana antes de puntuar."
+   },
+   "actions": []
+  },
+  {
+   "key": "ACT_IDENTIDAD",
+   "type": "ACTION",
+   "label": "Anotar: identidad no verificada",
+   "terminal": false,
+   "config": {},
+   "actions": [
+    {
+     "actionCode": "ACT_IDENTIDAD",
+     "order": 1
+    }
+   ]
+  },
+  {
+   "key": "REVISAR_IDENTIDAD",
+   "type": "MANUAL_REVIEW",
+   "label": "Revisión: identidad no verificada",
+   "terminal": true,
+   "actions": [],
+   "config": {
+    "queueCode": "BNPL_UNDERWRITING",
+    "priority": 95,
+    "slaMinutes": 240,
+    "evidence": {
+     "motivo": "IDENTIDAD_NO_VERIFICADA",
+     "kycStatus": "{{kyc_status}}",
+     "documentoNacionalVerificado": "{{national_id_verified}}"
+    },
+    "mode": "MAPPING",
+    "assignments": [
+     {
+      "source": "EXPRESSION",
+      "expression": {
+       "value": 1
+      },
+      "outputCode": "probability_of_default"
+     },
+     {
+      "source": "EXPRESSION",
+      "expression": {
+       "value": "E"
+      },
+      "outputCode": "risk_band"
+     }
+    ]
+   }
+  },
+  {
+   "key": "ACT_SANCIONES",
+   "type": "ACTION",
+   "label": "Anotar: coincidencia en lista restrictiva",
+   "terminal": false,
+   "config": {},
+   "actions": [
+    {
+     "actionCode": "ACT_SANCIONES",
+     "order": 1
+    }
+   ]
+  },
+  {
+   "key": "REVISAR_SANCIONES",
+   "type": "MANUAL_REVIEW",
+   "label": "Revisión: coincidencia en lista restrictiva",
+   "terminal": true,
+   "actions": [],
+   "config": {
+    "queueCode": "BNPL_UNDERWRITING",
+    "priority": 99,
+    "slaMinutes": 240,
+    "evidence": {
+     "motivo": "COINCIDENCIA_LISTA_RESTRICTIVA",
+     "resultadoSanciones": "{{sanctions_screening_result}}"
+    },
+    "mode": "MAPPING",
+    "assignments": [
+     {
+      "source": "EXPRESSION",
+      "expression": {
+       "value": 1
+      },
+      "outputCode": "probability_of_default"
+     },
+     {
+      "source": "EXPRESSION",
+      "expression": {
+       "value": "E"
+      },
+      "outputCode": "risk_band"
+     }
+    ]
+   }
+  },
+  {
+   "key": "ACT_FRAUDE",
+   "type": "ACTION",
+   "label": "Anotar: señal de fraude",
+   "terminal": false,
+   "config": {},
+   "actions": [
+    {
+     "actionCode": "ACT_FRAUDE",
+     "order": 1
+    }
+   ]
+  },
+  {
+   "key": "REVISAR_FRAUDE",
+   "type": "MANUAL_REVIEW",
+   "label": "Revisión: señal de fraude",
+   "terminal": true,
+   "actions": [],
+   "config": {
+    "queueCode": "BNPL_UNDERWRITING",
+    "priority": 98,
+    "slaMinutes": 240,
+    "evidence": {
+     "motivo": "SENAL_DE_FRAUDE",
+     "fraudSignal": "{{fraud_signal}}",
+     "dispositivo": "{{known_fraud_device_flag}}",
+     "correo": "{{known_fraud_email_flag}}",
+     "telefono": "{{known_fraud_phone_flag}}"
+    },
+    "mode": "MAPPING",
+    "assignments": [
+     {
+      "source": "EXPRESSION",
+      "expression": {
+       "value": 1
+      },
+      "outputCode": "probability_of_default"
+     },
+     {
+      "source": "EXPRESSION",
+      "expression": {
+       "value": "E"
+      },
+      "outputCode": "risk_band"
+     }
+    ]
+   }
+  },
+  {
+   "key": "ACT_JURISDICCION",
+   "type": "ACTION",
+   "label": "Anotar: jurisdicción de alto riesgo",
+   "terminal": false,
+   "config": {},
+   "actions": [
+    {
+     "actionCode": "ACT_JURISDICCION",
+     "order": 1
+    }
+   ]
+  },
+  {
+   "key": "REVISAR_JURISDICCION",
+   "type": "MANUAL_REVIEW",
+   "label": "Revisión: jurisdicción de alto riesgo",
+   "terminal": true,
+   "actions": [],
+   "config": {
+    "queueCode": "BNPL_UNDERWRITING",
+    "priority": 85,
+    "slaMinutes": 480,
+    "evidence": {
+     "motivo": "JURISDICCION_DE_ALTO_RIESGO",
+     "jurisdiccionAltoRiesgo": "{{high_risk_jurisdiction_flag}}"
+    },
+    "mode": "MAPPING",
+    "assignments": [
+     {
+      "source": "EXPRESSION",
+      "expression": {
+       "value": 1
+      },
+      "outputCode": "probability_of_default"
+     },
+     {
+      "source": "EXPRESSION",
+      "expression": {
+       "value": "E"
+      },
+      "outputCode": "risk_band"
+     }
+    ]
+   }
+  },
+  {
+   "key": "ACT_TECNICA",
+   "type": "ACTION",
+   "label": "Anotar: señal técnica de riesgo",
+   "terminal": false,
+   "config": {},
+   "actions": [
+    {
+     "actionCode": "ACT_TECNICA",
+     "order": 1
+    }
+   ]
+  },
+  {
+   "key": "REVISAR_TECNICA",
+   "type": "MANUAL_REVIEW",
+   "label": "Revisión: señal técnica de riesgo",
+   "terminal": true,
+   "actions": [],
+   "config": {
+    "queueCode": "BNPL_UNDERWRITING",
+    "priority": 80,
+    "slaMinutes": 480,
+    "evidence": {
+     "motivo": "SENAL_TECNICA_DE_RIESGO",
+     "tor": "{{ip_tor_detected}}",
+     "simSwap": "{{sim_swap_detected}}",
+     "automatizacion": "{{browser_automation_detected}}",
+     "geolocalizacion": "{{geolocation_mismatch_flag}}"
+    },
+    "mode": "MAPPING",
+    "assignments": [
+     {
+      "source": "EXPRESSION",
+      "expression": {
+       "value": 1
+      },
+      "outputCode": "probability_of_default"
+     },
+     {
+      "source": "EXPRESSION",
+      "expression": {
+       "value": "E"
+      },
+      "outputCode": "risk_band"
+     }
+    ]
+   }
+  },
+  {
+   "key": "SC_1",
+   "type": "EXPRESSION",
+   "label": "Puntaje: capacidad, deuda, ingreso, empleo",
+   "terminal": false,
+   "actions": [],
+   "config": {
+    "intermediateAssignments": [
+     {
+      "code": "add_afford",
+      "source": "EXPRESSION",
+      "expression": {
+       "op": "if",
+       "condition": {
+        "op": "lte",
+        "left": {
+         "var": "affordability_ratio"
+        },
+        "right": {
+         "value": 0.1
+        }
+       },
+       "then": {
+        "value": 0
+       },
+       "else": {
+        "op": "if",
+        "condition": {
+         "op": "lte",
+         "left": {
+          "var": "affordability_ratio"
+         },
+         "right": {
+          "value": 0.2
+         }
+        },
+        "then": {
+         "value": 10
+        },
+        "else": {
+         "op": "if",
+         "condition": {
+          "op": "lte",
+          "left": {
+           "var": "affordability_ratio"
+          },
+          "right": {
+           "value": 0.35
+          }
+         },
+         "then": {
+          "value": 25
+         },
+         "else": {
+          "op": "if",
+          "condition": {
+           "op": "lte",
+           "left": {
+            "var": "affordability_ratio"
+           },
+           "right": {
+            "value": 0.5
+           }
+          },
+          "then": {
+           "value": 45
+          },
+          "else": {
+           "value": 70
+          }
+         }
+        }
+       }
+      }
+     },
+     {
+      "code": "add_dti",
+      "source": "EXPRESSION",
+      "expression": {
+       "op": "if",
+       "condition": {
+        "op": "lte",
+        "left": {
+         "var": "debt_to_income_ratio"
+        },
+        "right": {
+         "value": 0.2
+        }
+       },
+       "then": {
+        "value": 0
+       },
+       "else": {
+        "op": "if",
+        "condition": {
+         "op": "lte",
+         "left": {
+          "var": "debt_to_income_ratio"
+         },
+         "right": {
+          "value": 0.35
+         }
+        },
+        "then": {
+         "value": 10
+        },
+        "else": {
+         "op": "if",
+         "condition": {
+          "op": "lte",
+          "left": {
+           "var": "debt_to_income_ratio"
+          },
+          "right": {
+           "value": 0.5
+          }
+         },
+         "then": {
+          "value": 20
+         },
+         "else": {
+          "value": 35
+         }
+        }
+       }
+      }
+     },
+     {
+      "code": "add_income_stab",
+      "source": "EXPRESSION",
+      "expression": {
+       "op": "round",
+       "arg": {
+        "op": "mul",
+        "args": [
+         {
+          "op": "sub",
+          "args": [
+           {
+            "value": 100
+           },
+           {
+            "var": "income_stability_score"
+           }
+          ]
+         },
+         {
+          "value": 0.25
+         }
+        ]
+       },
+       "precision": 0
+      }
+     },
+     {
+      "code": "add_employment",
+      "source": "EXPRESSION",
+      "expression": {
+       "op": "add",
+       "args": [
+        {
+         "op": "if",
+         "condition": {
+          "op": "eq",
+          "left": {
+           "var": "employment_status"
+          },
+          "right": {
+           "value": "UNEMPLOYED"
+          }
+         },
+         "then": {
+          "value": 60
+         },
+         "else": {
+          "value": 0
+         }
+        },
+        {
+         "op": "if",
+         "condition": {
+          "var": "self_employed_flag"
+         },
+         "then": {
+          "value": 8
+         },
+         "else": {
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    ]
+   }
+  },
+  {
+   "key": "SC_2",
+   "type": "EXPRESSION",
+   "label": "Puntaje: buró y mora",
+   "terminal": false,
+   "actions": [],
+   "config": {
+    "intermediateAssignments": [
+     {
+      "code": "add_bureau_hit",
+      "source": "EXPRESSION",
+      "expression": {
+       "op": "if",
+       "condition": {
+        "var": "no_hit_flag"
+       },
+       "then": {
+        "value": 15
+       },
+       "else": {
+        "op": "if",
+        "condition": {
+         "var": "thin_file_flag"
+        },
+        "then": {
+         "value": 8
+        },
+        "else": {
+         "value": 0
+        }
+       }
+      }
+     },
+     {
+      "code": "add_delinq_status",
+      "source": "EXPRESSION",
+      "expression": {
+       "op": "if",
+       "condition": {
+        "op": "eq",
+        "left": {
+         "var": "worst_delinquency_status"
+        },
+        "right": {
+         "value": "DPD_30"
+        }
+       },
+       "then": {
+        "value": 15
+       },
+       "else": {
+        "op": "if",
+        "condition": {
+         "op": "eq",
+         "left": {
+          "var": "worst_delinquency_status"
+         },
+         "right": {
+          "value": "DPD_60"
+         }
+        },
+        "then": {
+         "value": 30
+        },
+        "else": {
+         "op": "if",
+         "condition": {
+          "op": "eq",
+          "left": {
+           "var": "worst_delinquency_status"
+          },
+          "right": {
+           "value": "DPD_90"
+          }
+         },
+         "then": {
+          "value": 50
+         },
+         "else": {
+          "op": "if",
+          "condition": {
+           "op": "eq",
+           "left": {
+            "var": "worst_delinquency_status"
+           },
+           "right": {
+            "value": "DPD_120_PLUS"
+           }
+          },
+          "then": {
+           "value": 60
+          },
+          "else": {
+           "op": "if",
+           "condition": {
+            "op": "eq",
+            "left": {
+             "var": "worst_delinquency_status"
+            },
+            "right": {
+             "value": "CHARGE_OFF"
+            }
+           },
+           "then": {
+            "value": 70
+           },
+           "else": {
+            "value": 0
+           }
+          }
+         }
+        }
+       }
+      }
+     },
+     {
+      "code": "add_delinq_count",
+      "source": "EXPRESSION",
+      "expression": {
+       "op": "mul",
+       "args": [
+        {
+         "op": "max",
+         "args": [
+          {
+           "value": 0
+          },
+          {
+           "op": "sub",
+           "args": [
+            {
+             "var": "delinquency_count_12m"
+            },
+            {
+             "value": 1
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "value": 10
+        }
+       ]
+      }
+     },
+     {
+      "code": "add_chargeoff",
+      "source": "EXPRESSION",
+      "expression": {
+       "op": "mul",
+       "args": [
+        {
+         "op": "min",
+         "args": [
+          {
+           "var": "charge_off_count"
+          },
+          {
+           "value": 2
+          }
+         ]
+        },
+        {
+         "value": 60
+        }
+       ]
+      }
+     }
+    ]
+   }
+  },
+  {
+   "key": "SC_3",
+   "type": "EXPRESSION",
+   "label": "Puntaje: bancarrota, antigüedad, consultas, utilización",
+   "terminal": false,
+   "actions": [],
+   "config": {
+    "intermediateAssignments": [
+     {
+      "code": "add_bankruptcy",
+      "source": "EXPRESSION",
+      "expression": {
+       "op": "if",
+       "condition": {
+        "var": "bankruptcy_flag"
+       },
+       "then": {
+        "value": 90
+       },
+       "else": {
+        "value": 0
+       }
+      }
+     },
+     {
+      "code": "trade_age_penalty",
+      "source": "EXPRESSION",
+      "expression": {
+       "op": "min",
+       "args": [
+        {
+         "value": 30
+        },
+        {
+         "op": "round",
+         "arg": {
+          "op": "sub",
+          "args": [
+           {
+            "op": "mul",
+            "args": [
+             {
+              "var": "oldest_trade_age_months"
+             },
+             {
+              "value": 0.25
+             }
+            ]
+           },
+           {
+            "value": 0.5
+           }
+          ]
+         },
+         "precision": 0
+        }
+       ]
+      }
+     },
+     {
+      "code": "add_inquiries",
+      "source": "EXPRESSION",
+      "expression": {
+       "op": "min",
+       "args": [
+        {
+         "value": 40
+        },
+        {
+         "op": "mul",
+         "args": [
+          {
+           "op": "max",
+           "args": [
+            {
+             "value": 0
+            },
+            {
+             "op": "sub",
+             "args": [
+              {
+               "var": "inquiries_last_6m"
+              },
+              {
+               "value": 2
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "value": 8
+          }
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "code": "add_utilization",
+      "source": "EXPRESSION",
+      "expression": {
+       "op": "if",
+       "condition": {
+        "op": "lte",
+        "left": {
+         "var": "revolving_utilization_ratio"
+        },
+        "right": {
+         "value": 0.3
+        }
+       },
+       "then": {
+        "value": 0
+       },
+       "else": {
+        "op": "if",
+        "condition": {
+         "op": "lte",
+         "left": {
+          "var": "revolving_utilization_ratio"
+         },
+         "right": {
+          "value": 0.6
+         }
+        },
+        "then": {
+         "value": 10
+        },
+        "else": {
+         "op": "if",
+         "condition": {
+          "op": "lte",
+          "left": {
+           "var": "revolving_utilization_ratio"
+          },
+          "right": {
+           "value": 0.9
+          }
+         },
+         "then": {
+          "value": 20
+         },
+         "else": {
+          "value": 35
+         }
+        }
+       }
+      }
+     }
+    ]
+   }
+  },
+  {
+   "key": "SC_4",
+   "type": "EXPRESSION",
+   "label": "Puntaje: historial de pago y señales de dispositivo (C-6)",
+   "terminal": false,
+   "actions": [],
+   "config": {
+    "intermediateAssignments": [
+     {
+      "code": "add_payment_history",
+      "source": "EXPRESSION",
+      "expression": {
+       "op": "round",
+       "arg": {
+        "op": "mul",
+        "args": [
+         {
+          "op": "sub",
+          "args": [
+           {
+            "value": 70
+           },
+           {
+            "var": "payment_history_score"
+           }
+          ]
+         },
+         {
+          "value": 0.4
+         }
+        ]
+       },
+       "precision": 0
+      }
+     },
+     {
+      "code": "add_device_risk",
+      "source": "EXPRESSION",
+      "expression": {
+       "op": "round",
+       "arg": {
+        "op": "mul",
+        "args": [
+         {
+          "var": "device_risk_score"
+         },
+         {
+          "value": 0.3
+         }
+        ]
+       },
+       "precision": 0
+      }
+     },
+     {
+      "code": "add_ip_risk",
+      "source": "EXPRESSION",
+      "expression": {
+       "op": "round",
+       "arg": {
+        "op": "mul",
+        "args": [
+         {
+          "var": "ip_address_risk_score"
+         },
+         {
+          "value": 0.2
+         }
+        ]
+       },
+       "precision": 0
+      }
+     },
+     {
+      "code": "add_ato_risk",
+      "source": "EXPRESSION",
+      "expression": {
+       "op": "round",
+       "arg": {
+        "op": "mul",
+        "args": [
+         {
+          "var": "account_takeover_risk_score"
+         },
+         {
+          "value": 0.3
+         }
+        ]
+       },
+       "precision": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "key": "SC_5",
+   "type": "EXPRESSION",
+   "label": "Puntaje: velocidad de solicitudes",
+   "terminal": false,
+   "actions": [],
+   "config": {
+    "intermediateAssignments": [
+     {
+      "code": "add_velocity",
+      "source": "EXPRESSION",
+      "expression": {
+       "op": "min",
+       "args": [
+        {
+         "value": 60
+        },
+        {
+         "op": "mul",
+         "args": [
+          {
+           "op": "max",
+           "args": [
+            {
+             "value": 0
+            },
+            {
+             "op": "sub",
+             "args": [
+              {
+               "var": "velocity_applications_24h"
+              },
+              {
+               "value": 1
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "value": 15
+          }
+         ]
+        }
+       ]
+      }
+     }
+    ]
+   }
+  },
+  {
+   "key": "SC_TOTAL",
+   "type": "EXPRESSION",
+   "label": "Puntaje total (piso en 0)",
+   "terminal": false,
+   "actions": [],
+   "config": {
+    "intermediateAssignments": [
+     {
+      "code": "total_before_floor",
+      "source": "EXPRESSION",
+      "expression": {
+       "op": "sub",
+       "args": [
+        {
+         "op": "add",
+         "args": [
+          {
+           "var": "intermediate.add_afford"
+          },
+          {
+           "var": "intermediate.add_dti"
+          },
+          {
+           "var": "intermediate.add_income_stab"
+          },
+          {
+           "var": "intermediate.add_employment"
+          },
+          {
+           "var": "intermediate.add_bureau_hit"
+          },
+          {
+           "var": "intermediate.add_delinq_status"
+          },
+          {
+           "var": "intermediate.add_delinq_count"
+          },
+          {
+           "var": "intermediate.add_chargeoff"
+          },
+          {
+           "var": "intermediate.add_bankruptcy"
+          },
+          {
+           "var": "intermediate.add_inquiries"
+          },
+          {
+           "var": "intermediate.add_utilization"
+          },
+          {
+           "var": "intermediate.add_payment_history"
+          },
+          {
+           "var": "intermediate.add_device_risk"
+          },
+          {
+           "var": "intermediate.add_ip_risk"
+          },
+          {
+           "var": "intermediate.add_ato_risk"
+          },
+          {
+           "var": "intermediate.add_velocity"
+          }
+         ]
+        },
+        {
+         "var": "intermediate.trade_age_penalty"
+        }
+       ]
+      }
+     },
+     {
+      "code": "total_score",
+      "source": "EXPRESSION",
+      "expression": {
+       "op": "max",
+       "args": [
+        {
+         "value": 0
+        },
+        {
+         "var": "intermediate.total_before_floor"
+        }
+       ]
+      }
+     }
+    ]
+   }
+  },
+  {
+   "key": "SC_PD_BAND",
+   "type": "EXPRESSION",
+   "label": "PD por tramos de puntaje; banda por tramos de PD",
+   "terminal": false,
+   "actions": [],
+   "config": {
+    "intermediateAssignments": [
+     {
+      "code": "pd",
+      "source": "EXPRESSION",
+      "expression": {
+       "op": "if",
+       "condition": {
+        "op": "lte",
+        "left": {
+         "var": "intermediate.total_score"
+        },
+        "right": {
+         "value": 30
+        }
+       },
+       "then": {
+        "value": 0.02
+       },
+       "else": {
+        "op": "if",
+        "condition": {
+         "op": "lte",
+         "left": {
+          "var": "intermediate.total_score"
+         },
+         "right": {
+          "value": 60
+         }
+        },
+        "then": {
+         "value": 0.05
+        },
+        "else": {
+         "op": "if",
+         "condition": {
+          "op": "lte",
+          "left": {
+           "var": "intermediate.total_score"
+          },
+          "right": {
+           "value": 90
+          }
+         },
+         "then": {
+          "value": 0.09
+         },
+         "else": {
+          "op": "if",
+          "condition": {
+           "op": "lte",
+           "left": {
+            "var": "intermediate.total_score"
+           },
+           "right": {
+            "value": 130
+           }
+          },
+          "then": {
+           "value": 0.15
+          },
+          "else": {
+           "op": "if",
+           "condition": {
+            "op": "lte",
+            "left": {
+             "var": "intermediate.total_score"
+            },
+            "right": {
+             "value": 180
+            }
+           },
+           "then": {
+            "value": 0.25
+           },
+           "else": {
+            "op": "if",
+            "condition": {
+             "op": "lte",
+             "left": {
+              "var": "intermediate.total_score"
+             },
+             "right": {
+              "value": 250
+             }
+            },
+            "then": {
+             "value": 0.4
+            },
+            "else": {
+             "value": 0.6
+            }
+           }
+          }
+         }
+        }
+       }
+      }
+     },
+     {
+      "code": "risk_score_band",
+      "source": "EXPRESSION",
+      "expression": {
+       "op": "if",
+       "condition": {
+        "op": "lte",
+        "left": {
+         "var": "intermediate.pd"
+        },
+        "right": {
+         "value": 0.05
+        }
+       },
+       "then": {
+        "value": "A"
+       },
+       "else": {
+        "op": "if",
+        "condition": {
+         "op": "lte",
+         "left": {
+          "var": "intermediate.pd"
+         },
+         "right": {
+          "value": 0.09
+         }
+        },
+        "then": {
+         "value": "B"
+        },
+        "else": {
+         "op": "if",
+         "condition": {
+          "op": "lte",
+          "left": {
+           "var": "intermediate.pd"
+          },
+          "right": {
+           "value": 0.15
+          }
+         },
+         "then": {
+          "value": "C"
+         },
+         "else": {
+          "op": "if",
+          "condition": {
+           "op": "lte",
+           "left": {
+            "var": "intermediate.pd"
+           },
+           "right": {
+            "value": 0.25
+           }
+          },
+          "then": {
+           "value": "D"
+          },
+          "else": {
+           "value": "E"
+          }
+         }
+        }
+       }
+      }
+     }
+    ]
+   }
+  },
+  {
+   "key": "EVALUAR_BANDA",
+   "type": "CONDITION",
+   "label": "Paso 4: desenlace por banda",
+   "terminal": false,
+   "config": {
+    "description": "A-D siguen a tarifar; E rechaza (RIESGO_EXCEDE_EL_LIMITE)."
+   },
+   "actions": []
+  },
+  {
+   "key": "ACT_RECHAZAR",
+   "type": "ACTION",
+   "label": "Anotar: riesgo excede el límite",
+   "terminal": false,
+   "config": {},
+   "actions": [
+    {
+     "actionCode": "ACT_RECHAZAR",
+     "order": 1
+    }
+   ]
+  },
+  {
+   "key": "RECHAZAR",
+   "type": "RESULT",
+   "label": "Rechazar: riesgo excede el límite",
+   "terminal": true,
+   "actions": [],
+   "config": {
+    "mode": "MAPPING",
+    "assignments": [
+     {
+      "source": "EXPRESSION",
+      "expression": {
+       "var": "intermediate.pd"
+      },
+      "outputCode": "probability_of_default"
+     },
+     {
+      "source": "EXPRESSION",
+      "expression": {
+       "var": "intermediate.risk_score_band"
+      },
+      "outputCode": "risk_band"
+     },
+     {
+      "source": "EXPRESSION",
+      "expression": {
+       "value": "DECLINE"
+      },
+      "outputCode": "decision_outcome"
+     }
+    ]
+   }
+  },
+  {
+   "key": "SC_PRICING",
+   "type": "EXPRESSION",
+   "label": "Tarifa: prima por banda y APR",
+   "terminal": false,
+   "actions": [],
+   "config": {
+    "intermediateAssignments": [
+     {
+      "code": "prima_pct",
+      "source": "EXPRESSION",
+      "expression": {
+       "op": "if",
+       "condition": {
+        "op": "eq",
+        "left": {
+         "var": "intermediate.risk_score_band"
+        },
+        "right": {
+         "value": "A"
+        }
+       },
+       "then": {
+        "value": 0
+       },
+       "else": {
+        "op": "if",
+        "condition": {
+         "op": "eq",
+         "left": {
+          "var": "intermediate.risk_score_band"
+         },
+         "right": {
+          "value": "B"
+         }
+        },
+        "then": {
+         "value": 6
+        },
+        "else": {
+         "op": "if",
+         "condition": {
+          "op": "eq",
+          "left": {
+           "var": "intermediate.risk_score_band"
+          },
+          "right": {
+           "value": "C"
+          }
+         },
+         "then": {
+          "value": 14
+         },
+         "else": {
+          "value": 24
+         }
+        }
+       }
+      }
+     },
+     {
+      "code": "apr",
+      "source": "EXPRESSION",
+      "expression": {
+       "op": "round",
+       "arg": {
+        "op": "add",
+        "args": [
+         {
+          "var": "product_base_annual_rate"
+         },
+         {
+          "op": "mul",
+          "args": [
+           {
+            "var": "intermediate.prima_pct"
+           },
+           {
+            "value": 0.01
+           }
+          ]
+         }
+        ]
+       },
+       "precision": 4
+      }
+     }
+    ]
+   }
+  },
+  {
+   "key": "ACT_APROBAR",
+   "type": "ACTION",
+   "label": "Anotar: aprobado",
+   "terminal": false,
+   "config": {},
+   "actions": [
+    {
+     "actionCode": "ACT_APROBAR",
+     "order": 1
+    }
+   ]
+  },
+  {
+   "key": "APROBAR",
+   "type": "RESULT",
+   "label": "Aprobar y tarifar",
+   "terminal": true,
+   "actions": [],
+   "config": {
+    "mode": "MAPPING",
+    "assignments": [
+     {
+      "source": "EXPRESSION",
+      "expression": {
+       "var": "intermediate.pd"
+      },
+      "outputCode": "probability_of_default"
+     },
+     {
+      "source": "EXPRESSION",
+      "expression": {
+       "var": "intermediate.risk_score_band"
+      },
+      "outputCode": "risk_band"
+     },
+     {
+      "source": "EXPRESSION",
+      "expression": {
+       "var": "intermediate.risk_score_band"
+      },
+      "outputCode": "pricing_tier"
+     },
+     {
+      "source": "EXPRESSION",
+      "expression": {
+       "var": "intermediate.apr"
+      },
+      "outputCode": "annual_percentage_rate"
+     },
+     {
+      "source": "EXPRESSION",
+      "expression": {
+       "value": "APPROVE"
+      },
+      "outputCode": "decision_outcome"
+     }
+    ]
+   }
+  }
+ ],
+ "edges": [
+  {
+   "key": "E_START",
+   "from": "START",
+   "to": "EVALUAR_COMPUERTAS",
+   "type": "DEFAULT",
+   "priority": 1,
+   "default": true,
+   "conditions": []
+  },
+  {
+   "key": "E_G1",
+   "from": "EVALUAR_COMPUERTAS",
+   "to": "ACT_IDENTIDAD",
+   "type": "CONDITIONAL",
+   "priority": 1,
+   "default": false,
+   "conditions": [
+    {
+     "conditionCode": "G1_IDENTIDAD",
+     "order": 1
+    }
+   ]
+  },
+  {
+   "key": "E_G2",
+   "from": "EVALUAR_COMPUERTAS",
+   "to": "ACT_SANCIONES",
+   "type": "CONDITIONAL",
+   "priority": 2,
+   "default": false,
+   "conditions": [
+    {
+     "conditionCode": "G2_SANCIONES",
+     "order": 1
+    }
+   ]
+  },
+  {
+   "key": "E_G3",
+   "from": "EVALUAR_COMPUERTAS",
+   "to": "ACT_FRAUDE",
+   "type": "CONDITIONAL",
+   "priority": 3,
+   "default": false,
+   "conditions": [
+    {
+     "conditionCode": "G3_FRAUDE",
+     "order": 1
+    }
+   ]
+  },
+  {
+   "key": "E_G4",
+   "from": "EVALUAR_COMPUERTAS",
+   "to": "ACT_JURISDICCION",
+   "type": "CONDITIONAL",
+   "priority": 4,
+   "default": false,
+   "conditions": [
+    {
+     "conditionCode": "G4_JURISDICCION",
+     "order": 1
+    }
+   ]
+  },
+  {
+   "key": "E_G5",
+   "from": "EVALUAR_COMPUERTAS",
+   "to": "ACT_TECNICA",
+   "type": "CONDITIONAL",
+   "priority": 5,
+   "default": false,
+   "conditions": [
+    {
+     "conditionCode": "G5_TECNICA",
+     "order": 1
+    }
+   ]
+  },
+  {
+   "key": "E_G_DEFAULT",
+   "from": "EVALUAR_COMPUERTAS",
+   "to": "SC_1",
+   "type": "DEFAULT",
+   "priority": 6,
+   "default": true,
+   "conditions": []
+  },
+  {
+   "key": "E_A_REVISAR_IDENTIDAD",
+   "from": "ACT_IDENTIDAD",
+   "to": "REVISAR_IDENTIDAD",
+   "type": "DEFAULT",
+   "priority": 1,
+   "default": true,
+   "conditions": []
+  },
+  {
+   "key": "E_A_REVISAR_SANCIONES",
+   "from": "ACT_SANCIONES",
+   "to": "REVISAR_SANCIONES",
+   "type": "DEFAULT",
+   "priority": 1,
+   "default": true,
+   "conditions": []
+  },
+  {
+   "key": "E_A_REVISAR_FRAUDE",
+   "from": "ACT_FRAUDE",
+   "to": "REVISAR_FRAUDE",
+   "type": "DEFAULT",
+   "priority": 1,
+   "default": true,
+   "conditions": []
+  },
+  {
+   "key": "E_A_REVISAR_JURISDICCION",
+   "from": "ACT_JURISDICCION",
+   "to": "REVISAR_JURISDICCION",
+   "type": "DEFAULT",
+   "priority": 1,
+   "default": true,
+   "conditions": []
+  },
+  {
+   "key": "E_A_REVISAR_TECNICA",
+   "from": "ACT_TECNICA",
+   "to": "REVISAR_TECNICA",
+   "type": "DEFAULT",
+   "priority": 1,
+   "default": true,
+   "conditions": []
+  },
+  {
+   "key": "E_SC1_SC2",
+   "from": "SC_1",
+   "to": "SC_2",
+   "type": "DEFAULT",
+   "priority": 1,
+   "default": true,
+   "conditions": []
+  },
+  {
+   "key": "E_SC2_SC3",
+   "from": "SC_2",
+   "to": "SC_3",
+   "type": "DEFAULT",
+   "priority": 1,
+   "default": true,
+   "conditions": []
+  },
+  {
+   "key": "E_SC3_SC4",
+   "from": "SC_3",
+   "to": "SC_4",
+   "type": "DEFAULT",
+   "priority": 1,
+   "default": true,
+   "conditions": []
+  },
+  {
+   "key": "E_SC4_SC5",
+   "from": "SC_4",
+   "to": "SC_5",
+   "type": "DEFAULT",
+   "priority": 1,
+   "default": true,
+   "conditions": []
+  },
+  {
+   "key": "E_SC5_TOTAL",
+   "from": "SC_5",
+   "to": "SC_TOTAL",
+   "type": "DEFAULT",
+   "priority": 1,
+   "default": true,
+   "conditions": []
+  },
+  {
+   "key": "E_TOTAL_PDBAND",
+   "from": "SC_TOTAL",
+   "to": "SC_PD_BAND",
+   "type": "DEFAULT",
+   "priority": 1,
+   "default": true,
+   "conditions": []
+  },
+  {
+   "key": "E_PDBAND_EVALUAR",
+   "from": "SC_PD_BAND",
+   "to": "EVALUAR_BANDA",
+   "type": "DEFAULT",
+   "priority": 1,
+   "default": true,
+   "conditions": []
+  },
+  {
+   "key": "E_BANDA_E",
+   "from": "EVALUAR_BANDA",
+   "to": "ACT_RECHAZAR",
+   "type": "CONDITIONAL",
+   "priority": 1,
+   "default": false,
+   "conditions": [
+    {
+     "conditionCode": "BANDA_ES_E",
+     "order": 1
+    }
+   ]
+  },
+  {
+   "key": "E_BANDA_DEFAULT",
+   "from": "EVALUAR_BANDA",
+   "to": "SC_PRICING",
+   "type": "DEFAULT",
+   "priority": 2,
+   "default": true,
+   "conditions": []
+  },
+  {
+   "key": "E_ACT_RECHAZAR",
+   "from": "ACT_RECHAZAR",
+   "to": "RECHAZAR",
+   "type": "DEFAULT",
+   "priority": 1,
+   "default": true,
+   "conditions": []
+  },
+  {
+   "key": "E_PRICING_APROBAR_ACT",
+   "from": "SC_PRICING",
+   "to": "ACT_APROBAR",
+   "type": "DEFAULT",
+   "priority": 1,
+   "default": true,
+   "conditions": []
+  },
+  {
+   "key": "E_ACT_APROBAR",
+   "from": "ACT_APROBAR",
+   "to": "APROBAR",
+   "type": "DEFAULT",
+   "priority": 1,
+   "default": true,
+   "conditions": []
+  }
+ ],
+ "cases": [
+  {
+   "caseCode": "GATE-1-IDENTIDAD-KYC-NO-VERIFICADO",
+   "testName": "Compuerta 1: kyc_status != VERIFIED revisa por identidad",
+   "input": {
+    "kyc_status": "PENDING",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "REVISAR_IDENTIDAD"
+    },
+    "reasonCodes": [
+     "IDENTIDAD_NO_VERIFICADA"
+    ]
+   }
+  },
+  {
+   "caseCode": "GATE-1B-IDENTIDAD-DOCUMENTO-NO-VERIFICADO",
+   "testName": "Compuerta 1: national_id_verified=false revisa por identidad aunque kyc_status=VERIFIED",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": false,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "REVISAR_IDENTIDAD"
+    },
+    "reasonCodes": [
+     "IDENTIDAD_NO_VERIFICADA"
+    ]
+   }
+  },
+  {
+   "caseCode": "GATE-2-SANCIONES-COINCIDENCIA",
+   "testName": "Compuerta 2: POTENTIAL_MATCH en listas restrictivas",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "POTENTIAL_MATCH",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "REVISAR_SANCIONES"
+    },
+    "reasonCodes": [
+     "COINCIDENCIA_LISTA_RESTRICTIVA"
+    ]
+   }
+  },
+  {
+   "caseCode": "GATE-3-FRAUDE-SENAL",
+   "testName": "Compuerta 3: fraud_signal=true revisa por fraude",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": true,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "REVISAR_FRAUDE"
+    },
+    "reasonCodes": [
+     "SENAL_DE_FRAUDE"
+    ]
+   }
+  },
+  {
+   "caseCode": "GATE-3B-FRAUDE-DISPOSITIVO",
+   "testName": "Compuerta 3: known_fraud_device_flag=true revisa por fraude",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": true,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "REVISAR_FRAUDE"
+    },
+    "reasonCodes": [
+     "SENAL_DE_FRAUDE"
+    ]
+   }
+  },
+  {
+   "caseCode": "GATE-4-JURISDICCION-ALTO-RIESGO",
+   "testName": "Compuerta 4: high_risk_jurisdiction_flag=true revisa",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": true,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "REVISAR_JURISDICCION"
+    },
+    "reasonCodes": [
+     "JURISDICCION_DE_ALTO_RIESGO"
+    ]
+   }
+  },
+  {
+   "caseCode": "GATE-5-TECNICA-TOR",
+   "testName": "Compuerta 5: ip_tor_detected=true revisa por señal técnica",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": true,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "REVISAR_TECNICA"
+    },
+    "reasonCodes": [
+     "SENAL_TECNICA_DE_RIESGO"
+    ]
+   }
+  },
+  {
+   "caseCode": "GATE-PRIORIDAD-IDENTIDAD-GANA-A-SANCIONES",
+   "testName": "Cuando dos compuertas aplican a la vez, gana la de mayor prioridad (identidad, no sanciones)",
+   "input": {
+    "kyc_status": "PENDING",
+    "national_id_verified": true,
+    "sanctions_screening_result": "POTENTIAL_MATCH",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "REVISAR_IDENTIDAD"
+    },
+    "reasonCodes": [
+     "IDENTIDAD_NO_VERIFICADA"
+    ]
+   }
+  },
+  {
+   "caseCode": "BORDE-PUNTAJE-0",
+   "testName": "Puntaje total exacto 0: PD 0.02 banda A",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.02,
+    "risk_band": "A",
+    "pricing_tier": "A",
+    "annual_percentage_rate": 0.28
+   }
+  },
+  {
+   "caseCode": "BORDE-PUNTAJE-30",
+   "testName": "Puntaje total exacto 30: PD 0.02 banda A",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 4,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.02,
+    "risk_band": "A",
+    "pricing_tier": "A",
+    "annual_percentage_rate": 0.28
+   }
+  },
+  {
+   "caseCode": "BORDE-PUNTAJE-31",
+   "testName": "Puntaje total exacto 31: PD 0.05 banda A",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 4,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 3,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.05,
+    "risk_band": "A",
+    "pricing_tier": "A",
+    "annual_percentage_rate": 0.28
+   }
+  },
+  {
+   "caseCode": "BORDE-PUNTAJE-60",
+   "testName": "Puntaje total exacto 60: PD 0.05 banda A",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 7,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.05,
+    "risk_band": "A",
+    "pricing_tier": "A",
+    "annual_percentage_rate": 0.28
+   }
+  },
+  {
+   "caseCode": "BORDE-PUNTAJE-61",
+   "testName": "Puntaje total exacto 61: PD 0.09 banda B",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 7,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 3,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.09,
+    "risk_band": "B",
+    "pricing_tier": "B",
+    "annual_percentage_rate": 0.34
+   }
+  },
+  {
+   "caseCode": "BORDE-PUNTAJE-90",
+   "testName": "Puntaje total exacto 90: PD 0.09 banda B",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 10,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.09,
+    "risk_band": "B",
+    "pricing_tier": "B",
+    "annual_percentage_rate": 0.34
+   }
+  },
+  {
+   "caseCode": "BORDE-PUNTAJE-91",
+   "testName": "Puntaje total exacto 91: PD 0.15 banda C",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 10,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 3,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.15,
+    "risk_band": "C",
+    "pricing_tier": "C",
+    "annual_percentage_rate": 0.42
+   }
+  },
+  {
+   "caseCode": "BORDE-PUNTAJE-130",
+   "testName": "Puntaje total exacto 130: PD 0.15 banda C",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 8,
+    "charge_off_count": 1,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.15,
+    "risk_band": "C",
+    "pricing_tier": "C",
+    "annual_percentage_rate": 0.42
+   }
+  },
+  {
+   "caseCode": "BORDE-PUNTAJE-131",
+   "testName": "Puntaje total exacto 131: PD 0.25 banda D",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 8,
+    "charge_off_count": 1,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 3,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.25,
+    "risk_band": "D",
+    "pricing_tier": "D",
+    "annual_percentage_rate": 0.52
+   }
+  },
+  {
+   "caseCode": "BORDE-PUNTAJE-180",
+   "testName": "Puntaje total exacto 180: PD 0.25 banda D",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 13,
+    "charge_off_count": 1,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.25,
+    "risk_band": "D",
+    "pricing_tier": "D",
+    "annual_percentage_rate": 0.52
+   }
+  },
+  {
+   "caseCode": "BORDE-PUNTAJE-181",
+   "testName": "Puntaje total exacto 181: PD 0.4 banda E",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 13,
+    "charge_off_count": 1,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 3,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "RECHAZAR"
+    },
+    "reasonCodes": [
+     "RIESGO_EXCEDE_EL_LIMITE"
+    ],
+    "probability_of_default": 0.4,
+    "risk_band": "E"
+   }
+  },
+  {
+   "caseCode": "BORDE-PUNTAJE-250",
+   "testName": "Puntaje total exacto 250: PD 0.4 banda E",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 14,
+    "charge_off_count": 2,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "RECHAZAR"
+    },
+    "reasonCodes": [
+     "RIESGO_EXCEDE_EL_LIMITE"
+    ],
+    "probability_of_default": 0.4,
+    "risk_band": "E"
+   }
+  },
+  {
+   "caseCode": "BORDE-PUNTAJE-251",
+   "testName": "Puntaje total exacto 251: PD 0.6 banda E",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 14,
+    "charge_off_count": 2,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 3,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "RECHAZAR"
+    },
+    "reasonCodes": [
+     "RIESGO_EXCEDE_EL_LIMITE"
+    ],
+    "probability_of_default": 0.6,
+    "risk_band": "E"
+   }
+  },
+  {
+   "caseCode": "ANTIGUEDAD-119-DESCUENTA-29",
+   "testName": "floor(119/4)=29: descuento 29 de un aporte fijo de 30",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 119,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 100,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.02,
+    "risk_band": "A",
+    "pricing_tier": "A",
+    "annual_percentage_rate": 0.28
+   }
+  },
+  {
+   "caseCode": "ANTIGUEDAD-200-TOPA-EN-30",
+   "testName": "floor(200/4)=50 topado a 30: descuento igual al de 120 meses",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 200,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 100,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.02,
+    "risk_band": "A",
+    "pricing_tier": "A",
+    "annual_percentage_rate": 0.28
+   }
+  },
+  {
+   "caseCode": "BURO-NO-HIT-Y-THIN-FILE-NO-SE-SUMAN",
+   "testName": "no_hit_flag y thin_file_flag ambos true: sólo cuenta no_hit_flag (+15, no +23)",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": true,
+    "thin_file_flag": true,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.02,
+    "risk_band": "A",
+    "pricing_tier": "A",
+    "annual_percentage_rate": 0.28
+   }
+  },
+  {
+   "caseCode": "EMPLEO-DESEMPLEADO-Y-AUTONOMO-SE-SUMAN",
+   "testName": "employment_status=UNEMPLOYED (+60) y self_employed_flag=true (+8) NO son excluyentes: +68",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "UNEMPLOYED",
+    "self_employed_flag": true,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.09,
+    "risk_band": "B",
+    "pricing_tier": "B",
+    "annual_percentage_rate": 0.34
+   }
+  },
+  {
+   "caseCode": "MORA-DPD30-COLAPSA-1-29-Y-30-59",
+   "testName": "worst_delinquency_status=DPD_30 (enum real): +15",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "DPD_30",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.02,
+    "risk_band": "A",
+    "pricing_tier": "A",
+    "annual_percentage_rate": 0.28
+   }
+  },
+  {
+   "caseCode": "MORA-DPD120-PLUS-ENTRE-90-Y-CASTIGO",
+   "testName": "worst_delinquency_status=DPD_120_PLUS: +60",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "DPD_120_PLUS",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.05,
+    "risk_band": "A",
+    "pricing_tier": "A",
+    "annual_percentage_rate": 0.28
+   }
+  },
+  {
+   "caseCode": "MORAS-12M-LA-PRIMERA-NO-DUPLICA",
+   "testName": "delinquency_count_12m=3 -> max(0,3-1)*10=20, no 30: la primera no duplica worst_delinquency_status",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 3,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.02,
+    "risk_band": "A",
+    "pricing_tier": "A",
+    "annual_percentage_rate": 0.28
+   }
+  },
+  {
+   "caseCode": "CASTIGOS-TOPE-EN-DOS",
+   "testName": "charge_off_count=5 se topa en min(5,2)*60=120, no 300 (banda C, no E)",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 5,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.15,
+    "risk_band": "C",
+    "pricing_tier": "C",
+    "annual_percentage_rate": 0.42
+   }
+  },
+  {
+   "caseCode": "BANCARROTA-SUMA-90-FIJO",
+   "testName": "bankruptcy_flag=true: +90 fijo",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": true,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.09,
+    "risk_band": "B",
+    "pricing_tier": "B",
+    "annual_percentage_rate": 0.34
+   }
+  },
+  {
+   "caseCode": "APR-BANDA-B-BASE-VARIABLE-035",
+   "testName": "Banda B con product_base_annual_rate=0.35: apr = 0.35 + 6/100 = 0.41 EXACTO",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 8,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.35
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.09,
+    "risk_band": "B",
+    "pricing_tier": "B",
+    "annual_percentage_rate": 0.41
+   }
+  },
+  {
+   "caseCode": "APR-BANDA-D-BASE-VARIABLE-055",
+   "testName": "Banda D con product_base_annual_rate=0.55: apr = 0.55 + 24/100 = 0.79 EXACTO",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 10,
+    "charge_off_count": 1,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.55
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.25,
+    "risk_band": "D",
+    "pricing_tier": "D",
+    "annual_percentage_rate": 0.79
+   }
+  },
+  {
+   "caseCode": "APR-BANDA-A-SIN-PRIMA",
+   "testName": "Banda A con product_base_annual_rate=0.20: sin prima, apr = 0.20 EXACTO",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 2,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.2
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.02,
+    "risk_band": "A",
+    "pricing_tier": "A",
+    "annual_percentage_rate": 0.2
+   }
+  },
+  {
+   "caseCode": "APR-BANDA-C-BASE-VARIABLE-040",
+   "testName": "Banda C con product_base_annual_rate=0.40: apr = 0.40 + 14/100 = 0.54 EXACTO",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 12,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.4
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.15,
+    "risk_band": "C",
+    "pricing_tier": "C",
+    "annual_percentage_rate": 0.54
+   }
+  }
+ ],
+ "suite": {
+  "suiteCode": "UNDERWRITING-V2-DESENLACES",
+  "name": "Underwriting BNPL v2: compuertas, bandas y tarifa",
+  "suiteType": "REGRESSION",
+  "isBlocking": true
+ }
+}
