@@ -1,0 +1,126 @@
+/*
+ * Estilos de `factura-fiscal`. Sólo tokens para color; las medidas en mm y cm son del papel.
+ *
+ * El QR mide 3 cm × 3 cm como MÍNIMO: por debajo, la cámara de un móvil corriente no lo lee
+ * impreso, y es el tamaño que la normativa de facturación pide para la representación gráfica.
+ */
+
+.ff-cabecera {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6mm;
+  align-items: start;
+}
+.ff-emisor p { margin: 0; font-size: var(--type-sm); }
+.ff-emisor__nombre { font-weight: var(--weight-bold); font-size: var(--type-md); }
+
+.ff-fiscal { border-collapse: collapse; font-size: var(--type-sm); }
+.ff-fiscal th {
+  text-align: left;
+  padding: 0.8mm 3mm 0.8mm 0;
+  font-weight: var(--weight-bold);
+  white-space: nowrap;
+}
+.ff-fiscal td { padding: 0.8mm 0; }
+.ff-cuf { display: inline-block; max-width: 62mm; word-break: break-all; }
+
+.ff-titulo { text-align: center; margin: 2mm 0 3mm; }
+.ff-titulo__principal {
+  margin: 0;
+  font-size: var(--type-2xl);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.04em;
+}
+.ff-titulo__sub { margin: 0; font-size: var(--type-sm); }
+
+.ff-interna {
+  margin: 0 0 3mm;
+  padding: 2mm 4mm;
+  border: var(--rule) solid var(--critical);
+  border-radius: var(--radius-md);
+  background: var(--wash-critical);
+  color: var(--critical);
+  font-size: var(--type-xl);
+  font-weight: var(--weight-bold);
+  text-align: center;
+  text-transform: uppercase;
+}
+/* `position: fixed` en impresión se repite en cada hoja: la marca no se pierde en la página 2. */
+.ff-filigrana {
+  position: fixed;
+  top: 45%;
+  left: 0;
+  right: 0;
+  transform: rotate(-30deg);
+  color: var(--critical);
+  opacity: 0.12;
+  font-size: 34pt;
+  font-weight: var(--weight-bold);
+  text-align: center;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.ff-contingencia {
+  margin: 0 0 var(--gap-block);
+  padding: 2mm 3mm;
+  border: var(--hairline) solid var(--caution);
+  border-radius: var(--radius-sm);
+  background: var(--wash-caution);
+  color: var(--caution);
+  font-weight: var(--weight-bold);
+  text-align: center;
+}
+
+.ff-receptor {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1mm 6mm;
+  margin-bottom: 3mm;
+  font-size: var(--type-sm);
+}
+.ff-par__rotulo { font-weight: var(--weight-bold); }
+
+.ff-detalle th { font-size: var(--type-xs); }
+.ff-detalle td { font-size: var(--type-sm); }
+/* Con el prefijo de la tabla: `.table th`/`.table td` del catálogo alinean a la izquierda y,
+   con la misma especificidad, ganarían a una clase suelta. */
+.ff-num,
+.ff-detalle th.ff-num,
+.ff-detalle td.ff-num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.ff-totales {
+  margin: 2mm 0 0 auto;
+  border-collapse: collapse;
+  font-size: var(--type-sm);
+}
+.ff-totales th { text-align: right; padding: 0.8mm 4mm 0.8mm 0; font-weight: var(--weight-medium); }
+.ff-totales td { min-width: 28mm; padding: 0.8mm 0; }
+.ff-totales__pagar th,
+.ff-totales__pagar td {
+  font-weight: var(--weight-bold);
+  border-top: var(--hairline) solid var(--line);
+}
+
+.ff-literal { margin: 3mm 0 0; font-weight: var(--weight-medium); }
+.ff-moneda { margin: 0; font-size: var(--type-sm); color: var(--ink-muted); }
+
+.ff-pie {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6mm;
+  align-items: center;
+  margin-top: var(--gap-block);
+  padding-top: 3mm;
+  border-top: var(--hairline) solid var(--line);
+}
+.ff-pie__textos p { margin: 0 0 1.5mm; text-align: center; font-size: var(--type-sm); }
+.ff-pie__ley { font-weight: var(--weight-bold); }
+.ff-pie__digital { font-size: var(--type-xs); color: var(--ink-muted); }
+.ff-qr {
+  display: block;
+  width: 3.2cm;
+  height: 3.2cm;
+  min-width: 3cm;
+  min-height: 3cm;
+}
