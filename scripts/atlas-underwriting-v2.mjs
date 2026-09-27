@@ -38,10 +38,10 @@
  * Es idempotente: si ya hay un borrador con el grafo de v2 escrito, lo reutiliza; si ya hay
  * solicitud de aprobación, no crea otra.
  */
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { argv, env, exit } from 'node:process';
+
+// Como módulo JSON y no con `readFileSync`: la definición es código del repo, no un dato de entrada.
+import DEFINICION from './lib/atlas-underwriting-v2.definicion.json' with { type: 'json' };
 
 const args = new Map();
 for (let i = 2; i < argv.length; i += 1) {
@@ -68,12 +68,6 @@ const ENVIRONMENTS = (args.get('environments') ?? 'DEV,TEST')
   .filter(Boolean);
 const DRY_RUN = args.get('dry-run') === 'true';
 
-const DEFINICION = JSON.parse(
-  readFileSync(
-    join(dirname(fileURLToPath(import.meta.url)), 'lib', 'atlas-underwriting-v2.definicion.json'),
-    'utf8',
-  ),
-);
 const ARTIFACT_CODE = args.get('artifact') ?? DEFINICION.artifact.artifactCode;
 // La firma de esta versión: si un borrador ya trae este nodo, YA es el grafo de v2.
 const SIGNATURE_NODE_KEY = 'SC_PD_BAND';
