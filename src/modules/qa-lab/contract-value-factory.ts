@@ -226,6 +226,9 @@ function roundTo(value: number, scale: number): number {
 
 /* ---------------------------------------------------------------------- texto */
 
+/** Dominio reservado para pruebas (RFC 2606): ningún correo generado sale a internet. */
+const TEST_EMAIL_DOMAIN = 'qa.atlas.test';
+
 const FORMAT_ALPHABETS: Readonly<Record<string, readonly string[]>> = {
   ISO_COUNTRY: ['BO', 'PE', 'CL', 'AR', 'MX', 'CO', 'EC', 'UY'],
   ISO_CURRENCY: ['BOB', 'USD', 'PEN', 'CLP', 'ARS', 'MXN', 'COP'],
@@ -286,9 +289,11 @@ function formatSample(format: string, random: SeededRandom, maxLength: number): 
 
   switch (format) {
     case 'EMAIL': {
+      // Dominio `.test`: no existe en internet, así que ningún correo de prueba llega a una
+      // persona real. Es el mismo que usan por defecto los fakers del servidor mock.
       // Se encoge la parte local para caber en `maxLength` siempre que quepa un correo.
-      const local = Math.max(1, Math.min(6, maxLength - '@ejemplo.test'.length));
-      return `${random.string(local)}@ejemplo.test`;
+      const local = Math.max(1, Math.min(8, maxLength - `@${TEST_EMAIL_DOMAIN}`.length));
+      return `${random.string(local, 'abcdefghijklmnopqrstuvwxyz')}@${TEST_EMAIL_DOMAIN}`;
     }
     case 'UUID': {
       const hex = (length: number) => random.string(length, '0123456789abcdef');
@@ -297,7 +302,9 @@ function formatSample(format: string, random: SeededRandom, maxLength: number): 
     case 'URL':
       return `https://ejemplo.test/${random.string(Math.max(1, Math.min(8, maxLength - 21)))}`;
     case 'PHONE':
-      return `+591${random.string(8, '0123456789')}`;
+      // Un celular boliviano: 8 dígitos que empiezan por 6 o 7. Antes eran 8 dígitos
+      // cualesquiera, y un «+59103…» no lo reconoce ninguna validación de operador.
+      return `+591${random.pick(['6', '7'])}${random.string(7, '0123456789')}`;
     case 'IBAN':
       return `${random.pick(['BO', 'ES', 'DE'])}${random.string(2, '0123456789')}${random.string(
         16,

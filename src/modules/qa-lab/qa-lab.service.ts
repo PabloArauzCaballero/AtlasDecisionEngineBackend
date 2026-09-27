@@ -6,7 +6,7 @@
  * congelada del contrato— se persiste con la corrida. Sin esa foto, un contraejemplo
  * archivado deja de reproducirse en cuanto alguien edita el contrato.
  */
-import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger, Optional } from '@nestjs/common';
 import { Prisma, QaRunStatus } from '@prisma/client';
 import { AuditService } from '../../common/audit/audit.service';
 import { DomainException } from '../../common/errors/domain-exception';
@@ -41,7 +41,9 @@ import {
   reachableOutcomeKeys,
   type OutcomeCase,
 } from './outcome-coverage';
-import { buildSampleBatch, seedSequence, type SampleBatch } from './sample-inputs';
+import { QaFakersService, type FakerReport } from './qa-fakers.service';
+import { buildSampleBatch, seedSequence, withFakers, type SampleBatch } from './sample-inputs';
+import { parseReplayKind, readRunSummary, type StoppedReason } from './qa-run-summary';
 
 const DEFAULT_MIX = { validPercent: 60, invalidPercent: 25, boundaryPercent: 15 };
 
@@ -55,6 +57,13 @@ const MAX_OUTCOME_CASES_PER_RUN = 25;
 const MAX_OUTCOMES_LISTED = 200;
 
 /**
+ * Cuántas veces se repite un caso al reproducir un fallo de determinismo. Un resultado que
+ * cambia entre ejecuciones puede no cambiar en la primera repetición; tres dan una
+ * oportunidad razonable sin castigar al motor.
+ */
+const REPLAY_DETERMINISM_RUNS = 3;
+
+/**
  * A partir de aquí una corrida `RUNNING` está muerta, no ocupada.
  *
  * Es el techo que admite `timeoutMs` (600 s) más un margen. La ejecución sobrevive a la
@@ -63,6 +72,15 @@ const MAX_OUTCOMES_LISTED = 200;
  * que sigue trabajando.
  */
 const ABANDONED_RUN_MS = 660_000;
+
+/**
+ * Lo que se archiva como «ambiente» de una corrida.
+ *
+ * El QA Lab NO ejecuta contra ningún ambiente: evalúa el artefacto compilado dentro del
+ * propio proceso de la API y no persiste ni una ejecución. El formulario ofrecía elegir DEV,
+ * TEST o STAGING y ese valor sólo se guardaba, sin cambiar nada; ahora se archiva lo que es.
+ */
+export const QA_LAB_ENVIRONMENT = 'EN_PROCESO';
 
 @Injectable()
 export class QaLabService {
@@ -77,6 +95,9 @@ export class QaLabService {
     private readonly metrics: MetricsService,
     private readonly variables: VariableResolutionService,
     private readonly engine: ExecutionEngineService,
+    // Opcional para las pruebas que construyen el servicio a mano: sin él, los lotes salen
+    // del generador local y la corrida lo dice (`fakers.source = local-fallback`).
+    @Optional() private readonly fakers?: QaFakersService,
   ) {}
 
   async run(
@@ -85,8 +106,9 @@ export class QaLabService {
     dto: GenerateQaRunDto,
     principal: AuthenticatedPrincipal,
   ) {
-    const environmentCode = dto.environmentCode.toUpperCase();
-    if (environmentCode === 'PROD') {
+    // `environmentCode` ya no elige nada (ver `QA_LAB_ENVIRONMENT`), pero un cliente antiguo
+    // que pida PROD sigue recibiendo el rechazo explícito en vez de un «sí» engañoso.
+    if (dto.environmentCode?.toUpperCase() === 'PROD') {
       // Aislamiento DEV/PROD (§10.4, §13): una corrida generativa mete miles de
       // ejecuciones sintéticas; contra producción contaminaría métricas y datos reales.
       throw new DomainException(
@@ -139,21 +161,33 @@ export class QaLabService {
       dto.coverOutcomes === false ? [] : this.outcomeCases(compiled, inputContract, seed);
     // Se renumera al unir: cada generador cuenta desde 0 por su cuenta, y dos casos con el
     // mismo índice hacen que un contraejemplo apunte a un caso que no es el suyo.
-    const batch = [...outcomeCases, ...cases].map((testCase, index) => ({ ...testCase, index }));
+    const generated = [...outcomeCases, ...cases].map((testCase, index) => ({
+      ...testCase,
+      index,
+    }));
+    // Datos realistas (nombre, carnet, celular, ingreso…) de los fakers del servidor mock,
+    // con la MISMA semilla. Si el mock no responde, el lote sigue siendo el local y la
+    // corrida lo archiva con su motivo: nunca falla en silencio ni inventa.
+    const { cases: batch, fakers } = await this.enrichBatch(
+      generated,
+      inputContract,
+      seed,
+      compiled,
+    );
 
     await this.failAbandonedRuns(tenantId);
     const run = await this.prisma.qaGenerationRun.create({
       data: {
         tenantId,
         artifactVersionId: versionId,
-        environmentCode,
+        environmentCode: QA_LAB_ENVIRONMENT,
         status: QaRunStatus.RUNNING,
         seed,
         // `distributions` viaja en la configuración archivada junto a la semilla: sin ella
         // la corrida no sería reproducible, porque el sesgo cambia qué valores salen.
         configJson: {
           ...dto,
-          environmentCode,
+          environmentCode: QA_LAB_ENVIRONMENT,
           mix,
           distributions,
           // El reparto YA RESUELTO, no los pesos: los pesos son relativos y cuántos casos
@@ -165,9 +199,12 @@ export class QaLabService {
           // honesto mientras corre: `totalCases` sólo cuenta los ya ejecutados, así que sin
           // este dato el portal no puede decir 40 DE CUÁNTOS.
           plannedCases: batch.length,
+          // De dónde salieron los valores con significado. Es lo único que puede cambiar
+          // entre dos corridas con la misma semilla y la misma configuración.
+          fakers,
         } as unknown as Prisma.InputJsonValue,
         generatorVersion: GENERATOR_VERSION,
-        toolingJson: this.toolingVersions(),
+        toolingJson: this.toolingVersions(fakers),
         contractSnapshotJson: {
           inputs: inputContract,
           outputs: compiled.variables.filter((variable) =>
@@ -231,7 +268,15 @@ export class QaLabService {
             erroredCases: summary.errored,
             durationMs,
             finishedAt: new Date(),
-            summaryJson: summary.byProperty as unknown as Prisma.InputJsonValue,
+            // El conteo por propiedad y, junto a él, si la corrida se cortó antes de
+            // tiempo. Una corrida parada en el primer contraejemplo o por el tope de tiempo
+            // también es COMPLETED, y sin `stoppedReason` se leía como «recorrió todo».
+            summaryJson: {
+              byProperty: summary.byProperty,
+              stoppedReason: summary.stoppedReason,
+              executedCases: summary.executed,
+              plannedCases: batch.length,
+            } as unknown as Prisma.InputJsonValue,
           },
         });
         await this.audit.append(
@@ -246,7 +291,7 @@ export class QaLabService {
               seed,
               total: summary.total,
               failed: summary.failed,
-              environmentCode: dto.environmentCode.toUpperCase(),
+              stoppedReason: summary.stoppedReason,
             },
           },
           tx,
@@ -391,9 +436,12 @@ export class QaLabService {
     let failed = 0;
     let errored = 0;
     let stop = false;
+    let executed = 0;
+    let stoppedReason: StoppedReason | null = null;
 
     for (let offset = 0; offset < cases.length && !stop; offset += concurrency) {
       if (Date.now() > deadline) {
+        stoppedReason = 'TIMEOUT';
         // Detenerse por tiempo y decirlo: una corrida truncada en silencio se lee como
         // "todo cubierto" cuando no lo está.
         this.logger.warn({
@@ -409,6 +457,7 @@ export class QaLabService {
         slice.map((testCase) => this.evaluateCase(tenantId, compiled, testCase, dto)),
       );
       for (const result of results) {
+        executed += 1;
         if (result.errored) errored += 1;
         if (!result.violations.length) {
           passed += 1;
@@ -430,6 +479,7 @@ export class QaLabService {
         counterexamples.push(stored);
         if (dto.stopOnFirstFailure) {
           stop = true;
+          stoppedReason = 'FIRST_FAILURE';
           break;
         }
       }
@@ -446,6 +496,8 @@ export class QaLabService {
       errored,
       byProperty,
       counterexamples,
+      executed,
+      stoppedReason,
     };
   }
 
@@ -571,11 +623,14 @@ export class QaLabService {
   ) {
     const stillFails = async (candidate: Record<string, unknown>): Promise<boolean> => {
       try {
-        const observation = await this.observe(tenantId, compiled, candidate);
-        return checkProperties(
-          { compiled, kind: testCase.kind, input: candidate },
-          observation,
-        ).some((entry) => entry.failureCode === violation.failureCode);
+        const violations = await this.violationsOf(
+          tenantId,
+          compiled,
+          testCase.kind,
+          candidate,
+          violation.property === 'DETERMINISM',
+        );
+        return violations.some((entry) => entry.failureCode === violation.failureCode);
       } catch {
         return false;
       }
@@ -634,7 +689,12 @@ export class QaLabService {
     return {
       // Igual que el simulador: con `kind: 'OUTCOMES'` el lote se construye recorriendo
       // el grafo, así que la versión compilada viaja entera y no sólo su contrato.
-      ...buildSampleBatch(inputs, dto, this.nextSampleSeed, compiled),
+      ...(await withFakers(
+        buildSampleBatch(inputs, dto, this.nextSampleSeed, compiled),
+        inputs,
+        this.fakers,
+        compiled,
+      )),
       versionId: versionId.toString(),
     };
   }
@@ -699,6 +759,8 @@ export class QaLabService {
         // motor se haya degradado nada. Publicarla es lo que convierte una serie de
         // corridas en una medición legible.
         ...loadOf(row.configJson),
+        stoppedReason: readRunSummary(row.summaryJson).stoppedReason,
+        fakerSource: fakersOf(row.configJson)?.source ?? null,
       })),
       total,
       page,
@@ -772,13 +834,28 @@ export class QaLabService {
     }
     const compiled = await this.loadCompiled(tenantId, counterexample.qaRun.artifactVersionId);
     const input = counterexample.shrunkInputJson as Record<string, unknown>;
+    // Con la CLASE y la PROPIEDAD originales. Antes se reejecutaba siempre como VÁLIDO y sin
+    // repetir: un «inválido aceptado» o un fallo de determinismo no podían reproducirse
+    // nunca, y la pantalla anunciaba «la versión actual corrige este caso» sin haberlo
+    // comprobado.
+    const kind = parseReplayKind(counterexample.replayPath);
+    const determinism = counterexample.property === 'DETERMINISM';
     const observation = await this.observe(tenantId, compiled, input);
-    const violations = checkProperties({ compiled, kind: 'VALID', input }, observation).filter(
-      (entry) => entry.failureCode === counterexample.failureCode,
-    );
+    const repeats = determinism
+      ? await this.repeatedSignatures(tenantId, compiled, input, REPLAY_DETERMINISM_RUNS)
+      : [];
+    const changed = repeats.find((signature) => signature !== observation.signature);
+    const violations = checkProperties(
+      { compiled, kind, input },
+      observation,
+      determinism ? (changed ?? observation.signature) : undefined,
+    ).filter((entry) => entry.failureCode === counterexample.failureCode);
     return {
       id: counterexample.id.toString(),
       reproduced: violations.length > 0,
+      kind,
+      property: counterexample.property,
+      executions: 1 + repeats.length,
       input,
       observation,
       violations,
@@ -869,17 +946,73 @@ export class QaLabService {
     );
   }
 
-  /** Versiones exactas de las herramientas, para poder reproducir la corrida (§10.5). */
-  private toolingVersions(): Prisma.InputJsonValue {
+  /**
+   * Versiones exactas de lo que produjo el lote, para poder reproducir la corrida (§10.5).
+   *
+   * Registraba `@faker-js/faker` y `fast-check`, que NO intervienen en el lote —son
+   * dependencias de desarrollo de las pruebas del repositorio—: una versión archivada de
+   * algo que no se usó sólo confunde a quien intenta reproducir. Ahora se archiva lo que sí
+   * interviene: el generador del contrato y, si respondieron, los fakers del mock.
+   */
+  private toolingVersions(fakers: FakerReport): Prisma.InputJsonValue {
     return {
       generator: GENERATOR_VERSION,
       node: process.version,
-      // Faker y fast-check son dependencias de desarrollo: alimentan las pruebas de
-      // propiedades del repositorio, no el generador en línea. Se registran igualmente
-      // porque forman parte del conjunto de herramientas de QA declarado.
-      faker: readPackageVersion('@faker-js/faker'),
-      fastCheck: readPackageVersion('fast-check'),
+      fakers:
+        fakers.source === 'mock'
+          ? `atlas-external-providers-mock/fakers@${fakers.schemaVersion ?? 'desconocida'}`
+          : null,
     };
+  }
+
+  /** Superpone los fakers al lote, o lo deja como está si no hay servicio configurado. */
+  private async enrichBatch(
+    batch: GeneratedCase[],
+    inputs: GeneratorContractVariable[],
+    seed: string,
+    compiled: CompiledDecisionArtifact,
+  ): Promise<{ cases: GeneratedCase[]; fakers: FakerReport }> {
+    if (!this.fakers) {
+      return {
+        cases: batch,
+        fakers: {
+          source: 'local-fallback',
+          reason: 'Este proceso no tiene configurado el servicio de fakers.',
+          mappedVariables: {},
+          replacedValues: 0,
+          types: [],
+        },
+      };
+    }
+    return this.fakers.enrich(batch, inputs, { seed, compiled });
+  }
+
+  /** Violaciones de un caso; con `determinism` lo ejecuta dos veces y compara. */
+  private async violationsOf(
+    tenantId: bigint,
+    compiled: CompiledDecisionArtifact,
+    kind: string,
+    input: Record<string, unknown>,
+    determinism: boolean,
+  ): Promise<PropertyViolation[]> {
+    const observation = await this.observe(tenantId, compiled, input);
+    const repeat = determinism
+      ? (await this.observe(tenantId, compiled, input)).signature
+      : undefined;
+    return checkProperties({ compiled, kind, input }, observation, repeat);
+  }
+
+  private async repeatedSignatures(
+    tenantId: bigint,
+    compiled: CompiledDecisionArtifact,
+    input: Record<string, unknown>,
+    times: number,
+  ): Promise<string[]> {
+    const signatures: string[] = [];
+    for (let attempt = 0; attempt < times; attempt += 1) {
+      signatures.push((await this.observe(tenantId, compiled, input)).signature);
+    }
+    return signatures;
   }
 
   private presentRun(
@@ -921,7 +1054,16 @@ export class QaLabService {
       // la corrida vive, `totalCases` sólo cuenta los ya ejecutados, y un número que sube
       // sin un techo al lado no dice si falta un segundo o cinco minutos.
       plannedCases: plannedCasesOf(run.configJson),
-      summary: run.summaryJson,
+      // Conteo por propiedad, con la misma forma de siempre; en una corrida FALLIDA,
+      // `{ failureCode, failureMessage }`.
+      summary: readRunSummary(run.summaryJson).summary,
+      stoppedReason: readRunSummary(run.summaryJson).stoppedReason,
+      executedCases: readRunSummary(run.summaryJson).executedCases ?? run.totalCases,
+      fakers: fakersOf(run.configJson),
+      // La configuración ARCHIVADA completa: es lo que el portal devuelve al formulario para
+      // reproducir la corrida. La semilla sola no basta: el lote depende también del número
+      // de casos, la mezcla, los pesos, las distribuciones y los casos por desenlace.
+      config: run.configJson,
       startedAt: run.startedAt,
       finishedAt: run.finishedAt,
       counterexamples,
@@ -963,19 +1105,13 @@ function loadOf(config: Prisma.JsonValue): {
   };
 }
 
-function sortedKeys(value: Record<string, unknown>): Record<string, unknown> {
-  return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)));
+/** Lo que el lote archivó sobre los fakers; `null` en corridas anteriores a este campo. */
+function fakersOf(config: Prisma.JsonValue): FakerReport | null {
+  if (!config || typeof config !== 'object' || Array.isArray(config)) return null;
+  const fakers = (config as Record<string, unknown>).fakers;
+  return fakers && typeof fakers === 'object' ? (fakers as unknown as FakerReport) : null;
 }
 
-/** Lee la versión instalada de un paquete sin fallar si no está presente. */
-function readPackageVersion(packageName: string): string {
-  try {
-    // `require` dinámico a propósito: el paquete puede no estar instalado, y un `import`
-    // estático lo convertiría en dependencia obligatoria del arranque.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const manifest = require(`${packageName}/package.json`) as { version?: unknown };
-    return String(manifest.version ?? 'unknown');
-  } catch {
-    return 'not-installed';
-  }
+function sortedKeys(value: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)));
 }

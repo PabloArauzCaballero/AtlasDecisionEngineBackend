@@ -12,8 +12,13 @@
  * límites de longitud, y los bordes se criban contra el contrato. Para la misma semilla,
  * un contrato que declare esas restricciones ya no produce los mismos valores que en
  * 1.1.0, así que la versión sube: una corrida archivada dice con qué versión se generó.
+ *
+ * 1.3.0: los teléfonos empiezan por 6 o 7, los correos usan el dominio de pruebas
+ * `qa.atlas.test` y el valor fuera de enumeración se deriva de uno admitido. Con los fakers
+ * del servidor mock encima (`QaFakersService`), lo que tiene significado —nombre, carnet,
+ * celular, ingreso— ya no sale de aquí; esto es lo que queda cuando el mock no responde.
  */
-export const GENERATOR_VERSION = 'atlas-qa-generator-1.2.0';
+export const GENERATOR_VERSION = 'atlas-qa-generator-1.3.0';
 
 /**
  * Formas de distribución admitidas al generar un valor dentro de su rango (§10.4).

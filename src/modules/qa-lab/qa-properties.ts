@@ -20,6 +20,57 @@ export const QA_PROPERTIES = [
 
 export type QaProperty = (typeof QA_PROPERTIES)[number];
 
+/**
+ * Qué comprueba cada propiedad, en palabras de negocio. Lo publica `GET /v1/qa-lab/properties`
+ * para que el portal no tenga que mantener su propia traducción: una propiedad nueva llega
+ * a la pantalla con su explicación, no con su código.
+ *
+ * Son comprobaciones TÉCNICAS del contrato y de la ejecución. Ninguna mide si la decisión es
+ * buena para el negocio (si aprueba a quien debe): eso lo dicen las suites de prueba con su
+ * resultado esperado y el monitoreo con desenlaces reales.
+ */
+export const QA_PROPERTY_CATALOG: ReadonlyArray<{
+  code: QaProperty;
+  label: string;
+  description: string;
+}> = [
+  {
+    code: 'INPUT_CONTRACT_ENFORCED',
+    label: 'El contrato de entrada se impone',
+    description:
+      'Una entrada que incumple el contrato se rechaza, y una que lo cumple se acepta. Falla si el motor deja pasar un dato prohibido o rechaza uno válido.',
+  },
+  {
+    code: 'OUTPUT_CONTRACT_RESPECTED',
+    label: 'La salida cumple el contrato',
+    description:
+      'Cuando la decisión termina bien, devuelve todas las salidas obligatorias. También falla si el motor lanza un error no controlado.',
+  },
+  {
+    code: 'OUTPUT_TYPES_MATCH_CONTRACT',
+    label: 'Los tipos de salida coinciden',
+    description:
+      'Cada salida tiene el tipo declarado: un número donde se prometió un número, un texto donde se prometió un texto.',
+  },
+  {
+    code: 'NO_INTERMEDIATE_LEAK',
+    label: 'Ningún cálculo interno se filtra',
+    description:
+      'Las variables intermedias —cuentas internas del algoritmo— no aparecen en la respuesta.',
+  },
+  {
+    code: 'NO_SENSITIVE_LEAK',
+    label: 'Ningún dato sensible se filtra',
+    description: 'Un dato de entrada marcado como sensible no se devuelve tal cual en la salida.',
+  },
+  {
+    code: 'DETERMINISM',
+    label: 'La misma entrada da el mismo resultado',
+    description:
+      'Ejecutar dos veces el mismo caso produce exactamente la misma decisión y salidas. Sólo se comprueba si lo activas en la corrida.',
+  },
+];
+
 export interface PropertyViolation {
   property: QaProperty;
   failureCode: string;

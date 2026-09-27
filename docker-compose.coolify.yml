@@ -232,6 +232,12 @@ services:
       # "Worker de locucion deshabilitado por configuracion". Mismo patron que extractos: el
       # compose local lo pone en `true` y este se quedo sin el.
       AUDIO_TTS_WORKER_ENABLED: '${AUDIO_TTS_WORKER_ENABLED:-true}'
+      # Fakers del servidor mock para los datos de prueba del QA Lab y del simulador. El mock
+      # vive en la red `coolify` con el alias `external-providers-mock`. Va NOMBRADA aquí
+      # porque este compose no tiene `env_file`: lo que no se nombra no llega al contenedor.
+      # Sólo en la API: el worker no genera lotes (las corridas se ejecutan en este proceso).
+      QA_FAKERS_BASE_URL: '${QA_FAKERS_BASE_URL:-http://external-providers-mock:4010/mock}'
+      QA_FAKERS_TIMEOUT_MS: '${QA_FAKERS_TIMEOUT_MS:-4000}'
     # Sirve como `atlas_app` cuando esa variable existe. Ver el comentario de `migrate`.
     command:
       - sh

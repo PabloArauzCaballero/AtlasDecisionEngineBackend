@@ -14,6 +14,7 @@ import { RuntimeService } from './runtime.service';
 import { SampleInputService } from './sample-input.service';
 import { SimulationController } from './simulation.controller';
 import { SimulationService } from './simulation.service';
+import { QaFakersModule } from '../qa-lab/qa-fakers.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { SimulationService } from './simulation.service';
     VariableModule,
     NestedTreesModule,
     WorkersModule,
+    QaFakersModule,
   ],
   controllers: [RuntimeController, SimulationController],
   providers: [

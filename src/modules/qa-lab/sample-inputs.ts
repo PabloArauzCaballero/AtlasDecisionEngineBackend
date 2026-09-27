@@ -15,6 +15,7 @@ import {
 import type { CompiledDecisionArtifact } from '../graph/graph.types';
 import { planOutcomeCases } from './outcome-coverage';
 import { GENERATOR_VERSION, SeededRandom, generateSeed } from './seeded-random';
+import type { FakerReport, QaFakersService } from './qa-fakers.service';
 
 /**
  * `OUTCOMES` no habla de la entrada como las otras tres, sino del FINAL: un caso por
@@ -51,6 +52,8 @@ export interface SampleBatch {
   }[];
   /** Sólo en `OUTCOMES`: cuántos desenlaces tiene el grafo, se hayan generado o no. */
   totalOutcomes?: number;
+  /** De dónde salieron los valores con significado (nombre, carnet…); ver `QaFakersService`. */
+  fakers?: FakerReport;
 }
 
 /** Tope de cordura para un grafo con muchísimas ramas; se informa al devolver el lote. */
@@ -88,6 +91,34 @@ export function buildSampleBatch(
     ...base,
     cases: generateCases(inputs, random, request.count ?? 1, MIX_BY_KIND[kind]),
   };
+}
+
+/**
+ * El mismo lote con datos realistas de los fakers donde el contrato lo permite.
+ *
+ * Sin servicio de fakers (pruebas unitarias que construyen el servicio a mano) el lote sale
+ * tal cual, y lo dice: nunca se presenta un lote local como si viniera de los fakers.
+ */
+export async function withFakers(
+  batch: SampleBatch,
+  inputs: GeneratorContractVariable[],
+  fakers: QaFakersService | undefined,
+  compiled?: CompiledDecisionArtifact,
+): Promise<SampleBatch> {
+  if (!fakers) {
+    return {
+      ...batch,
+      fakers: {
+        source: 'local-fallback',
+        reason: 'Este proceso no tiene configurado el servicio de fakers.',
+        mappedVariables: {},
+        replacedValues: 0,
+        types: [],
+      },
+    };
+  }
+  const enriched = await fakers.enrich(batch.cases, inputs, { seed: batch.seed, compiled });
+  return { ...batch, cases: enriched.cases, fakers: enriched.fakers };
 }
 
 /**

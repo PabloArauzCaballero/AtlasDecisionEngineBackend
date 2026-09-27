@@ -272,6 +272,12 @@ export const envSchema = z
       .enum(['NONE', 'ERROR', 'WARN', 'INFO', 'DEBUG', 'VERBOSE', 'ALL'])
       .default('ERROR'),
 
+    // Fakers del servidor mock (AtlasExternalProvidersMock, `/mock/fakers`): de ahí salen los
+    // datos realistas —nombre, carnet, celular, ingreso— de las corridas del QA Lab y de los
+    // valores de prueba del simulador. Vacía = desactivados; si no responde, el lote sale del
+    // generador local y la corrida lo archiva con su motivo (`fakers.source`).
+    QA_FAKERS_BASE_URL: z.string().url().or(z.literal('')).default('http://127.0.0.1:4010/mock'),
+    QA_FAKERS_TIMEOUT_MS: z.coerce.number().int().min(200).max(30_000).default(4_000),
     VARIABLE_BACKEND_URL: optionalUrl,
     VARIABLE_BACKEND_TIMEOUT_MS: z.coerce.number().int().min(100).max(30_000).default(1_500),
     AUDIT_HASH_SECRET: z.string().min(32),

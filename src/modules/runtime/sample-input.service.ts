@@ -12,12 +12,18 @@
  * catálogo de variables: si se generara contra otro contrato, el botón produciría
  * entradas que el simulador rechaza acto seguido.
  */
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Optional } from '@nestjs/common';
 import { DomainException } from '../../common/errors/domain-exception';
 import { DeploymentResolverService } from '../deployments/deployment-resolver.service';
 import type { CompiledDecisionArtifact } from '../graph/graph.types';
 import type { GeneratorContractVariable } from '../qa-lab/contract-generator';
-import { buildSampleBatch, seedSequence, type SampleBatch } from '../qa-lab/sample-inputs';
+import { QaFakersService } from '../qa-lab/qa-fakers.service';
+import {
+  buildSampleBatch,
+  seedSequence,
+  withFakers,
+  type SampleBatch,
+} from '../qa-lab/sample-inputs';
 import { GenerateSampleInputsDto } from './simulation.dto';
 
 export interface SampleInputsResult extends SampleBatch {
@@ -32,7 +38,10 @@ export class SampleInputService {
   // en el mismo milisegundo, y reiniciarlo en cada llamada lo dejaría siempre en 1.
   private readonly nextSeed = seedSequence('simulator-sample');
 
-  constructor(private readonly deployments: DeploymentResolverService) {}
+  constructor(
+    private readonly deployments: DeploymentResolverService,
+    @Optional() private readonly fakers?: QaFakersService,
+  ) {}
 
   async generate(
     tenantId: bigint,
@@ -61,7 +70,12 @@ export class SampleInputService {
 
     // El grafo compilado va también: `kind: 'OUTCOMES'` construye un caso por cada
     // desenlace, y para eso hacen falta los nodos y las condiciones, no sólo el contrato.
-    const batch = buildSampleBatch(inputs, dto, this.nextSeed, compiled);
+    const batch = await withFakers(
+      buildSampleBatch(inputs, dto, this.nextSeed, compiled),
+      inputs,
+      this.fakers,
+      compiled,
+    );
     return {
       ...batch,
       artifactCode,
