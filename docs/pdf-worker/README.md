@@ -71,6 +71,7 @@ yarn pdf:preview                                # lista los templates
 yarn pdf:preview generic-result-report          # genera ./tmp/pdf-preview/…pdf
 yarn pdf:preview credit-analysis-report 1.0.0 --out=./tmp/credito.pdf
 yarn pdf:preview blank-form                     # formulario en blanco para rellenar a mano (ERP)
+yarn pdf:preview factura-fiscal                 # factura de compra-venta del SIN (ERP, facturación electrónica)
 yarn pdf:evidencia                              # PDFs + capturas del visor
 yarn pdf:visual:baseline                        # compara huellas visuales
 ```
