@@ -7050,7 +7050,7 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Catálogo cerrado de propiedades verificadas. No está paginado.",
+            "description": "Catálogo cerrado de propiedades verificadas, cada una con `code`, `label` y `description` en español. No está paginado.",
             "content": {
               "application/json": {
                 "schema": {
@@ -7220,7 +7220,7 @@
     },
     "/v1/qa-lab/versions/{versionId}/runs": {
       "post": {
-        "description": "Responde 202 con la corrida en `RUNNING`: el lote se ejecuta DESPUÉS de la respuesta y hay que consultar `GET runs/{runId}` hasta verla `COMPLETED` o `FAILED`. Ejecutarlo dentro de la petición era imposible: el techo global de `REQUEST_TIMEOUT_MS` (15 s de serie) la cortaba mucho antes que el `timeoutMs` de la propia corrida, que admite hasta 600 000. La semilla, la configuración y el contrato usado quedan archivados para poder reproducirla. PROD no está permitido. `distributions` sesga dónde caen los valores de una variable dentro de su rango (§10.4) sin relajar el contrato; `outcomeWeights` reparte la porción VÁLIDA entre los desenlaces del grafo. Una variable o un desenlace que no existan se rechazan en vez de ignorarse.",
+        "description": "Responde 202 con la corrida en `RUNNING`: el lote se ejecuta DESPUÉS de la respuesta y hay que consultar `GET runs/{runId}` hasta verla `COMPLETED` o `FAILED`. Ejecutarlo dentro de la petición era imposible: el techo global de `REQUEST_TIMEOUT_MS` (15 s de serie) la cortaba mucho antes que el `timeoutMs` de la propia corrida, que admite hasta 600 000. La semilla, la configuración (devuelta en `config`) y el contrato usado quedan archivados para poder reproducirla. La corrida se evalúa dentro del proceso de la API, sin ambiente y sin persistir ejecuciones: `environmentCode` está obsoleto y se ignora (PROD se sigue rechazando). Los valores con significado —nombre, carnet, celular, correo, ingreso…— salen de los fakers del servidor mock con la misma semilla; si no responde, del generador local, y `fakers.source` lo dice. `distributions` sesga dónde caen los valores de una variable dentro de su rango (§10.4) sin relajar el contrato; `outcomeWeights` reparte la porción VÁLIDA entre los desenlaces del grafo. Una variable o un desenlace que no existan se rechazan en vez de ignorarse.",
         "operationId": "qaLabRun",
         "parameters": [
           {
@@ -7338,7 +7338,7 @@
     },
     "/v1/qa-lab/versions/{versionId}/sample-inputs": {
       "post": {
-        "description": "Devuelve entradas derivadas del contrato de la versión para rellenar un caso de prueba a mano. No ejecuta nada ni archiva corrida; la semilla devuelta reproduce el mismo lote.",
+        "description": "Devuelve entradas derivadas del contrato de la versión para rellenar un caso de prueba a mano. No ejecuta nada ni archiva corrida; la semilla devuelta reproduce el mismo lote. Los valores con significado salen de los fakers del servidor mock (`fakers.source`).",
         "operationId": "qaLabSampleInputs",
         "parameters": [
           {
@@ -7396,6 +7396,7 @@
     },
     "/v1/qa-lab/counterexamples/{counterexampleId}/replay": {
       "post": {
+        "description": "Reejecuta la entrada reducida con la CLASE del caso original (válido, frontera o inválido) y, si la propiedad violada es DETERMINISM, varias veces comparando el resultado.",
         "operationId": "qaLabReplay",
         "parameters": [
           {
@@ -15470,6 +15471,60 @@
           "input"
         ]
       },
+      "QaFakerReportDto": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "example": "mock",
+            "enum": [
+              "mock",
+              "local-fallback",
+              "none"
+            ],
+            "description": "`mock`: nombre, carnet, celular, ingreso… salieron de los fakers del servidor mock. `local-fallback`: el mock no respondió y todo salió del generador local del contrato (ver `reason`). `none`: ninguna variable del contrato tiene un nombre que diga qué dato es."
+          },
+          "reason": {
+            "type": "string",
+            "example": "El servidor de fakers no respondió en 4000 ms."
+          },
+          "mappedVariables": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "example": {
+              "ci": "persona.documentNumber",
+              "celular": "persona.phone"
+            },
+            "description": "Variable del contrato → dato del faker que le corresponde."
+          },
+          "replacedValues": {
+            "type": "number",
+            "example": 812,
+            "description": "Valores sustituidos de verdad: el contrato puede rechazar alguno."
+          },
+          "types": {
+            "example": [
+              "caso"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "schemaVersion": {
+            "type": "string",
+            "example": "2.0.0"
+          }
+        },
+        "required": [
+          "source",
+          "mappedVariables",
+          "replacedValues",
+          "types"
+        ]
+      },
       "VersionSampleInputsDto": {
         "type": "object",
         "properties": {
@@ -15495,13 +15550,21 @@
           },
           "generatorVersion": {
             "type": "string",
-            "example": "atlas-qa-generator-1.2.0"
+            "example": "atlas-qa-generator-1.3.0"
           },
           "cases": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/SampleCaseDto"
             }
+          },
+          "fakers": {
+            "description": "De dónde salieron los valores con significado (nombre, carnet, celular…): fakers del servidor mock o, si no respondió, el generador local.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/QaFakerReportDto"
+              }
+            ]
           },
           "versionId": {
             "type": "string",
@@ -22832,7 +22895,8 @@
           },
           "environmentCode": {
             "type": "string",
-            "example": "UAT"
+            "example": "EN_PROCESO",
+            "description": "Histórico. El QA Lab no ejecuta contra ningún ambiente: corre dentro del proceso de la API sin persistir ejecuciones. Las corridas nuevas archivan `EN_PROCESO`; las antiguas conservan el valor que se eligió entonces, que no cambiaba nada."
           },
           "status": {
             "type": "string",
@@ -22900,6 +22964,27 @@
             "nullable": true,
             "example": true,
             "description": "Si cada caso se ejecutó DOS veces para comprobar determinismo. Duplica el trabajo real de la corrida, así que condiciona cualquier lectura de rendimiento."
+          },
+          "stoppedReason": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "TIMEOUT",
+              "FIRST_FAILURE"
+            ],
+            "example": null,
+            "description": "Por qué una corrida terminada NO ejecutó todos los casos planificados: `TIMEOUT` (tiempo máximo agotado) o `FIRST_FAILURE` (se pidió parar en el primer contraejemplo). `null` si los recorrió todos."
+          },
+          "fakerSource": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "mock",
+              "local-fallback",
+              "none"
+            ],
+            "example": "mock",
+            "description": "Origen de los datos realistas del lote. `null` en corridas anteriores al campo."
           }
         },
         "required": [
@@ -22919,7 +23004,9 @@
           "finishedAt",
           "plannedCases",
           "concurrency",
-          "checkDeterminism"
+          "checkDeterminism",
+          "stoppedReason",
+          "fakerSource"
         ]
       },
       "QaCounterexampleDto": {
@@ -23001,7 +23088,8 @@
           },
           "environmentCode": {
             "type": "string",
-            "example": "UAT"
+            "example": "EN_PROCESO",
+            "description": "Histórico. El QA Lab no ejecuta contra ningún ambiente: corre dentro del proceso de la API sin persistir ejecuciones. Las corridas nuevas archivan `EN_PROCESO`; las antiguas conservan el valor que se eligió entonces, que no cambiaba nada."
           },
           "status": {
             "type": "string",
@@ -23024,11 +23112,11 @@
             "type": "object",
             "additionalProperties": true,
             "example": {
-              "generator": "1.0",
-              "node": "v20.11.0",
-              "faker": "9.0.0",
-              "fastCheck": "3.0.0"
-            }
+              "generator": "atlas-qa-generator-1.3.0",
+              "node": "v22.11.0",
+              "fakers": "atlas-external-providers-mock/fakers@2.0.0"
+            },
+            "description": "Versiones de lo que produjo el lote. `fakers` es `null` cuando el lote salió del generador local."
           },
           "totalCases": {
             "type": "number",
@@ -23063,6 +23151,36 @@
             },
             "description": "Conteo por propiedad violada. En una corrida `FAILED` trae en su lugar `{ failureCode, failureMessage }`: el motivo por el que se abortó."
           },
+          "stoppedReason": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "TIMEOUT",
+              "FIRST_FAILURE"
+            ],
+            "example": null,
+            "description": "Por qué una corrida `COMPLETED` no ejecutó todos los casos: `TIMEOUT` o `FIRST_FAILURE`. `null` si los recorrió todos."
+          },
+          "executedCases": {
+            "type": "number",
+            "example": 512,
+            "description": "Casos ejecutados de verdad. Con `stoppedReason` es menor que `plannedCases`."
+          },
+          "fakers": {
+            "nullable": true,
+            "description": "Origen de los datos realistas del lote. `null` en corridas anteriores al campo.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/QaFakerReportDto"
+              }
+            ]
+          },
+          "config": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Configuración archivada con la que se lanzó: número de casos, mezcla, pesos por desenlace, distribuciones, concurrencia, tiempo máximo… Reenviarla con la misma semilla contra la misma versión reproduce el lote."
+          },
           "startedAt": {
             "type": "string",
             "example": "2026-07-20T10:00:00.000Z"
@@ -23093,6 +23211,10 @@
           "durationMs",
           "plannedCases",
           "summary",
+          "stoppedReason",
+          "executedCases",
+          "fakers",
+          "config",
           "startedAt",
           "finishedAt",
           "counterexamples"
@@ -23131,8 +23253,8 @@
         "properties": {
           "environmentCode": {
             "type": "string",
-            "description": "Ambiente destino. PROD queda excluido: QA nunca ejecuta contra producción.",
-            "pattern": "^[A-Z0-9_]{2,40}$"
+            "description": "OBSOLETO: se acepta por compatibilidad y se ignora.\n\nEl QA Lab no ejecuta contra ningún ambiente: evalúa la versión compilada dentro del\nproceso de la API, sin persistir ejecuciones. El valor sólo se guardaba y aparentaba\nelegir algo. `PROD` se sigue rechazando para que un cliente antiguo no reciba un «sí».",
+            "pattern": "^[A-Za-z0-9_]{2,40}$"
           },
           "caseCount": {
             "type": "number",
@@ -23201,7 +23323,6 @@
           }
         },
         "required": [
-          "environmentCode",
           "caseCount"
         ]
       },
@@ -23306,6 +23427,25 @@
             "example": true,
             "description": "Si la entrada reducida sigue reproduciendo el mismo fallo."
           },
+          "kind": {
+            "type": "string",
+            "example": "INVALID",
+            "enum": [
+              "VALID",
+              "BOUNDARY",
+              "INVALID"
+            ],
+            "description": "Clase con la que se reejecutó: la del caso original, no siempre VÁLIDO."
+          },
+          "property": {
+            "type": "string",
+            "example": "INPUT_CONTRACT_ENFORCED"
+          },
+          "executions": {
+            "type": "number",
+            "example": 1,
+            "description": "Ejecuciones hechas. Un fallo de DETERMINISMO se repite varias veces y se comparan."
+          },
           "input": {
             "type": "object",
             "additionalProperties": true
@@ -23323,6 +23463,9 @@
         "required": [
           "id",
           "reproduced",
+          "kind",
+          "property",
+          "executions",
           "input",
           "observation",
           "violations"
@@ -25389,13 +25532,21 @@
           },
           "generatorVersion": {
             "type": "string",
-            "example": "atlas-qa-generator-1.2.0"
+            "example": "atlas-qa-generator-1.3.0"
           },
           "cases": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/SampleCaseDto"
             }
+          },
+          "fakers": {
+            "description": "De dónde salieron los valores con significado (nombre, carnet, celular…): fakers del servidor mock o, si no respondió, el generador local.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/QaFakerReportDto"
+              }
+            ]
           },
           "artifactCode": {
             "type": "string",
