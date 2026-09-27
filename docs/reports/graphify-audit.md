@@ -13,8 +13,8 @@ El grafo contiene **12281 nodos** y **29289 relaciones** repartidos en
 **31 módulos de dominio** en `src/modules/`, de los cuales
 todos están registrados en `src/app.module.ts` (comprobado sobre el fichero, no supuesto).
 
-El grafo cubre **715 de 725**
-ficheros TypeScript de `src/` (99 %).
+El grafo cubre **715 de 728**
+ficheros TypeScript de `src/` (98 %).
 Todos los módulos de dominio aparecen en el grafo.
 
 ## Inventario cuantitativo
@@ -112,7 +112,7 @@ Es la dirección que más daño hace: sobre un fichero ausente el grafo no devue
 consulta vacía se lee igual que «no existe». Por eso los catálogos del portal se generan del
 código y del contrato, nunca de este grafo.
 
-**10 de 725** ficheros `.ts` de `src/` no aparecen en el grafo. Se listan los primeros 20:
+**13 de 728** ficheros `.ts` de `src/` no aparecen en el grafo. Se listan los primeros 20:
 
 - `src/common/observability/redacting-span-processor.ts`
 - `src/common/observability/sql-redaction.ts`
@@ -124,6 +124,9 @@ código y del contrato, nunca de este grafo.
 - `src/pdf-worker/templates/documents/blank-form/1.0.0/preview.fixture.ts`
 - `src/pdf-worker/templates/documents/blank-form/1.0.0/schema.ts`
 - `src/pdf-worker/templates/documents/blank-form/1.0.0/template.config.ts`
+- `src/pdf-worker/templates/documents/factura-fiscal/1.0.0/preview.fixture.ts`
+- `src/pdf-worker/templates/documents/factura-fiscal/1.0.0/schema.ts`
+- `src/pdf-worker/templates/documents/factura-fiscal/1.0.0/template.config.ts`
 
 ## Riesgos identificados
 

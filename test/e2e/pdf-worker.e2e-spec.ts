@@ -181,6 +181,7 @@ describe('PDF Generator Worker (e2e)', () => {
       expect(ids).toEqual([
         'blank-form@1.0.0',
         'credit-analysis-report@1.1.0',
+        'factura-fiscal@1.0.0',
         'generic-result-report@1.0.0',
       ]);
     });
