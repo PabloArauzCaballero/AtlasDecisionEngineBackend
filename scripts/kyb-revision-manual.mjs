@@ -35,6 +35,9 @@
  *
  * Es idempotente: si la versión vigente ya tiene el nodo `MANUAL_REVIEW`, no hace nada y lo dice.
  */
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { argv, env, exit } from 'node:process';
 
 const args = new Map();
@@ -57,6 +60,19 @@ const ENVIRONMENTS = (args.get('environments') ?? 'DEV,TEST').split(',').map((co
 const DRY_RUN = args.get('dry-run') === 'true';
 const QUEUE_CODE = args.get('queue') ?? 'MERCHANT_KYB';
 const SUITE_CODE = args.get('suite') ?? 'KYB-DESENLACES';
+const TENANT_ID = args.get('tenant') ?? env.DECISION_ENGINE_TENANT_ID ?? '1';
+
+/**
+ * La definición portada de la versión base (`scripts/lib/partner-kyb-review.definicion.json`).
+ * De ella salen los casos de la suite: esta versión cambia UN nodo, no la política, así que los
+ * desenlaces tienen que ser los mismos que ya se probaron sobre la base.
+ */
+const DEFINICION = JSON.parse(
+  readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), 'lib', 'partner-kyb-review.definicion.json'),
+    'utf8',
+  ),
+);
 
 if (!API_KEY) {
   console.error('Falta MANAGEMENT_API_KEY: es la credencial del plano de gestión (la de runtime NO sirve aquí).');
@@ -68,6 +84,9 @@ async function api(path, options = {}) {
     ...options,
     headers: {
       'x-api-key': API_KEY,
+      // Igual que `partner-kyb-review.mjs`: una credencial autorizada en varios inquilinos sin
+      // esta cabecera responde 400 antes de leer nada.
+      'x-tenant-id': TENANT_ID,
       'content-type': 'application/json',
       ...(options.headers ?? {}),
     },
@@ -318,101 +337,31 @@ async function main() {
 /**
  * Los casos que el Motor ejecuta ANTES de admitir la versión a revisión.
  *
- * Son los mismos seis que fija `test/partner-kyb-manual-review.spec.ts`, y están aquí por una razón
- * que el propio Motor impone: sin una suite BLOQUEANTE en verde, `submit-for-review` responde 409
- * `BLOCKING_TESTS_NOT_PASSED / NO_BLOCKING_TEST_SUITE`. Es el mismo principio que este artefacto
- * llevaba sin cumplir: una política que nadie ejecuta antes de publicarla es una promesa, y la
- * demostración puede afirmar una decisión que el motor no toma.
+ * Están aquí por una razón que el propio Motor impone: sin una suite BLOQUEANTE en verde,
+ * `submit-for-review` responde 409 `BLOCKING_TESTS_NOT_PASSED / NO_BLOCKING_TEST_SUITE`. Una
+ * política que nadie ejecuta antes de publicarla es una promesa, y la demostración puede afirmar
+ * una decisión que el motor no toma.
+ *
+ * Son los NUEVE casos de la versión base, no una lista aparte. Esta versión no mueve ningún
+ * umbral: sólo cambia qué hace el nodo REVISAR. Así que cada caso conserva lo que ya afirmaba y
+ * los que terminan en revisión afirman ADEMÁS `outcome: MANUAL_REVIEW`, que es lo que sólo un nodo
+ * `MANUAL_REVIEW` produce —con REVISAR como `RESULT` el `outcome` es el valor de la salida
+ * principal, `REVISION_MANUAL`—. Si la suite pasa, la corrección está hecha y la política no se
+ * movió. Antes había aquí seis casos copiados a mano: tres menos que la base, justo los que fijan
+ * el límite de 120 días y los extremos.
  *
  * `expectedResult` se compara como SUBCONJUNTO de la salida real, así que basta con nombrar lo que
  * debe cumplirse y no hay que repetir el contrato entero.
  */
-const CASOS_KYB = [
-  {
-    caseCode: 'KYB-COMPLETO-APRUEBA',
-    testName: 'Expediente completo y sin señales: aprueba',
-    input: {
-      kyb_tiene_matricula: true,
-      kyb_representante_acreditado: true,
-      kyb_qr_negocio: true,
-      kyb_qr_bancario: true,
-      kyb_correo_verificado: true,
-      kyb_sucursales: 1,
-      kyb_antiguedad_dias: 20,
-    },
-    expectedResult: { kyb_decision: 'APROBADO', kyb_motivo: 'KYB_COMPLETO', kyb_requisitos_faltantes: 0 },
-  },
-  {
-    caseCode: 'KYB-SIN-QR-BANCARIO-RECHAZA',
-    testName: 'Falta el QR de cobro: rechaza aunque todo lo demás esté',
-    input: {
-      kyb_tiene_matricula: true,
-      kyb_representante_acreditado: true,
-      kyb_qr_negocio: true,
-      kyb_qr_bancario: false,
-      kyb_correo_verificado: true,
-      kyb_sucursales: 1,
-      kyb_antiguedad_dias: 20,
-    },
-    expectedResult: { kyb_decision: 'RECHAZADO', kyb_motivo: 'KYB_REQUISITOS_INCOMPLETOS', kyb_requisitos_faltantes: 1 },
-  },
-  {
-    caseCode: 'KYB-DUROS-NO-COMPENSAN',
-    testName: 'Un requisito duro que falta rechaza aunque además haya señales',
-    input: {
-      kyb_tiene_matricula: true,
-      kyb_representante_acreditado: true,
-      kyb_qr_negocio: false,
-      kyb_qr_bancario: true,
-      kyb_correo_verificado: false,
-      kyb_sucursales: 0,
-      kyb_antiguedad_dias: 20,
-    },
-    expectedResult: { kyb_decision: 'RECHAZADO', kyb_senales_operativas: 2 },
-  },
-  {
-    caseCode: 'KYB-CORREO-SIN-PROBAR-REVISA',
-    testName: 'Completo con el correo sin verificar: a revisión, y ABRE caso',
-    input: {
-      kyb_tiene_matricula: true,
-      kyb_representante_acreditado: true,
-      kyb_qr_negocio: true,
-      kyb_qr_bancario: true,
-      kyb_correo_verificado: false,
-      kyb_sucursales: 1,
-      kyb_antiguedad_dias: 20,
-    },
-    expectedResult: { kyb_decision: 'REVISION_MANUAL', kyb_motivo: 'KYB_SENALES_OPERATIVAS', outcome: 'MANUAL_REVIEW' },
-  },
-  {
-    caseCode: 'KYB-SIN-SUCURSALES-REVISA',
-    testName: 'Sin sucursal declarada: a revisión',
-    input: {
-      kyb_tiene_matricula: true,
-      kyb_representante_acreditado: true,
-      kyb_qr_negocio: true,
-      kyb_qr_bancario: true,
-      kyb_correo_verificado: true,
-      kyb_sucursales: 0,
-      kyb_antiguedad_dias: 20,
-    },
-    expectedResult: { kyb_decision: 'REVISION_MANUAL', kyb_senales_operativas: 1 },
-  },
-  {
-    caseCode: 'KYB-EXPEDIENTE-VIEJO-REVISA',
-    testName: 'Expediente abierto hace demasiado: la antigüedad es señal, no defecto',
-    input: {
-      kyb_tiene_matricula: true,
-      kyb_representante_acreditado: true,
-      kyb_qr_negocio: true,
-      kyb_qr_bancario: true,
-      kyb_correo_verificado: true,
-      kyb_sucursales: 1,
-      kyb_antiguedad_dias: 121,
-    },
-    expectedResult: { kyb_decision: 'REVISION_MANUAL', kyb_senales_operativas: 1 },
-  },
-];
+const CASOS_KYB = DEFINICION.cases.map((caso) =>
+  caso.expectedResult.kyb_decision === 'REVISION_MANUAL'
+    ? {
+        ...caso,
+        testName: `${caso.testName} · abre caso en ${QUEUE_CODE}`,
+        expectedResult: { ...caso.expectedResult, outcome: 'MANUAL_REVIEW' },
+      }
+    : caso,
+);
 
 /**
  * Crea la suite bloqueante si falta y la ejecuta. Devuelve `true` si quedó en verde.
