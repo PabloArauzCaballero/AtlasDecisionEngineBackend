@@ -51,6 +51,7 @@ import { numeroDeConfig } from '../../common/config/config-coercion.util';
 import { TransformerIdentityEmbedderAdapter } from './identity-verification/core/adapters/transformer-identity.adapter';
 import { buildIdentityOptions } from './identity-verification/identity-config.bridge';
 import { IdentityPipelineService } from './identity-verification/identity-pipeline.service';
+import { AtlasCallbackModule } from '../atlas-callback/atlas-callback.module';
 import { IdentityReviewController } from './identity-verification/review/identity-review.controller';
 import { IdentityReviewService } from './identity-verification/review/identity-review.service';
 import { IdentityRunWorkerService } from './identity-verification/identity-run-worker.service';
@@ -172,7 +173,7 @@ function maybe<K extends string, V>(
 @Module({
   // La bandeja del motor, para avisar de un valor sin clasificar por el canal
   // estandar en vez de inventar uno propio.
-  imports: [NotificationsModule],
+  imports: [NotificationsModule, AtlasCallbackModule],
   controllers: [
     WorkersController,
     StorageReferencesController,

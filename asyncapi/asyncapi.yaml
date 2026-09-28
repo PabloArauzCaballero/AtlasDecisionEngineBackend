@@ -52,6 +52,8 @@ channels:
         $ref: '#/components/messages/VersionPublished'
       securityRiskDetected:
         $ref: '#/components/messages/SecurityRiskDetected'
+      atlasCallbackRequested:
+        $ref: '#/components/messages/AtlasCallbackRequested'
 
 operations:
   receiveDecisionEvents:
@@ -143,6 +145,25 @@ components:
         deploymentId: { type: string }
         environmentCode: { type: string }
 
+    AtlasCallbackRequestedPayload:
+      type: object
+      description: |
+        Aviso de vuelta a AtlasBackend tras una resolución humana. Lo consume
+        `AtlasCallbackDispatcher`, que hace el POST y, si falla de forma pasajera, lanza para que
+        el relay lo reintente con retroceso.
+      required: [route, body]
+      properties:
+        route:
+          type: string
+          description: Ruta de AtlasBackend, sin base (la base es configuración del despliegue).
+          example: /internal/identity/manual-review-callback
+        body:
+          type: object
+          description: Cuerpo JSON del POST, sólo con valores planos.
+          additionalProperties:
+            type: string
+            nullable: true
+
   messages:
     VersionSubmittedForReview:
       name: version.submitted_for_review
@@ -188,3 +209,15 @@ components:
         type: object
         allOf:
           - $ref: '#/components/schemas/Envelope'
+
+    AtlasCallbackRequested:
+      name: atlas.callback_requested
+      title: Aviso de vuelta a AtlasBackend
+      payload:
+        type: object
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties:
+              payload:
+                $ref: '#/components/schemas/AtlasCallbackRequestedPayload'

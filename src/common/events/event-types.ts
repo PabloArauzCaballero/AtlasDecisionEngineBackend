@@ -13,6 +13,12 @@ export const DecisionEventType = {
   VERSION_REJECTED: 'version.rejected',
   VERSION_PUBLISHED: 'version.published',
   SECURITY_RISK_DETECTED: 'security.risk_detected',
+  /**
+   * El motor tiene que avisar a AtlasBackend de una resolución humana (revisión manual de
+   * identidad, riesgo o crédito; revisión de un extracto). No es una notificación de bandeja:
+   * lo consume `AtlasCallbackDispatcher`, que hace la llamada HTTP y la reintenta.
+   */
+  ATLAS_CALLBACK_REQUESTED: 'atlas.callback_requested',
 } as const;
 
 export type DecisionEventType = (typeof DecisionEventType)[keyof typeof DecisionEventType];
@@ -60,4 +66,16 @@ export interface SecurityRiskDetectedPayload {
   /** Human-readable line the notification shows; never carries the reviewed source code. */
   summary: string;
   findingCodes: string[];
+}
+
+/**
+ * v1 payload of {@link DecisionEventType.ATLAS_CALLBACK_REQUESTED}.
+ *
+ * `route` es la ruta de AtlasBackend (sin base: la base es configuración del despliegue, no un
+ * dato del evento) y `body` el cuerpo JSON tal cual se envía. Sólo valores planos: el cuerpo lo
+ * lee otro servicio y viaja también a la auditoría si el aviso falla.
+ */
+export interface AtlasCallbackRequestedPayload {
+  route: string;
+  body: Record<string, string | null>;
 }

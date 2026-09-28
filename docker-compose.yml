@@ -429,6 +429,12 @@ services:
       ENABLE_PRIMARY_READ_FALLBACK: ${ENABLE_PRIMARY_READ_FALLBACK:-true}
       # Un pool pequeño: la concurrencia del worker la fijan sus trabajos, no el tráfico.
       DATABASE_POOL_MAX: ${WORKER_DATABASE_POOL_MAX:-5}
+      # ── Vuelta hacia AtlasBackend ────────────────────────────────────────
+      # Desde el 2026-09-27 el aviso de una resolución humana (revisión manual o de extracto)
+      # sale del OUTBOX, y el outbox lo reparte ESTE proceso, no la API. Sin estas dos aquí el
+      # aviso se descarta con un «falta ATLAS_BACKEND_BASE_URL» aunque la API las tenga.
+      ATLAS_BACKEND_BASE_URL: ${ATLAS_BACKEND_BASE_URL:-}
+      ENGINE_CALLBACK_API_KEY: ${ENGINE_CALLBACK_API_KEY:-}
       REDIS_URL: redis://redis:6379
       # El worker no autentica peticiones, pero el esquema de entorno es el mismo proceso de
       # validación para los dos: arrancarlo sin estos valores fallaría al validar.
@@ -741,10 +747,10 @@ services:
       # bytes de serie, un carnet legible se rechaza con «request entity too
       # large» y el veredicto sale UNAVAILABLE sin que nada diga que fue el tamaño.
       # ── Vuelta hacia el backend de identidad ─────────────────────────────
-      # Cuando un analista resuelve una revision de la cola IDENTIDAD, el motor se
-      # lo dice a AtlasBackend para que el cliente quede verificado. Sin estas dos
-      # variables el aviso no sale: la resolucion se guarda igual y el fallo queda
-      # anotado en la auditoria, pero el cliente se queda esperando sin saberlo.
+      # Cuando un analista resuelve una revision (IDENTIDAD, riesgo, credito o un
+      # extracto), el motor se lo dice a AtlasBackend. El aviso lo ENTREGA el proceso
+      # que reparte el outbox (`worker`, o esta API si corre con WORKER_ROLE=ALL), asi
+      # que las dos variables van tambien en el servicio `worker`.
       ATLAS_BACKEND_BASE_URL: ${ATLAS_BACKEND_BASE_URL:-}
       ENGINE_CALLBACK_API_KEY: ${ENGINE_CALLBACK_API_KEY:-}
       BODY_LIMIT_BYTES: '${BODY_LIMIT_BYTES:-8388608}'

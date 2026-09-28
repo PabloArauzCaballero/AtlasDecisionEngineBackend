@@ -17,6 +17,7 @@ import { ArtifactModule } from './modules/artifacts/artifact.module';
 import { AuditQueryModule } from './modules/audit-query/audit-query.module';
 import { CalculatedFieldsModule } from './modules/calculated-fields/calculated-fields.module';
 import { CodeImportModule } from './modules/code-import/code-import.module';
+import { AtlasCallbackModule } from './modules/atlas-callback/atlas-callback.module';
 import { DataSubjectModule } from './modules/data-subject/data-subject.module';
 import { DeploymentModule } from './modules/deployments/deployment.module';
 import { GovernanceModule } from './modules/governance/governance.module';
@@ -98,6 +99,10 @@ import { PdfWorkerModule } from './pdf-worker/pdf-worker.module';
     RiskGovernanceModule,
     NotificationsModule,
     OutboxRelayModule,
+    // Consumidor del outbox que avisa a AtlasBackend de las resoluciones humanas. Lo importan
+    // también revisión manual y workers; declararlo aquí deja escrito que es un consumidor más
+    // del relay, como el proyector de notificaciones.
+    AtlasCallbackModule,
     AuditQueryModule,
     TraceabilityModule,
     SecurityReviewModule,

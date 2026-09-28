@@ -7,6 +7,7 @@ import { PlatformRole } from '../../common/security/platform-roles';
 import { DomainException } from '../../common/errors/domain-exception';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
+import { AtlasCallbackService } from '../atlas-callback/atlas-callback.service';
 import {
   AssignManualReviewDto,
   ManualReviewListQueryDto,
@@ -81,6 +82,7 @@ export class ManualReviewService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly config: ConfigService,
+    private readonly callbacks: AtlasCallbackService,
   ) {}
 
   async list(tenantId: bigint, query: ManualReviewListQueryDto) {
@@ -287,6 +289,7 @@ export class ManualReviewService {
         : dto.decision === 'DECLINE'
           ? ManualReviewStatus.RESOLVED_DECLINED
           : ManualReviewStatus.CANCELLED;
+    const ruta = rutaDeCallback(review.queueCode);
     const resuelto = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.decisionManualReviewCase.update({
         where: { id: caseId },
@@ -302,6 +305,35 @@ export class ManualReviewService {
           resolvedAt: new Date(),
         },
       });
+      /*
+       * Y se le dice a AtlasBackend, que es donde vive el cliente o la solicitud.
+       *
+       * El motor no sabe de que CLIENTE es el caso —no tiene por que—, solo de que ejecucion: el
+       * puente es `executionId`, que AtlasBackend guarda al pedir la decision. La ruta la decide la
+       * cola (`rutaDeCallback`).
+       *
+       * El aviso se ENCOLA aqui, dentro de la transaccion, y no se envia: antes se mandaba despues
+       * del commit y, si AtlasBackend no contestaba, se anotaba el fallo y nadie lo reintentaba. El
+       * cliente quedaba `IN_REVIEW` con la decision ya tomada. Ahora o quedan la resolucion y el
+       * aviso, o ninguno; y la entrega —con reintentos— es cosa del outbox. Va ANTES de la
+       * auditoria porque la auditoria toma el cerrojo de la cadena y tiene que ser lo ultimo.
+       */
+      if (ruta) {
+        await this.callbacks.solicitar(tx, {
+          tenantId,
+          ruta,
+          cuerpo: {
+            executionId: review.executionId.toString(),
+            decision: dto.decision,
+            reason: dto.reason,
+            resolvedByInternalUserId: principal.id,
+          },
+          aggregateType: 'ManualReviewCase',
+          aggregateId: caseId.toString(),
+          actorId: principal.id,
+          correlationId: principal.requestId,
+        });
+      }
       await this.audit.append(
         {
           tenantId,
@@ -322,91 +354,12 @@ export class ManualReviewService {
       return updated;
     });
 
-    /*
-     * Y se le dice a AtlasBackend, que es donde vive la identidad del cliente.
-     *
-     * Va FUERA de la transaccion y despues de que haya confirmado: la decision del analista ya esta
-     * tomada y no puede perderse porque otro servicio no conteste. Si el aviso falla, la resolucion
-     * se mantiene y el fallo queda en la auditoria —con su motivo— en vez de desaparecer: un
-     * circuito que se rompe en silencio es exactamente lo que este codigo existe para evitar.
-     */
-    const ruta = rutaDeCallback(review.queueCode);
-    if (ruta) {
-      await this.avisarResolucion(ruta, tenantId, review.executionId, dto, principal, resuelto);
-    } else {
+    if (!ruta) {
       this.logger.log(
         `Revision ${resuelto.id} resuelta en la cola ${review.queueCode}: esa cola no se devuelve por callback.`,
       );
     }
 
     return resuelto;
-  }
-
-  /**
-   * Devuelve a AtlasBackend la resolucion de una revision delegada (identidad, riesgo o credito).
-   *
-   * El motor no sabe de que CLIENTE o SOLICITUD es el caso, y no tiene por que: solo sabe de que
-   * ejecucion. El puente es `executionId`, que AtlasBackend guarda en el intento, en el caso de
-   * riesgo o en la solicitud cuando pide la decision. La ruta la decide la cola (`rutaDeCallback`).
-   *
-   * Antes esto no existia. El analista aprobaba aqui, el caso quedaba `RESOLVED_APPROVED`, y alla el
-   * cliente seguia `IN_REVIEW` para siempre: no podia pedir credito y nada avisaba de que faltaba
-   * un paso que alguien tenia que dar a mano.
-   */
-  private async avisarResolucion(
-    ruta: string,
-    tenantId: bigint,
-    executionId: bigint,
-    dto: ResolveManualReviewDto,
-    principal: AuthenticatedPrincipal,
-    caso: { id: bigint },
-  ): Promise<void> {
-    const base = this.config.get<string>('ATLAS_BACKEND_BASE_URL');
-    const clave = this.config.get<string>('ENGINE_CALLBACK_API_KEY');
-    if (!base || !clave) {
-      this.logger.warn(
-        `Revision ${caso.id} resuelta sin devolver a AtlasBackend (${ruta}): falta ATLAS_BACKEND_BASE_URL o ENGINE_CALLBACK_API_KEY`,
-      );
-      return;
-    }
-
-    try {
-      const respuesta = await fetch(`${base.replace(/\/+$/, '')}${ruta}`, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-tenant-id': tenantId.toString(),
-          'x-engine-callback-key': clave,
-        },
-        body: JSON.stringify({
-          executionId: executionId.toString(),
-          decision: dto.decision,
-          reason: dto.reason,
-          resolvedByInternalUserId: principal.id,
-        }),
-        signal: AbortSignal.timeout(10_000),
-      });
-
-      if (!respuesta.ok) {
-        throw new Error(`HTTP ${respuesta.status}: ${(await respuesta.text()).slice(0, 300)}`);
-      }
-      this.logger.log(
-        `Resolucion devuelta a AtlasBackend (${ruta}) para la ejecucion ${executionId}`,
-      );
-    } catch (error) {
-      const motivo = error instanceof Error ? error.message : String(error);
-      this.logger.error(
-        `No se pudo devolver la revision ${caso.id} a AtlasBackend (${ruta}): ${motivo}`,
-      );
-      await this.audit.append({
-        tenantId,
-        eventType: 'MANUAL_REVIEW_CALLBACK_FAILED',
-        aggregateType: 'ManualReviewCase',
-        aggregateId: caso.id.toString(),
-        actorId: principal.id,
-        requestId: principal.requestId,
-        payload: { executionId: executionId.toString(), decision: dto.decision, motivo },
-      });
-    }
   }
 }
