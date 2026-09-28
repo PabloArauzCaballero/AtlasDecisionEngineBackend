@@ -1,6 +1,29 @@
 import { DeploymentResolverService } from '../src/modules/deployments/deployment-resolver.service';
 
 describe('DeploymentResolverService', () => {
+  it('no resuelve un binding cuyo despliegue ya fue suspendido', async () => {
+    const prisma = {
+      decisionRuntimeBinding: { findFirst: jest.fn().mockResolvedValue(null) },
+    };
+    const cache = {
+      getForTenant: jest.fn().mockResolvedValue(null),
+      setForTenant: jest.fn(),
+    };
+    const service = new DeploymentResolverService(prisma as never, cache as never);
+
+    await expect(service.resolve(1n, 'CREDIT', 'TEST')).rejects.toMatchObject({
+      code: 'ACTIVE_DEPLOYMENT_NOT_FOUND',
+    });
+    expect(prisma.decisionRuntimeBinding.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          activeDeployment: expect.objectContaining({ isActive: true, deploymentStatus: 'ACTIVE' }),
+        }),
+      }),
+    );
+    expect(cache.setForTenant).not.toHaveBeenCalled();
+  });
+
   it('evicts a corrupt cache entry and resolves from the authoritative database', async () => {
     const binding = {
       environmentId: 3n,
