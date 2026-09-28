@@ -57,24 +57,22 @@ está en `DIAS_PARA_CONSIDERAR_ANTIGUO`, en el grafo.
 
 ## Dónde vive
 
-**El grafo NO está en este repositorio.** Se fue con el resto de las semillas en `c4084c9`
-(«Mover las semillas del repositorio a una rama de PostgreSQL»), así que un cambio suyo no se puede
-revisar en un pull request: vive como filas en la base de semillas. Esta página describía tres
-archivos —`partner-kyb.graph.ts`, `partner-kyb.seed.ts` y `test/partner-kyb-seed.spec.ts`— que
-llevan borrados desde entonces.
+El grafo se fue con el resto de las semillas en `c4084c9` y volvió al repositorio como guiones que
+van por la API de gestión (`1ce53cc`). Hoy hay dos piezas, una por versión:
 
-Lo que sí existe y es auditable:
+| Pieza | Qué hace | Prueba que la ejecuta |
+| --- | --- | --- |
+| `scripts/partner-kyb-review.mjs` + `scripts/lib/partner-kyb-review.definicion.json` | Crea desde cero la versión base, la que está desplegada (REVISAR como `RESULT`). Sirve para un Motor nuevo (TEST en Contabo) | `test/partner-kyb-review.spec.ts` |
+| `scripts/kyb-revision-manual.mjs` | Prepara la versión siguiente: clona la vigente y cambia SÓLO el nodo REVISAR a `MANUAL_REVIEW` | `test/kyb-revision-manual.spec.ts` |
 
-- **La prueba que lo ejecuta con el motor real**: `test/partner-kyb-manual-review.spec.ts`.
-  Reproduce la forma del grafo —las dos intermedias, las dos condiciones, las cuatro salidas— y
-  comprueba cada desenlace contra el ejecutor, no de palabra. Es lo más cerca que se puede estar
-  hoy de revisar este artefacto en un PR.
-- **El guion que publica una versión nueva**: `scripts/kyb-revision-manual.mjs`, que va por la API
-  de gestión con los mismos permisos y la misma auditoría que un cambio hecho a mano.
+`test/partner-kyb-manual-review.spec.ts` es anterior: reconstruye el grafo a mano y compara las dos
+formas de REVISAR. Sigue siendo válida como explicación del defecto.
 
-Los desenlaces esperados **no** están escritos a ojo: la prueba los ejecuta contra el motor y falla
-si difieren. Un documento que afirma «este expediente se aprueba» y un motor que lo rechaza es peor
-que no tener el artefacto, porque enseña una decisión que en producción no ocurre.
+Las dos pruebas de guion ejecutan el guion de verdad contra un Motor de gestión en miniatura,
+validan cada cuerpo con los DTO reales, compilan lo escrito con el validador y el compilador del
+Motor y corren la suite bloqueante con el ejecutor real. Los desenlaces esperados **no** están
+escritos a ojo: un documento que afirma «este expediente se aprueba» y un motor que lo rechaza es
+peor que no tener el artefacto, porque enseña una decisión que en producción no ocurre.
 
 ## Que la derivación a revisión ABRA el caso
 
@@ -82,7 +80,9 @@ Los tres desenlaces eran nodos `RESULT`, incluido el que se llama `REVISION_MANU
 abre nada: el caso en `decision_manual_review_case` sólo se crea desde un nodo `MANUAL_REVIEW`.
 Medido contra el motor local el 2026-09-08, un expediente completo con el correo sin verificar
 devolvía `outcome: REVISION_MANUAL` y **`manualReview: null`** — derivado a una persona que no tenía
-dónde verlo.
+dónde verlo. AtlasBackend guarda entonces `manual_review_case_code` vacío, su sincronización
+(`sync_partner_kyb_reviews`) no tiene nada que consultar y el expediente se queda `under_review`
+indefinidamente (hallazgo A12, proceso P-16).
 
 ```bash
 MANAGEMENT_API_KEY=… node scripts/kyb-revision-manual.mjs [--dry-run]
@@ -91,20 +91,45 @@ MANAGEMENT_API_KEY=… node scripts/kyb-revision-manual.mjs [--dry-run]
 Convierte `REVISAR` en un nodo `MANUAL_REVIEW` con cola propia `MERCHANT_KYB` —no `CREDIT_REVIEW`,
 que mezclaría expedientes de comercio con solicitudes de crédito en la bandeja de otro equipo—,
 prioridad 80, SLA de cuatro horas y la evidencia con las siete entradas y las dos intermedias.
-Conserva `mode: MAPPING`, así que quien llama recibe las mismas salidas. Es idempotente.
+Conserva `mode: MAPPING`, así que quien llama recibe las mismas salidas: AtlasBackend lee el
+desenlace de `kyb_decision` (sigue siendo `REVISION_MANUAL`) y ahora recibe además
+`manualReview.caseCode`. El resto del grafo —umbrales, condiciones, aristas, contrato de salida— no
+cambia, y la prueba lo compara nodo a nodo contra la base.
 
-**El guion se para antes de desplegar, y es deliberado.** Desplegar exige la versión aprobada, y las
+La suite bloqueante son los **nueve** casos de la versión base; los que terminan en revisión
+afirman además `outcome: MANUAL_REVIEW`, que sólo un nodo `MANUAL_REVIEW` produce. Es idempotente.
+
+`MERCHANT_KYB` no avisa por callback (`RUTA_DE_CALLBACK_POR_COLA`): AtlasBackend trae la resolución
+por tirón cada 5 minutos (`GET /v1/manual-reviews/:caseCode`).
+
+**El guion se para antes de aprobar, y es deliberado.** Desplegar exige la versión aprobada, y las
 dos aprobaciones llevan `separationOfDuties`: quien crea una versión no puede aprobarla. El guion la
 crea, así que aprobar desde aquí —con la llave de gestión, que tiene todos los roles— sería
-exactamente la puerta trasera que ese control cierra. Deja la versión compilada y enviada a
-revisión, y dice qué falta y quién puede hacerlo. Una vez aprobada por dos personas distintas:
+exactamente la puerta trasera que ese control cierra. No se crean aprobadores de máquina. Deja la
+versión compilada y enviada a revisión; las dos firmas (QA_ANALYST y RISK_APPROVER) las ponen dos
+personas distintas desde el portal del Motor (Gobierno → Revisiones). Una vez aprobada, una tercera
+credencial (RELEASE_MANAGER) la despliega:
 
 ```bash
-MANAGEMENT_API_KEY=… node scripts/kyb-revision-manual.mjs --deploy <versionId>
+MANAGEMENT_API_KEY=… node scripts/kyb-revision-manual.mjs --deploy <versionId> --environments DEV,TEST
 ```
 
 Desplegar escribe además el `decision_runtime_binding`: sin él, ejecutar responde
 `ACTIVE_DEPLOYMENT_NOT_FOUND` aunque la versión esté compilada y desplegada.
+
+### Los expedientes que ya están colgados
+
+Desplegar la versión nueva **no** arregla los expedientes que ya recibieron `REVISION_MANUAL` sin
+caso: su ejecución ya ocurrió y no abrió nada. Siguen `under_review` con `manual_review_case_code`
+nulo. Dos salidas, ambas desde AtlasBackend:
+
+- **Volver a verificarlos** con la versión nueva: `POST /api/v1/operations/partners/:partnerId/kyb-review`
+  (permiso `partner.kyb.request`, admite `under_review`) con una `x-idempotency-key` NUEVA. La
+  ejecución nueva abre el caso en `MERCHANT_KYB`, AtlasBackend guarda su código y la sincronización
+  lo recoge. El ERP no puede pedirlo desde su pantalla: un caso suyo en `REVISION_MANUAL` ya no
+  admite verificación.
+- **Decidirlos a mano** en el portal admin (`decide`): sólo se permite mientras el expediente NO
+  tiene caso del Motor, que es justo su situación. Queda con procedencia `DECISION_MANUAL_PORTAL`.
 
 ## Quién lo ejecuta
 
