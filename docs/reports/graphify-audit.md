@@ -10,12 +10,12 @@
 
 El grafo contiene **12281 nodos** y **29289 relaciones** repartidos en
 **615 comunidades**. El árbol real declara
-**31 módulos de dominio** en `src/modules/`, de los cuales
+**32 módulos de dominio** en `src/modules/`, de los cuales
 todos están registrados en `src/app.module.ts` (comprobado sobre el fichero, no supuesto).
 
-El grafo cubre **715 de 733**
-ficheros TypeScript de `src/` (98 %).
-Todos los módulos de dominio aparecen en el grafo.
+El grafo cubre **715 de 736**
+ficheros TypeScript de `src/` (97 %).
+**1 módulo(s) de dominio no aparecen en absoluto**: `atlas-callback`. Consultar el grafo sobre ellos no devuelve nada, así que su documentación **no** se deriva de aquí.
 
 ## Inventario cuantitativo
 
@@ -112,11 +112,14 @@ Es la dirección que más daño hace: sobre un fichero ausente el grafo no devue
 consulta vacía se lee igual que «no existe». Por eso los catálogos del portal se generan del
 código y del contrato, nunca de este grafo.
 
-**18 de 733** ficheros `.ts` de `src/` no aparecen en el grafo. Se listan los primeros 20:
+**21 de 736** ficheros `.ts` de `src/` no aparecen en el grafo, incluidos **1 módulo(s) completos** (`atlas-callback`). Se listan los primeros 20:
 
 - `src/common/observability/redacting-span-processor.ts`
 - `src/common/observability/sql-redaction.ts`
 - `src/common/time/clock.ts`
+- `src/modules/atlas-callback/atlas-callback.dispatcher.ts`
+- `src/modules/atlas-callback/atlas-callback.module.ts`
+- `src/modules/atlas-callback/atlas-callback.service.ts`
 - `src/modules/qa-lab/faker-semantics.ts`
 - `src/modules/qa-lab/qa-fakers.client.ts`
 - `src/modules/qa-lab/qa-fakers.module.ts`
@@ -131,14 +134,13 @@ código y del contrato, nunca de este grafo.
 - `src/pdf-worker/templates/documents/blank-form/1.0.0/template.config.ts`
 - `src/pdf-worker/templates/documents/factura-fiscal/1.0.0/preview.fixture.ts`
 - `src/pdf-worker/templates/documents/factura-fiscal/1.0.0/schema.ts`
-- `src/pdf-worker/templates/documents/factura-fiscal/1.0.0/template.config.ts`
 
 ## Riesgos identificados
 
 | Riesgo | Naturaleza | Mitigación vigente |
 | --- | --- | --- |
 | El grafo se desactualiza tras cada cambio de código | Documental | `graphify update .` tras modificar código; esta auditoría detecta la divergencia en ambos sentidos |
-| Ningún módulo de dominio queda fuera del grafo | Documental | Comprobado en cada ejecución de esta auditoría |
+| El grafo desconoce 1 módulo(s) (atlas-callback), así que consultarlo sobre ellos devuelve vacío | Documental | Su documentación se deriva del código y del contrato; esta auditoría lo declara en vez de ocultarlo |
 | Un módulo con mucho fan-in concentra el impacto de sus cambios | Arquitectónico | Contratos explícitos y pruebas por módulo |
 | La documentación derivada del grafo hereda sus errores | Documental | Los catálogos del portal se generan del **código y del contrato**, no del grafo |
 

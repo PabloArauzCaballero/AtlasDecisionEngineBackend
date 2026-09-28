@@ -253,6 +253,16 @@ export class IdentityReviewService {
    *
    * Sólo quien lo reclamó puede cerrarlo. Sin esa segregación, «reclamar» es un
    * botón decorativo y cualquiera con el rol cierra cualquier caso de un tirón.
+   *
+   * **No avisa a AtlasBackend, y no es un olvido.** En esta bandeja sólo hay
+   * ejecuciones del worker pedidas por HTTP (`POST …/identity-verification/runs`:
+   * el portal del motor, las pruebas, el corpus), y AtlasBackend no crea ninguna:
+   * la verificación del cliente entra por la decisión (`/v1/decisions/…`), cuyo
+   * nodo WORKER llama al núcleo sin crear fila aquí, y su duda abre un caso en la
+   * cola `IDENTIDAD` de `/v1/manual-reviews`. Ése es el que vuelve a Atlas, por el
+   * outbox (`AtlasCallbackService`). Una ejecución de esta tabla no tiene
+   * `executionId` ni cliente de Atlas al que avisar: inventarle un destino llenaría
+   * la auditoría de avisos fallidos sin cerrar nada.
    */
   async resolve(
     tenantId: bigint,

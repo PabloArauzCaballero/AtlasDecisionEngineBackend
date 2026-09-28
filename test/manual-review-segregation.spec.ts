@@ -2,6 +2,7 @@ import { ConfigService } from '@nestjs/config';
 import { DomainException } from '../src/common/errors/domain-exception';
 import { ManualReviewService } from '../src/modules/manual-review/manual-review.service';
 import type { AuditService } from '../src/common/audit/audit.service';
+import type { AtlasCallbackService } from '../src/modules/atlas-callback/atlas-callback.service';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
 import type { AuthenticatedPrincipal } from '../src/common/security/security.types';
 import type {
@@ -71,6 +72,7 @@ describe('ManualReviewService — segregación de funciones', () => {
         return Promise.resolve({});
       },
     } as unknown as AuditService;
+    const avisos: Array<{ tx: unknown; aviso: Record<string, unknown> }> = [];
     const tx = {
       decisionManualReviewCase: {
         update: (args: { data: Record<string, unknown> }) => {
@@ -83,10 +85,18 @@ describe('ManualReviewService — segregación de funciones', () => {
       decisionManualReviewCase: { findFirst: () => Promise.resolve(review) },
       $transaction: (fn: (client: unknown) => Promise<unknown>) => fn(tx),
     } as unknown as PrismaService;
+    const callbacks = {
+      solicitar: (client: unknown, aviso: Record<string, unknown>) => {
+        avisos.push({ tx: client, aviso });
+        return Promise.resolve();
+      },
+    } as unknown as AtlasCallbackService;
     return {
-      service: new ManualReviewService(prisma, audit, new ConfigService({})),
+      service: new ManualReviewService(prisma, audit, new ConfigService({}), callbacks),
       audited,
       updates,
+      avisos,
+      tx,
     };
   }
 
@@ -309,6 +319,77 @@ describe('ManualReviewService — segregación de funciones', () => {
         resolvedBy: 'ana',
       });
       expect(updates[0].resolvedAt).toBeInstanceOf(Date);
+    });
+  });
+
+  /*
+   * La vuelta a AtlasBackend (A7). Antes se mandaba con un `fetch` después del commit y, si
+   * fallaba, nadie la reintentaba: el cliente quedaba `IN_REVIEW` con la decisión ya tomada. Ahora
+   * se encola en la MISMA transacción que la resolución, y la entrega con reintentos es del outbox.
+   */
+  describe('aviso de vuelta a AtlasBackend', () => {
+    it('una cola que vuelve por callback encola el aviso DENTRO de la transacción', async () => {
+      const { service, avisos, tx } = make({
+        id: CASE,
+        status: 'ASSIGNED',
+        assignedTo: 'ana',
+        queueCode: 'IDENTIDAD',
+        executionId: 555n,
+      });
+      await service.resolve(TENANT, CASE, resolveDto('APPROVE'), analista);
+      expect(avisos).toHaveLength(1);
+      expect(avisos[0].tx).toBe(tx);
+      expect(avisos[0].aviso).toMatchObject({
+        tenantId: TENANT,
+        ruta: '/internal/identity/manual-review-callback',
+        cuerpo: {
+          executionId: '555',
+          decision: 'APPROVE',
+          reason: 'motivo',
+          resolvedByInternalUserId: 'ana',
+        },
+        aggregateType: 'ManualReviewCase',
+        aggregateId: CASE.toString(),
+      });
+    });
+
+    it.each([
+      ['RIESGO_ONBOARDING', '/internal/risk/manual-review-callback'],
+      ['CREDIT_REVIEW', '/internal/credit/manual-review-callback'],
+    ])('la cola %s vuelve a %s', async (queueCode, ruta) => {
+      const { service, avisos } = make({
+        id: CASE,
+        status: 'ASSIGNED',
+        assignedTo: 'ana',
+        queueCode,
+        executionId: 1n,
+      });
+      await service.resolve(TENANT, CASE, resolveDto('DECLINE'), analista);
+      expect(avisos.map((entrada) => entrada.aviso.ruta)).toEqual([ruta]);
+    });
+
+    it('una cola sin ruta de vuelta no encola nada', async () => {
+      const { service, avisos } = make({
+        id: CASE,
+        status: 'ASSIGNED',
+        assignedTo: 'ana',
+        queueCode: 'MERCHANT_KYB',
+        executionId: 1n,
+      });
+      await service.resolve(TENANT, CASE, resolveDto('APPROVE'), analista);
+      expect(avisos).toHaveLength(0);
+    });
+
+    it('una resolución rechazada por segregación no encola aviso', async () => {
+      const { service, avisos } = make({
+        id: CASE,
+        status: 'ASSIGNED',
+        assignedTo: 'beto',
+        queueCode: 'IDENTIDAD',
+        executionId: 1n,
+      });
+      await service.resolve(TENANT, CASE, resolveDto('APPROVE'), analista).catch(() => undefined);
+      expect(avisos).toHaveLength(0);
     });
   });
 });

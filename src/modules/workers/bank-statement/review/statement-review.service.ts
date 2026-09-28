@@ -14,6 +14,7 @@ import { pageResult, paginationArgs } from '../../../../common/http/pagination';
 import { PrismaService } from '../../../../common/prisma/prisma.service';
 import { consultaCrudaConTenant } from '../../../../common/prisma/tenant-scoped-raw';
 import type { AuthenticatedPrincipal } from '../../../../common/security/security.types';
+import { AtlasCallbackService } from '../../../atlas-callback/atlas-callback.service';
 import { REVIEW_STATUSES } from '../statement-outcome';
 import {
   type ResolveStatementReviewDto,
@@ -43,6 +44,9 @@ const QUEUE_SELECTION = {
   queuedAt: true,
 } satisfies Prisma.BankStatementRunSelect;
 
+/** A donde vuelve, en AtlasBackend, la resolución de una revisión de extracto. */
+export const RUTA_DE_CALLBACK_DE_EXTRACTOS = '/internal/credit/bank-statement-review-callback';
+
 /**
  * La cola de revisión humana de extractos.
  *
@@ -66,6 +70,7 @@ export class StatementReviewService {
     private readonly audit: AuditService,
     private readonly config: ConfigService,
     private readonly jobSignal: JobSignalService,
+    private readonly callbacks: AtlasCallbackService,
   ) {}
 
   async list(tenantId: bigint, query: StatementReviewQueryDto) {
@@ -285,6 +290,30 @@ export class StatementReviewService {
           // privacidad del módulo vuelve a aplicar.
           fileBytes: null,
         },
+      });
+      /*
+       * El extracto casi siempre lo subió AtlasBackend, y allí la revisión del cliente espera en
+       * `processing` a que alguien la cierre: sin este aviso esperaba para siempre y le impedía
+       * subir otro extracto (`409 BANK_STATEMENT_REVIEW_ALREADY_OPEN`). Se encola en la misma
+       * transacción, como el de la revisión manual.
+       *
+       * El aviso lleva sólo la referencia y el desenlace: AtlasBackend vuelve a leer la ejecución
+       * con su propia credencial y decide con lo que lee, no con lo que dice el aviso. Un extracto
+       * que subió otro (el portal, una prueba) llega a Atlas sin revisión abierta y no hace nada.
+       */
+      await this.callbacks.solicitar(tx, {
+        tenantId,
+        ruta: RUTA_DE_CALLBACK_DE_EXTRACTOS,
+        cuerpo: {
+          requestId,
+          status: outcome.status,
+          action: dto.action,
+          resolvedByInternalUserId: principal.id,
+        },
+        aggregateType: 'BankStatementRun',
+        aggregateId: requestId,
+        actorId: principal.id,
+        correlationId: principal.requestId,
       });
       await this.audit.append(
         {

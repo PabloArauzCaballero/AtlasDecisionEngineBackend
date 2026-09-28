@@ -78,6 +78,7 @@ Un `fan-in` alto significa que muchos módulos dependen de este: cambiarlo es ca
 | [`outcome-ingestion`](../modules/outcome-ingestion.md) | 0 | 8 |
 | [`security-review`](../modules/security-review.md) | 7 | 0 |
 | [`notifications`](../modules/notifications.md) | 6 | 0 |
+| [`atlas-callback`](../modules/atlas-callback.md) | 0 | 0 |
 | [`audit-query`](../modules/audit-query.md) | 0 | 0 |
 | [`data-subject`](../modules/data-subject.md) | 0 | 0 |
 | [`health`](../modules/health.md) | 0 | 0 |

@@ -3,7 +3,7 @@
 
 # Catálogo de eventos de dominio
 
-6 tipos de evento versionados. Todo evento se escribe en la MISMA transacción
+7 tipos de evento versionados. Todo evento se escribe en la MISMA transacción
 que el cambio de negocio que lo produce (outbox transaccional) y se despacha después; ver
 [semántica de entrega](delivery-semantics.md).
 
@@ -19,4 +19,5 @@ auditoría los conserva.
 | `version.rejected` | `DecisionEventType.VERSION_REJECTED` | `src/modules/governance/governance.service.ts` | `src/modules/notifications/notification-projector.service.ts` |
 | `version.published` | `DecisionEventType.VERSION_PUBLISHED` | `src/modules/deployments/deployment.service.ts` | `src/modules/notifications/notification-projector.service.ts` |
 | `security.risk_detected` | `DecisionEventType.SECURITY_RISK_DETECTED` | `src/modules/governance/governance.service.ts` | `src/modules/notifications/notification-projector.service.ts` |
+| `atlas.callback_requested` | `DecisionEventType.ATLAS_CALLBACK_REQUESTED` | `src/modules/atlas-callback/atlas-callback.service.ts` | `src/modules/atlas-callback/atlas-callback.dispatcher.ts` |
 
