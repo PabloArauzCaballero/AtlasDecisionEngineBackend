@@ -39,6 +39,15 @@ prueba nada.
 5. **Volver a verificar** y comprobar en el portal que la columna «En el motor» dice «Existe en el
    motor».
 
+## Trampas medidas en TEST (2026-09-29)
+
+- El Motor de TEST (Contabo) sólo tiene el ambiente `STAGING`: publicar y desplegar allí lleva
+  `--environments STAGING`; con el valor por defecto (`DEV,TEST`) el guion avisa y no despliega.
+- `atlas-underwriting-v2.mjs` sólo publica una versión NUEVA de un artefacto de crédito que ya
+  exista. En un entorno sin `ATLAS_BNPL_UNDERWRITING` hay que crear antes la v1.
+- Un `SUPER_ADMIN` de Core llega al Motor como `PLATFORM_ADMIN` y no firma. Firman `QA_ENGINEER`
+  (→ `QA_ANALYST`) y `RISK_MANAGER` (→ `RISK_APPROVER`), dos personas que no sean la autora.
+
 ## Qué mirar si vuelve a pasar
 
 - El portal: Configuración → Motor de decisiones. Rojo = el catálogo del Motor no trae ese código.
