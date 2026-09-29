@@ -1,0 +1,55 @@
+# Actualizaciones automáticas de dependencias y de las GitHub Actions (auditoría rama test, 2026-09-28).
+# Homogéneo en los 7 repos de Atlas. `target-branch: dev` porque `main` duerme: sin declararlo,
+# Dependabot propone contra main versiones que dev ya tiene y agota el cupo de PRs (medido en CORE).
+# Las actions se fijan por SHA en los workflows; Dependabot mantiene el SHA y el comentario `# vX.Y.Z`.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: '/'
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies]
+    commit-message:
+      prefix: 'chore(deps)'
+      prefix-development: 'chore(deps-dev)'
+    # Saltos mayores del framework y del compilador NO por Dependabot: el 2026-09-28 @nestjs/sequelize 12
+    # (ESM puro) y typescript 7 rompieron dev en dos repos y se fusionaron sin checks requeridos.
+    ignore:
+      - dependency-name: 'typescript'
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@nestjs/*'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'next'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'react'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'react-dom'
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@prisma/*'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'prisma'
+        update-types: ['version-update:semver-major']
+    groups:
+      dev-tooling:
+        patterns: ['@types/*', 'eslint*', '@eslint/*', '@typescript-eslint/*', 'typescript', 'prettier', 'jest', 'ts-jest', 'vitest', '@vitest/*', 'supertest', '@nestjs/testing', '@playwright/*', 'playwright']
+        update-types: [major, minor, patch]
+      runtime-minor-patch:
+        patterns: ['*']
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: '/'
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    labels: [dependencies, ci]
+    commit-message:
+      prefix: 'chore(ci)'
+    groups:
+      ci-actions:
+        patterns: ['*']
+        update-types: [major, minor, patch]
