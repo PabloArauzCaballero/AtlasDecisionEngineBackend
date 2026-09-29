@@ -14,6 +14,7 @@ import {
   ResolveManualReviewDto,
 } from './manual-review.dto';
 import { pageResult, paginationArgs } from '../../common/http/pagination';
+import { escapeLikeTerm } from '../../common/persistence/like-escape';
 
 /**
  * Quién puede intervenir sobre el caso de OTRO analista.
@@ -87,11 +88,26 @@ export class ManualReviewService {
 
   async list(tenantId: bigint, query: ManualReviewListQueryDto) {
     const paging = paginationArgs(query, this.config.get<number>('MAX_PAGE_SIZE') ?? 100);
+    const search = query.search?.trim() ? escapeLikeTerm(query.search.trim()) : undefined;
     const where: Prisma.DecisionManualReviewCaseWhereInput = {
       tenantId,
       ...(query.status ? { status: query.status } : {}),
       ...(query.assignedTo ? { assignedTo: query.assignedTo } : {}),
       ...(query.queueCode ? { queueCode: query.queueCode } : {}),
+      /*
+       * «Buscar caso» mandaba `queueCode`, que se compara por IGUALDAD con la cola: escribir el
+       * código de un caso (`MR-2026-0042`) o un request ID devolvía siempre cero filas, aunque la
+       * ayuda prometía «ir directo a uno concreto». `contains` + `insensitive` es `ILIKE '%…%'` y
+       * Prisma NO escapa `%` ni `_`: se escapan con `escapeLikeTerm` para buscar el texto tal cual.
+       */
+      ...(search
+        ? {
+            OR: [
+              { caseCode: { contains: search, mode: 'insensitive' as const } },
+              { execution: { requestId: { contains: search, mode: 'insensitive' as const } } },
+            ],
+          }
+        : {}),
     };
     const [total, items] = await this.prisma.$transaction([
       this.prisma.decisionManualReviewCase.count({ where }),

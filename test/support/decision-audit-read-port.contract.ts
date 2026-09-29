@@ -116,6 +116,107 @@ export function describeDecisionAuditReadPortContract(
       expect(byAggregate.total).toBe(1);
     });
 
+    /*
+     * `search` es lo que promete el buscador de la bitácora: parte del valor, sin distinguir
+     * mayúsculas, en más de una columna. Antes el portal mandaba `eventType` y el motor lo
+     * comparaba por IGUALDAD: escribir «alpha» no encontraba «CONTRACT_ALPHA». Los datos
+     * distinguen: cada término acierta en UNA columna y en un número distinto de filas.
+     */
+    it('searches by part of the event type, case-insensitively', async () => {
+      const found = await fixture.port.listAuditEvents({
+        tenantId: fixture.tenantId,
+        search: 'alph',
+        skip: 0,
+        take: 50,
+      });
+      const exact = await fixture.port.listAuditEvents({
+        tenantId: fixture.tenantId,
+        eventType: 'alph',
+        skip: 0,
+        take: 50,
+      });
+
+      expect(found.total).toBe(2);
+      // La igualdad exacta sigue siendo igualdad: `eventType` no se volvió búsqueda por parte.
+      expect(exact.total).toBe(0);
+    });
+
+    it('searches in the actor and in the aggregate type, not only in the event type', async () => {
+      const byActor = await fixture.port.listAuditEvents({
+        tenantId: fixture.tenantId,
+        search: 'BOB',
+        skip: 0,
+        take: 50,
+      });
+      const byAggregate = await fixture.port.listAuditEvents({
+        tenantId: fixture.tenantId,
+        search: 'deploy',
+        skip: 0,
+        take: 50,
+      });
+      const byAggregateId = await fixture.port.listAuditEvents({
+        tenantId: fixture.tenantId,
+        search: '3',
+        skip: 0,
+        take: 50,
+      });
+
+      expect(byActor.total).toBe(1);
+      expect(byAggregate.total).toBe(1);
+      expect(byAggregateId.total).toBe(1);
+    });
+
+    it('treats % and _ in the search text as literal characters', async () => {
+      const percent = await fixture.port.listAuditEvents({
+        tenantId: fixture.tenantId,
+        search: 'CONTRACT%',
+        skip: 0,
+        take: 50,
+      });
+      const underscore = await fixture.port.listAuditEvents({
+        tenantId: fixture.tenantId,
+        search: 'C_NTRACT',
+        skip: 0,
+        take: 50,
+      });
+      const literalUnderscore = await fixture.port.listAuditEvents({
+        tenantId: fixture.tenantId,
+        search: 'CONTRACT_BETA',
+        skip: 0,
+        take: 50,
+      });
+
+      // Como comodines, `%` casaría con las tres filas y `_` con «O».
+      expect(percent.total).toBe(0);
+      expect(underscore.total).toBe(0);
+      expect(literalUnderscore.total).toBe(1);
+    });
+
+    it('combines the search with the exact filters using AND and keeps the tenant boundary', async () => {
+      const combined = await fixture.port.listAuditEvents({
+        tenantId: fixture.tenantId,
+        search: 'contract',
+        actorId: 'alice',
+        skip: 0,
+        take: 50,
+      });
+      const cursor = await fixture.port.listAuditEventsByCursor({
+        tenantId: fixture.tenantId,
+        search: 'beta',
+        take: 10,
+      });
+      const foreign = await fixture.port.listAuditEvents({
+        tenantId: fixture.otherTenantId,
+        search: 'contract',
+        skip: 0,
+        take: 50,
+      });
+
+      expect(combined.total).toBe(2);
+      expect(cursor).toHaveLength(1);
+      expect(foreign.total).toBe(0);
+    });
+
     it('filters by an occurrence window, inclusive on both ends', async () => {
       const inside = await fixture.port.listAuditEvents({
         tenantId: fixture.tenantId,

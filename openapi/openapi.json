@@ -9303,6 +9303,26 @@
         "operationId": "manualReviewList",
         "parameters": [
           {
+            "name": "queueCode",
+            "required": false,
+            "in": "query",
+            "description": "Código EXACTO de la cola (igualdad, no búsqueda por parte).",
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Texto que se busca en el identificador del caso (`caseCode`) y en el request ID de la ejecución que lo originó. Basta una parte y no distingue mayúsculas. Se combina con Y con los demás filtros.",
+            "schema": {
+              "maxLength": 120,
+              "type": "string"
+            }
+          },
+          {
             "name": "status",
             "required": false,
             "in": "query",
@@ -9327,16 +9347,6 @@
               "type": "string"
             },
             "description": "Filtra por el analista al que está asignado el caso."
-          },
-          {
-            "name": "queueCode",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "maxLength": 80,
-              "type": "string"
-            },
-            "description": "Cola de revisión manual a la que pertenece el caso."
           }
         ],
         "responses": {
@@ -10069,6 +10079,16 @@
         "operationId": "auditQueryEvents",
         "parameters": [
           {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Texto que se busca en el tipo de evento, el tipo y el identificador del objeto afectado, el actor y el request ID. Basta una parte y no distingue mayúsculas. Se combina con Y con los demás filtros, que son de igualdad exacta.",
+            "schema": {
+              "maxLength": 120,
+              "type": "string"
+            }
+          },
+          {
             "name": "eventType",
             "required": false,
             "in": "query",
@@ -10173,6 +10193,16 @@
       "get": {
         "operationId": "auditQueryEventsByCursor",
         "parameters": [
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Texto que se busca en el tipo de evento, el tipo y el identificador del objeto afectado, el actor y el request ID. Basta una parte y no distingue mayúsculas. Se combina con Y con los demás filtros, que son de igualdad exacta.",
+            "schema": {
+              "maxLength": 120,
+              "type": "string"
+            }
+          },
           {
             "name": "eventType",
             "required": false,
@@ -26656,12 +26686,13 @@
         "type": "object",
         "properties": {
           "decision": {
-            "type": "string",
             "enum": [
               "APPROVE",
               "DECLINE",
               "CANCEL"
-            ]
+            ],
+            "type": "string",
+            "description": "`APPROVE` y `DECLINE` deciden el caso a favor o en contra de la solicitud. `CANCEL` retira el caso de la cola SIN decidir: el motor avisa a Atlas Core, que deja la solicitud como estaba (no la aprueba ni la rechaza). No existe un valor «escalar»."
           },
           "reason": {
             "type": "string",
@@ -27438,7 +27469,7 @@
           "reason": {
             "type": "string",
             "example": "PREVIOUS_HASH_MISMATCH",
-            "description": "`PREVIOUS_HASH_MISMATCH` (la cadena se rompió), `HASH_MISMATCH` (el evento fue alterado) o `HASH_KEY_UNAVAILABLE` (el secreto con el que se firmó ya no está configurado)."
+            "description": "`PREVIOUS_HASH_MISMATCH` (la cadena se rompió), `EVENT_HASH_MISMATCH` (el evento fue alterado) o `HASH_KEY_UNAVAILABLE` (el secreto con el que se firmó ya no está configurado)."
           }
         },
         "required": [

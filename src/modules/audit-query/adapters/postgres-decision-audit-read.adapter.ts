@@ -13,6 +13,7 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import type { CountedRows } from '../../../common/persistence/ports/repository.port';
+import { escapeLikeTerm } from '../../../common/persistence/like-escape';
 import {
   PersistenceAdapterFactory,
   type ReadAdapterHandle,
@@ -253,11 +254,30 @@ function executionWhere(criteria: ExecutionSearchCriteria): Prisma.DecisionExecu
 }
 
 function auditEventWhere(criteria: AuditEventCriteria): Prisma.DecisionAuditEventWhereInput {
+  const term = criteria.search ? escapeLikeTerm(criteria.search) : undefined;
   return {
     tenantId: criteria.tenantId,
     ...(criteria.eventType ? { eventType: criteria.eventType } : {}),
     ...(criteria.aggregateType ? { aggregateType: criteria.aggregateType } : {}),
     ...(criteria.actorId ? { actorId: criteria.actorId } : {}),
+    ...(term
+      ? {
+          /*
+           * `contains` + `mode: 'insensitive'` es `ILIKE '%…%'`; Prisma NO escapa `%` ni `_`, así
+           * que se escapan aquí (`escapeLikeTerm`): buscar «100%» busca un porcentaje, no «todo».
+           * Antes el buscador de la
+           * bitácora mandaba `eventType` y el motor lo comparaba por IGUALDAD, así que escribir
+           * «DEPLOY» no encontraba «ARTIFACT_DEPLOYED» aunque la ayuda dijera «basta una parte».
+           */
+          OR: [
+            { eventType: { contains: term, mode: 'insensitive' as const } },
+            { aggregateType: { contains: term, mode: 'insensitive' as const } },
+            { aggregateId: { contains: term, mode: 'insensitive' as const } },
+            { actorId: { contains: term, mode: 'insensitive' as const } },
+            { requestId: { contains: term, mode: 'insensitive' as const } },
+          ],
+        }
+      : {}),
     ...(criteria.from || criteria.to
       ? {
           // `DecisionAuditEvent` sella sus filas con `occurredAt`; no existe columna

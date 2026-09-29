@@ -73,6 +73,8 @@ export class AuditQueryService {
       eventType: filters.eventType,
       aggregateType: filters.aggregateType,
       actorId: filters.actorId,
+      // Vacío o sólo espacios no es un filtro: es la caja del portal recién vaciada.
+      ...(filters.search?.trim() ? { search: filters.search.trim() } : {}),
       ...dateRange(filters),
     };
   }

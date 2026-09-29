@@ -1,5 +1,5 @@
 /** Manual-review commands constrain assignment, outcome and evidence to auditable shapes. */
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsEnum,
   IsIn,
@@ -43,7 +43,15 @@ export class AssignManualReviewDto {
 }
 
 export class ResolveManualReviewDto {
-  @IsIn(['APPROVE', 'DECLINE', 'CANCEL']) decision!: 'APPROVE' | 'DECLINE' | 'CANCEL';
+  @ApiProperty({
+    enum: ['APPROVE', 'DECLINE', 'CANCEL'],
+    description:
+      '`APPROVE` y `DECLINE` deciden el caso a favor o en contra de la solicitud. `CANCEL` retira el ' +
+      'caso de la cola SIN decidir: el motor avisa a Atlas Core, que deja la solicitud como estaba ' +
+      '(no la aprueba ni la rechaza). No existe un valor «escalar».',
+  })
+  @IsIn(['APPROVE', 'DECLINE', 'CANCEL'])
+  decision!: 'APPROVE' | 'DECLINE' | 'CANCEL';
   @IsString() @MaxLength(8_000) reason!: string;
   @IsOptional() @IsObject() metadata?: Record<string, unknown>;
 }
@@ -51,5 +59,23 @@ export class ResolveManualReviewDto {
 export class ManualReviewListQueryDto extends PaginationQueryDto {
   @IsOptional() @IsEnum(ManualReviewStatus) status?: ManualReviewStatus;
   @IsOptional() @IsString() @MaxLength(160) assignedTo?: string;
-  @IsOptional() @IsString() @MaxLength(80) queueCode?: string;
+  @ApiPropertyOptional({
+    description: 'Código EXACTO de la cola (igualdad, no búsqueda por parte).',
+    maxLength: 80,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  queueCode?: string;
+  @ApiPropertyOptional({
+    description:
+      'Texto que se busca en el identificador del caso (`caseCode`) y en el request ID de la ' +
+      'ejecución que lo originó. Basta una parte y no distingue mayúsculas. Se combina con Y con ' +
+      'los demás filtros.',
+    maxLength: 120,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  search?: string;
 }

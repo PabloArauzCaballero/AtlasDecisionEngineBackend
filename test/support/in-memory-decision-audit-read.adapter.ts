@@ -138,8 +138,21 @@ export class InMemoryDecisionAuditReadAdapter implements DecisionAuditReadPort {
       .filter((event) => !criteria.eventType || event.eventType === criteria.eventType)
       .filter((event) => !criteria.aggregateType || event.aggregateType === criteria.aggregateType)
       .filter((event) => !criteria.actorId || event.actorId === criteria.actorId)
+      .filter((event) => !criteria.search || matchesSearch(event, criteria.search))
       .filter((event) => within(event.occurredAt, criteria));
   }
+}
+
+/** El mismo criterio que el adaptador de Postgres: parte del valor, sin mayúsculas, `%` y `_` literales. */
+function matchesSearch(event: InMemoryAuditEvent, search: string): boolean {
+  const needle = search.toLowerCase();
+  return [
+    event.eventType,
+    event.aggregateType,
+    event.aggregateId,
+    event.actorId,
+    event.requestId ?? '',
+  ].some((value) => value.toLowerCase().includes(needle));
 }
 
 function within(moment: Date, range: { from?: Date; to?: Date }): boolean {
