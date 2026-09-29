@@ -13,8 +13,8 @@ El grafo contiene **12281 nodos** y **29289 relaciones** repartidos en
 **32 módulos de dominio** en `src/modules/`, de los cuales
 todos están registrados en `src/app.module.ts` (comprobado sobre el fichero, no supuesto).
 
-El grafo cubre **715 de 739**
-ficheros TypeScript de `src/` (97 %).
+El grafo cubre **715 de 741**
+ficheros TypeScript de `src/` (96 %).
 **1 módulo(s) de dominio no aparecen en absoluto**: `atlas-callback`. Consultar el grafo sobre ellos no devuelve nada, así que su documentación **no** se deriva de aquí.
 
 ## Inventario cuantitativo
@@ -112,11 +112,12 @@ Es la dirección que más daño hace: sobre un fichero ausente el grafo no devue
 consulta vacía se lee igual que «no existe». Por eso los catálogos del portal se generan del
 código y del contrato, nunca de este grafo.
 
-**24 de 739** ficheros `.ts` de `src/` no aparecen en el grafo, incluidos **1 módulo(s) completos** (`atlas-callback`). Se listan los primeros 20:
+**26 de 741** ficheros `.ts` de `src/` no aparecen en el grafo, incluidos **1 módulo(s) completos** (`atlas-callback`). Se listan los primeros 20:
 
 - `src/common/observability/redacting-span-processor.ts`
 - `src/common/observability/sql-redaction.ts`
 - `src/common/time/clock.ts`
+- `src/modules/artifacts/version-contributors.ts`
 - `src/modules/atlas-callback/atlas-callback.dispatcher.ts`
 - `src/modules/atlas-callback/atlas-callback.module.ts`
 - `src/modules/atlas-callback/atlas-callback.service.ts`
@@ -128,12 +129,11 @@ código y del contrato, nunca de este grafo.
 - `src/modules/qa-lab/qa-fakers.module.ts`
 - `src/modules/qa-lab/qa-fakers.service.ts`
 - `src/modules/qa-lab/qa-run-summary.ts`
+- `src/modules/risk-governance/consent-replica-caller.ts`
 - `src/modules/risk-governance/enabling-basis.ts`
 - `src/modules/workers/identity-verification/core/forensics/document-color.ts`
 - `src/modules/workers/identity-verification/document-capture-source.ts`
 - `src/modules/workers/storage-references.controller.ts`
-- `src/pdf-worker/templates/documents/blank-form/1.0.0/preview.fixture.ts`
-- `src/pdf-worker/templates/documents/blank-form/1.0.0/schema.ts`
 
 ## Riesgos identificados
 

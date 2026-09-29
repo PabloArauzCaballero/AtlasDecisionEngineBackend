@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/risk-governance/`](https://github.com/) · 10 ficheros TypeScript.
+Código: [`src/modules/risk-governance/`](https://github.com/) · 11 ficheros TypeScript.
 
 Etiquetas de API: **Risk Governance**.
 
@@ -36,6 +36,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `OPERATIONS`, `RISK_ANALY
 - `CONSENT_GRANT_REPLAYED`
 - `CONSENT_REVOCATION_IN_FUTURE`
 - `CONSENT_REVOCATION_STALE`
+- `CONSENT_WRITE_MACHINE_ONLY`
 - `ENABLING_BASIS_INVALID`
 - `EXPOSURE_LIMIT_EXCEEDED`
 - `MODEL_VALIDATION_NOT_INDEPENDENT`

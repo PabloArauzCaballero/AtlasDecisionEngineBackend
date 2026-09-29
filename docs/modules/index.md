@@ -8,7 +8,7 @@ real: sus controladores, sus etiquetas de API, sus roles exigidos y sus códigos
 
 | Módulo | Endpoints | Roles exigidos | Ficheros |
 | --- | ---: | --- | ---: |
-| [`artifacts`](artifacts.md) | 13 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, OPERATIONS, QA_ANALYST, RISK_ANALYST | 12 |
+| [`artifacts`](artifacts.md) | 13 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, OPERATIONS, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 13 |
 | [`atlas-callback`](atlas-callback.md) | 0 | — | 3 |
 | [`audit-query`](audit-query.md) | 7 | AUDITOR, COMPLIANCE, OPERATIONS, RISK_ANALYST | 8 |
 | [`calculated-fields`](calculated-fields.md) | 14 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 14 |
@@ -20,7 +20,7 @@ real: sus controladores, sus etiquetas de API, sus roles exigidos y sus códigos
 | [`health`](health.md) | 5 | — | 4 |
 | [`identity-session`](identity-session.md) | 6 | — | 8 |
 | [`libraries`](libraries.md) | 3 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 6 |
-| [`live-execution`](live-execution.md) | 1 | FRAUD_ANALYST, QA_ANALYST, RISK_ANALYST | 3 |
+| [`live-execution`](live-execution.md) | 1 | FRAUD_ANALYST, QA_ANALYST | 3 |
 | [`manual-review`](manual-review.md) | 5 | FRAUD_ANALYST, OPERATIONS, RISK_ANALYST | 8 |
 | [`model-monitoring`](model-monitoring.md) | 8 | AUDITOR, COMPLIANCE, OPERATIONS, RISK_ANALYST, RISK_APPROVER | 12 |
 | [`nested-trees`](nested-trees.md) | 5 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, QA_ANALYST, RISK_ANALYST | 9 |
@@ -29,8 +29,8 @@ real: sus controladores, sus etiquetas de API, sus roles exigidos y sus códigos
 | [`outcome-ingestion`](outcome-ingestion.md) | 4 | AUDITOR, COMPLIANCE, OPERATIONS, RISK_ANALYST, RISK_APPROVER | 6 |
 | [`platform-catalog`](platform-catalog.md) | 1 | AUDITOR, COMPLIANCE, OPERATIONS, PLATFORM_ADMIN | 8 |
 | [`qa-lab`](qa-lab.md) | 7 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 19 |
-| [`risk-governance`](risk-governance.md) | 12 | AUDITOR, COMPLIANCE, OPERATIONS, RISK_ANALYST, RISK_APPROVER | 10 |
-| [`runtime`](runtime.md) | 3 | FRAUD_ANALYST, QA_ANALYST, RISK_ANALYST | 14 |
+| [`risk-governance`](risk-governance.md) | 12 | AUDITOR, COMPLIANCE, OPERATIONS, RISK_ANALYST, RISK_APPROVER | 11 |
+| [`runtime`](runtime.md) | 3 | FRAUD_ANALYST, QA_ANALYST | 14 |
 | [`security-review`](security-review.md) | 2 | — | 4 |
 | [`seeding`](seeding.md) | 0 | — | 2 |
 | [`sql-console`](sql-console.md) | 4 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, RISK_ANALYST, RISK_APPROVER | 13 |

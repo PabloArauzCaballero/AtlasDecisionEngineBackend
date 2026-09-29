@@ -64,6 +64,12 @@ dato sin base.
   caído. `RecordConsentDto.consentVersion` (opcional) guarda la versión del texto.
 - Credenciales: no se amplía ningún scope de runtime. Las bases se registran por el plano de
   gestión (roles `COMPLIANCE`/`OPERATIONS`), como ya hacía el core.
+- **Un solo lugar (2026-09-29):** los consentimientos se registran y se revocan en **Atlas Core**
+  (Portal admin ▸ Proveedores externos ▸ Datos del cliente, y la app del cliente). El motor sólo
+  los consulta y los aplica. Las dos rutas de escritura exigen además una credencial de máquina
+  (API key: la réplica de Core); una sesión de persona recibe `403 CONSENT_WRITE_MACHINE_ONLY`
+  (`src/modules/risk-governance/consent-replica-caller.ts`). La consulta
+  (`consents/lookup`) no cambia.
 
 ### D-09.4 Riesgo de despliegue (decide **M** con **C**)
 

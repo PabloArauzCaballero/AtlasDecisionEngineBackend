@@ -8835,6 +8835,7 @@
     },
     "/v1/risk-governance/consents": {
       "post": {
+        "description": "Sólo la réplica de Atlas Core (credencial de máquina). Una sesión de persona recibe 403 CONSENT_WRITE_MACHINE_ONLY.",
         "operationId": "riskGovernanceRecordConsent",
         "parameters": [],
         "requestBody": {
@@ -8882,6 +8883,7 @@
     },
     "/v1/risk-governance/consents/revoke": {
       "post": {
+        "description": "Sólo la réplica de Atlas Core (credencial de máquina). Una sesión de persona recibe 403 CONSENT_WRITE_MACHINE_ONLY.",
         "operationId": "riskGovernanceRevokeConsent",
         "parameters": [],
         "requestBody": {

@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/artifacts/`](https://github.com/) · 12 ficheros TypeScript.
+Código: [`src/modules/artifacts/`](https://github.com/) · 13 ficheros TypeScript.
 
 Etiquetas de API: **Decision Artifacts**.
 
@@ -30,7 +30,7 @@ Etiquetas de API: **Decision Artifacts**.
 
 ## Autorización
 
-Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATIONS`, `QA_ANALYST`, `RISK_ANALYST`. La decisión es del servidor (`RolesGuard`), nunca del frontend.
+Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATIONS`, `PLATFORM_ADMIN`, `QA_ANALYST`, `RISK_ANALYST`. La decisión es del servidor (`RolesGuard`), nunca del frontend.
 
 ## Códigos de error propios
 
