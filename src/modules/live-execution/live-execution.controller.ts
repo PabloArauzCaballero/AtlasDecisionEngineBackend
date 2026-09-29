@@ -50,7 +50,7 @@ export class LiveExecutionController {
       'Flujo de eventos SSE. Cada mensaje es un `LiveStepEvent` serializado en el campo `data:`.',
     content: { 'text/event-stream': { schema: { type: 'string', format: 'binary' } } },
   })
-  @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST')
   stream(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,

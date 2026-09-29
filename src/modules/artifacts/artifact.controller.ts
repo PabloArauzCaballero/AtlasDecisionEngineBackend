@@ -47,7 +47,7 @@ export class ArtifactController {
     description: 'Artefacto creado con su primera versión DRAFT.',
     type: ArtifactCreatedDto,
   })
-  @Roles('RISK_ANALYST', 'FRAUD_ANALYST')
+  @Roles('PLATFORM_ADMIN')
   create(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -103,7 +103,7 @@ export class ArtifactController {
     description: 'Nueva versión DRAFT clonada.',
     type: ArtifactVersionClonedDto,
   })
-  @Roles('RISK_ANALYST', 'FRAUD_ANALYST')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST')
   clone(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -124,7 +124,7 @@ export class ArtifactController {
     description: 'Grafo reemplazado; proyección mínima tras la escritura.',
     type: VersionWriteResultDto,
   })
-  @Roles('RISK_ANALYST', 'FRAUD_ANALYST')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST')
   replaceGraph(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -144,7 +144,7 @@ export class ArtifactController {
   @Patch('artifact-versions/:versionId/notes')
   @ApiOperation({ summary: 'Update non-executable authoring notes on an editable version' })
   @ApiOkResponse({ description: 'Notas actualizadas.', type: VersionWriteResultDto })
-  @Roles('RISK_ANALYST', 'FRAUD_ANALYST')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST')
   updateNotes(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -171,7 +171,7 @@ export class ArtifactController {
     description: 'Finalidad y base legal actualizadas.',
     type: ProcessingBasisResultDto,
   })
-  @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'COMPLIANCE')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST', 'COMPLIANCE')
   updateProcessingBasis(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -189,7 +189,7 @@ export class ArtifactController {
   @Post('artifact-versions/:versionId/validate')
   @ApiOperation({ summary: 'Validate graph structure, expressions and determinism' })
   @ApiCreatedResponse({ description: 'Informe de validación.', type: GraphValidationReportDto })
-  @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST')
   validate(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -201,7 +201,7 @@ export class ArtifactController {
   @Post('artifact-versions/:versionId/compile')
   @ApiOperation({ summary: 'Compile a valid version into an immutable runtime payload' })
   @ApiCreatedResponse({ description: 'Artefacto compilado.', type: CompiledArtifactSummaryDto })
-  @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST')
   compile(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -216,7 +216,7 @@ export class ArtifactController {
     description: 'Resultado combinado de validación y compilación.',
     type: ValidateAndCompileResultDto,
   })
-  @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST')
   validateAndCompile(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,

@@ -79,7 +79,7 @@ export class CalculatedFieldController {
     description: 'Resultado de la ejecución de prueba del borrador.',
     type: CalculatedFieldPreviewTryRunDto,
   })
-  @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'PLATFORM_ADMIN')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST', 'PLATFORM_ADMIN')
   previewTry(@TenantId() tenantId: bigint, @Body() dto: PreviewTryCalculatedFieldDto) {
     return this.preview.tryRun(tenantId, dto.definition, dto.inputs);
   }
@@ -94,7 +94,7 @@ export class CalculatedFieldController {
     description: 'Lote de entradas generadas, con la semilla que las reproduce.',
     type: VersionSampleInputsDto,
   })
-  @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST', 'PLATFORM_ADMIN')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST', 'PLATFORM_ADMIN')
   previewSampleInputs(@Body() dto: PreviewSampleCalculatedFieldInputsDto) {
     return this.preview.samplesOf(dto.definition.inputs, dto);
   }
@@ -108,7 +108,7 @@ export class CalculatedFieldController {
     description: 'Informe de los casos declarados en el borrador.',
     type: CalculatedFieldTestReportDto,
   })
-  @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'PLATFORM_ADMIN')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST', 'PLATFORM_ADMIN')
   previewTest(@TenantId() tenantId: bigint, @Body() dto: PreviewCalculatedFieldDto) {
     return this.preview.runTestCases(tenantId, dto.definition);
   }
@@ -123,7 +123,7 @@ export class CalculatedFieldController {
     description: 'Cobertura de desenlaces del borrador.',
     type: CalculatedFieldOutcomeCoverageReportDto,
   })
-  @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'PLATFORM_ADMIN')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST', 'PLATFORM_ADMIN')
   previewOutcomes(@TenantId() tenantId: bigint, @Body() dto: PreviewOutcomeCoverageDto) {
     return this.preview.outcomeCoverage(tenantId, dto.definition, dto);
   }
@@ -150,7 +150,7 @@ export class CalculatedFieldController {
   @Post()
   @ApiOperation({ summary: 'Crear un campo calculado' })
   @ApiCreatedResponse({ description: 'Campo creado.', type: CalculatedFieldCreatedDto })
-  @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'PLATFORM_ADMIN')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST', 'PLATFORM_ADMIN')
   create(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -169,7 +169,7 @@ export class CalculatedFieldController {
     description: 'Versión creada en DRAFT.',
     type: CalculatedFieldVersionCreatedDto,
   })
-  @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'PLATFORM_ADMIN')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST', 'PLATFORM_ADMIN')
   createVersion(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -182,7 +182,7 @@ export class CalculatedFieldController {
   @Post('versions/:versionId/promote')
   @ApiOperation({ summary: 'Promover una versión en su ciclo de gobierno' })
   @ApiCreatedResponse({ description: 'Versión promovida.', type: CalculatedFieldPromotedDto })
-  @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'COMPLIANCE', 'PLATFORM_ADMIN')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST', 'COMPLIANCE', 'PLATFORM_ADMIN')
   promote(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -198,7 +198,7 @@ export class CalculatedFieldController {
     description: 'Resultado de la ejecución de prueba.',
     type: CalculatedFieldTryRunDto,
   })
-  @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST', 'PLATFORM_ADMIN')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST', 'PLATFORM_ADMIN')
   tryRun(
     @TenantId() tenantId: bigint,
     @Param('versionId') versionId: string,
@@ -217,7 +217,7 @@ export class CalculatedFieldController {
     description: 'Lote de entradas generadas, con la semilla que las reproduce.',
     type: VersionSampleInputsDto,
   })
-  @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST', 'PLATFORM_ADMIN')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST', 'PLATFORM_ADMIN')
   sampleInputs(
     @TenantId() tenantId: bigint,
     @Param('versionId') versionId: string,
@@ -236,7 +236,7 @@ export class CalculatedFieldController {
     description: 'Cobertura de desenlaces de la versión.',
     type: CalculatedFieldOutcomeCoverageReportDto,
   })
-  @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST', 'PLATFORM_ADMIN')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST', 'PLATFORM_ADMIN')
   async outcomes(
     @TenantId() tenantId: bigint,
     @Param('versionId') versionId: string,
@@ -255,7 +255,7 @@ export class CalculatedFieldController {
     description: 'Informe de los casos de prueba declarados.',
     type: CalculatedFieldTestReportDto,
   })
-  @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST', 'PLATFORM_ADMIN')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST', 'PLATFORM_ADMIN')
   test(@TenantId() tenantId: bigint, @Param('versionId') versionId: string) {
     return this.fields.runTestCases(tenantId, parseBigIntId(versionId, 'versionId'));
   }

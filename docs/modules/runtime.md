@@ -20,7 +20,7 @@ Etiquetas de API: **Decision Runtime**, **Decision Simulation**.
 
 ## Autorización
 
-Roles exigidos por sus rutas: `FRAUD_ANALYST`, `QA_ANALYST`, `RISK_ANALYST`. La decisión es del servidor (`RolesGuard`), nunca del frontend.
+Roles exigidos por sus rutas: `FRAUD_ANALYST`, `QA_ANALYST`. La decisión es del servidor (`RolesGuard`), nunca del frontend.
 
 ## Códigos de error propios
 

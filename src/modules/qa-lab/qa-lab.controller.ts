@@ -60,7 +60,7 @@ export class QaLabController {
       'Corrida aceptada y en marcha. Los contadores llegan a cero y se van llenando: `configJson.plannedCases` dice cuántos casos se van a ejecutar.',
     type: QaRunDto,
   })
-  @Roles('QA_ANALYST', 'RISK_ANALYST', 'FRAUD_ANALYST', 'PLATFORM_ADMIN')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST', 'PLATFORM_ADMIN')
   run(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -94,7 +94,7 @@ export class QaLabController {
     description: 'Lote de entradas generadas del contrato de la versión.',
     type: VersionSampleInputsDto,
   })
-  @Roles('QA_ANALYST', 'RISK_ANALYST', 'FRAUD_ANALYST', 'PLATFORM_ADMIN')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST', 'PLATFORM_ADMIN')
   sampleInputs(
     @TenantId() tenantId: bigint,
     @Param('versionId') versionId: string,
@@ -110,7 +110,7 @@ export class QaLabController {
       'Reejecuta la entrada reducida con la CLASE del caso original (válido, frontera o inválido) y, si la propiedad violada es DETERMINISM, varias veces comparando el resultado.',
   })
   @ApiCreatedResponse({ description: 'Resultado de la reproducción.', type: QaReplayResultDto })
-  @Roles('QA_ANALYST', 'RISK_ANALYST', 'FRAUD_ANALYST', 'PLATFORM_ADMIN')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST', 'PLATFORM_ADMIN')
   replay(@TenantId() tenantId: bigint, @Param('counterexampleId') counterexampleId: string) {
     return this.qaLab.replay(tenantId, parseBigIntId(counterexampleId, 'counterexampleId'));
   }

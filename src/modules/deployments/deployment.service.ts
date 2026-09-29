@@ -11,6 +11,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { AdvisoryLockDomain, advisoryLockKey } from '../../common/prisma/advisory-lock';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
 import { VersionStateService } from '../artifacts/version-state.service';
+import { isVersionContributor } from '../artifacts/version-contributors';
 import { GovernanceService } from '../governance/governance.service';
 import {
   DeployVersionDto,
@@ -60,7 +61,7 @@ export class DeploymentService {
         'Artifact version not found',
         HttpStatus.NOT_FOUND,
       );
-    if (version.createdBy === principal.id) {
+    if (await isVersionContributor(this.prisma, version, principal.id)) {
       throw new DomainException(
         'SEPARATION_OF_DUTIES_VIOLATION',
         'The version author cannot deploy the same version alone',

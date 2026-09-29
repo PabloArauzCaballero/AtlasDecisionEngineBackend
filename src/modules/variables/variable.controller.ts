@@ -68,7 +68,7 @@ export class VariableController {
 
   @Post('variables')
   @ApiOperation({ summary: 'Create a governed variable definition and initial version' })
-  @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'PLATFORM_ADMIN')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST', 'PLATFORM_ADMIN')
   create(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -94,7 +94,7 @@ export class VariableController {
 
   @Post('variables/:definitionId/versions')
   @ApiOperation({ summary: 'Create a new immutable variable version' })
-  @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'PLATFORM_ADMIN')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST', 'PLATFORM_ADMIN')
   createVersion(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -112,7 +112,7 @@ export class VariableController {
   @Post('reason-codes')
   @ApiOperation({ summary: 'Create a governed explanation reason code' })
   @ApiCreatedResponse({ description: 'Código de razón creado.', type: ReasonCodeCreatedDto })
-  @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'COMPLIANCE')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST')
   createReason(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,

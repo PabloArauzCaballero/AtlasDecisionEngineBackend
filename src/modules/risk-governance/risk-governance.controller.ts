@@ -1,4 +1,5 @@
 /** Gobierno del riesgo: apetito de cartera, licitud vigente, calibración y expediente. */
+import { assertConsentReplicaCaller } from './consent-replica-caller';
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentPrincipal, Roles, TenantId } from '../../common/security/security.decorators';
@@ -92,7 +93,11 @@ export class RiskGovernanceController {
 
   @Post('consents')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Record a data subject consent with its validity window' })
+  @ApiOperation({
+    summary: 'Record a data subject consent with its validity window',
+    description:
+      'Sólo la réplica de Atlas Core (credencial de máquina). Una sesión de persona recibe 403 CONSENT_WRITE_MACHINE_ONLY.',
+  })
   @ApiOkResponse({ description: 'Permiso registrado.', type: GovernanceWriteResultDto })
   @Roles('COMPLIANCE', 'OPERATIONS')
   recordConsent(
@@ -100,12 +105,17 @@ export class RiskGovernanceController {
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Body() dto: RecordConsentDto,
   ) {
+    assertConsentReplicaCaller(principal);
     return this.governance.recordConsent(tenantId, dto, principal);
   }
 
   @Post('consents/revoke')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Revoke a consent' })
+  @ApiOperation({
+    summary: 'Revoke a consent',
+    description:
+      'Sólo la réplica de Atlas Core (credencial de máquina). Una sesión de persona recibe 403 CONSENT_WRITE_MACHINE_ONLY.',
+  })
   @ApiOkResponse({ description: 'Permiso revocado.', type: GovernanceWriteResultDto })
   @Roles('COMPLIANCE', 'OPERATIONS')
   revokeConsent(
@@ -113,6 +123,7 @@ export class RiskGovernanceController {
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Body() dto: RevokeConsentDto,
   ) {
+    assertConsentReplicaCaller(principal);
     return this.governance.revokeConsent(tenantId, dto, principal);
   }
 

@@ -1,6 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { managementHeaders } from './headers';
+import { artifactCreatorHeaders, managementHeaders } from './headers';
 import { seededVariableVersionId } from './seeded-variables';
 
 /**
@@ -49,7 +49,7 @@ export function provisionDemoArtifact(app: INestApplication): Promise<void> {
 
 async function provisionar(app: INestApplication): Promise<void> {
   const server = () => app.getHttpServer();
-  const autor = managementHeaders('e2e.demo-author', ['RISK_ANALYST']);
+  const autor = managementHeaders('e2e.author');
   const qa = managementHeaders('e2e.demo-qa', ['QA_ANALYST']);
   const riesgo = managementHeaders('e2e.demo-risk', ['RISK_APPROVER']);
   const desplegador = managementHeaders('e2e.demo-admin', ['PLATFORM_ADMIN']);
@@ -101,7 +101,7 @@ async function provisionar(app: INestApplication): Promise<void> {
   } else {
     const artefacto = await request(server())
       .post('/v1/artifacts')
-      .set(autor)
+      .set(artifactCreatorHeaders())
       .send({
         artifactCode: CODIGO,
         artifactType: 'CREDIT_POLICY',

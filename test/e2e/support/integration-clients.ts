@@ -33,11 +33,29 @@ export const E2E_CLIENTS = {
     audience: 'management',
     roles: ALL_MANAGEMENT_ROLES,
   },
+  // Quien ESCRIBE la regla: los roles de autoría de la doc de segregación
+  // (docs/security/roles-y-autoria-de-artefactos.md). RISK_ANALYST no programa, así que no está.
   author: {
     clientKey: 'e2e-author',
     secret: 'e2e-author-secret-0123456789abcdef',
     audience: 'management',
-    roles: ['RISK_ANALYST', 'QA_ANALYST'],
+    roles: ['QA_ANALYST', 'FRAUD_ANALYST'],
+  },
+  // Quien DA DE ALTA el artefacto: sólo PLATFORM_ADMIN. Es una credencial distinta de la de
+  // `platformAdmin` a propósito: el alta deja a su titular como creador de la versión 1, y la
+  // separación de funciones le impide desplegarla; en una instalación real también son dos
+  // administradores distintos.
+  artifactCreator: {
+    clientKey: 'e2e-artifact-creator',
+    secret: 'e2e-artifact-creator-secret-0123456789abcdef',
+    audience: 'management',
+    roles: ['PLATFORM_ADMIN'],
+  },
+  fraudAnalyst: {
+    clientKey: 'e2e-fraud',
+    secret: 'e2e-fraud-secret-0123456789abcdef', // gitleaks:allow — fixture inventado
+    audience: 'management',
+    roles: ['FRAUD_ANALYST'],
   },
   auditor: {
     clientKey: 'e2e-auditor',

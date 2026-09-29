@@ -1,7 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { createTestApp } from './support/test-app';
-import { managementHeaders } from './support/headers';
+import { artifactCreatorHeaders, managementHeaders } from './support/headers';
 
 /**
  * Exercises the Code -> Flow import pipeline (Fase 5) end to end against a real
@@ -12,7 +12,8 @@ describe('Code to Flow import (e2e)', () => {
   let app: INestApplication;
   const server = () => app.getHttpServer();
   const runId = Date.now();
-  const author = managementHeaders('e2e.code-import-author', ['RISK_ANALYST']);
+  const author = managementHeaders('e2e.author');
+  const creator = artifactCreatorHeaders();
   const qaApprover = managementHeaders('e2e.code-import-qa', ['QA_ANALYST']);
   const riskApprover = managementHeaders('e2e.code-import-risk', ['RISK_APPROVER']);
   const deployer = managementHeaders('e2e.code-import-deployer', ['PLATFORM_ADMIN']);
@@ -108,7 +109,7 @@ const x = ;
 
     const artifact = await request(server())
       .post('/v1/artifacts')
-      .set(author)
+      .set(creator)
       .send({
         artifactCode: `E2E_CODE_IMPORT_BLOCKED_${runId}`,
         artifactType: 'CREDIT_POLICY',
@@ -135,7 +136,7 @@ const x = ;
 
     const artifact = await request(server())
       .post('/v1/artifacts')
-      .set(author)
+      .set(creator)
       .send({
         artifactCode: `E2E_CODE_IMPORT_DRAFT_${runId}`,
         artifactType: 'CREDIT_POLICY',
@@ -181,7 +182,7 @@ const x = ;
 
     const artifact = await request(server())
       .post('/v1/artifacts')
-      .set(author)
+      .set(creator)
       .send({
         artifactCode: `E2E_CODE_IMPORT_CONFIRM_${runId}`,
         artifactType: 'CREDIT_POLICY',

@@ -1,7 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { createTestApp } from './support/test-app';
-import { managementHeaders } from './support/headers';
+import { artifactCreatorHeaders, managementHeaders } from './support/headers';
 import { seededVariableVersionId } from './support/seeded-variables';
 
 /**
@@ -18,9 +18,10 @@ describe('Notifications inbox (e2e)', () => {
   const server = () => app.getHttpServer();
   const runId = Date.now();
   const artifactCode = `E2E_NOTIFICATIONS_${runId}`;
-  // The author holds RISK_ANALYST + QA_ANALYST; the reviewer credentials hold exactly one
+  // The author holds QA_ANALYST + FRAUD_ANALYST; the reviewer credentials hold exactly one
   // role each, which is what makes the "only my role's notifications" assertions real.
   const author = managementHeaders('e2e.author');
+  const creator = artifactCreatorHeaders();
   const qaAnalyst = managementHeaders('e2e.qa-approver');
   const auditor = managementHeaders('e2e.notifications-auditor', ['AUDITOR']);
 
@@ -60,7 +61,7 @@ describe('Notifications inbox (e2e)', () => {
 
     const created = await request(server())
       .post('/v1/artifacts')
-      .set(author)
+      .set(creator)
       .send({
         artifactCode,
         artifactType: 'CREDIT_POLICY',

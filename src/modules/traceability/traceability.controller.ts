@@ -31,7 +31,7 @@ export class TraceabilityController {
     description: 'Objetivo creado con sus políticas.',
     type: BusinessObjectiveCreatedDto,
   })
-  @Roles('RISK_ANALYST', 'COMPLIANCE')
+  @Roles('COMPLIANCE')
   create(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,

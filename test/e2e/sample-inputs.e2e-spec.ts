@@ -19,7 +19,7 @@ describe('Valores de prueba del simulador (e2e)', () => {
   const runId = Date.now();
   // El artefacto de la demo está desplegado en DEV, STAGING, TEST y PROD por el seeder.
   const ARTIFACT_CODE = 'BNPL_CREDIT_DECISION';
-  const analyst = managementHeaders('e2e.sample-inputs', ['RISK_ANALYST']);
+  const analyst = managementHeaders('e2e.author');
 
   beforeAll(async () => {
     app = await createTestApp();

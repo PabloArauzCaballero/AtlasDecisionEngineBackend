@@ -57,9 +57,14 @@ describe('GovernanceService — guardas de aprobación', () => {
     };
   }
 
-  function service(found: Record<string, unknown> | null) {
+  function service(found: Record<string, unknown> | null, graphEditors: string[] = []) {
     const prisma = {
       decisionApprovalStep: { findFirst: () => Promise.resolve(found) },
+      // La bitácora de guardados del grafo: quién TOCÓ la regla, además de quién creó la versión.
+      decisionChangeLog: {
+        findFirst: ({ where }: { where: { changedBy: string } }) =>
+          Promise.resolve(graphEditors.includes(where.changedBy) ? { id: 1n } : null),
+      },
       decisionArtifactVersion: { findFirst: () => Promise.resolve(null) },
       $transaction: (fn: (tx: unknown) => Promise<unknown>) =>
         fn({
@@ -81,10 +86,38 @@ describe('GovernanceService — guardas de aprobación', () => {
 
   const dto = { decision: 'APPROVE', comments: 'ok' } as RecordApprovalDecisionDto;
 
-  const decide = (found: Record<string, unknown> | null, who: AuthenticatedPrincipal) =>
-    service(found)
+  const decide = (
+    found: Record<string, unknown> | null,
+    who: AuthenticatedPrincipal,
+    graphEditors: string[] = [],
+  ) =>
+    service(found, graphEditors)
       .recordDecision(TENANT, STEP, dto, who)
       .catch((caught: unknown) => caught);
+
+  /*
+   * Desde que el alta de artefacto es de PLATFORM_ADMIN y la autoría de QA/FRAUD, la versión 1
+   * la crea una persona y la regla la escribe otra. Si la separación sólo mirase `createdBy`,
+   * quien dibujó el grafo podría firmar el paso de QA de su propia regla.
+   */
+  it('quien guardó el grafo de la versión no la aprueba, aunque no la haya creado', async () => {
+    const error = await decide(
+      step({ requiredRole: 'QA_ANALYST' }),
+      principal('bea', ['QA_ANALYST']),
+      ['bea'],
+    );
+    expect((error as DomainException).code).toBe('SEPARATION_OF_DUTIES_VIOLATION');
+    expect((error as DomainException).status).toBe(403);
+  });
+
+  it('un revisor que no tocó la versión sí la aprueba', async () => {
+    const result = await decide(
+      step({ requiredRole: 'QA_ANALYST' }),
+      principal('carla', ['QA_ANALYST']),
+      ['bea'],
+    );
+    expect(result).not.toBeInstanceOf(DomainException);
+  });
 
   it('un paso de otro tenant es 404', async () => {
     const error = await decide(null, principal('ana', ['RISK_APPROVER']));

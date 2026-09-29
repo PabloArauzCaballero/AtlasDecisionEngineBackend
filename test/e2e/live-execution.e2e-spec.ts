@@ -1,7 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { createTestApp } from './support/test-app';
-import { managementHeaders } from './support/headers';
+import { artifactCreatorHeaders, managementHeaders } from './support/headers';
 import { seededVariableVersionId } from './support/seeded-variables';
 
 /**
@@ -12,7 +12,8 @@ describe('Live execution (e2e)', () => {
   let app: INestApplication;
   const server = () => app.getHttpServer();
   const runId = Date.now();
-  const author = managementHeaders('e2e.live-execution-author', ['RISK_ANALYST']);
+  const author = managementHeaders('e2e.author');
+  const creator = artifactCreatorHeaders();
   const qaApprover = managementHeaders('e2e.live-execution-qa', ['QA_ANALYST']);
   const riskApprover = managementHeaders('e2e.live-execution-risk', ['RISK_APPROVER']);
   const deployer = managementHeaders('e2e.live-execution-deployer', ['PLATFORM_ADMIN']);
@@ -44,7 +45,7 @@ describe('Live execution (e2e)', () => {
     artifactCode = `E2E_LIVE_EXECUTION_${runId}`;
     const created = await request(server())
       .post('/v1/artifacts')
-      .set(author)
+      .set(creator)
       .send({
         artifactCode,
         artifactType: 'CREDIT_POLICY',
