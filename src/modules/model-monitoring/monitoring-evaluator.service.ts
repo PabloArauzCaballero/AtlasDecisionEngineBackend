@@ -20,6 +20,10 @@ import { JobName } from '../../common/jobs/job-names';
 import { JobSchedulerService } from '../../common/jobs/job-scheduler.service';
 import { MetricsService } from '../../common/observability/metrics.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import {
+  DecisionEventType,
+  type MonitoringBreachDetectedPayload,
+} from '../../common/events/event-types';
 import { OutboxPublisherService } from '../../common/events/outbox-publisher.service';
 import {
   adverseImpactRatios,
@@ -396,7 +400,7 @@ export class MonitoringEvaluatorService implements OnModuleInit, BackgroundJob {
       if (verdict === MonitoringVerdict.BREACH) {
         await this.outbox.publish(tx, {
           tenantId: version.tenantId,
-          eventType: 'MONITORING_BREACH_DETECTED',
+          eventType: DecisionEventType.MONITORING_BREACH_DETECTED,
           aggregateType: 'MonitoringEvaluation',
           aggregateId: version.artifactVersionId.toString(),
           // El actor es el propio trabajo. Poner aquí un usuario sería mentir sobre quién lo
@@ -409,7 +413,7 @@ export class MonitoringEvaluatorService implements OnModuleInit, BackgroundJob {
             value: measurement.value,
             threshold: thresholdOf(measurement.metricCode),
             sampleSize: measurement.sampleSize,
-          },
+          } satisfies MonitoringBreachDetectedPayload,
         });
       }
     });

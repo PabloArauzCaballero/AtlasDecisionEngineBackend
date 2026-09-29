@@ -9,6 +9,7 @@ seeders idempotentes y utilidades de datos de prueba.
 usa `atlas_app` para hacer efectiva RLS. Nunca se corrige deriva reescribiendo una migración aplicada.
 
 `seed.ts` es la ÚNICA entrada de siembra automática: la que ejecuta el Job de despliegue y la que
-invoca `prisma db seed`. Los guiones de mano y los datos de prueba viven aparte, en
-[`dev-seeds/`](dev-seeds/README.md), y ninguna imagen los lleva. Estaban sueltos en esta carpeta,
-al lado del fichero que corre en producción.
+invoca `prisma db seed`. Los guiones de mano y los datos de prueba vivían en `prisma/dev-seeds/`
+hasta el commit `c4084c9` («Mover las semillas del repositorio a una rama de PostgreSQL»): hoy
+el catálogo y el artefacto de demostración se publican en una rama de PostgreSQL y se traen con
+`yarn prisma:seed` (`SEED_SOURCE_*`), y esa carpeta ya no existe en el repositorio.

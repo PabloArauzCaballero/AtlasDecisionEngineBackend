@@ -82,7 +82,7 @@ Las marcas sí viajan en `result.riskFlags` del nodo, que es lo que ve quien rev
 ## Lo que prueban las pruebas, y lo que no
 
 `test/identity-escaner-del-sistema.spec.ts`, con las cédulas **dibujadas** de
-`fixtures/identity-card.ts` (ningún dato ni foto de una persona real):
+`src/modules/workers/identity-verification/fixtures/identity-card.ts` (ningún dato ni foto de una persona real):
 
 - con `camera`, el desenlace entero es el mismo que sin origen, campo por campo;
 - con `system_scanner` sobre una tarjeta ya recortada, no se llama al recorte y lo que decide

@@ -31,6 +31,9 @@ describe('Guarda de transferencia internacional', () => {
     METRICS_TOKEN: 'metrics-token-with-at-least-24-characters',
     AUDIT_HASH_SECRET: 'audit-secret-with-at-least-32-characters-long',
     SWAGGER_ENABLED: 'false',
+    // Producción exige el aviso de vuelta a AtlasBackend completo (P1-7).
+    ATLAS_BACKEND_BASE_URL: 'http://atlas-backend:3005/api/v1',
+    ENGINE_CALLBACK_API_KEY: 'engine-callback-key',
   };
 
   const validate = (extra: Record<string, string>) =>

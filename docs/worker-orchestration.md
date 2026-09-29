@@ -90,6 +90,16 @@ punto donde antes decidía si arrancar su temporizador según `WORKER_ROLE`.
 | Relay del outbox | `outbox-relay` | `OutboxRelayService` | `pg_notify` de `OutboxPublisherService.publish` | Reparte eventos de dominio al bus en proceso. |
 | Corridas de prueba | `test-run` | `TestRunWorkerService` | `pg_notify` de `TestExecutionService.enqueueSuite`, y de sí mismo al liberar una ranura de concurrencia | Ejecuta suites de prueba encoladas. |
 | Purga de idempotencia | `runtime-retention` | `RetentionSweeperService` | Nada (`wakeChannel: null`) — puramente periódico | Borra filas de `decision_runtime_idempotency` vencidas, en lotes acotados. |
+| Vigilancia de modelos | `monitoring-evaluation` | `MonitoringEvaluatorService` | Nada (`wakeChannel: null`); cada `MONITORING_EVALUATION_INTERVAL_MS` (6 h) | Mide las versiones activas en producción, guarda el veredicto y publica `MONITORING_BREACH_DETECTED`. Apagable con `MONITORING_EVALUATION_ENABLED=false`. |
+| Análisis semántico | `semantic-analysis` | `SemanticRunWorkerService` | `pg_notify` de `SemanticAnalysisService` al encolar | Clasifica las glosas encoladas. Sólo con `SEMANTIC_ANALYSIS_WORKER_ENABLED=true`. |
+| Purga semántica | `semantic-retention` | `SemanticRetentionSweeperService` | Nada (`wakeChannel: null`); cada `SEMANTIC_ANALYSIS_RETENTION_SWEEP_INTERVAL_MS` | Minimiza y purga el texto analizado vencido. Corre donde corren los trabajos de fondo. |
+| Extractos bancarios | `bank-statement` | `BankStatementRunWorkerService` | `pg_notify` de `BankStatementService` y de la revisión de extractos | Convierte los extractos encolados. Sólo con `BANK_STATEMENT_WORKER_ENABLED=true`. |
+| Verificación de identidad | `identity-verification` | `IdentityRunWorkerService` | `pg_notify` de `IdentityVerificationService` y de la revisión de identidad | Documento, selfie y decisión. Sólo con `IDENTITY_VERIFICATION_WORKER_ENABLED=true`. |
+| Locución | `audio-tts` | `AudioTtsRunWorkerService` | `pg_notify` de `AudioTtsService` al encolar | Sintetiza el audio encolado. Sólo con `AUDIO_TTS_WORKER_ENABLED=true`. |
+
+Son los nueve de `src/common/jobs/job-names.ts`. Los cuatro workers de documentos están apagados
+por omisión en el esquema: cada despliegue los enciende por variable, y en producción encenderlos
+exige la configuración que comprueba `env.schema.ts`.
 
 La purga de retención declara `wakeChannel: null` a propósito: nada la hace urgente salvo
 el reloj, así que su mínimo y su máximo de retroceso son el mismo valor

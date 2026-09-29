@@ -70,12 +70,12 @@ El contenedor gVisor sin red sigue siendo la frontera exterior, pero la frontera
 **Corregido:** se portó `toNullProto` (elimina recursivamente el prototipo de los
 datos de decisión) y se neutraliza `Math.random` con un preámbulo ejecutado
 *dentro* del contexto, nunca con un objeto exterior.
-[runner/server.mjs](runner/server.mjs)
+[runner/server.mjs](../runner/server.mjs)
 
 Tras el cambio, la misma sonda: `viaVariables: "no-ctor"`, `viaMath: "blocked"`,
 `Math.random` bloqueado y `Math.floor` intacto.
 
-**Prueba:** [test/sidecar-sandbox-escape.spec.ts](test/sidecar-sandbox-escape.spec.ts)
+**Prueba:** [test/sidecar-sandbox-escape.spec.ts](../test/sidecar-sandbox-escape.spec.ts)
 ejecuta el envoltorio extraído del propio `runner/server.mjs` (no una copia) y,
 además, fija los invariantes de seguridad en ambos runners: la divergencia que
 causó el fallo ya no puede repetirse en silencio.
@@ -102,12 +102,12 @@ antes del nodo SCORE.
 cadena contra cadena; cualquier otra combinación lanza
 `EXPRESSION_INCOMPARABLE_OPERANDS` con un mensaje que no filtra el valor (puede
 ser PII). También se rechaza ordenar contra `NaN`/infinito.
-[src/modules/graph/expression-evaluator.ts](src/modules/graph/expression-evaluator.ts)
+[src/modules/graph/expression-evaluator.ts](../src/modules/graph/expression-evaluator.ts)
 
 Las 512 pruebas existentes siguen pasando: ningún artefacto ni prueba dependía
 del orden lexicográfico.
 
-**Prueba:** [test/expression-evaluator-operators.spec.ts](test/expression-evaluator-operators.spec.ts)
+**Prueba:** [test/expression-evaluator-operators.spec.ts](../test/expression-evaluator-operators.spec.ts)
 
 ## H3 — La política de datos faltantes tapaba fallos de infraestructura · **Alta**
 
@@ -122,9 +122,9 @@ para el cálculo", no como qué hacer ante una avería.
 **Corregido:** la política se aplica solo a una lista cerrada de códigos de dato
 ausente (`CALCULATED_FIELD_INPUT_MISSING`, `ARGUMENT_INVALID`,
 `CONVERSION_FAILED`, `DIVISION_BY_ZERO`). Todo lo demás se propaga.
-[src/modules/calculated-fields/calculated-field-runtime.ts](src/modules/calculated-fields/calculated-field-runtime.ts)
+[src/modules/calculated-fields/calculated-field-runtime.ts](../src/modules/calculated-fields/calculated-field-runtime.ts)
 
-**Prueba:** [test/calculated-fields.spec.ts](test/calculated-fields.spec.ts) —
+**Prueba:** [test/calculated-fields.spec.ts](../test/calculated-fields.spec.ts) —
 un fallo del runner ya no se defaultea; un dato realmente ausente sí.
 
 ## H4 — El proveedor externo de variables podía inyectar códigos · Media
@@ -138,9 +138,9 @@ contracts enter the engine".
 
 **Corregido:** solo se acepta lo que se pidió; se valida además la forma de la
 respuesta.
-[src/modules/variables/variable-resolution.service.ts](src/modules/variables/variable-resolution.service.ts)
+[src/modules/variables/variable-resolution.service.ts](../src/modules/variables/variable-resolution.service.ts)
 
-**Prueba:** [test/variable-resolution.spec.ts](test/variable-resolution.spec.ts)
+**Prueba:** [test/variable-resolution.spec.ts](../test/variable-resolution.spec.ts)
 
 ## H5 — `SET_FIELD` publicaba salidas sin pasar por el contrato · Media
 
@@ -155,9 +155,9 @@ para casi todas sus salidas.
 artefactos 1.0 —sin contrato— conservan la escritura libre, y `score` se valida
 solo si está declarado, para no convertir de golpe en error algo que ya
 funcionaba.
-[src/modules/graph/execution-engine.service.ts](src/modules/graph/execution-engine.service.ts)
+[src/modules/graph/execution-engine.service.ts](../src/modules/graph/execution-engine.service.ts)
 
-**Prueba:** [test/execution-engine-nodes.spec.ts](test/execution-engine-nodes.spec.ts)
+**Prueba:** [test/execution-engine-nodes.spec.ts](../test/execution-engine-nodes.spec.ts)
 
 ## H6 — Una decisión `FAILED` no dejaba evidencia · Media
 
@@ -172,9 +172,9 @@ un regulador.
 `DECISION_FAILED` en una sola transacción. La persistencia es best-effort a
 propósito: si lo que falló es la base de datos, el llamante recibe el error
 original, no uno que lo enmascare.
-[src/modules/runtime/runtime.service.ts](src/modules/runtime/runtime.service.ts)
+[src/modules/runtime/runtime.service.ts](../src/modules/runtime/runtime.service.ts)
 
-**Prueba:** [test/runtime-failed-audit.spec.ts](test/runtime-failed-audit.spec.ts)
+**Prueba:** [test/runtime-failed-audit.spec.ts](../test/runtime-failed-audit.spec.ts)
 
 ## H7 — La respuesta del sidecar no estaba acotada ni validada · Media
 
@@ -186,7 +186,7 @@ decisión.
 
 **Corregido:** cota de `maxOutputBytes + 4 KiB` con corte de la respuesta, y la
 misma validación de forma que la ruta en proceso.
-[src/modules/graph/script-node-runner.service.ts](src/modules/graph/script-node-runner.service.ts)
+[src/modules/graph/script-node-runner.service.ts](../src/modules/graph/script-node-runner.service.ts)
 
 ## H8 — La vista de dependencias cargaba todo el catálogo del tenant · Media
 
@@ -201,9 +201,9 @@ aristas configurable (`NESTED_TREE_GRAPH_MAX_EDGES`, por defecto 2000). Cuando
 recorta, lo **declara** en la respuesta (`truncated`, `maxEdges`) y lo registra:
 una vista que calla que dejó aristas fuera se lee como "estas son todas las
 dependencias". Se eliminó el helper `reachableWithinDepth`, ya muerto.
-[src/modules/nested-trees/nested-tree.service.ts](src/modules/nested-trees/nested-tree.service.ts)
+[src/modules/nested-trees/nested-tree.service.ts](../src/modules/nested-trees/nested-tree.service.ts)
 
-**Prueba:** [test/dependency-graph-bounded.spec.ts](test/dependency-graph-bounded.spec.ts)
+**Prueba:** [test/dependency-graph-bounded.spec.ts](../test/dependency-graph-bounded.spec.ts)
 
 ## H9 — El validador de migraciones bloqueaba el release por un falso negativo · Media
 
@@ -225,13 +225,13 @@ Un gate de seguridad que grita en falso se acaba ignorando, y la próxima vez qu
 acierte nadie lo creerá.
 
 **Corregido:** el validador reconoce también la forma dinámica.
-[scripts/validate-migrations.py](scripts/validate-migrations.py)
+[scripts/validate-migrations.py](../scripts/validate-migrations.py)
 
 Y como el análisis estático siempre irá por detrás de lo que se puede escribir en
 SQL, se añadió la comprobación autoritativa contra el catálogo vivo: enumera
 todas las tablas con `tenant_id` del schema y exige RLS habilitada, forzada y con
 política en la base real.
-**Prueba:** [test/tenant-rls-isolation.integration.spec.ts](test/tenant-rls-isolation.integration.spec.ts)
+**Prueba:** [test/tenant-rls-isolation.integration.spec.ts](../test/tenant-rls-isolation.integration.spec.ts)
 
 ## H10 — ERROR en cada apagado limpio del relay del outbox · Baja
 
@@ -244,7 +244,7 @@ pool.
 **Corregido:** el apagado espera al sondeo en curso, este sale antes si ya se está
 parando, y una interrupción por apagado se registra como `debug`, no como
 incidente.
-[src/modules/outbox-relay/outbox-relay.service.ts](src/modules/outbox-relay/outbox-relay.service.ts)
+[src/modules/outbox-relay/outbox-relay.service.ts](../src/modules/outbox-relay/outbox-relay.service.ts)
 
 ---
 
@@ -296,9 +296,9 @@ admisión —`RUNNER_MAX_CONCURRENCY` (4) y `RUNNER_MAX_QUEUE` (64)— porque fo
 sin límite solo movería el fallo: el contenedor limita `pids` a 64 y la CPU a 0.5.
 El exceso se rechaza con **503 `SCRIPT_RUNNER_BUSY`**, nunca con un 4xx: el script
 no llegó a ejecutarse, así que no es una decisión sobre la petición.
-[runner/server.mjs](runner/server.mjs) · [docker-compose.yml](docker-compose.yml)
+[runner/server.mjs](../runner/server.mjs) · [docker-compose.yml](../docker-compose.yml)
 
-**Prueba:** [test/sidecar-concurrency.spec.ts](test/sidecar-concurrency.spec.ts)
+**Prueba:** [test/sidecar-concurrency.spec.ts](../test/sidecar-concurrency.spec.ts)
 levanta el sidecar real sobre un socket real. El umbral de la aserción (2.5×) se
 verificó discriminante: con concurrencia 1 el ratio es 4.01 y la prueba **falla**.
 
@@ -316,9 +316,9 @@ petición y el llamante no podía reintentar con la misma clave durante todo el 
 **Corregido:** los fallos de infraestructura y configuración se lanzan con 503, y
 un 5xx del sidecar se propaga como 503; lo que sí es determinista (script
 inválido, salida no serializable) sigue siendo 4xx.
-[src/modules/graph/script-node-runner.service.ts](src/modules/graph/script-node-runner.service.ts)
+[src/modules/graph/script-node-runner.service.ts](../src/modules/graph/script-node-runner.service.ts)
 
-**Prueba:** [test/runtime-failed-audit.spec.ts](test/runtime-failed-audit.spec.ts)
+**Prueba:** [test/runtime-failed-audit.spec.ts](../test/runtime-failed-audit.spec.ts)
 
 ### H13 — Recursión sin cota al reclamar una clave · Media · ✅ Corregido
 
@@ -329,9 +329,9 @@ decisión es peor resultado que un 409 que el llamante reintenta.
 
 **Corregido:** dos reintentos y después `IDEMPOTENCY_CONTENDED` (409). Se lanza
 antes de entrar al `try`, así que no toca la idempotencia ni deja evidencia falsa.
-[src/modules/runtime/idempotency.service.ts](src/modules/runtime/idempotency.service.ts)
+[src/modules/runtime/idempotency.service.ts](../src/modules/runtime/idempotency.service.ts)
 
-**Prueba:** [test/idempotency-reclaim-bound.spec.ts](test/idempotency-reclaim-bound.spec.ts)
+**Prueba:** [test/idempotency-reclaim-bound.spec.ts](../test/idempotency-reclaim-bound.spec.ts)
 
 ### H14 — Las claves de bloqueo de tres dominios compartían espacio · Media · ✅ Corregido
 
@@ -348,9 +348,9 @@ artefacto serializándose contra las decisiones de un tenant sin relación.
 **Corregido:** claves derivadas de dominio + identificadores con una mezcla de
 avalancha de 64 bits, en un único sitio que además deja escrito qué bloqueos
 existen y en qué orden se toman.
-[src/common/prisma/advisory-lock.ts](src/common/prisma/advisory-lock.ts)
+[src/common/prisma/advisory-lock.ts](../src/common/prisma/advisory-lock.ts)
 
-**Prueba:** [test/advisory-lock-namespace.integration.spec.ts](test/advisory-lock-namespace.integration.spec.ts)
+**Prueba:** [test/advisory-lock-namespace.integration.spec.ts](../test/advisory-lock-namespace.integration.spec.ts)
 — las propiedades se verifican contra PostgreSQL real, porque es Postgres quien usa
 las claves: que quepan en su `bigint` con signo, que dominios distintos no se
 esperen entre sí, y que la misma clave **sí** compita.
@@ -379,7 +379,7 @@ para el volumen de decisiones previsto, así que la conclusión es no rediseñar
 que deje de ser folclore en la siguiente revisión, la espera del bloqueo se publica
 como métrica `atlas_audit_chain_lock_wait_ms`; si algún día ese histograma se
 desplaza, la conversación sobre agrupar la cadena empezará con números.
-[src/common/observability/metrics.service.ts](src/common/observability/metrics.service.ts)
+[src/common/observability/metrics.service.ts](../src/common/observability/metrics.service.ts)
 
 ## Gates tras los cambios — salida real
 

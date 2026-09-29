@@ -196,5 +196,6 @@ encuadre del documento y las comprobaciones de vida de la selfie.
 - Pruebas: [`test/identity-fraud-forensics.spec.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/test/identity-fraud-forensics.spec.ts)
   (política completa, sin imágenes y sin red) y `test/identity-verification-pipeline.spec.ts`
   (los escenarios del catálogo, de punta a punta).
-- Artefacto: `src/modules/seeding/data/identity-mobile.graph.ts`, versión 1.2.0.
+- Artefacto: `identity-mobile`, versión 1.2.0. Su grafo vivía en `src/modules/seeding/data/` hasta
+  el commit `c4084c9`; desde entonces viaja en la rama de semillas de PostgreSQL (`yarn prisma:seed`).
 - Pantalla de revisión: `AtlasDecisionEngineFrontend`, `ManualReviewDetailPage` y `CaseImagesPanel`.

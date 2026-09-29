@@ -2,6 +2,7 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AuditService } from '../../common/audit/audit.service';
+import { booleanoDeConfig } from '../../common/config/config-coercion.util';
 import { runsBackgroundJobs, workerRoleOf } from '../../common/config/worker-role';
 import type { DispatchedEvent } from '../../common/events/event-envelope';
 import { EventBus } from '../../common/events/event-bus';
@@ -37,8 +38,15 @@ type Desenlace =
  *   pendiente con retroceso exponencial y la vuelve a repartir; agotados los intentos, `DEAD`.
  * - **Permanente** (el resto de 4xx): lo audita y NO lanza. Un 404 «ninguna solicitud nació de
  *   esa ejecución» no se arregla repitiéndolo.
- * - **Sin configurar** (`ATLAS_BACKEND_BASE_URL` o `ENGINE_CALLBACK_API_KEY` ausentes): lo dice en
- *   el registro y no reintenta. Es un despliegue sin el circuito, no una avería pasajera.
+ * - **Sin configurar** (`ATLAS_BACKEND_BASE_URL` o `ENGINE_CALLBACK_API_KEY` ausentes): lo audita y
+ *   LANZA, igual que un fallo pasajero. Antes lo daba por ENTREGADO: el evento se consumía, el caso
+ *   quedaba resuelto en el motor y el cliente seguía «en revisión» en AtlasBackend para siempre, con
+ *   una sola línea de advertencia como rastro. Ahora el aviso sigue en el outbox, se reintenta y,
+ *   agotados los intentos, queda en `DEAD` (alerta `AtlasOutboxDeadLetter`), de donde se reprocesa
+ *   cuando la configuración exista (`docs/events/retries-and-dlq.md`).
+ * - **Renuncia declarada** (`ATLAS_CALLBACK_DISABLED=true`): el despliegue opera sin AtlasBackend a
+ *   propósito. Ahí sí se consume el aviso sin llamar, con una advertencia. Es la ÚNICA forma de que
+ *   un aviso se dé por atendido sin haber llegado, y tiene que decidirla alguien por escrito.
  *
  * Sólo se suscribe donde corre el relay (`runsBackgroundJobs`), igual que el proyector de
  * notificaciones: en una réplica de API el bus no emite nunca.
@@ -82,21 +90,36 @@ export class AtlasCallbackDispatcher implements OnModuleInit, OnModuleDestroy {
     }
     if (await this.yaEntregado(event.outboxEventId)) return;
 
-    const base = this.config.get<string>('ATLAS_BACKEND_BASE_URL');
-    const clave = this.config.get<string>('ENGINE_CALLBACK_API_KEY');
-    if (!base || !clave) {
+    if (booleanoDeConfig(this.config, 'ATLAS_CALLBACK_DISABLED', false)) {
       this.logger.warn(
-        `${event.aggregateType} ${event.aggregateId} resuelto sin avisar a AtlasBackend (${aviso.route}): falta ATLAS_BACKEND_BASE_URL o ENGINE_CALLBACK_API_KEY`,
+        `${event.aggregateType} ${event.aggregateId} resuelto sin avisar a AtlasBackend (${aviso.route}): ATLAS_CALLBACK_DISABLED=true declara que este despliegue opera sin AtlasBackend`,
       );
       await this.marcarEntregado(event.outboxEventId);
       return;
     }
 
-    const desenlace = await this.enviar(`${base.replace(/\/+$/, '')}${aviso.route}`, {
-      tenantId: event.tenantId,
-      clave,
-      cuerpo: aviso.body,
-    });
+    const base = this.config.get<string>('ATLAS_BACKEND_BASE_URL');
+    const clave = this.config.get<string>('ENGINE_CALLBACK_API_KEY');
+    const faltantes = [
+      ...(base ? [] : ['ATLAS_BACKEND_BASE_URL']),
+      ...(clave ? [] : ['ENGINE_CALLBACK_API_KEY']),
+    ];
+    const desenlace: Desenlace =
+      base && clave
+        ? await this.enviar(`${base.replace(/\/+$/, '')}${aviso.route}`, {
+            tenantId: event.tenantId,
+            clave,
+            cuerpo: aviso.body,
+          })
+        : {
+            // Transitorio y no permanente: lo que falta es configuración del despliegue, que se
+            // corrige sin tocar el evento. Consumirlo aquí es lo que perdía el aviso.
+            tipo: 'transitorio',
+            motivo:
+              `configuración incompleta: falta ${faltantes.join(' y ')}. ` +
+              'El aviso sigue en el outbox; decláralas, o ATLAS_CALLBACK_DISABLED=true si este ' +
+              'despliegue opera sin AtlasBackend.',
+          };
 
     if (desenlace.tipo === 'entregado') {
       await this.marcarEntregado(event.outboxEventId);

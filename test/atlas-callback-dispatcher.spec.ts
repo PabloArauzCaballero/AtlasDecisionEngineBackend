@@ -161,14 +161,76 @@ describe('AtlasCallbackDispatcher', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('sin base o sin clave no llama, no reintenta y lo deja escrito', async () => {
-    const fetchMock = responder(200);
-    const { dispatcher, marcas } = montar({ config: { ENGINE_CALLBACK_API_KEY: '' } });
+  /*
+   * P1-7. Antes, sin base o sin clave, el aviso se daba por ENTREGADO: se escribía la marca de
+   * procesado, el relay lo pasaba a DISPATCHED y la resolución de la persona no llegaba nunca a
+   * AtlasBackend. Estas dos pruebas fallan contra ese código: esperan que NO haya marca y que
+   * el handler LANCE para que el relay lo deje pendiente.
+   */
+  it.each([
+    ['ENGINE_CALLBACK_API_KEY', { ENGINE_CALLBACK_API_KEY: '' }],
+    ['ATLAS_BACKEND_BASE_URL', { ATLAS_BACKEND_BASE_URL: '' }],
+  ])(
+    'sin %s no llama, NO lo da por entregado y lanza para que el relay lo reintente',
+    async (falta, config) => {
+      const fetchMock = responder(200);
+      const { dispatcher, marcas, auditados } = montar({ config });
 
-    await dispatcher.handle(evento());
+      await expect(dispatcher.handle(evento())).rejects.toThrow(
+        new RegExp(`pendiente: configuración incompleta: falta ${falta}`),
+      );
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(marcas).toHaveLength(0);
+      expect(auditados).toHaveLength(1);
+      expect(auditados[0]).toMatchObject({
+        eventType: 'MANUAL_REVIEW_CALLBACK_FAILED',
+        payload: expect.objectContaining({
+          ruta: RUTA,
+          permanente: false,
+          motivo: expect.stringContaining(falta),
+        }),
+      });
+    },
+  );
+
+  it('sin ninguna de las dos nombra las dos en el motivo', async () => {
+    responder(200);
+    const { dispatcher, marcas } = montar({
+      config: { ATLAS_BACKEND_BASE_URL: '', ENGINE_CALLBACK_API_KEY: '' },
+    });
+
+    await expect(dispatcher.handle(evento())).rejects.toThrow(
+      /falta ATLAS_BACKEND_BASE_URL y ENGINE_CALLBACK_API_KEY/,
+    );
+    expect(marcas).toHaveLength(0);
+  });
+
+  it('con ATLAS_CALLBACK_DISABLED=true la renuncia es explícita: no llama y lo consume', async () => {
+    const fetchMock = responder(200);
+    const { dispatcher, marcas, auditados } = montar({
+      config: {
+        ATLAS_CALLBACK_DISABLED: 'true',
+        ATLAS_BACKEND_BASE_URL: '',
+        ENGINE_CALLBACK_API_KEY: '',
+      },
+    });
+
+    await expect(dispatcher.handle(evento())).resolves.toBeUndefined();
 
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(marcas).toHaveLength(1);
+    expect(marcas).toEqual([{ consumerName: 'atlas-callback', outboxEventId: 42n }]);
+    expect(auditados).toHaveLength(0);
+  });
+
+  it('ATLAS_CALLBACK_DISABLED=false no es una renuncia: sin configuración sigue pendiente', async () => {
+    responder(200);
+    const { dispatcher, marcas } = montar({
+      config: { ATLAS_CALLBACK_DISABLED: 'false', ENGINE_CALLBACK_API_KEY: '' },
+    });
+
+    await expect(dispatcher.handle(evento())).rejects.toThrow(/configuración incompleta/);
+    expect(marcas).toHaveLength(0);
   });
 
   it('un evento sin ruta o sin cuerpo se descarta sin llamar', async () => {

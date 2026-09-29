@@ -57,6 +57,8 @@ el Prometheus del perfil `observability`:
 | `AtlasApiErrorRateHigh` | Más del 5 % de 5xx |
 | `AtlasApiLatencyP95High` | p95 por encima de 1 s |
 | `AtlasTargetDown` | El proceso ni acepta el raspado |
+| `AtlasModelPopulationUnstable` | PSI ≥ 0,25 en una versión y variable (`warning`) |
+| `AtlasModelAdverseImpact` | Razón de impacto adverso < 0,8 en un grupo (`warning`) |
 
 `AtlasOutboxBacklogGrowing` usa `min_over_time` y no el valor instantáneo a propósito: una
 ráfaga legítima también sube el pendiente, y lo que se quiere detectar es que el suelo no baja.
@@ -72,6 +74,10 @@ Levantarlas:
 docker compose -f docker-compose.yml -f compose.observability.yml \
   --profile observability up -d
 ```
+
+Las dos de modelo leen gauges sin tamaño de muestra y que también mueven los análisis bajo
+demanda: el veredicto con muestra mínima es la notificación `MONITORING_BREACH_DETECTED`. Ver
+[monitoreo de modelos](../model-monitoring.md#alertas-y-avisos).
 
 !!! warning "Hay que raspar los DOS procesos"
     `atlas_outbox_*`, `atlas_job_*` y `atlas_notification_created_total` **solo** los produce el

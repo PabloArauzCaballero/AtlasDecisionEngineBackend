@@ -111,7 +111,19 @@ jobs:
       # del generador. Sólo Chromium: los otros dos motores no los usa nadie aquí.
       - name: Chromium para el generador documental
         run: npx playwright install --with-deps chromium
+      # Los roles lector y escritor, para que `postgres-role-privileges` CORRA. Sin ellos la suite
+      # se saltaba en silencio aunque `test/setup-env.ts` la contara entre las que en CI no se
+      # saltan: la separación de privilegios se afirmaba sin medirse. Las contraseñas son de
+      # relleno para la base efímera de este runner; el guion se niega a correr en producción.
+      - name: Aprovisionar los roles lector y escritor
+        env:
+          POSTGRES_WRITER_PASSWORD: ci-writer-password-with-entropy
+          POSTGRES_READER_PASSWORD: ci-reader-password-with-entropy
+        run: yarn db:provision:dev
       - run: yarn test:cov
+        env:
+          DATABASE_WRITE_URL: postgresql://atlas_writer:ci-writer-password-with-entropy@localhost:5432/atlas_decision?schema=public
+          DATABASE_READ_URL: postgresql://atlas_reader:ci-reader-password-with-entropy@localhost:5432/atlas_decision?schema=public
       # Single source of truth for the audit threshold (package.json: yarn audit --level high).
       - run: yarn security:audit
       # Con cobertura: los controladores y el cableado de módulos SOLO los ejercita esta

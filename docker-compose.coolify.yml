@@ -232,9 +232,16 @@ services:
       # "Worker de locucion deshabilitado por configuracion". Mismo patron que extractos: el
       # compose local lo pone en `true` y este se quedo sin el.
       AUDIO_TTS_WORKER_ENABLED: '${AUDIO_TTS_WORKER_ENABLED:-true}'
+      # El de IDENTIDAD, por lo mismo: la API publica su `available` y el invocador lo comprueba.
+      # Por omisión `true`, igual que `docker-compose.yml`; `${VAR:-true}` también cubre la
+      # variable presente pero VACÍA, que el esquema no aceptaría como booleano.
+      IDENTITY_VERIFICATION_WORKER_ENABLED: '${IDENTITY_VERIFICATION_WORKER_ENABLED:-true}'
       # Fakers del servidor mock para los datos de prueba del QA Lab y del simulador. El mock
-      # vive en la red `coolify` con el alias `external-providers-mock`. Va NOMBRADA aquí
-      # porque este compose no tiene `env_file`: lo que no se nombra no llega al contenedor.
+      # vive en la red `coolify` con el alias `external-providers-mock`. Va NOMBRADA aquí por su
+      # valor por omisión: si Coolify no la tiene, llega este destino y no el `127.0.0.1` del
+      # esquema, que dentro del contenedor no es el mock. (Lo que SÍ está en Environment
+      # Variables llega igual sin nombrarlo: Coolify añade `env_file: .env` a cada servicio,
+      # ver la cabecera. Aquí sólo se nombra lo que necesita un valor por omisión propio.)
       # Sólo en la API: el worker no genera lotes (las corridas se ejecutan en este proceso).
       QA_FAKERS_BASE_URL: '${QA_FAKERS_BASE_URL:-http://external-providers-mock:4010/mock}'
       QA_FAKERS_TIMEOUT_MS: '${QA_FAKERS_TIMEOUT_MS:-4000}'
@@ -287,6 +294,18 @@ services:
       # "Worker de locucion deshabilitado por configuracion". Mismo patron que extractos: el
       # compose local lo pone en `true` y este se quedo sin el.
       AUDIO_TTS_WORKER_ENABLED: '${AUDIO_TTS_WORKER_ENABLED:-true}'
+      # El worker de IDENTIDAD, mismo patrón y mismo valor que `docker-compose.yml`. Sin nombrarlo
+      # caía al `false` del esquema en cualquier despliegue cuyo Environment Variables no lo
+      # tuviera, y la verificación quedaba encolada sin que nadie la procesara. Encenderlo aquí
+      # sólo cambia algo donde la variable NO existe: si Coolify la define, manda su valor.
+      IDENTITY_VERIFICATION_WORKER_ENABLED: '${IDENTITY_VERIFICATION_WORKER_ENABLED:-true}'
+      # El AVISO DE VUELTA a AtlasBackend lo envía este proceso, que es quien reparte el outbox.
+      # Llegarían igual por el `.env` de Coolify; se nombran para que el requisito se lea aquí.
+      # Vacías cuentan como ausentes. En NODE_ENV=production el arranque exige las dos (o
+      # ATLAS_CALLBACK_DISABLED=true); fuera de producción, sin ellas el aviso se reintenta y
+      # acaba en DEAD en vez de perderse.
+      ATLAS_BACKEND_BASE_URL: '${ATLAS_BACKEND_BASE_URL:-}'
+      ENGINE_CALLBACK_API_KEY: '${ENGINE_CALLBACK_API_KEY:-}'
       # Pool más pequeño que el de la API: la concurrencia del worker la fija el número de
       # trabajos, no el tráfico. Y en `atlas-postgres` las conexiones se cuentan igual — dos
       # procesos con 15 cada uno agotan el `max_connections` del contenedor, y el fallo aparece

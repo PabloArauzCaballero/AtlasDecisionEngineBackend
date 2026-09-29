@@ -121,6 +121,78 @@ describe('NotificationProjectorService', () => {
     expect(rows[0].body).toContain('Tighten threshold');
   });
 
+  /*
+   * P1-6. El evaluador publicaba MONITORING_BREACH_DETECTED y el proyector caía en `default` y
+   * devolvía []: una versión en producción fuera de umbral no le llegaba a nadie. Contra el
+   * código anterior esta prueba falla (no se crea ninguna notificación).
+   */
+  it('avisa a riesgo y a cumplimiento cuando la vigilancia detecta un BREACH', async () => {
+    const createMany = jest.fn().mockResolvedValue({ count: 2 });
+    const { prisma } = prismaWith(1, createMany);
+
+    await projector(prisma).handle(
+      event({
+        eventType: DecisionEventType.MONITORING_BREACH_DETECTED,
+        aggregateType: 'MonitoringEvaluation',
+        aggregateId: '91',
+        actorId: 'monitoring-evaluation',
+        payload: {
+          artifactCode: 'CREDIT-RISK',
+          metricCode: 'PSI',
+          scope: 'monthly_income',
+          value: 0.312345,
+          threshold: 0.25,
+          sampleSize: 480,
+        },
+      }),
+    );
+
+    const rows = createMany.mock.calls[0][0].data;
+    expect(rows.map((r: { recipientRole: string }) => r.recipientRole)).toEqual([
+      'RISK_ANALYST',
+      'COMPLIANCE',
+    ]);
+    for (const row of rows) {
+      expect(row).toMatchObject({
+        category: 'MONITORING',
+        priority: 'HIGH',
+        eventType: 'MONITORING_BREACH_DETECTED',
+        entityType: 'MonitoringEvaluation',
+        entityId: '91',
+        actionUrl: '/model-monitoring',
+        title: 'Modelo fuera de umbral: CREDIT-RISK',
+      });
+      expect(row.body).toBe(
+        'La vigilancia de producción midió estabilidad poblacional (PSI) en monthly_income = ' +
+          '0.3123, fuera del umbral 0.25 sobre 480 casos. Revísalo en Monitoreo del modelo.',
+      );
+    }
+  });
+
+  it('una medida de la versión entera no inventa un ámbito', async () => {
+    const createMany = jest.fn().mockResolvedValue({ count: 2 });
+    const { prisma } = prismaWith(1, createMany);
+
+    await projector(prisma).handle(
+      event({
+        eventType: DecisionEventType.MONITORING_BREACH_DETECTED,
+        payload: {
+          artifactCode: 'CREDIT-RISK',
+          metricCode: 'MONITORING_FRESHNESS_HOURS',
+          scope: '-',
+          value: 50,
+          threshold: 48,
+          sampleSize: 1,
+        },
+      }),
+    );
+
+    expect(createMany.mock.calls[0][0].data[0].body).toBe(
+      'La vigilancia de producción midió horas sin evaluar = 50, fuera del umbral 48 sobre 1 ' +
+        'casos. Revísalo en Monitoreo del modelo.',
+    );
+  });
+
   it('publishes nothing for an unmapped event type without throwing', async () => {
     const createMany = jest.fn();
     const { prisma } = prismaWith(1, createMany);
