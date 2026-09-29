@@ -101,17 +101,21 @@ describe('GovernanceService — guardas de aprobación', () => {
    * quien dibujó el grafo podría firmar el paso de QA de su propia regla.
    */
   it('quien guardó el grafo de la versión no la aprueba, aunque no la haya creado', async () => {
-    const error = await decide(step({ requiredRole: 'QA_ANALYST' }), principal('bea', ['QA_ANALYST']), [
-      'bea',
-    ]);
+    const error = await decide(
+      step({ requiredRole: 'QA_ANALYST' }),
+      principal('bea', ['QA_ANALYST']),
+      ['bea'],
+    );
     expect((error as DomainException).code).toBe('SEPARATION_OF_DUTIES_VIOLATION');
     expect((error as DomainException).status).toBe(403);
   });
 
   it('un revisor que no tocó la versión sí la aprueba', async () => {
-    const result = await decide(step({ requiredRole: 'QA_ANALYST' }), principal('carla', ['QA_ANALYST']), [
-      'bea',
-    ]);
+    const result = await decide(
+      step({ requiredRole: 'QA_ANALYST' }),
+      principal('carla', ['QA_ANALYST']),
+      ['bea'],
+    );
     expect(result).not.toBeInstanceOf(DomainException);
   });
 

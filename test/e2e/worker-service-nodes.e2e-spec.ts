@@ -1,7 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { createTestApp } from './support/test-app';
-import { managementHeaders } from './support/headers';
+import { artifactCreatorHeaders, managementHeaders } from './support/headers';
 import { findBankStatementFixture } from '../../src/modules/workers/bank-statement/fixtures/bank-statement-fixtures';
 
 /**
@@ -21,7 +21,8 @@ describe('Nodos que llaman a un servicio de worker (e2e)', () => {
   const documentVariable = `e2eExtractoDocumento_${runId}`;
   const outcomeVariable = `e2eExtractoResultado_${runId}`;
 
-  const author = managementHeaders('e2e.worker-node-author', ['RISK_ANALYST']);
+  const author = managementHeaders('e2e.author');
+  const creator = artifactCreatorHeaders();
   const qaApprover = managementHeaders('e2e.worker-node-qa', ['QA_ANALYST']);
   const riskApprover = managementHeaders('e2e.worker-node-risk', ['RISK_APPROVER']);
   const deployer = managementHeaders('e2e.worker-node-deployer', ['PLATFORM_ADMIN']);
@@ -204,7 +205,7 @@ describe('Nodos que llaman a un servicio de worker (e2e)', () => {
   it('crea el artefacto con un nodo de llamada a servicio', async () => {
     const created = await request(server())
       .post('/v1/artifacts')
-      .set(author)
+      .set(creator)
       .send({
         artifactCode,
         artifactType: 'CREDIT_POLICY',

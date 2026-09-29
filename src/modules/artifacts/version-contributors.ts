@@ -15,7 +15,7 @@ export type ChangeLogReader = Pick<Prisma.TransactionClient, 'decisionChangeLog'
  * La separación de funciones —el autor no aprueba ni despliega su propia versión— sólo miraba
  * `createdBy`. Mientras quien daba de alta el artefacto era también quien dibujaba el grafo, eso
  * bastaba. Desde que el alta es de `PLATFORM_ADMIN` y la autoría de `QA_ANALYST`/`FRAUD_ANALYST`
- * (docs/roles-y-autoria-de-artefactos.md), la versión 1 la crea un administrador y la regla la
+ * (docs/security/roles-y-autoria-de-artefactos.md), la versión 1 la crea un administrador y la regla la
  * escribe otra persona: con sólo `createdBy`, esa persona podría firmar el paso de QA de la
  * regla que ella misma escribió. La bitácora (`decision_change_log`) registra cada guardado del
  * grafo con su autor, y es la fuente de verdad de «quién tocó la regla».

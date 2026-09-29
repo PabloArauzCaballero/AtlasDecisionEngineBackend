@@ -1,7 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { createTestApp } from './support/test-app';
-import { managementHeaders } from './support/headers';
+import { artifactCreatorHeaders, managementHeaders } from './support/headers';
 import { seededVariableVersionId } from './support/seeded-variables';
 
 /**
@@ -15,7 +15,8 @@ describe('Nested decision trees (e2e)', () => {
   const runId = Date.now();
   const childCode = `E2E_NESTED_CHILD_${runId}`;
   const parentCode = `E2E_NESTED_PARENT_${runId}`;
-  const author = managementHeaders('e2e.nested-author', ['RISK_ANALYST']);
+  const author = managementHeaders('e2e.author');
+  const creator = artifactCreatorHeaders();
   const qaApprover = managementHeaders('e2e.nested-qa', ['QA_ANALYST']);
   const riskApprover = managementHeaders('e2e.nested-risk', ['RISK_APPROVER']);
   const deployer = managementHeaders('e2e.nested-deployer', ['PLATFORM_ADMIN']);
@@ -42,7 +43,7 @@ describe('Nested decision trees (e2e)', () => {
   it('creates and compiles the child artifact (age-eligibility)', async () => {
     const created = await request(server())
       .post('/v1/artifacts')
-      .set(author)
+      .set(creator)
       .send({
         artifactCode: childCode,
         artifactType: 'CREDIT_POLICY',
@@ -207,7 +208,7 @@ describe('Nested decision trees (e2e)', () => {
 
     const created = await request(server())
       .post('/v1/artifacts')
-      .set(author)
+      .set(creator)
       .send({
         artifactCode: parentCode,
         artifactType: 'CREDIT_POLICY',
@@ -303,7 +304,7 @@ describe('Nested decision trees (e2e)', () => {
   it('rejects referencing a child version with no successful compiled artifact', async () => {
     const draftChild = await request(server())
       .post('/v1/artifacts')
-      .set(author)
+      .set(creator)
       .send({
         artifactCode: `${childCode}_UNCOMPILED`,
         artifactType: 'CREDIT_POLICY',

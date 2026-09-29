@@ -77,7 +77,7 @@ describe('Security guards (e2e)', () => {
     }));
     await request(server())
       .put('/v1/artifact-versions/999999999999/graph')
-      .set({ ...managementHeaders('e2e.security', ['RISK_ANALYST']), 'if-match': '1' })
+      .set({ ...managementHeaders('e2e.author'), 'if-match': '1' })
       .send({
         dependencies,
         conditions: [],

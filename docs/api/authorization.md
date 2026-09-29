@@ -7,8 +7,11 @@ aplica. Ocultar un botón en el portal no es un control de acceso; es una ayuda 
 
 ```ts
 @Post('artifact-versions/:versionId/submit-for-review')
-@Roles('RISK_ANALYST', 'FRAUD_ANALYST')
+@Roles('QA_ANALYST', 'FRAUD_ANALYST')
 ```
+
+Quién crea, escribe, aprueba y despliega un artefacto está en
+[roles y autoría de artefactos](../security/roles-y-autoria-de-artefactos.md).
 
 Los nombres de rol están tipados (`Roles(...roles: PlatformRole[])`): un error de escritura es
 un fallo de compilación, no un paso de aprobación que nunca se puede satisfacer.

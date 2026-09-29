@@ -1,7 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { createTestApp } from './support/test-app';
-import { managementHeaders } from './support/headers';
+import { artifactCreatorHeaders, managementHeaders } from './support/headers';
 
 /**
  * Exercises the security team dashboard (Fase 10) against a real Postgres: an
@@ -12,7 +12,8 @@ describe('Security review (e2e)', () => {
   let app: INestApplication;
   const server = () => app.getHttpServer();
   const runId = Date.now();
-  const author = managementHeaders('e2e.security-review-author', ['RISK_ANALYST']);
+  const author = managementHeaders('e2e.author');
+  const creator = artifactCreatorHeaders();
   const compliance = managementHeaders('e2e.security-review-compliance', ['COMPLIANCE']);
 
   let versionId: string;
@@ -44,7 +45,7 @@ describe('Security review (e2e)', () => {
 
     const artifact = await request(server())
       .post('/v1/artifacts')
-      .set(author)
+      .set(creator)
       .send({
         artifactCode: `E2E_SECURITY_REVIEW_${runId}`,
         artifactType: 'CREDIT_POLICY',
@@ -114,10 +115,14 @@ describe('Security review (e2e)', () => {
   });
 
   it('rejects a caller without a security-team role', async () => {
-    await request(server())
-      .get(`/v1/security-review/versions/${versionId}`)
-      .set(author)
-      .expect(403);
+    // RISK_ANALYST y QA_ANALYST no están en el equipo de seguridad. El autor ya no sirve para
+    // esto: la autoría es QA_ANALYST + FRAUD_ANALYST, y FRAUD_ANALYST sí es del equipo.
+    for (const outsider of ['RISK_ANALYST', 'QA_ANALYST']) {
+      await request(server())
+        .get(`/v1/security-review/versions/${versionId}`)
+        .set(managementHeaders('e2e.security-review-outsider', [outsider]))
+        .expect(403);
+    }
   });
 
   it('aggregates code, variables and severity for the security team', async () => {

@@ -21,14 +21,14 @@ de autorización. Por eso los nombres están centralizados y tipados.
 
 | Rol | Para qué |
 | --- | --- |
-| `PLATFORM_ADMIN` | Comodín global. **Solo se honra en identidades firmadas por el proveedor de identidad, nunca en una API key** |
-| `RISK_ANALYST` | Autoría de artefactos y variables de crédito |
-| `FRAUD_ANALYST` | Autoría en el dominio de fraude |
-| `QA_ANALYST` | Suites de prueba y QA Lab |
+| `PLATFORM_ADMIN` | Comodín global. **Solo se honra en identidades firmadas por el proveedor de identidad, nunca en una API key**. Es el único que da de alta artefactos y despliega |
+| `RISK_ANALYST` | Consulta artefactos, ejecuciones y auditoría y resuelve casos de revisión manual. **No escribe reglas** |
+| `FRAUD_ANALYST` | Autoría: grafo, versiones, variables, suites, simulador y envío a revisión |
+| `QA_ANALYST` | Autoría (lo mismo que `FRAUD_ANALYST`) y firma del paso de QA de versiones que no escribió |
 | `RISK_APPROVER` | Aprobación de versiones |
 | `COMPLIANCE` | Revisión de cumplimiento y consulta de evidencia |
 | `AUDITOR` | Solo lectura sobre auditoría y ejecuciones |
-| `OPERATIONS` | Despliegues y operación |
+| `OPERATIONS` | Operación: cola de revisión manual, desenlaces y cartera |
 
 ## De dónde salen los roles: la decisión que importa
 

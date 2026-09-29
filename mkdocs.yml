@@ -201,6 +201,7 @@ nav:
       - Modelo de amenazas: security/threat-model.md
       - Gestión de secretos: security/secrets-management.md
       - Control de acceso: security/access-control.md
+      - Roles y autoría de artefactos: security/roles-y-autoria-de-artefactos.md
       - Aislamiento por tenant: security/tenant-isolation.md
       - Auditabilidad: security/auditability.md
       - Seguridad de dependencias: security/dependency-security.md
