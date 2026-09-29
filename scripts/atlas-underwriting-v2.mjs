@@ -29,6 +29,7 @@
  *
  *   MANAGEMENT_API_KEY=… node scripts/atlas-underwriting-v2.mjs [--base http://127.0.0.1:3020] [--dry-run]
  *   MANAGEMENT_API_KEY=… node scripts/atlas-underwriting-v2.mjs --deploy <versionId> [--environments DEV,TEST]
+ *   MANAGEMENT_API_KEY=… node scripts/atlas-underwriting-v2.mjs --crear [--environments STAGING]   (entorno sin crédito: esta definición es la v1)
  *
  * El primero clona la versión vigente, escribe el grafo de v2 entero, compila, corre la suite
  * bloqueante y manda a revisión. El segundo despliega una versión YA aprobada por dos personas
@@ -67,6 +68,7 @@ const ENVIRONMENTS = (args.get('environments') ?? 'DEV,TEST')
   .map((code) => code.trim())
   .filter(Boolean);
 const DRY_RUN = args.get('dry-run') === 'true';
+const CREAR = args.get('crear') === 'true';
 
 const ARTIFACT_CODE = args.get('artifact') ?? DEFINICION.artifact.artifactCode;
 // La firma de esta versión: si un borrador ya trae este nodo, YA es el grafo de v2.
@@ -381,12 +383,38 @@ async function main() {
   const versiones = await asegurarVariables();
 
   const lista = items(await api('/v1/artifacts?pageSize=100'));
-  const artefacto = lista.find((item) => (item.artifactCode ?? item.code) === ARTIFACT_CODE);
+  let artefacto = lista.find((item) => (item.artifactCode ?? item.code) === ARTIFACT_CODE);
+  /*
+   * `--crear`: un entorno que arranca sin crédito (TEST el 2026-09-29) no tiene una v1 de la que
+   * clonar. Con la bandera se crea el artefacto y ESTA definición es su primera versión; pasa por
+   * la misma suite bloqueante y las mismas dos firmas. Sin la bandera se sigue negando, para no
+   * crear un artefacto de crédito por error apuntando al Motor equivocado.
+   */
+  let recienCreada = null;
   if (!artefacto) {
-    throw new Error(
-      `${ARTIFACT_CODE} no existe en ${BASE}. Este guion publica una VERSIÓN NUEVA de un ` +
-        'artefacto existente (v1 ya desplegada); crear el artefacto desde cero no es su trabajo.',
-    );
+    if (!CREAR) {
+      throw new Error(
+        `${ARTIFACT_CODE} no existe en ${BASE}. Este guion publica una VERSIÓN NUEVA de un ` +
+          'artefacto existente; para crearlo desde cero en un entorno vacío, repite con --crear.',
+      );
+    }
+    if (DRY_RUN) {
+      console.log(
+        `[dry-run] crearía ${ARTIFACT_CODE} con esta definición como v1 (${DEFINICION.nodes.length} ` +
+          `nodos, ${DEFINICION.edges.length} aristas, ${DEFINICION.cases.length} casos).`,
+      );
+      return;
+    }
+    const { authoringNotes, ...alta } = DEFINICION.artifact;
+    artefacto = await api('/v1/artifacts', { method: 'POST', body: JSON.stringify(alta) });
+    console.log(`Artefacto ${ARTIFACT_CODE} creado (id ${artefacto.id}).`);
+    recienCreada = (artefacto.versions ?? [])[0] ?? null;
+    if (recienCreada && authoringNotes) {
+      await api(`/v1/artifact-versions/${recienCreada.id}/notes`, {
+        method: 'PATCH',
+        body: JSON.stringify({ notes: authoringNotes }),
+      }).catch((error) => console.log(`(notas de autoría no escritas: ${error.message})`));
+    }
   }
 
   const detalle = await api(`/v1/artifacts/${artefacto.id}`);
@@ -404,14 +432,14 @@ async function main() {
     (version) => version.status === 'DRAFT' || version.status === 'IN_REVIEW',
   );
   let borradorPropio = null;
-  for (const borrador of borradores) {
+  for (const borrador of recienCreada ? [] : borradores) {
     const grafo = await api(`/v1/artifact-versions/${borrador.id}/graph`).catch(() => null);
     if ((grafo?.nodes ?? []).some((node) => node.key === SIGNATURE_NODE_KEY)) {
       borradorPropio = borrador;
       break;
     }
   }
-  if (!borradorPropio && borradores.length) {
+  if (!recienCreada && !borradorPropio && borradores.length) {
     throw new Error(
       `${ARTIFACT_CODE} ya tiene ${borradores.length} borrador(es) que NO son de esta v2 (¿otra ` +
         'sesión con un cambio en curso?). No se clona encima: revísalo en el portal primero.',
@@ -419,7 +447,24 @@ async function main() {
   }
 
   let versionId;
-  if (borradorPropio) {
+  if (recienCreada) {
+    versionId = recienCreada.id;
+    const escrito = await api(`/v1/artifact-versions/${versionId}/graph`, {
+      method: 'PUT',
+      headers: { 'if-match': String(recienCreada.lockVersion ?? 1) },
+      body: JSON.stringify(cuerpoDelGrafo(versiones, reasonIds)),
+    });
+    console.log(
+      `Grafo escrito en la v1 recién creada (lockVersion ${escrito.lockVersion ?? '?'}).`,
+    );
+    const compilado = await api(`/v1/artifact-versions/${versionId}/validate-and-compile`, {
+      method: 'POST',
+      body: '{}',
+    });
+    console.log(
+      `Compilada: ${compilado.canonicalChecksum ?? compilado.checksum ?? 'sin checksum en la respuesta'}.`,
+    );
+  } else if (borradorPropio) {
     versionId = borradorPropio.id;
     console.log(`Reutilizando el borrador de v2 ya escrito (id ${versionId}).`);
   } else {
@@ -431,8 +476,11 @@ async function main() {
           !mejor || Number(version.versionNumber) > Number(mejor.versionNumber) ? version : mejor,
         null,
       );
-    if (!vigente) throw new Error(`${ARTIFACT_CODE} no tiene una versión publicada de la que partir.`);
-    console.log(`Clonando la versión vigente ${vigente.versionNumber} (id ${vigente.id}, ${vigente.status}).`);
+    if (!vigente)
+      throw new Error(`${ARTIFACT_CODE} no tiene una versión publicada de la que partir.`);
+    console.log(
+      `Clonando la versión vigente ${vigente.versionNumber} (id ${vigente.id}, ${vigente.status}).`,
+    );
 
     if (DRY_RUN) {
       console.log(
@@ -479,7 +527,9 @@ async function main() {
   }
 
   const solicitudes = items(await api('/v1/approval-requests'));
-  const suya = solicitudes.find((peticion) => String(peticion.artifactVersionId) === String(versionId));
+  const suya = solicitudes.find(
+    (peticion) => String(peticion.artifactVersionId) === String(versionId),
+  );
   if (suya) {
     console.log(`Ya está en revisión (solicitud ${suya.id}, ${suya.status}).`);
   } else {
