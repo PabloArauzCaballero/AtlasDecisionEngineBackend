@@ -77,3 +77,35 @@ groups:
         annotations:
           summary: "El destino {{ $labels.job }} ({{ $labels.instance }}) no responde al raspado"
           runbook: docs/runbooks/OPERATIONS.md#api-caida
+
+  # Degradación de un modelo desplegado. Las dos métricas las publica `MetricsService` (gauges
+  # `atlas_model_population_stability_index{artifact_version_id,variable_code}` y
+  # `atlas_model_adverse_impact_ratio{artifact_version_id,attribute,group_value}`) cada vez que
+  # se calculan: en el trabajo `monitoring-evaluation` del worker —sólo versiones activas en
+  # PRODUCCIÓN, cada 6 h— y en los análisis bajo demanda de `/v1/model-monitoring` en la API,
+  # que pueden ser de cualquier versión. Dos límites que hay que saber al recibirlas:
+  #   - el gauge NO lleva el tamaño de muestra, así que estas reglas no aplican el mínimo que sí
+  #     aplica el veredicto (`monitoring-thresholds.ts`); el veredicto autoritativo —con muestra—
+  #     es la fila de `monitoring_evaluation` y la notificación MONITORING_BREACH_DETECTED;
+  #   - un gauge vive en la memoria del proceso: tras un reinicio desaparece hasta la siguiente
+  #     medición, y la alerta se resuelve sola sin que el modelo haya mejorado.
+  # Por eso son `warning` y no despiertan a nadie: dicen «mira la pantalla de monitoreo».
+  - name: atlas-model-monitoring
+    rules:
+      - alert: AtlasModelPopulationUnstable
+        expr: max by (artifact_version_id, variable_code) (atlas_model_population_stability_index) >= 0.25
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PSI ≥ 0,25 en la versión {{ $labels.artifact_version_id }}, variable {{ $labels.variable_code }}: la población que llega ya no es la de referencia"
+          runbook: docs/model-monitoring.md#alertas-y-avisos
+
+      - alert: AtlasModelAdverseImpact
+        expr: min by (artifact_version_id, attribute, group_value) (atlas_model_adverse_impact_ratio) < 0.8
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Impacto adverso < 0,8 en la versión {{ $labels.artifact_version_id }} para {{ $labels.attribute }}={{ $labels.group_value }} (regla de los cuatro quintos)"
+          runbook: docs/model-monitoring.md#alertas-y-avisos

@@ -67,8 +67,14 @@ Esta versión está **endurecida y preparada como release candidate**, pero no d
 8. El motor decide pero no concede: lee la exposición de los créditos registrados y NO la
    reserva. Dos decisiones simultáneas del mismo titular pueden pasar las dos
    (`test/exposure-reservation.integration.spec.ts`). La respuesta publica `exposure` y
-   `decisionValidUntil` para que el core reserve de forma atómica; hasta que el core lo haga, un
-   límite `SUBJECT_TOTAL` no es un control de concesión.
+   `decisionValidUntil`, y AtlasBackend YA reserva de forma atómica al conceder
+   (`ExposureReservationService` en `src/modules/credit/application/exposure-reservation.service.ts`
+   de AtlasBackend): serializa por cliente con `FOR UPDATE`, compara contra el cupo de SU línea de
+   crédito y hace vencer la reserva con la primera de las dos vigencias, la suya o el
+   `decisionValidUntil` del motor. El control de concesión es, por tanto, esa reserva del core. Lo
+   que sigue siendo cierto aquí: un límite `SUBJECT_TOTAL` configurado en el motor se evalúa sobre
+   la exposición leída, no reservada, y por sí solo no impide que dos decisiones simultáneas lo
+   superen.
 9. Por omisión, originación en producción sin base habilitante registrada sale `NO_DECISION`
    (P-09) y una variable crítica sin sello o sin SLA sale marcada en `freshnessUnknown` (P-10).
    El core debe registrar la base antes de decidir y no conceder con `freshnessUnknown` no vacío;

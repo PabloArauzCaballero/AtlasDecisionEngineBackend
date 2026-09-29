@@ -386,7 +386,7 @@ contra doble envío → seguimiento con progreso, intento y tiempo transcurrido 
 resultado con resumen, descarga y reinicio, o error con código, correlation ID y
 acción correctiva.
 
-Ambas rutas se registran en `src/auth/route-access.ts`: una ruta sin regla no da
+Ambas rutas se registran en `src/auth/route-access.ts` de `AtlasDecisionEngineFrontend`: una ruta sin regla no da
 error de permisos, desaparece.
 
 ## 11. Uso desde el motor de decisión

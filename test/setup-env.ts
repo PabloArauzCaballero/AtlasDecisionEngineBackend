@@ -24,6 +24,10 @@ config();
  * midió». Y las dos cosas se leen igual en el informe, que es exactamente el modo de fallo que
  * esta batería existe para no tener.
  *
+ * `postgres-role-privileges` exige además DATABASE_WRITE_URL y DATABASE_READ_URL (roles
+ * aprovisionados con `yarn db:provision:dev`, como hace el job `verify`), y falla ella misma si
+ * faltan en CI: comprobarlo aquí obligaría a aprovisionar roles para correr cualquier suite.
+ *
  * Se falla en el ARRANQUE y no dentro de una prueba: así el mensaje señala la configuración que
  * falta en vez de aparecer como una aserción rota en un fichero que no tiene la culpa.
  *

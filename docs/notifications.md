@@ -34,6 +34,7 @@ autorización.
 | `version.rejected` | autor (`recipientId`), prioridad HIGH | GOVERNANCE |
 | `version.published` | rol `OPERATIONS` | DEPLOYMENT |
 | `security.risk_detected` | roles `COMPLIANCE` y `FRAUD_ANALYST`, prioridad HIGH | SECURITY |
+| `MONITORING_BREACH_DETECTED` | roles `RISK_ANALYST` y `COMPLIANCE`, prioridad HIGH, enlace a `/model-monitoring` | MONITORING |
 
 ## Idempotencia (exactly-once sobre at-least-once)
 
@@ -58,6 +59,9 @@ La paginación por cursor sigue el patrón del feed de auditoría (`GET v1/audit
 una bandeja es un log que solo crece, justo donde el offset degrada.
 
 ## Frontend
+
+Rutas del repositorio `AtlasDecisionEngineFrontend`, no de este.
+
 
 - `src/notifications/inbox.api.ts` — llamadas tipadas con zod, **siempre** vía
   `apiRequest` (nunca `fetch` directo).

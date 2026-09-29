@@ -19,6 +19,21 @@ import { Client } from 'pg';
 const WRITE_URL = process.env.DATABASE_WRITE_URL;
 const READ_URL = process.env.DATABASE_READ_URL;
 const separated = Boolean(WRITE_URL && READ_URL && WRITE_URL !== READ_URL);
+
+/*
+ * En CI NO se salta. `test/setup-env.ts` cuenta esta suite entre las que sostienen afirmaciones
+ * regulatorias, pero sólo exigía `DATABASE_URL`: sin las dos conexiones separadas se saltaba en
+ * silencio y la corrida salía verde sin haber medido la separación de privilegios. El job
+ * `verify` aprovisiona los roles (`yarn db:provision:dev`) y exporta las dos URL; si un día deja
+ * de hacerlo, esto falla en vez de callarse. Fuera de CI el salto sigue valiendo.
+ */
+if ((process.env.CI === 'true' || process.env.REQUIRE_DB_SUITES === 'true') && !separated) {
+  throw new Error(
+    'postgres-role-privileges necesita DATABASE_WRITE_URL y DATABASE_READ_URL distintas en esta ' +
+      'corrida (CI=true o REQUIRE_DB_SUITES=true). Aprovisiona los roles con `yarn db:provision:dev` ' +
+      'y exporta las dos conexiones; sin ellas la separación de privilegios no se mide.',
+  );
+}
 const describeRoles = separated ? describe : describe.skip;
 
 /** Tabla neutra: existe en todo despliegue migrado y no forma parte de la cadena append-only. */

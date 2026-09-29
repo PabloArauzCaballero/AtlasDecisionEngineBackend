@@ -17,6 +17,9 @@
 #   - METRICS_TOKEN es obligatorio si METRICS_ENABLED.
 #   - Si SCRIPT_NODES_ENABLED, SCRIPT_RUNNER_MODE debe ser SIDECAR (y el host, gVisor).
 #   - LOG_LEVEL no puede ser debug ni verbose.
+#   - ATLAS_BACKEND_BASE_URL y ENGINE_CALLBACK_API_KEY, juntas (el aviso de vuelta a
+#     AtlasBackend), salvo ATLAS_CALLBACK_DISABLED=true. El base las pasa a `api` y `worker`.
+#   - Almacén de objetos (STORAGE_S3_*), porque IDENTITY_IMAGE_RETENTION_REQUIRED es true.
 # Arrancar con un valor de ejemplo de .env.example falla al validar, a propósito.
 
 services:
@@ -86,7 +89,7 @@ services:
       AUTH_MODE: ${AUTH_MODE:?set AUTH_MODE (JWT, HYBRID, IDENTITY_PROVIDER or IDENTITY_HYBRID) in .env}
       SWAGGER_ENABLED: "false"
       LOG_LEVEL: ${LOG_LEVEL:-log}
-      # Escalar el worker a N réplicas es seguro: los tres trabajos reclaman su carga con
+      # Escalar el worker a N réplicas es seguro: los trabajos con cola reclaman su carga con
       # FOR UPDATE SKIP LOCKED más un lease que caduca. Lo que N NO debe hacer es agotar el
       # pool de conexiones, de ahí que su pool sea deliberadamente pequeño.
       DATABASE_POOL_MAX: ${WORKER_DATABASE_POOL_MAX:-5}

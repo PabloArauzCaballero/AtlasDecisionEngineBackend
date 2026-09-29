@@ -64,3 +64,41 @@ data:
   OUTBOX_BACKLOG_SAMPLE_MS: "30000"
   TEST_RUN_WORKER_MAX_POLL_MS: "30000"
   TEST_RUN_RECOVERY_INTERVAL_MS: "30000"
+
+  # --- Almacén de objetos (obligatorio) ---
+  # Con IDENTITY_IMAGE_RETENTION_REQUIRED=true (lo predeterminado del esquema) el motor NO
+  # arranca sin almacén: decidir sobre una persona y perder su cara y su cédula al cerrar el
+  # caso dejó de ser aceptable. El endpoint cambia por entorno: sustitúyalo como REGISTRY.
+  # Las credenciales (STORAGE_S3_ACCESS_KEY_ID, STORAGE_S3_SECRET_ACCESS_KEY) van en
+  # atlas-decision-secrets, nunca aquí.
+  IDENTITY_IMAGE_RETENTION_REQUIRED: "true"
+  STORAGE_S3_ENDPOINT: https://REPLACE-OBJECT-STORAGE-ENDPOINT
+  STORAGE_S3_BUCKET: atlas-decision
+  STORAGE_S3_REGION: us-east-1
+  STORAGE_S3_FORCE_PATH_STYLE: "true"
+
+  # --- Aviso de vuelta a AtlasBackend (obligatorio en producción) ---
+  # El worker avisa a AtlasBackend de cada resolución humana (revisión manual, extracto). En
+  # NODE_ENV=production el arranque exige esta URL JUNTO con ENGINE_CALLBACK_API_KEY, que va
+  # en atlas-decision-secrets. Sólo si el despliegue opera sin AtlasBackend a propósito, borre
+  # la URL y ponga ATLAS_CALLBACK_DISABLED: "true".
+  ATLAS_BACKEND_BASE_URL: https://REPLACE-ATLAS-BACKEND/api/v1
+  ATLAS_CALLBACK_DISABLED: "false"
+
+  # --- Trabajos opcionales: APAGADOS de forma explícita ---
+  # El esquema ya los apaga por omisión; se declaran para que la ausencia se lea como una
+  # decisión y no como un olvido. Encender cualquiera en producción tiene precio, y el
+  # arranque lo exige (src/common/config/env.schema.ts, bloque NODE_ENV=production):
+  # - IDENTITY_VERIFICATION_WORKER_ENABLED: perfil de umbrales calibrado sobre un corpus REAL
+  #   (IDENTITY_THRESHOLD_PROFILE_VERSION), prueba de vida y detección de fraude estricta.
+  # - AUDIO_TTS_WORKER_ENABLED: proveedor real y AUDIO_TTS_PROD_LICENSE_CONFIRMED=true.
+  # - SEMANTIC_ANALYSIS_WORKER_ENABLED: SEMANTIC_ANALYSIS_PROVIDER y su credencial, y la
+  #   declaración de transferencia internacional si el proveedor no es local.
+  # - BANK_STATEMENT_WORKER_ENABLED: sin requisitos de arranque, pero sin él un extracto se
+  #   acepta, queda en QUEUED y no se procesa nunca.
+  BANK_STATEMENT_WORKER_ENABLED: "false"
+  IDENTITY_VERIFICATION_WORKER_ENABLED: "false"
+  AUDIO_TTS_WORKER_ENABLED: "false"
+  SEMANTIC_ANALYSIS_WORKER_ENABLED: "false"
+  # La vigilancia continua de modelos sí va encendida: sólo lee y publica avisos.
+  MONITORING_EVALUATION_ENABLED: "true"

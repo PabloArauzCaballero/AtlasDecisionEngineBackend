@@ -66,7 +66,7 @@ y ocupar el tiempo de una persona.
 
 ## La fotografía real, y por qué el texto exacto no sirve
 
-Todo lo de arriba se calibró contra los ejemplares sintéticos de `fixtures/identity-card.ts`,
+Todo lo de arriba se calibró contra los ejemplares sintéticos de `src/modules/workers/identity-verification/fixtures/identity-card.ts`,
 que están **dibujados** con los rótulos del catálogo en una tipografía limpia. Contra ellos la
 puerta acertaba siempre. La primera medición sobre una cédula boliviana auténtica del DS 4924
 fotografiada con un móvil dice otra cosa: los rótulos de la tarjeta van impresos en gris, a
