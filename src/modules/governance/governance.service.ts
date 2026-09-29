@@ -20,6 +20,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { PlatformRole } from '../../common/security/platform-roles';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
 import { VersionStateService } from '../artifacts/version-state.service';
+import { isVersionContributor } from '../artifacts/version-contributors';
 import {
   SecurityReviewService,
   type SecurityFinding,
@@ -321,7 +322,7 @@ export class GovernanceService {
     }
     if (
       step.separationOfDuties &&
-      step.approvalRequest.artifactVersion.createdBy === principal.id
+      (await isVersionContributor(this.prisma, step.approvalRequest.artifactVersion, principal.id))
     ) {
       throw new DomainException(
         'SEPARATION_OF_DUTIES_VIOLATION',
