@@ -2,7 +2,7 @@
   "modules": 32,
   "endpoints": 240,
   "entities": 100,
-  "events": 7,
-  "errorCodes": 262,
-  "environmentVariables": 318
+  "events": 8,
+  "errorCodes": 261,
+  "environmentVariables": 342
 }

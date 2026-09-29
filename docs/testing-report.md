@@ -79,6 +79,9 @@ en `docs/final-implementation-report.md`.
   nodo por nodo, rama tomada/descartadas, y rechazo de PROD.
 
 ### Frontend
+
+Rutas del repositorio `AtlasDecisionEngineFrontend`, no de este.
+
 - `src/features/tutorial/tutorial.test.tsx` — 5 pruebas del tutorial (Fase 4):
   inicio, avance, navegación por ruta, atrás, y completitud persistida.
 - `src/features/graph-editor/useGraphEditor.test.tsx` — 2 pruebas del fix de

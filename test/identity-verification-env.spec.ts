@@ -41,6 +41,9 @@ const produccion = {
   JWT_JWKS_URL: 'https://identity.example.com/.well-known/jwks.json',
   JWT_ISSUER: 'https://identity.example.com/',
   METRICS_TOKEN: 'metrics-token-with-enough-entropy-789',
+  // Producción exige el aviso de vuelta a AtlasBackend completo (P1-7).
+  ATLAS_BACKEND_BASE_URL: 'http://atlas-backend:3005/api/v1',
+  ENGINE_CALLBACK_API_KEY: 'engine-callback-key',
 };
 
 /** El mensaje agregado de zod, para poder buscar motivos dentro. */

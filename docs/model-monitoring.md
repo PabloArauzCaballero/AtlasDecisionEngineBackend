@@ -128,6 +128,24 @@ y obligar a borrar para corregir dejaría abierto el borrado sin más.
 | `atlas_model_population_stability_index` | ≥ 0.25 exige revisión |
 | `atlas_model_adverse_impact_ratio` | < 0.8 exige explicación documentada |
 
+## Alertas y avisos
+
+Dos canales, y no dicen lo mismo:
+
+- **La notificación `MONITORING_BREACH_DETECTED`** es el veredicto autoritativo. La publica el
+  trabajo `monitoring-evaluation` (cada 6 h, `MONITORING_EVALUATION_INTERVAL_MS`) cuando una
+  medición de una versión activa en PRODUCCIÓN sale `BREACH` según `monitoring-thresholds.ts`
+  —con la dirección de cada métrica y su muestra mínima— y la guarda en `monitoring_evaluation`.
+  El proyector la convierte en una notificación de prioridad alta para `RISK_ANALYST` y
+  `COMPLIANCE`, con enlace a la pantalla de monitoreo. Por debajo de la muestra mínima el
+  veredicto es `OK` y no hay aviso.
+- **Las reglas de Prometheus** `AtlasModelPopulationUnstable` (PSI ≥ 0,25) y
+  `AtlasModelAdverseImpact` (< 0,8) viven en `docker/observability/alerts.yml`. Leen los gauges
+  de la tabla de arriba, que se actualizan también con los análisis bajo demanda de cualquier
+  versión y NO llevan el tamaño de muestra: son `warning`, un «mira la pantalla», no un
+  veredicto. Un gauge vive en la memoria del proceso; tras un reinicio desaparece hasta la
+  siguiente medición.
+
 ## Comparar dos versiones
 
 No hay un endpoint de campeón/aspirante porque no hace falta: el reparto de tráfico ya existe
@@ -138,5 +156,3 @@ comparan las dos ramas con la misma medida.
 
 - **Reentrenamiento automático.** Deliberado: en un motor de decisión gobernado, un modelo
   nuevo pasa por la puerta de aprobación como cualquier otro cambio.
-- **Alertas sobre estos umbrales.** Las métricas están publicadas; las reglas de alerta viven
-  en el sistema de observabilidad, no aquí. Ver [alertas](observability/alerts.md).

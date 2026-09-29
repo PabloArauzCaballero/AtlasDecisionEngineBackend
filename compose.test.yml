@@ -99,6 +99,25 @@ services:
     networks: [atlas_test]
     restart: "no"
 
+  # Roles lector y escritor, con el mismo guion que el job `verify` del CI y que
+  # `yarn db:provision:dev` en local. Sin ellos `postgres-role-privileges` no mide nada, y
+  # la imagen `tester` hereda `CI=true`: la suite FALLA en vez de saltarse, a propósito.
+  # Contraseñas de relleno: la base vive en un tmpfs que muere con la corrida.
+  provision-roles-test:
+    build:
+      context: .
+      target: tester
+    depends_on:
+      migrate-test:
+        condition: service_completed_successfully
+    environment:
+      <<: *test-environment
+      POSTGRES_WRITER_PASSWORD: test-writer-password-with-entropy
+      POSTGRES_READER_PASSWORD: test-reader-password-with-entropy
+    command: ["yarn", "db:provision:dev"]
+    networks: [atlas_test]
+    restart: "no"
+
   # Unitarias + integración (*.integration.spec.ts). Necesitan Postgres y Redis reales: las
   # pruebas de RLS, de bloqueos consultivos y de la cadena de auditoría no significan nada
   # contra un doble.
@@ -109,10 +128,14 @@ services:
     depends_on:
       migrate-test:
         condition: service_completed_successfully
+      provision-roles-test:
+        condition: service_completed_successfully
       redis-test:
         condition: service_healthy
     environment:
       <<: *test-environment
+      DATABASE_WRITE_URL: postgresql://atlas_writer:test-writer-password-with-entropy@postgres-test:5432/atlas_test?schema=public
+      DATABASE_READ_URL: postgresql://atlas_reader:test-reader-password-with-entropy@postgres-test:5432/atlas_test?schema=public
     command: ["yarn", "test"]
     networks: [atlas_test]
     restart: "no"

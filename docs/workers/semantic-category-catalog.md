@@ -96,10 +96,12 @@ Al construir `expenseCategoryTree` se rompe el arranque —no se avisa, se rompe
 Además, los ejemplos se **deduplican** al unir los diccionarios: en `DEEP` cada ejemplo es una
 sonda que se embebe y se compara, y una copia cuesta lo mismo que el original sin aportar nada.
 
-[`test/semantic-category-tree.spec.ts`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/test/semantic-category-tree.spec.ts) sostiene el
+`test/semantic-category-tree.spec.ts` sostenía el
 resto de las invariantes: que ninguna glosa se reparta entre dos hojas, que toda hoja traiga
 ejemplos y contraejemplos, que ninguna rama pueda ganar, que cada hoja se recupere a sí misma
-por léxico y que el catálogo entero quepa en la caché de sondas.
+por léxico y que el catálogo entero quepa en la caché de sondas. **Ya no existe**: se retiró en
+el commit `c4084c9` junto con el catálogo sembrado que comprobaba, que pasó a una rama de
+PostgreSQL. Hoy ninguna prueba del repositorio fija estas invariantes.
 
 ## Coste: qué crece y qué no
 

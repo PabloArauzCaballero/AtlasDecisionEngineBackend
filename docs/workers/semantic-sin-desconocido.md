@@ -89,9 +89,9 @@ pago.
 
 | Prueba                                    | Qué fija                                                        |
 | ----------------------------------------- | --------------------------------------------------------------- |
-| `test/semantic-cobertura-categorias.spec.ts` | Que toda categoría que una regla propone **existe** como hoja sembrada, y que ninguna glosa sale sin código. |
+| ~~`test/semantic-cobertura-categorias.spec.ts`~~ | **Retirada en `c4084c9`** junto con el catálogo sembrado. Fijaba que toda categoría que una regla propone existe como hoja sembrada; hoy no la fija ninguna prueba del repositorio. |
 | `test/semantic-pipeline-garantias.spec.ts`   | Que el pipeline usa las reglas en las **tres** salidas, y que dice de dónde salió cada decisión. |
 
-La primera es la que atrapa el fallo más fácil de introducir aquí y más difícil de notar:
+La primera atrapaba el fallo más fácil de introducir aquí y más difícil de notar, y ese hueco sigue abierto:
 una regla con un código mal escrito compila, no rompe nada y sólo se manifiesta como
 movimientos que caen al cajón sin que nadie sepa por qué.

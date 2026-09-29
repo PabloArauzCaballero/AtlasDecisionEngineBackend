@@ -12,6 +12,9 @@ const base = {
   MANAGEMENT_API_KEY: 'management-key-with-enough-entropy-123',
   RUNTIME_API_KEY: 'runtime-key-with-enough-entropy-456',
   AUDIT_HASH_SECRET: 'audit-secret-with-at-least-thirty-two-characters',
+  // El aviso de vuelta a AtlasBackend: producción lo exige completo desde P1-7.
+  ATLAS_BACKEND_BASE_URL: 'http://atlas-backend:3005/api/v1',
+  ENGINE_CALLBACK_API_KEY: 'engine-callback-key',
 };
 
 const jwtProduction = {
@@ -392,5 +395,87 @@ describe('conservar la evidencia es lo predeterminado', () => {
         STORAGE_S3_SECRET_ACCESS_KEY: 'storage-secret',
       }),
     ).not.toThrow();
+  });
+});
+
+/**
+ * P1-7. Sin estas dos el motor arrancaba sano y cada resolución humana se quedaba en el motor.
+ * En producción se exigen JUNTAS, salvo renuncia declarada; fuera de producción no se exigen,
+ * porque el desarrollo local y las e2e del CI arrancan sin AtlasBackend.
+ */
+describe('aviso de vuelta a AtlasBackend', () => {
+  const {
+    ATLAS_BACKEND_BASE_URL: _base,
+    ENGINE_CALLBACK_API_KEY: _key,
+    ...sinAviso
+  } = jwtProduction;
+
+  it.each([
+    ['ATLAS_BACKEND_BASE_URL', { ...sinAviso, ENGINE_CALLBACK_API_KEY: 'k' }],
+    ['ENGINE_CALLBACK_API_KEY', { ...sinAviso, ATLAS_BACKEND_BASE_URL: 'http://core:3005' }],
+  ])('en producción rechaza arrancar sin %s', (falta, entorno) => {
+    expect(() => validateEnvironment(entorno)).toThrow(new RegExp(falta));
+  });
+
+  it('en producción rechaza arrancar sin ninguna de las dos, y lo explica', () => {
+    expect(() => validateEnvironment(sinAviso)).toThrow(/ATLAS_CALLBACK_DISABLED=true/);
+  });
+
+  it('una variable vacía cuenta como ausente (lo que manda `${VAR:-}` de Compose)', () => {
+    expect(() =>
+      validateEnvironment({ ...sinAviso, ATLAS_BACKEND_BASE_URL: '', ENGINE_CALLBACK_API_KEY: '' }),
+    ).toThrow(/ENGINE_CALLBACK_API_KEY/);
+  });
+
+  it('con la renuncia declarada arranca sin las dos', () => {
+    const result = validateEnvironment({ ...sinAviso, ATLAS_CALLBACK_DISABLED: 'true' });
+    expect(result.ATLAS_CALLBACK_DISABLED).toBe(true);
+    expect(result.ATLAS_BACKEND_BASE_URL).toBeUndefined();
+  });
+
+  it('con las dos juntas arranca', () => {
+    const result = validateEnvironment(jwtProduction);
+    expect(result.ATLAS_BACKEND_BASE_URL).toBe('http://atlas-backend:3005/api/v1');
+    expect(result.ATLAS_CALLBACK_DISABLED).toBe(false);
+  });
+
+  it('fuera de producción no las exige: desarrollo y e2e arrancan sin AtlasBackend', () => {
+    expect(() =>
+      validateEnvironment({ ...sinAviso, NODE_ENV: 'test', AUTH_MODE: 'API_KEY' }),
+    ).not.toThrow();
+    expect(() => validateEnvironment({ ...sinAviso, NODE_ENV: 'development' })).not.toThrow();
+  });
+});
+
+/** Variables que se leían fuera del esquema: ahora se coercen y validan al arrancar. */
+describe('ajustes que antes llegaban crudos', () => {
+  it('MONITORING_EVALUATION_ENABLED=false apaga de verdad (antes llegaba la cadena, que es verdadera)', () => {
+    expect(
+      validateEnvironment({ ...base, MONITORING_EVALUATION_ENABLED: 'false' })
+        .MONITORING_EVALUATION_ENABLED,
+    ).toBe(false);
+  });
+
+  it('los números llegan como números y con el mismo valor por omisión que el código', () => {
+    const result = validateEnvironment({ ...base, SQL_CONSOLE_MAX_ROWS: '500' });
+    expect(result.SQL_CONSOLE_MAX_ROWS).toBe(500);
+    expect(result.SQL_CONSOLE_TIMEOUT_MS).toBe(12_000);
+    expect(result.MONITORING_EVALUATION_INTERVAL_MS).toBe(21_600_000);
+    expect(result.SEMANTIC_ANALYSIS_CANDIDATE_LIMIT).toBe(8);
+    expect(result.SEMANTIC_ANALYSIS_AMBIGUITY_MARGIN).toBe(0.08);
+  });
+
+  it('OUTCOME_WINDOW_DAYS mal escrita no impide arrancar: la descarta parseWindowDays', () => {
+    expect(() => validateEnvironment({ ...base, OUTCOME_WINDOW_DAYS: '30,abc' })).not.toThrow();
+  });
+
+  it('las del codificador vacías se leen como ausentes', () => {
+    const result = validateEnvironment({
+      ...base,
+      TRANSFORMER_BASE_URL: '',
+      SEMANTIC_TRANSFORMER_TIMEOUT_MS: '',
+    });
+    expect(result.TRANSFORMER_BASE_URL).toBeUndefined();
+    expect(result.SEMANTIC_TRANSFORMER_TIMEOUT_MS).toBeUndefined();
   });
 });

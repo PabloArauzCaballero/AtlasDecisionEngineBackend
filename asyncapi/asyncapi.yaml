@@ -54,6 +54,8 @@ channels:
         $ref: '#/components/messages/SecurityRiskDetected'
       atlasCallbackRequested:
         $ref: '#/components/messages/AtlasCallbackRequested'
+      monitoringBreachDetected:
+        $ref: '#/components/messages/MonitoringBreachDetected'
 
 operations:
   receiveDecisionEvents:
@@ -145,6 +147,26 @@ components:
         deploymentId: { type: string }
         environmentCode: { type: string }
 
+    MonitoringBreachDetectedPayload:
+      type: object
+      description: |
+        Una medición de la vigilancia continua salió `BREACH` en una versión activa en
+        producción. `aggregateId` del sobre es la versión de artefacto medida. Lo consume el
+        proyector de notificaciones (RISK_ANALYST y COMPLIANCE).
+      required: [artifactCode, metricCode, scope, value, threshold, sampleSize]
+      properties:
+        artifactCode: { type: string }
+        metricCode:
+          type: string
+          description: Código de `monitoring-thresholds.ts` (PSI, ADVERSE_IMPACT_RATIO, AUC…).
+          example: PSI
+        scope:
+          type: string
+          description: Variable (PSI), `atributo:grupo` (impacto adverso) o `-` para la versión entera.
+        value: { type: number }
+        threshold: { type: number }
+        sampleSize: { type: integer }
+
     AtlasCallbackRequestedPayload:
       type: object
       description: |
@@ -221,3 +243,15 @@ components:
             properties:
               payload:
                 $ref: '#/components/schemas/AtlasCallbackRequestedPayload'
+
+    MonitoringBreachDetected:
+      name: MONITORING_BREACH_DETECTED
+      title: Versión desplegada fuera de umbral
+      payload:
+        type: object
+        allOf:
+          - $ref: '#/components/schemas/Envelope'
+          - type: object
+            properties:
+              payload:
+                $ref: '#/components/schemas/MonitoringBreachDetectedPayload'

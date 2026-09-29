@@ -3,7 +3,7 @@
 
 # Variables de entorno
 
-318 variables declaradas. El esquema se valida al arrancar: un valor ausente o
+342 variables declaradas. El esquema se valida al arrancar: un valor ausente o
 fuera de rango impide el arranque en vez de degradar el comportamiento en caliente.
 
 | Variable | Obligatoria | Valor por defecto | Para qué |
@@ -326,4 +326,28 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `STORAGE_IDENTITY_KEY_PREFIX` | no | `'identity'` | Prefijo de las imágenes de identidad dentro del bucket compartido con AtlasBackend. Es lo que permite una política de retención propia sin mover un objeto. |
 | `STORAGE_STATEMENT_KEY_PREFIX` | no | `'statements'` | Prefijo del extracto bancario. Separado del de identidad porque son dos poblaciones con sensibilidad y vida útil distintas: un PDF de banco no es la cara de una persona, y poder aplicarles retenciones diferentes sin mover un objeto es justo lo que da el prefijo. |
 | `IDENTITY_IMAGE_RETENTION_REQUIRED` | no | `true` | Con `true` —lo predeterminado—, arrancar sin almacén es un error en vez de una degradación silenciosa que pierde la evidencia de cada decisión. |
+| `ATLAS_BACKEND_BASE_URL` | no | — | Base de AtlasBackend a la que el motor devuelve cada resolución humana (p. ej. `http://atlas-backend:3005/api/v1`). La leen el worker y cualquier proceso con WORKER_ROLE=ALL, que son quienes reparten el outbox. En producción es obligatoria junto con ENGINE_CALLBACK_API_KEY salvo ATLAS_CALLBACK_DISABLED=true. |
+| `ENGINE_CALLBACK_API_KEY` | no | — | Clave que el motor envía en `x-engine-callback-key` y que AtlasBackend valida. Secreto: va en el gestor de secretos, nunca en un ConfigMap. En producción es obligatoria junto con ATLAS_BACKEND_BASE_URL salvo ATLAS_CALLBACK_DISABLED=true. |
+| `ATLAS_CALLBACK_DISABLED` | no | `false` | `true` declara que este despliegue opera SIN AtlasBackend a propósito: las resoluciones humanas no se avisan a nadie y el aviso se consume con un registro de advertencia. Sin esta declaración, un aviso sin configuración no se pierde: se reintenta y acaba en DEAD, visible y reprocesable. |
+| `MONITORING_EVALUATION_ENABLED` | no | `true` | --- Vigilancia continua de modelos (src/modules/model-monitoring) --------------------- Enciende el trabajo `monitoring-evaluation`, que mide las versiones desplegadas en producción y publica el aviso de degradación. Sólo tiene efecto donde corren los trabajos de fondo (WORKER_ROLE ∈ ALL, WORKER). |
+| `MONITORING_EVALUATION_INTERVAL_MS` | no | `21_600_000` | Cada cuánto se evalúan las versiones vivas. Seis horas por omisión; más de 48 h sin medir es un BREACH por derecho propio (MONITORING_FRESHNESS_HOURS). |
+| `OUTCOME_WINDOW_DAYS` | no | — | Ventanas de observación del desenlace, en días y separadas por comas (sin valor, `30,60,90,180,360`). Se programan al decidir, sólo para CREDIT_ORIGINATION y con sujeto. Una entrada ilegible se descarta en vez de impedir el arranque, a propósito: ver `parseWindowDays` en src/modules/runtime/outcome-windows.ts. |
+| `SQL_CONSOLE_MAX_ROWS` | no | `10_000` | --- Consola SQL de solo lectura (src/modules/sql-console) ---------------------------- Techo de filas que devuelve una consulta de la consola; lo que pasa de ahí se trunca y se dice. |
+| `SQL_CONSOLE_TIMEOUT_MS` | no | `12_000` | Plazo de una consulta de la consola (statement_timeout), en milisegundos. |
+| `SEMANTIC_ANALYSIS_CANDIDATE_LIMIT` | no | `8` | --- Worker semántico: ajustes que se leían fuera del esquema ------------------------ Candidatos que el recuperador entrega al clasificador por glosa. |
+| `SEMANTIC_ANALYSIS_AMBIGUITY_MARGIN` | no | `0.08` | Margen por debajo del cual dos categorías se consideran empatadas y la glosa ambigua. |
+| `SEMANTIC_ANALYSIS_CATALOG_TTL_SECONDS` | no | `300` | Vida del catálogo de categorías en memoria, en segundos. |
+| `SEMANTIC_ANALYSIS_CLASSIFICATION_TTL_SECONDS` | no | `3_600` | Vida de una clasificación en la caché del proceso, en segundos. La frescura la garantiza la firma del catálogo, no este plazo. |
+| `SEMANTIC_ANALYSIS_CLASSIFICATION_CACHE` | no | `5_000` | Entradas máximas de la caché de clasificaciones del proceso. |
+| `SEMANTIC_ANALYSIS_RETRIEVAL_MODE` | no | — | `lexical` (por omisión) o `hybrid`. El híbrido exige un proveedor de embeddings y gasta cuota en cada análisis; cualquier otro valor se lee como `lexical`. |
+| `SEMANTIC_ANALYSIS_SEMANTIC_WEIGHT` | no | `0.5` | Peso de la similitud semántica frente a la léxica en el modo `hybrid` (0–1). |
+| `SEMANTIC_MODEL_SETTINGS_REFRESH_MS` | no | — | Cada cuánto se relee de la base el modelo elegido desde el portal, en milisegundos. Sin valor manda el del servicio. |
+| `TRANSFORMER_BASE_URL` | no | — | --- Servidor de embeddings (TEI) ----------------------------------------------------- El proveedor `transformer` del worker semántico valida estas claves con su propio esquema (semantic-analysis/core/config/transformer-provider.config.ts); aquí se declaran porque el comprobador de fraude documental de identidad las lee por ConfigService. Raíz del servidor de embeddings, sin `/embed` (p. ej. `http://transformer:80`). |
+| `TRANSFORMER_API_KEY` | no | — | Credencial del servidor de embeddings, si la exige. |
+| `SEMANTIC_TRANSFORMER_MODEL` | no | — | Modelo que sirve el TEI; sin valor, `intfloat/multilingual-e5-small`. |
+| `SEMANTIC_TRANSFORMER_QUERY_PREFIX` | no | — | Prefijo de consulta del modelo E5; sin valor, `query: `. |
+| `SEMANTIC_TRANSFORMER_PASSAGE_PREFIX` | no | — | Prefijo de pasaje del modelo E5; sin valor, `passage: `. |
+| `SEMANTIC_TRANSFORMER_TIMEOUT_MS` | no | — | Plazo de cada llamada al servidor de embeddings, en milisegundos; sin valor, 15000. |
+| `SEMANTIC_TRANSFORMER_MAX_ATTEMPTS` | no | — | Intentos por llamada al servidor de embeddings; sin valor, 3. |
+| `SEMANTIC_TRANSFORMER_RETRY_BACKOFF_MS` | no | — | Espera entre intentos, en milisegundos; sin valor, 250. |
 

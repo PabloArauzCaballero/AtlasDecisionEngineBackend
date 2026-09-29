@@ -23,7 +23,7 @@ tiene relación con ellos.
 
 `AtlasDecisionEngineFrontend` **no tiene backend**. Su ruta
 `src/app/v1/[...path]/route.next.ts` es un comodín que reenvía todo `/v1/*` al
-Decision Engine mediante `src/server/decision-engine-proxy.ts`; su propio
+Decision Engine mediante su `src/server/decision-engine-proxy.ts`; su propio
 `INTEGRATION.md` lo dice sin rodeos — *«Frontend React … no contiene código del
 backend»*. No hay ORM, ni base de datos, ni Redis, ni cola. El «motor simulado»
 que usan las pruebas es interceptación de rutas de Playwright, no un servidor.
@@ -112,7 +112,7 @@ Todo el núcleo, porque no conoce infraestructura: `text-normalizer`,
 
 ### Lo que hay que sustituir, y por qué
 
-`src/application/ports.ts` deja toda la infraestructura detrás de símbolos de
+En el paquete original, `src/application/ports.ts` deja toda la infraestructura detrás de símbolos de
 inyección, así que la sustitución es de adaptadores, no de lógica.
 
 | Puerto                          | Adaptador que trae         | Adaptador que recibe                                   |
