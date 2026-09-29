@@ -15,14 +15,12 @@ import type { RiskGovernanceService } from '../src/modules/risk-governance/risk-
 
 const TENANT = 1n;
 
-function principal(
-  authMethod: AuthMethod,
-  roles: string[] = ['COMPLIANCE'],
-): AuthenticatedPrincipal {
+/** Quién llama y por qué canal: `via` es el mecanismo con que se autenticó. */
+function caller(via: AuthMethod, roles: string[] = ['COMPLIANCE']): AuthenticatedPrincipal {
   return {
     id: 'quien',
     roles,
-    authMethod,
+    authMethod: via,
     requestId: 'req-1',
   } as unknown as AuthenticatedPrincipal;
 }
@@ -71,7 +69,7 @@ describe('RiskGovernanceController · quién escribe consentimientos', () => {
     'una sesión de persona (%s) NO registra un permiso: 403 y el servicio no se llama',
     (method) => {
       const { api, calls } = controller();
-      const error = errorOf(() => api.recordConsent(TENANT, principal(method), grant as never));
+      const error = errorOf(() => api.recordConsent(TENANT, caller(method), grant as never));
       expect(error?.code).toBe('CONSENT_WRITE_MACHINE_ONLY');
       expect(error?.status).toBe(403);
       expect(calls).toEqual([]);
@@ -82,7 +80,7 @@ describe('RiskGovernanceController · quién escribe consentimientos', () => {
     'una sesión de persona (%s) NO revoca: se revoca en Core',
     (method) => {
       const { api, calls } = controller();
-      const error = errorOf(() => api.revokeConsent(TENANT, principal(method), revoke as never));
+      const error = errorOf(() => api.revokeConsent(TENANT, caller(method), revoke as never));
       expect(error?.code).toBe('CONSENT_WRITE_MACHINE_ONLY');
       expect(calls).toEqual([]);
     },
@@ -91,7 +89,7 @@ describe('RiskGovernanceController · quién escribe consentimientos', () => {
   it('ni siquiera PLATFORM_ADMIN con sesión escribe: no es cuestión de rol, es de canal', () => {
     const { api, calls } = controller();
     const error = errorOf(() =>
-      api.revokeConsent(TENANT, principal('jwt', ['PLATFORM_ADMIN']), revoke as never),
+      api.revokeConsent(TENANT, caller('jwt', ['PLATFORM_ADMIN']), revoke as never),
     );
     expect(error?.code).toBe('CONSENT_WRITE_MACHINE_ONLY');
     expect(calls).toEqual([]);
@@ -99,8 +97,8 @@ describe('RiskGovernanceController · quién escribe consentimientos', () => {
 
   it('la réplica de Core (API key) registra y revoca', async () => {
     const { api, calls } = controller();
-    await api.recordConsent(TENANT, principal('api_key'), grant as never);
-    await api.revokeConsent(TENANT, principal('api_key'), revoke as never);
+    await api.recordConsent(TENANT, caller('api_key'), grant as never);
+    await api.revokeConsent(TENANT, caller('api_key'), revoke as never);
     expect(calls).toEqual(['record', 'revoke']);
   });
 
