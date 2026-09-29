@@ -9551,6 +9551,73 @@
         ]
       }
     },
+    "/v1/manual-reviews/by-execution/{executionId}/onboarding-dossier": {
+      "put": {
+        "description": "Guarda el expediente del alta en `evidenceJson.alta` del caso de la ejecución, sin tocar estado ni asignación. Si la ejecución no tiene caso y llega `openIfMissing`, lo abre (OPEN, cola `IDENTIDAD` por defecto, plazo 240 min). Idempotente: repetir el envío reemplaza el expediente. Ejecución de otro tenant o inexistente: 404 `EXECUTION_NOT_FOUND`; sin caso y sin `openIfMissing`: 404 `MANUAL_REVIEW_NOT_FOUND`; caso ya cerrado: 409 `MANUAL_REVIEW_CLOSED`.",
+        "operationId": "onboardingDossierAttach",
+        "parameters": [
+          {
+            "name": "executionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Identificador de la ejecución de decisión."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttachOnboardingDossierDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Caso con el expediente adjunto; `created` dice si lo abrió esta llamada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingDossierResultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "404": {
+            "description": "Ejecución inexistente o ajena, o sin caso que adjuntar."
+          },
+          "409": {
+            "description": "El caso ya está resuelto o cancelado."
+          },
+          "413": {
+            "description": "El expediente supera 256 KB serializado."
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Attach the onboarding dossier to the review case of an execution",
+        "tags": [
+          "Manual Review"
+        ]
+      }
+    },
     "/v1/data-subject-requests": {
       "post": {
         "operationId": "dataSubjectSubmit",
@@ -26606,6 +26673,146 @@
         "required": [
           "decision",
           "reason"
+        ]
+      },
+      "OpenIfMissingDto": {
+        "type": "object",
+        "properties": {
+          "queueCode": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "description": "Cola del caso. Por defecto `IDENTIDAD`, que es la que vuelve a AtlasBackend.",
+            "example": "IDENTIDAD"
+          },
+          "priority": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10000,
+            "description": "Prioridad (menor = antes). Por defecto 50, la del artefacto de identidad.",
+            "example": 50
+          },
+          "slaMinutes": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 43200,
+            "description": "Plazo del caso en minutos. Por defecto 240, el SLA de la cola IDENTIDAD.",
+            "example": 240
+          },
+          "motivo": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Por qué se abre. Por defecto `REVISION_HUMANA_OBLIGATORIA`.",
+            "example": "REVISION_HUMANA_OBLIGATORIA"
+          }
+        }
+      },
+      "AttachOnboardingDossierDto": {
+        "type": "object",
+        "properties": {
+          "dossier": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Expediente del alta (JSON libre, hasta 256 KB serializado). Se guarda en `evidenceJson.alta` del caso, reemplazando el anterior.",
+            "example": {
+              "version": 1,
+              "generadoEn": "2026-09-28T12:00:00.000Z"
+            }
+          },
+          "openIfMissing": {
+            "description": "Si la ejecución no tiene caso, ábrelo con estos datos. Sin él, una ejecución sin caso es 404.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OpenIfMissingDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "dossier"
+        ]
+      },
+      "OnboardingDossierResultDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "12001"
+          },
+          "executionId": {
+            "type": "string",
+            "example": "88001"
+          },
+          "caseCode": {
+            "type": "string",
+            "example": "MR-2026-0042"
+          },
+          "queueCode": {
+            "type": "string",
+            "example": "FRAUD_REVIEW"
+          },
+          "priority": {
+            "type": "number",
+            "example": 100
+          },
+          "status": {
+            "type": "string",
+            "example": "ASSIGNED",
+            "enum": [
+              "OPEN",
+              "ASSIGNED",
+              "RESOLVED_APPROVED",
+              "RESOLVED_DECLINED",
+              "CANCELLED"
+            ]
+          },
+          "assignedTo": {
+            "type": "string",
+            "nullable": true,
+            "example": "analyst@atlas.local"
+          },
+          "dueAt": {
+            "type": "string",
+            "example": "2026-07-21T10:00:00.000Z"
+          },
+          "evidenceJson": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "resolutionJson": {
+            "type": "object",
+            "additionalProperties": true,
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-07-20T10:00:00.000Z"
+          },
+          "resolvedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "created": {
+            "type": "boolean",
+            "description": "`true` si esta llamada abrió el caso; `false` si ya existía y sólo se adjuntó.",
+            "example": false
+          }
+        },
+        "required": [
+          "id",
+          "executionId",
+          "caseCode",
+          "queueCode",
+          "priority",
+          "status",
+          "assignedTo",
+          "dueAt",
+          "evidenceJson",
+          "resolutionJson",
+          "createdAt",
+          "resolvedAt",
+          "created"
         ]
       },
       "CreateDataSubjectRequestDto": {

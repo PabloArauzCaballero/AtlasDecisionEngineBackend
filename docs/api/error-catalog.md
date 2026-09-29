@@ -3,7 +3,7 @@
 
 # Catálogo de códigos de error
 
-260 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
+261 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
 el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 
 | Código | Mensaje de referencia | Origen |
@@ -172,6 +172,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `NOTIFICATION_NOT_FOUND` | Notification not found | `src/modules/notifications/notification.service.ts` |
 | `NO_MATCHING_EDGE` | No outgoing edge matched node ${node.key} | `src/modules/graph/execution-engine.service.ts` |
 | `OBJECTIVE_NOT_FOUND` | Business objective not found | `src/modules/traceability/traceability.service.ts` |
+| `ONBOARDING_DOSSIER_TOO_LARGE` | The onboarding dossier is ${bytes} bytes; the limit is ${MAX_DOSSIER_BYTES} | `src/modules/manual-review/onboarding-dossier.service.ts` |
 | `OPENROUTER_CATALOG_UNAVAILABLE` | No se pudo leer el catálogo de modelos de OpenRouter. Vuelve a intentarlo; si persiste, el motor no alcanza openrouter.ai. | `src/modules/workers/semantic-analysis/model-settings/openrouter-catalog.service.ts` |
 | `OUTCOME_BATCH_EMPTY` | El lote de ${field} está vacío | `src/modules/outcome-ingestion/outcome-ingestion.service.ts` |
 | `OUTCOME_BATCH_TOO_LARGE` | Un lote admite como máximo ${MAX_BATCH} ${field}; divídalo | `src/modules/outcome-ingestion/outcome-ingestion.service.ts` |

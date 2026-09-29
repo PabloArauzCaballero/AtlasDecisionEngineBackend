@@ -21,7 +21,7 @@ real: sus controladores, sus etiquetas de API, sus roles exigidos y sus códigos
 | [`identity-session`](identity-session.md) | 6 | — | 8 |
 | [`libraries`](libraries.md) | 3 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 6 |
 | [`live-execution`](live-execution.md) | 1 | FRAUD_ANALYST, QA_ANALYST, RISK_ANALYST | 3 |
-| [`manual-review`](manual-review.md) | 4 | FRAUD_ANALYST, OPERATIONS, RISK_ANALYST | 5 |
+| [`manual-review`](manual-review.md) | 5 | FRAUD_ANALYST, OPERATIONS, RISK_ANALYST | 8 |
 | [`model-monitoring`](model-monitoring.md) | 8 | AUDITOR, COMPLIANCE, OPERATIONS, RISK_ANALYST, RISK_APPROVER | 12 |
 | [`nested-trees`](nested-trees.md) | 5 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, QA_ANALYST, RISK_ANALYST | 9 |
 | [`notifications`](notifications.md) | 4 | — | 6 |

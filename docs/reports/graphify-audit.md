@@ -13,7 +13,7 @@ El grafo contiene **12281 nodos** y **29289 relaciones** repartidos en
 **32 módulos de dominio** en `src/modules/`, de los cuales
 todos están registrados en `src/app.module.ts` (comprobado sobre el fichero, no supuesto).
 
-El grafo cubre **715 de 736**
+El grafo cubre **715 de 739**
 ficheros TypeScript de `src/` (97 %).
 **1 módulo(s) de dominio no aparecen en absoluto**: `atlas-callback`. Consultar el grafo sobre ellos no devuelve nada, así que su documentación **no** se deriva de aquí.
 
@@ -112,7 +112,7 @@ Es la dirección que más daño hace: sobre un fichero ausente el grafo no devue
 consulta vacía se lee igual que «no existe». Por eso los catálogos del portal se generan del
 código y del contrato, nunca de este grafo.
 
-**21 de 736** ficheros `.ts` de `src/` no aparecen en el grafo, incluidos **1 módulo(s) completos** (`atlas-callback`). Se listan los primeros 20:
+**24 de 739** ficheros `.ts` de `src/` no aparecen en el grafo, incluidos **1 módulo(s) completos** (`atlas-callback`). Se listan los primeros 20:
 
 - `src/common/observability/redacting-span-processor.ts`
 - `src/common/observability/sql-redaction.ts`
@@ -120,6 +120,9 @@ código y del contrato, nunca de este grafo.
 - `src/modules/atlas-callback/atlas-callback.dispatcher.ts`
 - `src/modules/atlas-callback/atlas-callback.module.ts`
 - `src/modules/atlas-callback/atlas-callback.service.ts`
+- `src/modules/manual-review/onboarding-dossier.controller.ts`
+- `src/modules/manual-review/onboarding-dossier.dto.ts`
+- `src/modules/manual-review/onboarding-dossier.service.ts`
 - `src/modules/qa-lab/faker-semantics.ts`
 - `src/modules/qa-lab/qa-fakers.client.ts`
 - `src/modules/qa-lab/qa-fakers.module.ts`
@@ -131,9 +134,6 @@ código y del contrato, nunca de este grafo.
 - `src/modules/workers/storage-references.controller.ts`
 - `src/pdf-worker/templates/documents/blank-form/1.0.0/preview.fixture.ts`
 - `src/pdf-worker/templates/documents/blank-form/1.0.0/schema.ts`
-- `src/pdf-worker/templates/documents/blank-form/1.0.0/template.config.ts`
-- `src/pdf-worker/templates/documents/factura-fiscal/1.0.0/preview.fixture.ts`
-- `src/pdf-worker/templates/documents/factura-fiscal/1.0.0/schema.ts`
 
 ## Riesgos identificados
 

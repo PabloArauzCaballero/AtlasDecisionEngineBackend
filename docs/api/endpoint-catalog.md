@@ -3,7 +3,7 @@
 
 # Catálogo de endpoints
 
-Contrato **v1** · 211 rutas · 239 operaciones.
+Contrato **v1** · 212 rutas · 240 operaciones.
 
 La referencia interactiva completa —con esquemas, ejemplos y la posibilidad de probar cada
 llamada— está en `/docs/{API_VERSION}/reference` del propio backend. Esta página existe para
@@ -178,6 +178,7 @@ Cola de casos derivados a revisión humana y su resolución.
 | `GET` | `/v1/manual-reviews/{caseId}` | `manualReviewGet` | Get one manual-review case and decision context |
 | `POST` | `/v1/manual-reviews/{caseId}/assign` | `manualReviewAssign` | Take an open case, or assign it to another analyst |
 | `POST` | `/v1/manual-reviews/{caseId}/resolve` | `manualReviewResolve` | Resolve a case as its assigned analyst |
+| `PUT` | `/v1/manual-reviews/by-execution/{executionId}/onboarding-dossier` | `onboardingDossierAttach` | Attach the onboarding dossier to the review case of an execution |
 
 ## Model Monitoring
 
