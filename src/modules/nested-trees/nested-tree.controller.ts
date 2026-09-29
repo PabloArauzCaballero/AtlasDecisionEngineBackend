@@ -24,7 +24,7 @@ export class NestedTreeController {
   @Post()
   @ApiOperation({ summary: 'Create a validated child-artifact reference' })
   @ApiCreatedResponse({ description: 'Referencia creada.', type: ArtifactReferenceDto })
-  @Roles('RISK_ANALYST', 'FRAUD_ANALYST')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST')
   create(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -48,7 +48,7 @@ export class NestedTreeController {
   @Put(':referenceId')
   @ApiOperation({ summary: 'Update mappings, timeout or error policy of a reference' })
   @ApiOkResponse({ description: 'Referencia actualizada.', type: ArtifactReferenceDto })
-  @Roles('RISK_ANALYST', 'FRAUD_ANALYST')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST')
   update(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -68,7 +68,7 @@ export class NestedTreeController {
   @Delete(':referenceId')
   @ApiOperation({ summary: 'Delete a reference from an editable parent version' })
   @ApiEmptyOkResponse('Referencia eliminada.')
-  @Roles('RISK_ANALYST', 'FRAUD_ANALYST')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST')
   remove(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,

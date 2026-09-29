@@ -41,7 +41,7 @@ export class TestingController {
     description: 'Suite creada con sus casos iniciales.',
     type: TestSuiteCreatedDto,
   })
-  @Roles('QA_ANALYST', 'RISK_ANALYST', 'FRAUD_ANALYST')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST')
   createSuite(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -80,7 +80,7 @@ export class TestingController {
   @Post('test-suites/:suiteId/cases')
   @ApiOperation({ summary: 'Add one case to a suite' })
   @ApiCreatedResponse({ description: 'Caso creado.', type: TestCaseRecordDto })
-  @Roles('QA_ANALYST', 'RISK_ANALYST', 'FRAUD_ANALYST')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST')
   createCase(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -95,7 +95,7 @@ export class TestingController {
   @Post('test-suites/:suiteId/cases/import')
   @ApiOperation({ summary: 'Add a bounded batch of cases to a suite' })
   @ApiCreatedResponse({ description: 'Casos creados.', type: [TestCaseRecordDto] })
-  @Roles('QA_ANALYST', 'RISK_ANALYST', 'FRAUD_ANALYST')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST')
   importCases(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -112,7 +112,7 @@ export class TestingController {
     description: 'Corrida encolada; aún sin casos ejecutados.',
     type: TestRunQueuedDto,
   })
-  @Roles('QA_ANALYST', 'RISK_ANALYST', 'FRAUD_ANALYST')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST')
   run(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,

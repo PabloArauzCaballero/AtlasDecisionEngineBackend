@@ -27,7 +27,7 @@ export class GovernanceController {
 
   @Post('artifact-versions/:versionId/submit-for-review')
   @ApiOperation({ summary: 'Submit a validated version for ordered review' })
-  @Roles('RISK_ANALYST', 'FRAUD_ANALYST')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST')
   submit(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,

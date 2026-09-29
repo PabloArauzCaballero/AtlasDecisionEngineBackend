@@ -26,7 +26,7 @@ export class SimulationController {
     description: 'Lote de entradas generadas, con la semilla que las reproduce.',
     type: SimulatorSampleInputsDto,
   })
-  @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST')
   generateSampleInputs(
     @TenantId() tenantId: bigint,
     @Param('artifactCode') artifactCode: string,
@@ -44,7 +44,7 @@ export class SimulationController {
       'block. Nothing is persisted either way; the divergence is counted in ' +
       '`atlas_dev_prod_result_diff_total`.',
   })
-  @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST')
   simulate(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,

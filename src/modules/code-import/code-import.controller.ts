@@ -24,7 +24,7 @@ export class CodeImportController {
     description: 'IR, incidencias y vista previa del grafo generado.',
     type: CodeImportAnalyzedDto,
   })
-  @Roles('RISK_ANALYST', 'FRAUD_ANALYST')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST')
   analyze(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -55,7 +55,7 @@ export class CodeImportController {
     description: 'Grafo escrito en la versión editable.',
     type: CodeImportDraftSavedDto,
   })
-  @Roles('RISK_ANALYST', 'FRAUD_ANALYST')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST')
   saveDraft(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -71,7 +71,7 @@ export class CodeImportController {
     description: 'Grafo escrito, validado y compilado.',
     type: CodeImportConfirmedDto,
   })
-  @Roles('RISK_ANALYST', 'FRAUD_ANALYST')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST')
   confirm(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -84,7 +84,7 @@ export class CodeImportController {
   @Post(':id/cancel')
   @ApiOperation({ summary: 'Cancel a code import without changing an artifact' })
   @ApiCreatedResponse({ description: 'Análisis cancelado.', type: CodeImportRecordDto })
-  @Roles('RISK_ANALYST', 'FRAUD_ANALYST')
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST')
   cancel(
     @TenantId() tenantId: bigint,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
