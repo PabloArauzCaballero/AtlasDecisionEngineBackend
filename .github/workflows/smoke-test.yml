@@ -1,0 +1,83 @@
+# Smoke post-deploy de TEST (Contabo). Se dispara con cada push a `test` —que es lo que Coolify
+# despliega por webhook— y responde a UNA pregunta: ¿TEST sirve ESTE commit y su smoke pasa?
+#
+# No hace falta Tailscale: TEST tiene IP pública. No despliega nada: espera a que Coolify termine
+# (hasta 40 min, que es lo que tarda el build más lento) leyendo la versión publicada, y sólo entonces
+# corre el smoke del repo (`scripts/post-deploy-smoke.mjs`, el mismo que usa DEV) y deja el
+# manifiesto del despliegue como artefacto. Si el commit servido no es el empujado, es ROJO: un
+# despliegue que no entró no puede parecer un despliegue verde (atlas/CLAUDE.md §4).
+name: Smoke TEST
+
+on:
+  push:
+    branches: [test]
+  workflow_dispatch:
+
+# Nunca se cancela: la corrida es la evidencia de ese SHA.
+concurrency:
+  group: smoke-test-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  smoke-test:
+    name: smoke-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      SMOKE_BASE_URL: http://motor-api.161.97.85.216.sslip.io
+      VERSION_PATH: /health
+      TARGET_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Esperar a que TEST sirva este commit (hasta 40 min)
+        shell: bash
+        run: |
+          set -uo pipefail
+          deadline=$(( $(date +%s) + 40*60 ))
+          cuerpo=$(mktemp)
+          while :; do
+            codigo=$(curl --silent --show-error --connect-timeout 10 --max-time 20 \
+              --output "$cuerpo" --write-out '%{http_code}' "${SMOKE_BASE_URL}${VERSION_PATH}" 2>/dev/null || echo 000)
+            if [ "$codigo" = 200 ] && grep -q "$TARGET_SHA" "$cuerpo"; then
+              echo "TEST sirve $TARGET_SHA:"; head -c 400 "$cuerpo"; echo
+              break
+            fi
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              echo "::error::TEST no sirve $TARGET_SHA tras 40 min (HTTP $codigo). Cuerpo:"; head -c 400 "$cuerpo"; echo
+              echo "Si el cuerpo trae commit vacío, Coolify no está inyectando SOURCE_COMMIT (filas vacías en la app)."
+              exit 1
+            fi
+            echo "$(date -u +%H:%M:%S) HTTP $codigo, aún no es $TARGET_SHA; reintento en 20 s"
+            sleep 20
+          done
+
+      - name: Smoke HTTP contra TEST
+        env:
+          SMOKE_ATTEMPTS: '12'
+          TARGET_SHA: ${{ github.sha }}
+        run: node scripts/post-deploy-smoke.mjs
+
+      - name: Manifiesto del despliegue
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(curl --silent --max-time 20 "${SMOKE_BASE_URL}${VERSION_PATH}")
+          jq -n --arg repo "$GITHUB_REPOSITORY" --arg commit "$TARGET_SHA" --arg run "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+                --arg base "$SMOKE_BASE_URL" --argjson version "$version" \
+                '{repository:$repo, commit:$commit, sourceBranch:"test", targetEnvironment:"test",
+                  ciRun:$run, verifiedAt:(now|todate), baseUrl:$base, served:$version, smoke:"passed"}' \
+            | tee release-manifest.json
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-manifest-test-${{ github.sha }}
+          path: release-manifest.json
+          retention-days: 90

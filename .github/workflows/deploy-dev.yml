@@ -73,13 +73,13 @@ jobs:
     # colgado sigue fallando a los 40 min con nuestro mensaje y no con el corte seco de GitHub.
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
 
       - name: Connect to Tailscale
-        uses: tailscale/github-action@v4
+        uses: tailscale/github-action@d1b6cd204f8dceda5b3eaad7f1f767be390056cd # v4.2.0
         with:
           authkey: ${{ secrets.PABLO_H310_TAILSCALE_AUTHKEY }}
 
