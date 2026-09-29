@@ -14,6 +14,43 @@ function field(payload: unknown, key: string): string | undefined {
   return typeof value === 'string' && value.length ? value : undefined;
 }
 
+function numberField(payload: unknown, key: string): number | undefined {
+  const value = (payload as Record<string, unknown> | null | undefined)?.[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+/** Nombre legible de cada código de `monitoring-thresholds.ts`; lo desconocido sale tal cual. */
+const MONITORING_METRIC_LABELS: Readonly<Record<string, string>> = {
+  PSI: 'estabilidad poblacional (PSI)',
+  BAD_RATE: 'tasa de malos',
+  APPROVAL_RATE: 'tasa de aprobación',
+  ADVERSE_IMPACT_RATIO: 'razón de impacto adverso',
+  KS: 'KS',
+  AUC: 'AUC',
+  CALIBRATION_HL: 'calibración (Hosmer-Lemeshow)',
+  OUTCOME_COVERAGE: 'cobertura de desenlaces',
+  MONITORING_FRESHNESS_HOURS: 'horas sin evaluar',
+};
+
+/** Una línea con la medida, el umbral y la muestra: lo que hace falta para decidir si mirar. */
+function describeBreach(payload: unknown): string {
+  const metricCode = field(payload, 'metricCode') ?? 'una medida';
+  const metric = MONITORING_METRIC_LABELS[metricCode] ?? metricCode;
+  const scope = field(payload, 'scope');
+  const value = numberField(payload, 'value');
+  const threshold = numberField(payload, 'threshold');
+  const sample = numberField(payload, 'sampleSize');
+  const round = (n: number) => String(Math.round(n * 10_000) / 10_000);
+  return (
+    `La vigilancia de producción midió ${metric}` +
+    (scope && scope !== '-' ? ` en ${scope}` : '') +
+    (value === undefined ? '' : ` = ${round(value)}`) +
+    (threshold === undefined ? '' : `, fuera del umbral ${round(threshold)}`) +
+    (sample === undefined ? '' : ` sobre ${sample} casos`) +
+    '. Revísalo en Monitoreo del modelo.'
+  );
+}
+
 function stringArray(payload: unknown, key: string): string[] {
   const value = (payload as Record<string, unknown> | null | undefined)?.[key];
   return Array.isArray(value)
@@ -179,6 +216,21 @@ export class NotificationProjectorService implements OnModuleInit, OnModuleDestr
           title: 'Riesgo de seguridad detectado',
           body: field(event.payload, 'summary') ?? 'Se detectó un riesgo que requiere revisión.',
         }));
+      case DecisionEventType.MONITORING_BREACH_DETECTED: {
+        // Riesgo lee la degradación y cumplimiento responde por el sesgo: son los dos roles que
+        // el motor deja leer los análisis de `/v1/model-monitoring` y que tienen algo que hacer
+        // con el aviso. Sin esta rama el evento se publicaba y se descartaba en silencio.
+        const breach = describeBreach(event.payload);
+        return [PlatformRole.RISK_ANALYST, PlatformRole.COMPLIANCE].map((role) => ({
+          ...base,
+          recipientRole: role,
+          category: 'MONITORING',
+          priority: 'HIGH',
+          title: `Modelo fuera de umbral: ${artifactCode}`,
+          body: breach,
+          actionUrl: '/model-monitoring',
+        }));
+      }
       default:
         return [];
     }

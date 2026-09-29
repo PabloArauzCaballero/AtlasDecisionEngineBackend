@@ -19,6 +19,14 @@ export const DecisionEventType = {
    * lo consume `AtlasCallbackDispatcher`, que hace la llamada HTTP y la reintenta.
    */
   ATLAS_CALLBACK_REQUESTED: 'atlas.callback_requested',
+  /**
+   * La vigilancia continua midió una versión desplegada en producción FUERA de su umbral
+   * (`MonitoringEvaluatorService`, veredicto `BREACH`). Lo consume el proyector de
+   * notificaciones, que avisa a riesgo y a cumplimiento. El literal es el que el evaluador ya
+   * escribía en el outbox antes de entrar en este catálogo: cambiarlo dejaría sin proyectar las
+   * filas pendientes que lo llevan.
+   */
+  MONITORING_BREACH_DETECTED: 'MONITORING_BREACH_DETECTED',
 } as const;
 
 export type DecisionEventType = (typeof DecisionEventType)[keyof typeof DecisionEventType];
@@ -78,4 +86,20 @@ export interface SecurityRiskDetectedPayload {
 export interface AtlasCallbackRequestedPayload {
   route: string;
   body: Record<string, string | null>;
+}
+
+/**
+ * v1 payload of {@link DecisionEventType.MONITORING_BREACH_DETECTED}.
+ *
+ * El `aggregateId` del sobre es la versión de artefacto medida. `scope` es la variable (PSI), el
+ * `atributo:grupo` (impacto adverso) o `-` cuando la medida es de la versión entera.
+ */
+export interface MonitoringBreachDetectedPayload {
+  artifactCode: string;
+  /** Código de `monitoring-thresholds.ts` (`PSI`, `ADVERSE_IMPACT_RATIO`, `AUC`…). */
+  metricCode: string;
+  scope: string;
+  value: number;
+  threshold: number;
+  sampleSize: number;
 }
