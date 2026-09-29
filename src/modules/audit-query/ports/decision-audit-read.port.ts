@@ -47,6 +47,12 @@ export interface AuditEventCriteria {
   readonly eventType?: string;
   readonly aggregateType?: string;
   readonly actorId?: string;
+  /**
+   * Texto libre: coincide (sin distinguir mayúsculas, por parte del valor y con `%` y `_` como
+   * caracteres literales) con el tipo de evento, el tipo y el identificador del agregado, el actor
+   * o el request ID. Se suma con Y a los demás filtros, que siguen siendo de igualdad exacta.
+   */
+  readonly search?: string;
   readonly from?: Date;
   readonly to?: Date;
 }

@@ -8,7 +8,7 @@ export class InvalidAuditEventDto {
   @ApiProperty({
     example: 'PREVIOUS_HASH_MISMATCH',
     description:
-      '`PREVIOUS_HASH_MISMATCH` (la cadena se rompió), `HASH_MISMATCH` (el evento fue alterado) o `HASH_KEY_UNAVAILABLE` (el secreto con el que se firmó ya no está configurado).',
+      '`PREVIOUS_HASH_MISMATCH` (la cadena se rompió), `EVENT_HASH_MISMATCH` (el evento fue alterado) o `HASH_KEY_UNAVAILABLE` (el secreto con el que se firmó ya no está configurado).',
   })
   reason!: string;
 }
