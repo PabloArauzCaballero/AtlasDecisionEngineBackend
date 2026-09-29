@@ -8,7 +8,7 @@ import type { ResolvedDeployment } from '../deployments/deployment-resolver.serv
 import type { EngineExecutionResult } from '../graph/graph.types';
 import type { ResolvedVariableSnapshot } from '../variables/variable-resolution.service';
 import { outcomeWindowsFor, windowDueAt } from './outcome-windows';
-import { manualReviewCaseCode } from './manual-review-case-code';
+import { isManualReviewOutcome, manualReviewCaseCode } from './manual-review-case-code';
 
 /** Complete persistence payload for one decision execution and its evidence. */
 export interface WriteExecutionInput {
@@ -79,6 +79,7 @@ export class ExecutionWriterService {
 
   private async writeWithin(tx: Prisma.TransactionClient, input: WriteExecutionInput) {
     const result = input.result;
+    this.assertManualReviewConsistency(result, input.statusOverride);
     const subjectReferenceHash = input.subjectReference
       ? this.hashes.hmac(input.subjectReference)
       : undefined;
@@ -295,6 +296,36 @@ export class ExecutionWriterService {
       })),
       skipDuplicates: true,
     });
+  }
+
+  /**
+   * Invariante de negocio: una decisión que se anuncia como revisión manual TIENE que dejar un caso
+   * en la cola, y un caso sólo existe si la decisión lo anuncia. Sin esto, un grafo cuyo nodo
+   * RESULT devuelve «REVISION_MANUAL» quedaba SUCCEEDED sin fila en `decision_manual_review_case`:
+   * el cliente veía «a revisión» y ningún analista tenía nada que revisar (hallazgo A12 del KYB,
+   * 2026-09-27). Se lanza ANTES de escribir nada, dentro de la misma transacción que la ejecución,
+   * la idempotencia y la auditoría: no queda decisión a medias. Es un 422 —un defecto del artefacto,
+   * determinista— para que el runtime lo registre como DECISION_FAILED y no lo reintente.
+   *
+   * `statusOverride` (NO_DECISION por salida económica inválida o base ausente) queda fuera: ahí el
+   * runtime ya quitó el caso a propósito y la ejecución no es una decisión tomada.
+   */
+  private assertManualReviewConsistency(
+    result: EngineExecutionResult | undefined,
+    statusOverride: WriteExecutionInput['statusOverride'],
+  ): void {
+    if (!result || statusOverride || result.status !== 'SUCCEEDED') return;
+    const announcesReview = isManualReviewOutcome(result.outcome);
+    const opensCase = Boolean(result.manualReview);
+    if (announcesReview === opensCase) return;
+    throw new DomainException(
+      announcesReview ? 'MANUAL_REVIEW_WITHOUT_CASE' : 'MANUAL_REVIEW_CASE_WITHOUT_OUTCOME',
+      announcesReview
+        ? `The artifact reports outcome ${String(result.outcome)} but did not open a manual review case`
+        : `The artifact opened a manual review case but its outcome is ${String(result.outcome)}`,
+      HttpStatus.UNPROCESSABLE_ENTITY,
+      { outcome: result.outcome ?? null, queueCode: result.manualReview?.queueCode ?? null },
+    );
   }
 
   private executionStatus(

@@ -185,6 +185,11 @@ describe('Runtime decisions (e2e)', () => {
       })
       .expect(200);
     expect(response.body.outcome).toBe('MANUAL_REVIEW');
+    // Una revisión manual sin caso no existe: la respuesta anuncia la bandeja que hay que atender.
+    expect(response.body.manualReview).toMatchObject({
+      caseCode: expect.stringMatching(/^MR-\d{10,}$/),
+      queueCode: 'CREDIT_REVIEW',
+    });
   });
 
   it('a first-time applicant without a registered enabling basis goes to review, not approval', async () => {

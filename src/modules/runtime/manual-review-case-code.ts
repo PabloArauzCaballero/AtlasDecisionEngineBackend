@@ -9,3 +9,19 @@
 export function manualReviewCaseCode(executionId: bigint): string {
   return `MR-${executionId.toString().padStart(10, '0')}`;
 }
+
+/**
+ * Los desenlaces que significan «a revisión humana». `MANUAL_REVIEW` lo pone el motor (nodo
+ * MANUAL_REVIEW o acción CREATE_MANUAL_REVIEW); `REVISION_MANUAL` y `REVISAR` son los rótulos que los
+ * artefactos de negocio (KYB, onboarding) devuelven por OUTPUT_PRIMARY en un nodo RESULT. Cualquiera
+ * de ellos obliga a que exista un caso; ver `ExecutionWriterService.assertManualReviewConsistency`.
+ */
+export const MANUAL_REVIEW_OUTCOMES: ReadonlySet<string> = new Set([
+  'MANUAL_REVIEW',
+  'REVISION_MANUAL',
+  'REVISAR',
+]);
+
+export function isManualReviewOutcome(outcome: unknown): boolean {
+  return typeof outcome === 'string' && MANUAL_REVIEW_OUTCOMES.has(outcome.trim().toUpperCase());
+}
