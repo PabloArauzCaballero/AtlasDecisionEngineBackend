@@ -59,4 +59,14 @@ describe('Platform role canon', () => {
       expect(isPlatformRole(role)).toBe(true);
     }
   });
+
+  it('los roles de Core que firman gobierno llegan al Motor', () => {
+    // Sin RISK_MANAGER → RISK_APPROVER nadie podía firmar el paso 2 de una aprobación.
+    expect(mapIdentityRoles(['RISK_MANAGER'])).toEqual([PlatformRole.RISK_APPROVER]);
+    expect(mapIdentityRoles(['QA_ENGINEER'])).toEqual([PlatformRole.QA_ANALYST]);
+    expect(mapIdentityRoles(['AUDITOR_READONLY'])).toEqual([PlatformRole.AUDITOR]);
+    expect(mapIdentityRoles(['COMPLIANCE_MANAGER'])).toEqual([PlatformRole.COMPLIANCE]);
+    // Un super admin administra la plataforma, pero no firma por otros.
+    expect(mapIdentityRoles(['SUPER_ADMIN'])).toEqual([PlatformRole.PLATFORM_ADMIN]);
+  });
 });
