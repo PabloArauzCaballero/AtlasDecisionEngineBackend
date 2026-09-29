@@ -9,21 +9,38 @@
 import 'reflect-metadata';
 import { DomainException } from '../src/common/errors/domain-exception';
 import { REQUIRED_ROLES } from '../src/common/security/security.decorators';
-import type { AuthenticatedPrincipal, AuthMethod } from '../src/common/security/security.types';
+import type { AuthenticatedPrincipal } from '../src/common/security/security.types';
 import { RiskGovernanceController } from '../src/modules/risk-governance/risk-governance.controller';
 import type { RiskGovernanceService } from '../src/modules/risk-governance/risk-governance.service';
 
 const TENANT = 1n;
 
-/** Quién llama y por qué canal: `via` es el mecanismo con que se autenticó. */
-function caller(via: AuthMethod, roles: string[] = ['COMPLIANCE']): AuthenticatedPrincipal {
-  return {
-    id: 'quien',
-    roles,
-    authMethod: via,
-    requestId: 'req-1',
-  } as unknown as AuthenticatedPrincipal;
-}
+// Principales fijos, uno por canal: una persona con sesión (dos mecanismos), un administrador con
+// sesión y la réplica de Core, que llega con API key.
+const PERSONA_JWT = {
+  id: 'persona',
+  roles: ['COMPLIANCE'],
+  authMethod: 'jwt',
+  requestId: 'req-1',
+} as unknown as AuthenticatedPrincipal;
+const PERSONA_IDP = {
+  id: 'persona',
+  roles: ['COMPLIANCE'],
+  authMethod: 'identity_provider',
+  requestId: 'req-1',
+} as unknown as AuthenticatedPrincipal;
+const ADMIN_CON_SESION = {
+  id: 'admin',
+  roles: ['PLATFORM_ADMIN'],
+  authMethod: 'jwt',
+  requestId: 'req-1',
+} as unknown as AuthenticatedPrincipal;
+const REPLICA_DE_CORE = {
+  id: 'atlas-core',
+  roles: ['COMPLIANCE'],
+  authMethod: 'api_key',
+  requestId: 'req-1',
+} as unknown as AuthenticatedPrincipal;
 
 function controller() {
   const calls: string[] = [];
@@ -65,40 +82,41 @@ function errorOf(run: () => unknown): DomainException | null {
 }
 
 describe('RiskGovernanceController · quién escribe consentimientos', () => {
-  it.each<AuthMethod>(['jwt', 'identity_provider'])(
+  it.each([
+    ['jwt', PERSONA_JWT],
+    ['identity_provider', PERSONA_IDP],
+  ] as const)(
     'una sesión de persona (%s) NO registra un permiso: 403 y el servicio no se llama',
-    (method) => {
+    (_via, persona) => {
       const { api, calls } = controller();
-      const error = errorOf(() => api.recordConsent(TENANT, caller(method), grant as never));
+      const error = errorOf(() => api.recordConsent(TENANT, persona, grant as never));
       expect(error?.code).toBe('CONSENT_WRITE_MACHINE_ONLY');
       expect(error?.status).toBe(403);
       expect(calls).toEqual([]);
     },
   );
 
-  it.each<AuthMethod>(['jwt', 'identity_provider'])(
-    'una sesión de persona (%s) NO revoca: se revoca en Core',
-    (method) => {
-      const { api, calls } = controller();
-      const error = errorOf(() => api.revokeConsent(TENANT, caller(method), revoke as never));
-      expect(error?.code).toBe('CONSENT_WRITE_MACHINE_ONLY');
-      expect(calls).toEqual([]);
-    },
-  );
+  it.each([
+    ['jwt', PERSONA_JWT],
+    ['identity_provider', PERSONA_IDP],
+  ] as const)('una sesión de persona (%s) NO revoca: se revoca en Core', (_via, persona) => {
+    const { api, calls } = controller();
+    const error = errorOf(() => api.revokeConsent(TENANT, persona, revoke as never));
+    expect(error?.code).toBe('CONSENT_WRITE_MACHINE_ONLY');
+    expect(calls).toEqual([]);
+  });
 
   it('ni siquiera PLATFORM_ADMIN con sesión escribe: no es cuestión de rol, es de canal', () => {
     const { api, calls } = controller();
-    const error = errorOf(() =>
-      api.revokeConsent(TENANT, caller('jwt', ['PLATFORM_ADMIN']), revoke as never),
-    );
+    const error = errorOf(() => api.revokeConsent(TENANT, ADMIN_CON_SESION, revoke as never));
     expect(error?.code).toBe('CONSENT_WRITE_MACHINE_ONLY');
     expect(calls).toEqual([]);
   });
 
   it('la réplica de Core (API key) registra y revoca', async () => {
     const { api, calls } = controller();
-    await api.recordConsent(TENANT, caller('api_key'), grant as never);
-    await api.revokeConsent(TENANT, caller('api_key'), revoke as never);
+    await api.recordConsent(TENANT, REPLICA_DE_CORE, grant as never);
+    await api.revokeConsent(TENANT, REPLICA_DE_CORE, revoke as never);
     expect(calls).toEqual(['record', 'revoke']);
   });
 
