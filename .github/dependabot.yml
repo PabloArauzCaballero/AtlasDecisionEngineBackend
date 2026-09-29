@@ -34,7 +34,23 @@ updates:
         update-types: ['version-update:semver-major']
     groups:
       dev-tooling:
-        patterns: ['@types/*', 'eslint*', '@eslint/*', '@typescript-eslint/*', 'typescript', 'prettier', 'jest', 'ts-jest', 'vitest', '@vitest/*', 'supertest', '@nestjs/testing', '@playwright/*', 'playwright']
+        patterns:
+          [
+            '@types/*',
+            'eslint*',
+            '@eslint/*',
+            '@typescript-eslint/*',
+            'typescript',
+            'prettier',
+            'jest',
+            'ts-jest',
+            'vitest',
+            '@vitest/*',
+            'supertest',
+            '@nestjs/testing',
+            '@playwright/*',
+            'playwright',
+          ]
         update-types: [major, minor, patch]
       runtime-minor-patch:
         patterns: ['*']
