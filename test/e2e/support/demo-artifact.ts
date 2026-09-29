@@ -503,6 +503,21 @@ function grafo(variables: Record<string, string>, motivoId: string): Record<stri
         code: 'A_REVISION',
         type: 'SET_FIELD',
         payload: { field: 'decision', value: 'MANUAL_REVIEW' },
+        terminal: false,
+        reasonCodes: [],
+      },
+      // Anunciar «a revisión» sin abrir caso era el estado imposible que el writer ya no admite:
+      // el cliente veía «revisión manual» y ningún analista tenía nada en la bandeja. Este demo
+      // abre la cola de crédito como lo haría un artefacto real.
+      {
+        code: 'ABRIR_CASO',
+        type: 'CREATE_MANUAL_REVIEW',
+        payload: {
+          queueCode: 'CREDIT_REVIEW',
+          priority: 100,
+          slaMinutes: 240,
+          evidence: { motivo: 'persona políticamente expuesta', pep_status: '{{pep_status}}' },
+        },
         terminal: true,
         reasonCodes: [],
       },
@@ -527,7 +542,10 @@ function grafo(variables: Record<string, string>, motivoId: string): Record<stri
       },
       {
         ...nodo('REVISION', 'ACTION', 'A revisión', 6, true, 360, 80),
-        actions: [{ actionCode: 'A_REVISION', order: 1 }],
+        actions: [
+          { actionCode: 'A_REVISION', order: 1 },
+          { actionCode: 'ABRIR_CASO', order: 2 },
+        ],
       },
     ],
     edges: [
