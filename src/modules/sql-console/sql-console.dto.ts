@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { MAX_SQL_BYTES } from './guard/sql-guard';
 
@@ -34,7 +35,11 @@ export class QueryHistoryDto {
     maximum: 100,
     default: 25,
   })
+  // La cadena de consulta llega como TEXTO («25») y la conversión implícita está apagada
+  // (`main.ts`): sin esto `@IsInt` rechazaba siempre con 400 y el historial de la consola
+  // no cargaba nunca. Medido en TEST el 2026-09-29 con `GET /v1/sql-console/history?limit=25`.
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(100)
