@@ -150,7 +150,12 @@ export class PdfHealthService {
 
   private async checkStorage(): Promise<HealthCheck> {
     if (!this.settings.storageEnabled) {
-      return { name: 'storage', ok: true, detail: 'desactivado (PDF_STORAGE_ENABLED=false)' };
+      // Este texto lo lee quien opera el portal del motor: sin nombres de variables de entorno.
+      return {
+        name: 'storage',
+        ok: true,
+        detail: 'desactivado: los documentos se entregan al generarlos y no se guardan',
+      };
     }
     try {
       const health = await this.storage.health();
