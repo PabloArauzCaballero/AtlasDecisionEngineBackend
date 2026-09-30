@@ -12,6 +12,10 @@ coverage
 
 # Historia y automatización de CI: nunca se copian
 .git
+# Sólo los punteros que dan el commit (no historial ni objetos): los lee scripts/write-build-info.mjs.
+!.git/HEAD
+!.git/packed-refs
+!.git/refs
 .gitattributes
 .gitignore
 .github

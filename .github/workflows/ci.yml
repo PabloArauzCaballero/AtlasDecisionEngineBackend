@@ -222,9 +222,9 @@ jobs:
       # incremental en una máquina de desarrollo llegó a compilar código que fallaba aquí.
       - name: Build runtime, worker and migrator images
         run: |
-          docker build --target runtime -t atlas-decision-engine:${{ github.sha }} .
-          docker build --target worker -t atlas-decision-worker:${{ github.sha }} .
-          docker build --target migrator -t atlas-decision-migrator:${{ github.sha }} .
+          docker build --target runtime --build-arg SOURCE_COMMIT=${{ github.sha }} -t atlas-decision-engine:${{ github.sha }} .
+          docker build --target worker --build-arg SOURCE_COMMIT=${{ github.sha }} -t atlas-decision-worker:${{ github.sha }} .
+          docker build --target migrator --build-arg SOURCE_COMMIT=${{ github.sha }} -t atlas-decision-migrator:${{ github.sha }} .
 
       # La batería dentro de contenedores, contra Postgres y Redis efímeros. Cubre el hueco que
       # dejaban los servicios de GitHub Actions: aquí se ejercita la MISMA imagen que se
