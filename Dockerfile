@@ -32,6 +32,11 @@ RUN yarn prisma generate
 COPY scripts ./scripts
 COPY src ./src
 RUN yarn build
+# Identidad del artefacto (commit e instante del build) sellada DENTRO de dist/, en su propia capa para que
+# cambiar SOURCE_COMMIT no invalide la compilación. Si el argumento llega vacío el script lo saca de .git;
+# si tampoco puede, deja null (sin inventar).
+ARG SOURCE_COMMIT=""
+RUN node scripts/write-build-info.mjs
 
 # One-shot image used by migration/seed Jobs. It intentionally contains the
 # Prisma CLI and TypeScript seed dependencies; the API runtime does not.

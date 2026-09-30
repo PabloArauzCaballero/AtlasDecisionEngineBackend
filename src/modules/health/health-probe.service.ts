@@ -4,6 +4,7 @@ import { CacheService } from '../../common/cache/cache.service';
 import { JobSchedulerService } from '../../common/jobs/job-scheduler.service';
 import { JobSignalService } from '../../common/jobs/job-signal.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { compiledIdentity } from '../../common/config/build-identity';
 import { runsBackgroundJobs, workerRoleOf } from '../../common/config/worker-role';
 
 export interface LivenessReport {
@@ -12,6 +13,7 @@ export interface LivenessReport {
   role: string;
   version: string;
   commit: string;
+  builtAt: string | null;
   uptimeSeconds: number;
   timestamp: string;
 }
@@ -51,6 +53,7 @@ export class HealthProbeService {
       role: workerRoleOf(this.config),
       version: this.config.get<string>('BUILD_VERSION') ?? 'unknown',
       commit: this.config.get<string>('COMMIT_SHA') ?? 'unknown',
+      builtAt: compiledIdentity().builtAt,
       uptimeSeconds: Math.floor((Date.now() - this.startedAt) / 1_000),
       timestamp: new Date().toISOString(),
     };

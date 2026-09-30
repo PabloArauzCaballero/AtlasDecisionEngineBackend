@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { compiledIdentity, resolveCommit } from './build-identity';
 import { WORKER_ROLES } from './worker-role';
 
 const booleanFromString = z.preprocess((value) => {
@@ -1903,5 +1904,7 @@ export type AppEnv = z.infer<typeof envSchema>;
 
 /** Parses, normalizes and validates the complete application environment. */
 export function validateEnvironment(input: Record<string, unknown>): AppEnv {
-  return envSchema.parse(input);
+  const parsed = envSchema.parse(input);
+  // El commit sellado en el artefacto manda sobre COMMIT_SHA (ver build-identity.ts).
+  return { ...parsed, COMMIT_SHA: resolveCommit(parsed.COMMIT_SHA, compiledIdentity()) };
 }
