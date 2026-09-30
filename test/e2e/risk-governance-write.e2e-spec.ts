@@ -43,6 +43,20 @@ describe('Risk governance · write routes (e2e)', () => {
     app = await createTestApp();
     await provisionDemoArtifact(app);
 
+    // Como hace `runtime.e2e-spec.ts`: la base habilitante de la evaluación crediticia se
+    // registra ANTES de decidir, o la decisión deriva a NO_DECISION/revisión (P-09) en vez de
+    // aprobar, y el resto de la suite (que depende de un titular real ya decidido) se cae.
+    await request(server())
+      .post('/v1/risk-governance/consents')
+      .set(compliance)
+      .send({
+        subjectReference,
+        purpose: 'credit_underwriting',
+        basis: 'CREDIT_PROTECTION',
+        grantedAt: '2026-01-01T00:00:00.000Z',
+      })
+      .expect(200);
+
     const decision = await request(server())
       .post('/v1/decisions/BNPL_CREDIT_DECISION')
       .set(runtimeHeaders('e2e.governance-runtime'))

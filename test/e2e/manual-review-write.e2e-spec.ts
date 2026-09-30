@@ -1,7 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { createTestApp } from './support/test-app';
-import { managementHeaders, runtimeHeaders } from './support/headers';
+import { artifactCreatorHeaders, managementHeaders, runtimeHeaders } from './support/headers';
 
 /**
  * Cubre las dos rutas de trabajo sobre un caso de revisión manual que no tenían ninguna
@@ -21,7 +21,9 @@ describe('Manual review · write routes (e2e)', () => {
   const server = () => app.getHttpServer();
   const runId = Date.now();
   const artifactCode = `E2E_MANUAL_REVIEW_${runId}`;
-  const author = managementHeaders('e2e.manual-review-author', ['RISK_ANALYST']);
+  // El pipeline de autoría (validate/compile/graph/test-suites) exige QA_ANALYST/FRAUD_ANALYST;
+  // usamos el mismo cliente fijo `e2e.author` que ya usa `demo-artifact.ts`.
+  const author = managementHeaders('e2e.author');
   const qaApprover = managementHeaders('e2e.manual-review-qa', ['QA_ANALYST']);
   const riskApprover = managementHeaders('e2e.manual-review-risk', ['RISK_APPROVER']);
   const deployer = managementHeaders('e2e.manual-review-deployer', ['PLATFORM_ADMIN']);
@@ -29,9 +31,11 @@ describe('Manual review · write routes (e2e)', () => {
   const outsider = managementHeaders('e2e.manual-review-outsider', ['QA_ANALYST']);
 
   async function provisionManualReviewArtifact(): Promise<void> {
+    // `POST /v1/artifacts` exige un creador separado de quien despliega (SEPARATION_OF_DUTIES):
+    // el mismo cliente fijo `artifactCreatorHeaders()` que ya usa `demo-artifact.ts`.
     const created = await request(server())
       .post('/v1/artifacts')
-      .set(author)
+      .set(artifactCreatorHeaders())
       .send({
         artifactCode,
         artifactType: 'CREDIT_POLICY',

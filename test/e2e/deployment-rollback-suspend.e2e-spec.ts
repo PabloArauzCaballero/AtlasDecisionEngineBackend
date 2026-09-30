@@ -1,7 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { createTestApp } from './support/test-app';
-import { managementHeaders } from './support/headers';
+import { artifactCreatorHeaders, managementHeaders } from './support/headers';
 import { seededVariableVersionId } from './support/seeded-variables';
 
 /**
@@ -22,7 +22,9 @@ describe('Deployment rollback & suspend (e2e)', () => {
   const server = () => app.getHttpServer();
   const runId = Date.now();
   const artifactCode = `E2E_DEPLOY_WRITE_${runId}`;
-  const author = managementHeaders('e2e.deploy-write-author', ['RISK_ANALYST']);
+  // El pipeline de autoría (validate/compile/graph/test-suites) exige QA_ANALYST/FRAUD_ANALYST;
+  // usamos el mismo cliente fijo `e2e.author` que ya usa `demo-artifact.ts`.
+  const author = managementHeaders('e2e.author');
   const qaApprover = managementHeaders('e2e.deploy-write-qa', ['QA_ANALYST']);
   const riskApprover = managementHeaders('e2e.deploy-write-risk', ['RISK_APPROVER']);
   const deployer = managementHeaders('e2e.deploy-write-admin', ['PLATFORM_ADMIN']);
@@ -109,9 +111,11 @@ describe('Deployment rollback & suspend (e2e)', () => {
     app = await createTestApp();
     ageVariableVersionId = await seededVariableVersionId(app, author, 'age');
 
+    // `POST /v1/artifacts` exige un creador separado de quien despliega (SEPARATION_OF_DUTIES):
+    // el mismo cliente fijo `artifactCreatorHeaders()` que ya usa `demo-artifact.ts`.
     const created = await request(server())
       .post('/v1/artifacts')
-      .set(author)
+      .set(artifactCreatorHeaders())
       .send({
         artifactCode,
         artifactType: 'CREDIT_POLICY',
