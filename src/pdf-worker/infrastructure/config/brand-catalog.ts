@@ -21,6 +21,16 @@ import type { DocumentBrand } from '../../domain/value-objects/document-brand';
 /** Identificador que pide `AtlasERPBackend` en `PDF_WORKER_BRAND_ID`. */
 export const ERP_BRAND_ID = 'atlas-erp';
 
+/**
+ * Lo que el ERP manda FUERA de la casa: la propuesta comercial que recibe un comercio. «ATLAS ERP ·
+ * Enterprise Hub» es el nombre de una herramienta interna, no lo que el comercio conoce; aquí firma
+ * ATLAS, con el teal de la marca pública (la landing) como acento.
+ */
+export const COMMERCIAL_BRAND_ID = 'atlas-comercial';
+
+/** Teal profundo de la landing (`--b1`): contrasta con el blanco del papel (5,6:1). */
+const COMMERCIAL_ACCENT = '#0E7377';
+
 export function brandCatalog(env: PdfWorkerEnv): readonly DocumentBrand[] {
   const base = brandFromEnv(env);
 
@@ -35,5 +45,17 @@ export function brandCatalog(env: PdfWorkerEnv): readonly DocumentBrand[] {
     },
   };
 
-  return [erp];
+  const commercial: DocumentBrand = {
+    ...base,
+    id: COMMERCIAL_BRAND_ID,
+    name: 'ATLAS',
+    letterhead: {
+      ...base.letterhead,
+      organizationName: 'ATLAS',
+      secondaryText: 'Compras en cuotas para su comercio',
+    },
+    palette: { ...base.palette, accent: COMMERCIAL_ACCENT },
+  };
+
+  return [erp, commercial];
 }
