@@ -1,0 +1,260 @@
+/*
+ * Estilos de `propuesta-comercial`. Neutros y acento desde los tokens de la marca
+ * (`atlas-comercial`: acento teal); la banda de portada usa `--cover`/`--cover-highlight` de
+ * `tokens.css`, la identidad pública de ATLAS.
+ */
+
+.pc-portada {
+  background: var(--cover);
+  color: var(--on-cover);
+  border-radius: 4mm;
+  padding: 9mm 10mm 8mm;
+  margin: 0 0 9mm;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.pc-portada__marca {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 9mm;
+}
+.pc-logo {
+  font-size: 17pt;
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.14em;
+}
+.pc-lema {
+  text-align: right;
+  color: var(--cover-highlight);
+  font-size: var(--type-sm);
+  line-height: 1.35;
+}
+.pc-portada__eyebrow {
+  margin: 0 0 1.5mm;
+  color: var(--cover-highlight);
+  font-size: var(--type-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.pc-portada__titulo {
+  margin: 0 0 8mm;
+  font-size: 24pt;
+  line-height: 1.1;
+  font-weight: var(--weight-bold);
+}
+.pc-datos {
+  width: 100%;
+  border-collapse: collapse;
+  border-top: 0.6pt solid var(--on-cover-rule);
+}
+.pc-datos td {
+  padding: 3.5mm 4mm 0 0;
+  vertical-align: top;
+  width: 25%;
+}
+.pc-datos span {
+  display: block;
+  color: var(--on-cover-muted);
+  font-size: var(--type-xs);
+  margin-bottom: 0.8mm;
+}
+.pc-datos strong {
+  display: block;
+  font-size: var(--type-sm);
+  font-weight: var(--weight-bold);
+}
+
+.pc-carta p {
+  margin: 0 0 3.5mm;
+  font-size: var(--type-md);
+  line-height: 1.55;
+  color: var(--ink);
+}
+.pc-carta .pc-saludo {
+  font-weight: var(--weight-bold);
+}
+.pc-nota {
+  margin: 5mm 0 2mm;
+  padding: 4mm 5mm;
+  background: var(--wash-highlight);
+  border-left: 1mm solid var(--accent);
+  border-radius: 0 2mm 2mm 0;
+}
+.pc-nota__autor {
+  margin: 0 0 1.2mm !important;
+  font-size: var(--type-xs) !important;
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent) !important;
+}
+.pc-nota__texto {
+  margin: 0 !important;
+  font-style: italic;
+}
+
+.pc-seccion {
+  margin-top: 9mm;
+}
+.pc-h2 {
+  break-after: avoid;
+  page-break-after: avoid;
+  margin: 0 0 4mm;
+  padding-bottom: 2mm;
+  font-size: var(--type-lg);
+  font-weight: var(--weight-bold);
+  color: var(--cover);
+  border-bottom: 0.6pt solid var(--line);
+}
+
+.pc-beneficios {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4mm;
+  break-before: avoid;
+}
+.pc-beneficio {
+  padding: 4mm 4.5mm;
+  border: 0.6pt solid var(--line);
+  border-radius: 2.5mm;
+  break-inside: avoid;
+}
+.pc-beneficio__num,
+.pc-paso__num {
+  display: inline-block;
+  width: 6mm;
+  height: 6mm;
+  line-height: 6mm;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--surface);
+  text-align: center;
+  font-size: var(--type-xs);
+  font-weight: var(--weight-bold);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.pc-beneficio__titulo,
+.pc-paso__titulo {
+  margin: 2mm 0 1mm;
+  font-weight: var(--weight-bold);
+  color: var(--ink);
+}
+.pc-beneficio__texto,
+.pc-paso__texto {
+  margin: 0;
+  font-size: var(--type-sm);
+  line-height: 1.45;
+  color: var(--ink-muted);
+}
+
+.pc-condiciones {
+  width: 100%;
+  border-collapse: collapse;
+}
+.pc-condiciones th {
+  text-align: left;
+  padding: 2mm 3mm;
+  font-size: var(--type-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  background: var(--surface-muted);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.pc-condiciones td {
+  padding: 3mm;
+  border-bottom: 0.6pt solid var(--line);
+  vertical-align: top;
+}
+.pc-condiciones .pc-num {
+  text-align: right;
+  white-space: nowrap;
+}
+.pc-detalle {
+  display: block;
+  margin-top: 0.6mm;
+  font-size: var(--type-sm);
+  color: var(--ink-muted);
+}
+.pc-condicion {
+  font-weight: var(--weight-bold);
+  font-size: var(--type-md);
+  color: var(--cover);
+}
+.pc-cobro {
+  color: var(--ink-muted);
+}
+.pc-aclaracion {
+  margin: 2.5mm 0 0;
+  font-size: var(--type-sm);
+  color: var(--ink-muted);
+}
+
+.pc-pasos {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4mm;
+}
+.pc-paso {
+  border-top: 0.8mm solid var(--accent);
+  padding-top: 3mm;
+  break-inside: avoid;
+}
+
+.pc-proximos {
+  margin: 0;
+  padding-left: 5mm;
+}
+.pc-proximos li {
+  margin: 0 0 2.2mm;
+  font-size: var(--type-md);
+  line-height: 1.5;
+  color: var(--ink);
+}
+.pc-proximos strong {
+  color: var(--cover);
+}
+
+.pc-cierre {
+  margin-top: 9mm;
+}
+.pc-cierre > p {
+  margin: 0 0 8mm;
+  font-size: var(--type-md);
+  line-height: 1.55;
+}
+.pc-firma {
+  border-left: 1mm solid var(--cover-highlight);
+  padding: 0.5mm 0 0.5mm 4mm;
+}
+.pc-firma p {
+  margin: 0;
+}
+.pc-firma__nombre {
+  font-size: var(--type-lg);
+  font-weight: var(--weight-bold);
+  color: var(--cover);
+}
+.pc-firma__cargo {
+  font-size: var(--type-sm);
+  color: var(--ink-muted);
+  margin-top: 0.6mm !important;
+}
+.pc-firma__correo {
+  font-size: var(--type-sm);
+  color: var(--accent);
+  margin-top: 0.6mm !important;
+}
+
+.pc-dirigida {
+  margin: -5mm 0 7mm;
+  font-size: var(--type-sm);
+  color: var(--ink-muted);
+}
+.pc-dirigida strong {
+  color: var(--ink);
+  font-weight: var(--weight-bold);
+}

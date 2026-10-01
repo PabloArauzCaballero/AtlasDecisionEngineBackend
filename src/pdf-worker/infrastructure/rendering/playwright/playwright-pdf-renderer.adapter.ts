@@ -76,8 +76,10 @@ export class PlaywrightPdfRendererAdapter implements PdfRendererPort {
           // Chromium exige AMBAS plantillas cuando se activa la cabecera: si una va vacía,
           // dibuja su plantilla por defecto —la URL y la fecha del sistema— en mitad del
           // membrete institucional.
-          headerTemplate: input.headerHtml ?? '<span></span>',
-          footerTemplate: input.footerHtml ?? '<span></span>',
+          // `||` y no `??`: el compositor manda la cabecera como `''` cuando el membrete no es
+          // `every-page`, y una cadena vacía también activa la plantilla por defecto de Chromium.
+          headerTemplate: input.headerHtml || '<span></span>',
+          footerTemplate: input.footerHtml || '<span></span>',
           // El plazo lo fija `setDefaultTimeout` unas líneas más arriba: `page.pdf()` no acepta
           // uno propio, y darle el suyo a `setContent` sin fijar el general dejaría la
           // impresión sin límite — que es justo el paso que puede colgarse.
