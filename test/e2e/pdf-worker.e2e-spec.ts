@@ -183,6 +183,7 @@ describe('PDF Generator Worker (e2e)', () => {
         'credit-analysis-report@1.1.0',
         'factura-fiscal@1.0.0',
         'generic-result-report@1.0.0',
+        'propuesta-comercial@1.0.0',
       ]);
     });
 

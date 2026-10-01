@@ -57,4 +57,14 @@
   --wash-caution: color-mix(in srgb, var(--caution) 10%, var(--surface));
   --wash-critical: color-mix(in srgb, var(--critical) 8%, var(--surface));
   --wash-accent: color-mix(in srgb, var(--accent) 7%, var(--surface));
+
+  /* Banda de portada de los documentos que recibe un CLIENTE (la propuesta comercial): el azul
+     profundo y el menta de la marca pública. El texto sobre la banda es `--surface`; el menta
+     sólo se usa sobre la banda (contraste 9:1), nunca sobre papel blanco. */
+  --cover: #0c2c50;
+  --cover-highlight: #2be0a8;
+  --on-cover: var(--surface);
+  --on-cover-muted: color-mix(in srgb, var(--surface) 72%, var(--cover));
+  --on-cover-rule: color-mix(in srgb, var(--surface) 22%, var(--cover));
+  --wash-highlight: color-mix(in srgb, var(--cover-highlight) 12%, var(--surface));
 }

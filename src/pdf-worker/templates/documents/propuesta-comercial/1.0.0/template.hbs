@@ -1,0 +1,124 @@
+{{!--
+  Cuerpo de `propuesta-comercial@1.0.0`. Todo el texto llega redactado del ERP y va escapado
+  (`{{ }}`, nunca `{{{ }}}`): ni el nombre del comercio ni la nota del comercial pueden inyectar HTML.
+--}}
+<header class='pc-portada keep-together'>
+  <table class='pc-portada__marca' role='presentation'>
+    <tr>
+      <td class='pc-logo'>ATLAS</td>
+      <td class='pc-lema'>Compras en cuotas<br />para su comercio</td>
+    </tr>
+  </table>
+  <p class='pc-portada__eyebrow'>Propuesta comercial</p>
+  <h1 class='pc-portada__titulo'>{{data.comercio.nombre}}</h1>
+  <table class='pc-datos' role='presentation'>
+    <tr>
+      <td><span>Propuesta</span><strong>{{data.propuesta.numero}}</strong></td>
+      <td><span>Fecha</span><strong>{{data.propuesta.fecha}}</strong></td>
+      <td><span>Válida hasta</span><strong>{{data.propuesta.validaHasta}}</strong></td>
+      <td><span>Preparada por</span><strong>{{data.firma.nombre}}</strong></td>
+    </tr>
+  </table>
+</header>
+
+{{#if (or data.comercio.razonSocial data.comercio.nit)}}
+  <p class='pc-dirigida'>
+    Dirigida a
+    <strong>{{#if
+        data.comercio.razonSocial
+      }}{{data.comercio.razonSocial}}{{else}}{{data.comercio.nombre}}{{/if}}</strong>{{#if
+      data.comercio.nit
+    }} · NIT {{data.comercio.nit}}{{/if}}{{#if data.comercio.ciudad}}
+      ·
+      {{data.comercio.ciudad}}{{/if}}
+  </p>
+{{/if}}
+
+<section class='pc-carta'>
+  <p class='pc-saludo'>{{data.saludo}}</p>
+  {{#each data.introduccion}}<p>{{this}}</p>{{/each}}
+  {{#if data.nota}}
+    <aside class='pc-nota keep-together'>
+      <p class='pc-nota__autor'>Una nota de {{data.nota.autor}}</p>
+      <p class='pc-nota__texto'>{{data.nota.texto}}</p>
+    </aside>
+  {{/if}}
+</section>
+
+{{#if data.beneficios.length}}
+  <section class='pc-seccion'>
+    <h2 class='pc-h2'>Qué gana {{data.comercio.nombre}}</h2>
+    <div class='pc-beneficios'>
+      {{#each data.beneficios}}
+        <div class='pc-beneficio'>
+          <span class='pc-beneficio__num'>{{inc @index}}</span>
+          <p class='pc-beneficio__titulo'>{{titulo}}</p>
+          <p class='pc-beneficio__texto'>{{texto}}</p>
+        </div>
+      {{/each}}
+    </div>
+  </section>
+{{/if}}
+
+<section class='pc-seccion keep-together'>
+  <h2 class='pc-h2'>Condiciones económicas</h2>
+  {{#if data.condiciones.length}}
+    <table class='pc-condiciones'>
+      <thead>
+        <tr><th scope='col'>Concepto</th><th scope='col' class='pc-num'>Condición</th><th
+            scope='col'
+            class='pc-num'
+          >Se cobra</th></tr>
+      </thead>
+      <tbody>
+        {{#each data.condiciones}}
+          <tr>
+            <td><strong>{{concepto}}</strong>{{#if detalle}}<span
+                  class='pc-detalle'
+                >{{detalle}}</span>{{/if}}</td>
+            <td class='pc-num pc-condicion'>{{condicion}}</td>
+            <td class='pc-num pc-cobro'>{{cobro}}</td>
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  {{else}}
+    <p>Esta propuesta no tiene cargos.</p>
+  {{/if}}
+  {{#if data.condicionesNota}}<p class='pc-aclaracion'>{{data.condicionesNota}}</p>{{/if}}
+</section>
+
+{{#if data.pasos.length}}
+  <section class='pc-seccion keep-together'>
+    <h2 class='pc-h2'>Cómo funciona</h2>
+    <div class='pc-pasos'>
+      {{#each data.pasos}}
+        <div class='pc-paso'>
+          <span class='pc-paso__num'>{{inc @index}}</span>
+          <p class='pc-paso__titulo'>{{titulo}}</p>
+          <p class='pc-paso__texto'>{{texto}}</p>
+        </div>
+      {{/each}}
+    </div>
+  </section>
+{{/if}}
+
+{{#if data.proximosPasos.length}}
+  <section class='pc-seccion keep-together'>
+    <h2 class='pc-h2'>Próximos pasos</h2>
+    <ol class='pc-proximos'>
+      {{#each data.proximosPasos}}
+        <li><strong>{{titulo}}.</strong> {{texto}}</li>
+      {{/each}}
+    </ol>
+  </section>
+{{/if}}
+
+<section class='pc-cierre keep-together'>
+  <p>{{data.cierre}}</p>
+  <div class='pc-firma'>
+    <p class='pc-firma__nombre'>{{data.firma.nombre}}</p>
+    <p class='pc-firma__cargo'>{{data.firma.cargo}}</p>
+    {{#if data.firma.correo}}<p class='pc-firma__correo'>{{data.firma.correo}}</p>{{/if}}
+  </div>
+</section>
