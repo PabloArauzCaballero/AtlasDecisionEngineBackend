@@ -4,11 +4,12 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { chmodSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import process from 'node:process';
+import { URL } from 'node:url';
 import { join } from 'node:path';
 import test from 'node:test';
 
 const script = new URL('../../scripts/audit-high.mjs', import.meta.url).pathname;
-const BIT = { info: 1, low: 2, moderate: 4, high: 8, critical: 16 };
 const line = (type, data) => `${JSON.stringify({ type, data })}\n`;
 const adv = (severity, id = 1) =>
   line('auditAdvisory', {
@@ -23,7 +24,6 @@ const sum = (c = {}) =>
     optionalDependencies: 0,
     totalDependencies: 10,
   });
-const mask = (c) => Object.entries(c).reduce((m, [k, v]) => (v ? m | BIT[k] : m), 0);
 
 async function run(plan, args = []) {
   const dir = mkdtempSync(join(tmpdir(), 'audit-high-'));
