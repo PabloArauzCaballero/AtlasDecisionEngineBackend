@@ -33,15 +33,18 @@ export function propuestaComercialFixture(): PropuestaComercialPayload {
       },
       {
         titulo: 'Crédito a cargo de ATLAS',
-        texto: 'ATLAS evalúa al cliente, le otorga el crédito y se encarga de cobrarle las cuotas.',
+        texto:
+          'ATLAS evalúa al cliente, le otorga el crédito y se encarga de cobrarle. Si el cliente final no paga, paga ATLAS: sus cuentas por cobrar tienen riesgo cero.',
       },
       {
-        titulo: 'Cobro con QR',
-        texto: 'El cliente paga desde la app de ATLAS escaneando el QR de cobro de su comercio.',
+        titulo: 'Cobro con QR, directo a su negocio',
+        texto:
+          'El cobro con QR es directo con su negocio: ningún dinero pasa por las cuentas de ATLAS.',
       },
       {
-        titulo: 'Acompañamiento',
-        texto: 'Ana Pérez es su contacto directo para la puesta en marcha y cualquier consulta.',
+        titulo: 'Simplicidad',
+        texto:
+          'No le pedimos subir ningún catálogo. El cliente escanea el QR que identifica a su negocio y a su POS en el punto de venta, y con eso se carga su QR bancario real.',
       },
     ],
     condiciones: [

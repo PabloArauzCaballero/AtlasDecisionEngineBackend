@@ -1,8 +1,8 @@
 {
-  "blank-form@1.0.0": "c3f58b09fc93aef40ffa97cbc81bc48a19f2ba62b118360c686c056bf8da3e71",
-  "credit-analysis-report@1.0.0": "2d27700b54aa022e9d3d33b2e5c707bc7fd35c91653f6fd3dadd6807e243b58c",
-  "credit-analysis-report@1.1.0": "37c287297bd9575204575d9326cc6d099f77e7ba067c257e4428b365dad26f4b",
-  "factura-fiscal@1.0.0": "2b065c2d66625ef423ab65b960b43a427ad7d2ca0056b0c77dd8a2b26ca522e3",
-  "generic-result-report@1.0.0": "6e939270d7f618878e5e115bdfeea0c54bc7602dcced09d6e31598977bd27e4a",
-  "propuesta-comercial@1.0.0": "35cd5d5560d9b7b381e846931de5ec2817954380033a62b2156e331d5995d8ea"
+  "blank-form@1.0.0": "688cc5f4d12b5b05a54d6d9cecc5bf6ac36f50105d3c923f98ab0e981ecf6b1c",
+  "credit-analysis-report@1.0.0": "d5e8b313e9d5c866745ddcfefdfca1e3a9018570e2517d34849ccc611bebbfe9",
+  "credit-analysis-report@1.1.0": "d076698a0db5053662c697874e6ad2dacbc8636da2d6a3fef5b4ad9e87a4afb7",
+  "factura-fiscal@1.0.0": "69eac9d7f95465922950585dc8ac899d13d9692badca23d246ff8f7efb665b30",
+  "generic-result-report@1.0.0": "d7c5570a7282adf2457aa18bc52c7434f21929d1797512b3c8f95ab5dac15223",
+  "propuesta-comercial@1.0.0": "1749829a767972dee3326bcd2761f2ef0ab177a0c589d1b30e3fbd9726acfd5c"
 }
