@@ -70,6 +70,7 @@ jobs:
         run: |
           node --test .github/tests/post-deploy-smoke.test.mjs
           python3 .github/tests/test_smoke_workflow.py
+          python3 .github/tests/test_smoke_identity.py
       - run: yarn install --frozen-lockfile
       - run: yarn prisma:generate
       - run: yarn prisma:validate
