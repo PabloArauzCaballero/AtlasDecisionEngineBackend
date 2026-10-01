@@ -69,6 +69,7 @@ jobs:
       - name: Verificar smoke post-deploy y selección del dominio
         run: |
           node --test .github/tests/post-deploy-smoke.test.mjs
+          node --test .github/tests/audit-high.test.mjs
           python3 .github/tests/test_smoke_workflow.py
           python3 .github/tests/test_smoke_identity.py
       - run: yarn install --frozen-lockfile
