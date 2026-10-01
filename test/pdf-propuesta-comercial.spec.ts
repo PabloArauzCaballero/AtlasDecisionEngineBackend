@@ -33,9 +33,9 @@ describe('propuesta-comercial@1.0.0', () => {
     const { html } = await componer(propuestaComercialFixture());
     for (const texto of [
       'Comercio de Ejemplo',
-      'Una nota de Ana Pérez',
+      'Como conversamos el martes',
       'Condiciones económicas',
-      'Cómo funciona',
+      'Así funciona, paso a paso',
       'Próximos pasos',
       'Ejecutiva comercial · ATLAS',
     ]) {
@@ -48,23 +48,34 @@ describe('propuesta-comercial@1.0.0', () => {
     const { html: bruto } = await componer(propuestaComercialFixture());
     // El HTML se reformatea al componerse: se compara con los blancos normalizados.
     const html = bruto.replace(/\s+/g, ' ');
-    expect(html).toContain('Así funciona, en dibujos');
-    expect((html.match(/<svg\s+class=["']pc-ilustracion["']/g) ?? []).length).toBe(3);
+    // Portada, riesgo, QR, simplicidad, ventas y cuatro pasos: nueve ilustraciones por la plantilla, más iconos.
+    expect((html.match(/<svg[^>]*class=["'][^"']*art /g) ?? []).length).toBeGreaterThanOrEqual(9);
     for (const texto of [
-      'riesgo cero en sus cuentas por cobrar',
-      'Ningún dinero pasa por ATLAS',
-      'no tiene que subir ningún catálogo',
+      'Venda más hoy.',
+      'Cobre sin riesgo.',
+      'Riesgo cero',
+      'Pago directo',
+      'Sin catálogo',
+      'Tres promesas, sin letra chica',
+      'Ningún dinero pasa por las cuentas de ATLAS',
     ]) {
       expect(html).toContain(texto);
     }
     // Sin recursos externos: el PDF se compone sin red.
-    expect(html).not.toMatch(/<svg[^>]*(href|src)=['"]https?:/i);
+    expect(html).not.toMatch(/(href|src)=['"]https?:/i);
+  });
+
+  it('es una carta de cuatro páginas a sangre completa: márgenes 0 y sin pie corrido', async () => {
+    const llamada = await componer(propuestaComercialFixture());
+    expect(llamada.page.margins).toEqual({ top: '0mm', right: '0mm', bottom: '0mm', left: '0mm' });
+    expect((llamada.html.match(/class=["']pg pg--/g) ?? []).length).toBe(4);
   });
 
   it('no deja la cabecera vacía: Chromium pintaría la suya (fecha y título)', async () => {
     const llamada = await componer(propuestaComercialFixture());
     expect(llamada.headerHtml).toBe('');
-    expect(llamada.footerHtml).toContain('Compras en cuotas para su comercio');
+    // Carta a sangre completa (márgenes 0): un pie corrido se pintaría encima del cuerpo.
+    expect(llamada.footerHtml).toBe('');
   });
 
   it('escapa la nota del comercial y el nombre del comercio', async () => {

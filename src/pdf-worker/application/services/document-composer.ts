@@ -104,7 +104,10 @@ export class DocumentComposer {
         headerHtml: runningHeader
           ? this.engine.compile('shared:header', shared.header).render(context)
           : '',
-        footerHtml: this.engine.compile('shared:footer', shared.footer).render(context),
+        footerHtml:
+          input.footer.enabled === false
+            ? ''
+            : this.engine.compile('shared:footer', shared.footer).render(context),
       };
     } catch (error) {
       if (error instanceof TemplateRenderError) throw error;

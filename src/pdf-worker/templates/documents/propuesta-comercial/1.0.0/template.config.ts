@@ -23,12 +23,13 @@ export const PropuestaComercialTemplate = defineTemplate({
   schema: zodSchema(PropuestaComercialSchema),
   fixture: propuestaComercialFixture,
   tags: ['comercial', 'crm', 'erp'],
-  page: { format: 'Letter', orientation: 'portrait' },
-  letterhead: { mode: 'none' },
-  footer: {
-    institutionalText: 'ATLAS · Compras en cuotas para su comercio',
-    showGeneratedAt: false,
-    showDocumentId: false,
-    showPageNumbers: true,
+  page: {
+    format: 'Letter',
+    orientation: 'portrait',
+    // Carta a sangre completa: cada página pinta su propio fondo, sin márgenes ni pie corrido.
+    margins: { top: '0mm', right: '0mm', bottom: '0mm', left: '0mm' },
   },
+  letterhead: { mode: 'none' },
+  // Sin pie corrido: es una carta a sangre completa y cada página dibuja su propio pie.
+  footer: { enabled: false },
 });

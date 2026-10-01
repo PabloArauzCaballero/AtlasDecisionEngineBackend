@@ -34,6 +34,12 @@ export interface LetterheadConfig {
 }
 
 export interface FooterConfig {
+  /**
+   * `false` apaga el pie corrido por completo (sin pie, Chromium tampoco dibuja ninguna plantilla). Lo
+   * necesitan los documentos a sangre completa, de márgenes 0: con margen 0 el pie se pintaría ENCIMA
+   * del cuerpo. Ausente = encendido, que es lo que esperan todos los demás.
+   */
+  readonly enabled?: boolean;
   readonly institutionalText?: string;
   readonly showGeneratedAt: boolean;
   readonly showDocumentId: boolean;
