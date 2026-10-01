@@ -46,7 +46,14 @@ body {
 }
 
 .pg--luz {
+  display: flex;
+  flex-direction: column;
   background: linear-gradient(180deg, var(--surface) 0%, var(--hielo) 100%);
+}
+.pg--luz > .pg__cuerpo {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .pg__cab {
@@ -308,12 +315,21 @@ body {
 
 /* ───────── lo que gana ───────── */
 .gana {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
   margin-top: 6.5mm;
 }
 .gana__rejilla {
+  flex: 1 1 auto;
   display: grid;
   grid-template-columns: 1fr 1fr;
+  grid-auto-rows: auto;
+  align-content: space-between;
   gap: 4mm;
+}
+.gana__rejilla > .ben--card {
+  align-self: stretch;
 }
 .ben {
   break-inside: avoid;
@@ -408,12 +424,21 @@ body {
 }
 
 /* ───────── cómo funciona ───────── */
+.como {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
 .como .pasos {
+  flex: 1 1 auto;
   display: grid;
   grid-template-columns: 1fr 1fr;
+  grid-auto-rows: 1fr;
   gap: 5mm;
 }
 .paso {
+  display: flex;
+  flex-direction: column;
   break-inside: avoid;
   padding: 3.5mm 4mm 4.5mm;
   background: var(--surface);
@@ -423,6 +448,9 @@ body {
 }
 .paso__arte {
   position: relative;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
   margin-bottom: 3mm;
   border-radius: 3mm;
   overflow: hidden;
@@ -430,7 +458,7 @@ body {
 .paso__arte .art {
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
 }
 .paso__num {
   position: absolute;
