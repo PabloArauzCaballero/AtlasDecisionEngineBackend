@@ -44,6 +44,23 @@ describe('propuesta-comercial@1.0.0', () => {
     expect(html).not.toMatch(/Uso interno|Informe de resultado|no aporta datos/i);
   });
 
+  it('explica en dibujos lo que se promete: riesgo cero, cobro directo y sin catálogo', async () => {
+    const { html: bruto } = await componer(propuestaComercialFixture());
+    // El HTML se reformatea al componerse: se compara con los blancos normalizados.
+    const html = bruto.replace(/\s+/g, ' ');
+    expect(html).toContain('Así funciona, en dibujos');
+    expect((html.match(/<svg\s+class=["']pc-ilustracion["']/g) ?? []).length).toBe(3);
+    for (const texto of [
+      'riesgo cero en sus cuentas por cobrar',
+      'Ningún dinero pasa por ATLAS',
+      'no tiene que subir ningún catálogo',
+    ]) {
+      expect(html).toContain(texto);
+    }
+    // Sin recursos externos: el PDF se compone sin red.
+    expect(html).not.toMatch(/<svg[^>]*(href|src)=['"]https?:/i);
+  });
+
   it('no deja la cabecera vacía: Chromium pintaría la suya (fecha y título)', async () => {
     const llamada = await componer(propuestaComercialFixture());
     expect(llamada.headerHtml).toBe('');

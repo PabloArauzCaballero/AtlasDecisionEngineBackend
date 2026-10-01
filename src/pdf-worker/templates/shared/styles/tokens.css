@@ -67,4 +67,11 @@
   --on-cover-muted: color-mix(in srgb, var(--surface) 72%, var(--cover));
   --on-cover-rule: color-mix(in srgb, var(--surface) 22%, var(--cover));
   --wash-highlight: color-mix(in srgb, var(--cover-highlight) 12%, var(--surface));
+  /* Profundidad de la portada y fondo de página de la propuesta: sólo se añaden variables que
+     ningún otro documento usa. */
+  --cover-deep: #07213f;
+  --cover-bright: #14447a;
+  --cover-glow: color-mix(in srgb, var(--cover-highlight) 16%, transparent);
+  --cover-grid: color-mix(in srgb, var(--surface) 5.5%, transparent);
+  --page-wash: #f6f8fb;
 }

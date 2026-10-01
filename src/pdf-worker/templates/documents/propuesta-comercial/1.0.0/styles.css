@@ -4,11 +4,26 @@
  * `tokens.css`, la identidad pública de ATLAS.
  */
 
+/* Fondo de página: gris azulado casi blanco, para que las tarjetas blancas lean como papel. */
+html,
+body {
+  background: var(--page-wash);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
 .pc-portada {
-  background: var(--cover);
+  position: relative;
+  /* Navy profundo con una retícula fina y un resplandor menta tenue; todo desde tokens. */
+  background:
+    radial-gradient(120mm 60mm at 100% 0%, var(--cover-glow), transparent 70%),
+    repeating-linear-gradient(0deg, var(--cover-grid) 0 0.25mm, transparent 0.25mm 6mm),
+    repeating-linear-gradient(90deg, var(--cover-grid) 0 0.25mm, transparent 0.25mm 6mm),
+    linear-gradient(135deg, var(--cover-deep) 0%, var(--cover) 55%, var(--cover-bright) 100%);
   color: var(--on-cover);
-  border-radius: 4mm;
-  padding: 9mm 10mm 8mm;
+  border-radius: 3mm;
+  border-bottom: 1.2mm solid var(--cover-highlight);
+  padding: 10mm 11mm 9mm;
   margin: 0 0 9mm;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
@@ -107,6 +122,17 @@
   color: var(--cover);
   border-bottom: 0.6pt solid var(--line);
 }
+.pc-h2::before {
+  content: '';
+  display: inline-block;
+  width: 2.2mm;
+  height: 2.2mm;
+  margin-right: 2.4mm;
+  background: var(--cover-highlight);
+  vertical-align: 0.3mm;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
 
 .pc-beneficios {
   display: grid;
@@ -116,8 +142,10 @@
 }
 .pc-beneficio {
   padding: 4mm 4.5mm;
+  background: var(--surface);
   border: 0.6pt solid var(--line);
-  border-radius: 2.5mm;
+  border-top: 0.9mm solid var(--cover);
+  border-radius: 2mm;
   break-inside: avoid;
 }
 .pc-beneficio__num,
@@ -257,4 +285,47 @@
 .pc-dirigida strong {
   color: var(--ink);
   font-weight: var(--weight-bold);
+}
+
+/* Ilustraciones vectoriales: nítidas a cualquier resolución de impresión. */
+.pc-figura {
+  margin: 0 0 6mm;
+  padding: 3.5mm 3.5mm 2.5mm;
+  background: var(--surface);
+  border: 0.6pt solid var(--line);
+  border-radius: 2.5mm;
+  break-inside: avoid;
+}
+.pc-figura__cap {
+  display: flex;
+  align-items: flex-start;
+  gap: 2.5mm;
+  margin: 0 0 2.5mm;
+  font-size: var(--type-sm);
+  line-height: 1.4;
+  color: var(--ink-muted);
+}
+.pc-figura__cap strong {
+  color: var(--cover);
+}
+.pc-figura__n {
+  flex: none;
+  width: 5.5mm;
+  height: 5.5mm;
+  line-height: 5.5mm;
+  border-radius: 50%;
+  background: var(--cover);
+  color: var(--surface);
+  text-align: center;
+  font-size: var(--type-xs);
+  font-weight: var(--weight-bold);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.pc-ilustracion {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 2mm;
+  font-family: inherit;
 }
