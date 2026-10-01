@@ -37,26 +37,53 @@ jobs:
         with:
           node-version: 22
 
+      # PLAT-04: la identidad sale del CAMPO autoritativo de la respuesta (`commit` completo de 40
+      # caracteres) y del NOMBRE del servicio, nunca de «el SHA aparece en cualquier parte del cuerpo»
+      # (un requestId, un log o un campo ajeno lo harían pasar). Servicio equivocado, commit vacío,
+      # SHA anterior, JSON inválido, redirección o un 503 son rojo, con la causa en el diagnóstico.
       - name: Esperar a que TEST sirva este commit (hasta 40 min)
         shell: bash
+        env:
+          EXPECTED_SERVICE: atlas-decision-engine-backend
+          SMOKE_WAIT_SECONDS: '2400'
+          SMOKE_POLL_SECONDS: '20'
         run: |
           set -uo pipefail
-          deadline=$(( $(date +%s) + 40*60 ))
+          mkdir -p smoke-diagnostics
+          deadline=$(( $(date +%s) + SMOKE_WAIT_SECONDS ))
           cuerpo=$(mktemp)
           while :; do
             codigo=$(curl --silent --show-error --connect-timeout 10 --max-time 20 \
               --output "$cuerpo" --write-out '%{http_code}' "${SMOKE_BASE_URL}${VERSION_PATH}" 2>/dev/null || echo 000)
-            if [ "$codigo" = 200 ] && grep -q "$TARGET_SHA" "$cuerpo"; then
-              echo "TEST sirve $TARGET_SHA:"; head -c 400 "$cuerpo"; echo
+            causa=""
+            if [ "$codigo" != 200 ]; then
+              causa="HTTP $codigo (se esperaba 200; una redirección tampoco vale)"
+            elif ! jq -e . "$cuerpo" >/dev/null 2>&1; then
+              causa="el cuerpo no es JSON"
+            else
+              servido=$(jq -r '(.data // .) | .commit // ""' "$cuerpo")
+              servicio=$(jq -r '(.data // .) | .service // ""' "$cuerpo")
+              if [ "$servicio" != "$EXPECTED_SERVICE" ]; then
+                causa="servicio «${servicio}», se esperaba «${EXPECTED_SERVICE}»"
+              elif [ -z "$servido" ] || [ "$servido" = null ]; then
+                causa="el commit servido está vacío (el build no lleva su identidad)"
+              elif [ "$servido" != "$TARGET_SHA" ]; then
+                causa="sirve el commit $servido, no $TARGET_SHA"
+              fi
+            fi
+            if [ -z "$causa" ]; then
+              echo "TEST sirve $TARGET_SHA ($EXPECTED_SERVICE)."
+              jq -n --arg sha "$TARGET_SHA" --arg service "$EXPECTED_SERVICE" '{result:"identity-ok", commit:$sha, service:$service}' > smoke-diagnostics/identity.json
               break
             fi
+            jq -n --arg causa "$causa" --arg http "$codigo" --arg sha "$TARGET_SHA" --arg url "${SMOKE_BASE_URL}${VERSION_PATH}" --arg at "$(date -u +%FT%TZ)" \
+              '{result:"identity-failed", cause:$causa, lastHttp:$http, target:$sha, url:$url, at:$at}' > smoke-diagnostics/identity.json
             if [ "$(date +%s)" -ge "$deadline" ]; then
-              echo "::error::TEST no sirve $TARGET_SHA tras 40 min (HTTP $codigo). Cuerpo:"; head -c 400 "$cuerpo"; echo
-              echo "Si el cuerpo trae commit vacío, Coolify no está inyectando SOURCE_COMMIT (filas vacías en la app)."
+              echo "::error::TEST no sirve $TARGET_SHA: $causa"; head -c 400 "$cuerpo"; echo
               exit 1
             fi
-            echo "$(date -u +%H:%M:%S) HTTP $codigo, aún no es $TARGET_SHA; reintento en 20 s"
-            sleep 20
+            echo "$(date -u +%H:%M:%S) $causa; reintento en ${SMOKE_POLL_SECONDS} s"
+            sleep "$SMOKE_POLL_SECONDS"
           done
 
       - name: Smoke HTTP contra TEST
@@ -81,3 +108,12 @@ jobs:
           name: release-manifest-test-${{ github.sha }}
           path: release-manifest.json
           retention-days: 90
+
+      # Diagnóstico también cuando algo falla; NO sustituye ni aprueba el resultado del job.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: smoke-diagnostics-test-${{ github.sha }}
+          path: smoke-diagnostics/
+          if-no-files-found: warn
+          retention-days: 30
