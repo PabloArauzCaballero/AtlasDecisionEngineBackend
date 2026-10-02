@@ -235,6 +235,9 @@ describe('caso abierto por el expediente → resolución', () => {
       decisionManualReviewCase: {
         update: (args: { data: Row }) => Promise.resolve({ ...review, ...args.data }),
       },
+      decisionExecution: {
+        findUnique: () => Promise.resolve({ requestId: 'identity-53-x', correlationId: '13' }),
+      },
     };
     const prisma = {
       decisionManualReviewCase: { findFirst: () => Promise.resolve(review) },

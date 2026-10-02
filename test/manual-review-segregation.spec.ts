@@ -80,6 +80,10 @@ describe('ManualReviewService — segregación de funciones', () => {
           return Promise.resolve({ id: CASE, ...args.data });
         },
       },
+      // La ejecución aporta requestId/correlationId al aviso: con ellos AtlasBackend encuentra al cliente.
+      decisionExecution: {
+        findUnique: () => Promise.resolve({ requestId: 'identity-53-x', correlationId: '13' }),
+      },
     };
     const prisma = {
       decisionManualReviewCase: { findFirst: () => Promise.resolve(review) },

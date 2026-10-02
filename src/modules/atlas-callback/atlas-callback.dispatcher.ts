@@ -109,7 +109,7 @@ export class AtlasCallbackDispatcher implements OnModuleInit, OnModuleDestroy {
         ? await this.enviar(`${base.replace(/\/+$/, '')}${aviso.route}`, {
             tenantId: event.tenantId,
             clave,
-            cuerpo: aviso.body,
+            cuerpo: await this.conIdentidadDeLaEjecucion(aviso.body),
           })
         : {
             // Transitorio y no permanente: lo que falta es configuración del despliegue, que se
@@ -183,6 +183,39 @@ export class AtlasCallbackDispatcher implements OnModuleInit, OnModuleDestroy {
     const motivo = `HTTP ${respuesta.status}: ${(await respuesta.text().catch(() => '')).slice(0, 300)}`;
     const transitorio = respuesta.status >= 500 || CUATROCIENTOS_TRANSITORIOS.has(respuesta.status);
     return transitorio ? { tipo: 'transitorio', motivo } : { tipo: 'permanente', motivo };
+  }
+
+  /**
+   * Completa `requestId` y `correlationId` desde la ejecucion cuando el aviso no los trae.
+   *
+   * Los avisos encolados antes del 2026-10-02 solo llevaban `executionId`, y AtlasBackend no
+   * encontraba al cliente cuyo intento no lo guardo: respondia 404 y el aviso se daba por
+   * permanente. Completarlos al ENVIAR —y no solo al encolar— es lo que permite reprocesar esos
+   * avisos viejos sin reescribir su payload.
+   */
+  private async conIdentidadDeLaEjecucion(
+    cuerpo: Record<string, string | null>,
+  ): Promise<Record<string, string | null>> {
+    const executionId = cuerpo.executionId;
+    if (
+      (cuerpo.requestId && cuerpo.correlationId) ||
+      !executionId ||
+      !/^[1-9][0-9]*$/u.test(executionId)
+    ) {
+      return cuerpo;
+    }
+    const ejecucion = await this.prisma.decisionExecution
+      .findUnique({
+        where: { id: BigInt(executionId) },
+        select: { requestId: true, correlationId: true },
+      })
+      .catch(() => null);
+    if (!ejecucion) return cuerpo;
+    return {
+      ...cuerpo,
+      requestId: cuerpo.requestId ?? ejecucion.requestId,
+      correlationId: cuerpo.correlationId ?? ejecucion.correlationId,
+    };
   }
 
   private async yaEntregado(outboxEventId: bigint): Promise<boolean> {

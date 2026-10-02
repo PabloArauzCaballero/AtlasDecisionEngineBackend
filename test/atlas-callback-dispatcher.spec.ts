@@ -49,10 +49,14 @@ describe('AtlasCallbackDispatcher', () => {
       entregado?: boolean;
       config?: Record<string, string>;
       rol?: string;
+      ejecucion?: { requestId: string; correlationId: string | null } | null;
     } = {},
   ) {
     const marcas: unknown[] = [];
     const prisma = {
+      decisionExecution: {
+        findUnique: jest.fn(async () => opciones.ejecucion ?? null),
+      },
       processedEvent: {
         findUnique: jest.fn(async () => (opciones.entregado ? { id: 1n } : null)),
         createMany: jest.fn(async (args: { data: unknown[] }) => {
@@ -107,6 +111,59 @@ describe('AtlasCallbackDispatcher', () => {
     expect(JSON.parse(String(init.body))).toEqual(CUERPO);
     expect(marcas).toEqual([{ consumerName: 'atlas-callback', outboxEventId: 42n }]);
     expect(auditados).toHaveLength(0);
+  });
+
+  /*
+   * 2026-10-02: el cliente 53 tenía cuatro revisiones aprobadas en el Motor y seguía «en revisión»
+   * en AtlasBackend. El aviso sólo llevaba `executionId`, su intento no lo había guardado, y
+   * AtlasBackend respondía 404 (permanente). Al ENVIAR se completan `requestId` y `correlationId`
+   * desde la ejecución, así un aviso viejo reprocesado llega con con qué encontrar al cliente.
+   */
+  it('un aviso sin requestId/correlationId los completa desde la ejecución antes de enviarlo', async () => {
+    const fetchMock = responder(200, '{"applied":true}');
+    const { dispatcher, prisma } = montar({
+      ejecucion: {
+        requestId: 'identity-53-127e63a7-3d8e-432b-be39-a95ac3de3b54',
+        correlationId: '13',
+      },
+    });
+
+    await dispatcher.handle(evento());
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).toEqual({
+      ...CUERPO,
+      requestId: 'identity-53-127e63a7-3d8e-432b-be39-a95ac3de3b54',
+      correlationId: '13',
+    });
+    expect(
+      (prisma as unknown as { decisionExecution: { findUnique: jest.Mock } }).decisionExecution
+        .findUnique,
+    ).toHaveBeenCalledWith({
+      where: { id: 555n },
+      select: { requestId: true, correlationId: true },
+    });
+  });
+
+  it('si el aviso ya trae requestId y correlationId no consulta la ejecución', async () => {
+    responder(200);
+    const { dispatcher, prisma } = montar({
+      ejecucion: { requestId: 'otro', correlationId: '99' },
+    });
+
+    await dispatcher.handle(
+      evento({
+        payload: {
+          route: RUTA,
+          body: { ...CUERPO, requestId: 'identity-1-x', correlationId: '7' },
+        },
+      }),
+    );
+
+    expect(
+      (prisma as unknown as { decisionExecution: { findUnique: jest.Mock } }).decisionExecution
+        .findUnique,
+    ).not.toHaveBeenCalled();
   });
 
   it.each([500, 502, 503, 408, 429])(
