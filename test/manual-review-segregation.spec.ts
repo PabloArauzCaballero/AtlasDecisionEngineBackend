@@ -80,6 +80,9 @@ describe('ManualReviewService — segregación de funciones', () => {
           return Promise.resolve({ id: CASE, ...args.data });
         },
       },
+      decisionExecution: {
+        findUnique: () => Promise.resolve({ requestId: 'identity-53-uuid', correlationId: '77' }),
+      },
     };
     const prisma = {
       decisionManualReviewCase: { findFirst: () => Promise.resolve(review) },
@@ -344,6 +347,8 @@ describe('ManualReviewService — segregación de funciones', () => {
         ruta: '/internal/identity/manual-review-callback',
         cuerpo: {
           executionId: '555',
+          requestId: 'identity-53-uuid',
+          correlationId: '77',
           decision: 'APPROVE',
           reason: 'motivo',
           resolvedByInternalUserId: 'ana',

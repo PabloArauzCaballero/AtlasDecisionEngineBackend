@@ -335,11 +335,22 @@ export class ManualReviewService {
        * auditoria porque la auditoria toma el cerrojo de la cadena y tiene que ser lo ultimo.
        */
       if (ruta) {
+        /*
+         * `correlationId` y `requestId` de la ejecución van en el aviso como RESPALDO del `executionId`:
+         * si AtlasBackend dio por perdida la llamada (plazo agotado) nunca guardó el `executionId`, y sin
+         * estos dos no sabe a qué cliente aplicar la decisión (cliente 53 de TEST, 2026-10-01).
+         */
+        const ejecucion = await tx.decisionExecution.findUnique({
+          where: { id: review.executionId },
+          select: { requestId: true, correlationId: true },
+        });
         await this.callbacks.solicitar(tx, {
           tenantId,
           ruta,
           cuerpo: {
             executionId: review.executionId.toString(),
+            requestId: ejecucion?.requestId ?? null,
+            correlationId: ejecucion?.correlationId ?? null,
             decision: dto.decision,
             reason: dto.reason,
             resolvedByInternalUserId: principal.id,

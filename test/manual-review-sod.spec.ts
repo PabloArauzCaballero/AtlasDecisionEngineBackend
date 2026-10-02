@@ -29,6 +29,7 @@ describe('ManualReviewService.resolve — segregation of duties', () => {
               return { ...review, status: ManualReviewStatus.RESOLVED_APPROVED };
             },
           },
+          decisionExecution: { findUnique: async () => null },
         }),
     };
     const audit = { append: async () => ({}) };
