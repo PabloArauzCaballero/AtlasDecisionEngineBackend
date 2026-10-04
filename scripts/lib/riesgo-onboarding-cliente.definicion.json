@@ -5,10 +5,10 @@
     "riskDomain": "CUSTOMER_ONBOARDING",
     "ownerTeam": "RISK_DECISIONING",
     "name": "Riesgo de onboarding del cliente",
-    "description": "Decide si el alta de un cliente sigue adelante o la mira una persona. Es la política versionada de lo que AtlasBackend resolvía con `risk_heuristic_v0` dentro del código: sin documento de identidad o sin consentimiento vigente el caso va a una persona; con ambos, sigue si el puntaje total alcanza el umbral y, si no, también lo mira una persona. Nunca rechaza: el riesgo de onboarding deriva, no niega.",
+    "description": "Decide si el alta de un cliente sigue adelante o la mira una persona. Es la política versionada de lo que AtlasBackend resolvía con `risk_heuristic_v0` dentro del código: sin documento de identidad o sin consentimiento vigente el caso va a una persona; con ambos, sigue si el puntaje total alcanza el umbral y, si no, también lo mira una persona. Nunca rechaza: el riesgo de onboarding deriva, no niega. Desde la 2.0.0 tiene reglas PROPIAS de fraude sobre lo que AtlasBackend ya guarda: el dispositivo y la IP con que la persona inició sesión, el ritmo con que rellenó el alta y la agenda que trae. Emulador o ubicación simulada, el mismo teléfono o la misma IP en muchas cuentas, tiempos que no da una persona, o varias señales menores a la vez, mandan el alta a una persona. Siguen sin rechazar.",
     "businessPurpose": "Que la primera evaluación de riesgo de cada cliente la tome una política con versión, aprobación y auditoría, en vez de una heurística en el código del backend que aprobaba sin que nadie la hubiera firmado.",
-    "semanticVersion": "1.0.0",
-    "authoringNotes": "Equivalente a `risk_heuristic_v0` de AtlasBackend (umbral 65). La falta de evidencia manda sobre el puntaje: se evalúa primero. No existe desenlace de rechazo a propósito."
+    "semanticVersion": "2.0.0",
+    "authoringNotes": "Equivalente a `risk_heuristic_v0` de AtlasBackend (umbral 65). La falta de evidencia manda sobre el puntaje: se evalúa primero. No existe desenlace de rechazo a propósito. v2.0.0 (2026-10-04): quince entradas OPCIONALES de dispositivo, red, ritmo y agenda, y cuatro derivaciones a revisión evaluadas DESPUÉS de la evidencia faltante y ANTES del umbral. Sin esas variables decide exactamente como la 1.0.0. Los cortes (2 cuentas por dispositivo, 8 por IP en 24 h, 3 dispositivos, bot 0,7, 2 señales medias, agenda de menos de 10) son de partida y NO están medidos contra altas reales: por eso derivan y no rechazan; se recalibran con lo que dejen las revisiones."
   },
   "umbral": 65,
   "queueCode": "RIESGO_ONBOARDING",
@@ -116,6 +116,111 @@
       "dataType": "STRING",
       "name": "Tipo de evaluación",
       "description": "Contexto de la evaluación de riesgo (onboarding_initial, manual_recheck, …)."
+    },
+    {
+      "code": "device_emulator",
+      "dataType": "BOOLEAN",
+      "name": "El dispositivo es un emulador",
+      "description": "Algún snapshot del dispositivo del cliente dice emulador. Ausente = no se sabe.",
+      "optional": true
+    },
+    {
+      "code": "device_rooted",
+      "dataType": "BOOLEAN",
+      "name": "El dispositivo tiene root",
+      "description": "Algún snapshot dice root o jailbreak. Ausente = no se sabe.",
+      "optional": true
+    },
+    {
+      "code": "location_mocked_pings",
+      "dataType": "INTEGER",
+      "name": "Posiciones simuladas",
+      "description": "Posiciones que el sistema operativo marcó como simuladas.",
+      "optional": true
+    },
+    {
+      "code": "device_shared_customers",
+      "dataType": "INTEGER",
+      "name": "Otras cuentas en el mismo dispositivo",
+      "description": "Otros clientes vinculados a alguno de los dispositivos de éste.",
+      "optional": true
+    },
+    {
+      "code": "ip_customers_24h",
+      "dataType": "INTEGER",
+      "name": "Otras cuentas desde la misma IP en 24 h",
+      "description": "Otros clientes con sesión desde alguna IP pública de éste en las últimas 24 horas.",
+      "optional": true
+    },
+    {
+      "code": "session_devices",
+      "dataType": "INTEGER",
+      "name": "Dispositivos usados durante el alta",
+      "description": "Dispositivos distintos con los que este cliente abrió sesión durante el alta.",
+      "optional": true
+    },
+    {
+      "code": "behavior_bot_score",
+      "dataType": "DECIMAL",
+      "name": "Heurística de automatización",
+      "description": "botLikelihoodScore del resumen de comportamiento del alta (0-1).",
+      "optional": true
+    },
+    {
+      "code": "rhythm_strong_signals",
+      "dataType": "INTEGER",
+      "name": "Señales fuertes de ritmo",
+      "description": "Toques más rápidos que un dedo o foto tomada sin tiempo de encuadrar.",
+      "optional": true
+    },
+    {
+      "code": "rhythm_medium_signals",
+      "dataType": "INTEGER",
+      "name": "Señales medias de ritmo",
+      "description": "Tiempos casi idénticos entre campos o toques, o campos escritos de golpe.",
+      "optional": true
+    },
+    {
+      "code": "contacts_available",
+      "dataType": "BOOLEAN",
+      "name": "Agenda compartida",
+      "description": "Si hay agenda guardada. No compartirla no cuenta en contra.",
+      "optional": true
+    },
+    {
+      "code": "contacts_total",
+      "dataType": "INTEGER",
+      "name": "Contactos en la agenda",
+      "description": "Cuántos contactos tiene la agenda guardada.",
+      "optional": true
+    },
+    {
+      "code": "contacts_days_since_last_new",
+      "dataType": "INTEGER",
+      "name": "Días desde el último contacto nuevo",
+      "description": "Días desde que el servidor vio aparecer el último contacto. Ausente el día de la primera sincronización.",
+      "optional": true
+    },
+    {
+      "code": "contacts_signals",
+      "dataType": "INTEGER",
+      "name": "Señales de la agenda",
+      "description": "Cuántas de: mínima, repetida, uniforme, cargada de golpe.",
+      "optional": true
+    },
+    {
+      "code": "fraud_flags_strong",
+      "dataType": "INTEGER",
+      "name": "Banderas fuertes según AtlasBackend",
+      "description": "Recuento del backend; el artefacto decide con sus propias reglas, esto es contraste.",
+      "optional": true
+    },
+    {
+      "code": "fraud_flags_medium",
+      "dataType": "INTEGER",
+      "name": "Banderas medias según AtlasBackend",
+      "description": "Recuento del backend; contraste.",
+      "optional": true
     }
   ],
   "outputs": [
@@ -173,6 +278,38 @@
       "internalMessage": "Evidencias completas y total_score igual o superior al umbral.",
       "severity": "LOW",
       "isAdverseAction": false
+    },
+    {
+      "reasonCode": "DEVICE_NOT_TRUSTED",
+      "category": "ONBOARDING_RISK",
+      "publicMessage": "El alta se hizo desde un dispositivo que no podemos dar por real.",
+      "internalMessage": "Emulador o posiciones simuladas por el sistema operativo: no hay explicación inocente habitual.",
+      "severity": "HIGH",
+      "isAdverseAction": false
+    },
+    {
+      "reasonCode": "SHARED_DEVICE_OR_NETWORK",
+      "category": "ONBOARDING_RISK",
+      "publicMessage": "El dispositivo o la conexión de esta alta aparecen en otras cuentas.",
+      "internalMessage": "Mismo dispositivo en 3 o más cuentas, 8 o más cuentas desde la IP en 24 h, o alta desde 3 o más dispositivos.",
+      "severity": "HIGH",
+      "isAdverseAction": false
+    },
+    {
+      "reasonCode": "AUTOMATED_BEHAVIOR",
+      "category": "ONBOARDING_RISK",
+      "publicMessage": "La forma en que se completó el alta requiere una revisión.",
+      "internalMessage": "Heurística de automatización >= 0,7, toques sobrehumanos o captura instantánea.",
+      "severity": "HIGH",
+      "isAdverseAction": false
+    },
+    {
+      "reasonCode": "ACCUMULATED_FRAUD_SIGNALS",
+      "category": "ONBOARDING_RISK",
+      "publicMessage": "Varias señales de esta alta requieren una revisión.",
+      "internalMessage": "Dos o más de: root, dispositivo compartido, varias cuentas desde la IP, ritmo uniforme, agenda mínima/repetida/uniforme/cargada de golpe.",
+      "severity": "HIGH",
+      "isAdverseAction": false
     }
   ],
   "intermediates": [
@@ -187,7 +324,22 @@
         "APROBAR",
         "REVISAR_SIN_IDENTIDAD",
         "REVISAR_SIN_CONSENTIMIENTO",
-        "REVISAR_PUNTAJE"
+        "REVISAR_PUNTAJE",
+        "REVISAR_DISPOSITIVO_NO_CONFIABLE",
+        "REVISAR_DISPOSITIVO_O_RED_COMPARTIDOS",
+        "REVISAR_COMPORTAMIENTO_AUTOMATIZADO",
+        "REVISAR_SENALES_ACUMULADAS"
+      ]
+    },
+    {
+      "code": "senales_medias",
+      "name": "Señales medias acumuladas",
+      "description": "Root, dispositivo compartido con otra cuenta, varias cuentas desde la IP, ritmo uniforme y señales de la agenda: cada una tiene explicación inocente; dos a la vez ya no.",
+      "dataType": "INTEGER",
+      "producerNodeKey": "CONTAR_FALTANTES",
+      "consumerNodeKeys": [
+        "EVALUAR",
+        "REVISAR_SENALES_ACUMULADAS"
       ]
     }
   ],
@@ -233,6 +385,169 @@
       },
       "severity": "BLOCKING",
       "reusable": true
+    },
+    {
+      "code": "DISPOSITIVO_NO_CONFIABLE",
+      "name": "El dispositivo es un emulador o simula su ubicación",
+      "expressionType": "JSON_AST",
+      "expression": {
+        "op": "or",
+        "args": [
+          {
+            "op": "eq",
+            "left": {
+              "var": "device_emulator"
+            },
+            "right": {
+              "value": true
+            }
+          },
+          {
+            "op": "gte",
+            "left": {
+              "op": "coalesce",
+              "args": [
+                {
+                  "var": "location_mocked_pings"
+                },
+                {
+                  "value": 0
+                }
+              ]
+            },
+            "right": {
+              "value": 1
+            }
+          }
+        ]
+      },
+      "severity": "BLOCKING",
+      "reusable": false
+    },
+    {
+      "code": "DISPOSITIVO_O_RED_COMPARTIDOS",
+      "name": "El mismo dispositivo o la misma IP en muchas cuentas",
+      "expressionType": "JSON_AST",
+      "expression": {
+        "op": "or",
+        "args": [
+          {
+            "op": "gte",
+            "left": {
+              "op": "coalesce",
+              "args": [
+                {
+                  "var": "device_shared_customers"
+                },
+                {
+                  "value": 0
+                }
+              ]
+            },
+            "right": {
+              "value": 2
+            }
+          },
+          {
+            "op": "gte",
+            "left": {
+              "op": "coalesce",
+              "args": [
+                {
+                  "var": "ip_customers_24h"
+                },
+                {
+                  "value": 0
+                }
+              ]
+            },
+            "right": {
+              "value": 8
+            }
+          },
+          {
+            "op": "gte",
+            "left": {
+              "op": "coalesce",
+              "args": [
+                {
+                  "var": "session_devices"
+                },
+                {
+                  "value": 0
+                }
+              ]
+            },
+            "right": {
+              "value": 3
+            }
+          }
+        ]
+      },
+      "severity": "BLOCKING",
+      "reusable": false
+    },
+    {
+      "code": "COMPORTAMIENTO_AUTOMATIZADO",
+      "name": "El alta se rellenó con tiempos que no da una persona",
+      "expressionType": "JSON_AST",
+      "expression": {
+        "op": "or",
+        "args": [
+          {
+            "op": "gte",
+            "left": {
+              "op": "coalesce",
+              "args": [
+                {
+                  "var": "behavior_bot_score"
+                },
+                {
+                  "value": 0
+                }
+              ]
+            },
+            "right": {
+              "value": 0.7
+            }
+          },
+          {
+            "op": "gte",
+            "left": {
+              "op": "coalesce",
+              "args": [
+                {
+                  "var": "rhythm_strong_signals"
+                },
+                {
+                  "value": 0
+                }
+              ]
+            },
+            "right": {
+              "value": 1
+            }
+          }
+        ]
+      },
+      "severity": "BLOCKING",
+      "reusable": false
+    },
+    {
+      "code": "SENALES_ACUMULADAS",
+      "name": "Dos o más señales menores a la vez",
+      "expressionType": "JSON_AST",
+      "expression": {
+        "op": "gte",
+        "left": {
+          "var": "intermediate.senales_medias"
+        },
+        "right": {
+          "value": 2
+        }
+      },
+      "severity": "BLOCKING",
+      "reusable": false
     }
   ],
   "actions": [
@@ -280,6 +595,54 @@
       "reasonCodes": [
         {
           "reasonCode": "MINIMUM_ONBOARDING_RISK_PASSED",
+          "priority": 1
+        }
+      ]
+    },
+    {
+      "code": "EMITIR_DISPOSITIVO_NO_CONFIABLE",
+      "type": "EMIT_REASON",
+      "payload": {},
+      "terminal": false,
+      "reasonCodes": [
+        {
+          "reasonCode": "DEVICE_NOT_TRUSTED",
+          "priority": 1
+        }
+      ]
+    },
+    {
+      "code": "EMITIR_DISPOSITIVO_O_RED_COMPARTIDOS",
+      "type": "EMIT_REASON",
+      "payload": {},
+      "terminal": false,
+      "reasonCodes": [
+        {
+          "reasonCode": "SHARED_DEVICE_OR_NETWORK",
+          "priority": 1
+        }
+      ]
+    },
+    {
+      "code": "EMITIR_COMPORTAMIENTO_AUTOMATIZADO",
+      "type": "EMIT_REASON",
+      "payload": {},
+      "terminal": false,
+      "reasonCodes": [
+        {
+          "reasonCode": "AUTOMATED_BEHAVIOR",
+          "priority": 1
+        }
+      ]
+    },
+    {
+      "code": "EMITIR_SENALES_ACUMULADAS",
+      "type": "EMIT_REASON",
+      "payload": {},
+      "terminal": false,
+      "reasonCodes": [
+        {
+          "reasonCode": "ACCUMULATED_FRAUD_SIGNALS",
           "priority": 1
         }
       ]
@@ -337,6 +700,129 @@
                   "else": {
                     "value": 0
                   }
+                }
+              ]
+            }
+          },
+          {
+            "code": "senales_medias",
+            "source": "EXPRESSION",
+            "expression": {
+              "op": "add",
+              "args": [
+                {
+                  "op": "if",
+                  "condition": {
+                    "op": "eq",
+                    "left": {
+                      "var": "device_rooted"
+                    },
+                    "right": {
+                      "value": true
+                    }
+                  },
+                  "then": {
+                    "value": 1
+                  },
+                  "else": {
+                    "value": 0
+                  }
+                },
+                {
+                  "op": "if",
+                  "condition": {
+                    "op": "eq",
+                    "left": {
+                      "op": "coalesce",
+                      "args": [
+                        {
+                          "var": "device_shared_customers"
+                        },
+                        {
+                          "value": 0
+                        }
+                      ]
+                    },
+                    "right": {
+                      "value": 1
+                    }
+                  },
+                  "then": {
+                    "value": 1
+                  },
+                  "else": {
+                    "value": 0
+                  }
+                },
+                {
+                  "op": "if",
+                  "condition": {
+                    "op": "and",
+                    "args": [
+                      {
+                        "op": "gte",
+                        "left": {
+                          "op": "coalesce",
+                          "args": [
+                            {
+                              "var": "ip_customers_24h"
+                            },
+                            {
+                              "value": 0
+                            }
+                          ]
+                        },
+                        "right": {
+                          "value": 4
+                        }
+                      },
+                      {
+                        "op": "lt",
+                        "left": {
+                          "op": "coalesce",
+                          "args": [
+                            {
+                              "var": "ip_customers_24h"
+                            },
+                            {
+                              "value": 0
+                            }
+                          ]
+                        },
+                        "right": {
+                          "value": 8
+                        }
+                      }
+                    ]
+                  },
+                  "then": {
+                    "value": 1
+                  },
+                  "else": {
+                    "value": 0
+                  }
+                },
+                {
+                  "op": "coalesce",
+                  "args": [
+                    {
+                      "var": "rhythm_medium_signals"
+                    },
+                    {
+                      "value": 0
+                    }
+                  ]
+                },
+                {
+                  "op": "coalesce",
+                  "args": [
+                    {
+                      "var": "contacts_signals"
+                    },
+                    {
+                      "value": 0
+                    }
+                  ]
                 }
               ]
             }
@@ -567,6 +1053,286 @@
           }
         ]
       }
+    },
+    {
+      "key": "EMITIR_DISPOSITIVO_NO_CONFIABLE",
+      "type": "ACTION",
+      "label": "Anotar: el dispositivo es un emulador o simula su ubicación",
+      "terminal": false,
+      "config": {},
+      "actions": [
+        {
+          "actionCode": "EMITIR_DISPOSITIVO_NO_CONFIABLE",
+          "order": 1
+        }
+      ]
+    },
+    {
+      "key": "REVISAR_DISPOSITIVO_NO_CONFIABLE",
+      "type": "MANUAL_REVIEW",
+      "label": "Revisión: el dispositivo es un emulador o simula su ubicación",
+      "terminal": true,
+      "actions": [],
+      "config": {
+        "mode": "MAPPING",
+        "assignments": [
+          {
+            "source": "LITERAL",
+            "value": "MANUAL_REVIEW",
+            "outputCode": "riesgo_decision"
+          },
+          {
+            "source": "LITERAL",
+            "value": "DEVICE_NOT_TRUSTED",
+            "outputCode": "riesgo_motivo"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.faltantes"
+            },
+            "outputCode": "riesgo_faltantes"
+          }
+        ],
+        "queueCode": "RIESGO_ONBOARDING",
+        "priority": 95,
+        "slaMinutes": 480,
+        "evidence": {
+          "faltantes": "{{intermediate.faltantes}}",
+          "documentoIdentidad": "{{has_identity_document}}",
+          "consentimiento": "{{has_granted_consent}}",
+          "contactosVerificados": "{{verified_contact_count}}",
+          "puntajeTotal": "{{total_score}}",
+          "puntajeIdentidad": "{{identity_score}}",
+          "puntajeContacto": "{{contact_score}}",
+          "puntajeFraude": "{{fraud_score}}",
+          "tipoEvaluacion": "{{assessment_type}}",
+          "motivo": "DEVICE_NOT_TRUSTED",
+          "emulador": "{{device_emulator}}",
+          "root": "{{device_rooted}}",
+          "posicionesSimuladas": "{{location_mocked_pings}}",
+          "cuentasEnElDispositivo": "{{device_shared_customers}}",
+          "cuentasDesdeLaIp24h": "{{ip_customers_24h}}",
+          "dispositivosDeSesion": "{{session_devices}}",
+          "botScore": "{{behavior_bot_score}}",
+          "ritmoFuerte": "{{rhythm_strong_signals}}",
+          "ritmoMedio": "{{rhythm_medium_signals}}",
+          "contactos": "{{contacts_total}}",
+          "diasDesdeUltimoContactoNuevo": "{{contacts_days_since_last_new}}",
+          "senalesDeAgenda": "{{contacts_signals}}",
+          "senalesMedias": "{{intermediate.senales_medias}}"
+        }
+      }
+    },
+    {
+      "key": "EMITIR_DISPOSITIVO_O_RED_COMPARTIDOS",
+      "type": "ACTION",
+      "label": "Anotar: el mismo dispositivo o la misma ip en muchas cuentas",
+      "terminal": false,
+      "config": {},
+      "actions": [
+        {
+          "actionCode": "EMITIR_DISPOSITIVO_O_RED_COMPARTIDOS",
+          "order": 1
+        }
+      ]
+    },
+    {
+      "key": "REVISAR_DISPOSITIVO_O_RED_COMPARTIDOS",
+      "type": "MANUAL_REVIEW",
+      "label": "Revisión: el mismo dispositivo o la misma ip en muchas cuentas",
+      "terminal": true,
+      "actions": [],
+      "config": {
+        "mode": "MAPPING",
+        "assignments": [
+          {
+            "source": "LITERAL",
+            "value": "MANUAL_REVIEW",
+            "outputCode": "riesgo_decision"
+          },
+          {
+            "source": "LITERAL",
+            "value": "SHARED_DEVICE_OR_NETWORK",
+            "outputCode": "riesgo_motivo"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.faltantes"
+            },
+            "outputCode": "riesgo_faltantes"
+          }
+        ],
+        "queueCode": "RIESGO_ONBOARDING",
+        "priority": 90,
+        "slaMinutes": 480,
+        "evidence": {
+          "faltantes": "{{intermediate.faltantes}}",
+          "documentoIdentidad": "{{has_identity_document}}",
+          "consentimiento": "{{has_granted_consent}}",
+          "contactosVerificados": "{{verified_contact_count}}",
+          "puntajeTotal": "{{total_score}}",
+          "puntajeIdentidad": "{{identity_score}}",
+          "puntajeContacto": "{{contact_score}}",
+          "puntajeFraude": "{{fraud_score}}",
+          "tipoEvaluacion": "{{assessment_type}}",
+          "motivo": "SHARED_DEVICE_OR_NETWORK",
+          "emulador": "{{device_emulator}}",
+          "root": "{{device_rooted}}",
+          "posicionesSimuladas": "{{location_mocked_pings}}",
+          "cuentasEnElDispositivo": "{{device_shared_customers}}",
+          "cuentasDesdeLaIp24h": "{{ip_customers_24h}}",
+          "dispositivosDeSesion": "{{session_devices}}",
+          "botScore": "{{behavior_bot_score}}",
+          "ritmoFuerte": "{{rhythm_strong_signals}}",
+          "ritmoMedio": "{{rhythm_medium_signals}}",
+          "contactos": "{{contacts_total}}",
+          "diasDesdeUltimoContactoNuevo": "{{contacts_days_since_last_new}}",
+          "senalesDeAgenda": "{{contacts_signals}}",
+          "senalesMedias": "{{intermediate.senales_medias}}"
+        }
+      }
+    },
+    {
+      "key": "EMITIR_COMPORTAMIENTO_AUTOMATIZADO",
+      "type": "ACTION",
+      "label": "Anotar: el alta se rellenó con tiempos que no da una persona",
+      "terminal": false,
+      "config": {},
+      "actions": [
+        {
+          "actionCode": "EMITIR_COMPORTAMIENTO_AUTOMATIZADO",
+          "order": 1
+        }
+      ]
+    },
+    {
+      "key": "REVISAR_COMPORTAMIENTO_AUTOMATIZADO",
+      "type": "MANUAL_REVIEW",
+      "label": "Revisión: el alta se rellenó con tiempos que no da una persona",
+      "terminal": true,
+      "actions": [],
+      "config": {
+        "mode": "MAPPING",
+        "assignments": [
+          {
+            "source": "LITERAL",
+            "value": "MANUAL_REVIEW",
+            "outputCode": "riesgo_decision"
+          },
+          {
+            "source": "LITERAL",
+            "value": "AUTOMATED_BEHAVIOR",
+            "outputCode": "riesgo_motivo"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.faltantes"
+            },
+            "outputCode": "riesgo_faltantes"
+          }
+        ],
+        "queueCode": "RIESGO_ONBOARDING",
+        "priority": 85,
+        "slaMinutes": 480,
+        "evidence": {
+          "faltantes": "{{intermediate.faltantes}}",
+          "documentoIdentidad": "{{has_identity_document}}",
+          "consentimiento": "{{has_granted_consent}}",
+          "contactosVerificados": "{{verified_contact_count}}",
+          "puntajeTotal": "{{total_score}}",
+          "puntajeIdentidad": "{{identity_score}}",
+          "puntajeContacto": "{{contact_score}}",
+          "puntajeFraude": "{{fraud_score}}",
+          "tipoEvaluacion": "{{assessment_type}}",
+          "motivo": "AUTOMATED_BEHAVIOR",
+          "emulador": "{{device_emulator}}",
+          "root": "{{device_rooted}}",
+          "posicionesSimuladas": "{{location_mocked_pings}}",
+          "cuentasEnElDispositivo": "{{device_shared_customers}}",
+          "cuentasDesdeLaIp24h": "{{ip_customers_24h}}",
+          "dispositivosDeSesion": "{{session_devices}}",
+          "botScore": "{{behavior_bot_score}}",
+          "ritmoFuerte": "{{rhythm_strong_signals}}",
+          "ritmoMedio": "{{rhythm_medium_signals}}",
+          "contactos": "{{contacts_total}}",
+          "diasDesdeUltimoContactoNuevo": "{{contacts_days_since_last_new}}",
+          "senalesDeAgenda": "{{contacts_signals}}",
+          "senalesMedias": "{{intermediate.senales_medias}}"
+        }
+      }
+    },
+    {
+      "key": "EMITIR_SENALES_ACUMULADAS",
+      "type": "ACTION",
+      "label": "Anotar: dos o más señales menores a la vez",
+      "terminal": false,
+      "config": {},
+      "actions": [
+        {
+          "actionCode": "EMITIR_SENALES_ACUMULADAS",
+          "order": 1
+        }
+      ]
+    },
+    {
+      "key": "REVISAR_SENALES_ACUMULADAS",
+      "type": "MANUAL_REVIEW",
+      "label": "Revisión: dos o más señales menores a la vez",
+      "terminal": true,
+      "actions": [],
+      "config": {
+        "mode": "MAPPING",
+        "assignments": [
+          {
+            "source": "LITERAL",
+            "value": "MANUAL_REVIEW",
+            "outputCode": "riesgo_decision"
+          },
+          {
+            "source": "LITERAL",
+            "value": "ACCUMULATED_FRAUD_SIGNALS",
+            "outputCode": "riesgo_motivo"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.faltantes"
+            },
+            "outputCode": "riesgo_faltantes"
+          }
+        ],
+        "queueCode": "RIESGO_ONBOARDING",
+        "priority": 75,
+        "slaMinutes": 480,
+        "evidence": {
+          "faltantes": "{{intermediate.faltantes}}",
+          "documentoIdentidad": "{{has_identity_document}}",
+          "consentimiento": "{{has_granted_consent}}",
+          "contactosVerificados": "{{verified_contact_count}}",
+          "puntajeTotal": "{{total_score}}",
+          "puntajeIdentidad": "{{identity_score}}",
+          "puntajeContacto": "{{contact_score}}",
+          "puntajeFraude": "{{fraud_score}}",
+          "tipoEvaluacion": "{{assessment_type}}",
+          "motivo": "ACCUMULATED_FRAUD_SIGNALS",
+          "emulador": "{{device_emulator}}",
+          "root": "{{device_rooted}}",
+          "posicionesSimuladas": "{{location_mocked_pings}}",
+          "cuentasEnElDispositivo": "{{device_shared_customers}}",
+          "cuentasDesdeLaIp24h": "{{ip_customers_24h}}",
+          "dispositivosDeSesion": "{{session_devices}}",
+          "botScore": "{{behavior_bot_score}}",
+          "ritmoFuerte": "{{rhythm_strong_signals}}",
+          "ritmoMedio": "{{rhythm_medium_signals}}",
+          "contactos": "{{contacts_total}}",
+          "diasDesdeUltimoContactoNuevo": "{{contacts_days_since_last_new}}",
+          "senalesDeAgenda": "{{contacts_signals}}",
+          "senalesMedias": "{{intermediate.senales_medias}}"
+        }
+      }
     }
   ],
   "edges": [
@@ -621,7 +1387,7 @@
       "from": "EVALUAR",
       "to": "EMITIR_RIESGO_SUPERADO",
       "type": "CONDITIONAL",
-      "priority": 3,
+      "priority": 7,
       "default": false,
       "conditions": [
         {
@@ -635,7 +1401,7 @@
       "from": "EVALUAR",
       "to": "EMITIR_PUNTAJE_INSUFICIENTE",
       "type": "DEFAULT",
-      "priority": 4,
+      "priority": 8,
       "default": true,
       "conditions": []
     },
@@ -674,6 +1440,98 @@
       "priority": 1,
       "default": true,
       "conditions": []
+    },
+    {
+      "key": "E_DISPOSITIVO_NO_CONFIABLE",
+      "from": "EVALUAR",
+      "to": "EMITIR_DISPOSITIVO_NO_CONFIABLE",
+      "type": "CONDITIONAL",
+      "priority": 3,
+      "default": false,
+      "conditions": [
+        {
+          "conditionCode": "DISPOSITIVO_NO_CONFIABLE",
+          "order": 1
+        }
+      ]
+    },
+    {
+      "key": "E_A_REVISAR_DISPOSITIVO_NO_CONFIABLE",
+      "from": "EMITIR_DISPOSITIVO_NO_CONFIABLE",
+      "to": "REVISAR_DISPOSITIVO_NO_CONFIABLE",
+      "type": "DEFAULT",
+      "priority": 1,
+      "default": true,
+      "conditions": []
+    },
+    {
+      "key": "E_DISPOSITIVO_O_RED_COMPARTIDOS",
+      "from": "EVALUAR",
+      "to": "EMITIR_DISPOSITIVO_O_RED_COMPARTIDOS",
+      "type": "CONDITIONAL",
+      "priority": 4,
+      "default": false,
+      "conditions": [
+        {
+          "conditionCode": "DISPOSITIVO_O_RED_COMPARTIDOS",
+          "order": 1
+        }
+      ]
+    },
+    {
+      "key": "E_A_REVISAR_DISPOSITIVO_O_RED_COMPARTIDOS",
+      "from": "EMITIR_DISPOSITIVO_O_RED_COMPARTIDOS",
+      "to": "REVISAR_DISPOSITIVO_O_RED_COMPARTIDOS",
+      "type": "DEFAULT",
+      "priority": 1,
+      "default": true,
+      "conditions": []
+    },
+    {
+      "key": "E_COMPORTAMIENTO_AUTOMATIZADO",
+      "from": "EVALUAR",
+      "to": "EMITIR_COMPORTAMIENTO_AUTOMATIZADO",
+      "type": "CONDITIONAL",
+      "priority": 5,
+      "default": false,
+      "conditions": [
+        {
+          "conditionCode": "COMPORTAMIENTO_AUTOMATIZADO",
+          "order": 1
+        }
+      ]
+    },
+    {
+      "key": "E_A_REVISAR_COMPORTAMIENTO_AUTOMATIZADO",
+      "from": "EMITIR_COMPORTAMIENTO_AUTOMATIZADO",
+      "to": "REVISAR_COMPORTAMIENTO_AUTOMATIZADO",
+      "type": "DEFAULT",
+      "priority": 1,
+      "default": true,
+      "conditions": []
+    },
+    {
+      "key": "E_SENALES_ACUMULADAS",
+      "from": "EVALUAR",
+      "to": "EMITIR_SENALES_ACUMULADAS",
+      "type": "CONDITIONAL",
+      "priority": 6,
+      "default": false,
+      "conditions": [
+        {
+          "conditionCode": "SENALES_ACUMULADAS",
+          "order": 1
+        }
+      ]
+    },
+    {
+      "key": "E_A_REVISAR_SENALES_ACUMULADAS",
+      "from": "EMITIR_SENALES_ACUMULADAS",
+      "to": "REVISAR_SENALES_ACUMULADAS",
+      "type": "DEFAULT",
+      "priority": 1,
+      "default": true,
+      "conditions": []
     }
   ],
   "cases": [
@@ -697,7 +1555,9 @@
         "riesgo_decision": "APPROVE",
         "outcome": "APPROVE",
         "riesgo_faltantes": 0,
-        "reasonCodes": ["MINIMUM_ONBOARDING_RISK_PASSED"]
+        "reasonCodes": [
+          "MINIMUM_ONBOARDING_RISK_PASSED"
+        ]
       }
     },
     {
@@ -741,7 +1601,9 @@
         "riesgo_decision": "MANUAL_REVIEW",
         "outcome": "MANUAL_REVIEW",
         "riesgo_motivo": "BELOW_MINIMUM_RISK_SCORE",
-        "reasonCodes": ["BELOW_MINIMUM_RISK_SCORE"]
+        "reasonCodes": [
+          "BELOW_MINIMUM_RISK_SCORE"
+        ]
       }
     },
     {
@@ -786,7 +1648,9 @@
         "outcome": "MANUAL_REVIEW",
         "riesgo_faltantes": 1,
         "riesgo_motivo": "MISSING_IDENTITY_DOCUMENT",
-        "reasonCodes": ["MISSING_IDENTITY_DOCUMENT"]
+        "reasonCodes": [
+          "MISSING_IDENTITY_DOCUMENT"
+        ]
       }
     },
     {
@@ -810,7 +1674,609 @@
         "outcome": "MANUAL_REVIEW",
         "riesgo_faltantes": 1,
         "riesgo_motivo": "MISSING_CONSENT",
-        "reasonCodes": ["MISSING_CONSENT"]
+        "reasonCodes": [
+          "MISSING_CONSENT"
+        ]
+      }
+    },
+    {
+      "caseCode": "RIESGO-PERSONA-NORMAL-APRUEBA",
+      "testName": "Teléfono real, IP de operadora, ritmo humano y agenda viva: sigue adelante",
+      "input": {
+        "has_identity_document": true,
+        "verified_contact_count": 1,
+        "has_granted_consent": true,
+        "identity_score": 70,
+        "contact_score": 70,
+        "device_score": 50,
+        "behavior_score": 70,
+        "consistency_score": 70,
+        "fraud_score": 20,
+        "total_score": 70,
+        "assessment_type": "onboarding_initial",
+        "device_emulator": false,
+        "device_rooted": false,
+        "location_mocked_pings": 0,
+        "device_shared_customers": 0,
+        "ip_customers_24h": 2,
+        "session_devices": 1,
+        "behavior_bot_score": 0.1,
+        "rhythm_strong_signals": 0,
+        "rhythm_medium_signals": 0,
+        "contacts_available": true,
+        "contacts_total": 240,
+        "contacts_days_since_last_new": 3,
+        "contacts_signals": 0,
+        "fraud_flags_strong": 0,
+        "fraud_flags_medium": 0
+      },
+      "expectedResult": {
+        "riesgo_decision": "APPROVE",
+        "outcome": "APPROVE",
+        "riesgo_faltantes": 0,
+        "reasonCodes": [
+          "MINIMUM_ONBOARDING_RISK_PASSED"
+        ]
+      }
+    },
+    {
+      "caseCode": "RIESGO-EMULADOR-REVISA",
+      "testName": "Emulador: a una persona aunque el puntaje pase",
+      "input": {
+        "has_identity_document": true,
+        "verified_contact_count": 1,
+        "has_granted_consent": true,
+        "identity_score": 70,
+        "contact_score": 70,
+        "device_score": 50,
+        "behavior_score": 70,
+        "consistency_score": 70,
+        "fraud_score": 20,
+        "total_score": 70,
+        "assessment_type": "onboarding_initial",
+        "device_emulator": true,
+        "device_rooted": false,
+        "location_mocked_pings": 0,
+        "device_shared_customers": 0,
+        "ip_customers_24h": 2,
+        "session_devices": 1,
+        "behavior_bot_score": 0.1,
+        "rhythm_strong_signals": 0,
+        "rhythm_medium_signals": 0,
+        "contacts_available": true,
+        "contacts_total": 240,
+        "contacts_days_since_last_new": 3,
+        "contacts_signals": 0,
+        "fraud_flags_strong": 0,
+        "fraud_flags_medium": 0
+      },
+      "expectedResult": {
+        "riesgo_decision": "MANUAL_REVIEW",
+        "outcome": "MANUAL_REVIEW",
+        "riesgo_motivo": "DEVICE_NOT_TRUSTED",
+        "reasonCodes": [
+          "DEVICE_NOT_TRUSTED"
+        ]
+      }
+    },
+    {
+      "caseCode": "RIESGO-UBICACION-SIMULADA-REVISA",
+      "testName": "Una posición simulada basta",
+      "input": {
+        "has_identity_document": true,
+        "verified_contact_count": 1,
+        "has_granted_consent": true,
+        "identity_score": 70,
+        "contact_score": 70,
+        "device_score": 50,
+        "behavior_score": 70,
+        "consistency_score": 70,
+        "fraud_score": 20,
+        "total_score": 70,
+        "assessment_type": "onboarding_initial",
+        "device_emulator": false,
+        "device_rooted": false,
+        "location_mocked_pings": 1,
+        "device_shared_customers": 0,
+        "ip_customers_24h": 2,
+        "session_devices": 1,
+        "behavior_bot_score": 0.1,
+        "rhythm_strong_signals": 0,
+        "rhythm_medium_signals": 0,
+        "contacts_available": true,
+        "contacts_total": 240,
+        "contacts_days_since_last_new": 3,
+        "contacts_signals": 0,
+        "fraud_flags_strong": 0,
+        "fraud_flags_medium": 0
+      },
+      "expectedResult": {
+        "riesgo_decision": "MANUAL_REVIEW",
+        "outcome": "MANUAL_REVIEW",
+        "riesgo_motivo": "DEVICE_NOT_TRUSTED",
+        "reasonCodes": [
+          "DEVICE_NOT_TRUSTED"
+        ]
+      }
+    },
+    {
+      "caseCode": "RIESGO-DISPOSITIVO-EN-3-CUENTAS-REVISA",
+      "testName": "El mismo teléfono en otras dos cuentas",
+      "input": {
+        "has_identity_document": true,
+        "verified_contact_count": 1,
+        "has_granted_consent": true,
+        "identity_score": 70,
+        "contact_score": 70,
+        "device_score": 50,
+        "behavior_score": 70,
+        "consistency_score": 70,
+        "fraud_score": 20,
+        "total_score": 70,
+        "assessment_type": "onboarding_initial",
+        "device_emulator": false,
+        "device_rooted": false,
+        "location_mocked_pings": 0,
+        "device_shared_customers": 2,
+        "ip_customers_24h": 2,
+        "session_devices": 1,
+        "behavior_bot_score": 0.1,
+        "rhythm_strong_signals": 0,
+        "rhythm_medium_signals": 0,
+        "contacts_available": true,
+        "contacts_total": 240,
+        "contacts_days_since_last_new": 3,
+        "contacts_signals": 0,
+        "fraud_flags_strong": 0,
+        "fraud_flags_medium": 0
+      },
+      "expectedResult": {
+        "riesgo_decision": "MANUAL_REVIEW",
+        "outcome": "MANUAL_REVIEW",
+        "riesgo_motivo": "SHARED_DEVICE_OR_NETWORK",
+        "reasonCodes": [
+          "SHARED_DEVICE_OR_NETWORK"
+        ]
+      }
+    },
+    {
+      "caseCode": "RIESGO-RAFAGA-IP-REVISA",
+      "testName": "Ocho cuentas desde la misma IP en 24 h",
+      "input": {
+        "has_identity_document": true,
+        "verified_contact_count": 1,
+        "has_granted_consent": true,
+        "identity_score": 70,
+        "contact_score": 70,
+        "device_score": 50,
+        "behavior_score": 70,
+        "consistency_score": 70,
+        "fraud_score": 20,
+        "total_score": 70,
+        "assessment_type": "onboarding_initial",
+        "device_emulator": false,
+        "device_rooted": false,
+        "location_mocked_pings": 0,
+        "device_shared_customers": 0,
+        "ip_customers_24h": 8,
+        "session_devices": 1,
+        "behavior_bot_score": 0.1,
+        "rhythm_strong_signals": 0,
+        "rhythm_medium_signals": 0,
+        "contacts_available": true,
+        "contacts_total": 240,
+        "contacts_days_since_last_new": 3,
+        "contacts_signals": 0,
+        "fraud_flags_strong": 0,
+        "fraud_flags_medium": 0
+      },
+      "expectedResult": {
+        "riesgo_decision": "MANUAL_REVIEW",
+        "outcome": "MANUAL_REVIEW",
+        "riesgo_motivo": "SHARED_DEVICE_OR_NETWORK",
+        "reasonCodes": [
+          "SHARED_DEVICE_OR_NETWORK"
+        ]
+      }
+    },
+    {
+      "caseCode": "RIESGO-IP-OPERADORA-7-APRUEBA",
+      "testName": "Siete cuentas desde la IP (operadora) no bastan solas",
+      "input": {
+        "has_identity_document": true,
+        "verified_contact_count": 1,
+        "has_granted_consent": true,
+        "identity_score": 70,
+        "contact_score": 70,
+        "device_score": 50,
+        "behavior_score": 70,
+        "consistency_score": 70,
+        "fraud_score": 20,
+        "total_score": 70,
+        "assessment_type": "onboarding_initial",
+        "device_emulator": false,
+        "device_rooted": false,
+        "location_mocked_pings": 0,
+        "device_shared_customers": 0,
+        "ip_customers_24h": 7,
+        "session_devices": 1,
+        "behavior_bot_score": 0.1,
+        "rhythm_strong_signals": 0,
+        "rhythm_medium_signals": 0,
+        "contacts_available": true,
+        "contacts_total": 240,
+        "contacts_days_since_last_new": 3,
+        "contacts_signals": 0,
+        "fraud_flags_strong": 0,
+        "fraud_flags_medium": 0
+      },
+      "expectedResult": {
+        "riesgo_decision": "APPROVE",
+        "outcome": "APPROVE",
+        "riesgo_faltantes": 0,
+        "reasonCodes": [
+          "MINIMUM_ONBOARDING_RISK_PASSED"
+        ]
+      }
+    },
+    {
+      "caseCode": "RIESGO-TRES-DISPOSITIVOS-REVISA",
+      "testName": "Alta desde tres dispositivos",
+      "input": {
+        "has_identity_document": true,
+        "verified_contact_count": 1,
+        "has_granted_consent": true,
+        "identity_score": 70,
+        "contact_score": 70,
+        "device_score": 50,
+        "behavior_score": 70,
+        "consistency_score": 70,
+        "fraud_score": 20,
+        "total_score": 70,
+        "assessment_type": "onboarding_initial",
+        "device_emulator": false,
+        "device_rooted": false,
+        "location_mocked_pings": 0,
+        "device_shared_customers": 0,
+        "ip_customers_24h": 2,
+        "session_devices": 3,
+        "behavior_bot_score": 0.1,
+        "rhythm_strong_signals": 0,
+        "rhythm_medium_signals": 0,
+        "contacts_available": true,
+        "contacts_total": 240,
+        "contacts_days_since_last_new": 3,
+        "contacts_signals": 0,
+        "fraud_flags_strong": 0,
+        "fraud_flags_medium": 0
+      },
+      "expectedResult": {
+        "riesgo_decision": "MANUAL_REVIEW",
+        "outcome": "MANUAL_REVIEW",
+        "riesgo_motivo": "SHARED_DEVICE_OR_NETWORK",
+        "reasonCodes": [
+          "SHARED_DEVICE_OR_NETWORK"
+        ]
+      }
+    },
+    {
+      "caseCode": "RIESGO-BOT-070-REVISA",
+      "testName": "Heurística de automatización en el corte",
+      "input": {
+        "has_identity_document": true,
+        "verified_contact_count": 1,
+        "has_granted_consent": true,
+        "identity_score": 70,
+        "contact_score": 70,
+        "device_score": 50,
+        "behavior_score": 70,
+        "consistency_score": 70,
+        "fraud_score": 20,
+        "total_score": 70,
+        "assessment_type": "onboarding_initial",
+        "device_emulator": false,
+        "device_rooted": false,
+        "location_mocked_pings": 0,
+        "device_shared_customers": 0,
+        "ip_customers_24h": 2,
+        "session_devices": 1,
+        "behavior_bot_score": 0.7,
+        "rhythm_strong_signals": 0,
+        "rhythm_medium_signals": 0,
+        "contacts_available": true,
+        "contacts_total": 240,
+        "contacts_days_since_last_new": 3,
+        "contacts_signals": 0,
+        "fraud_flags_strong": 0,
+        "fraud_flags_medium": 0
+      },
+      "expectedResult": {
+        "riesgo_decision": "MANUAL_REVIEW",
+        "outcome": "MANUAL_REVIEW",
+        "riesgo_motivo": "AUTOMATED_BEHAVIOR",
+        "reasonCodes": [
+          "AUTOMATED_BEHAVIOR"
+        ]
+      }
+    },
+    {
+      "caseCode": "RIESGO-BOT-069-APRUEBA",
+      "testName": "Por debajo del corte no escala",
+      "input": {
+        "has_identity_document": true,
+        "verified_contact_count": 1,
+        "has_granted_consent": true,
+        "identity_score": 70,
+        "contact_score": 70,
+        "device_score": 50,
+        "behavior_score": 70,
+        "consistency_score": 70,
+        "fraud_score": 20,
+        "total_score": 70,
+        "assessment_type": "onboarding_initial",
+        "device_emulator": false,
+        "device_rooted": false,
+        "location_mocked_pings": 0,
+        "device_shared_customers": 0,
+        "ip_customers_24h": 2,
+        "session_devices": 1,
+        "behavior_bot_score": 0.69,
+        "rhythm_strong_signals": 0,
+        "rhythm_medium_signals": 0,
+        "contacts_available": true,
+        "contacts_total": 240,
+        "contacts_days_since_last_new": 3,
+        "contacts_signals": 0,
+        "fraud_flags_strong": 0,
+        "fraud_flags_medium": 0
+      },
+      "expectedResult": {
+        "riesgo_decision": "APPROVE",
+        "outcome": "APPROVE",
+        "riesgo_faltantes": 0,
+        "reasonCodes": [
+          "MINIMUM_ONBOARDING_RISK_PASSED"
+        ]
+      }
+    },
+    {
+      "caseCode": "RIESGO-RITMO-SOBREHUMANO-REVISA",
+      "testName": "Toques más rápidos que un dedo",
+      "input": {
+        "has_identity_document": true,
+        "verified_contact_count": 1,
+        "has_granted_consent": true,
+        "identity_score": 70,
+        "contact_score": 70,
+        "device_score": 50,
+        "behavior_score": 70,
+        "consistency_score": 70,
+        "fraud_score": 20,
+        "total_score": 70,
+        "assessment_type": "onboarding_initial",
+        "device_emulator": false,
+        "device_rooted": false,
+        "location_mocked_pings": 0,
+        "device_shared_customers": 0,
+        "ip_customers_24h": 2,
+        "session_devices": 1,
+        "behavior_bot_score": 0.1,
+        "rhythm_strong_signals": 1,
+        "rhythm_medium_signals": 0,
+        "contacts_available": true,
+        "contacts_total": 240,
+        "contacts_days_since_last_new": 3,
+        "contacts_signals": 0,
+        "fraud_flags_strong": 0,
+        "fraud_flags_medium": 0
+      },
+      "expectedResult": {
+        "riesgo_decision": "MANUAL_REVIEW",
+        "outcome": "MANUAL_REVIEW",
+        "riesgo_motivo": "AUTOMATED_BEHAVIOR",
+        "reasonCodes": [
+          "AUTOMATED_BEHAVIOR"
+        ]
+      }
+    },
+    {
+      "caseCode": "RIESGO-UNA-SENAL-MEDIA-APRUEBA",
+      "testName": "Una sola señal menor (root) no deriva",
+      "input": {
+        "has_identity_document": true,
+        "verified_contact_count": 1,
+        "has_granted_consent": true,
+        "identity_score": 70,
+        "contact_score": 70,
+        "device_score": 50,
+        "behavior_score": 70,
+        "consistency_score": 70,
+        "fraud_score": 20,
+        "total_score": 70,
+        "assessment_type": "onboarding_initial",
+        "device_emulator": false,
+        "device_rooted": true,
+        "location_mocked_pings": 0,
+        "device_shared_customers": 0,
+        "ip_customers_24h": 2,
+        "session_devices": 1,
+        "behavior_bot_score": 0.1,
+        "rhythm_strong_signals": 0,
+        "rhythm_medium_signals": 0,
+        "contacts_available": true,
+        "contacts_total": 240,
+        "contacts_days_since_last_new": 3,
+        "contacts_signals": 0,
+        "fraud_flags_strong": 0,
+        "fraud_flags_medium": 0
+      },
+      "expectedResult": {
+        "riesgo_decision": "APPROVE",
+        "outcome": "APPROVE",
+        "riesgo_faltantes": 0,
+        "reasonCodes": [
+          "MINIMUM_ONBOARDING_RISK_PASSED"
+        ]
+      }
+    },
+    {
+      "caseCode": "RIESGO-DOS-SENALES-MEDIAS-REVISA",
+      "testName": "Root y agenda mínima a la vez",
+      "input": {
+        "has_identity_document": true,
+        "verified_contact_count": 1,
+        "has_granted_consent": true,
+        "identity_score": 70,
+        "contact_score": 70,
+        "device_score": 50,
+        "behavior_score": 70,
+        "consistency_score": 70,
+        "fraud_score": 20,
+        "total_score": 70,
+        "assessment_type": "onboarding_initial",
+        "device_emulator": false,
+        "device_rooted": true,
+        "location_mocked_pings": 0,
+        "device_shared_customers": 0,
+        "ip_customers_24h": 2,
+        "session_devices": 1,
+        "behavior_bot_score": 0.1,
+        "rhythm_strong_signals": 0,
+        "rhythm_medium_signals": 0,
+        "contacts_available": true,
+        "contacts_total": 4,
+        "contacts_days_since_last_new": 3,
+        "contacts_signals": 1,
+        "fraud_flags_strong": 0,
+        "fraud_flags_medium": 0
+      },
+      "expectedResult": {
+        "riesgo_decision": "MANUAL_REVIEW",
+        "outcome": "MANUAL_REVIEW",
+        "riesgo_motivo": "ACCUMULATED_FRAUD_SIGNALS",
+        "reasonCodes": [
+          "ACCUMULATED_FRAUD_SIGNALS"
+        ]
+      }
+    },
+    {
+      "caseCode": "RIESGO-RITMO-Y-IP-REVISA",
+      "testName": "Ritmo uniforme y varias cuentas desde la IP",
+      "input": {
+        "has_identity_document": true,
+        "verified_contact_count": 1,
+        "has_granted_consent": true,
+        "identity_score": 70,
+        "contact_score": 70,
+        "device_score": 50,
+        "behavior_score": 70,
+        "consistency_score": 70,
+        "fraud_score": 20,
+        "total_score": 70,
+        "assessment_type": "onboarding_initial",
+        "device_emulator": false,
+        "device_rooted": false,
+        "location_mocked_pings": 0,
+        "device_shared_customers": 0,
+        "ip_customers_24h": 5,
+        "session_devices": 1,
+        "behavior_bot_score": 0.1,
+        "rhythm_strong_signals": 0,
+        "rhythm_medium_signals": 1,
+        "contacts_available": true,
+        "contacts_total": 240,
+        "contacts_days_since_last_new": 3,
+        "contacts_signals": 0,
+        "fraud_flags_strong": 0,
+        "fraud_flags_medium": 0
+      },
+      "expectedResult": {
+        "riesgo_decision": "MANUAL_REVIEW",
+        "outcome": "MANUAL_REVIEW",
+        "riesgo_motivo": "ACCUMULATED_FRAUD_SIGNALS",
+        "reasonCodes": [
+          "ACCUMULATED_FRAUD_SIGNALS"
+        ]
+      }
+    },
+    {
+      "caseCode": "RIESGO-AGENDA-NO-COMPARTIDA-APRUEBA",
+      "testName": "No compartir la agenda no cuenta en contra",
+      "input": {
+        "has_identity_document": true,
+        "verified_contact_count": 1,
+        "has_granted_consent": true,
+        "identity_score": 70,
+        "contact_score": 70,
+        "device_score": 50,
+        "behavior_score": 70,
+        "consistency_score": 70,
+        "fraud_score": 20,
+        "total_score": 70,
+        "assessment_type": "onboarding_initial",
+        "device_emulator": false,
+        "device_rooted": false,
+        "location_mocked_pings": 0,
+        "device_shared_customers": 0,
+        "ip_customers_24h": 2,
+        "session_devices": 1,
+        "behavior_bot_score": 0.1,
+        "rhythm_strong_signals": 0,
+        "rhythm_medium_signals": 0,
+        "contacts_available": false,
+        "contacts_total": 0,
+        "contacts_days_since_last_new": 3,
+        "contacts_signals": 0,
+        "fraud_flags_strong": 0,
+        "fraud_flags_medium": 0
+      },
+      "expectedResult": {
+        "riesgo_decision": "APPROVE",
+        "outcome": "APPROVE",
+        "riesgo_faltantes": 0,
+        "reasonCodes": [
+          "MINIMUM_ONBOARDING_RISK_PASSED"
+        ]
+      }
+    },
+    {
+      "caseCode": "RIESGO-EMULADOR-SIN-IDENTIDAD-REVISA",
+      "testName": "La evidencia faltante manda sobre el fraude",
+      "input": {
+        "has_identity_document": false,
+        "verified_contact_count": 1,
+        "has_granted_consent": true,
+        "identity_score": 70,
+        "contact_score": 70,
+        "device_score": 50,
+        "behavior_score": 70,
+        "consistency_score": 70,
+        "fraud_score": 20,
+        "total_score": 70,
+        "assessment_type": "onboarding_initial",
+        "device_emulator": true,
+        "device_rooted": false,
+        "location_mocked_pings": 0,
+        "device_shared_customers": 0,
+        "ip_customers_24h": 2,
+        "session_devices": 1,
+        "behavior_bot_score": 0.1,
+        "rhythm_strong_signals": 0,
+        "rhythm_medium_signals": 0,
+        "contacts_available": true,
+        "contacts_total": 240,
+        "contacts_days_since_last_new": 3,
+        "contacts_signals": 0,
+        "fraud_flags_strong": 0,
+        "fraud_flags_medium": 0
+      },
+      "expectedResult": {
+        "riesgo_decision": "MANUAL_REVIEW",
+        "outcome": "MANUAL_REVIEW",
+        "riesgo_motivo": "MISSING_IDENTITY_DOCUMENT",
+        "reasonCodes": [
+          "MISSING_IDENTITY_DOCUMENT"
+        ]
       }
     }
   ],

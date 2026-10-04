@@ -64,6 +64,7 @@ const ENVIRONMENTS = (args.get('environments') ?? 'DEV,TEST')
   .map((code) => code.trim())
   .filter(Boolean);
 const DRY_RUN = args.get('dry-run') === 'true';
+const NUEVA_VERSION = args.get('nueva-version') === 'true';
 
 const DEFINICION = JSON.parse(
   readFileSync(
@@ -159,7 +160,8 @@ function cuerpoDeVariable(definicion, direccion) {
     initialVersion: {
       dataType: definicion.dataType,
       ...(definicion.unitCode ? { unitCode: definicion.unitCode } : {}),
-      nullable: false,
+      // Las de dispositivo, red, ritmo y agenda (2.0.0) son opcionales: sin ellas se decide como la 1.0.0.
+      nullable: Boolean(definicion.optional),
       displayName: definicion.name,
       description: definicion.description,
       ...(definicion.constraints
@@ -237,8 +239,8 @@ function cuerpoDelGrafo(versiones, reasonIds) {
         variableVersionId: versiones.get(v.code),
         usageType: 'INPUT',
         dependencyPath: `input.${v.code}`,
-        isRequired: true,
-        fallbackPolicy: 'FAIL_CLOSED',
+        isRequired: !v.optional,
+        fallbackPolicy: v.optional ? 'DEFAULT_VALUE' : 'FAIL_CLOSED',
       })),
       ...DEFINICION.outputs.map((v) => ({
         variableVersionId: versiones.get(v.code),
@@ -407,7 +409,7 @@ async function main() {
 
   const detalle = await api(`/v1/artifacts/${artefacto.id}`);
   const versionesArtefacto = detalle.versions ?? [];
-  const vigente = versionesArtefacto.reduce(
+  let vigente = versionesArtefacto.reduce(
     (mejor, version) =>
       !mejor || Number(version.versionNumber) > Number(mejor.versionNumber) ? version : mejor,
     null,
@@ -416,8 +418,27 @@ async function main() {
   console.log(`Versión vigente ${vigente.versionNumber} (id ${vigente.id}): ${vigente.status}.`);
 
   if (String(vigente.status).startsWith('DEPLOYED')) {
-    console.log('Ya está desplegada: nada que hacer.');
-    return;
+    if (!NUEVA_VERSION) {
+      console.log(
+        'Ya está desplegada: nada que hacer. Para publicar la definición del repo como versión NUEVA, repite con --nueva-version.',
+      );
+      return;
+    }
+    // La definición del repo es más nueva que lo desplegado: se CLONA la desplegada —que sigue decidiendo— y el
+    // grafo se escribe sobre el clon, que nace en borrador. De ahí, el mismo camino: compilar, suite y dos firmas.
+    if (DRY_RUN) {
+      console.log(
+        `[dry-run] clonaría la versión ${vigente.id} y escribiría el grafo ${DEFINICION.artifact.semanticVersion} ` +
+          `(${DEFINICION.nodes.length} nodos, ${DEFINICION.edges.length} aristas, ${DEFINICION.cases.length} casos).`,
+      );
+      return;
+    }
+    const clon = await api(`/v1/artifact-versions/${vigente.id}/clone`, {
+      method: 'POST',
+      body: JSON.stringify({ changeSummary: DEFINICION.artifact.authoringNotes.slice(-900) }),
+    });
+    console.log(`Clonada como versión id ${clon.id ?? clon.versionId}.`);
+    vigente = { ...clon, id: clon.id ?? clon.versionId, status: 'DRAFT', lockVersion: clon.lockVersion ?? 1 };
   }
 
   if (vigente.status === 'DRAFT') {
