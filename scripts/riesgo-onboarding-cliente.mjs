@@ -65,6 +65,8 @@ const ENVIRONMENTS = (args.get('environments') ?? 'DEV,TEST')
   .filter(Boolean);
 const DRY_RUN = args.get('dry-run') === 'true';
 const NUEVA_VERSION = args.get('nueva-version') === 'true';
+/** Estados en los que el grafo de una versión todavía se puede escribir. */
+const EDITABLE = new Set(['DRAFT', 'VALIDATION_FAILED']);
 
 const DEFINICION = JSON.parse(
   readFileSync(
@@ -417,13 +419,15 @@ async function main() {
   if (!vigente) throw new Error(`${ARTIFACT_CODE} no tiene versiones.`);
   console.log(`Versión vigente ${vigente.versionNumber} (id ${vigente.id}): ${vigente.status}.`);
 
-  if (String(vigente.status).startsWith('DEPLOYED')) {
-    if (!NUEVA_VERSION) {
-      console.log(
-        'Ya está desplegada: nada que hacer. Para publicar la definición del repo como versión NUEVA, repite con --nueva-version.',
-      );
-      return;
-    }
+  if (String(vigente.status).startsWith('DEPLOYED') && !NUEVA_VERSION) {
+    console.log(
+      'Ya está desplegada: nada que hacer. Para publicar la definición del repo como versión NUEVA, repite con --nueva-version.',
+    );
+    return;
+  }
+  // Con --nueva-version se clona CUALQUIER versión que ya no sea borrador: desplegada, o sembrada y sólo compilada
+  // (un ambiente inicializado con `sembrar-despliegue.mjs` deja la versión en COMPILED, no en DEPLOYED_*).
+  if (NUEVA_VERSION && !EDITABLE.has(vigente.status)) {
     // La definición del repo es más nueva que lo desplegado: se CLONA la desplegada —que sigue decidiendo— y el
     // grafo se escribe sobre el clon, que nace en borrador. De ahí, el mismo camino: compilar, suite y dos firmas.
     if (DRY_RUN) {
@@ -441,7 +445,7 @@ async function main() {
     vigente = { ...clon, id: clon.id ?? clon.versionId, status: 'DRAFT', lockVersion: clon.lockVersion ?? 1 };
   }
 
-  if (vigente.status === 'DRAFT') {
+  if (EDITABLE.has(vigente.status)) {
     if (DRY_RUN) {
       console.log(
         `[dry-run] escribiría el grafo (${DEFINICION.nodes.length} nodos, ${DEFINICION.edges.length} aristas) y compilaría.`,
@@ -458,6 +462,12 @@ async function main() {
       method: 'POST',
       body: '{}',
     });
+    // El Motor contesta 201 también cuando la validación FALLA: sin mirar esto, el guion decía «Compilada» y el
+    // error sólo aparecía después, como «no hay artefacto compilado».
+    if (compilado.validation?.valid === false) {
+      const errores = (compilado.validation.errors ?? []).map((e) => `${e.code}: ${e.message}`);
+      throw new Error(`La versión ${vigente.id} no valida:\n  - ${errores.join('\n  - ')}`);
+    }
     console.log(
       `Compilada: ${compilado.canonicalChecksum ?? compilado.checksum ?? 'sin checksum en la respuesta'}.`,
     );

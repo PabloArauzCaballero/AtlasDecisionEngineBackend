@@ -339,6 +339,9 @@
       "producerNodeKey": "CONTAR_FALTANTES",
       "consumerNodeKeys": [
         "EVALUAR",
+        "REVISAR_DISPOSITIVO_NO_CONFIABLE",
+        "REVISAR_DISPOSITIVO_O_RED_COMPARTIDOS",
+        "REVISAR_COMPORTAMIENTO_AUTOMATIZADO",
         "REVISAR_SENALES_ACUMULADAS"
       ]
     }
