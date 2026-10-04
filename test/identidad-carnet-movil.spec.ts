@@ -315,6 +315,38 @@ describe('IDENTIDAD_CARNET_MOVIL 1.2.0 · la política de identidad con la bitá
     expect(prioridades['E_AUTOMATIZADO']).toBeLessThan(prioridades['E_APROBAR']);
   });
 
+  it('el registro estatal y la agenda (1.3.0) sólo derivan a una persona, después del worker y antes de aprobar', () => {
+    const nuevas = definicion.edges.filter((e) => ['E_REGISTRO', 'E_AGENDA'].includes(e.key));
+    expect(nuevas.map((e) => definicion.nodes.find((n) => n.key === e.to)!.type)).toEqual([
+      'MANUAL_REVIEW',
+      'MANUAL_REVIEW',
+    ]);
+    const prioridades = Object.fromEntries(
+      definicion.edges.filter((e) => e.from === 'EVALUAR').map((e) => [e.key, e.priority]),
+    );
+    expect(prioridades['E_NO_COINCIDE']).toBeLessThan(prioridades['E_REGISTRO']);
+    expect(prioridades['E_REGISTRO']).toBeLessThan(prioridades['E_AGENDA']);
+    expect(prioridades['E_AGENDA']).toBeLessThan(prioridades['E_APROBAR']);
+    // Sin prioridades repetidas: dos aristas con la misma dejarían el orden al azar del motor.
+    expect(new Set(Object.values(prioridades)).size).toBe(Object.keys(prioridades).length);
+  });
+
+  it('las entradas del registro y de la agenda son opcionales: un backend que no las mande decide como la 1.2.0', () => {
+    const nuevas = definicion.inputs.filter(
+      (v) => v.code.startsWith('identidad_segip_') || v.code.startsWith('identidad_agenda_'),
+    );
+    expect(nuevas.map((v) => v.code).sort()).toEqual([
+      'identidad_agenda_bolivia_ratio',
+      'identidad_agenda_coincidencias_riesgo',
+      'identidad_agenda_disponible',
+      'identidad_agenda_total',
+      'identidad_agenda_unicos_ratio',
+      'identidad_segip_coincidencia',
+      'identidad_segip_estado',
+    ]);
+    expect(nuevas.every((v) => v.optional)).toBe(true);
+  });
+
   it('las nueve variables de comportamiento son opcionales: sin ellas el contrato no falla cerrado', () => {
     const comportamiento = definicion.inputs.filter((v) =>
       v.code.startsWith('identidad_comportamiento_'),
