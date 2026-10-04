@@ -246,6 +246,9 @@ enum DecisionKind {
   FRAUD_SCREENING
   /// Reglas de sistema, enrutado interno: no deciden sobre una persona.
   OPERATIONAL
+  /// Solicitudes del titular sobre sus propios datos (corregir, borrar): deciden si se aplica, se
+  /// rechaza o lo mira una persona. No originan crédito ni ponen precio, así que no publican PD.
+  DATA_SUBJECT_RIGHTS
 }
 
 /// Estado de una solicitud de reidentificación de un sujeto seudónimo (§Ola 6).

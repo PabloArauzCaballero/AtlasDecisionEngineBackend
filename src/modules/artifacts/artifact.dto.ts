@@ -3,7 +3,7 @@
  * reviewer usability and transaction size when a complete graph is replaced.
  */
 import { Type } from 'class-transformer';
-import { VersionStatus } from '@prisma/client';
+import { DecisionKind, VersionStatus } from '@prisma/client';
 import { PaginationQueryDto } from '../../common/http/pagination';
 import { DATABASE_ID_PATTERN } from '../../common/http/id';
 import { CalculatedFieldCallDto, ContractExtensionsDto } from './artifact-contract.dto';
@@ -35,6 +35,11 @@ export class CreateArtifactDto {
   @IsString() @IsNotEmpty() @MaxLength(8_000) businessPurpose!: string;
   @IsString() @IsNotEmpty() @MaxLength(50) riskDomain!: string;
   @IsOptional() @IsString() @MaxLength(40) semanticVersion?: string;
+  /**
+   * Qué clase de decisión toma. Sin él queda `ORIGINATION` (el valor por omisión de la base), y en
+   * producción eso exige contrato económico: un artefacto que no origina crédito lo declara aquí.
+   */
+  @IsOptional() @IsEnum(DecisionKind) decisionKind?: DecisionKind;
 }
 
 /** Bases legales del tratamiento (LGPD arts. 7 y 11). */

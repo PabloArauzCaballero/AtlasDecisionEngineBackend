@@ -29,6 +29,7 @@ export class ArtifactService {
           ownerTeam: dto.ownerTeam,
           businessPurpose: dto.businessPurpose,
           riskDomain: dto.riskDomain,
+          decisionKind: dto.decisionKind,
           versions: {
             create: {
               versionNumber: 1,
@@ -56,7 +57,11 @@ export class ArtifactService {
           aggregateId: artifact.id.toString(),
           actorId: principal.id,
           requestId: principal.requestId,
-          payload: { artifactCode: artifact.artifactCode, artifactType: artifact.artifactType },
+          payload: {
+            artifactCode: artifact.artifactCode,
+            artifactType: artifact.artifactType,
+            decisionKind: artifact.decisionKind,
+          },
         },
         tx,
       );

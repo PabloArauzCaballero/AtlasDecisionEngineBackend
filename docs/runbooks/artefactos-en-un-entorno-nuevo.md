@@ -29,6 +29,9 @@ prueba nada.
    - Crédito: `node scripts/atlas-underwriting-v2.mjs`
    - Riesgo: `node scripts/riesgo-onboarding-cliente.mjs`
    - Comercio (KYB): `node scripts/partner-kyb-review.mjs`
+   - Privacidad (solicitudes del titular): `node scripts/privacidad-solicitud-titular.mjs` — necesita un
+     Motor con la migración `20261004120000_decision_kind_data_subject_rights`; ver
+     [su página](../artifacts/privacidad-solicitud-titular.md).
 3. **Firmar**: dos personas distintas (QA_ANALYST y RISK_APPROVER, ninguna la autora) aprueban la
    versión en el portal del Motor. No se crean aprobadores de máquina ni se autoaprueba desde un
    guion: anula el control.
