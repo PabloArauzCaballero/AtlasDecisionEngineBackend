@@ -5,10 +5,10 @@
     "riskDomain": "IDENTITY_VERIFICATION",
     "ownerTeam": "RISK_DECISIONING",
     "name": "Verificación de identidad con carnet para el front móvil",
-    "description": "Llama al worker de identidad (lee el carnet, comprueba que lo sea y compara el retrato con la selfie) y aplica la política de aceptación. Desde la 1.2.0 recibe además CÓMO se hizo el alta (la bitácora de la app resumida por AtlasBackend): pegado en el carnet sin correcciones y en segundos, cámara interrumpida por un cambio de app, o una heurística de automatización alta, mandan el caso a una persona. Nunca rechazan: el comportamiento escala, no niega.",
+    "description": "Llama al worker de identidad (lee el carnet, comprueba que lo sea y compara el retrato con la selfie) y aplica la política de aceptación. Desde la 1.2.0 recibe además CÓMO se hizo el alta (la bitácora de la app resumida por AtlasBackend): pegado en el carnet sin correcciones y en segundos, cámara interrumpida por un cambio de app, o una heurística de automatización alta, mandan el caso a una persona. Nunca rechazan: el comportamiento escala, no niega. Desde la 1.3.0 lee además lo que AtlasBackend ya enviaba y el grafo no declaraba: el registro estatal (SEGIP) y los agregados de la agenda. Un documento que el registro NO encuentra, o una agenda con teléfonos en la lista de vigilancia, mandan el caso a una persona con prioridad. Nunca rechazan ni aprueban por sí solos.",
     "businessPurpose": "Que quien entre con un carnet sea quien dice ser, y que un guion o un suplantador con datos ajenos no pase por una foto bien tomada.",
-    "semanticVersion": "1.2.0",
-    "authoringNotes": "v1.1.1 (seed.system, 2026-08-23) + tres derivaciones a revisión por comportamiento (2026-09-18). Las nueve variables identidad_comportamiento_* son opcionales: sin bitácora se decide exactamente como la v1.1.1. El rechazo del worker manda sobre cualquier señal de comportamiento."
+    "semanticVersion": "1.3.0",
+    "authoringNotes": "v1.1.1 (seed.system, 2026-08-23) + tres derivaciones a revisión por comportamiento (2026-09-18). Las nueve variables identidad_comportamiento_* son opcionales: sin bitácora se decide exactamente como la v1.1.1. El rechazo del worker manda sobre cualquier señal de comportamiento. v1.3.0 (2026-10-04): se declaran identidad_segip_estado/_coincidencia y cinco identidad_agenda_* como entradas OPCIONALES, y dos derivaciones a revisión (SEGIP_NO_ENCONTRADO, AGENDA_EN_LISTA_DE_VIGILANCIA). Sin esas variables decide exactamente como la 1.2.0. PENDING y NO_CONSULTADO no escalan: no distinguen a nadie mientras el conector del registro sea de prueba. identidad_agenda_referencias_presentes NO se declara: las referencias salieron del alta el 2026-09-28 y la señal vale 0 para todos."
   },
   "queueCode": "IDENTIDAD",
   "inputs": [
@@ -113,6 +113,62 @@
       "dataType": "DECIMAL",
       "name": "Heurística de automatización",
       "description": "0-1; behavior-summary-v1 de AtlasBackend. Sólo escala a revisión.",
+      "optional": true,
+      "sensitive": false
+    },
+    {
+      "code": "identidad_segip_estado",
+      "dataType": "STRING",
+      "name": "Respuesta del registro estatal",
+      "description": "FOUND, NOT_FOUND, PENDING o NO_CONSULTADO. Sólo NOT_FOUND escala; ausente = no consultado.",
+      "optional": true,
+      "sensitive": false
+    },
+    {
+      "code": "identidad_segip_coincidencia",
+      "dataType": "DECIMAL",
+      "name": "Coincidencia con el registro estatal",
+      "description": "Parecido de los datos declarados con los del registro (0-1), cuando contestó.",
+      "optional": true,
+      "sensitive": false
+    },
+    {
+      "code": "identidad_agenda_disponible",
+      "dataType": "BOOLEAN",
+      "name": "Resumen de agenda disponible",
+      "description": "Si hay agregados de la agenda del dispositivo. Ausente o false = menos evidencia, nunca en contra.",
+      "optional": true,
+      "sensitive": false
+    },
+    {
+      "code": "identidad_agenda_total",
+      "dataType": "INTEGER",
+      "name": "Contactos en la agenda",
+      "description": "Cuántos contactos tiene la agenda (agregado; nunca las fichas).",
+      "optional": true,
+      "sensitive": false
+    },
+    {
+      "code": "identidad_agenda_unicos_ratio",
+      "dataType": "DECIMAL",
+      "name": "Proporción de teléfonos únicos",
+      "description": "Teléfonos distintos sobre contactos con teléfono (0-1).",
+      "optional": true,
+      "sensitive": false
+    },
+    {
+      "code": "identidad_agenda_bolivia_ratio",
+      "dataType": "DECIMAL",
+      "name": "Proporción de teléfonos bolivianos",
+      "description": "Teléfonos con prefijo de Bolivia sobre el total (0-1).",
+      "optional": true,
+      "sensitive": false
+    },
+    {
+      "code": "identidad_agenda_coincidencias_riesgo",
+      "dataType": "INTEGER",
+      "name": "Teléfonos de la agenda en la lista de vigilancia",
+      "description": "Cuántos teléfonos de la agenda coinciden con la lista de vigilancia o con otros expedientes. Un hecho sobre terceros: escala, no acusa.",
       "optional": true,
       "sensitive": false
     }
@@ -418,6 +474,52 @@
             },
             "right": {
               "value": 0.7
+            }
+          }
+        ]
+      },
+      "severity": "BLOCKING",
+      "reusable": false
+    },
+    {
+      "code": "SEGIP_NO_ENCONTRADO",
+      "name": "El registro estatal no encontró el documento declarado",
+      "expressionType": "JSON_AST",
+      "expression": {
+        "op": "eq",
+        "left": {
+          "var": "identidad_segip_estado"
+        },
+        "right": {
+          "value": "NOT_FOUND"
+        }
+      },
+      "severity": "BLOCKING",
+      "reusable": false
+    },
+    {
+      "code": "AGENDA_EN_LISTA_DE_VIGILANCIA",
+      "name": "La agenda trae teléfonos que están en la lista de vigilancia",
+      "expressionType": "JSON_AST",
+      "expression": {
+        "op": "and",
+        "args": [
+          {
+            "op": "eq",
+            "left": {
+              "var": "identidad_agenda_disponible"
+            },
+            "right": {
+              "value": true
+            }
+          },
+          {
+            "op": "gt",
+            "left": {
+              "var": "identidad_agenda_coincidencias_riesgo"
+            },
+            "right": {
+              "value": 0
             }
           }
         ]
@@ -864,6 +966,112 @@
           }
         ]
       }
+    },
+    {
+      "key": "REVISAR_REGISTRO",
+      "type": "MANUAL_REVIEW",
+      "label": "A revisión: el registro estatal no encontró el documento",
+      "terminal": true,
+      "config": {
+        "mode": "MAPPING",
+        "evidence": {
+          "motivo": "SEGIP_NO_ENCONTRADO",
+          "parecido": "{{intermediate.id_parecido}}",
+          "pruebaDeVida": "{{intermediate.id_liveness}}",
+          "tipoDocumento": "{{intermediate.id_tipo_documento}}",
+          "decisionDelWorker": "{{intermediate.id_decision}}",
+          "registroEstatal": "{{identidad_segip_estado}}",
+          "coincidenciaRegistro": "{{identidad_segip_coincidencia}}"
+        },
+        "priority": 20,
+        "queueCode": "IDENTIDAD",
+        "slaMinutes": 240,
+        "assignments": [
+          {
+            "value": "REVISION_HUMANA",
+            "source": "LITERAL",
+            "outputCode": "identidad_resultado"
+          },
+          {
+            "value": "SEGIP_NO_ENCONTRADO",
+            "source": "LITERAL",
+            "outputCode": "identidad_motivo"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.id_parecido"
+            },
+            "outputCode": "identidad_parecido"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.id_evidencia"
+            },
+            "outputCode": "identidad_evidencia_documento"
+          },
+          {
+            "value": "NINGUNA",
+            "source": "LITERAL",
+            "outputCode": "identidad_senal_comportamiento"
+          }
+        ]
+      },
+      "actions": []
+    },
+    {
+      "key": "REVISAR_AGENDA",
+      "type": "MANUAL_REVIEW",
+      "label": "A revisión: la agenda coincide con la lista de vigilancia",
+      "terminal": true,
+      "config": {
+        "mode": "MAPPING",
+        "evidence": {
+          "motivo": "AGENDA_EN_LISTA_DE_VIGILANCIA",
+          "parecido": "{{intermediate.id_parecido}}",
+          "pruebaDeVida": "{{intermediate.id_liveness}}",
+          "tipoDocumento": "{{intermediate.id_tipo_documento}}",
+          "decisionDelWorker": "{{intermediate.id_decision}}",
+          "contactosEnAgenda": "{{identidad_agenda_total}}",
+          "coincidenciasDeRiesgo": "{{identidad_agenda_coincidencias_riesgo}}"
+        },
+        "priority": 30,
+        "queueCode": "IDENTIDAD",
+        "slaMinutes": 240,
+        "assignments": [
+          {
+            "value": "REVISION_HUMANA",
+            "source": "LITERAL",
+            "outputCode": "identidad_resultado"
+          },
+          {
+            "value": "AGENDA_EN_LISTA_DE_VIGILANCIA",
+            "source": "LITERAL",
+            "outputCode": "identidad_motivo"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.id_parecido"
+            },
+            "outputCode": "identidad_parecido"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.id_evidencia"
+            },
+            "outputCode": "identidad_evidencia_documento"
+          },
+          {
+            "value": "NINGUNA",
+            "source": "LITERAL",
+            "outputCode": "identidad_senal_comportamiento"
+          }
+        ]
+      },
+      "actions": []
     }
   ],
   "edges": [
@@ -914,11 +1122,39 @@
       ]
     },
     {
+      "key": "E_REGISTRO",
+      "from": "EVALUAR",
+      "to": "REVISAR_REGISTRO",
+      "type": "CONDITIONAL",
+      "priority": 3,
+      "default": false,
+      "conditions": [
+        {
+          "conditionCode": "SEGIP_NO_ENCONTRADO",
+          "order": 1
+        }
+      ]
+    },
+    {
+      "key": "E_AGENDA",
+      "from": "EVALUAR",
+      "to": "REVISAR_AGENDA",
+      "type": "CONDITIONAL",
+      "priority": 4,
+      "default": false,
+      "conditions": [
+        {
+          "conditionCode": "AGENDA_EN_LISTA_DE_VIGILANCIA",
+          "order": 1
+        }
+      ]
+    },
+    {
       "key": "E_MECANICO",
       "from": "EVALUAR",
       "to": "REVISAR_COMPORTAMIENTO",
       "type": "CONDITIONAL",
-      "priority": 3,
+      "priority": 5,
       "default": false,
       "conditions": [
         {
@@ -932,7 +1168,7 @@
       "from": "EVALUAR",
       "to": "REVISAR_CAPTURA",
       "type": "CONDITIONAL",
-      "priority": 4,
+      "priority": 6,
       "default": false,
       "conditions": [
         {
@@ -946,7 +1182,7 @@
       "from": "EVALUAR",
       "to": "REVISAR_AUTOMATIZADO",
       "type": "CONDITIONAL",
-      "priority": 5,
+      "priority": 7,
       "default": false,
       "conditions": [
         {
@@ -960,7 +1196,7 @@
       "from": "EVALUAR",
       "to": "APROBAR",
       "type": "CONDITIONAL",
-      "priority": 6,
+      "priority": 8,
       "default": false,
       "conditions": [
         {
@@ -974,7 +1210,7 @@
       "from": "EVALUAR",
       "to": "REVISAR",
       "type": "DEFAULT",
-      "priority": 7,
+      "priority": 9,
       "default": true,
       "conditions": []
     }
@@ -1223,6 +1459,167 @@
       "expectedResult": {
         "identidad_resultado": "RECHAZADO",
         "identidad_motivo": "IDENTIDAD_NO_COINCIDE"
+      }
+    },
+    {
+      "caseCode": "ID-SEGIP-ENCONTRADO-VERIFICA",
+      "testName": "El registro confirma y la agenda está limpia: VERIFICADO",
+      "worker": "verificado",
+      "input": {
+        "identidad_carnet_frente_base64": "IMG",
+        "identidad_carnet_reverso_base64": null,
+        "identidad_selfie_base64": "IMG",
+        "identidad_pais_documento": "BO",
+        "identidad_comportamiento_disponible": true,
+        "identidad_comportamiento_segundos_total": 240,
+        "identidad_comportamiento_segundos_identidad": 95,
+        "identidad_comportamiento_pegado_en_carnet": false,
+        "identidad_comportamiento_correcciones_ocr": 1,
+        "identidad_comportamiento_ratio_errores": 0.0,
+        "identidad_comportamiento_segundo_plano_en_captura": false,
+        "identidad_comportamiento_abandonos_previos": 0,
+        "identidad_comportamiento_bot_score": 0.0,
+        "identidad_segip_estado": "FOUND",
+        "identidad_segip_coincidencia": 0.97,
+        "identidad_agenda_disponible": true,
+        "identidad_agenda_total": 180,
+        "identidad_agenda_unicos_ratio": 0.95,
+        "identidad_agenda_bolivia_ratio": 0.9,
+        "identidad_agenda_coincidencias_riesgo": 0
+      },
+      "expectedResult": {
+        "identidad_resultado": "VERIFICADO",
+        "identidad_senal_comportamiento": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "ID-SEGIP-NO-ENCONTRADO-REVISA",
+      "testName": "El registro no encuentra el documento: a una persona aunque el worker verifique",
+      "worker": "verificado",
+      "input": {
+        "identidad_carnet_frente_base64": "IMG",
+        "identidad_carnet_reverso_base64": null,
+        "identidad_selfie_base64": "IMG",
+        "identidad_pais_documento": "BO",
+        "identidad_comportamiento_disponible": true,
+        "identidad_comportamiento_segundos_total": 240,
+        "identidad_comportamiento_segundos_identidad": 95,
+        "identidad_comportamiento_pegado_en_carnet": false,
+        "identidad_comportamiento_correcciones_ocr": 1,
+        "identidad_comportamiento_ratio_errores": 0.0,
+        "identidad_comportamiento_segundo_plano_en_captura": false,
+        "identidad_comportamiento_abandonos_previos": 0,
+        "identidad_comportamiento_bot_score": 0.0,
+        "identidad_segip_estado": "NOT_FOUND",
+        "identidad_segip_coincidencia": 0
+      },
+      "expectedResult": {
+        "identidad_resultado": "REVISION_HUMANA",
+        "identidad_motivo": "SEGIP_NO_ENCONTRADO"
+      }
+    },
+    {
+      "caseCode": "ID-SEGIP-PENDIENTE-VERIFICA",
+      "testName": "Registro pendiente o no consultado no escala",
+      "worker": "verificado",
+      "input": {
+        "identidad_carnet_frente_base64": "IMG",
+        "identidad_carnet_reverso_base64": null,
+        "identidad_selfie_base64": "IMG",
+        "identidad_pais_documento": "BO",
+        "identidad_comportamiento_disponible": true,
+        "identidad_comportamiento_segundos_total": 240,
+        "identidad_comportamiento_segundos_identidad": 95,
+        "identidad_comportamiento_pegado_en_carnet": false,
+        "identidad_comportamiento_correcciones_ocr": 1,
+        "identidad_comportamiento_ratio_errores": 0.0,
+        "identidad_comportamiento_segundo_plano_en_captura": false,
+        "identidad_comportamiento_abandonos_previos": 0,
+        "identidad_comportamiento_bot_score": 0.0,
+        "identidad_segip_estado": "PENDING"
+      },
+      "expectedResult": {
+        "identidad_resultado": "VERIFICADO",
+        "identidad_senal_comportamiento": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "ID-AGENDA-EN-LISTA-REVISA",
+      "testName": "Agenda con teléfonos en la lista de vigilancia: a una persona",
+      "worker": "verificado",
+      "input": {
+        "identidad_carnet_frente_base64": "IMG",
+        "identidad_carnet_reverso_base64": null,
+        "identidad_selfie_base64": "IMG",
+        "identidad_pais_documento": "BO",
+        "identidad_comportamiento_disponible": true,
+        "identidad_comportamiento_segundos_total": 240,
+        "identidad_comportamiento_segundos_identidad": 95,
+        "identidad_comportamiento_pegado_en_carnet": false,
+        "identidad_comportamiento_correcciones_ocr": 1,
+        "identidad_comportamiento_ratio_errores": 0.0,
+        "identidad_comportamiento_segundo_plano_en_captura": false,
+        "identidad_comportamiento_abandonos_previos": 0,
+        "identidad_comportamiento_bot_score": 0.0,
+        "identidad_agenda_disponible": true,
+        "identidad_agenda_total": 180,
+        "identidad_agenda_unicos_ratio": 0.95,
+        "identidad_agenda_bolivia_ratio": 0.9,
+        "identidad_agenda_coincidencias_riesgo": 2
+      },
+      "expectedResult": {
+        "identidad_resultado": "REVISION_HUMANA",
+        "identidad_motivo": "AGENDA_EN_LISTA_DE_VIGILANCIA"
+      }
+    },
+    {
+      "caseCode": "ID-AGENDA-NO-COMPARTIDA-VERIFICA",
+      "testName": "Agenda no compartida no cuenta en contra",
+      "worker": "verificado",
+      "input": {
+        "identidad_carnet_frente_base64": "IMG",
+        "identidad_carnet_reverso_base64": null,
+        "identidad_selfie_base64": "IMG",
+        "identidad_pais_documento": "BO",
+        "identidad_comportamiento_disponible": true,
+        "identidad_comportamiento_segundos_total": 240,
+        "identidad_comportamiento_segundos_identidad": 95,
+        "identidad_comportamiento_pegado_en_carnet": false,
+        "identidad_comportamiento_correcciones_ocr": 1,
+        "identidad_comportamiento_ratio_errores": 0.0,
+        "identidad_comportamiento_segundo_plano_en_captura": false,
+        "identidad_comportamiento_abandonos_previos": 0,
+        "identidad_comportamiento_bot_score": 0.0,
+        "identidad_agenda_disponible": false,
+        "identidad_agenda_coincidencias_riesgo": 0
+      },
+      "expectedResult": {
+        "identidad_resultado": "VERIFICADO",
+        "identidad_senal_comportamiento": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "ID-SEGIP-NO-ENCONTRADO-Y-NO-COINCIDE-RECHAZA",
+      "testName": "El rechazo del worker manda sobre el registro",
+      "worker": "no_coincide",
+      "input": {
+        "identidad_carnet_frente_base64": "IMG",
+        "identidad_carnet_reverso_base64": null,
+        "identidad_selfie_base64": "IMG",
+        "identidad_pais_documento": "BO",
+        "identidad_comportamiento_disponible": true,
+        "identidad_comportamiento_segundos_total": 240,
+        "identidad_comportamiento_segundos_identidad": 95,
+        "identidad_comportamiento_pegado_en_carnet": false,
+        "identidad_comportamiento_correcciones_ocr": 1,
+        "identidad_comportamiento_ratio_errores": 0.0,
+        "identidad_comportamiento_segundo_plano_en_captura": false,
+        "identidad_comportamiento_abandonos_previos": 0,
+        "identidad_comportamiento_bot_score": 0.0,
+        "identidad_segip_estado": "NOT_FOUND"
+      },
+      "expectedResult": {
+        "identidad_resultado": "RECHAZADO"
       }
     }
   ],

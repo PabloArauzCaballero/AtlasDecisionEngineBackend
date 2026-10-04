@@ -1,8 +1,9 @@
-# IDENTIDAD_CARNET_MOVIL 1.2.0 · identidad con la bitácora del alta
+# IDENTIDAD_CARNET_MOVIL 1.3.0 · identidad con la bitácora del alta, el registro estatal y la agenda
 
 Verifica la identidad de quien se registra desde la app: llama al worker de identidad (lee el
 carnet, comprueba que lo sea y compara su retrato con la selfie) y aplica la política de aceptación.
-Desde la **1.2.0** (2026-09-18) recibe además **cómo se hizo el alta**.
+Desde la **1.2.0** (2026-09-18) recibe además **cómo se hizo el alta**, y desde la **1.3.0** (2026-10-04) lee
+también **el registro estatal y la agenda**, que AtlasBackend ya enviaba y el grafo no declaraba.
 
 - Definición: [`scripts/lib/identidad-carnet-movil.definicion.json`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/scripts/lib/identidad-carnet-movil.definicion.json)
 - Publicación por la API de gestión: [`scripts/identidad-carnet-movil.mjs`](https://github.com/PabloArauzCaballero/AtlasDecisionEngineBackend/blob/main/scripts/identidad-carnet-movil.mjs)
@@ -39,6 +40,33 @@ Ninguna rechaza: **el comportamiento escala, no niega**. Y el rechazo del worker
 cualquier señal (`ID-MECANICO-Y-NO-COINCIDE-RECHAZA`). La evidencia del caso lleva las cifras de la
 bitácora para quien lo revise. Salida nueva: `identidad_senal_comportamiento` (`NINGUNA` o la señal).
 
+## 1.3.0: el registro estatal y la agenda dejan de ignorarse
+
+AtlasBackend manda desde agosto `identidad_segip_*` e `identidad_agenda_*`
+(`mobile-identity.service.ts`), y la documentación decía «decide con tres fuentes». El grafo
+versionado sólo declaraba las imágenes y la bitácora: esas variables llegaban y **no las leía nadie**.
+La 1.3.0 declara siete, todas **opcionales**, y añade dos derivaciones a una persona:
+
+| Arista | Condición | Motivo | Prioridad de cola |
+|---|---|---|---|
+| `E_REGISTRO` | `identidad_segip_estado = NOT_FOUND` | `SEGIP_NO_ENCONTRADO` | 20 |
+| `E_AGENDA` | agenda disponible **y** `identidad_agenda_coincidencias_riesgo > 0` | `AGENDA_EN_LISTA_DE_VIGILANCIA` | 30 |
+
+Van **después** de los dos rechazos del worker y **antes** del comportamiento y de la aprobación.
+Lo que NO hacen, a propósito:
+
+- **No rechazan ni aprueban.** Un documento que el registro no encuentra puede ser un error del
+  registro; un teléfono de la agenda en la lista de vigilancia es un hecho sobre un tercero.
+- **`PENDING` y `NO_CONSULTADO` no escalan.** Mientras el conector del registro sea de prueba no
+  distinguen a nadie, y escalar por ellos mandaría a todo el mundo a la cola por un motivo falso.
+- **Agenda no compartida no cuenta en contra** (`ID-AGENDA-NO-COMPARTIDA-VERIFICA`).
+- `identidad_agenda_referencias_presentes` **no se declara**: las referencias salieron del alta el
+  2026-09-28 y la señal vale 0 para todos.
+
+Sin esas variables decide exactamente como la 1.2.0. Para publicarla sobre un artefacto ya
+desplegado: `node scripts/identidad-carnet-movil.mjs --nueva-version` (clona la vigente, que sigue
+decidiendo, y deja el clon en revisión de dos personas).
+
 ## Lo que llega por el contexto y no por variables
 
 `context.documentCaptureSource` (`camera` o `system_scanner`) dice si el carnet se tomó con la
@@ -47,12 +75,14 @@ artefacto** y no cambia su grafo: lo lee el worker de identidad directamente del
 ejecución, así que no hizo falta ninguna versión nueva. Qué hace el worker con él, y por qué sus
 marcas no deciden nada: [el carnet tomado con el escáner del sistema](../workers/identidad-escaner-del-sistema.md).
 
-## Los diez casos
+## Los dieciséis casos
 
 `ID-HUMANO-VERIFICA`, `ID-SIN-BITACORA-VERIFICA` (regresión de la 1.1.1), `ID-MECANICO-REVISA`,
 `ID-CAPTURA-INTERRUMPIDA-REVISA`, `ID-BOT-069-VERIFICA`, `ID-BOT-070-REVISA` (el corte),
 `ID-NO-COINCIDE-RECHAZA`, `ID-DOC-INVALIDO-RECHAZA`, `ID-DUDOSO-REVISA`,
-`ID-MECANICO-Y-NO-COINCIDE-RECHAZA`. La suite `IDENTIDAD-DESENLACES` es bloqueante.
+`ID-MECANICO-Y-NO-COINCIDE-RECHAZA`; y los seis de la 1.3.0: `ID-SEGIP-ENCONTRADO-VERIFICA`,
+`ID-SEGIP-NO-ENCONTRADO-REVISA`, `ID-SEGIP-PENDIENTE-VERIFICA`, `ID-AGENDA-EN-LISTA-REVISA`,
+`ID-AGENDA-NO-COMPARTIDA-VERIFICA`, `ID-SEGIP-NO-ENCONTRADO-Y-NO-COINCIDE-RECHAZA`. La suite `IDENTIDAD-DESENLACES` es bloqueante.
 
 ## Dos cortes, dos canales: de dónde sale cada umbral
 
