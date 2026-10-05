@@ -38,6 +38,17 @@
  *
  * Es idempotente: si ya hay un borrador con el grafo de v2 escrito, lo reutiliza; si ya hay
  * solicitud de aprobación, no crea otra.
+ *
+ * ## 2.1.0: el CUÁNTO, y una frescura que se puede cumplir (2026-10-05)
+ *
+ * La 2.0.0 decía sí/no y a qué precio, pero no cuánto: no emitía `approved_credit_limit`, y la
+ * línea que la app enseña como tarjeta principal quedaba en 0 o sin escribir. La 2.1.0 lo emite
+ * (capacidad recomendada por Core × factor de la banda; ver `authoringNotes` de la definición).
+ * Además, sus 37 variables exigían 60 s de frescura y Core manda la fecha REAL del dato: en TEST las
+ * 67 ejecuciones de la 2.0.0 acabaron en `NO_DECISION`. Por eso el guion, además de crear las
+ * variables que faltan, crea una VERSIÓN NUEVA de las que ya existen cuando la definición declara
+ * otra frescura u otra obligatoriedad (`contratoPendiente`). Los demás artefactos siguen atados a la
+ * versión vieja por id: no les cambia nada.
  */
 import { argv, env, exit } from 'node:process';
 
@@ -71,8 +82,14 @@ const DRY_RUN = args.get('dry-run') === 'true';
 const CREAR = args.get('crear') === 'true';
 
 const ARTIFACT_CODE = args.get('artifact') ?? DEFINICION.artifact.artifactCode;
-// La firma de esta versión: si un borrador ya trae este nodo, YA es el grafo de v2.
-const SIGNATURE_NODE_KEY = 'SC_PD_BAND';
+// La firma de esta versión: si un borrador ya trae este nodo, YA es el grafo de ESTA definición.
+// Es el nodo que la 2.1.0 añade (el límite por banda) y no `SC_PD_BAND`, que ya traía la 2.0.0:
+// con la firma vieja, publicar la 2.1 sobre un entorno con un borrador de la 2.0 lo habría dado
+// por bueno y se habría enviado a revisión una versión sin límite.
+const SIGNATURE_NODE_KEY = 'SC_LIMITE';
+// El compromiso de frescura de lo que Core lee en vivo al decidir. Lo que NO es en vivo —identidad
+// verificada una vez, expediente económico declarado en el alta— declara el suyo en la definición.
+const FRESHNESS_EN_VIVO_S = 60;
 
 if (!API_KEY) {
   console.error(
@@ -169,13 +186,73 @@ function cuerpoDeVariable(definicion, direccion) {
           sourceSystemCode: esEntrada ? 'REQUEST_PAYLOAD' : 'DECISION_ENGINE',
           sourcePath: esEntrada ? '$.variables' : '$.output',
           sourceField: definicion.code,
-          freshnessSlaSeconds: 60,
+          freshnessSlaSeconds: definicion.freshnessSlaSeconds ?? FRESHNESS_EN_VIVO_S,
           precedence: 1,
           isAuthoritative: true,
         },
       ],
       validationRules: [],
     },
+  };
+}
+
+/**
+ * Lo que esta definición EXIGE del contrato de una variable que ya existe, y la versión vigente no
+ * cumple. Sólo mira lo que la definición declara de forma explícita (`freshnessSlaSeconds`,
+ * `nullable`): una variable sin nada declarado se reutiliza tal cual, como hasta ahora.
+ */
+function contratoPendiente(definicion, version) {
+  const cambios = [];
+  const slas = (version.sources ?? []).map((source) => Number(source.freshnessSlaSeconds));
+  if (
+    definicion.freshnessSlaSeconds !== undefined &&
+    (slas.length === 0 || slas.some((sla) => sla !== definicion.freshnessSlaSeconds))
+  ) {
+    cambios.push(`frescura ${slas.join('/') || '—'} s → ${definicion.freshnessSlaSeconds} s`);
+  }
+  if (definicion.nullable === true && version.nullable !== true) cambios.push('admite ausencia');
+  return cambios;
+}
+
+/**
+ * La versión vigente, vuelta a escribir como cuerpo de una versión NUEVA con el contrato corregido.
+ *
+ * Una versión de variable es inmutable y otros artefactos (identidad, riesgo, KYB) están atados a
+ * la SUYA por id: crear una nueva no les cambia nada. Se copia TODO lo que la vigente declaraba y
+ * sólo se toca lo que la definición pide, para no perder restricciones ni reglas por el camino.
+ */
+function cuerpoDeNuevaVersion(definicion, version) {
+  const opcional = (clave, valor) =>
+    valor === null || valor === undefined ? {} : { [clave]: valor };
+  return {
+    dataType: version.dataType,
+    nullable: definicion.nullable === true ? true : Boolean(version.nullable),
+    ...opcional('unitCode', version.unitCode),
+    ...opcional('defaultValue', version.defaultValueJson),
+    ...opcional('validationSchema', version.validationSchemaJson),
+    ...opcional('derivationExpression', version.derivationExpressionJson),
+    ...opcional('displayName', version.displayName),
+    ...opcional('description', version.description),
+    ...opcional('constraints', version.constraintsJson),
+    ...opcional('validationMessage', version.validationMessage),
+    ...opcional('exampleValid', version.exampleValidJson),
+    ...opcional('exampleInvalid', version.exampleInvalidJson),
+    expectedOrigin: version.expectedOrigin ?? 'REQUEST',
+    contractVersion: version.contractVersion ?? '1',
+    sources: (version.sources ?? []).map((source) => ({
+      sourceSystemCode: source.sourceSystemCode,
+      sourcePath: source.sourcePath,
+      sourceField: source.sourceField,
+      freshnessSlaSeconds: definicion.freshnessSlaSeconds ?? Number(source.freshnessSlaSeconds),
+      precedence: Number(source.precedence),
+      isAuthoritative: Boolean(source.isAuthoritative),
+    })),
+    validationRules: (version.validationRules ?? []).map((rule) => ({
+      ruleType: rule.ruleType,
+      config: rule.ruleConfigJson ?? rule.config ?? {},
+      severity: rule.severity,
+      errorCode: rule.errorCode,
+    })),
   };
 }
 
@@ -197,10 +274,30 @@ async function asegurarVariables() {
         null,
       );
       if (!ultima) throw new Error(`La variable ${variable.code} existe sin versiones.`);
-      versiones.set(variable.code, String(ultima.id));
+      const cambios = contratoPendiente(variable, ultima);
+      if (!cambios.length) {
+        versiones.set(variable.code, String(ultima.id));
+        continue;
+      }
+      if (DRY_RUN) {
+        console.log(
+          `[dry-run] crearía una versión nueva de ${variable.code} (${cambios.join('; ')}).`,
+        );
+        versiones.set(variable.code, 'dry-run');
+        continue;
+      }
+      const nueva = await api(`/v1/variables/${existente.id}/versions`, {
+        method: 'POST',
+        body: JSON.stringify(cuerpoDeNuevaVersion(variable, ultima)),
+      });
+      versiones.set(variable.code, String(nueva.id));
+      console.log(
+        `Variable ${variable.code}: versión ${nueva.versionNumber ?? '?'} (id ${nueva.id}) — ${cambios.join('; ')}.`,
+      );
       continue;
     }
-    // Sólo `product_base_annual_rate` debería llegar aquí (las otras 32 ya están en el catálogo).
+    // Lo que el catálogo de este entorno todavía no tiene (en TEST, al publicar la 2.1.0:
+    // `capacity_recommended_limit` y `approved_credit_limit`).
     if (DRY_RUN) {
       console.log(
         `[dry-run] crearía la variable ${variable.code} (${variable.dataType}, ${variable.direccion})`,
@@ -233,7 +330,8 @@ function cuerpoDelGrafo(versiones, reasonIds) {
         variableVersionId: versiones.get(v.code),
         usageType: 'INPUT',
         dependencyPath: `input.${v.code}`,
-        isRequired: true,
+        // `fraud_signal` es la única entrada opcional: Core sólo la manda con un caso abierto.
+        isRequired: v.required ?? true,
         fallbackPolicy: 'FAIL_CLOSED',
       })),
       ...DEFINICION.outputs.map((v) => ({
@@ -494,10 +592,12 @@ async function main() {
       method: 'POST',
       body: JSON.stringify({
         changeSummary:
-          'v2: Paso 0 con las cinco compuertas duras (identidad/sanciones/fraude/jurisdicción/' +
-          'señales técnicas), puntaje real a partir de las señales que Core ya manda, ' +
-          'probability_of_default y risk_band por tabla, y tarifa (prima por banda sobre ' +
-          'product_base_annual_rate) sólo si aprueba. Banda E rechaza de verdad.',
+          `v${DEFINICION.artifact.semanticVersion}: además del sí/no y el precio, emite el CUÁNTO ` +
+          '(approved_credit_limit = capacidad de pago recomendada × factor de la banda, A:100 % ' +
+          'B:85 % C:70 % D:50 %, hacia abajo a múltiplos de 50; E rechaza con 0). La identidad y el ' +
+          'expediente económico declaran una frescura que pueden cumplir (365 y 180 días en vez de ' +
+          '60 s) y fraud_signal deja de ser obligatoria. Compuertas, puntaje, PD, banda y tarifa ' +
+          'no cambian respecto de la 2.0.0.',
       }),
     });
     versionId = clon.id ?? clon.versionId;

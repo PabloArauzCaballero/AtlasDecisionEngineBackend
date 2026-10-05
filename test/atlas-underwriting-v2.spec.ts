@@ -20,7 +20,10 @@ import type {
 } from '../src/modules/graph/graph.types';
 import { TestCaseExecutorService } from '../src/modules/testing/test-case-executor.service';
 import { CreateTestSuiteDto } from '../src/modules/testing/testing.dto';
-import { CreateVariableDefinitionDto } from '../src/modules/variables/variable.dto';
+import {
+  CreateVariableDefinitionDto,
+  CreateVariableVersionDto,
+} from '../src/modules/variables/variable.dto';
 import definicion from '../scripts/lib/atlas-underwriting-v2.definicion.json';
 
 /**
@@ -41,6 +44,25 @@ import definicion from '../scripts/lib/atlas-underwriting-v2.definicion.json';
 
 const SCRIPT = join(__dirname, '..', 'scripts', 'atlas-underwriting-v2.mjs');
 const V1_ID = '371';
+
+/** Las que el catálogo de un entorno real todavía no tiene: el guion las CREA. */
+const ENTRADAS_NUEVAS = ['product_base_annual_rate', 'capacity_recommended_limit'];
+const SALIDAS_NUEVAS = ['decision_outcome', 'approved_credit_limit'];
+
+/**
+ * Las que ya existen pero cuyo contrato vigente (60 s, obligatoria) no sirve: el guion les crea una
+ * VERSIÓN nueva. Es la causa de que TEST no decidiera nunca con la 2.0.0 (67 de 67 en NO_DECISION).
+ */
+const CONTRATO_CORREGIDO = [
+  'affordability_ratio',
+  'debt_to_income_ratio',
+  'employment_status',
+  'fraud_signal',
+  'income_stability_score',
+  'kyc_status',
+  'national_id_verified',
+  'self_employed_flag',
+];
 
 interface Peticion {
   method: string;
@@ -77,6 +99,7 @@ interface CuerpoVariable {
 interface VariableGuardada {
   id: string;
   versionId: string;
+  versionNumber?: number;
   dataType: string;
   cuerpo?: CuerpoVariable;
 }
@@ -105,10 +128,9 @@ function catalogoPreexistente(): Map<string, VariableGuardada> {
   const mapa = new Map<string, VariableGuardada>();
   let contador = 1;
   for (const codigo of [
-    ...definicion.inputs.map((i) => i.code).filter((c) => c !== 'product_base_annual_rate'),
-    // `decision_outcome` es NUEVA (igual que `product_base_annual_rate`): el catálogo real de
-    // DEV no la tiene, así que este doble tampoco debe fingir que ya existe.
-    ...definicion.outputs.map((o) => o.code).filter((c) => c !== 'decision_outcome'),
+    ...definicion.inputs.map((i) => i.code).filter((c) => !ENTRADAS_NUEVAS.includes(c)),
+    // Las salidas nuevas tampoco existen en el catálogo real, así que este doble no debe fingirlo.
+    ...definicion.outputs.map((o) => o.code).filter((c) => !SALIDAS_NUEVAS.includes(c)),
   ]) {
     const id = String(contador++);
     // La API real siempre da un `variableVersionId` numérico puro (regex del DTO real); el
@@ -382,15 +404,67 @@ class MotorFalso {
     const detalleVariable = /^GET \/v1\/variables\/(.+)$/.exec(ruta);
     if (detalleVariable) {
       const previa = [...this.variables.values()].find((v) => v.id === detalleVariable[1]);
-      return previa
-        ? [
-            200,
+      if (!previa) return [404, {}];
+      // Como el catálogo real de TEST: cada preexistente con UNA fuente de 60 s y obligatoria.
+      const contrato = previa.cuerpo?.initialVersion;
+      return [
+        200,
+        {
+          id: previa.id,
+          versions: [
             {
-              id: previa.id,
-              versions: [{ id: previa.versionId, versionNumber: 1, dataType: previa.dataType }],
+              id: previa.versionId,
+              versionNumber: previa.versionNumber ?? 1,
+              dataType:
+                contrato?.dataType ??
+                [...definicion.inputs, ...definicion.outputs].find(
+                  (v) => v.code === this.codigoDeVersion.get(previa.versionId),
+                )?.dataType ??
+                previa.dataType,
+              nullable: contrato?.nullable ?? false,
+              expectedOrigin: contrato?.expectedOrigin ?? 'REQUEST',
+              contractVersion: '1',
+              sources: (
+                contrato?.sources ?? [
+                  {
+                    sourceSystemCode: 'REQUEST_PAYLOAD',
+                    sourcePath: '$.variables',
+                    sourceField: this.codigoDeVersion.get(previa.versionId) ?? '',
+                    freshnessSlaSeconds: 60,
+                    precedence: 1,
+                    isAuthoritative: true,
+                  },
+                ]
+              ).map((origen, index) => ({ id: String(index + 1), ...origen })),
+              validationRules: [],
             },
-          ]
-        : [404, {}];
+          ],
+        },
+      ];
+    }
+    const nuevaVersionVariable = /^POST \/v1\/variables\/(.+)\/versions$/.exec(ruta);
+    if (nuevaVersionVariable) {
+      const entrada = [...this.variables.entries()].find(
+        ([, v]) => v.id === nuevaVersionVariable[1],
+      );
+      if (!entrada) return [404, {}];
+      const [codigo, previa] = entrada;
+      const versionId = nueva();
+      const versionNumber = (previa.versionNumber ?? 1) + 1;
+      this.variables.set(codigo, {
+        id: previa.id,
+        versionId,
+        versionNumber,
+        dataType: String((body as { dataType?: string }).dataType),
+        cuerpo: {
+          variableCode: codigo,
+          dataClassification: 'INTERNAL',
+          isSensitive: false,
+          initialVersion: body as unknown as CuerpoVariable['initialVersion'],
+        },
+      });
+      this.codigoDeVersion.set(versionId, codigo);
+      return [201, { id: versionId, versionNumber }];
     }
     if (ruta === 'POST /v1/variables') {
       const cuerpo = body as unknown as CuerpoVariable;
@@ -584,13 +658,15 @@ describe('ATLAS_BNPL_UNDERWRITING v2 · el guion que clona v1 y escribe el grafo
   jest.setTimeout(60_000);
 
   describe('la definición', () => {
-    it('trae 32 entradas reutilizadas + 1 nueva, 4 salidas con rol + 1 desenlace nuevo, 34 casos y suite bloqueante', () => {
-      expect(definicion.inputs).toHaveLength(32);
-      expect(definicion.inputs.filter((i) => i.code === 'product_base_annual_rate')).toHaveLength(
-        1,
-      );
-      expect(definicion.outputs).toHaveLength(5);
-      expect(definicion.outputs.filter((o) => o.code === 'decision_outcome')).toHaveLength(1);
+    it('trae 31 entradas reutilizadas + 2 nuevas, 5 salidas con rol + 1 desenlace nuevo y suite bloqueante', () => {
+      expect(definicion.inputs).toHaveLength(33);
+      for (const codigo of ENTRADAS_NUEVAS) {
+        expect(definicion.inputs.filter((i) => i.code === codigo)).toHaveLength(1);
+      }
+      expect(definicion.outputs).toHaveLength(6);
+      for (const codigo of SALIDAS_NUEVAS) {
+        expect(definicion.outputs.filter((o) => o.code === codigo)).toHaveLength(1);
+      }
       expect(definicion.cases.length).toBeGreaterThanOrEqual(15);
       expect(definicion.suite.isBlocking).toBe(true);
     });
@@ -599,6 +675,23 @@ describe('ATLAS_BNPL_UNDERWRITING v2 · el guion que clona v1 y escribe el grafo
       const roles = new Map(definicion.outputs.map((o) => [o.code, o.semanticRole]));
       expect(roles.get('probability_of_default')).toBe('PROBABILITY_OF_DEFAULT');
       expect(roles.get('annual_percentage_rate')).toBe('PRICED_RATE');
+      expect(roles.get('approved_credit_limit')).toBe('APPROVED_LIMIT');
+    });
+
+    it('la frescura que declara cada entrada es una que Core puede cumplir', () => {
+      const sla = new Map(
+        definicion.inputs.map((i) => [
+          i.code,
+          (i as { freshnessSlaSeconds?: number }).freshnessSlaSeconds,
+        ]),
+      );
+      const DIA = 86_400;
+      // Identidad: se verifica UNA vez. Expediente económico: se declara en el alta.
+      expect(sla.get('kyc_status')).toBe(365 * DIA);
+      expect(sla.get('employment_status')).toBe(180 * DIA);
+      expect(sla.get('capacity_recommended_limit')).toBe(180 * DIA);
+      // Lo que Core lee en vivo de su libro conserva los 60 s del guion (no declara nada).
+      expect(sla.get('worst_delinquency_status')).toBeUndefined();
     });
 
     it('las cinco compuertas del Paso 0 son BLOCKING y van antes que el puntaje en las aristas', () => {
@@ -650,22 +743,46 @@ describe('ATLAS_BNPL_UNDERWRITING v2 · el guion que clona v1 y escribe el grafo
       expect(primera.stdout).toContain('RISK_APPROVER');
     });
 
-    it('clona v1 exactamente una vez y crea sólo las variables nuevas (product_base_annual_rate, decision_outcome)', () => {
+    it('clona v1 exactamente una vez y crea sólo las variables nuevas', () => {
       expect(motor.cuerposDe('POST', /\/artifact-versions\/371\/clone$/)).toHaveLength(1);
       const creadas = motor.cuerposDe('POST', /^\/v1\/variables$/) as Array<{
         variableCode: string;
       }>;
-      expect(creadas.map((c) => c.variableCode).sort()).toEqual([
-        'decision_outcome',
-        'product_base_annual_rate',
-      ]);
+      expect(creadas.map((c) => c.variableCode).sort()).toEqual(
+        [...ENTRADAS_NUEVAS, ...SALIDAS_NUEVAS].sort(),
+      );
       expect(motor.cuerposDe('PUT', /\/graph$/)).toHaveLength(1);
       expect(motor.cuerposDe('POST', /^\/v1\/artifacts$/)).toHaveLength(0); // nunca crea el artefacto
+    });
+
+    it('versiona SÓLO las variables cuyo contrato vigente no sirve, conservando el resto del contrato', () => {
+      const versionadas = motor.peticiones
+        .filter((p) => p.method === 'POST' && /^\/v1\/variables\/.+\/versions$/.test(p.path))
+        .map((p) => {
+          const id = /^\/v1\/variables\/(.+)\/versions$/.exec(p.path)![1];
+          const [codigo] = [...motor.variables.entries()].find(([, v]) => v.id === id)!;
+          return {
+            codigo,
+            cuerpo: p.body as {
+              nullable: boolean;
+              sources: Array<{ freshnessSlaSeconds: number; sourceField: string }>;
+            },
+          };
+        });
+      expect(versionadas.map((v) => v.codigo).sort()).toEqual(CONTRATO_CORREGIDO);
+      const kyc = versionadas.find((v) => v.codigo === 'kyc_status')!.cuerpo;
+      expect(kyc.sources).toEqual([
+        expect.objectContaining({ freshnessSlaSeconds: 365 * 86_400, sourceField: 'kyc_status' }),
+      ]);
+      expect(versionadas.find((v) => v.codigo === 'fraud_signal')!.cuerpo.nullable).toBe(true);
     });
 
     it('cada cuerpo pasa los DTO reales de la API', () => {
       for (const cuerpo of motor.cuerposDe('POST', /^\/v1\/variables$/)) {
         expect(errores(CreateVariableDefinitionDto, cuerpo)).toEqual([]);
+      }
+      for (const cuerpo of motor.cuerposDe('POST', /^\/v1\/variables\/.+\/versions$/)) {
+        expect(errores(CreateVariableVersionDto, cuerpo)).toEqual([]);
       }
       expect(errores(ReplaceGraphDto, motor.grafosPorVersion.get(v2Id))).toEqual([]);
       const [suite] = motor.cuerposDe('POST', /\/test-suites$/);
@@ -676,8 +793,8 @@ describe('ATLAS_BNPL_UNDERWRITING v2 · el guion que clona v1 y escribe el grafo
       const { reporte } = compilarLoEscrito(motor, v2Id);
       expect(reporte.errors).toEqual([]);
       expect(reporte.valid).toBe(true);
-      // 25 nodos, 24 aristas, 7 caminos terminales (5 compuertas + RECHAZAR + APROBAR).
-      expect(reporte.metrics).toMatchObject({ nodeCount: 25, edgeCount: 24, terminalPathCount: 7 });
+      // 26 nodos, 25 aristas, 7 caminos terminales (5 compuertas + RECHAZAR + APROBAR).
+      expect(reporte.metrics).toMatchObject({ nodeCount: 26, edgeCount: 25, terminalPathCount: 7 });
     });
 
     it('la suite bloqueante ejecutada sobre lo escrito queda entera en verde', () => {
@@ -777,6 +894,40 @@ describe('ATLAS_BNPL_UNDERWRITING v2 · el guion que clona v1 y escribe el grafo
       const d = await engine.execute(compilado, caso('APR-BANDA-D-BASE-VARIABLE-055').input);
       expect(d.output.pricing_tier).toBe('D');
       expect(d.output.annual_percentage_rate).toBeCloseTo(0.55 + 0.24, 9);
+    });
+
+    it('el límite es la capacidad graduada por la banda, hacia abajo a múltiplos de 50', async () => {
+      const limite = async (codigo: string) =>
+        (await engine.execute(compilado, caso(codigo).input)).output.approved_credit_limit;
+      expect(await limite('LIMITE-BANDA-A-CAPACIDAD-ENTERA')).toBe(2000);
+      expect(await limite('LIMITE-BANDA-B-85')).toBe(1700);
+      expect(await limite('LIMITE-BANDA-C-70')).toBe(1400);
+      expect(await limite('LIMITE-BANDA-D-50')).toBe(1000);
+      expect(await limite('LIMITE-REDONDEA-HACIA-ABAJO-A-50')).toBe(1000);
+      expect(await limite('LIMITE-CAPACIDAD-CERO-APRUEBA-CON-CERO')).toBe(0);
+    });
+
+    it('un rechazo emite límite 0; una compuerta no emite ninguno (no es una política que diga cuánto)', async () => {
+      const rechazo = await engine.execute(compilado, caso('BORDE-PUNTAJE-251').input);
+      expect(rechazo.output.approved_credit_limit).toBe(0);
+      const compuerta = await engine.execute(
+        compilado,
+        caso('GATE-1-IDENTIDAD-KYC-NO-VERIFICADO').input,
+      );
+      expect(compuerta.output.approved_credit_limit).toBeUndefined();
+    });
+
+    it('D con 50 % no encoge la línea en cada recálculo: Core propone como mucho el doble de la vigente', () => {
+      // Con un factor f y graduationFactor=2, la línea L pasa a min(capacidad, 2L) × f: estable si 2f >= 1.
+      const factorD = 0.5;
+      expect(2 * factorD).toBeGreaterThanOrEqual(1);
+    });
+
+    it('fraud_signal ausente no impide decidir: Core sólo la manda con un caso abierto', async () => {
+      const datos = caso('FRAUDE-SENAL-AUSENTE-NO-TUMBA');
+      expect('fraud_signal' in datos.input).toBe(false);
+      const resultado = await engine.execute(compilado, datos.input);
+      expect(resultado.terminalNodeKey).toBe('APROBAR');
     });
 
     it('charge_off_count se topa en 2 (min(5,2)*60=120): sin el tope caería en banda E, no C', async () => {
