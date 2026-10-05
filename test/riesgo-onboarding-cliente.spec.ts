@@ -44,6 +44,7 @@ describe('RIESGO_ONBOARDING_CLIENTE · la política versionada del riesgo de onb
     code: string,
     dataType: string,
     usageType: VariableContractSnapshot['usageType'] = 'INPUT',
+    optional = false,
   ): VariableContractSnapshot {
     const direccion = usageType === 'INPUT' ? 'input' : 'output';
     return {
@@ -53,11 +54,11 @@ describe('RIESGO_ONBOARDING_CLIENTE · la política versionada del riesgo de onb
       code,
       version: 1,
       dataType,
-      nullable: false,
+      nullable: optional,
       validationRules: [],
       sources: [],
-      required: usageType === 'INPUT',
-      fallbackPolicy: 'FAIL_CLOSED',
+      required: usageType === 'INPUT' && !optional,
+      fallbackPolicy: optional ? 'DEFAULT_VALUE' : 'FAIL_CLOSED',
       sensitive: false,
     };
   }
@@ -140,7 +141,14 @@ describe('RIESGO_ONBOARDING_CLIENTE · la política versionada del riesgo de onb
       ...compiledFixture(),
       startNodeKey: 'START',
       variables: [
-        ...definicion.inputs.map((input) => variable(input.code, input.dataType)),
+        ...definicion.inputs.map((input) =>
+          variable(
+            input.code,
+            input.dataType,
+            'INPUT',
+            Boolean((input as { optional?: boolean }).optional),
+          ),
+        ),
         ...definicion.outputs.map((output) =>
           variable(
             output.code,
@@ -223,5 +231,41 @@ describe('RIESGO_ONBOARDING_CLIENTE · la política versionada del riesgo de onb
           ).assignments?.find((a) => a.outputCode === 'riesgo_decision')?.value,
       );
     expect(new Set(desenlaces)).toEqual(new Set(['APPROVE', 'MANUAL_REVIEW']));
+  });
+
+  describe('2.0.0: reglas propias de fraude', () => {
+    const FRAUDE = [
+      'E_DISPOSITIVO_NO_CONFIABLE',
+      'E_DISPOSITIVO_O_RED_COMPARTIDOS',
+      'E_COMPORTAMIENTO_AUTOMATIZADO',
+      'E_SENALES_ACUMULADAS',
+    ];
+    const prioridades = Object.fromEntries(
+      definicion.edges.filter((e) => e.from === 'EVALUAR').map((e) => [e.key, e.priority]),
+    );
+
+    it('van después de la evidencia faltante y antes del umbral, sin prioridades repetidas', () => {
+      for (const arista of FRAUDE) {
+        expect(prioridades['E_SIN_CONSENTIMIENTO']).toBeLessThan(prioridades[arista]);
+        expect(prioridades[arista]).toBeLessThan(prioridades['E_ALCANZA']);
+      }
+      expect(new Set(Object.values(prioridades)).size).toBe(Object.keys(prioridades).length);
+    });
+
+    it('todas terminan en revisión humana: el fraude deriva, no rechaza', () => {
+      for (const arista of FRAUDE) {
+        const emitir = definicion.edges.find((e) => e.key === arista)!.to;
+        const destino = definicion.edges.find((e) => e.from === emitir)!.to;
+        expect(definicion.nodes.find((n) => n.key === destino)!.type).toBe('MANUAL_REVIEW');
+      }
+    });
+
+    it('las quince entradas nuevas son opcionales: un backend que no las mande decide como la 1.0.0', () => {
+      const opcionales = definicion.inputs.filter((v) => (v as { optional?: boolean }).optional);
+      expect(opcionales).toHaveLength(15);
+      expect(definicion.inputs.filter((v) => !(v as { optional?: boolean }).optional)).toHaveLength(
+        11,
+      );
+    });
   });
 });
