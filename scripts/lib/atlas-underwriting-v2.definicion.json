@@ -8,7 +8,7 @@
   "description": "Decide identidad/fraude/AML antes de puntuar (Paso 0), produce un puntaje de riesgo entero a partir de las señales que ya manda Core, lo traduce a probabilidad de incumplimiento y banda A-E, y tarifa (prima por banda sobre la tasa base del producto) sólo si aprueba. v2 sustituye a la v1 (START->APPROVE/DECLINE con 5 entradas y sin score) por una política con score real y precio auditable. v2.1 añade el CUÁNTO: emite approved_credit_limit, la capacidad de pago recomendada por Core graduada por la banda de riesgo.",
   "businessPurpose": "Que el precio del crédito BNPL salga de un score y una PD declarados y gobernados (contrato económico del Motor), no de la tasa fija del producto ni de lo que escriba el operador al desembolsar (T-1..T-5 del plan).",
   "semanticVersion": "2.1.0",
-  "authoringNotes": "v2 de ATLAS_BNPL_UNDERWRITING (Frente 3A, plan _plan-motor-decisiones-tasa-2026-09-25). Las primas por banda (A:0 B:6 C:14 D:24 pt) están aprobadas por Pablo (D-P2, 2026-09-25). Los DEMÁS umbrales numéricos (los tramos de cada factor del puntaje, los cortes de la tabla PD y los cortes de banda) son una calibración inicial pendiente de datos reales de cartera, el mismo tratamiento que ya se le dio a los umbrales de identidad (I-4 del mismo plan). device_risk_score/ip_address_risk_score/account_takeover_risk_score llegan siempre en 0 porque el core aún no manda señales reales de dispositivo (C-6): la fórmula queda lista para cuando existan. worst_delinquency_status usa el enum REAL de AtlasBackend (underwriting-numbers.ts: CURRENT/DPD_30/DPD_60/DPD_90/DPD_120_PLUS/CHARGE_OFF), que colapsa los tramos '1-29' y '30-59' del texto original en un solo valor DPD_30: se le asignó +15 (el valor más alto de los dos propuestos, conservador) y DPD_120_PLUS (que el texto no distinguía de '90_PLUS') se calibró en +60, entre +50 (90 días) y +70 (castigo), preservando el orden de severidad. floor(x) no existe como operador del DSL de expresiones (expression-evaluator.ts sólo trae add/sub/mul/div/min/max/round): floor(oldest_trade_age_months/4) se implementó como round(v/4 - 0,5), exacto para todo entero v>=0 (verificado por fuerza bruta 0..400 antes de publicar). v2.1.0 (2026-10-05): (1) LÍMITE POR BANDA. Hasta 2.0.0 el artefacto decía sí/no y a qué precio, pero no cuánto: no emitía approved_credit_limit y Core guardaba la línea en 0 o no la escribía. Ahora approved_credit_limit = capacity_recommended_limit × factor de la banda (A:100 % B:85 % C:70 % D:50 %; E rechaza y emite 0), redondeado HACIA ABAJO a múltiplos de 50. Los factores son calibración inicial aprobada por Pablo (2026-10-05) pendiente de datos de cartera. D no puede bajar de 50 %: Core propone como mucho el DOBLE de la línea vigente (graduationFactor=2 de payment-capacity), así que con un factor f la línea se estabiliza sólo si 2f >= 1; con 40 % cada recálculo horario la encogía (1500→600→480→384…). El factor se aplica como entero (capacidad × pct / 5000) para que 2000 × 0,85 no salga 1699,99 y pierda un escalón. (2) FRESCURA. Las 37 variables declaraban 60 s y FAIL_CLOSED; Core manda la fecha REAL del dato, así que el expediente económico (declarado en el alta) y la identidad (verificada una vez) llegaban siempre vencidos: las 67 ejecuciones de TEST acabaron en NO_DECISION por VARIABLE_STALE. 60 s es correcto para lo que Core lee en vivo de su libro y falso para lo demás: identidad pasa a 365 días y el expediente económico (y la capacidad que se deriva de él) a 180. (3) fraud_signal deja de ser obligatoria: Core sólo la manda cuando HAY un caso de fraude abierto (su ausencia no afirma que no haya señal), y exigirla tumbaba toda decisión de un cliente sin caso."
+  "authoringNotes": "v2 de ATLAS_BNPL_UNDERWRITING (Frente 3A, plan _plan-motor-decisiones-tasa-2026-09-25). Las primas por banda (A:0 B:6 C:14 D:24 pt) están aprobadas por Pablo (D-P2, 2026-09-25). Los DEMÁS umbrales numéricos (los tramos de cada factor del puntaje, los cortes de la tabla PD y los cortes de banda) son una calibración inicial pendiente de datos reales de cartera, el mismo tratamiento que ya se le dio a los umbrales de identidad (I-4 del mismo plan). device_risk_score/ip_address_risk_score/account_takeover_risk_score llegan siempre en 0 porque el core aún no manda señales reales de dispositivo (C-6): la fórmula queda lista para cuando existan. worst_delinquency_status usa el enum REAL de AtlasBackend (underwriting-numbers.ts: CURRENT/DPD_30/DPD_60/DPD_90/DPD_120_PLUS/CHARGE_OFF), que colapsa los tramos '1-29' y '30-59' del texto original en un solo valor DPD_30: se le asignó +15 (el valor más alto de los dos propuestos, conservador) y DPD_120_PLUS (que el texto no distinguía de '90_PLUS') se calibró en +60, entre +50 (90 días) y +70 (castigo), preservando el orden de severidad. floor(x) no existe como operador del DSL de expresiones (expression-evaluator.ts sólo trae add/sub/mul/div/min/max/round): floor(oldest_trade_age_months/4) se implementó como round(v/4 - 0,5), exacto para todo entero v>=0 (verificado por fuerza bruta 0..400 antes de publicar). v2.1.0 (2026-10-05): (1) LÍMITE POR BANDA. Hasta 2.0.0 el artefacto decía sí/no y a qué precio, pero no cuánto: no emitía approved_credit_limit y Core guardaba la línea en 0 o no la escribía. Ahora approved_credit_limit = capacity_recommended_limit × factor de la banda (A:100 % B:85 % C:70 % D:50 %; E rechaza y emite 0), redondeado HACIA ABAJO a múltiplos de 50. Los factores son calibración inicial aprobada por Pablo (2026-10-05) pendiente de datos de cartera. D no puede bajar de 50 %: Core propone como mucho el DOBLE de la línea vigente (graduationFactor=2 de payment-capacity), así que con un factor f la línea se estabiliza sólo si 2f >= 1; con 40 % cada recálculo horario la encogía (1500→600→480→384…). El factor se aplica como entero (capacidad × pct / 5000) para que 2000 × 0,85 no salga 1699,99 y pierda un escalón. (2) FRESCURA. Las 37 variables declaraban 60 s y FAIL_CLOSED; Core manda la fecha REAL del dato, así que el expediente económico (declarado en el alta) y la identidad (verificada una vez) llegaban siempre vencidos: las 67 ejecuciones de TEST acabaron en NO_DECISION por VARIABLE_STALE. 60 s es correcto para lo que Core lee en vivo de su libro y falso para lo demás: identidad pasa a 365 días y el expediente económico (y la capacidad que se deriva de él) a 180. (3) fraud_signal deja de ser obligatoria: Core sólo la manda cuando HAY un caso de fraude abierto (su ausencia no afirma que no haya señal), y exigirla tumbaba toda decisión de un cliente sin caso. (4) FRESCURA NO CRÍTICA para lo que Core no puede fechar: las 14 señales que manda con valor neutro y sin fecha porque todavía no las mide (dispositivo, IP, toma de cuenta, Tor, SIM, automatización, geolocalización, fraude conocido, sanciones sin cotejo, jurisdicción, quiebra y deuda/ingreso sin gastos), más fraud_signal y capacity_recommended_limit, declaran fallbackPolicy DEGRADE en vez de FAIL_CLOSED. Con FAIL_CLOSED, una variable sin fecha cuenta como «frescura desconocida» y Core no escribe la decisión: ni la línea ni la compra. Siguen siendo obligatorias (deben venir) y, si un día llegan con fecha vencida, la decisión sale degradada y Core tampoco la usa. (5) capacity_recommended_limit es opcional: una COMPRA no la manda, y exigirla tumbaba todas las compras."
  },
  "queueCode": "BNPL_UNDERWRITING",
  "inputs": [
@@ -30,7 +30,8 @@
    "code": "sanctions_screening_result",
    "dataType": "STRING",
    "name": "Resultado de listas de sanciones",
-   "description": "Resultado del cribado contra listas de sanciones internacionales."
+   "description": "Resultado del cribado contra listas de sanciones internacionales.",
+   "fallbackPolicy": "DEGRADE"
   },
   {
    "code": "fraud_signal",
@@ -38,55 +39,64 @@
    "name": "Señal de fraude",
    "description": "Bandera consolidada de señales críticas de fraude o identidad.",
    "required": false,
-   "nullable": true
+   "nullable": true,
+   "fallbackPolicy": "DEGRADE"
   },
   {
    "code": "known_fraud_device_flag",
    "dataType": "BOOLEAN",
    "name": "Dispositivo con fraude conocido",
-   "description": "El dispositivo aparece en casos de fraude confirmados previamente."
+   "description": "El dispositivo aparece en casos de fraude confirmados previamente.",
+   "fallbackPolicy": "DEGRADE"
   },
   {
    "code": "known_fraud_email_flag",
    "dataType": "BOOLEAN",
    "name": "Correo con fraude conocido",
-   "description": "El correo aparece en casos de fraude confirmados previamente."
+   "description": "El correo aparece en casos de fraude confirmados previamente.",
+   "fallbackPolicy": "DEGRADE"
   },
   {
    "code": "known_fraud_phone_flag",
    "dataType": "BOOLEAN",
    "name": "Teléfono con fraude conocido",
-   "description": "El teléfono aparece en casos de fraude confirmados previamente."
+   "description": "El teléfono aparece en casos de fraude confirmados previamente.",
+   "fallbackPolicy": "DEGRADE"
   },
   {
    "code": "high_risk_jurisdiction_flag",
    "dataType": "BOOLEAN",
    "name": "Jurisdicción de alto riesgo",
-   "description": "El cliente u operación involucra una jurisdicción de alto riesgo AML."
+   "description": "El cliente u operación involucra una jurisdicción de alto riesgo AML.",
+   "fallbackPolicy": "DEGRADE"
   },
   {
    "code": "ip_tor_detected",
    "dataType": "BOOLEAN",
    "name": "Red Tor detectada",
-   "description": "Indica si la conexión proviene de la red de anonimización Tor."
+   "description": "Indica si la conexión proviene de la red de anonimización Tor.",
+   "fallbackPolicy": "DEGRADE"
   },
   {
    "code": "sim_swap_detected",
    "dataType": "BOOLEAN",
    "name": "Cambio de SIM detectado",
-   "description": "Indica un cambio reciente de SIM en el número declarado."
+   "description": "Indica un cambio reciente de SIM en el número declarado.",
+   "fallbackPolicy": "DEGRADE"
   },
   {
    "code": "browser_automation_detected",
    "dataType": "BOOLEAN",
    "name": "Automatización de navegador detectada",
-   "description": "Indica el uso de herramientas de automatización de navegador."
+   "description": "Indica el uso de herramientas de automatización de navegador.",
+   "fallbackPolicy": "DEGRADE"
   },
   {
    "code": "geolocation_mismatch_flag",
    "dataType": "BOOLEAN",
    "name": "Discrepancia de geolocalización",
-   "description": "Indica discrepancia entre el domicilio declarado y la geolocalización."
+   "description": "Indica discrepancia entre el domicilio declarado y la geolocalización.",
+   "fallbackPolicy": "DEGRADE"
   },
   {
    "code": "affordability_ratio",
@@ -106,7 +116,8 @@
    "constraints": {
     "minimum": 0
    },
-   "freshnessSlaSeconds": 15552000
+   "freshnessSlaSeconds": 15552000,
+   "fallbackPolicy": "DEGRADE"
   },
   {
    "code": "income_stability_score",
@@ -173,7 +184,8 @@
    "code": "bankruptcy_flag",
    "dataType": "BOOLEAN",
    "name": "Bancarrota registrada",
-   "description": "Indica si existe una bancarrota vigente o reciente en el historial."
+   "description": "Indica si existe una bancarrota vigente o reciente en el historial.",
+   "fallbackPolicy": "DEGRADE"
   },
   {
    "code": "oldest_trade_age_months",
@@ -220,7 +232,8 @@
    "constraints": {
     "minimum": 0,
     "maximum": 100
-   }
+   },
+   "fallbackPolicy": "DEGRADE"
   },
   {
    "code": "ip_address_risk_score",
@@ -230,7 +243,8 @@
    "constraints": {
     "minimum": 0,
     "maximum": 100
-   }
+   },
+   "fallbackPolicy": "DEGRADE"
   },
   {
    "code": "account_takeover_risk_score",
@@ -240,7 +254,8 @@
    "constraints": {
     "minimum": 0,
     "maximum": 100
-   }
+   },
+   "fallbackPolicy": "DEGRADE"
   },
   {
    "code": "velocity_applications_24h",
@@ -265,11 +280,14 @@
    "code": "capacity_recommended_limit",
    "dataType": "DECIMAL",
    "name": "Límite recomendado por capacidad de pago",
-   "description": "Propuesta de límite que calcula Core cruzando la cuota que el cliente puede sostener (extracto o ingreso declarado) con lo que la relación —antigüedad, historial de pago en Atlas y fidelización— permite conceder todavía. Es un techo: la política lo gradúa por banda, nunca lo supera.",
+   "description": "Propuesta de límite que calcula Core cruzando la cuota que el cliente puede sostener (extracto o ingreso declarado) con lo que la relación —antigüedad, historial de pago en Atlas y fidelización— permite conceder todavía. Es un techo: la política lo gradúa por banda, nunca lo supera. Sólo la manda el recálculo de la LÍNEA; una compra no la trae, y entonces el artefacto no concede límite (0) pero sigue decidiendo sí/no y precio.",
    "constraints": {
     "minimum": 0
    },
-   "freshnessSlaSeconds": 15552000
+   "freshnessSlaSeconds": 15552000,
+   "fallbackPolicy": "DEGRADE",
+   "required": false,
+   "nullable": true
   }
  ],
  "outputs": [
@@ -2249,7 +2267,15 @@
                 "op": "mul",
                 "args": [
                  {
-                  "var": "capacity_recommended_limit"
+                  "op": "coalesce",
+                  "args": [
+                   {
+                    "var": "capacity_recommended_limit"
+                   },
+                   {
+                    "value": 0
+                   }
+                  ]
                  },
                  {
                   "var": "intermediate.limit_pct"
@@ -4685,6 +4711,57 @@
     "pricing_tier": "A",
     "annual_percentage_rate": 0.28,
     "approved_credit_limit": 1500
+   }
+  },
+  {
+   "caseCode": "COMPRA-SIN-CAPACIDAD-DECIDE-CON-LIMITE-CERO",
+   "testName": "Una compra no manda capacity_recommended_limit: decide igual (banda y precio) y el límite sale 0",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 2,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.02,
+    "risk_band": "A",
+    "pricing_tier": "A",
+    "annual_percentage_rate": 0.28,
+    "approved_credit_limit": 0
    }
   }
  ],

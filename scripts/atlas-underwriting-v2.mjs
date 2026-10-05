@@ -330,9 +330,11 @@ function cuerpoDelGrafo(versiones, reasonIds) {
         variableVersionId: versiones.get(v.code),
         usageType: 'INPUT',
         dependencyPath: `input.${v.code}`,
-        // `fraud_signal` es la única entrada opcional: Core sólo la manda con un caso abierto.
+        // Opcionales: `fraud_signal` (Core sólo la manda con un caso abierto) y
+        // `capacity_recommended_limit` (sólo la manda el recálculo de la línea, no una compra).
         isRequired: v.required ?? true,
-        fallbackPolicy: 'FAIL_CLOSED',
+        // `DEGRADE` en lo que Core no puede fechar; ver `authoringNotes` (4) de la definición.
+        fallbackPolicy: v.fallbackPolicy ?? 'FAIL_CLOSED',
       })),
       ...DEFINICION.outputs.map((v) => ({
         variableVersionId: versiones.get(v.code),

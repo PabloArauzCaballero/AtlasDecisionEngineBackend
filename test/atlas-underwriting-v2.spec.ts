@@ -777,6 +777,28 @@ describe('ATLAS_BNPL_UNDERWRITING v2 · el guion que clona v1 y escribe el grafo
       expect(versionadas.find((v) => v.codigo === 'fraud_signal')!.cuerpo.nullable).toBe(true);
     });
 
+    it('lo que Core no puede fechar no es crítico para la frescura; lo demás sigue FAIL_CLOSED', () => {
+      const grafo = motor.grafosPorVersion.get(v2Id) as {
+        dependencies: Array<{
+          dependencyPath: string;
+          fallbackPolicy: string;
+          isRequired: boolean;
+        }>;
+      };
+      const entrada = (codigo: string) =>
+        grafo.dependencies.find((d) => d.dependencyPath === `input.${codigo}`)!;
+      // Sin fecha en TEST (ejecución 77): con FAIL_CLOSED, Core no escribiría ninguna decisión.
+      expect(entrada('device_risk_score').fallbackPolicy).toBe('DEGRADE');
+      expect(entrada('sanctions_screening_result').fallbackPolicy).toBe('DEGRADE');
+      expect(entrada('capacity_recommended_limit')).toMatchObject({
+        fallbackPolicy: 'DEGRADE',
+        isRequired: false,
+      });
+      // Lo que Core fecha (identidad, expediente, libro) sigue siendo crítico.
+      expect(entrada('kyc_status').fallbackPolicy).toBe('FAIL_CLOSED');
+      expect(entrada('worst_delinquency_status').fallbackPolicy).toBe('FAIL_CLOSED');
+    });
+
     it('cada cuerpo pasa los DTO reales de la API', () => {
       for (const cuerpo of motor.cuerposDe('POST', /^\/v1\/variables$/)) {
         expect(errores(CreateVariableDefinitionDto, cuerpo)).toEqual([]);
