@@ -5,10 +5,10 @@
   "riskDomain": "CREDIT_ORIGINATION",
   "ownerTeam": "RISK_DECISIONING",
   "name": "Underwriting BNPL",
-  "description": "Decide identidad/fraude/AML antes de puntuar (Paso 0), produce un puntaje de riesgo entero a partir de las señales que ya manda Core, lo traduce a probabilidad de incumplimiento y banda A-E, y tarifa (prima por banda sobre la tasa base del producto) sólo si aprueba. v2 sustituye a la v1 (START->APPROVE/DECLINE con 5 entradas y sin score) por una política con score real y precio auditable. v2.1 añade el CUÁNTO: emite approved_credit_limit, la capacidad de pago recomendada por Core graduada por la banda de riesgo.",
+  "description": "Decide identidad/fraude/AML antes de puntuar (Paso 0), produce un puntaje de riesgo entero a partir de las señales que ya manda Core, lo traduce a probabilidad de incumplimiento y banda A-E, y tarifa (prima por banda sobre la tasa base del producto) sólo si aprueba. v2 sustituye a la v1 (START->APPROVE/DECLINE con 5 entradas y sin score) por una política con score real y precio auditable. v2.1 añade el CUÁNTO: emite approved_credit_limit, la capacidad de pago recomendada por Core graduada por la banda de riesgo. v2.2 añade VETOS antes del puntaje (mora vigente, crédito castigado, cuota por encima del 40 % del ingreso), deja de financiar la banda D, recorta la tasa al tope de usura y puntúa la conducta del extracto bancario verificado.",
   "businessPurpose": "Que el precio del crédito BNPL salga de un score y una PD declarados y gobernados (contrato económico del Motor), no de la tasa fija del producto ni de lo que escriba el operador al desembolsar (T-1..T-5 del plan).",
-  "semanticVersion": "2.1.0",
-  "authoringNotes": "v2 de ATLAS_BNPL_UNDERWRITING (Frente 3A, plan _plan-motor-decisiones-tasa-2026-09-25). Las primas por banda (A:0 B:6 C:14 D:24 pt) están aprobadas por Pablo (D-P2, 2026-09-25). Los DEMÁS umbrales numéricos (los tramos de cada factor del puntaje, los cortes de la tabla PD y los cortes de banda) son una calibración inicial pendiente de datos reales de cartera, el mismo tratamiento que ya se le dio a los umbrales de identidad (I-4 del mismo plan). device_risk_score/ip_address_risk_score/account_takeover_risk_score llegan siempre en 0 porque el core aún no manda señales reales de dispositivo (C-6): la fórmula queda lista para cuando existan. worst_delinquency_status usa el enum REAL de AtlasBackend (underwriting-numbers.ts: CURRENT/DPD_30/DPD_60/DPD_90/DPD_120_PLUS/CHARGE_OFF), que colapsa los tramos '1-29' y '30-59' del texto original en un solo valor DPD_30: se le asignó +15 (el valor más alto de los dos propuestos, conservador) y DPD_120_PLUS (que el texto no distinguía de '90_PLUS') se calibró en +60, entre +50 (90 días) y +70 (castigo), preservando el orden de severidad. floor(x) no existe como operador del DSL de expresiones (expression-evaluator.ts sólo trae add/sub/mul/div/min/max/round): floor(oldest_trade_age_months/4) se implementó como round(v/4 - 0,5), exacto para todo entero v>=0 (verificado por fuerza bruta 0..400 antes de publicar). v2.1.0 (2026-10-05): (1) LÍMITE POR BANDA. Hasta 2.0.0 el artefacto decía sí/no y a qué precio, pero no cuánto: no emitía approved_credit_limit y Core guardaba la línea en 0 o no la escribía. Ahora approved_credit_limit = capacity_recommended_limit × factor de la banda (A:100 % B:85 % C:70 % D:50 %; E rechaza y emite 0), redondeado HACIA ABAJO a múltiplos de 50. Los factores son calibración inicial aprobada por Pablo (2026-10-05) pendiente de datos de cartera. D no puede bajar de 50 %: Core propone como mucho el DOBLE de la línea vigente (graduationFactor=2 de payment-capacity), así que con un factor f la línea se estabiliza sólo si 2f >= 1; con 40 % cada recálculo horario la encogía (1500→600→480→384…). El factor se aplica como entero (capacidad × pct / 5000) para que 2000 × 0,85 no salga 1699,99 y pierda un escalón. (2) FRESCURA. Las 37 variables declaraban 60 s y FAIL_CLOSED; Core manda la fecha REAL del dato, así que el expediente económico (declarado en el alta) y la identidad (verificada una vez) llegaban siempre vencidos: las 67 ejecuciones de TEST acabaron en NO_DECISION por VARIABLE_STALE. 60 s es correcto para lo que Core lee en vivo de su libro y falso para lo demás: identidad pasa a 365 días y el expediente económico (y la capacidad que se deriva de él) a 180. (3) fraud_signal deja de ser obligatoria: Core sólo la manda cuando HAY un caso de fraude abierto (su ausencia no afirma que no haya señal), y exigirla tumbaba toda decisión de un cliente sin caso. (4) FRESCURA NO CRÍTICA para lo que Core no puede fechar: las 14 señales que manda con valor neutro y sin fecha porque todavía no las mide (dispositivo, IP, toma de cuenta, Tor, SIM, automatización, geolocalización, fraude conocido, sanciones sin cotejo, jurisdicción, quiebra y deuda/ingreso sin gastos), más fraud_signal y capacity_recommended_limit, declaran fallbackPolicy DEGRADE en vez de FAIL_CLOSED. Con FAIL_CLOSED, una variable sin fecha cuenta como «frescura desconocida» y Core no escribe la decisión: ni la línea ni la compra. Siguen siendo obligatorias (deben venir) y, si un día llegan con fecha vencida, la decisión sale degradada y Core tampoco la usa. (5) capacity_recommended_limit es opcional: una COMPRA no la manda, y exigirla tumbaba todas las compras."
+  "semanticVersion": "2.2.0",
+  "authoringNotes": "v2 de ATLAS_BNPL_UNDERWRITING (Frente 3A, plan _plan-motor-decisiones-tasa-2026-09-25). Las primas por banda (A:0 B:6 C:14 D:24 pt) están aprobadas por Pablo (D-P2, 2026-09-25). Los DEMÁS umbrales numéricos (los tramos de cada factor del puntaje, los cortes de la tabla PD y los cortes de banda) son una calibración inicial pendiente de datos reales de cartera, el mismo tratamiento que ya se le dio a los umbrales de identidad (I-4 del mismo plan). device_risk_score/ip_address_risk_score/account_takeover_risk_score llegan siempre en 0 porque el core aún no manda señales reales de dispositivo (C-6): la fórmula queda lista para cuando existan. worst_delinquency_status usa el enum REAL de AtlasBackend (underwriting-numbers.ts: CURRENT/DPD_30/DPD_60/DPD_90/DPD_120_PLUS/CHARGE_OFF), que colapsa los tramos '1-29' y '30-59' del texto original en un solo valor DPD_30: se le asignó +15 (el valor más alto de los dos propuestos, conservador) y DPD_120_PLUS (que el texto no distinguía de '90_PLUS') se calibró en +60, entre +50 (90 días) y +70 (castigo), preservando el orden de severidad. floor(x) no existe como operador del DSL de expresiones (expression-evaluator.ts sólo trae add/sub/mul/div/min/max/round): floor(oldest_trade_age_months/4) se implementó como round(v/4 - 0,5), exacto para todo entero v>=0 (verificado por fuerza bruta 0..400 antes de publicar). v2.1.0 (2026-10-05): (1) LÍMITE POR BANDA. Hasta 2.0.0 el artefacto decía sí/no y a qué precio, pero no cuánto: no emitía approved_credit_limit y Core guardaba la línea en 0 o no la escribía. Ahora approved_credit_limit = capacity_recommended_limit × factor de la banda (A:100 % B:85 % C:70 % D:50 %; E rechaza y emite 0), redondeado HACIA ABAJO a múltiplos de 50. Los factores son calibración inicial aprobada por Pablo (2026-10-05) pendiente de datos de cartera. D no puede bajar de 50 %: Core propone como mucho el DOBLE de la línea vigente (graduationFactor=2 de payment-capacity), así que con un factor f la línea se estabiliza sólo si 2f >= 1; con 40 % cada recálculo horario la encogía (1500→600→480→384…). El factor se aplica como entero (capacidad × pct / 5000) para que 2000 × 0,85 no salga 1699,99 y pierda un escalón. (2) FRESCURA. Las 37 variables declaraban 60 s y FAIL_CLOSED; Core manda la fecha REAL del dato, así que el expediente económico (declarado en el alta) y la identidad (verificada una vez) llegaban siempre vencidos: las 67 ejecuciones de TEST acabaron en NO_DECISION por VARIABLE_STALE. 60 s es correcto para lo que Core lee en vivo de su libro y falso para lo demás: identidad pasa a 365 días y el expediente económico (y la capacidad que se deriva de él) a 180. (3) fraud_signal deja de ser obligatoria: Core sólo la manda cuando HAY un caso de fraude abierto (su ausencia no afirma que no haya señal), y exigirla tumbaba toda decisión de un cliente sin caso. (4) FRESCURA NO CRÍTICA para lo que Core no puede fechar: las 14 señales que manda con valor neutro y sin fecha porque todavía no las mide (dispositivo, IP, toma de cuenta, Tor, SIM, automatización, geolocalización, fraude conocido, sanciones sin cotejo, jurisdicción, quiebra y deuda/ingreso sin gastos), más fraud_signal y capacity_recommended_limit, declaran fallbackPolicy DEGRADE en vez de FAIL_CLOSED. Con FAIL_CLOSED, una variable sin fecha cuenta como «frescura desconocida» y Core no escribe la decisión: ni la línea ni la compra. Siguen siendo obligatorias (deben venir) y, si un día llegan con fecha vencida, la decisión sale degradada y Core tampoco la usa. (5) capacity_recommended_limit es opcional: una COMPRA no la manda, y exigirla tumbaba todas las compras. v2.2.0 (2026-10-06, revisión financiera): (1) VETOS. La 2.1.0 era compensatoria sin vetos: con las fórmulas tal cual, un cliente con 95 días de mora salía en banda C aprobado, uno con un castigo en C y un desempleado con Bs 1.000 en D (E empezaba en más de 180 puntos). Ahora, después de las compuertas y antes de puntuar, rechazan: cualquier cuota vencida (worst_delinquency_status distinto de CURRENT y de CHARGE_OFF → MORA_VIGENTE), un castigo (CHARGE_OFF o charge_off_count > 0 → CREDITO_CASTIGADO) y una cuota por encima del 40 % del ingreso (affordability_ratio > 0,4 → CUOTA_EXCEDE_INGRESO; Core mide contra el ingreso VERIFICADO del extracto cuando lo hay). Un rechazo emite límite 0: al entrar en mora Core recalcula la línea y queda cerrada hasta que el cliente se ponga al día (el recálculo por pago la reabre). (2) BANDA D NO SE FINANCIA. Con el tope de usura del 24 % la prima de D (+24) no se puede cobrar, y la pérdida esperada de una PD de hasta 25 % (horizonte 12 meses, LGD sin garantía ~85 %) no la cubre ni el interés de 3 meses ni la comisión del comercio. D y E rechazan (RIESGO_EXCEDE_EL_LIMITE). (3) TASA CON TOPE. annual_percentage_rate = min(base + prima, usury_cap_rate); Core ya mandaba usury_cap_rate (env USURY_CAP_RATE) y el grafo no la declaraba; sin ella se usa 0,24. (4) AUSENCIAS. employment_status UNKNOWN (dato no declarado) suma 15 y no los 60 de UNEMPLOYED; Core manda income_stability_score 50 sin antigüedad. (5) CONSULTAS Y VELOCIDAD. inquiries_last_6m pasa a ser el número de solicitudes RECHAZADAS en 6 meses (10 puntos cada una, tope 40); antes eran todos los créditos de por vida y castigaban al cliente fiel. La velocidad sólo suma por encima de 3 solicitudes en 24 h (comprar varias veces al día es uso normal de BNPL). (6) EXTRACTO. Cinco entradas opcionales (statement_*) con la conducta que el worker de capacidad ya medía: rechazos por fondos insuficientes (10 c/u, tope 30), meses cerrados en negativo (10 c/u, tope 30), gestiones de cobranza (40 si hay alguna) y meses con gasto de alto riesgo (10 c/u, tope 30); sólo cuentan con statement_available. Ningún corte nuevo está calibrado contra cartera: son de partida, conservadores, y se recalibran con mora observada."
  },
  "queueCode": "BNPL_UNDERWRITING",
  "inputs": [
@@ -288,6 +288,76 @@
    "fallbackPolicy": "DEGRADE",
    "required": false,
    "nullable": true
+  },
+  {
+   "code": "statement_available",
+   "dataType": "BOOLEAN",
+   "name": "Extracto bancario vigente",
+   "description": "Hay un extracto elegible (tres meses completos) de menos de 180 días. Sin él, las demás statement_* no se puntúan.",
+   "fallbackPolicy": "DEGRADE",
+   "required": false,
+   "nullable": true
+  },
+  {
+   "code": "statement_nsf_events",
+   "dataType": "INTEGER",
+   "name": "Rechazos por fondos insuficientes",
+   "description": "Rechazos por fondos insuficientes en el extracto vigente.",
+   "fallbackPolicy": "DEGRADE",
+   "required": false,
+   "nullable": true,
+   "constraints": {
+    "minimum": 0
+   }
+  },
+  {
+   "code": "statement_months_negative",
+   "dataType": "INTEGER",
+   "name": "Meses cerrados en negativo",
+   "description": "Meses del extracto que cerraron con saldo negativo.",
+   "fallbackPolicy": "DEGRADE",
+   "required": false,
+   "nullable": true,
+   "constraints": {
+    "minimum": 0
+   }
+  },
+  {
+   "code": "statement_collection_actions",
+   "dataType": "INTEGER",
+   "name": "Gestiones de cobranza en la cuenta",
+   "description": "Movimientos del extracto que son gestiones de cobranza de terceros.",
+   "fallbackPolicy": "DEGRADE",
+   "required": false,
+   "nullable": true,
+   "constraints": {
+    "minimum": 0
+   }
+  },
+  {
+   "code": "statement_high_risk_months",
+   "dataType": "INTEGER",
+   "name": "Meses con gasto de alto riesgo",
+   "description": "Meses del extracto con gasto de alto riesgo (apuestas y similares).",
+   "fallbackPolicy": "DEGRADE",
+   "required": false,
+   "nullable": true,
+   "constraints": {
+    "minimum": 0
+   }
+  },
+  {
+   "code": "usury_cap_rate",
+   "dataType": "DECIMAL",
+   "name": "Tope de usura",
+   "description": "Tasa anual máxima cobrable (tanto por uno). La manda Core desde USURY_CAP_RATE; sin ella se usa 0,24.",
+   "fallbackPolicy": "DEGRADE",
+   "required": false,
+   "nullable": true,
+   "constraints": {
+    "minimum": 0,
+    "maximum": 1
+   }
   }
  ],
  "outputs": [
@@ -296,7 +366,7 @@
    "dataType": "DECIMAL",
    "usageType": "OUTPUT",
    "name": "Probabilidad de incumplimiento",
-   "description": "Probabilidad estimada de default en el horizonte de la política (0-1).",
+   "description": "Probabilidad estimada de incumplimiento a 12 meses (0-1). Tabla de partida, sin calibrar contra cartera.",
    "semanticRole": "PROBABILITY_OF_DEFAULT",
    "required": true,
    "absenceReasons": []
@@ -320,7 +390,10 @@
    "semanticRole": "NONE",
    "required": false,
    "absenceReasons": [
-    "RIESGO_EXCEDE_EL_LIMITE"
+    "RIESGO_EXCEDE_EL_LIMITE",
+    "MORA_VIGENTE",
+    "CREDITO_CASTIGADO",
+    "CUOTA_EXCEDE_INGRESO"
    ]
   },
   {
@@ -328,11 +401,14 @@
    "dataType": "DECIMAL",
    "usageType": "OUTPUT",
    "name": "Tasa anual efectiva",
-   "description": "Tasa anual efectiva ofrecida (tanto por uno) = product_base_annual_rate + prima/100.",
+   "description": "Tasa anual efectiva ofrecida (tanto por uno) = min(product_base_annual_rate + prima/100, usury_cap_rate).",
    "semanticRole": "PRICED_RATE",
    "required": false,
    "absenceReasons": [
-    "RIESGO_EXCEDE_EL_LIMITE"
+    "RIESGO_EXCEDE_EL_LIMITE",
+    "MORA_VIGENTE",
+    "CREDITO_CASTIGADO",
+    "CUOTA_EXCEDE_INGRESO"
    ]
   },
   {
@@ -358,7 +434,7 @@
    "dataType": "DECIMAL",
    "usageType": "OUTPUT",
    "name": "Límite de crédito aprobado",
-   "description": "Cuánto puede gastar el cliente: capacity_recommended_limit × factor de la banda (A:100 % B:85 % C:70 % D:50 %), redondeado hacia abajo a múltiplos de 50. Un rechazo emite 0.",
+   "description": "Cuánto puede gastar el cliente: capacity_recommended_limit × factor de la banda (A:100 % B:85 % C:70 %), redondeado hacia abajo a múltiplos de 50. Un rechazo (banda D/E o un veto) emite 0.",
    "semanticRole": "APPROVED_LIMIT",
    "required": false,
    "absenceReasons": [
@@ -411,7 +487,7 @@
    "reasonCode": "RIESGO_EXCEDE_EL_LIMITE",
    "category": "CREDIT_UNDERWRITING",
    "publicMessage": "No podemos aprobar esta solicitud de crédito por ahora.",
-   "internalMessage": "risk_band=E (probability_of_default > 0.25); rechazo real, a diferencia de RIESGO_ONBOARDING_CLIENTE que nunca rechaza (D-P3).",
+   "internalMessage": "risk_band D o E (probability_of_default > 0.15 a 12 meses); la banda D no se financia desde la 2.2.0: con el tope de usura su prima no se puede cobrar y la pérdida esperada no se cubre.",
    "severity": "HIGH",
    "isAdverseAction": true
   },
@@ -419,9 +495,33 @@
    "reasonCode": "APROBADO_UNDERWRITING_V2",
    "category": "CREDIT_UNDERWRITING",
    "publicMessage": "Tu solicitud fue aprobada.",
-   "internalMessage": "risk_band en A-D; se tarifa con la prima de la banda sobre la tasa base del producto.",
+   "internalMessage": "risk_band en A-C; se tarifa con la prima de la banda sobre la tasa base del producto, con tope de usura.",
    "severity": "LOW",
    "isAdverseAction": false
+  },
+  {
+   "reasonCode": "MORA_VIGENTE",
+   "category": "CREDIT_UNDERWRITING",
+   "publicMessage": "Tienes una cuota vencida. Cuando la pagues podrás volver a usar tu crédito.",
+   "internalMessage": "worst_delinquency_status en DPD_30..DPD_120_PLUS: hay al menos una cuota vencida e impaga.",
+   "severity": "HIGH",
+   "isAdverseAction": true
+  },
+  {
+   "reasonCode": "CREDITO_CASTIGADO",
+   "category": "CREDIT_UNDERWRITING",
+   "publicMessage": "No podemos aprobar esta solicitud de crédito.",
+   "internalMessage": "worst_delinquency_status = CHARGE_OFF o charge_off_count > 0.",
+   "severity": "HIGH",
+   "isAdverseAction": true
+  },
+  {
+   "reasonCode": "CUOTA_EXCEDE_INGRESO",
+   "category": "CREDIT_UNDERWRITING",
+   "publicMessage": "La cuota supera lo que tu ingreso permite comprometer. Prueba con un monto menor o un plazo más largo.",
+   "internalMessage": "affordability_ratio > 0,4 (cuota / ingreso verificado o declarado).",
+   "severity": "HIGH",
+   "isAdverseAction": true
   }
  ],
  "intermediates": [
@@ -452,7 +552,7 @@
   {
    "code": "add_employment",
    "name": "Puntos por situación laboral",
-   "description": "Desempleo +60 y autónomo +8, no excluyentes.",
+   "description": "UNEMPLOYED +60, UNKNOWN (no declarado) +15; + self_employed_flag +8.",
    "dataType": "DECIMAL",
    "producerNodeKey": "SC_1",
    "consumerNodeKeys": []
@@ -508,7 +608,7 @@
   {
    "code": "add_inquiries",
    "name": "Puntos por consultas duras",
-   "description": "min(40, max(0,inquiries_last_6m-2)*8).",
+   "description": "min(40, inquiries_last_6m*10); inquiries_last_6m = solicitudes RECHAZADAS en 6 meses (Core, 2026-10).",
    "dataType": "DECIMAL",
    "producerNodeKey": "SC_3",
    "consumerNodeKeys": []
@@ -556,7 +656,7 @@
   {
    "code": "add_velocity",
    "name": "Puntos por velocidad de solicitudes",
-   "description": "min(60, max(0,velocity_applications_24h-1)*15).",
+   "description": "min(60, max(0,velocity_applications_24h-3)*15).",
    "dataType": "DECIMAL",
    "producerNodeKey": "SC_5",
    "consumerNodeKeys": []
@@ -604,7 +704,7 @@
   {
    "code": "apr",
    "name": "Tasa anual ofrecida (interna)",
-   "description": "product_base_annual_rate + prima_pct/100.",
+   "description": "min(product_base_annual_rate + prima_pct/100, usury_cap_rate ?? 0,24).",
    "dataType": "DECIMAL",
    "producerNodeKey": "SC_PRICING",
    "consumerNodeKeys": []
@@ -623,6 +723,14 @@
    "description": "floor50(capacity_recommended_limit × limit_pct / 100), implementado como 50 × round(capacidad × pct / 5000 − 0,5).",
    "dataType": "DECIMAL",
    "producerNodeKey": "SC_LIMITE",
+   "consumerNodeKeys": []
+  },
+  {
+   "code": "add_statement",
+   "name": "Puntos por la conducta del extracto",
+   "description": "Con statement_available: min(30,nsf*10) + min(30,meses negativos*10) + 40 si hubo cobranza + min(30,meses de alto riesgo*10).",
+   "dataType": "DECIMAL",
+   "producerNodeKey": "SC_5",
    "consumerNodeKeys": []
   }
  ],
@@ -737,16 +845,86 @@
    "reusable": true
   },
   {
-   "code": "BANDA_ES_E",
-   "name": "La banda de riesgo es E",
+   "code": "BANDA_NO_FINANCIABLE",
+   "name": "La banda de riesgo es D o E",
    "expressionType": "JSON_AST",
    "expression": {
-    "op": "eq",
+    "op": "in",
     "left": {
      "var": "intermediate.risk_score_band"
     },
     "right": {
-     "value": "E"
+     "value": [
+      "D",
+      "E"
+     ]
+    }
+   },
+   "severity": "BLOCKING",
+   "reusable": true
+  },
+  {
+   "code": "VETO_MORA_VIGENTE",
+   "name": "Hay una cuota vencida",
+   "expressionType": "JSON_AST",
+   "expression": {
+    "op": "in",
+    "left": {
+     "var": "worst_delinquency_status"
+    },
+    "right": {
+     "value": [
+      "DPD_30",
+      "DPD_60",
+      "DPD_90",
+      "DPD_120_PLUS"
+     ]
+    }
+   },
+   "severity": "BLOCKING",
+   "reusable": true
+  },
+  {
+   "code": "VETO_CASTIGO",
+   "name": "Hay un crédito castigado",
+   "expressionType": "JSON_AST",
+   "expression": {
+    "op": "or",
+    "args": [
+     {
+      "op": "eq",
+      "left": {
+       "var": "worst_delinquency_status"
+      },
+      "right": {
+       "value": "CHARGE_OFF"
+      }
+     },
+     {
+      "op": "gt",
+      "left": {
+       "var": "charge_off_count"
+      },
+      "right": {
+       "value": 0
+      }
+     }
+    ]
+   },
+   "severity": "BLOCKING",
+   "reusable": true
+  },
+  {
+   "code": "VETO_CUOTA_EXCEDE_INGRESO",
+   "name": "La cuota supera el 40 % del ingreso",
+   "expressionType": "JSON_AST",
+   "expression": {
+    "op": "gt",
+    "left": {
+     "var": "affordability_ratio"
+    },
+    "right": {
+     "value": 0.4
     }
    },
    "severity": "BLOCKING",
@@ -834,6 +1012,42 @@
    "reasonCodes": [
     {
      "reasonCode": "APROBADO_UNDERWRITING_V2",
+     "priority": 1
+    }
+   ]
+  },
+  {
+   "code": "ACT_VETO_MORA",
+   "type": "EMIT_REASON",
+   "payload": {},
+   "terminal": false,
+   "reasonCodes": [
+    {
+     "reasonCode": "MORA_VIGENTE",
+     "priority": 1
+    }
+   ]
+  },
+  {
+   "code": "ACT_VETO_CASTIGO",
+   "type": "EMIT_REASON",
+   "payload": {},
+   "terminal": false,
+   "reasonCodes": [
+    {
+     "reasonCode": "CREDITO_CASTIGADO",
+     "priority": 1
+    }
+   ]
+  },
+  {
+   "code": "ACT_VETO_CUOTA",
+   "type": "EMIT_REASON",
+   "payload": {},
+   "terminal": false,
+   "reasonCodes": [
+    {
+     "reasonCode": "CUOTA_EXCEDE_INGRESO",
      "priority": 1
     }
    ]
@@ -1096,6 +1310,95 @@
    }
   },
   {
+   "key": "EVALUAR_VETOS",
+   "type": "CONDITION",
+   "label": "Paso 1: vetos de crédito",
+   "terminal": false,
+   "config": {
+    "description": "Lo que ningún puntaje compensa: mora vigente, castigo y cuota por encima del 40 % del ingreso. Rechazan con límite 0."
+   },
+   "actions": []
+  },
+  {
+   "key": "ACT_VETO_MORA",
+   "type": "ACTION",
+   "label": "Anotar: mora vigente",
+   "terminal": false,
+   "config": {},
+   "actions": [
+    {
+     "actionCode": "ACT_VETO_MORA",
+     "order": 1
+    }
+   ]
+  },
+  {
+   "key": "ACT_VETO_CASTIGO",
+   "type": "ACTION",
+   "label": "Anotar: crédito castigado",
+   "terminal": false,
+   "config": {},
+   "actions": [
+    {
+     "actionCode": "ACT_VETO_CASTIGO",
+     "order": 1
+    }
+   ]
+  },
+  {
+   "key": "ACT_VETO_CUOTA",
+   "type": "ACTION",
+   "label": "Anotar: la cuota excede el ingreso",
+   "terminal": false,
+   "config": {},
+   "actions": [
+    {
+     "actionCode": "ACT_VETO_CUOTA",
+     "order": 1
+    }
+   ]
+  },
+  {
+   "key": "RECHAZAR_POR_VETO",
+   "type": "RESULT",
+   "label": "Rechazar: veto de crédito",
+   "terminal": true,
+   "actions": [],
+   "config": {
+    "mode": "MAPPING",
+    "assignments": [
+     {
+      "source": "EXPRESSION",
+      "expression": {
+       "value": 1
+      },
+      "outputCode": "probability_of_default"
+     },
+     {
+      "source": "EXPRESSION",
+      "expression": {
+       "value": "E"
+      },
+      "outputCode": "risk_band"
+     },
+     {
+      "source": "EXPRESSION",
+      "expression": {
+       "value": "DECLINE"
+      },
+      "outputCode": "decision_outcome"
+     },
+     {
+      "source": "EXPRESSION",
+      "expression": {
+       "value": 0
+      },
+      "outputCode": "approved_credit_limit"
+     }
+    ]
+   }
+  },
+  {
    "key": "SC_1",
    "type": "EXPRESSION",
    "label": "Puntaje: capacidad, deuda, ingreso, empleo",
@@ -1270,7 +1573,22 @@
           "value": 60
          },
          "else": {
-          "value": 0
+          "op": "if",
+          "condition": {
+           "op": "eq",
+           "left": {
+            "var": "employment_status"
+           },
+           "right": {
+            "value": "UNKNOWN"
+           }
+          },
+          "then": {
+           "value": 15
+          },
+          "else": {
+           "value": 0
+          }
          }
         },
         {
@@ -1535,26 +1853,10 @@
          "op": "mul",
          "args": [
           {
-           "op": "max",
-           "args": [
-            {
-             "value": 0
-            },
-            {
-             "op": "sub",
-             "args": [
-              {
-               "var": "inquiries_last_6m"
-              },
-              {
-               "value": 2
-              }
-             ]
-            }
-           ]
+           "var": "inquiries_last_6m"
           },
           {
-           "value": 8
+           "value": 10
           }
          ]
         }
@@ -1714,7 +2016,7 @@
   {
    "key": "SC_5",
    "type": "EXPRESSION",
-   "label": "Puntaje: velocidad de solicitudes",
+   "label": "Puntaje: velocidad de solicitudes y conducta del extracto",
    "terminal": false,
    "actions": [],
    "config": {
@@ -1744,7 +2046,7 @@
                "var": "velocity_applications_24h"
               },
               {
-               "value": 1
+               "value": 3
               }
              ]
             }
@@ -1756,6 +2058,139 @@
          ]
         }
        ]
+      }
+     },
+     {
+      "code": "add_statement",
+      "source": "EXPRESSION",
+      "expression": {
+       "op": "if",
+       "condition": {
+        "op": "coalesce",
+        "args": [
+         {
+          "var": "statement_available"
+         },
+         {
+          "value": false
+         }
+        ]
+       },
+       "then": {
+        "op": "add",
+        "args": [
+         {
+          "op": "min",
+          "args": [
+           {
+            "value": 30
+           },
+           {
+            "op": "mul",
+            "args": [
+             {
+              "op": "coalesce",
+              "args": [
+               {
+                "var": "statement_nsf_events"
+               },
+               {
+                "value": 0
+               }
+              ]
+             },
+             {
+              "value": 10
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "op": "min",
+          "args": [
+           {
+            "value": 30
+           },
+           {
+            "op": "mul",
+            "args": [
+             {
+              "op": "coalesce",
+              "args": [
+               {
+                "var": "statement_months_negative"
+               },
+               {
+                "value": 0
+               }
+              ]
+             },
+             {
+              "value": 10
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "op": "if",
+          "condition": {
+           "op": "gt",
+           "left": {
+            "op": "coalesce",
+            "args": [
+             {
+              "var": "statement_collection_actions"
+             },
+             {
+              "value": 0
+             }
+            ]
+           },
+           "right": {
+            "value": 0
+           }
+          },
+          "then": {
+           "value": 40
+          },
+          "else": {
+           "value": 0
+          }
+         },
+         {
+          "op": "min",
+          "args": [
+           {
+            "value": 30
+           },
+           {
+            "op": "mul",
+            "args": [
+             {
+              "op": "coalesce",
+              "args": [
+               {
+                "var": "statement_high_risk_months"
+               },
+               {
+                "value": 0
+               }
+              ]
+             },
+             {
+              "value": 10
+             }
+            ]
+           }
+          ]
+         }
+        ]
+       },
+       "else": {
+        "value": 0
+       }
       }
      }
     ]
@@ -1825,6 +2260,9 @@
           },
           {
            "var": "intermediate.add_velocity"
+          },
+          {
+           "var": "intermediate.add_statement"
           }
          ]
         },
@@ -2033,7 +2471,7 @@
    "label": "Paso 4: desenlace por banda",
    "terminal": false,
    "config": {
-    "description": "A-D siguen a tarifar; E rechaza (RIESGO_EXCEDE_EL_LIMITE)."
+    "description": "A-C siguen a tarifar; D y E rechazan (RIESGO_EXCEDE_EL_LIMITE)."
    },
    "actions": []
   },
@@ -2156,19 +2594,35 @@
       "expression": {
        "op": "round",
        "arg": {
-        "op": "add",
+        "op": "min",
         "args": [
          {
-          "var": "product_base_annual_rate"
-         },
-         {
-          "op": "mul",
+          "op": "add",
           "args": [
            {
-            "var": "intermediate.prima_pct"
+            "var": "product_base_annual_rate"
            },
            {
-            "value": 0.01
+            "op": "mul",
+            "args": [
+             {
+              "var": "intermediate.prima_pct"
+             },
+             {
+              "value": 0.01
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "op": "coalesce",
+          "args": [
+           {
+            "var": "usury_cap_rate"
+           },
+           {
+            "value": 0.24
            }
           ]
          }
@@ -2453,7 +2907,7 @@
   {
    "key": "E_G_DEFAULT",
    "from": "EVALUAR_COMPUERTAS",
-   "to": "SC_1",
+   "to": "EVALUAR_VETOS",
    "type": "DEFAULT",
    "priority": 6,
    "default": true,
@@ -2576,7 +3030,7 @@
    "default": false,
    "conditions": [
     {
-     "conditionCode": "BANDA_ES_E",
+     "conditionCode": "BANDA_NO_FINANCIABLE",
      "order": 1
     }
    ]
@@ -2625,6 +3079,84 @@
    "priority": 1,
    "default": true,
    "conditions": []
+  },
+  {
+   "key": "E_V1",
+   "from": "EVALUAR_VETOS",
+   "to": "ACT_VETO_MORA",
+   "type": "CONDITIONAL",
+   "priority": 1,
+   "default": false,
+   "conditions": [
+    {
+     "conditionCode": "VETO_MORA_VIGENTE",
+     "order": 1
+    }
+   ]
+  },
+  {
+   "key": "E_V2",
+   "from": "EVALUAR_VETOS",
+   "to": "ACT_VETO_CASTIGO",
+   "type": "CONDITIONAL",
+   "priority": 2,
+   "default": false,
+   "conditions": [
+    {
+     "conditionCode": "VETO_CASTIGO",
+     "order": 1
+    }
+   ]
+  },
+  {
+   "key": "E_V3",
+   "from": "EVALUAR_VETOS",
+   "to": "ACT_VETO_CUOTA",
+   "type": "CONDITIONAL",
+   "priority": 3,
+   "default": false,
+   "conditions": [
+    {
+     "conditionCode": "VETO_CUOTA_EXCEDE_INGRESO",
+     "order": 1
+    }
+   ]
+  },
+  {
+   "key": "E_V_DEFAULT",
+   "from": "EVALUAR_VETOS",
+   "to": "SC_1",
+   "type": "DEFAULT",
+   "priority": 4,
+   "default": true,
+   "conditions": []
+  },
+  {
+   "key": "E_V1_R",
+   "from": "ACT_VETO_MORA",
+   "to": "RECHAZAR_POR_VETO",
+   "type": "DEFAULT",
+   "priority": 1,
+   "default": true,
+   "conditions": []
+  },
+  {
+   "key": "E_V2_R",
+   "from": "ACT_VETO_CASTIGO",
+   "to": "RECHAZAR_POR_VETO",
+   "type": "DEFAULT",
+   "priority": 1,
+   "default": true,
+   "conditions": []
+  },
+  {
+   "key": "E_V3_R",
+   "from": "ACT_VETO_CUOTA",
+   "to": "RECHAZAR_POR_VETO",
+   "type": "DEFAULT",
+   "priority": 1,
+   "default": true,
+   "conditions": []
   }
  ],
  "cases": [
@@ -2656,7 +3188,7 @@
     "charge_off_count": 0,
     "bankruptcy_flag": false,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 0,
@@ -2664,7 +3196,8 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -2703,7 +3236,7 @@
     "charge_off_count": 0,
     "bankruptcy_flag": false,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 0,
@@ -2711,7 +3244,8 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -2750,7 +3284,7 @@
     "charge_off_count": 0,
     "bankruptcy_flag": false,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 0,
@@ -2758,7 +3292,8 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -2797,7 +3332,7 @@
     "charge_off_count": 0,
     "bankruptcy_flag": false,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 0,
@@ -2805,7 +3340,8 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -2844,7 +3380,7 @@
     "charge_off_count": 0,
     "bankruptcy_flag": false,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 0,
@@ -2852,7 +3388,8 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -2891,7 +3428,7 @@
     "charge_off_count": 0,
     "bankruptcy_flag": false,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 0,
@@ -2899,7 +3436,8 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -2938,7 +3476,7 @@
     "charge_off_count": 0,
     "bankruptcy_flag": false,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 0,
@@ -2946,7 +3484,8 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -2985,7 +3524,7 @@
     "charge_off_count": 0,
     "bankruptcy_flag": false,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 0,
@@ -2993,7 +3532,8 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -3032,7 +3572,7 @@
     "charge_off_count": 0,
     "bankruptcy_flag": false,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 0,
@@ -3040,7 +3580,8 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -3084,7 +3625,7 @@
     "charge_off_count": 0,
     "bankruptcy_flag": false,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 0,
@@ -3092,7 +3633,8 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -3136,7 +3678,7 @@
     "charge_off_count": 0,
     "bankruptcy_flag": false,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 3,
@@ -3144,7 +3686,8 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -3188,7 +3731,7 @@
     "charge_off_count": 0,
     "bankruptcy_flag": false,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 0,
@@ -3196,7 +3739,8 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -3240,7 +3784,7 @@
     "charge_off_count": 0,
     "bankruptcy_flag": false,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 3,
@@ -3248,7 +3792,8 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -3292,7 +3837,7 @@
     "charge_off_count": 0,
     "bankruptcy_flag": false,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 0,
@@ -3300,7 +3845,8 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -3344,7 +3890,7 @@
     "charge_off_count": 0,
     "bankruptcy_flag": false,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 3,
@@ -3352,7 +3898,8 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -3385,18 +3932,18 @@
     "browser_automation_detected": false,
     "geolocation_mismatch_flag": false,
     "affordability_ratio": 0.05,
-    "debt_to_income_ratio": 0.1,
-    "income_stability_score": 100,
+    "debt_to_income_ratio": 0.6,
+    "income_stability_score": 80,
     "employment_status": "EMPLOYED",
     "self_employed_flag": false,
     "no_hit_flag": false,
     "thin_file_flag": false,
     "worst_delinquency_status": "CURRENT",
-    "delinquency_count_12m": 8,
-    "charge_off_count": 1,
-    "bankruptcy_flag": false,
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": true,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 0,
@@ -3404,7 +3951,8 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -3422,7 +3970,7 @@
   },
   {
    "caseCode": "BORDE-PUNTAJE-131",
-   "testName": "Puntaje total exacto 131: PD 0.25 banda D",
+   "testName": "Puntaje total exacto 131: PD 0.25 banda D, que desde la 2.2.0 NO se financia",
    "input": {
     "kyc_status": "VERIFIED",
     "national_id_verified": true,
@@ -3437,70 +3985,18 @@
     "browser_automation_detected": false,
     "geolocation_mismatch_flag": false,
     "affordability_ratio": 0.05,
-    "debt_to_income_ratio": 0.1,
-    "income_stability_score": 100,
+    "debt_to_income_ratio": 0.6,
+    "income_stability_score": 76,
     "employment_status": "EMPLOYED",
     "self_employed_flag": false,
     "no_hit_flag": false,
     "thin_file_flag": false,
     "worst_delinquency_status": "CURRENT",
-    "delinquency_count_12m": 8,
-    "charge_off_count": 1,
-    "bankruptcy_flag": false,
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": true,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
-    "revolving_utilization_ratio": 0.2,
-    "payment_history_score": 70,
-    "device_risk_score": 3,
-    "ip_address_risk_score": 0,
-    "account_takeover_risk_score": 0,
-    "velocity_applications_24h": 1,
-    "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 1500
-   },
-   "expectedResult": {
-    "trace": {
-     "terminal": "APROBAR"
-    },
-    "reasonCodes": [
-     "APROBADO_UNDERWRITING_V2"
-    ],
-    "probability_of_default": 0.25,
-    "risk_band": "D",
-    "pricing_tier": "D",
-    "annual_percentage_rate": 0.52,
-    "approved_credit_limit": 750
-   }
-  },
-  {
-   "caseCode": "BORDE-PUNTAJE-180",
-   "testName": "Puntaje total exacto 180: PD 0.25 banda D",
-   "input": {
-    "kyc_status": "VERIFIED",
-    "national_id_verified": true,
-    "sanctions_screening_result": "CLEAR",
-    "fraud_signal": false,
-    "known_fraud_device_flag": false,
-    "known_fraud_email_flag": false,
-    "known_fraud_phone_flag": false,
-    "high_risk_jurisdiction_flag": false,
-    "ip_tor_detected": false,
-    "sim_swap_detected": false,
-    "browser_automation_detected": false,
-    "geolocation_mismatch_flag": false,
-    "affordability_ratio": 0.05,
-    "debt_to_income_ratio": 0.1,
-    "income_stability_score": 100,
-    "employment_status": "EMPLOYED",
-    "self_employed_flag": false,
-    "no_hit_flag": false,
-    "thin_file_flag": false,
-    "worst_delinquency_status": "CURRENT",
-    "delinquency_count_12m": 13,
-    "charge_off_count": 1,
-    "bankruptcy_flag": false,
-    "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 0,
@@ -3508,20 +4004,72 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
-     "terminal": "APROBAR"
+     "terminal": "RECHAZAR"
     },
     "reasonCodes": [
-     "APROBADO_UNDERWRITING_V2"
+     "RIESGO_EXCEDE_EL_LIMITE"
     ],
     "probability_of_default": 0.25,
     "risk_band": "D",
-    "pricing_tier": "D",
-    "annual_percentage_rate": 0.52,
-    "approved_credit_limit": 750
+    "decision_outcome": "DECLINE",
+    "approved_credit_limit": 0
+   }
+  },
+  {
+   "caseCode": "BORDE-PUNTAJE-180",
+   "testName": "Puntaje total exacto 180: último de la banda D, rechaza",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 80,
+    "employment_status": "UNEMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": true,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": true,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 0,
+    "revolving_utilization_ratio": 0.5,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28,
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "RECHAZAR"
+    },
+    "reasonCodes": [
+     "RIESGO_EXCEDE_EL_LIMITE"
+    ],
+    "probability_of_default": 0.25,
+    "risk_band": "D",
+    "decision_outcome": "DECLINE",
+    "approved_credit_limit": 0
    }
   },
   {
@@ -3542,25 +4090,26 @@
     "geolocation_mismatch_flag": false,
     "affordability_ratio": 0.05,
     "debt_to_income_ratio": 0.1,
-    "income_stability_score": 100,
-    "employment_status": "EMPLOYED",
+    "income_stability_score": 76,
+    "employment_status": "UNEMPLOYED",
     "self_employed_flag": false,
-    "no_hit_flag": false,
+    "no_hit_flag": true,
     "thin_file_flag": false,
     "worst_delinquency_status": "CURRENT",
-    "delinquency_count_12m": 13,
-    "charge_off_count": 1,
-    "bankruptcy_flag": false,
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": true,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
-    "revolving_utilization_ratio": 0.2,
+    "inquiries_last_6m": 0,
+    "revolving_utilization_ratio": 0.5,
     "payment_history_score": 70,
-    "device_risk_score": 3,
+    "device_risk_score": 0,
     "ip_address_risk_score": 0,
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -3591,26 +4140,27 @@
     "browser_automation_detected": false,
     "geolocation_mismatch_flag": false,
     "affordability_ratio": 0.05,
-    "debt_to_income_ratio": 0.1,
-    "income_stability_score": 100,
-    "employment_status": "EMPLOYED",
+    "debt_to_income_ratio": 0.6,
+    "income_stability_score": 40,
+    "employment_status": "UNEMPLOYED",
     "self_employed_flag": false,
-    "no_hit_flag": false,
+    "no_hit_flag": true,
     "thin_file_flag": false,
     "worst_delinquency_status": "CURRENT",
-    "delinquency_count_12m": 14,
-    "charge_off_count": 2,
-    "bankruptcy_flag": false,
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": true,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
-    "revolving_utilization_ratio": 0.2,
+    "inquiries_last_6m": 0,
+    "revolving_utilization_ratio": 0.95,
     "payment_history_score": 70,
     "device_risk_score": 0,
     "ip_address_risk_score": 0,
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -3641,26 +4191,27 @@
     "browser_automation_detected": false,
     "geolocation_mismatch_flag": false,
     "affordability_ratio": 0.05,
-    "debt_to_income_ratio": 0.1,
-    "income_stability_score": 100,
-    "employment_status": "EMPLOYED",
+    "debt_to_income_ratio": 0.6,
+    "income_stability_score": 36,
+    "employment_status": "UNEMPLOYED",
     "self_employed_flag": false,
-    "no_hit_flag": false,
+    "no_hit_flag": true,
     "thin_file_flag": false,
     "worst_delinquency_status": "CURRENT",
-    "delinquency_count_12m": 14,
-    "charge_off_count": 2,
-    "bankruptcy_flag": false,
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": true,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
-    "revolving_utilization_ratio": 0.2,
+    "inquiries_last_6m": 0,
+    "revolving_utilization_ratio": 0.95,
     "payment_history_score": 70,
-    "device_risk_score": 3,
+    "device_risk_score": 0,
     "ip_address_risk_score": 0,
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -3702,7 +4253,7 @@
     "charge_off_count": 0,
     "bankruptcy_flag": false,
     "oldest_trade_age_months": 119,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 100,
@@ -3710,7 +4261,8 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -3754,7 +4306,7 @@
     "charge_off_count": 0,
     "bankruptcy_flag": false,
     "oldest_trade_age_months": 200,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 100,
@@ -3762,7 +4314,8 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -3806,7 +4359,7 @@
     "charge_off_count": 0,
     "bankruptcy_flag": false,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 0,
@@ -3814,7 +4367,8 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -3858,7 +4412,7 @@
     "charge_off_count": 0,
     "bankruptcy_flag": false,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 0,
@@ -3866,7 +4420,8 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -3884,7 +4439,7 @@
   },
   {
    "caseCode": "MORA-DPD30-COLAPSA-1-29-Y-30-59",
-   "testName": "worst_delinquency_status=DPD_30 (enum real): +15",
+   "testName": "DPD_30 (cualquier cuota vencida, 1-59 días): veto MORA_VIGENTE con límite 0",
    "input": {
     "kyc_status": "VERIFIED",
     "national_id_verified": true,
@@ -3910,7 +4465,7 @@
     "charge_off_count": 0,
     "bankruptcy_flag": false,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 0,
@@ -3918,25 +4473,25 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
-     "terminal": "APROBAR"
+     "terminal": "RECHAZAR_POR_VETO"
     },
     "reasonCodes": [
-     "APROBADO_UNDERWRITING_V2"
+     "MORA_VIGENTE"
     ],
-    "probability_of_default": 0.02,
-    "risk_band": "A",
-    "pricing_tier": "A",
-    "annual_percentage_rate": 0.28,
-    "approved_credit_limit": 1500
+    "probability_of_default": 1,
+    "risk_band": "E",
+    "decision_outcome": "DECLINE",
+    "approved_credit_limit": 0
    }
   },
   {
    "caseCode": "MORA-DPD120-PLUS-ENTRE-90-Y-CASTIGO",
-   "testName": "worst_delinquency_status=DPD_120_PLUS: +60",
+   "testName": "DPD_120_PLUS: veto MORA_VIGENTE, no se puntúa",
    "input": {
     "kyc_status": "VERIFIED",
     "national_id_verified": true,
@@ -3962,7 +4517,7 @@
     "charge_off_count": 0,
     "bankruptcy_flag": false,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 0,
@@ -3970,20 +4525,20 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
-     "terminal": "APROBAR"
+     "terminal": "RECHAZAR_POR_VETO"
     },
     "reasonCodes": [
-     "APROBADO_UNDERWRITING_V2"
+     "MORA_VIGENTE"
     ],
-    "probability_of_default": 0.05,
-    "risk_band": "A",
-    "pricing_tier": "A",
-    "annual_percentage_rate": 0.28,
-    "approved_credit_limit": 1500
+    "probability_of_default": 1,
+    "risk_band": "E",
+    "decision_outcome": "DECLINE",
+    "approved_credit_limit": 0
    }
   },
   {
@@ -4014,7 +4569,7 @@
     "charge_off_count": 0,
     "bankruptcy_flag": false,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 0,
@@ -4022,7 +4577,8 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -4040,7 +4596,7 @@
   },
   {
    "caseCode": "CASTIGOS-TOPE-EN-DOS",
-   "testName": "charge_off_count=5 se topa en min(5,2)*60=120, no 300 (banda C, no E)",
+   "testName": "charge_off_count > 0: veto CREDITO_CASTIGADO, ningún puntaje lo compensa",
    "input": {
     "kyc_status": "VERIFIED",
     "national_id_verified": true,
@@ -4066,7 +4622,7 @@
     "charge_off_count": 5,
     "bankruptcy_flag": false,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 0,
@@ -4074,20 +4630,20 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
-     "terminal": "APROBAR"
+     "terminal": "RECHAZAR_POR_VETO"
     },
     "reasonCodes": [
-     "APROBADO_UNDERWRITING_V2"
+     "CREDITO_CASTIGADO"
     ],
-    "probability_of_default": 0.15,
-    "risk_band": "C",
-    "pricing_tier": "C",
-    "annual_percentage_rate": 0.42,
-    "approved_credit_limit": 1050
+    "probability_of_default": 1,
+    "risk_band": "E",
+    "decision_outcome": "DECLINE",
+    "approved_credit_limit": 0
    }
   },
   {
@@ -4118,7 +4674,7 @@
     "charge_off_count": 0,
     "bankruptcy_flag": true,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 0,
@@ -4126,7 +4682,8 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -4170,7 +4727,7 @@
     "charge_off_count": 0,
     "bankruptcy_flag": false,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 0,
@@ -4178,7 +4735,8 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.35,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -4196,7 +4754,7 @@
   },
   {
    "caseCode": "APR-BANDA-D-BASE-VARIABLE-055",
-   "testName": "Banda D con product_base_annual_rate=0.55: apr = 0.55 + 24/100 = 0.79 EXACTO",
+   "testName": "Banda D con base 0,55: rechaza sin tarifar (antes cobraba 0,79)",
    "input": {
     "kyc_status": "VERIFIED",
     "national_id_verified": true,
@@ -4213,16 +4771,16 @@
     "affordability_ratio": 0.05,
     "debt_to_income_ratio": 0.1,
     "income_stability_score": 100,
-    "employment_status": "EMPLOYED",
+    "employment_status": "UNEMPLOYED",
     "self_employed_flag": false,
     "no_hit_flag": false,
     "thin_file_flag": false,
     "worst_delinquency_status": "CURRENT",
-    "delinquency_count_12m": 10,
-    "charge_off_count": 1,
-    "bankruptcy_flag": false,
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": true,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 0,
@@ -4230,20 +4788,20 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.55,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
-     "terminal": "APROBAR"
+     "terminal": "RECHAZAR"
     },
     "reasonCodes": [
-     "APROBADO_UNDERWRITING_V2"
+     "RIESGO_EXCEDE_EL_LIMITE"
     ],
     "probability_of_default": 0.25,
     "risk_band": "D",
-    "pricing_tier": "D",
-    "annual_percentage_rate": 0.79,
-    "approved_credit_limit": 750
+    "decision_outcome": "DECLINE",
+    "approved_credit_limit": 0
    }
   },
   {
@@ -4274,7 +4832,7 @@
     "charge_off_count": 0,
     "bankruptcy_flag": false,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 0,
@@ -4282,7 +4840,8 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.2,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -4326,7 +4885,7 @@
     "charge_off_count": 0,
     "bankruptcy_flag": false,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 0,
@@ -4334,7 +4893,8 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.4,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -4378,7 +4938,7 @@
     "charge_off_count": 0,
     "bankruptcy_flag": false,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 0,
@@ -4386,7 +4946,8 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 2000
+    "capacity_recommended_limit": 2000,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -4430,7 +4991,7 @@
     "charge_off_count": 0,
     "bankruptcy_flag": false,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 3,
@@ -4438,7 +4999,8 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 2000
+    "capacity_recommended_limit": 2000,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -4482,7 +5044,7 @@
     "charge_off_count": 0,
     "bankruptcy_flag": false,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 3,
@@ -4490,7 +5052,8 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 2000
+    "capacity_recommended_limit": 2000,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -4508,7 +5071,7 @@
   },
   {
    "caseCode": "LIMITE-BANDA-D-50",
-   "testName": "Banda D: 50 % de 2000 = 1000",
+   "testName": "Banda D: rechaza y el límite es 0 (antes 50 % de la capacidad)",
    "input": {
     "kyc_status": "VERIFIED",
     "national_id_verified": true,
@@ -4525,37 +5088,37 @@
     "affordability_ratio": 0.05,
     "debt_to_income_ratio": 0.1,
     "income_stability_score": 100,
-    "employment_status": "EMPLOYED",
+    "employment_status": "UNEMPLOYED",
     "self_employed_flag": false,
     "no_hit_flag": false,
     "thin_file_flag": false,
     "worst_delinquency_status": "CURRENT",
-    "delinquency_count_12m": 8,
-    "charge_off_count": 1,
-    "bankruptcy_flag": false,
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": true,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
-    "device_risk_score": 3,
+    "device_risk_score": 0,
     "ip_address_risk_score": 0,
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 2000
+    "capacity_recommended_limit": 2000,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
-     "terminal": "APROBAR"
+     "terminal": "RECHAZAR"
     },
     "reasonCodes": [
-     "APROBADO_UNDERWRITING_V2"
+     "RIESGO_EXCEDE_EL_LIMITE"
     ],
     "probability_of_default": 0.25,
     "risk_band": "D",
-    "pricing_tier": "D",
-    "annual_percentage_rate": 0.52,
-    "approved_credit_limit": 1000
+    "decision_outcome": "DECLINE",
+    "approved_credit_limit": 0
    }
   },
   {
@@ -4586,7 +5149,7 @@
     "charge_off_count": 0,
     "bankruptcy_flag": false,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 3,
@@ -4594,7 +5157,8 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 1234.56
+    "capacity_recommended_limit": 1234.56,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -4638,7 +5202,7 @@
     "charge_off_count": 0,
     "bankruptcy_flag": false,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 0,
@@ -4646,7 +5210,8 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 0
+    "capacity_recommended_limit": 0,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -4689,7 +5254,7 @@
     "charge_off_count": 0,
     "bankruptcy_flag": false,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 0,
@@ -4697,7 +5262,8 @@
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
     "product_base_annual_rate": 0.28,
-    "capacity_recommended_limit": 1500
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -4741,14 +5307,15 @@
     "charge_off_count": 0,
     "bankruptcy_flag": false,
     "oldest_trade_age_months": 0,
-    "inquiries_last_6m": 2,
+    "inquiries_last_6m": 0,
     "revolving_utilization_ratio": 0.2,
     "payment_history_score": 70,
     "device_risk_score": 0,
     "ip_address_risk_score": 0,
     "account_takeover_risk_score": 0,
     "velocity_applications_24h": 1,
-    "product_base_annual_rate": 0.28
+    "product_base_annual_rate": 0.28,
+    "usury_cap_rate": 1
    },
    "expectedResult": {
     "trace": {
@@ -4763,11 +5330,1085 @@
     "annual_percentage_rate": 0.28,
     "approved_credit_limit": 0
    }
+  },
+  {
+   "caseCode": "VETO-MORA-DPD60",
+   "testName": "Mora de 60 días con todo lo demás impecable: veto, no banda A",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "DPD_60",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 0,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28,
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "RECHAZAR_POR_VETO"
+    },
+    "reasonCodes": [
+     "MORA_VIGENTE"
+    ],
+    "probability_of_default": 1,
+    "risk_band": "E",
+    "decision_outcome": "DECLINE",
+    "approved_credit_limit": 0
+   }
+  },
+  {
+   "caseCode": "VETO-MORA-DPD90",
+   "testName": "Mora de 90 días: veto MORA_VIGENTE (en la 2.1.0 salía banda C aprobada)",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "DPD_90",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 0,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28,
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "RECHAZAR_POR_VETO"
+    },
+    "reasonCodes": [
+     "MORA_VIGENTE"
+    ],
+    "probability_of_default": 1,
+    "risk_band": "E",
+    "decision_outcome": "DECLINE",
+    "approved_credit_limit": 0
+   }
+  },
+  {
+   "caseCode": "VETO-CASTIGO-POR-TRAMO",
+   "testName": "El tramo CHARGE_OFF veta aunque charge_off_count venga en 0",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CHARGE_OFF",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 0,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28,
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "RECHAZAR_POR_VETO"
+    },
+    "reasonCodes": [
+     "CREDITO_CASTIGADO"
+    ],
+    "probability_of_default": 1,
+    "risk_band": "E",
+    "decision_outcome": "DECLINE",
+    "approved_credit_limit": 0
+   }
+  },
+  {
+   "caseCode": "VETO-MORA-ANTES-QUE-CASTIGO",
+   "testName": "Mora vigente y castigo a la vez: manda la mora (prioridad 1)",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "DPD_30",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 1,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 0,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28,
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "RECHAZAR_POR_VETO"
+    },
+    "reasonCodes": [
+     "MORA_VIGENTE"
+    ],
+    "probability_of_default": 1,
+    "risk_band": "E",
+    "decision_outcome": "DECLINE",
+    "approved_credit_limit": 0
+   }
+  },
+  {
+   "caseCode": "VETO-CUOTA-041",
+   "testName": "Cuota del 41 % del ingreso: veto CUOTA_EXCEDE_INGRESO",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.41,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 0,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28,
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "RECHAZAR_POR_VETO"
+    },
+    "reasonCodes": [
+     "CUOTA_EXCEDE_INGRESO"
+    ],
+    "probability_of_default": 1,
+    "risk_band": "E",
+    "decision_outcome": "DECLINE",
+    "approved_credit_limit": 0
+   }
+  },
+  {
+   "caseCode": "VETO-CUOTA-SIN-INGRESO",
+   "testName": "Sin ingreso (Core manda 5): veto CUOTA_EXCEDE_INGRESO",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 5,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 0,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28,
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "RECHAZAR_POR_VETO"
+    },
+    "reasonCodes": [
+     "CUOTA_EXCEDE_INGRESO"
+    ],
+    "probability_of_default": 1,
+    "risk_band": "E",
+    "decision_outcome": "DECLINE",
+    "approved_credit_limit": 0
+   }
+  },
+  {
+   "caseCode": "CUOTA-040-NO-VETA",
+   "testName": "Cuota del 40 % exacto: no veta, suma 45 puntos (banda B)",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.4,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 0,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28,
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "decision_outcome": "APPROVE",
+    "probability_of_default": 0.05,
+    "risk_band": "A",
+    "pricing_tier": "A",
+    "annual_percentage_rate": 0.28,
+    "approved_credit_limit": 1500
+   }
+  },
+  {
+   "caseCode": "COMPUERTA-ANTES-QUE-VETO",
+   "testName": "Identidad no verificada y en mora: manda la compuerta (revisión), no el veto",
+   "input": {
+    "kyc_status": "PENDING",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "DPD_60",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 0,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28,
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "REVISAR_IDENTIDAD"
+    },
+    "reasonCodes": [
+     "IDENTIDAD_NO_VERIFICADA"
+    ]
+   }
+  },
+  {
+   "caseCode": "USURA-RECORTA-BANDA-C",
+   "testName": "Banda C con base 0,18 y tope 0,24: la tasa queda en 0,24, no en 0,32",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 4,
+    "employment_status": "UNEMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": true,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 0,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.18,
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 0.24
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.15,
+    "risk_band": "C",
+    "pricing_tier": "C",
+    "annual_percentage_rate": 0.24,
+    "decision_outcome": "APPROVE",
+    "approved_credit_limit": 1050
+   }
+  },
+  {
+   "caseCode": "USURA-NO-VINCULA-BANDA-A",
+   "testName": "Banda A con base 0,18 y tope 0,24: 0,18",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 0,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.18,
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 0.24
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "decision_outcome": "APPROVE",
+    "probability_of_default": 0.02,
+    "risk_band": "A",
+    "pricing_tier": "A",
+    "annual_percentage_rate": 0.18,
+    "approved_credit_limit": 1500
+   }
+  },
+  {
+   "caseCode": "USURA-AUSENTE-USA-024",
+   "testName": "Sin usury_cap_rate el tope es 0,24",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 4,
+    "employment_status": "UNEMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": true,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 0,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.18,
+    "capacity_recommended_limit": 1500
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.15,
+    "risk_band": "C",
+    "pricing_tier": "C",
+    "annual_percentage_rate": 0.24,
+    "decision_outcome": "APPROVE",
+    "approved_credit_limit": 1050
+   }
+  },
+  {
+   "caseCode": "EMPLEO-DESCONOCIDO-SUMA-15",
+   "testName": "employment_status UNKNOWN (no declarado) suma 15, no los 60 de UNEMPLOYED",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 96,
+    "employment_status": "UNKNOWN",
+    "self_employed_flag": false,
+    "no_hit_flag": true,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 0,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28,
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.05,
+    "risk_band": "A",
+    "pricing_tier": "A",
+    "annual_percentage_rate": 0.28,
+    "decision_outcome": "APPROVE",
+    "approved_credit_limit": 1500
+   }
+  },
+  {
+   "caseCode": "CONSULTAS-SON-RECHAZOS",
+   "testName": "Tres solicitudes rechazadas en 6 meses suman 30",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 3,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28,
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.02,
+    "risk_band": "A",
+    "pricing_tier": "A",
+    "annual_percentage_rate": 0.28,
+    "decision_outcome": "APPROVE",
+    "approved_credit_limit": 1500
+   }
+  },
+  {
+   "caseCode": "CONSULTAS-TOPE-40",
+   "testName": "Ocho rechazos topan en 40",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 8,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28,
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.05,
+    "risk_band": "A",
+    "pricing_tier": "A",
+    "annual_percentage_rate": 0.28,
+    "decision_outcome": "APPROVE",
+    "approved_credit_limit": 1500
+   }
+  },
+  {
+   "caseCode": "VELOCIDAD-TRES-COMPRAS-NO-SUMA",
+   "testName": "Tres solicitudes en 24 h es uso normal: 0 puntos",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 0,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 3,
+    "product_base_annual_rate": 0.28,
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.02,
+    "risk_band": "A",
+    "pricing_tier": "A",
+    "annual_percentage_rate": 0.28,
+    "decision_outcome": "APPROVE",
+    "approved_credit_limit": 1500
+   }
+  },
+  {
+   "caseCode": "VELOCIDAD-CINCO-SUMA-30",
+   "testName": "Cinco solicitudes en 24 h suman 30",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 0,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 5,
+    "product_base_annual_rate": 0.28,
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.02,
+    "risk_band": "A",
+    "pricing_tier": "A",
+    "annual_percentage_rate": 0.28,
+    "decision_outcome": "APPROVE",
+    "approved_credit_limit": 1500
+   }
+  },
+  {
+   "caseCode": "EXTRACTO-CONDUCTA-SUMA",
+   "testName": "Extracto con 2 rechazos por fondos, 1 mes negativo y cobranza: 20+10+40 = 70 → banda B",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 0,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28,
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1,
+    "statement_available": true,
+    "statement_nsf_events": 2,
+    "statement_months_negative": 1,
+    "statement_collection_actions": 1,
+    "statement_high_risk_months": 0
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.09,
+    "risk_band": "B",
+    "pricing_tier": "B",
+    "annual_percentage_rate": 0.34,
+    "decision_outcome": "APPROVE",
+    "approved_credit_limit": 1250
+   }
+  },
+  {
+   "caseCode": "EXTRACTO-TOPES",
+   "testName": "Topes del extracto: 30+30+40+30 = 130 → banda C",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 0,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28,
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1,
+    "statement_available": true,
+    "statement_nsf_events": 9,
+    "statement_months_negative": 5,
+    "statement_collection_actions": 3,
+    "statement_high_risk_months": 4
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.15,
+    "risk_band": "C",
+    "pricing_tier": "C",
+    "annual_percentage_rate": 0.42,
+    "decision_outcome": "APPROVE",
+    "approved_credit_limit": 1050
+   }
+  },
+  {
+   "caseCode": "EXTRACTO-NO-DISPONIBLE-NO-SUMA",
+   "testName": "Sin statement_available las señales del extracto no suman",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 0,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28,
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1,
+    "statement_available": false,
+    "statement_nsf_events": 9,
+    "statement_collection_actions": 3
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.02,
+    "risk_band": "A",
+    "pricing_tier": "A",
+    "annual_percentage_rate": 0.28,
+    "decision_outcome": "APPROVE",
+    "approved_credit_limit": 1500
+   }
+  },
+  {
+   "caseCode": "EXTRACTO-AUSENTE-NO-TUMBA",
+   "testName": "Sin ninguna statement_* decide igual (entradas opcionales)",
+   "input": {
+    "kyc_status": "VERIFIED",
+    "national_id_verified": true,
+    "sanctions_screening_result": "CLEAR",
+    "fraud_signal": false,
+    "known_fraud_device_flag": false,
+    "known_fraud_email_flag": false,
+    "known_fraud_phone_flag": false,
+    "high_risk_jurisdiction_flag": false,
+    "ip_tor_detected": false,
+    "sim_swap_detected": false,
+    "browser_automation_detected": false,
+    "geolocation_mismatch_flag": false,
+    "affordability_ratio": 0.05,
+    "debt_to_income_ratio": 0.1,
+    "income_stability_score": 100,
+    "employment_status": "EMPLOYED",
+    "self_employed_flag": false,
+    "no_hit_flag": false,
+    "thin_file_flag": false,
+    "worst_delinquency_status": "CURRENT",
+    "delinquency_count_12m": 1,
+    "charge_off_count": 0,
+    "bankruptcy_flag": false,
+    "oldest_trade_age_months": 0,
+    "inquiries_last_6m": 0,
+    "revolving_utilization_ratio": 0.2,
+    "payment_history_score": 70,
+    "device_risk_score": 0,
+    "ip_address_risk_score": 0,
+    "account_takeover_risk_score": 0,
+    "velocity_applications_24h": 1,
+    "product_base_annual_rate": 0.28,
+    "capacity_recommended_limit": 1500,
+    "usury_cap_rate": 1
+   },
+   "expectedResult": {
+    "trace": {
+     "terminal": "APROBAR"
+    },
+    "reasonCodes": [
+     "APROBADO_UNDERWRITING_V2"
+    ],
+    "probability_of_default": 0.02,
+    "risk_band": "A",
+    "pricing_tier": "A",
+    "annual_percentage_rate": 0.28,
+    "decision_outcome": "APPROVE",
+    "approved_credit_limit": 1500
+   }
   }
  ],
  "suite": {
   "suiteCode": "UNDERWRITING-V2-DESENLACES",
-  "name": "Underwriting BNPL v2: compuertas, bandas y tarifa",
+  "name": "Underwriting BNPL v2.2: compuertas, vetos, bandas y tarifa",
   "suiteType": "REGRESSION",
   "isBlocking": true
  }
