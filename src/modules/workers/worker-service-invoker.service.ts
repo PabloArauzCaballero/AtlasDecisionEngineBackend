@@ -11,7 +11,7 @@
  * Se pasa a `ExecutionEngineService.execute()` como argumento de llamada —vía `bind()`—,
  * nunca como dependencia de constructor, para que `GraphModule` no dependa de este módulo.
  */
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash, randomUUID } from 'node:crypto';
 import { DomainException } from '../../common/errors/domain-exception';
@@ -33,6 +33,7 @@ import { SemanticAnalysisPipeline } from './semantic-analysis/core/application/s
 import type { SemanticAnalysisResult } from './semantic-analysis/core/domain/semantic-analysis.types';
 import { AudioTtsRuntimeFactory } from './audio-tts/audio-tts.runtime';
 import { IdentityPipelineService } from './identity-verification/identity-pipeline.service';
+import { IdentityVerificationService } from './identity-verification/identity-verification.service';
 import { validateIdentityUpload } from './identity-verification/identity-verification-input';
 import type { IdentityVerificationOutcome } from './identity-verification/identity-result';
 import { documentCaptureSourceFromContext } from './identity-verification/document-capture-source';
@@ -53,8 +54,13 @@ const MARCAS_DE_LA_CAPTURA: ReadonlySet<string> = new Set([
 /** Techo absoluto de una llamada desde un nodo, en milisegundos. */
 const MAX_CALL_TIMEOUT_MS = 120_000;
 
+/** Aviso en la traza cuando el veredicto de identidad no pudo conservar sus imágenes. */
+export const IDENTITY_EVIDENCE_NOT_KEPT = 'IDENTITY_EVIDENCE_NOT_KEPT';
+
 @Injectable()
 export class WorkerServiceInvokerService {
+  private readonly logger = new Logger(WorkerServiceInvokerService.name);
+
   /**
    * Perezoso y memorizado, igual que en el worker de fondo: construir el motor arrastra
    * `pdfjs-dist` y registra los siete analizadores, y eso no puede pagarse por decisión.
@@ -67,6 +73,7 @@ export class WorkerServiceInvokerService {
     private readonly audio: AudioTtsRuntimeFactory,
     private readonly institutions: InstitutionCatalogService,
     private readonly identity: IdentityPipelineService,
+    private readonly identityRuns: IdentityVerificationService,
   ) {}
 
   /**
@@ -105,7 +112,7 @@ export class WorkerServiceInvokerService {
       case 'audio-tts.speak':
         return this.speak(tenantId, principal, request, started);
       case 'identity-verification.verify':
-        return this.verifyIdentity(request, started, context);
+        return this.verifyIdentity(tenantId, principal, request, started, context);
       default:
         // El validador de grafo ya rechaza un servicio desconocido al aprobar el
         // artefacto. Llegar aquí significa que el catálogo del validador y el de este
@@ -416,6 +423,8 @@ export class WorkerServiceInvokerService {
    * llevada al sitio donde la política de negocio es visible y versionada.
    */
   private async verifyIdentity(
+    tenantId: bigint,
+    principal: AuthenticatedPrincipal,
     request: WorkerServiceRequest,
     started: number,
     context: Readonly<Record<string, unknown>> | null,
@@ -456,16 +465,17 @@ export class WorkerServiceInvokerService {
     );
 
     const documentCaptureSource = documentCaptureSourceFromContext(context);
+    const documentCountry =
+      stringArgument(request, 'documentCountry') ??
+      this.config.get<string>('IDENTITY_DEFAULT_DOCUMENT_COUNTRY') ??
+      'BO';
     try {
       const outcome = await this.withTimeout(
         this.identity.run({
           documentImage: validated.document.bytes,
           documentBackImage: validated.documentBack?.bytes ?? null,
           selfieImage: validated.selfie.bytes,
-          documentCountry:
-            stringArgument(request, 'documentCountry') ??
-            this.config.get<string>('IDENTITY_DEFAULT_DOCUMENT_COUNTRY') ??
-            'BO',
+          documentCountry,
           correlationId: request.nodeKey,
           /*
            * De dónde salió la imagen del carnet, si la petición lo dice. Sólo se
@@ -496,6 +506,14 @@ export class WorkerServiceInvokerService {
       const deLaCaptura = outcome.capture
         ? outcome.riskFlags.filter((marca) => MARCAS_DE_LA_CAPTURA.has(marca))
         : [];
+      const evidence = await this.keepIdentityEvidence(
+        tenantId,
+        principal,
+        validated,
+        outcome,
+        documentCountry,
+        request,
+      );
       return {
         status: limpio ? 'SUCCEEDED' : 'SUCCEEDED_WITH_WARNINGS',
         result: toIdentityResult(outcome),
@@ -503,12 +521,48 @@ export class WorkerServiceInvokerService {
           ...new Set([
             ...(limpio ? [] : [outcome.decision, ...outcome.reasonCodes]),
             ...deLaCaptura,
+            ...(evidence ? [] : [IDENTITY_EVIDENCE_NOT_KEPT]),
           ]),
         ],
         durationMs: Date.now() - started,
+        ...(evidence ? { evidenceRequestId: evidence } : {}),
       };
     } catch (error) {
       throw toDomainException(error, request);
+    }
+  }
+
+  /**
+   * Guarda la cara y el carnet sobre los que el nodo decidió, para que el detalle de la ejecución
+   * pueda enseñarlos (`IdentityVerificationService.recordInlineEvidence`).
+   *
+   * Best-effort a propósito: el veredicto ya está calculado, y tirar la decisión porque el almacén
+   * no respondió castigaría al solicitante por una avería ajena. Lo que no puede es pasar en
+   * silencio: la traza del paso lleva `IDENTITY_EVIDENCE_NOT_KEPT` y queda en el log.
+   */
+  private async keepIdentityEvidence(
+    tenantId: bigint,
+    principal: AuthenticatedPrincipal,
+    validated: ReturnType<typeof validateIdentityUpload>,
+    outcome: IdentityVerificationOutcome,
+    documentCountry: string,
+    request: WorkerServiceRequest,
+  ): Promise<string | null> {
+    try {
+      return await this.identityRuns.recordInlineEvidence(
+        tenantId,
+        principal,
+        validated,
+        outcome,
+        documentCountry,
+      );
+    } catch (error) {
+      this.logger.error(
+        `No se pudo conservar la evidencia de identidad del nodo ${request.nodeKey}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return null;
     }
   }
 

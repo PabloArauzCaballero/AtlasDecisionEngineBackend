@@ -106,6 +106,27 @@
         "nodeKey": "RIESGO",
         "nodeType": "SCORE"
       }
+    },
+    {
+      "id": "903",
+      "stepOrder": 3,
+      "branchTaken": null,
+      "durationUs": "850000",
+      "evaluationResultJson": {
+        "worker": {
+          "service": "identity-verification",
+          "operation": "verify",
+          "status": "SUCCEEDED",
+          "durationMs": 850,
+          "warnings": [],
+          "outputs": [],
+          "evidenceRequestId": "idv-contrato-0001"
+        }
+      },
+      "node": {
+        "nodeKey": "VERIFICAR_IDENTIDAD",
+        "nodeType": "WORKER"
+      }
     }
   ]
 }

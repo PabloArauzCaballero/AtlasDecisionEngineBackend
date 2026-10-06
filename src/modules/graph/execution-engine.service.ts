@@ -504,6 +504,7 @@ export class ExecutionEngineService {
       durationMs: outcome.durationMs,
       warnings: outcome.warnings,
       outputs: written,
+      ...(outcome.evidenceRequestId ? { evidenceRequestId: outcome.evidenceRequestId } : {}),
     };
   }
 

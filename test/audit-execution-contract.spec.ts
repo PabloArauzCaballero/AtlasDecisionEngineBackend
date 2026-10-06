@@ -146,6 +146,26 @@ const EXAMPLE = {
       },
       node: { nodeKey: 'RIESGO', nodeType: 'SCORE' },
     },
+    {
+      id: '903',
+      stepOrder: 3,
+      branchTaken: null,
+      durationUs: '850000',
+      // `evidenceRequestId`: la corrida que conserva el carnet y la selfie del veredicto. El
+      // portal pinta las imágenes con él (`runs/:requestId/images/:kind`).
+      evaluationResultJson: {
+        worker: {
+          service: 'identity-verification',
+          operation: 'verify',
+          status: 'SUCCEEDED',
+          durationMs: 850,
+          warnings: [],
+          outputs: [],
+          evidenceRequestId: 'idv-contrato-0001',
+        },
+      },
+      node: { nodeKey: 'VERIFICAR_IDENTIDAD', nodeType: 'WORKER' },
+    },
   ],
 } satisfies ConsumedExecution;
 
