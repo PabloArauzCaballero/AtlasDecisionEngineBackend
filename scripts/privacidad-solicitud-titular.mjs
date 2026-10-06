@@ -48,10 +48,12 @@
  * compilada no se reescribe el grafo; si ya hay solicitud de aprobación no se crea otra; si ya está
  * desplegada no hace nada. `--dry-run` sólo LEE: dice qué haría y no escribe nada.
  */
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { argv, env, exit } from 'node:process';
+
+// Como módulo JSON y no con `readFileSync`: la definición es código del repo, no un dato de entrada
+// (mismo criterio que `atlas-underwriting-v2.mjs`, y lo que CodeQL distingue de «datos de un archivo
+// que salen por la red»).
+import DEFINICION from './lib/privacidad-solicitud-titular.definicion.json' with { type: 'json' };
 
 const args = new Map();
 for (let i = 2; i < argv.length; i += 1) {
@@ -78,16 +80,6 @@ const ENVIRONMENTS = (args.get('environments') ?? 'TEST')
   .filter(Boolean);
 const DRY_RUN = args.get('dry-run') === 'true';
 
-const DEFINICION = JSON.parse(
-  readFileSync(
-    join(
-      dirname(fileURLToPath(import.meta.url)),
-      'lib',
-      'privacidad-solicitud-titular.definicion.json',
-    ),
-    'utf8',
-  ),
-);
 const ARTIFACT_CODE = DEFINICION.artifact.artifactCode;
 
 if (!API_KEY) {
