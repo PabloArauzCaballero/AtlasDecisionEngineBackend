@@ -374,3 +374,19 @@ después) y sin una sola acusación falsa. Las cuatro piezas:
   estados de licencia se comprueban entre nómina, enum y DTO en
   `test/padron-entidades-enumeraciones.spec.ts`, porque cuando se separaron la siembra devolvía
   500 y dejaba el padrón vacío sin que nada fallara al compilar.
+
+## El detalle de ejecución es un contrato con el portal
+
+- `GET /v1/audit/executions/:id` devuelve la fila de Prisma con `EXECUTION_DETAIL_INCLUDE`
+  (`audit-query/adapters/postgres-decision-audit-read.adapter.ts`). El portal la aplana en
+  `src/features/execution-playback/execution-record.ts`. Durante meses probó contra un
+  ejemplo inventado (`traceSteps` con `nodeKey` en la raíz) y en producción no se veía el
+  paso a paso ni se enmascaraban los datos personales.
+- `test/audit-execution-contract.spec.ts` tipa un ejemplo contra la fila real con sólo los
+  campos que el portal lee y lo publica en `docs/contracts/audit-execution.example.json`. El
+  portal usa una COPIA de ese JSON como fixture. Si cambias el include o una de esas
+  columnas: `UPDATE_CONTRACTS=1 yarn jest test/audit-execution-contract.spec.ts` y copia el
+  JSON al portal en el mismo cambio.
+- Cada paso guarda en `evaluationResultJson.variableState` el estado de variables del nodo
+  (`persistedStepEvaluation`), ya enmascarado por sensibilidad. Las ejecuciones anteriores
+  a este cambio no lo tienen.

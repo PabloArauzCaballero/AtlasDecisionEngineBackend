@@ -1,0 +1,111 @@
+{
+  "id": "103",
+  "requestId": "req-contrato-0001",
+  "artifactVersionId": "12",
+  "decisionStatus": "SUCCEEDED",
+  "businessOutcome": "APPROVED",
+  "durationMs": 41,
+  "executedAt": "2026-10-06T12:00:00.000Z",
+  "inputSnapshotJson": {
+    "country": "BO",
+    "monthly_income": 5200,
+    "document_number": "0000000"
+  },
+  "outputJson": {
+    "decision": "APPROVED",
+    "score": 640
+  },
+  "artifactVersion": {
+    "versionNumber": 3,
+    "artifact": {
+      "artifactCode": "SCORING_CONTRATO"
+    }
+  },
+  "deployment": {
+    "environment": {
+      "code": "SANDBOX"
+    }
+  },
+  "variables": [
+    {
+      "id": "501",
+      "valueJson": "BO",
+      "sourceCode": "REQUEST",
+      "variableVersion": {
+        "definition": {
+          "variableCode": "country",
+          "isSensitive": false,
+          "sensitivityClass": "INTERNAL"
+        }
+      }
+    },
+    {
+      "id": "502",
+      "valueJson": "0000000",
+      "sourceCode": "REQUEST",
+      "variableVersion": {
+        "definition": {
+          "variableCode": "document_number",
+          "isSensitive": true,
+          "sensitivityClass": "PII"
+        }
+      }
+    }
+  ],
+  "steps": [
+    {
+      "id": "901",
+      "stepOrder": 1,
+      "branchTaken": "INICIO__TO__RIESGO",
+      "durationUs": "350",
+      "evaluationResultJson": {},
+      "node": {
+        "nodeKey": "INICIO",
+        "nodeType": "START"
+      }
+    },
+    {
+      "id": "902",
+      "stepOrder": 2,
+      "branchTaken": null,
+      "durationUs": "2400",
+      "evaluationResultJson": {
+        "score": 640,
+        "variableState": {
+          "nodeKey": "RIESGO",
+          "status": "COMPLETED",
+          "durationUs": 2400,
+          "inputs": [
+            {
+              "code": "monthly_income",
+              "dataType": "DECIMAL",
+              "state": "VALID",
+              "value": 5200,
+              "sensitivityClass": "INTERNAL",
+              "origin": "REQUEST"
+            },
+            {
+              "code": "document_number",
+              "dataType": "STRING",
+              "state": "VALID",
+              "value": null,
+              "sensitivityClass": "PII",
+              "origin": "REQUEST"
+            }
+          ],
+          "intermediatesBefore": [],
+          "intermediatesAfter": [],
+          "intermediatesCreated": [],
+          "intermediatesUpdated": [],
+          "outputs": [],
+          "errors": [],
+          "warnings": []
+        }
+      },
+      "node": {
+        "nodeKey": "RIESGO",
+        "nodeType": "SCORE"
+      }
+    }
+  ]
+}

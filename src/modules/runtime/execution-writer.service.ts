@@ -42,6 +42,25 @@ export interface WriteExecutionInput {
 }
 
 /**
+ * Lo que se guarda como evaluación de un paso: lo que el nodo evaluó y, si el motor lo
+ * calculó, el estado de las variables antes y después del nodo (§3.1).
+ *
+ * Sin `variableState`, el detalle de una ejecución real podía decir por dónde pasó la
+ * decisión pero no POR QUÉ: qué valor tenía cada variable al llegar a cada nodo. El
+ * estado ya sale enmascarado del motor —una entrada sensible viaja como `null` y las
+ * intermedias y salidas respetan su `tracePolicy`—, el mismo enmascarado que ya protege
+ * la respuesta del simulador. Va dentro de la evaluación y no
+ * en una columna propia: es evidencia del mismo paso y se lee siempre junto a ella.
+ */
+export function persistedStepEvaluation(
+  step: EngineExecutionResult['trace'][number],
+): Prisma.InputJsonValue {
+  const evaluation = { ...step.evaluation };
+  if (step.variableState) evaluation.variableState = step.variableState;
+  return evaluation as Prisma.InputJsonValue;
+}
+
+/**
  * Persists a decision execution, variable snapshots, trace, reasons and review evidence.
  */
 @Injectable()
@@ -156,7 +175,7 @@ export class ExecutionWriterService {
             executionId: execution.id,
             nodeId: BigInt(step.nodeId),
             stepOrder: index + 1,
-            evaluationResultJson: step.evaluation as Prisma.InputJsonValue,
+            evaluationResultJson: persistedStepEvaluation(step),
             branchTaken: step.branchTaken,
             durationUs: BigInt(step.durationUs),
           },

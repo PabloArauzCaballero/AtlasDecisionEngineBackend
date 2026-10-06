@@ -144,10 +144,10 @@ export class SimulationService {
          * apareció una intermedia. Es lo que convierte el simulador en una
          * herramienta de depuración y no en una caja negra con un veredicto.
          *
-         * Se devuelve sólo en simulación (nunca se persiste, y el ambiente PROD ya
-         * está vetado más arriba), así que no amplía la superficie de datos
-         * sensibles de una decisión real: el enmascarado por sensibilidad lo aplica
-         * igualmente el propio `variableState`.
+         * Las ejecuciones reales lo guardan también, dentro de la evaluación de cada
+         * paso (`persistedStepEvaluation`), para que su detalle de auditoría se lea
+         * igual. En los dos casos el enmascarado por sensibilidad lo aplica el propio
+         * `variableState`.
          */
         steps: (result.trace ?? []).map((step) => ({
           nodeKey: step.nodeKey,
