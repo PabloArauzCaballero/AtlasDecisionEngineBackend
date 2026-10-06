@@ -59,6 +59,12 @@ export const identityPinChallengeSchema = z.object({
  */
 export const identityPasswordChangedSchema = z.object({ passwordChanged: z.literal(true) });
 
+/**
+ * The provider's answer to a forgotten-password request. It is the same whether or not the account
+ * exists — that is the whole point — so it carries nothing but the acknowledgement.
+ */
+export const identityPasswordResetRequestedSchema = z.object({ requested: z.literal(true) });
+
 /** The session ATLAS works with once the provider's cookie tokens have been recovered. */
 export const identitySessionSchema = identityProfileSchema.extend({
   accessToken: z.string().min(20),
@@ -71,6 +77,7 @@ export type IdentityProfile = z.infer<typeof identityProfileSchema>;
 export type IdentitySession = z.infer<typeof identitySessionSchema>;
 export type IdentityPinChallenge = z.infer<typeof identityPinChallengeSchema>;
 export type IdentityPasswordChanged = z.infer<typeof identityPasswordChangedSchema>;
+export type IdentityPasswordResetRequested = z.infer<typeof identityPasswordResetRequestedSchema>;
 
 export type PublicIdentitySession = Omit<IdentitySession, 'refreshToken'>;
 

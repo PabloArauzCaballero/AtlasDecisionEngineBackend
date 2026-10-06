@@ -43,6 +43,13 @@ const ROUTES = {
     code: '123456',
     newPassword: 'una-nueva-clave-larga',
   },
+  '/v1/session/password/reset/request': { tenantId: '1', email: 'persona@atlas.test' },
+  '/v1/session/password/reset/confirm': {
+    tenantId: '1',
+    email: 'persona@atlas.test',
+    code: '123456',
+    newPassword: 'una-nueva-clave-larga',
+  },
 } as const;
 type Route = keyof typeof ROUTES;
 
@@ -59,6 +66,8 @@ function fakeSessions() {
       .fn()
       .mockResolvedValue({ pinChallengeRequired: true, challengeToken: 'x', expiresInMinutes: 10 }),
     confirmPasswordChange: jest.fn().mockResolvedValue({ passwordChanged: true }),
+    requestPasswordReset: jest.fn().mockResolvedValue({ requested: true }),
+    confirmPasswordReset: jest.fn().mockResolvedValue({ passwordChanged: true }),
   };
 }
 
@@ -124,6 +133,8 @@ const serviceMethod: Record<Route, keyof ReturnType<typeof fakeSessions>> = {
   '/v1/session/logout': 'logout',
   '/v1/session/password/change/request': 'requestPasswordChange',
   '/v1/session/password/change/confirm': 'confirmPasswordChange',
+  '/v1/session/password/reset/request': 'requestPasswordReset',
+  '/v1/session/password/reset/confirm': 'confirmPasswordReset',
 };
 
 describe('Contrato HTTP de v1/session', () => {
@@ -208,6 +219,26 @@ describe('Contrato HTTP de v1/session', () => {
       '/v1/session/login/pin',
       'un desafío demasiado corto',
       { ...ROUTES['/v1/session/login/pin'], challengeToken: 'corto' },
+    ],
+    [
+      '/v1/session/password/reset/request',
+      'un correo inválido',
+      { tenantId: '1', email: 'no-es-correo' },
+    ],
+    [
+      '/v1/session/password/reset/request',
+      'un tipo de actor elegido por quien llama',
+      { ...ROUTES['/v1/session/password/reset/request'], actorType: 'platform_user' },
+    ],
+    [
+      '/v1/session/password/reset/confirm',
+      'un código que no son seis dígitos',
+      { ...ROUTES['/v1/session/password/reset/confirm'], code: '12345' },
+    ],
+    [
+      '/v1/session/password/reset/confirm',
+      'una contraseña nueva de menos de diez caracteres',
+      { ...ROUTES['/v1/session/password/reset/confirm'], newPassword: 'corta' },
     ],
   ] as [Route, string, object][])(
     'POST /%s rechaza con 400 %s, sin llamar al proveedor',
@@ -296,6 +327,30 @@ describe('Contrato HTTP de v1/session', () => {
       'token-del-actor',
       expect.objectContaining({ code: '123456' }),
     );
+  });
+
+  it('la recuperación responde lo mismo exista o no la cuenta, y no emite cookie', async () => {
+    const response = await post(app, '/v1/session/password/reset/request')
+      .set('Origin', ALLOWED_ORIGIN)
+      .send(ROUTES['/v1/session/password/reset/request']);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ requested: true });
+    expect(response.headers['set-cookie']).toBeUndefined();
+    expect(sessions.requestPasswordReset).toHaveBeenCalledWith(
+      ROUTES['/v1/session/password/reset/request'],
+    );
+  });
+
+  it('confirmar la recuperación borra la cookie: el proveedor revoca todas las sesiones', async () => {
+    const response = await post(app, '/v1/session/password/reset/confirm')
+      .set('Origin', ALLOWED_ORIGIN)
+      .set('Cookie', 'atlas_refresh=una-sesion-vieja')
+      .send(ROUTES['/v1/session/password/reset/confirm']);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ passwordChanged: true });
+    expect(String(response.headers['set-cookie'])).toContain('Max-Age=0');
   });
 
   it('el cambio de contraseña sólo toma el actor de Authorization: Bearer', async () => {
