@@ -1,0 +1,2456 @@
+{
+  "procedencia": {
+    "artefacto": "PRIVACIDAD_SOLICITUD_TITULAR",
+    "origen": "diseñado el 2026-10-04 en _plan-motor-privacidad-2026-10-04/PLAN.md §3 (reglas B1…B8 y R1…R8) y §13 (marco boliviano)",
+    "nota": "Versión 1. Se publica en SOMBRA: Atlas guarda lo que decide y una persona sigue cerrando cada solicitud hasta que el acuerdo medido lo respalde."
+  },
+  "artifact": {
+    "artifactCode": "PRIVACIDAD_SOLICITUD_TITULAR",
+    "artifactType": "COMPLIANCE_POLICY",
+    "riskDomain": "DATA_PROTECTION",
+    "ownerTeam": "COMPLIANCE",
+    "decisionKind": "DATA_SUBJECT_RIGHTS",
+    "name": "Solicitud del titular: corregir un dato o borrar la cuenta",
+    "description": "Decide si una solicitud de la persona sobre sus propios datos se acepta, se rechaza por una imposibilidad objetiva o la mira una persona. Ante cualquier duda, persona.",
+    "businessPurpose": "Atender en plazo y con el mismo criterio para todos el derecho a rectificar y eliminar datos (Constitución, art. 130), conservando lo que la ley obliga a guardar (Ley 393 art. 34.III; DS 4904 art. 18).",
+    "semanticVersion": "1.0.0",
+    "authoringNotes": "La primera regla que aplica manda, de arriba abajo. Sólo se rechaza por imposibilidad objetiva (deuda, solicitud duplicada, dato que se cambia por autoservicio) y Atlas ofrece siempre pedir revisión humana. Ninguna entrada es un dato personal: viajan booleanos, contadores y el CÓDIGO del dato a corregir, nunca su valor. Si nada aplica, la salida por defecto es REVISION_HUMANA."
+  },
+  "inputs": [
+    {
+      "code": "dsr_tipo",
+      "dataType": "STRING",
+      "name": "Tipo de solicitud del titular",
+      "description": "Qué pide la persona sobre sus datos: corregir uno (RECTIFICACION) o borrar su cuenta (BORRADO).",
+      "constraints": {
+        "allowedValues": ["RECTIFICACION", "BORRADO"]
+      }
+    },
+    {
+      "code": "dsr_cuenta_operativa",
+      "dataType": "BOOLEAN",
+      "name": "Cuenta activa o en alta",
+      "description": "La cuenta está activa o todavía en alta. Bloqueada, suspendida o cerrada no se decide en automático."
+    },
+    {
+      "code": "dsr_identidad_verificada",
+      "dataType": "BOOLEAN",
+      "name": "Identidad verificada",
+      "description": "La persona pasó la verificación de identidad. Con ella hay diligencia debida que la ley obliga a conservar (DS 4904, art. 18)."
+    },
+    {
+      "code": "dsr_evidencia_identidad",
+      "dataType": "BOOLEAN",
+      "name": "Evidencia de identidad en el expediente",
+      "description": "La persona subió documento o selfie, o tiene cualquier intento de verificación registrado, sea cual sea su resultado (en revisión, rechazado, reintento). Esa evidencia y el rastro de un intento de fraude no se borran: se retienen 10 años (DS 4904, art. 18)."
+    },
+    {
+      "code": "dsr_pin_confirmado",
+      "dataType": "BOOLEAN",
+      "name": "PIN confirmado al pedir",
+      "description": "La persona volvió a escribir su PIN en los 5 minutos anteriores a enviar la solicitud. Sin eso no se sabe si la pidió el titular."
+    },
+    {
+      "code": "dsr_contacto_cambiado_7d",
+      "dataType": "BOOLEAN",
+      "name": "Teléfono o correo cambiado en 7 días",
+      "description": "Se dio de alta o cambió un medio de contacto en la última semana: la señal clásica de una cuenta robada."
+    },
+    {
+      "code": "dsr_dispositivo_nuevo_7d",
+      "dataType": "BOOLEAN",
+      "name": "Dispositivo nuevo en 7 días",
+      "description": "La cuenta se abrió desde un dispositivo que no había usado antes, en la última semana."
+    },
+    {
+      "code": "dsr_credencial_restablecida_7d",
+      "dataType": "BOOLEAN",
+      "name": "PIN o contraseña restablecidos en 7 días",
+      "description": "Se restableció o cambió la credencial en la última semana: lo primero que hace quien roba una cuenta antes de pedir que la borren. Sólo cuenta si la cuenta ya existía hace una semana."
+    },
+    {
+      "code": "dsr_creada_por_titular",
+      "dataType": "BOOLEAN",
+      "name": "La pidió el propio titular",
+      "description": "La solicitud la creó la persona desde su sesión de cliente y no alguien del equipo en su nombre. Sin constancia de quién la creó se trata como NO pedida por el titular."
+    },
+    {
+      "code": "dsr_fraude_abierto",
+      "dataType": "BOOLEAN",
+      "name": "Caso de fraude abierto",
+      "description": "Hay un caso de fraude sin cerrar sobre la persona."
+    },
+    {
+      "code": "dsr_caso_abierto",
+      "dataType": "BOOLEAN",
+      "name": "Reclamo o caso de soporte abierto",
+      "description": "Hay un reclamo o caso de soporte sin cerrar: borrar la cuenta borraría la conversación que lo resuelve."
+    },
+    {
+      "code": "dsr_solicitudes_iguales_abiertas",
+      "dataType": "INTEGER",
+      "name": "Solicitudes iguales en curso",
+      "description": "Cuántas solicitudes del mismo tipo de la misma persona siguen abiertas, sin contar ésta.",
+      "constraints": {
+        "min": 0,
+        "max": 1000
+      }
+    },
+    {
+      "code": "dsr_saldo_pendiente",
+      "dataType": "CURRENCY",
+      "name": "Saldo pendiente",
+      "description": "Lo que la persona todavía debe, en bolivianos. Con saldo la cuenta no se cierra (contrato y Ley 393).",
+      "constraints": {
+        "min": 0,
+        "max": 100000000
+      }
+    },
+    {
+      "code": "dsr_prestamos_activos",
+      "dataType": "INTEGER",
+      "name": "Préstamos activos",
+      "description": "Compras en cuotas que siguen abiertas.",
+      "constraints": {
+        "min": 0,
+        "max": 10000
+      }
+    },
+    {
+      "code": "dsr_cuotas_en_mora",
+      "dataType": "INTEGER",
+      "name": "Cuotas en mora",
+      "description": "Cuotas vencidas sin pagar.",
+      "constraints": {
+        "min": 0,
+        "max": 10000
+      }
+    },
+    {
+      "code": "dsr_pagos_en_conciliacion",
+      "dataType": "INTEGER",
+      "name": "Pagos por conciliar",
+      "description": "Pagos que la persona reportó y todavía no se aplicaron a su deuda.",
+      "constraints": {
+        "min": 0,
+        "max": 10000
+      }
+    },
+    {
+      "code": "dsr_tuvo_credito",
+      "dataType": "BOOLEAN",
+      "name": "Operó con crédito alguna vez",
+      "description": "Tuvo al menos un préstamo. Sus operaciones se conservan 10 años desde el último asiento (Ley 393, art. 34.III)."
+    },
+    {
+      "code": "dsr_extracto_en_revision",
+      "dataType": "BOOLEAN",
+      "name": "Extracto bancario en revisión",
+      "description": "Hay un extracto subido que alguien está revisando."
+    },
+    {
+      "code": "dsr_campo",
+      "dataType": "STRING",
+      "name": "Dato que pide corregir",
+      "description": "El dato de la lista cerrada que la persona quiere corregir. Viaja el CÓDIGO, nunca el valor. NINGUNO en un borrado.",
+      "constraints": {
+        "allowedValues": [
+          "DIRECCION",
+          "ZONA",
+          "CIUDAD",
+          "REFERENCIA_DOMICILIO",
+          "OCUPACION",
+          "EMPLEADOR",
+          "INGRESO_DECLARADO",
+          "NOMBRE",
+          "APELLIDO",
+          "FECHA_NACIMIENTO",
+          "NUMERO_DOCUMENTO",
+          "TELEFONO",
+          "CORREO",
+          "OTRO",
+          "NINGUNO"
+        ]
+      }
+    },
+    {
+      "code": "dsr_cambios_del_campo_365d",
+      "dataType": "INTEGER",
+      "name": "Correcciones del mismo dato en un año",
+      "description": "Correcciones del mismo dato aceptadas en los últimos 365 días.",
+      "constraints": {
+        "min": 0,
+        "max": 1000
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "code": "dsr_decision",
+      "dataType": "STRING",
+      "usageType": "OUTPUT_PRIMARY",
+      "expectedOrigin": "DERIVED",
+      "name": "Decisión sobre la solicitud",
+      "description": "ACEPTAR, RECHAZAR o REVISION_HUMANA.",
+      "constraints": {
+        "allowedValues": ["ACEPTAR", "RECHAZAR", "REVISION_HUMANA"]
+      },
+      "sourceKind": "NODE",
+      "sourceRef": "DECIDIR"
+    },
+    {
+      "code": "dsr_motivo",
+      "dataType": "STRING",
+      "usageType": "OUTPUT",
+      "expectedOrigin": "DERIVED",
+      "name": "Motivo de la decisión",
+      "description": "Código del catálogo de motivos: Atlas lo traduce a la frase que lee la persona.",
+      "constraints": {
+        "allowedValues": [
+          "DSR_BORRADO_CON_RETENCION",
+          "DSR_BORRADO_TOTAL",
+          "DSR_CORRECCION_BAJO_RIESGO",
+          "DSR_YA_EN_CURSO",
+          "DSR_BORRADO_CON_DEUDA",
+          "DSR_USAR_AUTOSERVICIO",
+          "DSR_CASO_ABIERTO",
+          "DSR_POSIBLE_ROBO_DE_CUENTA",
+          "DSR_PROCESO_EN_CURSO",
+          "DSR_ESTADO_DE_CUENTA",
+          "DSR_CAMBIO_DE_IDENTIDAD",
+          "DSR_AFECTA_CREDITO",
+          "DSR_CAMPO_NO_CATALOGADO",
+          "DSR_CAMBIOS_REPETIDOS",
+          "DSR_SIN_CRITERIO_AUTOMATICO",
+          "DSR_NO_PEDIDA_POR_EL_TITULAR"
+        ]
+      },
+      "sourceKind": "INTERMEDIATE",
+      "sourceRef": "motivo"
+    },
+    {
+      "code": "dsr_accion",
+      "dataType": "STRING",
+      "usageType": "OUTPUT",
+      "expectedOrigin": "DERIVED",
+      "name": "Qué hay que hacer",
+      "description": "Lo que Atlas ejecuta si la decisión se aplica. Decidir no es ejecutar.",
+      "constraints": {
+        "allowedValues": [
+          "CORREGIR",
+          "CERRAR_Y_ANONIMIZAR",
+          "BORRAR_TODO",
+          "AUTOSERVICIO",
+          "NINGUNA"
+        ]
+      },
+      "sourceKind": "INTERMEDIATE",
+      "sourceRef": "accion"
+    },
+    {
+      "code": "dsr_reevaluar_credito",
+      "dataType": "BOOLEAN",
+      "usageType": "OUTPUT",
+      "expectedOrigin": "DERIVED",
+      "name": "Recalcular la línea",
+      "description": "La corrección toca un dato con el que se calcula la línea (ocupación, empleador, ingreso): aplicarla obliga a recalcularla.",
+      "sourceKind": "INTERMEDIATE",
+      "sourceRef": "reevaluar_credito"
+    },
+    {
+      "code": "dsr_senales_riesgo",
+      "dataType": "INTEGER",
+      "usageType": "OUTPUT",
+      "expectedOrigin": "DERIVED",
+      "name": "Señales de riesgo",
+      "description": "Cuántas señales de cuenta robada o de proceso abierto traía la solicitud. Se ve en la cola de la persona.",
+      "constraints": {
+        "min": 0,
+        "max": 6
+      },
+      "sourceKind": "INTERMEDIATE",
+      "sourceRef": "senales_riesgo"
+    }
+  ],
+  "reasonCodes": [],
+  "intermediates": [
+    {
+      "code": "senales_riesgo",
+      "name": "Señales de riesgo",
+      "description": "Fraude o caso abierto, contacto, dispositivo o credencial nuevos en 7 días, PIN sin confirmar.",
+      "dataType": "INTEGER",
+      "constraints": {
+        "min": 0,
+        "max": 6
+      },
+      "producerNodeKey": "MEDIR_SENALES",
+      "consumerNodeKeys": ["ACEPTAR", "RECHAZAR", "REVISION_HUMANA"]
+    },
+    {
+      "code": "reevaluar_credito",
+      "name": "La corrección obliga a recalcular la línea",
+      "description": "Corrección de ocupación, empleador o ingreso declarado.",
+      "dataType": "BOOLEAN",
+      "producerNodeKey": "MEDIR_SENALES",
+      "consumerNodeKeys": ["ACEPTAR", "RECHAZAR", "REVISION_HUMANA"]
+    },
+    {
+      "code": "motivo",
+      "name": "Regla que manda",
+      "description": "La primera regla de la política (B1…B8 para borrar, R1…R8 para corregir) que aplica, como código del catálogo de motivos.",
+      "dataType": "STRING",
+      "constraints": {
+        "allowedValues": [
+          "DSR_BORRADO_CON_RETENCION",
+          "DSR_BORRADO_TOTAL",
+          "DSR_CORRECCION_BAJO_RIESGO",
+          "DSR_YA_EN_CURSO",
+          "DSR_BORRADO_CON_DEUDA",
+          "DSR_USAR_AUTOSERVICIO",
+          "DSR_CASO_ABIERTO",
+          "DSR_POSIBLE_ROBO_DE_CUENTA",
+          "DSR_PROCESO_EN_CURSO",
+          "DSR_ESTADO_DE_CUENTA",
+          "DSR_CAMBIO_DE_IDENTIDAD",
+          "DSR_AFECTA_CREDITO",
+          "DSR_CAMPO_NO_CATALOGADO",
+          "DSR_CAMBIOS_REPETIDOS",
+          "DSR_SIN_CRITERIO_AUTOMATICO",
+          "DSR_NO_PEDIDA_POR_EL_TITULAR"
+        ]
+      },
+      "producerNodeKey": "APLICAR_POLITICA",
+      "consumerNodeKeys": ["ELEGIR_ACCION", "DECIDIR", "ACEPTAR", "RECHAZAR", "REVISION_HUMANA"]
+    },
+    {
+      "code": "accion",
+      "name": "Acción que corresponde",
+      "description": "Qué ejecutaría Atlas si la decisión se aplica.",
+      "dataType": "STRING",
+      "constraints": {
+        "allowedValues": [
+          "CORREGIR",
+          "CERRAR_Y_ANONIMIZAR",
+          "BORRAR_TODO",
+          "AUTOSERVICIO",
+          "NINGUNA"
+        ]
+      },
+      "producerNodeKey": "ELEGIR_ACCION",
+      "consumerNodeKeys": ["ACEPTAR", "RECHAZAR", "REVISION_HUMANA"]
+    }
+  ],
+  "conditions": [
+    {
+      "code": "DSR_MOTIVO_ACEPTA",
+      "name": "La regla que manda acepta",
+      "expressionType": "JSON_AST",
+      "expression": {
+        "op": "in",
+        "left": {
+          "var": "intermediate.motivo"
+        },
+        "right": {
+          "value": ["DSR_BORRADO_CON_RETENCION", "DSR_BORRADO_TOTAL", "DSR_CORRECCION_BAJO_RIESGO"]
+        }
+      },
+      "severity": "BLOCKING",
+      "reusable": true
+    },
+    {
+      "code": "DSR_MOTIVO_RECHAZA",
+      "name": "La regla que manda rechaza por imposibilidad objetiva",
+      "expressionType": "JSON_AST",
+      "expression": {
+        "op": "in",
+        "left": {
+          "var": "intermediate.motivo"
+        },
+        "right": {
+          "value": ["DSR_YA_EN_CURSO", "DSR_BORRADO_CON_DEUDA", "DSR_USAR_AUTOSERVICIO"]
+        }
+      },
+      "severity": "BLOCKING",
+      "reusable": true
+    }
+  ],
+  "actions": [],
+  "nodes": [
+    {
+      "key": "START",
+      "type": "START",
+      "label": "START",
+      "x": 0,
+      "y": 0,
+      "terminal": false,
+      "config": {},
+      "actions": []
+    },
+    {
+      "key": "MEDIR_SENALES",
+      "type": "EXPRESSION",
+      "label": "Medir señales de riesgo",
+      "x": 260,
+      "y": 0,
+      "terminal": false,
+      "actions": [],
+      "config": {
+        "intermediateAssignments": [
+          {
+            "code": "senales_riesgo",
+            "source": "EXPRESSION",
+            "expression": {
+              "op": "add",
+              "args": [
+                {
+                  "op": "if",
+                  "condition": {
+                    "var": "dsr_fraude_abierto"
+                  },
+                  "then": {
+                    "value": 1
+                  },
+                  "else": {
+                    "value": 0
+                  }
+                },
+                {
+                  "op": "if",
+                  "condition": {
+                    "var": "dsr_caso_abierto"
+                  },
+                  "then": {
+                    "value": 1
+                  },
+                  "else": {
+                    "value": 0
+                  }
+                },
+                {
+                  "op": "if",
+                  "condition": {
+                    "var": "dsr_contacto_cambiado_7d"
+                  },
+                  "then": {
+                    "value": 1
+                  },
+                  "else": {
+                    "value": 0
+                  }
+                },
+                {
+                  "op": "if",
+                  "condition": {
+                    "var": "dsr_dispositivo_nuevo_7d"
+                  },
+                  "then": {
+                    "value": 1
+                  },
+                  "else": {
+                    "value": 0
+                  }
+                },
+                {
+                  "op": "if",
+                  "condition": {
+                    "op": "not",
+                    "arg": {
+                      "var": "dsr_pin_confirmado"
+                    }
+                  },
+                  "then": {
+                    "value": 1
+                  },
+                  "else": {
+                    "value": 0
+                  }
+                },
+                {
+                  "op": "if",
+                  "condition": {
+                    "var": "dsr_credencial_restablecida_7d"
+                  },
+                  "then": {
+                    "value": 1
+                  },
+                  "else": {
+                    "value": 0
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "code": "reevaluar_credito",
+            "source": "EXPRESSION",
+            "expression": {
+              "op": "and",
+              "args": [
+                {
+                  "op": "eq",
+                  "left": {
+                    "var": "dsr_tipo"
+                  },
+                  "right": {
+                    "value": "RECTIFICACION"
+                  }
+                },
+                {
+                  "op": "in",
+                  "left": {
+                    "var": "dsr_campo"
+                  },
+                  "right": {
+                    "value": ["OCUPACION", "EMPLEADOR", "INGRESO_DECLARADO"]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "key": "APLICAR_POLITICA",
+      "type": "EXPRESSION",
+      "label": "Aplicar la política (la primera regla que aplica manda)",
+      "x": 520,
+      "y": 0,
+      "terminal": false,
+      "actions": [],
+      "config": {
+        "intermediateAssignments": [
+          {
+            "code": "motivo",
+            "source": "EXPRESSION",
+            "expression": {
+              "op": "if",
+              "condition": {
+                "op": "not",
+                "arg": {
+                  "var": "dsr_creada_por_titular"
+                }
+              },
+              "then": {
+                "value": "DSR_NO_PEDIDA_POR_EL_TITULAR"
+              },
+              "else": {
+                "op": "if",
+                "condition": {
+                  "op": "eq",
+                  "left": {
+                    "var": "dsr_tipo"
+                  },
+                  "right": {
+                    "value": "BORRADO"
+                  }
+                },
+                "then": {
+                  "op": "if",
+                  "condition": {
+                    "op": "or",
+                    "args": [
+                      {
+                        "var": "dsr_fraude_abierto"
+                      },
+                      {
+                        "var": "dsr_caso_abierto"
+                      }
+                    ]
+                  },
+                  "then": {
+                    "value": "DSR_CASO_ABIERTO"
+                  },
+                  "else": {
+                    "op": "if",
+                    "condition": {
+                      "op": "or",
+                      "args": [
+                        {
+                          "var": "dsr_contacto_cambiado_7d"
+                        },
+                        {
+                          "var": "dsr_dispositivo_nuevo_7d"
+                        },
+                        {
+                          "op": "not",
+                          "arg": {
+                            "var": "dsr_pin_confirmado"
+                          }
+                        },
+                        {
+                          "var": "dsr_credencial_restablecida_7d"
+                        }
+                      ]
+                    },
+                    "then": {
+                      "value": "DSR_POSIBLE_ROBO_DE_CUENTA"
+                    },
+                    "else": {
+                      "op": "if",
+                      "condition": {
+                        "op": "gt",
+                        "left": {
+                          "var": "dsr_solicitudes_iguales_abiertas"
+                        },
+                        "right": {
+                          "value": 0
+                        }
+                      },
+                      "then": {
+                        "value": "DSR_YA_EN_CURSO"
+                      },
+                      "else": {
+                        "op": "if",
+                        "condition": {
+                          "op": "or",
+                          "args": [
+                            {
+                              "op": "gt",
+                              "left": {
+                                "var": "dsr_saldo_pendiente"
+                              },
+                              "right": {
+                                "value": 0
+                              }
+                            },
+                            {
+                              "op": "gt",
+                              "left": {
+                                "var": "dsr_prestamos_activos"
+                              },
+                              "right": {
+                                "value": 0
+                              }
+                            },
+                            {
+                              "op": "gt",
+                              "left": {
+                                "var": "dsr_cuotas_en_mora"
+                              },
+                              "right": {
+                                "value": 0
+                              }
+                            },
+                            {
+                              "op": "gt",
+                              "left": {
+                                "var": "dsr_pagos_en_conciliacion"
+                              },
+                              "right": {
+                                "value": 0
+                              }
+                            }
+                          ]
+                        },
+                        "then": {
+                          "value": "DSR_BORRADO_CON_DEUDA"
+                        },
+                        "else": {
+                          "op": "if",
+                          "condition": {
+                            "var": "dsr_extracto_en_revision"
+                          },
+                          "then": {
+                            "value": "DSR_PROCESO_EN_CURSO"
+                          },
+                          "else": {
+                            "op": "if",
+                            "condition": {
+                              "op": "not",
+                              "arg": {
+                                "var": "dsr_cuenta_operativa"
+                              }
+                            },
+                            "then": {
+                              "value": "DSR_ESTADO_DE_CUENTA"
+                            },
+                            "else": {
+                              "op": "if",
+                              "condition": {
+                                "op": "or",
+                                "args": [
+                                  {
+                                    "var": "dsr_tuvo_credito"
+                                  },
+                                  {
+                                    "var": "dsr_identidad_verificada"
+                                  },
+                                  {
+                                    "var": "dsr_evidencia_identidad"
+                                  }
+                                ]
+                              },
+                              "then": {
+                                "value": "DSR_BORRADO_CON_RETENCION"
+                              },
+                              "else": "DSR_BORRADO_TOTAL"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "else": {
+                  "op": "if",
+                  "condition": {
+                    "op": "eq",
+                    "left": {
+                      "var": "dsr_tipo"
+                    },
+                    "right": {
+                      "value": "RECTIFICACION"
+                    }
+                  },
+                  "then": {
+                    "op": "if",
+                    "condition": {
+                      "op": "or",
+                      "args": [
+                        {
+                          "var": "dsr_fraude_abierto"
+                        },
+                        {
+                          "var": "dsr_contacto_cambiado_7d"
+                        },
+                        {
+                          "var": "dsr_credencial_restablecida_7d"
+                        }
+                      ]
+                    },
+                    "then": {
+                      "value": "DSR_POSIBLE_ROBO_DE_CUENTA"
+                    },
+                    "else": {
+                      "op": "if",
+                      "condition": {
+                        "op": "not",
+                        "arg": {
+                          "var": "dsr_cuenta_operativa"
+                        }
+                      },
+                      "then": {
+                        "value": "DSR_ESTADO_DE_CUENTA"
+                      },
+                      "else": {
+                        "op": "if",
+                        "condition": {
+                          "var": "dsr_caso_abierto"
+                        },
+                        "then": {
+                          "value": "DSR_CASO_ABIERTO"
+                        },
+                        "else": {
+                          "op": "if",
+                          "condition": {
+                            "op": "in",
+                            "left": {
+                              "var": "dsr_campo"
+                            },
+                            "right": {
+                              "value": ["TELEFONO", "CORREO"]
+                            }
+                          },
+                          "then": {
+                            "value": "DSR_USAR_AUTOSERVICIO"
+                          },
+                          "else": {
+                            "op": "if",
+                            "condition": {
+                              "op": "in",
+                              "left": {
+                                "var": "dsr_campo"
+                              },
+                              "right": {
+                                "value": [
+                                  "NOMBRE",
+                                  "APELLIDO",
+                                  "FECHA_NACIMIENTO",
+                                  "NUMERO_DOCUMENTO"
+                                ]
+                              }
+                            },
+                            "then": {
+                              "value": "DSR_CAMBIO_DE_IDENTIDAD"
+                            },
+                            "else": {
+                              "op": "if",
+                              "condition": {
+                                "op": "in",
+                                "left": {
+                                  "var": "dsr_campo"
+                                },
+                                "right": {
+                                  "value": ["OCUPACION", "EMPLEADOR", "INGRESO_DECLARADO"]
+                                }
+                              },
+                              "then": {
+                                "value": "DSR_AFECTA_CREDITO"
+                              },
+                              "else": {
+                                "op": "if",
+                                "condition": {
+                                  "op": "not",
+                                  "arg": {
+                                    "op": "in",
+                                    "left": {
+                                      "var": "dsr_campo"
+                                    },
+                                    "right": {
+                                      "value": [
+                                        "DIRECCION",
+                                        "ZONA",
+                                        "CIUDAD",
+                                        "REFERENCIA_DOMICILIO"
+                                      ]
+                                    }
+                                  }
+                                },
+                                "then": {
+                                  "value": "DSR_CAMPO_NO_CATALOGADO"
+                                },
+                                "else": {
+                                  "op": "if",
+                                  "condition": {
+                                    "op": "gte",
+                                    "left": {
+                                      "var": "dsr_cambios_del_campo_365d"
+                                    },
+                                    "right": {
+                                      "value": 3
+                                    }
+                                  },
+                                  "then": {
+                                    "value": "DSR_CAMBIOS_REPETIDOS"
+                                  },
+                                  "else": {
+                                    "op": "if",
+                                    "condition": {
+                                      "op": "and",
+                                      "args": [
+                                        {
+                                          "var": "dsr_identidad_verificada"
+                                        },
+                                        {
+                                          "var": "dsr_pin_confirmado"
+                                        },
+                                        {
+                                          "op": "not",
+                                          "arg": {
+                                            "var": "dsr_dispositivo_nuevo_7d"
+                                          }
+                                        }
+                                      ]
+                                    },
+                                    "then": {
+                                      "value": "DSR_CORRECCION_BAJO_RIESGO"
+                                    },
+                                    "else": "DSR_SIN_CRITERIO_AUTOMATICO"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "else": {
+                    "value": "DSR_SIN_CRITERIO_AUTOMATICO"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "key": "ELEGIR_ACCION",
+      "type": "EXPRESSION",
+      "label": "Elegir la acción",
+      "x": 780,
+      "y": 0,
+      "terminal": false,
+      "actions": [],
+      "config": {
+        "intermediateAssignments": [
+          {
+            "code": "accion",
+            "source": "EXPRESSION",
+            "expression": {
+              "op": "if",
+              "condition": {
+                "op": "eq",
+                "left": {
+                  "var": "intermediate.motivo"
+                },
+                "right": {
+                  "value": "DSR_BORRADO_CON_RETENCION"
+                }
+              },
+              "then": {
+                "value": "CERRAR_Y_ANONIMIZAR"
+              },
+              "else": {
+                "op": "if",
+                "condition": {
+                  "op": "eq",
+                  "left": {
+                    "var": "intermediate.motivo"
+                  },
+                  "right": {
+                    "value": "DSR_BORRADO_TOTAL"
+                  }
+                },
+                "then": {
+                  "value": "BORRAR_TODO"
+                },
+                "else": {
+                  "op": "if",
+                  "condition": {
+                    "op": "eq",
+                    "left": {
+                      "var": "intermediate.motivo"
+                    },
+                    "right": {
+                      "value": "DSR_CORRECCION_BAJO_RIESGO"
+                    }
+                  },
+                  "then": {
+                    "value": "CORREGIR"
+                  },
+                  "else": {
+                    "op": "if",
+                    "condition": {
+                      "op": "eq",
+                      "left": {
+                        "var": "intermediate.motivo"
+                      },
+                      "right": {
+                        "value": "DSR_USAR_AUTOSERVICIO"
+                      }
+                    },
+                    "then": {
+                      "value": "AUTOSERVICIO"
+                    },
+                    "else": "NINGUNA"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "key": "DECIDIR",
+      "type": "CONDITION",
+      "label": "Decidir",
+      "x": 1040,
+      "y": 0,
+      "terminal": false,
+      "config": {},
+      "actions": []
+    },
+    {
+      "key": "ACEPTAR",
+      "type": "RESULT",
+      "label": "Aceptar",
+      "x": 1300,
+      "y": -160,
+      "terminal": true,
+      "actions": [],
+      "config": {
+        "mode": "MAPPING",
+        "assignments": [
+          {
+            "source": "LITERAL",
+            "value": "ACEPTAR",
+            "outputCode": "dsr_decision"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.motivo"
+            },
+            "outputCode": "dsr_motivo"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.accion"
+            },
+            "outputCode": "dsr_accion"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.reevaluar_credito"
+            },
+            "outputCode": "dsr_reevaluar_credito"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.senales_riesgo"
+            },
+            "outputCode": "dsr_senales_riesgo"
+          }
+        ]
+      }
+    },
+    {
+      "key": "RECHAZAR",
+      "type": "RESULT",
+      "label": "Rechazar (con revisión humana a pedido)",
+      "x": 1300,
+      "y": 0,
+      "terminal": true,
+      "actions": [],
+      "config": {
+        "mode": "MAPPING",
+        "assignments": [
+          {
+            "source": "LITERAL",
+            "value": "RECHAZAR",
+            "outputCode": "dsr_decision"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.motivo"
+            },
+            "outputCode": "dsr_motivo"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.accion"
+            },
+            "outputCode": "dsr_accion"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.reevaluar_credito"
+            },
+            "outputCode": "dsr_reevaluar_credito"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.senales_riesgo"
+            },
+            "outputCode": "dsr_senales_riesgo"
+          }
+        ]
+      }
+    },
+    {
+      "key": "REVISION_HUMANA",
+      "type": "RESULT",
+      "label": "Revisión humana",
+      "x": 1300,
+      "y": 160,
+      "terminal": true,
+      "actions": [],
+      "config": {
+        "mode": "MAPPING",
+        "assignments": [
+          {
+            "source": "LITERAL",
+            "value": "REVISION_HUMANA",
+            "outputCode": "dsr_decision"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.motivo"
+            },
+            "outputCode": "dsr_motivo"
+          },
+          {
+            "source": "LITERAL",
+            "value": "NINGUNA",
+            "outputCode": "dsr_accion"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.reevaluar_credito"
+            },
+            "outputCode": "dsr_reevaluar_credito"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.senales_riesgo"
+            },
+            "outputCode": "dsr_senales_riesgo"
+          }
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "key": "E_START",
+      "from": "START",
+      "to": "MEDIR_SENALES",
+      "type": "DEFAULT",
+      "priority": 1,
+      "default": true,
+      "conditions": []
+    },
+    {
+      "key": "E_SENALES",
+      "from": "MEDIR_SENALES",
+      "to": "APLICAR_POLITICA",
+      "type": "DEFAULT",
+      "priority": 1,
+      "default": true,
+      "conditions": []
+    },
+    {
+      "key": "E_POLITICA",
+      "from": "APLICAR_POLITICA",
+      "to": "ELEGIR_ACCION",
+      "type": "DEFAULT",
+      "priority": 1,
+      "default": true,
+      "conditions": []
+    },
+    {
+      "key": "E_ACCION",
+      "from": "ELEGIR_ACCION",
+      "to": "DECIDIR",
+      "type": "DEFAULT",
+      "priority": 1,
+      "default": true,
+      "conditions": []
+    },
+    {
+      "key": "E_ACEPTA",
+      "from": "DECIDIR",
+      "to": "ACEPTAR",
+      "type": "CONDITIONAL",
+      "priority": 1,
+      "default": false,
+      "conditions": [
+        {
+          "conditionCode": "DSR_MOTIVO_ACEPTA",
+          "order": 1
+        }
+      ]
+    },
+    {
+      "key": "E_RECHAZA",
+      "from": "DECIDIR",
+      "to": "RECHAZAR",
+      "type": "CONDITIONAL",
+      "priority": 2,
+      "default": false,
+      "conditions": [
+        {
+          "conditionCode": "DSR_MOTIVO_RECHAZA",
+          "order": 1
+        }
+      ]
+    },
+    {
+      "key": "E_HUMANA",
+      "from": "DECIDIR",
+      "to": "REVISION_HUMANA",
+      "type": "DEFAULT",
+      "priority": 3,
+      "default": true,
+      "conditions": []
+    }
+  ],
+  "cases": [
+    {
+      "caseCode": "DSR-B1-FRAUDE-REVISA",
+      "testName": "Borrar con un caso de fraude abierto: lo mira una persona",
+      "input": {
+        "dsr_tipo": "BORRADO",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": false,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": true,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "NINGUNO",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "REVISION_HUMANA",
+        "dsr_motivo": "DSR_CASO_ABIERTO",
+        "dsr_accion": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "DSR-B1-RECLAMO-REVISA",
+      "testName": "Borrar con un reclamo abierto: lo mira una persona",
+      "input": {
+        "dsr_tipo": "BORRADO",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": false,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": true,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "NINGUNO",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "REVISION_HUMANA",
+        "dsr_motivo": "DSR_CASO_ABIERTO",
+        "dsr_accion": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "DSR-B2-CONTACTO-NUEVO-REVISA",
+      "testName": "Borrar con el correo cambiado esta semana: posible robo, persona",
+      "input": {
+        "dsr_tipo": "BORRADO",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": false,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": true,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "NINGUNO",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "REVISION_HUMANA",
+        "dsr_motivo": "DSR_POSIBLE_ROBO_DE_CUENTA",
+        "dsr_accion": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "DSR-B2-DISPOSITIVO-NUEVO-REVISA",
+      "testName": "Borrar desde un dispositivo nuevo: posible robo, persona",
+      "input": {
+        "dsr_tipo": "BORRADO",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": false,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": true,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "NINGUNO",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "REVISION_HUMANA",
+        "dsr_motivo": "DSR_POSIBLE_ROBO_DE_CUENTA",
+        "dsr_accion": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "DSR-B2-SIN-PIN-REVISA",
+      "testName": "Borrar sin PIN confirmado y todo lo demás limpio: persona",
+      "input": {
+        "dsr_tipo": "BORRADO",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": false,
+        "dsr_pin_confirmado": false,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "NINGUNO",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "REVISION_HUMANA",
+        "dsr_motivo": "DSR_POSIBLE_ROBO_DE_CUENTA",
+        "dsr_accion": "NINGUNA",
+        "dsr_senales_riesgo": 1
+      }
+    },
+    {
+      "caseCode": "DSR-B3-DUPLICADA-RECHAZA",
+      "testName": "Ya hay un borrado en curso: rechaza",
+      "input": {
+        "dsr_tipo": "BORRADO",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": false,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 1,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "NINGUNO",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "RECHAZAR",
+        "dsr_motivo": "DSR_YA_EN_CURSO",
+        "dsr_accion": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "DSR-B4-SALDO-RECHAZA",
+      "testName": "Borrar con saldo: rechaza",
+      "input": {
+        "dsr_tipo": "BORRADO",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": false,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 350,
+        "dsr_prestamos_activos": 1,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": true,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "NINGUNO",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "RECHAZAR",
+        "dsr_motivo": "DSR_BORRADO_CON_DEUDA",
+        "dsr_accion": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "DSR-B4-UN-CENTAVO-RECHAZA",
+      "testName": "Borde: un saldo de 0,01 ya es deuda",
+      "input": {
+        "dsr_tipo": "BORRADO",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": false,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0.01,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": true,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "NINGUNO",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "RECHAZAR",
+        "dsr_motivo": "DSR_BORRADO_CON_DEUDA",
+        "dsr_accion": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "DSR-B4-MORA-SIN-SALDO-RECHAZA",
+      "testName": "Borde: mora registrada sin saldo cuenta como deuda",
+      "input": {
+        "dsr_tipo": "BORRADO",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": false,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 1,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": true,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "NINGUNO",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "RECHAZAR",
+        "dsr_motivo": "DSR_BORRADO_CON_DEUDA",
+        "dsr_accion": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "DSR-B4-PAGO-POR-CONCILIAR-RECHAZA",
+      "testName": "Un pago reportado sin conciliar impide cerrar",
+      "input": {
+        "dsr_tipo": "BORRADO",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": false,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 1,
+        "dsr_tuvo_credito": true,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "NINGUNO",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "RECHAZAR",
+        "dsr_motivo": "DSR_BORRADO_CON_DEUDA",
+        "dsr_accion": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "DSR-B5-EXTRACTO-REVISA",
+      "testName": "Extracto en revisión: persona",
+      "input": {
+        "dsr_tipo": "BORRADO",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": false,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": true,
+        "dsr_campo": "NINGUNO",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "REVISION_HUMANA",
+        "dsr_motivo": "DSR_PROCESO_EN_CURSO",
+        "dsr_accion": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "DSR-B6-CUENTA-BLOQUEADA-REVISA",
+      "testName": "Cuenta no operativa: persona",
+      "input": {
+        "dsr_tipo": "BORRADO",
+        "dsr_cuenta_operativa": false,
+        "dsr_identidad_verificada": false,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "NINGUNO",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "REVISION_HUMANA",
+        "dsr_motivo": "DSR_ESTADO_DE_CUENTA",
+        "dsr_accion": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "DSR-B7-CON-CREDITO-RETIENE",
+      "testName": "Operó con crédito y saldó: cierra y retiene lo obligatorio",
+      "input": {
+        "dsr_tipo": "BORRADO",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": true,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": true,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "NINGUNO",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "ACEPTAR",
+        "dsr_motivo": "DSR_BORRADO_CON_RETENCION",
+        "dsr_accion": "CERRAR_Y_ANONIMIZAR"
+      }
+    },
+    {
+      "caseCode": "DSR-B7-SOLO-IDENTIDAD-RETIENE",
+      "testName": "Verificó identidad sin operar: retiene la diligencia debida",
+      "input": {
+        "dsr_tipo": "BORRADO",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": true,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "NINGUNO",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "ACEPTAR",
+        "dsr_motivo": "DSR_BORRADO_CON_RETENCION",
+        "dsr_accion": "CERRAR_Y_ANONIMIZAR"
+      }
+    },
+    {
+      "caseCode": "DSR-B8-NUNCA-OPERO-BORRA",
+      "testName": "Nunca operó ni verificó identidad: borra todo",
+      "input": {
+        "dsr_tipo": "BORRADO",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": false,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "NINGUNO",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "ACEPTAR",
+        "dsr_motivo": "DSR_BORRADO_TOTAL",
+        "dsr_accion": "BORRAR_TODO",
+        "dsr_senales_riesgo": 0
+      }
+    },
+    {
+      "caseCode": "DSR-B-ORDEN-FRAUDE-ANTES-QUE-DEUDA",
+      "testName": "Orden: fraude y deuda a la vez manda a persona, no rechaza",
+      "input": {
+        "dsr_tipo": "BORRADO",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": false,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": true,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 100,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "NINGUNO",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "REVISION_HUMANA",
+        "dsr_motivo": "DSR_CASO_ABIERTO",
+        "dsr_accion": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "DSR-R1-FRAUDE-REVISA",
+      "testName": "Corregir con fraude abierto: persona",
+      "input": {
+        "dsr_tipo": "RECTIFICACION",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": true,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": true,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "ZONA",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "REVISION_HUMANA",
+        "dsr_motivo": "DSR_POSIBLE_ROBO_DE_CUENTA",
+        "dsr_accion": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "DSR-R1-CONTACTO-NUEVO-REVISA",
+      "testName": "Corregir con el contacto cambiado esta semana: persona",
+      "input": {
+        "dsr_tipo": "RECTIFICACION",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": true,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": true,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "ZONA",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "REVISION_HUMANA",
+        "dsr_motivo": "DSR_POSIBLE_ROBO_DE_CUENTA",
+        "dsr_accion": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "DSR-R2-TELEFONO-AUTOSERVICIO",
+      "testName": "Corregir el teléfono: se hace desde Perfil",
+      "input": {
+        "dsr_tipo": "RECTIFICACION",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": true,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "TELEFONO",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "RECHAZAR",
+        "dsr_motivo": "DSR_USAR_AUTOSERVICIO",
+        "dsr_accion": "AUTOSERVICIO"
+      }
+    },
+    {
+      "caseCode": "DSR-R2-CORREO-AUTOSERVICIO",
+      "testName": "Corregir el correo: se hace desde Perfil",
+      "input": {
+        "dsr_tipo": "RECTIFICACION",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": true,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "CORREO",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "RECHAZAR",
+        "dsr_motivo": "DSR_USAR_AUTOSERVICIO",
+        "dsr_accion": "AUTOSERVICIO"
+      }
+    },
+    {
+      "caseCode": "DSR-R3-DOCUMENTO-REVISA",
+      "testName": "Corregir el número de documento: persona (diligencia debida)",
+      "input": {
+        "dsr_tipo": "RECTIFICACION",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": true,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "NUMERO_DOCUMENTO",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "REVISION_HUMANA",
+        "dsr_motivo": "DSR_CAMBIO_DE_IDENTIDAD",
+        "dsr_accion": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "DSR-R3-NOMBRE-REVISA",
+      "testName": "Corregir el nombre: persona",
+      "input": {
+        "dsr_tipo": "RECTIFICACION",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": true,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "NOMBRE",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "REVISION_HUMANA",
+        "dsr_motivo": "DSR_CAMBIO_DE_IDENTIDAD",
+        "dsr_accion": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "DSR-R4-INGRESO-REVISA",
+      "testName": "Corregir el ingreso: persona y marca recalcular la línea",
+      "input": {
+        "dsr_tipo": "RECTIFICACION",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": true,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "INGRESO_DECLARADO",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "REVISION_HUMANA",
+        "dsr_motivo": "DSR_AFECTA_CREDITO",
+        "dsr_accion": "NINGUNA",
+        "dsr_reevaluar_credito": true
+      }
+    },
+    {
+      "caseCode": "DSR-R5-OTRO-REVISA",
+      "testName": "Dato fuera de la lista: persona",
+      "input": {
+        "dsr_tipo": "RECTIFICACION",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": true,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "OTRO",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "REVISION_HUMANA",
+        "dsr_motivo": "DSR_CAMPO_NO_CATALOGADO",
+        "dsr_accion": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "DSR-R6-TERCERA-CORRECCION-REVISA",
+      "testName": "Tercera corrección del mismo dato en el año: persona",
+      "input": {
+        "dsr_tipo": "RECTIFICACION",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": true,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "ZONA",
+        "dsr_cambios_del_campo_365d": 3,
+        "dsr_evidencia_identidad": true,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "REVISION_HUMANA",
+        "dsr_motivo": "DSR_CAMBIOS_REPETIDOS",
+        "dsr_accion": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "DSR-R6-SEGUNDA-CORRECCION-ACEPTA",
+      "testName": "Borde: la segunda corrección del año todavía se acepta",
+      "input": {
+        "dsr_tipo": "RECTIFICACION",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": true,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "ZONA",
+        "dsr_cambios_del_campo_365d": 2,
+        "dsr_evidencia_identidad": true,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "ACEPTAR",
+        "dsr_motivo": "DSR_CORRECCION_BAJO_RIESGO",
+        "dsr_accion": "CORREGIR"
+      }
+    },
+    {
+      "caseCode": "DSR-R7-ZONA-ACEPTA",
+      "testName": "Corregir la zona con identidad verificada y PIN: acepta",
+      "input": {
+        "dsr_tipo": "RECTIFICACION",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": true,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "ZONA",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "ACEPTAR",
+        "dsr_motivo": "DSR_CORRECCION_BAJO_RIESGO",
+        "dsr_accion": "CORREGIR",
+        "dsr_reevaluar_credito": false,
+        "dsr_senales_riesgo": 0
+      }
+    },
+    {
+      "caseCode": "DSR-R7-DIRECCION-ACEPTA",
+      "testName": "Corregir la dirección: acepta",
+      "input": {
+        "dsr_tipo": "RECTIFICACION",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": true,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "DIRECCION",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "ACEPTAR",
+        "dsr_motivo": "DSR_CORRECCION_BAJO_RIESGO",
+        "dsr_accion": "CORREGIR"
+      }
+    },
+    {
+      "caseCode": "DSR-R8-SIN-IDENTIDAD-REVISA",
+      "testName": "Domicilio sin identidad verificada: persona",
+      "input": {
+        "dsr_tipo": "RECTIFICACION",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": false,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "ZONA",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "REVISION_HUMANA",
+        "dsr_motivo": "DSR_SIN_CRITERIO_AUTOMATICO",
+        "dsr_accion": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "DSR-R8-SIN-PIN-REVISA",
+      "testName": "Domicilio sin PIN confirmado: persona",
+      "input": {
+        "dsr_tipo": "RECTIFICACION",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": true,
+        "dsr_pin_confirmado": false,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "ZONA",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "REVISION_HUMANA",
+        "dsr_motivo": "DSR_SIN_CRITERIO_AUTOMATICO",
+        "dsr_accion": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "DSR-R8-DISPOSITIVO-NUEVO-REVISA",
+      "testName": "Domicilio desde un dispositivo nuevo: persona",
+      "input": {
+        "dsr_tipo": "RECTIFICACION",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": true,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": true,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "ZONA",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "REVISION_HUMANA",
+        "dsr_motivo": "DSR_SIN_CRITERIO_AUTOMATICO",
+        "dsr_accion": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "DSR-R-CAMPO-NINGUNO-REVISA",
+      "testName": "Desenlace imposible (corrección sin dato): persona, nunca acepta",
+      "input": {
+        "dsr_tipo": "RECTIFICACION",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": true,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "NINGUNO",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "REVISION_HUMANA",
+        "dsr_motivo": "DSR_CAMPO_NO_CATALOGADO",
+        "dsr_accion": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "DSR-R-CUENTA-NO-OPERATIVA-REVISA",
+      "testName": "Corregir domicilio con la cuenta bloqueada: lo mira una persona, no se acepta solo",
+      "input": {
+        "dsr_tipo": "RECTIFICACION",
+        "dsr_cuenta_operativa": false,
+        "dsr_identidad_verificada": true,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "DIRECCION",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "REVISION_HUMANA",
+        "dsr_motivo": "DSR_ESTADO_DE_CUENTA",
+        "dsr_accion": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "DSR-R-CASO-ABIERTO-REVISA",
+      "testName": "Corregir domicilio con un reclamo abierto: lo mira una persona",
+      "input": {
+        "dsr_tipo": "RECTIFICACION",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": true,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": true,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "DIRECCION",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "REVISION_HUMANA",
+        "dsr_motivo": "DSR_CASO_ABIERTO",
+        "dsr_accion": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "DSR-B7-EVIDENCIA-SIN-VERIFICAR-RETIENE",
+      "testName": "Borrar con evidencia de identidad subida y sin verificar (en revisión o rechazada): se cierra y se retiene, no se borra todo",
+      "input": {
+        "dsr_tipo": "BORRADO",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": false,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "NINGUNO",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "ACEPTAR",
+        "dsr_motivo": "DSR_BORRADO_CON_RETENCION",
+        "dsr_accion": "CERRAR_Y_ANONIMIZAR"
+      }
+    },
+    {
+      "caseCode": "DSR-B-ORDEN-CASO-ANTES-QUE-ESTADO",
+      "testName": "Borrar con reclamo abierto y cuenta no operativa a la vez: manda el reclamo abierto (B1 va primero)",
+      "input": {
+        "dsr_tipo": "BORRADO",
+        "dsr_cuenta_operativa": false,
+        "dsr_identidad_verificada": false,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": true,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "NINGUNO",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "REVISION_HUMANA",
+        "dsr_motivo": "DSR_CASO_ABIERTO",
+        "dsr_accion": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "DSR-B2-CREDENCIAL-RESTABLECIDA-REVISA",
+      "testName": "Borrar con el PIN restablecido hace días: posible robo de cuenta, lo mira una persona",
+      "input": {
+        "dsr_tipo": "BORRADO",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": false,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "NINGUNO",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false,
+        "dsr_credencial_restablecida_7d": true,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "REVISION_HUMANA",
+        "dsr_motivo": "DSR_POSIBLE_ROBO_DE_CUENTA",
+        "dsr_accion": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "DSR-R1-CREDENCIAL-RESTABLECIDA-REVISA",
+      "testName": "Corregir el domicilio con el PIN restablecido hace días: lo mira una persona",
+      "input": {
+        "dsr_tipo": "RECTIFICACION",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": true,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "DIRECCION",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true,
+        "dsr_credencial_restablecida_7d": true,
+        "dsr_creada_por_titular": true
+      },
+      "expectedResult": {
+        "dsr_decision": "REVISION_HUMANA",
+        "dsr_motivo": "DSR_POSIBLE_ROBO_DE_CUENTA",
+        "dsr_accion": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "DSR-B-NO-PEDIDA-POR-EL-TITULAR-REVISA",
+      "testName": "Borrado creado por alguien del equipo en nombre de la persona: nunca se decide solo",
+      "input": {
+        "dsr_tipo": "BORRADO",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": false,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "NINGUNO",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": false
+      },
+      "expectedResult": {
+        "dsr_decision": "REVISION_HUMANA",
+        "dsr_motivo": "DSR_NO_PEDIDA_POR_EL_TITULAR",
+        "dsr_accion": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "DSR-R-NO-PEDIDA-POR-EL-TITULAR-REVISA",
+      "testName": "Corrección creada por alguien del equipo en nombre de la persona: nunca se decide solo",
+      "input": {
+        "dsr_tipo": "RECTIFICACION",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": true,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "DIRECCION",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": false
+      },
+      "expectedResult": {
+        "dsr_decision": "REVISION_HUMANA",
+        "dsr_motivo": "DSR_NO_PEDIDA_POR_EL_TITULAR",
+        "dsr_accion": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "DSR-B-ORDEN-NO-PEDIDA-ANTES-QUE-DEUDA",
+      "testName": "Borrado con deuda creado por el equipo: no se rechaza solo, lo mira una persona",
+      "input": {
+        "dsr_tipo": "BORRADO",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": false,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 350,
+        "dsr_prestamos_activos": 1,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": true,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "NINGUNO",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false,
+        "dsr_credencial_restablecida_7d": false,
+        "dsr_creada_por_titular": false
+      },
+      "expectedResult": {
+        "dsr_decision": "REVISION_HUMANA",
+        "dsr_motivo": "DSR_NO_PEDIDA_POR_EL_TITULAR",
+        "dsr_accion": "NINGUNA"
+      }
+    }
+  ],
+  "suite": {
+    "suiteCode": "DSR-DESENLACES",
+    "name": "Solicitudes del titular: las 16 reglas y sus bordes",
+    "suiteType": "REGRESSION",
+    "isBlocking": true
+  }
+}

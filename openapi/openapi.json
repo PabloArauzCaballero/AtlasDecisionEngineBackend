@@ -16533,6 +16533,21 @@
           "semanticVersion": {
             "type": "string",
             "maxLength": 40
+          },
+          "decisionKind": {
+            "type": "string",
+            "description": "Qué clase de decisión toma. Sin él queda `ORIGINATION` (el valor por omisión de la base), y en\nproducción eso exige contrato económico: un artefacto que no origina crédito lo declara aquí.",
+            "enum": [
+              "ORIGINATION",
+              "LIMIT_MANAGEMENT",
+              "RENEWAL",
+              "RESTRUCTURE",
+              "COLLECTIONS",
+              "EARLY_WARNING",
+              "FRAUD_SCREENING",
+              "OPERATIONAL",
+              "DATA_SUBJECT_RIGHTS"
+            ]
           }
         },
         "required": [
