@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 /**
- * Publica `IDENTIDAD_CARNET_MOVIL` 1.2.0: la verificación de identidad del móvil CON la bitácora del alta.
+ * Publica `IDENTIDAD_CARNET_MOVIL` (la versión de `lib/identidad-carnet-movil.definicion.json`, hoy 1.3.0): la
+ * verificación de identidad del móvil con la bitácora del alta y, desde la 1.3.0, el registro estatal y la agenda.
+ * Sobre un artefacto ya desplegado, `--nueva-version` clona la versión vigente y escribe ahí la definición nueva.
  *
  * ## Qué cambia respecto a la 1.1.1 (seed.system, 2026-08-23)
  *
@@ -62,6 +64,9 @@ const DRY_RUN = args.get('dry-run') === 'true';
  * un ambiente gobernado no se usa.
  */
 const SIN_REVISION = args.get('sin-revision') === 'true';
+const NUEVA_VERSION = args.get('nueva-version') === 'true';
+/** Estados en los que el grafo de una versión todavía se puede escribir. */
+const EDITABLE = new Set(['DRAFT', 'VALIDATION_FAILED']);
 
 const DEFINICION = JSON.parse(
   readFileSync(
@@ -407,7 +412,7 @@ async function main() {
 
   const detalle = await api(`/v1/artifacts/${artefacto.id}`);
   const versionesArtefacto = detalle.versions ?? [];
-  const vigente = versionesArtefacto.reduce(
+  let vigente = versionesArtefacto.reduce(
     (mejor, version) =>
       !mejor || Number(version.versionNumber) > Number(mejor.versionNumber) ? version : mejor,
     null,
@@ -415,12 +420,36 @@ async function main() {
   if (!vigente) throw new Error(`${ARTIFACT_CODE} no tiene versiones.`);
   console.log(`Versión vigente ${vigente.versionNumber} (id ${vigente.id}): ${vigente.status}.`);
 
-  if (String(vigente.status).startsWith('DEPLOYED')) {
-    console.log('Ya está desplegada: nada que hacer.');
+  if (String(vigente.status).startsWith('DEPLOYED') && !NUEVA_VERSION) {
+    console.log(
+      'Ya está desplegada: nada que hacer. Para publicar la definición del repo como versión NUEVA, repite con --nueva-version.',
+    );
     return;
   }
+  // Con --nueva-version se clona CUALQUIER versión que ya no sea borrador: desplegada, o sembrada y sólo compilada
+  // (un ambiente inicializado con `sembrar-despliegue.mjs` deja la versión en COMPILED, no en DEPLOYED_*).
+  if (NUEVA_VERSION && !EDITABLE.has(vigente.status)) {
+    /*
+     * La definición del repo es más nueva que lo desplegado (p. ej. 1.3.0 sobre 1.2.0): se CLONA la desplegada
+     * —que no se toca y sigue decidiendo— y el grafo se escribe sobre el clon, que nace en borrador. De ahí en
+     * adelante es el mismo camino: compilar, y a revisión de dos personas.
+     */
+    if (DRY_RUN) {
+      console.log(
+        `[dry-run] clonaría la versión ${vigente.id} y escribiría el grafo ${DEFINICION.artifact.semanticVersion} ` +
+          `(${DEFINICION.nodes.length} nodos, ${DEFINICION.edges.length} aristas, ${DEFINICION.cases.length} casos).`,
+      );
+      return;
+    }
+    const clon = await api(`/v1/artifact-versions/${vigente.id}/clone`, {
+      method: 'POST',
+      body: JSON.stringify({ changeSummary: DEFINICION.artifact.authoringNotes.slice(-900) }),
+    });
+    console.log(`Clonada como versión id ${clon.id ?? clon.versionId}.`);
+    vigente = { ...clon, id: clon.id ?? clon.versionId, status: 'DRAFT', lockVersion: clon.lockVersion ?? 1 };
+  }
 
-  if (vigente.status === 'DRAFT') {
+  if (EDITABLE.has(vigente.status)) {
     if (DRY_RUN) {
       console.log(
         `[dry-run] escribiría el grafo (${DEFINICION.nodes.length} nodos, ${DEFINICION.edges.length} aristas) y compilaría.`,
@@ -437,6 +466,12 @@ async function main() {
       method: 'POST',
       body: '{}',
     });
+    // El Motor contesta 201 también cuando la validación FALLA: sin mirar esto, el guion decía «Compilada» y el
+    // error sólo aparecía después, como «no hay artefacto compilado».
+    if (compilado.validation?.valid === false) {
+      const errores = (compilado.validation.errors ?? []).map((e) => `${e.code}: ${e.message}`);
+      throw new Error(`La versión ${vigente.id} no valida:\n  - ${errores.join('\n  - ')}`);
+    }
     console.log(
       `Compilada: ${compilado.canonicalChecksum ?? compilado.checksum ?? 'sin checksum en la respuesta'}.`,
     );
