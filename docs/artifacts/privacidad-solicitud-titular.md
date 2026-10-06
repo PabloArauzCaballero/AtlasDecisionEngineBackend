@@ -28,14 +28,16 @@ defecto del nodo `DECIDIR` es la revisión humana.
 | B4 | saldo, préstamo activo, mora o pago por conciliar | rechaza | `DSR_BORRADO_CON_DEUDA` | — |
 | B5 | extracto bancario en revisión | revisión humana | `DSR_PROCESO_EN_CURSO` | — |
 | B6 | cuenta bloqueada, suspendida o cerrada | revisión humana | `DSR_ESTADO_DE_CUENTA` | — |
-| B7 | operó con crédito o verificó identidad | acepta | `DSR_BORRADO_CON_RETENCION` | `CERRAR_Y_ANONIMIZAR` |
-| B8 | nunca operó ni verificó identidad | acepta | `DSR_BORRADO_TOTAL` | `BORRAR_TODO` |
+| B7 | operó con crédito, verificó identidad o dejó evidencia de identidad (en revisión o rechazada) | acepta | `DSR_BORRADO_CON_RETENCION` | `CERRAR_Y_ANONIMIZAR` |
+| B8 | nunca operó ni dejó evidencia de identidad | acepta | `DSR_BORRADO_TOTAL` | `BORRAR_TODO` |
 
 **Corregir un dato**
 
 | # | Si… | Decide | Motivo | Acción |
 | --- | --- | --- | --- | --- |
 | R1 | fraude abierto o contacto cambiado en 7 días | revisión humana | `DSR_POSIBLE_ROBO_DE_CUENTA` | — |
+| R1b | cuenta bloqueada, suspendida o cerrada | revisión humana | `DSR_ESTADO_DE_CUENTA` | — |
+| R1c | reclamo o caso de soporte abierto | revisión humana | `DSR_CASO_ABIERTO` | — |
 | R2 | el dato es el teléfono o el correo | rechaza | `DSR_USAR_AUTOSERVICIO` | `AUTOSERVICIO` |
 | R3 | nombre, apellido, nacimiento o documento | revisión humana | `DSR_CAMBIO_DE_IDENTIDAD` | — |
 | R4 | ocupación, empleador o ingreso | revisión humana | `DSR_AFECTA_CREDITO` | — |
@@ -63,7 +65,7 @@ El valor nuevo de una corrección vive cifrado en AtlasBackend y no sale de all�
 | Variable | Tipo |
 | --- | --- |
 | `dsr_tipo` | `RECTIFICACION` / `BORRADO` |
-| `dsr_cuenta_operativa`, `dsr_identidad_verificada`, `dsr_pin_confirmado` | BOOLEAN |
+| `dsr_cuenta_operativa`, `dsr_identidad_verificada`, `dsr_evidencia_identidad`, `dsr_pin_confirmado` | BOOLEAN |
 | `dsr_contacto_cambiado_7d`, `dsr_dispositivo_nuevo_7d`, `dsr_fraude_abierto`, `dsr_caso_abierto` | BOOLEAN |
 | `dsr_solicitudes_iguales_abiertas`, `dsr_prestamos_activos`, `dsr_cuotas_en_mora`, `dsr_pagos_en_conciliacion` | INTEGER |
 | `dsr_saldo_pendiente` | CURRENCY |
@@ -87,7 +89,7 @@ la migración `20261004120000_decision_kind_data_subject_rights` y `POST /v1/art
 - Definición: `scripts/lib/privacidad-solicitud-titular.definicion.json`.
 - Guion: `scripts/privacidad-solicitud-titular.mjs` (idempotente, `--dry-run`, `--deploy`).
 - Prueba: `test/privacidad-solicitud-titular.spec.ts`, con el validador, el compilador y el motor
-  reales; además de los 32 casos, comprueba sobre 600 solicitudes al azar que ninguna combinación
+  reales; además de los 36 casos, comprueba sobre 600 solicitudes al azar que ninguna combinación
   acepta lo que la política reserva a una persona.
 
 Publicar sigue `docs/runbooks/artefactos-en-un-entorno-nuevo.md`: el guion lo deja en revisión, dos

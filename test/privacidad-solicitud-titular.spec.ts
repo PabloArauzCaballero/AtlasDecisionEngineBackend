@@ -515,6 +515,7 @@ function solicitudAlAzar(azar: () => number): Entrada {
     dsr_tipo: tipo,
     dsr_cuenta_operativa: si(0.85),
     dsr_identidad_verificada: si(0.7),
+    dsr_evidencia_identidad: si(0.6),
     dsr_pin_confirmado: si(0.8),
     dsr_contacto_cambiado_7d: si(0.15),
     dsr_dispositivo_nuevo_7d: si(0.15),
@@ -614,7 +615,7 @@ describe('PRIVACIDAD_SOLICITUD_TITULAR · la política y el guion que la publica
       expect(primera.stdout).not.toContain('AVISO');
     });
 
-    it('crea las 22 variables y el artefacto como DATA_SUBJECT_RIGHTS', () => {
+    it('crea las 23 variables y el artefacto como DATA_SUBJECT_RIGHTS', () => {
       expect(motor.cuerposDe('POST', /^\/v1\/variables$/)).toHaveLength(
         definicion.inputs.length + definicion.outputs.length,
       );
@@ -741,9 +742,15 @@ describe('PRIVACIDAD_SOLICITUD_TITULAR · la política y el guion que la publica
             dsr_cuenta_operativa: true,
           });
           // Quien operó o verificó identidad no se borra entero: la ley obliga a retener.
-          const retiene = entrada.dsr_tuvo_credito || entrada.dsr_identidad_verificada;
+          // ...ni quien subió evidencia de identidad aunque no la haya verificado (M-02): esa evidencia se retiene.
+          const retiene =
+            entrada.dsr_tuvo_credito ||
+            entrada.dsr_identidad_verificada ||
+            entrada.dsr_evidencia_identidad;
           expect(output.dsr_accion).toBe(retiene ? 'CERRAR_Y_ANONIMIZAR' : 'BORRAR_TODO');
         } else {
+          // Una corrección tampoco se acepta sola en una cuenta no operativa ni con un reclamo abierto (M-01).
+          expect(entrada).toMatchObject({ dsr_cuenta_operativa: true, dsr_caso_abierto: false });
           expect(DOMICILIO).toContain(entrada.dsr_campo);
           expect(entrada.dsr_identidad_verificada).toBe(true);
           expect(Number(entrada.dsr_cambios_del_campo_365d)).toBeLessThan(3);

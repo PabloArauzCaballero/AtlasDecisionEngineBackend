@@ -39,6 +39,12 @@
       "description": "La persona pasó la verificación de identidad. Con ella hay diligencia debida que la ley obliga a conservar (DS 4904, art. 18)."
     },
     {
+      "code": "dsr_evidencia_identidad",
+      "dataType": "BOOLEAN",
+      "name": "Evidencia de identidad en el expediente",
+      "description": "La persona subió documento o selfie, o tiene cualquier intento de verificación registrado, sea cual sea su resultado (en revisión, rechazado, reintento). Esa evidencia y el rastro de un intento de fraude no se borran: se retienen 10 años (DS 4904, art. 18)."
+    },
+    {
       "code": "dsr_pin_confirmado",
       "dataType": "BOOLEAN",
       "name": "PIN confirmado al pedir",
@@ -629,6 +635,9 @@
                                 },
                                 {
                                   "var": "dsr_identidad_verificada"
+                                },
+                                {
+                                  "var": "dsr_evidencia_identidad"
                                 }
                               ]
                             },
@@ -673,30 +682,21 @@
                   "else": {
                     "op": "if",
                     "condition": {
-                      "op": "in",
-                      "left": {
-                        "var": "dsr_campo"
-                      },
-                      "right": {
-                        "value": ["TELEFONO", "CORREO"]
+                      "op": "not",
+                      "arg": {
+                        "var": "dsr_cuenta_operativa"
                       }
                     },
                     "then": {
-                      "value": "DSR_USAR_AUTOSERVICIO"
+                      "value": "DSR_ESTADO_DE_CUENTA"
                     },
                     "else": {
                       "op": "if",
                       "condition": {
-                        "op": "in",
-                        "left": {
-                          "var": "dsr_campo"
-                        },
-                        "right": {
-                          "value": ["NOMBRE", "APELLIDO", "FECHA_NACIMIENTO", "NUMERO_DOCUMENTO"]
-                        }
+                        "var": "dsr_caso_abierto"
                       },
                       "then": {
-                        "value": "DSR_CAMBIO_DE_IDENTIDAD"
+                        "value": "DSR_CASO_ABIERTO"
                       },
                       "else": {
                         "op": "if",
@@ -706,66 +706,101 @@
                             "var": "dsr_campo"
                           },
                           "right": {
-                            "value": ["OCUPACION", "EMPLEADOR", "INGRESO_DECLARADO"]
+                            "value": ["TELEFONO", "CORREO"]
                           }
                         },
                         "then": {
-                          "value": "DSR_AFECTA_CREDITO"
+                          "value": "DSR_USAR_AUTOSERVICIO"
                         },
                         "else": {
                           "op": "if",
                           "condition": {
-                            "op": "not",
-                            "arg": {
+                            "op": "in",
+                            "left": {
+                              "var": "dsr_campo"
+                            },
+                            "right": {
+                              "value": [
+                                "NOMBRE",
+                                "APELLIDO",
+                                "FECHA_NACIMIENTO",
+                                "NUMERO_DOCUMENTO"
+                              ]
+                            }
+                          },
+                          "then": {
+                            "value": "DSR_CAMBIO_DE_IDENTIDAD"
+                          },
+                          "else": {
+                            "op": "if",
+                            "condition": {
                               "op": "in",
                               "left": {
                                 "var": "dsr_campo"
                               },
                               "right": {
-                                "value": ["DIRECCION", "ZONA", "CIUDAD", "REFERENCIA_DOMICILIO"]
-                              }
-                            }
-                          },
-                          "then": {
-                            "value": "DSR_CAMPO_NO_CATALOGADO"
-                          },
-                          "else": {
-                            "op": "if",
-                            "condition": {
-                              "op": "gte",
-                              "left": {
-                                "var": "dsr_cambios_del_campo_365d"
-                              },
-                              "right": {
-                                "value": 3
+                                "value": ["OCUPACION", "EMPLEADOR", "INGRESO_DECLARADO"]
                               }
                             },
                             "then": {
-                              "value": "DSR_CAMBIOS_REPETIDOS"
+                              "value": "DSR_AFECTA_CREDITO"
                             },
                             "else": {
                               "op": "if",
                               "condition": {
-                                "op": "and",
-                                "args": [
-                                  {
-                                    "var": "dsr_identidad_verificada"
+                                "op": "not",
+                                "arg": {
+                                  "op": "in",
+                                  "left": {
+                                    "var": "dsr_campo"
                                   },
-                                  {
-                                    "var": "dsr_pin_confirmado"
-                                  },
-                                  {
-                                    "op": "not",
-                                    "arg": {
-                                      "var": "dsr_dispositivo_nuevo_7d"
-                                    }
+                                  "right": {
+                                    "value": ["DIRECCION", "ZONA", "CIUDAD", "REFERENCIA_DOMICILIO"]
                                   }
-                                ]
+                                }
                               },
                               "then": {
-                                "value": "DSR_CORRECCION_BAJO_RIESGO"
+                                "value": "DSR_CAMPO_NO_CATALOGADO"
                               },
-                              "else": "DSR_SIN_CRITERIO_AUTOMATICO"
+                              "else": {
+                                "op": "if",
+                                "condition": {
+                                  "op": "gte",
+                                  "left": {
+                                    "var": "dsr_cambios_del_campo_365d"
+                                  },
+                                  "right": {
+                                    "value": 3
+                                  }
+                                },
+                                "then": {
+                                  "value": "DSR_CAMBIOS_REPETIDOS"
+                                },
+                                "else": {
+                                  "op": "if",
+                                  "condition": {
+                                    "op": "and",
+                                    "args": [
+                                      {
+                                        "var": "dsr_identidad_verificada"
+                                      },
+                                      {
+                                        "var": "dsr_pin_confirmado"
+                                      },
+                                      {
+                                        "op": "not",
+                                        "arg": {
+                                          "var": "dsr_dispositivo_nuevo_7d"
+                                        }
+                                      }
+                                    ]
+                                  },
+                                  "then": {
+                                    "value": "DSR_CORRECCION_BAJO_RIESGO"
+                                  },
+                                  "else": "DSR_SIN_CRITERIO_AUTOMATICO"
+                                }
+                              }
                             }
                           }
                         }
@@ -1106,7 +1141,8 @@
         "dsr_tuvo_credito": false,
         "dsr_extracto_en_revision": false,
         "dsr_campo": "NINGUNO",
-        "dsr_cambios_del_campo_365d": 0
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false
       },
       "expectedResult": {
         "dsr_decision": "REVISION_HUMANA",
@@ -1134,7 +1170,8 @@
         "dsr_tuvo_credito": false,
         "dsr_extracto_en_revision": false,
         "dsr_campo": "NINGUNO",
-        "dsr_cambios_del_campo_365d": 0
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false
       },
       "expectedResult": {
         "dsr_decision": "REVISION_HUMANA",
@@ -1162,7 +1199,8 @@
         "dsr_tuvo_credito": false,
         "dsr_extracto_en_revision": false,
         "dsr_campo": "NINGUNO",
-        "dsr_cambios_del_campo_365d": 0
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false
       },
       "expectedResult": {
         "dsr_decision": "REVISION_HUMANA",
@@ -1190,7 +1228,8 @@
         "dsr_tuvo_credito": false,
         "dsr_extracto_en_revision": false,
         "dsr_campo": "NINGUNO",
-        "dsr_cambios_del_campo_365d": 0
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false
       },
       "expectedResult": {
         "dsr_decision": "REVISION_HUMANA",
@@ -1218,7 +1257,8 @@
         "dsr_tuvo_credito": false,
         "dsr_extracto_en_revision": false,
         "dsr_campo": "NINGUNO",
-        "dsr_cambios_del_campo_365d": 0
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false
       },
       "expectedResult": {
         "dsr_decision": "REVISION_HUMANA",
@@ -1247,7 +1287,8 @@
         "dsr_tuvo_credito": false,
         "dsr_extracto_en_revision": false,
         "dsr_campo": "NINGUNO",
-        "dsr_cambios_del_campo_365d": 0
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false
       },
       "expectedResult": {
         "dsr_decision": "RECHAZAR",
@@ -1275,7 +1316,8 @@
         "dsr_tuvo_credito": true,
         "dsr_extracto_en_revision": false,
         "dsr_campo": "NINGUNO",
-        "dsr_cambios_del_campo_365d": 0
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false
       },
       "expectedResult": {
         "dsr_decision": "RECHAZAR",
@@ -1303,7 +1345,8 @@
         "dsr_tuvo_credito": true,
         "dsr_extracto_en_revision": false,
         "dsr_campo": "NINGUNO",
-        "dsr_cambios_del_campo_365d": 0
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false
       },
       "expectedResult": {
         "dsr_decision": "RECHAZAR",
@@ -1331,7 +1374,8 @@
         "dsr_tuvo_credito": true,
         "dsr_extracto_en_revision": false,
         "dsr_campo": "NINGUNO",
-        "dsr_cambios_del_campo_365d": 0
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false
       },
       "expectedResult": {
         "dsr_decision": "RECHAZAR",
@@ -1359,7 +1403,8 @@
         "dsr_tuvo_credito": true,
         "dsr_extracto_en_revision": false,
         "dsr_campo": "NINGUNO",
-        "dsr_cambios_del_campo_365d": 0
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false
       },
       "expectedResult": {
         "dsr_decision": "RECHAZAR",
@@ -1387,7 +1432,8 @@
         "dsr_tuvo_credito": false,
         "dsr_extracto_en_revision": true,
         "dsr_campo": "NINGUNO",
-        "dsr_cambios_del_campo_365d": 0
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false
       },
       "expectedResult": {
         "dsr_decision": "REVISION_HUMANA",
@@ -1415,7 +1461,8 @@
         "dsr_tuvo_credito": false,
         "dsr_extracto_en_revision": false,
         "dsr_campo": "NINGUNO",
-        "dsr_cambios_del_campo_365d": 0
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false
       },
       "expectedResult": {
         "dsr_decision": "REVISION_HUMANA",
@@ -1443,7 +1490,8 @@
         "dsr_tuvo_credito": true,
         "dsr_extracto_en_revision": false,
         "dsr_campo": "NINGUNO",
-        "dsr_cambios_del_campo_365d": 0
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true
       },
       "expectedResult": {
         "dsr_decision": "ACEPTAR",
@@ -1471,7 +1519,8 @@
         "dsr_tuvo_credito": false,
         "dsr_extracto_en_revision": false,
         "dsr_campo": "NINGUNO",
-        "dsr_cambios_del_campo_365d": 0
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true
       },
       "expectedResult": {
         "dsr_decision": "ACEPTAR",
@@ -1499,7 +1548,8 @@
         "dsr_tuvo_credito": false,
         "dsr_extracto_en_revision": false,
         "dsr_campo": "NINGUNO",
-        "dsr_cambios_del_campo_365d": 0
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false
       },
       "expectedResult": {
         "dsr_decision": "ACEPTAR",
@@ -1528,7 +1578,8 @@
         "dsr_tuvo_credito": false,
         "dsr_extracto_en_revision": false,
         "dsr_campo": "NINGUNO",
-        "dsr_cambios_del_campo_365d": 0
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false
       },
       "expectedResult": {
         "dsr_decision": "REVISION_HUMANA",
@@ -1556,7 +1607,8 @@
         "dsr_tuvo_credito": false,
         "dsr_extracto_en_revision": false,
         "dsr_campo": "ZONA",
-        "dsr_cambios_del_campo_365d": 0
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true
       },
       "expectedResult": {
         "dsr_decision": "REVISION_HUMANA",
@@ -1584,7 +1636,8 @@
         "dsr_tuvo_credito": false,
         "dsr_extracto_en_revision": false,
         "dsr_campo": "ZONA",
-        "dsr_cambios_del_campo_365d": 0
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true
       },
       "expectedResult": {
         "dsr_decision": "REVISION_HUMANA",
@@ -1612,7 +1665,8 @@
         "dsr_tuvo_credito": false,
         "dsr_extracto_en_revision": false,
         "dsr_campo": "TELEFONO",
-        "dsr_cambios_del_campo_365d": 0
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true
       },
       "expectedResult": {
         "dsr_decision": "RECHAZAR",
@@ -1640,7 +1694,8 @@
         "dsr_tuvo_credito": false,
         "dsr_extracto_en_revision": false,
         "dsr_campo": "CORREO",
-        "dsr_cambios_del_campo_365d": 0
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true
       },
       "expectedResult": {
         "dsr_decision": "RECHAZAR",
@@ -1668,7 +1723,8 @@
         "dsr_tuvo_credito": false,
         "dsr_extracto_en_revision": false,
         "dsr_campo": "NUMERO_DOCUMENTO",
-        "dsr_cambios_del_campo_365d": 0
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true
       },
       "expectedResult": {
         "dsr_decision": "REVISION_HUMANA",
@@ -1696,7 +1752,8 @@
         "dsr_tuvo_credito": false,
         "dsr_extracto_en_revision": false,
         "dsr_campo": "NOMBRE",
-        "dsr_cambios_del_campo_365d": 0
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true
       },
       "expectedResult": {
         "dsr_decision": "REVISION_HUMANA",
@@ -1724,7 +1781,8 @@
         "dsr_tuvo_credito": false,
         "dsr_extracto_en_revision": false,
         "dsr_campo": "INGRESO_DECLARADO",
-        "dsr_cambios_del_campo_365d": 0
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true
       },
       "expectedResult": {
         "dsr_decision": "REVISION_HUMANA",
@@ -1753,7 +1811,8 @@
         "dsr_tuvo_credito": false,
         "dsr_extracto_en_revision": false,
         "dsr_campo": "OTRO",
-        "dsr_cambios_del_campo_365d": 0
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true
       },
       "expectedResult": {
         "dsr_decision": "REVISION_HUMANA",
@@ -1781,7 +1840,8 @@
         "dsr_tuvo_credito": false,
         "dsr_extracto_en_revision": false,
         "dsr_campo": "ZONA",
-        "dsr_cambios_del_campo_365d": 3
+        "dsr_cambios_del_campo_365d": 3,
+        "dsr_evidencia_identidad": true
       },
       "expectedResult": {
         "dsr_decision": "REVISION_HUMANA",
@@ -1809,7 +1869,8 @@
         "dsr_tuvo_credito": false,
         "dsr_extracto_en_revision": false,
         "dsr_campo": "ZONA",
-        "dsr_cambios_del_campo_365d": 2
+        "dsr_cambios_del_campo_365d": 2,
+        "dsr_evidencia_identidad": true
       },
       "expectedResult": {
         "dsr_decision": "ACEPTAR",
@@ -1837,7 +1898,8 @@
         "dsr_tuvo_credito": false,
         "dsr_extracto_en_revision": false,
         "dsr_campo": "ZONA",
-        "dsr_cambios_del_campo_365d": 0
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true
       },
       "expectedResult": {
         "dsr_decision": "ACEPTAR",
@@ -1867,7 +1929,8 @@
         "dsr_tuvo_credito": false,
         "dsr_extracto_en_revision": false,
         "dsr_campo": "DIRECCION",
-        "dsr_cambios_del_campo_365d": 0
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true
       },
       "expectedResult": {
         "dsr_decision": "ACEPTAR",
@@ -1895,7 +1958,8 @@
         "dsr_tuvo_credito": false,
         "dsr_extracto_en_revision": false,
         "dsr_campo": "ZONA",
-        "dsr_cambios_del_campo_365d": 0
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false
       },
       "expectedResult": {
         "dsr_decision": "REVISION_HUMANA",
@@ -1923,7 +1987,8 @@
         "dsr_tuvo_credito": false,
         "dsr_extracto_en_revision": false,
         "dsr_campo": "ZONA",
-        "dsr_cambios_del_campo_365d": 0
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true
       },
       "expectedResult": {
         "dsr_decision": "REVISION_HUMANA",
@@ -1951,7 +2016,8 @@
         "dsr_tuvo_credito": false,
         "dsr_extracto_en_revision": false,
         "dsr_campo": "ZONA",
-        "dsr_cambios_del_campo_365d": 0
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true
       },
       "expectedResult": {
         "dsr_decision": "REVISION_HUMANA",
@@ -1979,11 +2045,128 @@
         "dsr_tuvo_credito": false,
         "dsr_extracto_en_revision": false,
         "dsr_campo": "NINGUNO",
-        "dsr_cambios_del_campo_365d": 0
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true
       },
       "expectedResult": {
         "dsr_decision": "REVISION_HUMANA",
         "dsr_motivo": "DSR_CAMPO_NO_CATALOGADO",
+        "dsr_accion": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "DSR-R-CUENTA-NO-OPERATIVA-REVISA",
+      "testName": "Corregir domicilio con la cuenta bloqueada: lo mira una persona, no se acepta solo",
+      "input": {
+        "dsr_tipo": "RECTIFICACION",
+        "dsr_cuenta_operativa": false,
+        "dsr_identidad_verificada": true,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "DIRECCION",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true
+      },
+      "expectedResult": {
+        "dsr_decision": "REVISION_HUMANA",
+        "dsr_motivo": "DSR_ESTADO_DE_CUENTA",
+        "dsr_accion": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "DSR-R-CASO-ABIERTO-REVISA",
+      "testName": "Corregir domicilio con un reclamo abierto: lo mira una persona",
+      "input": {
+        "dsr_tipo": "RECTIFICACION",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": true,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": true,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "DIRECCION",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true
+      },
+      "expectedResult": {
+        "dsr_decision": "REVISION_HUMANA",
+        "dsr_motivo": "DSR_CASO_ABIERTO",
+        "dsr_accion": "NINGUNA"
+      }
+    },
+    {
+      "caseCode": "DSR-B7-EVIDENCIA-SIN-VERIFICAR-RETIENE",
+      "testName": "Borrar con evidencia de identidad subida y sin verificar (en revisión o rechazada): se cierra y se retiene, no se borra todo",
+      "input": {
+        "dsr_tipo": "BORRADO",
+        "dsr_cuenta_operativa": true,
+        "dsr_identidad_verificada": false,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": false,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "NINGUNO",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": true
+      },
+      "expectedResult": {
+        "dsr_decision": "ACEPTAR",
+        "dsr_motivo": "DSR_BORRADO_CON_RETENCION",
+        "dsr_accion": "CERRAR_Y_ANONIMIZAR"
+      }
+    },
+    {
+      "caseCode": "DSR-B-ORDEN-CASO-ANTES-QUE-ESTADO",
+      "testName": "Borrar con reclamo abierto y cuenta no operativa a la vez: manda el reclamo abierto (B1 va primero)",
+      "input": {
+        "dsr_tipo": "BORRADO",
+        "dsr_cuenta_operativa": false,
+        "dsr_identidad_verificada": false,
+        "dsr_pin_confirmado": true,
+        "dsr_contacto_cambiado_7d": false,
+        "dsr_dispositivo_nuevo_7d": false,
+        "dsr_fraude_abierto": false,
+        "dsr_caso_abierto": true,
+        "dsr_solicitudes_iguales_abiertas": 0,
+        "dsr_saldo_pendiente": 0,
+        "dsr_prestamos_activos": 0,
+        "dsr_cuotas_en_mora": 0,
+        "dsr_pagos_en_conciliacion": 0,
+        "dsr_tuvo_credito": false,
+        "dsr_extracto_en_revision": false,
+        "dsr_campo": "NINGUNO",
+        "dsr_cambios_del_campo_365d": 0,
+        "dsr_evidencia_identidad": false
+      },
+      "expectedResult": {
+        "dsr_decision": "REVISION_HUMANA",
+        "dsr_motivo": "DSR_CASO_ABIERTO",
         "dsr_accion": "NINGUNA"
       }
     }
