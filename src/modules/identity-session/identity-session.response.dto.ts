@@ -20,6 +20,14 @@ export class IdentityPasswordChangedDto {
   @ApiProperty({ example: true }) passwordChanged!: boolean;
 }
 
+/**
+ * `IdentitySessionController.requestPasswordReset`. Siempre `true`: la respuesta no puede decir
+ * si la cuenta existe, sólo que la solicitud se registró.
+ */
+export class IdentityPasswordResetRequestedDto {
+  @ApiProperty({ example: true }) requested!: boolean;
+}
+
 /** `IdentitySessionController.logout`. */
 export class LogoutResultDto {
   @ApiProperty({ example: true }) loggedOut!: boolean;

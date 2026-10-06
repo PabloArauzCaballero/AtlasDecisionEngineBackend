@@ -5,6 +5,7 @@ import { IdentityProviderClient } from '../../common/security/identity-provider.
 import {
   isPinChallenge,
   type IdentityPasswordChanged,
+  type IdentityPasswordResetRequested,
   type IdentityPinChallenge,
   type IdentitySession,
   type PublicIdentitySession,
@@ -13,6 +14,8 @@ import type {
   IdentityLoginDto,
   IdentityLoginPinDto,
   IdentityPasswordChangeConfirmDto,
+  IdentityPasswordResetConfirmDto,
+  IdentityPasswordResetRequestDto,
 } from './identity-session.dto';
 
 export type SessionResult = { session: PublicIdentitySession; refreshToken: string };
@@ -68,6 +71,28 @@ export class IdentitySessionService {
   ): Promise<IdentityPasswordChanged> {
     return this.identityProvider.confirmPasswordChange(this.requireAccessToken(accessToken), {
       challengeToken: input.challengeToken,
+      code: input.code,
+      newPassword: input.newPassword,
+    });
+  }
+
+  /**
+   * Forgotten password, for someone WITHOUT a session. Unlike the change above there is no token to
+   * name the actor: the mailbox does, because the code only reaches whoever reads it.
+   */
+  requestPasswordReset(
+    input: IdentityPasswordResetRequestDto,
+  ): Promise<IdentityPasswordResetRequested> {
+    return this.identityProvider.requestPasswordReset({
+      tenantId: input.tenantId,
+      email: input.email,
+    });
+  }
+
+  confirmPasswordReset(input: IdentityPasswordResetConfirmDto): Promise<IdentityPasswordChanged> {
+    return this.identityProvider.confirmPasswordReset({
+      tenantId: input.tenantId,
+      email: input.email,
       code: input.code,
       newPassword: input.newPassword,
     });

@@ -73,6 +73,36 @@ export class IdentityPasswordChangeConfirmDto {
   newPassword!: string;
 }
 
+/**
+ * "Olvidé mi contraseña", paso uno: quien NO tiene sesión pide un código al correo.
+ *
+ * El correo es el único identificador porque es el canal por el que llega el código: quien no
+ * controla ese buzón no puede completar el paso dos. La respuesta del proveedor es idéntica exista
+ * o no la cuenta, y este portal la reenvía sin añadir nada que la distinga.
+ */
+export class IdentityPasswordResetRequestDto {
+  @IsString()
+  @Matches(DATABASE_ID_PATTERN)
+  tenantId!: string;
+
+  @IsEmail()
+  @MaxLength(180)
+  email!: string;
+}
+
+/** Paso dos: el código recibido por correo y la contraseña nueva, para la misma cuenta. */
+export class IdentityPasswordResetConfirmDto extends IdentityPasswordResetRequestDto {
+  @IsString()
+  @Matches(/^\d{6}$/)
+  code!: string;
+
+  // El mismo piso que el cambio de contraseña con sesión: diez caracteres para un actor interno.
+  @IsString()
+  @MinLength(10)
+  @MaxLength(128)
+  newPassword!: string;
+}
+
 export class IdentityLogoutDto {
   @IsOptional()
   @IsBoolean()

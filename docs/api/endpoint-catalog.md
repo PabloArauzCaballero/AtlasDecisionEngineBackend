@@ -3,7 +3,7 @@
 
 # Catálogo de endpoints
 
-Contrato **v1** · 212 rutas · 240 operaciones.
+Contrato **v1** · 214 rutas · 242 operaciones.
 
 La referencia interactiva completa —con esquemas, ejemplos y la posibilidad de probar cada
 llamada— está en `/docs/{API_VERSION}/reference` del propio backend. Esta página existe para
@@ -272,6 +272,8 @@ Inicio y cierre de sesión del portal contra el proveedor de identidad.
 | `POST` | `/v1/session/logout` | `identitySessionLogout` | Revoke the provider session and clear the refresh cookie |
 | `POST` | `/v1/session/password/change/confirm` | `identitySessionConfirmPasswordChange` | Confirm a password change with the mailed code |
 | `POST` | `/v1/session/password/change/request` | `identitySessionRequestPasswordChange` | Request the mailed code that confirms a password change |
+| `POST` | `/v1/session/password/reset/confirm` | `identitySessionConfirmPasswordReset` | Set a new password with the mailed reset code |
+| `POST` | `/v1/session/password/reset/request` | `identitySessionRequestPasswordReset` | Request a mailed code to reset a forgotten password |
 | `POST` | `/v1/session/refresh` | `identitySessionRefresh` | Rotate the provider session using the HttpOnly refresh cookie |
 
 ## QA Lab
