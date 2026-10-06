@@ -4,15 +4,18 @@ WORKDIR /app
 ENV CI=true
 # Prisma CLI/client generation probes OpenSSL even when runtime queries use the JS adapter.
 # Installing it here keeps build and migrator engines aligned with Debian bookworm (OpenSSL 3).
-# `--only-upgrade libpcre2-8-0 libexpat1`: la imagen base arrastra pcre2 10.42-1, con dos avisos altos ya
+# `--only-upgrade libpcre2-8-0 libexpat1 perl-base`: la imagen base arrastra pcre2 10.42-1, con dos avisos altos ya
 # corregidos por Debian (CVE-2026-86145, escritura fuera de límites; CVE-2026-89161, corrupción de
 # memoria), y libexpat1 2.5.0-1+deb12u3, con seis avisos altos corregidos en 2.5.0-1+deb12u4
 # (CVE-2024-28757, CVE-2025-59375, CVE-2026-25210/45186/66046/93990; escaneo del 2026-10-01). La etiqueta de la base está fijada a propósito, así que el parche no llega solo: se pide
+# `perl-base` (2026-10-06): 5.36.0-7+deb12u3 trae tres avisos críticos y cuatro altos ya corregidos en
+# +deb12u4 (CVE-2026-13221, CVE-2026-42496, CVE-2026-8376, CVE-2026-42497, CVE-2026-48962,
+# CVE-2026-57432, CVE-2026-57433); bloqueaban el escaneo de las tres imágenes.
 # aquí, por paquete y sin `apt-get upgrade` —que actualizaría cualquier cosa y rompe la
 # reproducibilidad—. Cuando Debian publique una base nueva, esta línea se vuelve inofensiva.
 RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl \
-  && apt-get install -y --no-install-recommends --only-upgrade libpcre2-8-0 libexpat1 \
+  && apt-get install -y --no-install-recommends --only-upgrade libpcre2-8-0 libexpat1 perl-base \
   && rm -rf /var/lib/apt/lists/*
 COPY package.json yarn.lock ./
 # BuildKit may execute the development and production dependency stages concurrently. Separate
@@ -145,7 +148,7 @@ FROM node:22-bookworm-slim AS script-runner
 WORKDIR /app
 RUN apt-get update \
   && apt-get install -y --no-install-recommends python3 \
-  && apt-get install -y --no-install-recommends --only-upgrade libpcre2-8-0 libexpat1 \
+  && apt-get install -y --no-install-recommends --only-upgrade libpcre2-8-0 libexpat1 perl-base \
   && rm -rf /var/lib/apt/lists/* \
   # A fresh named volume is seeded from whatever already exists at its mount point in the
   # image, ownership included — Docker itself would otherwise create the mount point as
@@ -181,7 +184,7 @@ ENV NODE_OPTIONS=--max-old-space-size=512
 # documento» — un fallo que parece del OCR y en realidad es una fuente que falta.
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates dumb-init python3 fonts-dejavu-core \
-  && apt-get install -y --no-install-recommends --only-upgrade libpcre2-8-0 libexpat1 \
+  && apt-get install -y --no-install-recommends --only-upgrade libpcre2-8-0 libexpat1 perl-base \
   && rm -rf /var/lib/apt/lists/*
 COPY package.json yarn.lock ./
 # The cache is a BuildKit mount and is not committed to the image layer. `yarn cache clean`
@@ -338,7 +341,7 @@ RUN --mount=type=cache,id=atlas-yarn-pdf,target=/usr/local/share/.cache/yarn \
 # construir en vez de en la primera petición.
 RUN apt-get update \
   && apt-get install -y --no-install-recommends dumb-init \
-  && apt-get install -y --no-install-recommends --only-upgrade libpcre2-8-0 libexpat1 \
+  && apt-get install -y --no-install-recommends --only-upgrade libpcre2-8-0 libexpat1 perl-base \
   && rm -rf /var/lib/apt/lists/* \
   && node -e "const {chromium}=require('playwright');const p=chromium.executablePath();require('node:fs').accessSync(p);console.log('Chromium verificado: '+p)"
 COPY --from=build /app/dist ./dist
