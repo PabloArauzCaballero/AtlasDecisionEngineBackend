@@ -63,6 +63,7 @@ import {
   findIdentityFixture,
 } from '../src/modules/workers/identity-verification/fixtures/identity-fixtures';
 import { IdentityPipelineService } from '../src/modules/workers/identity-verification/identity-pipeline.service';
+import type { IdentityVerificationService } from '../src/modules/workers/identity-verification/identity-verification.service';
 import type { IdentityVerificationOutcome } from '../src/modules/workers/identity-verification/identity-result';
 import { WorkerServiceInvokerService } from '../src/modules/workers/worker-service-invoker.service';
 import type { SemanticAnalysisPipeline } from '../src/modules/workers/semantic-analysis/core/application/semantic-analysis.pipeline';
@@ -602,6 +603,7 @@ describe('el origen llega desde el `context` de la ejecución hasta el pipeline'
   function invocador(
     context?: Record<string, unknown>,
     cambios: Partial<IdentityVerificationOutcome> = {},
+    recordInlineEvidence: jest.Mock = jest.fn().mockResolvedValue('ev-1'),
   ) {
     const run = jest.fn().mockResolvedValue({
       decision: IdentityDecision.VERIFIED,
@@ -627,8 +629,9 @@ describe('el origen llega desde el `context` de la ejecución hasta el pipeline'
       {} as AudioTtsRuntimeFactory,
       {} as InstitutionCatalogService,
       { run } as unknown as IdentityPipelineService,
+      { recordInlineEvidence } as unknown as IdentityVerificationService,
     );
-    return { invoker: service.bind(1n, principal, context), run };
+    return { invoker: service.bind(1n, principal, context), run, recordInlineEvidence };
   }
 
   async function responder(
@@ -644,6 +647,46 @@ describe('el origen llega desde el `context` de la ejecución hasta el pipeline'
     });
     return { respuesta, entrada: run.mock.calls[0][0] as Record<string, unknown> };
   }
+
+  async function verificarCon(recordInlineEvidence: jest.Mock) {
+    const { invoker } = invocador(undefined, {}, recordInlineEvidence);
+    return invoker.invoke({
+      service: 'identity-verification',
+      operation: 'verify',
+      nodeKey: 'VERIFICAR_IDENTIDAD',
+      arguments: { documentBase64: png, selfieBase64: png, documentCountry: 'BO' },
+    });
+  }
+
+  it('conserva las imágenes del veredicto y deja su corrida en la respuesta del nodo', async () => {
+    const recordInlineEvidence = jest.fn().mockResolvedValue('ev-1');
+    const respuesta = await verificarCon(recordInlineEvidence);
+
+    expect(respuesta.evidenceRequestId).toBe('ev-1');
+    expect(respuesta.warnings).toEqual([]);
+    const [tenantId, , entrada, veredicto, pais] = recordInlineEvidence.mock.calls[0] as unknown[];
+    expect(tenantId).toBe(1n);
+    expect((entrada as { document: { bytes: Buffer } }).document.bytes.byteLength).toBeGreaterThan(
+      0,
+    );
+    expect((veredicto as IdentityVerificationOutcome).decision).toBe(IdentityDecision.VERIFIED);
+    expect(pais).toBe('BO');
+  });
+
+  it('sin almacén la decisión sigue, y la traza dice que la evidencia no se guardó', async () => {
+    const respuesta = await verificarCon(jest.fn().mockResolvedValue(null));
+
+    expect(respuesta.status).toBe('SUCCEEDED');
+    expect(respuesta.evidenceRequestId).toBeUndefined();
+    expect(respuesta.warnings).toEqual(['IDENTITY_EVIDENCE_NOT_KEPT']);
+  });
+
+  it('si el almacén falla al guardar, el veredicto no se pierde', async () => {
+    const respuesta = await verificarCon(jest.fn().mockRejectedValue(new Error('S3 caído')));
+
+    expect(respuesta.status).toBe('SUCCEEDED');
+    expect(respuesta.warnings).toEqual(['IDENTITY_EVIDENCE_NOT_KEPT']);
+  });
 
   async function llamar(context?: Record<string, unknown>) {
     return (await responder(context)).entrada;

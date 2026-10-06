@@ -261,3 +261,19 @@ Pruebas: `test/identity-document-gate.spec.ts` (la política, sin imágenes),
 `test/identity-verification-pipeline.spec.ts` (el camino completo, con imágenes generadas) y
 `test/identity-degraded-ocr.spec.ts` (lo que devuelve el reconocedor sobre una fotografía real,
 con datos sintéticos).
+
+## Evidencia de una verificación hecha por un nodo del grafo
+
+Por la subida HTTP las imágenes se copian al almacén al ingresar. Por un nodo `WORKER`
+(`identity-verification.verify`) no se copiaban: la decisión guardaba las variables sensibles
+sólo como huella y el detalle de la ejecución no tenía qué enseñar.
+
+Ahora `IdentityVerificationService.recordInlineEvidence` guarda las imágenes en el mismo almacén
+y crea una corrida `INLINE` **ya cerrada** (`SUCCEEDED` o `SUCCEEDED_WITH_WARNINGS`), sin motivo
+de revisión: enrutar a una persona es cosa del grafo, y una corrida pendiente duplicaría el caso
+en la bandeja. Su `requestId` viaja en la traza del paso como `evaluation.worker.evidenceRequestId`
+y el portal pinta las imágenes por `GET runs/:requestId/images/:kind`, con la misma autorización
+por tenant y rol.
+
+Es best-effort: sin almacén, o si falla la escritura, la decisión sigue y la traza lleva
+`IDENTITY_EVIDENCE_NOT_KEPT`. Las ejecuciones anteriores a este cambio no tienen imágenes.

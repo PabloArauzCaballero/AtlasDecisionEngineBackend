@@ -226,6 +226,12 @@ export interface WorkerServiceOutcome {
   result: Record<string, unknown>;
   warnings: string[];
   durationMs: number;
+  /**
+   * Corrida de identidad que conserva las imágenes sobre las que se decidió. Viaja a la traza
+   * del paso (`evaluation.worker`) para que el detalle de la ejecución las pueda enseñar por
+   * `GET /v1/workers/identity-verification/runs/:requestId/images/:kind`.
+   */
+  evidenceRequestId?: string;
 }
 
 /**
