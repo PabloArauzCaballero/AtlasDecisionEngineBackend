@@ -46,7 +46,17 @@ const SCRIPT = join(__dirname, '..', 'scripts', 'atlas-underwriting-v2.mjs');
 const V1_ID = '371';
 
 /** Las que el catálogo de un entorno real todavía no tiene: el guion las CREA. */
-const ENTRADAS_NUEVAS = ['product_base_annual_rate', 'capacity_recommended_limit'];
+const ENTRADAS_NUEVAS = [
+  'product_base_annual_rate',
+  'capacity_recommended_limit',
+  // 2.2.0: la conducta del extracto verificado y el tope de usura (Core ya mandaba `usury_cap_rate`).
+  'statement_available',
+  'statement_nsf_events',
+  'statement_months_negative',
+  'statement_collection_actions',
+  'statement_high_risk_months',
+  'usury_cap_rate',
+];
 const SALIDAS_NUEVAS = ['decision_outcome', 'approved_credit_limit'];
 
 /**
@@ -658,8 +668,8 @@ describe('ATLAS_BNPL_UNDERWRITING v2 · el guion que clona v1 y escribe el grafo
   jest.setTimeout(60_000);
 
   describe('la definición', () => {
-    it('trae 31 entradas reutilizadas + 2 nuevas, 5 salidas con rol + 1 desenlace nuevo y suite bloqueante', () => {
-      expect(definicion.inputs).toHaveLength(33);
+    it('trae 31 entradas reutilizadas + 8 nuevas, 5 salidas con rol + 1 desenlace nuevo y suite bloqueante', () => {
+      expect(definicion.inputs).toHaveLength(39);
       for (const codigo of ENTRADAS_NUEVAS) {
         expect(definicion.inputs.filter((i) => i.code === codigo)).toHaveLength(1);
       }
@@ -708,11 +718,24 @@ describe('ATLAS_BNPL_UNDERWRITING v2 · el guion que clona v1 y escribe el grafo
         'ACT_FRAUDE',
         'ACT_JURISDICCION',
         'ACT_TECNICA',
-        'SC_1',
+        'EVALUAR_VETOS',
       ]);
     });
 
-    it('RECHAZAR es un nodo RESULT real (v1 nunca rechazaba); la banda E es la única que llega ahí', () => {
+    it('los vetos van DESPUÉS de las compuertas y ANTES del puntaje: mora, castigo y cuota, en ese orden', () => {
+      const prioridades = definicion.edges
+        .filter((e) => e.from === 'EVALUAR_VETOS')
+        .sort((a, b) => a.priority - b.priority)
+        .map((e) => e.to);
+      expect(prioridades).toEqual(['ACT_VETO_MORA', 'ACT_VETO_CASTIGO', 'ACT_VETO_CUOTA', 'SC_1']);
+      const vetos = definicion.reasonCodes.filter((r) =>
+        ['MORA_VIGENTE', 'CREDITO_CASTIGADO', 'CUOTA_EXCEDE_INGRESO'].includes(r.reasonCode),
+      );
+      expect(vetos).toHaveLength(3);
+      expect(vetos.every((r) => r.isAdverseAction)).toBe(true);
+    });
+
+    it('RECHAZAR es un nodo RESULT real (v1 nunca rechazaba); desde la 2.2.0 llegan ahí las bandas D y E', () => {
       const tipos = Object.fromEntries(definicion.nodes.map((n) => [n.key, n.type]));
       expect(tipos.RECHAZAR).toBe('RESULT');
       expect(tipos.APROBAR).toBe('RESULT');
@@ -815,8 +838,12 @@ describe('ATLAS_BNPL_UNDERWRITING v2 · el guion que clona v1 y escribe el grafo
       const { reporte } = compilarLoEscrito(motor, v2Id);
       expect(reporte.errors).toEqual([]);
       expect(reporte.valid).toBe(true);
-      // 26 nodos, 25 aristas, 7 caminos terminales (5 compuertas + RECHAZAR + APROBAR).
-      expect(reporte.metrics).toMatchObject({ nodeCount: 26, edgeCount: 25, terminalPathCount: 7 });
+      // 31 nodos, 32 aristas, 10 caminos terminales (5 compuertas + 3 vetos + RECHAZAR + APROBAR).
+      expect(reporte.metrics).toMatchObject({
+        nodeCount: 31,
+        edgeCount: 32,
+        terminalPathCount: 10,
+      });
     });
 
     it('la suite bloqueante ejecutada sobre lo escrito queda entera en verde', () => {
@@ -900,10 +927,14 @@ describe('ATLAS_BNPL_UNDERWRITING v2 · el guion que clona v1 y escribe el grafo
       expect(r31.output.risk_band).toBe('A');
     });
 
-    it('el puntaje=180 (banda D, PD 0.25) aprueba y el puntaje=181 (banda E, PD 0.40) rechaza de verdad', async () => {
-      const r180 = await engine.execute(compilado, caso('BORDE-PUNTAJE-180').input);
+    it('el puntaje=130 (banda C) aprueba y el 131 (banda D) ya rechaza: D no se financia desde la 2.2.0', async () => {
+      const r130 = await engine.execute(compilado, caso('BORDE-PUNTAJE-130').input);
+      const r131 = await engine.execute(compilado, caso('BORDE-PUNTAJE-131').input);
       const r181 = await engine.execute(compilado, caso('BORDE-PUNTAJE-181').input);
-      expect(r180.outcome).toBe('APPROVE');
+      expect(r130.outcome).toBe('APPROVE');
+      expect(r131.outcome).toBe('DECLINE');
+      expect(r131.output.risk_band).toBe('D');
+      expect(r131.reasons.map((r) => r.code)).toEqual(['RIESGO_EXCEDE_EL_LIMITE']);
       expect(r181.outcome).toBe('DECLINE');
       expect(r181.reasons.map((r) => r.code)).toEqual(['RIESGO_EXCEDE_EL_LIMITE']);
       expect(r181.output.annual_percentage_rate).toBeUndefined();
@@ -914,8 +945,35 @@ describe('ATLAS_BNPL_UNDERWRITING v2 · el guion que clona v1 y escribe el grafo
       expect(b.output.pricing_tier).toBe('B');
       expect(b.output.annual_percentage_rate).toBeCloseTo(0.35 + 0.06, 9);
       const d = await engine.execute(compilado, caso('APR-BANDA-D-BASE-VARIABLE-055').input);
-      expect(d.output.pricing_tier).toBe('D');
-      expect(d.output.annual_percentage_rate).toBeCloseTo(0.55 + 0.24, 9);
+      expect(d.outcome).toBe('DECLINE');
+      expect(d.output.annual_percentage_rate).toBeUndefined();
+    });
+
+    it('la tasa no supera el tope de usura: banda C con base 0,18 queda en 0,24, y sin tope declarado se usa 0,24', async () => {
+      const recorta = await engine.execute(compilado, caso('USURA-RECORTA-BANDA-C').input);
+      expect(recorta.output.pricing_tier).toBe('C');
+      expect(recorta.output.annual_percentage_rate).toBeCloseTo(0.24, 9);
+      const sinTope = await engine.execute(compilado, caso('USURA-AUSENTE-USA-024').input);
+      expect('usury_cap_rate' in caso('USURA-AUSENTE-USA-024').input).toBe(false);
+      expect(sinTope.output.annual_percentage_rate).toBeCloseTo(0.24, 9);
+      const noVincula = await engine.execute(compilado, caso('USURA-NO-VINCULA-BANDA-A').input);
+      expect(noVincula.output.annual_percentage_rate).toBeCloseTo(0.18, 9);
+    });
+
+    it('los vetos rechazan con límite 0 lo que la 2.1.0 aprobaba: mora de 90 días, castigo, cuota del 41 %', async () => {
+      for (const [codigo, motivo] of [
+        ['VETO-MORA-DPD90', 'MORA_VIGENTE'],
+        ['CASTIGOS-TOPE-EN-DOS', 'CREDITO_CASTIGADO'],
+        ['VETO-CUOTA-041', 'CUOTA_EXCEDE_INGRESO'],
+      ] as const) {
+        const resultado = await engine.execute(compilado, caso(codigo).input);
+        expect(resultado.terminalNodeKey).toBe('RECHAZAR_POR_VETO');
+        expect(resultado.outcome).toBe('DECLINE');
+        expect(resultado.reasons.map((r) => r.code)).toEqual([motivo]);
+        expect(resultado.output.approved_credit_limit).toBe(0);
+      }
+      const compuerta = await engine.execute(compilado, caso('COMPUERTA-ANTES-QUE-VETO').input);
+      expect(compuerta.terminalNodeKey).toBe('REVISAR_IDENTIDAD');
     });
 
     it('el límite es la capacidad graduada por la banda, hacia abajo a múltiplos de 50', async () => {
@@ -924,7 +982,7 @@ describe('ATLAS_BNPL_UNDERWRITING v2 · el guion que clona v1 y escribe el grafo
       expect(await limite('LIMITE-BANDA-A-CAPACIDAD-ENTERA')).toBe(2000);
       expect(await limite('LIMITE-BANDA-B-85')).toBe(1700);
       expect(await limite('LIMITE-BANDA-C-70')).toBe(1400);
-      expect(await limite('LIMITE-BANDA-D-50')).toBe(1000);
+      expect(await limite('LIMITE-BANDA-D-50')).toBe(0);
       expect(await limite('LIMITE-REDONDEA-HACIA-ABAJO-A-50')).toBe(1000);
       expect(await limite('LIMITE-CAPACIDAD-CERO-APRUEBA-CON-CERO')).toBe(0);
     });
@@ -939,10 +997,10 @@ describe('ATLAS_BNPL_UNDERWRITING v2 · el guion que clona v1 y escribe el grafo
       expect(compuerta.output.approved_credit_limit).toBeUndefined();
     });
 
-    it('D con 50 % no encoge la línea en cada recálculo: Core propone como mucho el doble de la vigente', () => {
+    it('ningún factor de banda financiable encoge la línea en cada recálculo (C con 70 %: 2 × 0,7 >= 1)', () => {
       // Con un factor f y graduationFactor=2, la línea L pasa a min(capacidad, 2L) × f: estable si 2f >= 1.
-      const factorD = 0.5;
-      expect(2 * factorD).toBeGreaterThanOrEqual(1);
+      const factorC = 0.7;
+      expect(2 * factorC).toBeGreaterThanOrEqual(1);
     });
 
     it('fraud_signal ausente no impide decidir: Core sólo la manda con un caso abierto', async () => {
@@ -952,9 +1010,16 @@ describe('ATLAS_BNPL_UNDERWRITING v2 · el guion que clona v1 y escribe el grafo
       expect(resultado.terminalNodeKey).toBe('APROBAR');
     });
 
-    it('charge_off_count se topa en 2 (min(5,2)*60=120): sin el tope caería en banda E, no C', async () => {
-      const resultado = await engine.execute(compilado, caso('CASTIGOS-TOPE-EN-DOS').input);
-      expect(resultado.output.risk_band).toBe('C');
+    it('las ausencias no son el peor valor: UNKNOWN suma 15 (no 60) y la conducta del extracto sólo cuenta con extracto', async () => {
+      const desconocido = await engine.execute(compilado, caso('EMPLEO-DESCONOCIDO-SUMA-15').input);
+      expect(desconocido.output.risk_band).toBe('A');
+      const sinExtracto = await engine.execute(
+        compilado,
+        caso('EXTRACTO-NO-DISPONIBLE-NO-SUMA').input,
+      );
+      expect(sinExtracto.output.probability_of_default).toBeCloseTo(0.02, 9);
+      const conducta = await engine.execute(compilado, caso('EXTRACTO-CONDUCTA-SUMA').input);
+      expect(conducta.output.risk_band).toBe('B');
     });
 
     it('no_hit_flag y thin_file_flag no se suman: sólo cuenta no_hit_flag', async () => {

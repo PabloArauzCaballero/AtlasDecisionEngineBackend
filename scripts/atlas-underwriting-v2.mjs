@@ -49,6 +49,17 @@
  * variables que faltan, crea una VERSIÓN NUEVA de las que ya existen cuando la definición declara
  * otra frescura u otra obligatoriedad (`contratoPendiente`). Los demás artefactos siguen atados a la
  * versión vieja por id: no les cambia nada.
+ *
+ * ## 2.2.0: vetos, banda D y tope de usura (revisión financiera, 2026-10-06)
+ *
+ * Con las fórmulas de la 2.1.0 un cliente con 95 días de mora salía en banda C aprobado, uno con un
+ * castigo también, y un desempleado con Bs 1.000 en D: el puntaje compensaba cualquier cosa y E
+ * empezaba en más de 180 puntos. La 2.2.0 pone tres vetos entre las compuertas y el puntaje
+ * (`RECHAZAR_POR_VETO`, límite 0), deja de financiar la banda D (con el tope de usura su prima no se
+ * cobra y la pérdida esperada no se cubre), recorta `annual_percentage_rate` al `usury_cap_rate` que
+ * Core ya mandaba, y suma la conducta del extracto verificado (cinco `statement_*` opcionales).
+ * Necesita AtlasBackend con `fix/credito-vetos-y-senales-reales` para recibir esas variables; sin él
+ * decide igual (son opcionales) y sólo pierde la parte del extracto. Detalle en `authoringNotes`.
  */
 import { argv, env, exit } from 'node:process';
 
@@ -594,12 +605,12 @@ async function main() {
       method: 'POST',
       body: JSON.stringify({
         changeSummary:
-          `v${DEFINICION.artifact.semanticVersion}: además del sí/no y el precio, emite el CUÁNTO ` +
-          '(approved_credit_limit = capacidad de pago recomendada × factor de la banda, A:100 % ' +
-          'B:85 % C:70 % D:50 %, hacia abajo a múltiplos de 50; E rechaza con 0). La identidad y el ' +
-          'expediente económico declaran una frescura que pueden cumplir (365 y 180 días en vez de ' +
-          '60 s) y fraud_signal deja de ser obligatoria. Compuertas, puntaje, PD, banda y tarifa ' +
-          'no cambian respecto de la 2.0.0.',
+          `v${DEFINICION.artifact.semanticVersion}: VETOS antes del puntaje (mora vigente, crédito ` +
+          'castigado, cuota por encima del 40 % del ingreso: rechazan con límite 0); la banda D deja ' +
+          'de financiarse; la tasa se recorta al tope de usura; la situación laboral no declarada suma ' +
+          '15 y no 60; consultas = solicitudes rechazadas en 6 meses; la velocidad sólo suma por encima ' +
+          'de 3 solicitudes en 24 h; y la conducta del extracto verificado (fondos insuficientes, meses ' +
+          'en negativo, cobranza, gasto de alto riesgo) entra al puntaje. Revisión financiera 2026-10-06.',
       }),
     });
     versionId = clon.id ?? clon.versionId;
