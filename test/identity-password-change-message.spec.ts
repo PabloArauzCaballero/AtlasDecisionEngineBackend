@@ -85,3 +85,116 @@ describe('Mensajes del cambio de contraseña contra el proveedor', () => {
     expect(challenge.expiresInMinutes).toBe(10);
   });
 });
+
+/**
+ * «¿Olvidaste tu contraseña?» contra el proveedor: sin sesión, la cuenta la nombran el tenant y el
+ * correo, y el tipo de actor lo fija el motor —sólo inicia sesión a actores internos—.
+ */
+describe('Recuperación de contraseña contra el proveedor', () => {
+  const config = {
+    get: (key: string) =>
+      key === 'IDENTITY_PROVIDER_URL' ? 'http://identity.test/api/v1' : undefined,
+  } as unknown as ConfigService;
+
+  const originalFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  function respondWith(status: number, body: unknown) {
+    const calls: { url: string; init: RequestInit }[] = [];
+    global.fetch = (async (url: string, init: RequestInit) => {
+      calls.push({ url, init });
+      return new Response(JSON.stringify(body), {
+        status,
+        headers: { 'content-type': 'application/json' },
+      });
+    }) as unknown as typeof fetch;
+    return calls;
+  }
+
+  it('pide el código como actor interno, con el tenant en cabecera y el motor identificado', async () => {
+    const calls = respondWith(200, { data: { requested: true } });
+    const client = new IdentityProviderClient(config);
+
+    const result = await client.requestPasswordReset({
+      tenantId: '3',
+      email: 'persona@atlas.test',
+    });
+
+    expect(result).toEqual({ requested: true });
+    expect(calls[0]?.url).toBe('http://identity.test/api/v1/auth/password-reset/request');
+    const headers = calls[0]?.init.headers as Record<string, string>;
+    expect(headers['x-tenant-id']).toBe('3');
+    expect(headers['x-atlas-product']).toBe('decision-engine');
+    expect(JSON.parse(String(calls[0]?.init.body))).toEqual({
+      actorType: 'internal_user',
+      identifier: 'persona@atlas.test',
+    });
+  });
+
+  it('un correo sin canal configurado es 503 con el motivo del proveedor', async () => {
+    respondWith(503, {
+      error: {
+        message: 'El servicio de correo no está configurado; no es posible enviar códigos.',
+      },
+    });
+    const client = new IdentityProviderClient(config);
+
+    const error = await client
+      .requestPasswordReset({ tenantId: '1', email: 'persona@atlas.test' })
+      .catch((caught) => caught);
+
+    expect((error as DomainException).status).toBe(503);
+    expect((error as DomainException).message).toContain('correo no está configurado');
+  });
+
+  it('una respuesta fuera de contrato es 502, no un «enviado»', async () => {
+    respondWith(200, { data: { algo: 'distinto' } });
+    const client = new IdentityProviderClient(config);
+
+    const error = await client
+      .requestPasswordReset({ tenantId: '1', email: 'persona@atlas.test' })
+      .catch((caught) => caught);
+
+    expect((error as DomainException).status).toBe(502);
+  });
+
+  it('confirma con código y contraseña nueva, y devuelve el cambio', async () => {
+    const calls = respondWith(200, { data: { passwordChanged: true } });
+    const client = new IdentityProviderClient(config);
+
+    const result = await client.confirmPasswordReset({
+      tenantId: '1',
+      email: 'persona@atlas.test',
+      code: '123456',
+      newPassword: 'una-nueva-clave-larga',
+    });
+
+    expect(result).toEqual({ passwordChanged: true });
+    expect(calls[0]?.url).toBe('http://identity.test/api/v1/auth/password-reset/confirm');
+    expect(JSON.parse(String(calls[0]?.init.body))).toEqual({
+      actorType: 'internal_user',
+      identifier: 'persona@atlas.test',
+      code: '123456',
+      newPassword: 'una-nueva-clave-larga',
+    });
+  });
+
+  it('un código malo propaga el mensaje genérico del proveedor, con su estado', async () => {
+    respondWith(401, { error: { message: 'Código inválido o expirado.' } });
+    const client = new IdentityProviderClient(config);
+
+    const error = await client
+      .confirmPasswordReset({
+        tenantId: '1',
+        email: 'persona@atlas.test',
+        code: '000000',
+        newPassword: 'una-nueva-clave-larga',
+      })
+      .catch((caught) => caught);
+
+    expect((error as DomainException).status).toBe(401);
+    expect((error as DomainException).message).toBe('Código inválido o expirado.');
+  });
+});

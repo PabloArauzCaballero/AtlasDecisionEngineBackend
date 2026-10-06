@@ -1,6 +1,6 @@
 {
   "modules": 32,
-  "endpoints": 240,
+  "endpoints": 242,
   "entities": 100,
   "events": 8,
   "errorCodes": 262,

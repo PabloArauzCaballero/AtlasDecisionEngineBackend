@@ -4,11 +4,13 @@ import { numeroDeConfig } from '../config/config-coercion.util';
 import { DomainException } from '../errors/domain-exception';
 import {
   identityPasswordChangedSchema,
+  identityPasswordResetRequestedSchema,
   identityPinChallengeSchema,
   identityProfileSchema,
   identityProviderSessionSchema,
   type IdentityLoginOutcome,
   type IdentityPasswordChanged,
+  type IdentityPasswordResetRequested,
   type IdentityPinChallenge,
   type IdentityProfile,
   type IdentitySession,
@@ -16,6 +18,14 @@ import {
 
 type LoginInput = { tenantId: string; email: string; password: string };
 type PinInput = { challengeToken: string; pin: string };
+type ResetInput = { tenantId: string; email: string };
+
+/**
+ * The portal only signs in internal actors (`/internal/auth/login`), so a forgotten password is
+ * recovered for that same kind of account and no other: a customer or merchant who shares an
+ * e-mail with an operator must not get a code for the operator's account through this screen.
+ */
+const RESET_ACTOR_TYPE = 'internal_user';
 
 /**
  * Cookie names issued by the identity provider's internal auth endpoints. They are the only
@@ -126,6 +136,67 @@ export class IdentityProviderClient {
       identityPasswordChangedSchema,
       payload,
       'a password-change confirmation',
+    );
+  }
+
+  /**
+   * "Forgot password", step one: the provider mails a one-time code IF the account exists.
+   *
+   * The reply is identical either way, and that is the provider's anti-enumeration guarantee;
+   * nothing here may add a signal on top (a different status, a different delay budget). What does
+   * propagate is a refusal that is about the SERVICE and not the account — no mail channel
+   * configured (503), too many requests (429) — because those are the same for every address.
+   *
+   * It gets the login's time budget: mailing the code is what makes the login slow too, and
+   * aborting while the provider writes the mail would report a failure for a code already sent.
+   */
+  async requestPasswordReset(input: ResetInput): Promise<IdentityPasswordResetRequested> {
+    const payload = await this.requestPropagatingMessage(
+      '/auth/password-reset/request',
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-tenant-id': input.tenantId,
+          accept: 'application/json',
+        },
+        body: JSON.stringify({ actorType: RESET_ACTOR_TYPE, identifier: input.email }),
+      },
+      numeroDeConfig(this.config, 'IDENTITY_PROVIDER_LOGIN_TIMEOUT_MS', 12_000),
+    );
+    return this.parseOrBadGateway(
+      identityPasswordResetRequestedSchema,
+      payload,
+      'a password-reset acknowledgement',
+    );
+  }
+
+  /**
+   * Step two: the mailed code and the new password. The provider answers every failure — unknown
+   * account, no active code, wrong or expired code — with the same message, so propagating it
+   * tells the person what to do without telling anyone whether the address is registered.
+   */
+  async confirmPasswordReset(
+    input: ResetInput & { code: string; newPassword: string },
+  ): Promise<IdentityPasswordChanged> {
+    const payload = await this.requestPropagatingMessage('/auth/password-reset/confirm', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-tenant-id': input.tenantId,
+        accept: 'application/json',
+      },
+      body: JSON.stringify({
+        actorType: RESET_ACTOR_TYPE,
+        identifier: input.email,
+        code: input.code,
+        newPassword: input.newPassword,
+      }),
+    });
+    return this.parseOrBadGateway(
+      identityPasswordChangedSchema,
+      payload,
+      'a password-reset confirmation',
     );
   }
 
@@ -247,13 +318,21 @@ export class IdentityProviderClient {
    * contraseña actual estaba mal escrita. Aquí sí se propaga, con el mismo estado y el texto que
    * el proveedor redactó para la persona.
    */
-  private async requestPropagatingMessage(path: string, init: RequestInit): Promise<unknown> {
+  private async requestPropagatingMessage(
+    path: string,
+    init: RequestInit,
+    timeoutMs = numeroDeConfig(this.config, 'IDENTITY_PROVIDER_TIMEOUT_MS', 3_000),
+  ): Promise<unknown> {
     const baseUrl = this.config.get<string>('IDENTITY_PROVIDER_URL');
     const response = await fetch(`${baseUrl}${path}`, {
       ...init,
-      signal: AbortSignal.timeout(
-        numeroDeConfig(this.config, 'IDENTITY_PROVIDER_TIMEOUT_MS', 3_000),
-      ),
+      // Same product header as `send`: every route here makes the provider mail a code, and the
+      // mail names the portal from this header.
+      headers: {
+        ...(init.headers as Record<string, string>),
+        'x-atlas-product': 'decision-engine',
+      },
+      signal: AbortSignal.timeout(timeoutMs),
     }).catch(() => null);
 
     if (!response) {
