@@ -519,6 +519,8 @@ function solicitudAlAzar(azar: () => number): Entrada {
     dsr_pin_confirmado: si(0.8),
     dsr_contacto_cambiado_7d: si(0.15),
     dsr_dispositivo_nuevo_7d: si(0.15),
+    dsr_credencial_restablecida_7d: si(0.1),
+    dsr_creada_por_titular: si(0.9),
     dsr_fraude_abierto: si(0.1),
     dsr_caso_abierto: si(0.15),
     dsr_solicitudes_iguales_abiertas: si(0.1) ? 1 : 0,
@@ -615,7 +617,7 @@ describe('PRIVACIDAD_SOLICITUD_TITULAR · la política y el guion que la publica
       expect(primera.stdout).not.toContain('AVISO');
     });
 
-    it('crea las 23 variables y el artefacto como DATA_SUBJECT_RIGHTS', () => {
+    it('crea las 25 variables y el artefacto como DATA_SUBJECT_RIGHTS', () => {
       expect(motor.cuerposDe('POST', /^\/v1\/variables$/)).toHaveLength(
         definicion.inputs.length + definicion.outputs.length,
       );
@@ -696,9 +698,10 @@ describe('PRIVACIDAD_SOLICITUD_TITULAR · la política y el guion que la publica
         dsr_caso_abierto: true,
         dsr_contacto_cambiado_7d: true,
         dsr_dispositivo_nuevo_7d: true,
+        dsr_credencial_restablecida_7d: true,
         dsr_pin_confirmado: false,
       });
-      expect(todas.output.dsr_senales_riesgo).toBe(5);
+      expect(todas.output.dsr_senales_riesgo).toBe(6);
     });
 
     /*
@@ -729,6 +732,9 @@ describe('PRIVACIDAD_SOLICITUD_TITULAR · la política y el guion que la publica
           dsr_fraude_abierto: false,
           dsr_contacto_cambiado_7d: false,
           dsr_dispositivo_nuevo_7d: false,
+          // ...que la credencial no cambió esta semana y que la pidió el propio titular (P-04, P-06).
+          dsr_credencial_restablecida_7d: false,
+          dsr_creada_por_titular: true,
         });
         if (entrada.dsr_tipo === 'BORRADO') {
           expect(entrada).toMatchObject({

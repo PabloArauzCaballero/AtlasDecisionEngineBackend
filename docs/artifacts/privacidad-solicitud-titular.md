@@ -23,7 +23,8 @@ defecto del nodo `DECIDIR` es la revisión humana.
 | # | Si… | Decide | Motivo | Acción |
 | --- | --- | --- | --- | --- |
 | B1 | fraude abierto, o reclamo/caso de soporte abierto | revisión humana | `DSR_CASO_ABIERTO` | — |
-| B2 | contacto o dispositivo nuevos en 7 días, o sin PIN confirmado | revisión humana | `DSR_POSIBLE_ROBO_DE_CUENTA` | — |
+| B0 | la solicitud no la creó el propio titular (la creó alguien del equipo) | revisión humana | `DSR_NO_PEDIDA_POR_EL_TITULAR` | — |
+| B2 | contacto, dispositivo o credencial (PIN) nuevos en 7 días, o sin PIN confirmado | revisión humana | `DSR_POSIBLE_ROBO_DE_CUENTA` | — |
 | B3 | ya hay un borrado en curso | rechaza | `DSR_YA_EN_CURSO` | — |
 | B4 | saldo, préstamo activo, mora o pago por conciliar | rechaza | `DSR_BORRADO_CON_DEUDA` | — |
 | B5 | extracto bancario en revisión | revisión humana | `DSR_PROCESO_EN_CURSO` | — |
@@ -35,7 +36,8 @@ defecto del nodo `DECIDIR` es la revisión humana.
 
 | # | Si… | Decide | Motivo | Acción |
 | --- | --- | --- | --- | --- |
-| R1 | fraude abierto o contacto cambiado en 7 días | revisión humana | `DSR_POSIBLE_ROBO_DE_CUENTA` | — |
+| R0 | la solicitud no la creó el propio titular | revisión humana | `DSR_NO_PEDIDA_POR_EL_TITULAR` | — |
+| R1 | fraude abierto, contacto o credencial (PIN) cambiados en 7 días | revisión humana | `DSR_POSIBLE_ROBO_DE_CUENTA` | — |
 | R1b | cuenta bloqueada, suspendida o cerrada | revisión humana | `DSR_ESTADO_DE_CUENTA` | — |
 | R1c | reclamo o caso de soporte abierto | revisión humana | `DSR_CASO_ABIERTO` | — |
 | R2 | el dato es el teléfono o el correo | rechaza | `DSR_USAR_AUTOSERVICIO` | `AUTOSERVICIO` |
@@ -65,8 +67,8 @@ El valor nuevo de una corrección vive cifrado en AtlasBackend y no sale de all�
 | Variable | Tipo |
 | --- | --- |
 | `dsr_tipo` | `RECTIFICACION` / `BORRADO` |
-| `dsr_cuenta_operativa`, `dsr_identidad_verificada`, `dsr_evidencia_identidad`, `dsr_pin_confirmado` | BOOLEAN |
-| `dsr_contacto_cambiado_7d`, `dsr_dispositivo_nuevo_7d`, `dsr_fraude_abierto`, `dsr_caso_abierto` | BOOLEAN |
+| `dsr_cuenta_operativa`, `dsr_identidad_verificada`, `dsr_evidencia_identidad`, `dsr_pin_confirmado`, `dsr_creada_por_titular` | BOOLEAN |
+| `dsr_contacto_cambiado_7d`, `dsr_dispositivo_nuevo_7d`, `dsr_credencial_restablecida_7d`, `dsr_fraude_abierto`, `dsr_caso_abierto` | BOOLEAN |
 | `dsr_solicitudes_iguales_abiertas`, `dsr_prestamos_activos`, `dsr_cuotas_en_mora`, `dsr_pagos_en_conciliacion` | INTEGER |
 | `dsr_saldo_pendiente` | CURRENCY |
 | `dsr_tuvo_credito`, `dsr_extracto_en_revision` | BOOLEAN |
@@ -89,7 +91,7 @@ la migración `20261004120000_decision_kind_data_subject_rights` y `POST /v1/art
 - Definición: `scripts/lib/privacidad-solicitud-titular.definicion.json`.
 - Guion: `scripts/privacidad-solicitud-titular.mjs` (idempotente, `--dry-run`, `--deploy`).
 - Prueba: `test/privacidad-solicitud-titular.spec.ts`, con el validador, el compilador y el motor
-  reales; además de los 36 casos, comprueba sobre 600 solicitudes al azar que ninguna combinación
+  reales; además de los 41 casos, comprueba sobre 600 solicitudes al azar que ninguna combinación
   acepta lo que la política reserva a una persona.
 
 Publicar sigue `docs/runbooks/artefactos-en-un-entorno-nuevo.md`: el guion lo deja en revisión, dos
