@@ -9,7 +9,7 @@ import { JobSignalService } from '../../common/jobs/job-signal.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
 import type { CompiledDecisionArtifact } from '../graph/graph.types';
-import { judgeBlockingSuites } from './blocking-evidence';
+import { hasExpectation, judgeBlockingSuites } from './blocking-evidence';
 import { TestCaseExecutorService } from './test-case-executor.service';
 import { RunTestSuiteDto } from './testing.dto';
 
@@ -272,6 +272,7 @@ export class TestExecutionService {
           take: 1,
           include: { coverage: true },
         },
+        cases: { where: { isActive: true }, select: { expectedResultJson: true } },
       },
     });
     return judgeBlockingSuites(
@@ -283,6 +284,8 @@ export class TestExecutionService {
         return {
           suiteId: suite.id.toString(),
           suiteCode: suite.suiteCode,
+          // Sin ningún caso activo que espere algo, la suite no es evidencia de nada.
+          assertable: suite.cases.some((item) => hasExpectation(item.expectedResultJson)),
           latestRun: run
             ? {
                 id: run.id.toString(),
