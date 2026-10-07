@@ -333,6 +333,100 @@
         ]
       }
     },
+    "/v1/session/password/reset/request": {
+      "post": {
+        "operationId": "identitySessionRequestPasswordReset",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdentityPasswordResetRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Request registered. Same answer whether or not the account exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityPasswordResetRequestedDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Request a mailed code to reset a forgotten password",
+        "tags": [
+          "Portal Session"
+        ]
+      }
+    },
+    "/v1/session/password/reset/confirm": {
+      "post": {
+        "operationId": "identitySessionConfirmPasswordReset",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdentityPasswordResetConfirmDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password changed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityPasswordChangedDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Set a new password with the mailed reset code",
+        "tags": [
+          "Portal Session"
+        ]
+      }
+    },
     "/v1/session/refresh": {
       "post": {
         "operationId": "identitySessionRefresh",
@@ -13604,6 +13698,63 @@
         },
         "required": [
           "passwordChanged"
+        ]
+      },
+      "IdentityPasswordResetRequestDto": {
+        "type": "object",
+        "properties": {
+          "tenantId": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 180,
+            "format": "email"
+          }
+        },
+        "required": [
+          "tenantId",
+          "email"
+        ]
+      },
+      "IdentityPasswordResetRequestedDto": {
+        "type": "object",
+        "properties": {
+          "requested": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "requested"
+        ]
+      },
+      "IdentityPasswordResetConfirmDto": {
+        "type": "object",
+        "properties": {
+          "tenantId": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 180,
+            "format": "email"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^\\d{6}$"
+          },
+          "newPassword": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "tenantId",
+          "email",
+          "code",
+          "newPassword"
         ]
       },
       "IdentityLogoutDto": {

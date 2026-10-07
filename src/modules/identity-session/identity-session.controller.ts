@@ -18,9 +18,12 @@ import {
   IdentityLogoutDto,
   IdentityPasswordChangeConfirmDto,
   IdentityPasswordChangeRequestDto,
+  IdentityPasswordResetConfirmDto,
+  IdentityPasswordResetRequestDto,
 } from './identity-session.dto';
 import {
   IdentityPasswordChangedDto,
+  IdentityPasswordResetRequestedDto,
   IdentityPinChallengeDto,
   LogoutResultDto,
 } from './identity-session.response.dto';
@@ -108,6 +111,45 @@ export class IdentitySessionController {
     const result = await this.sessions.confirmPasswordChange(bearerFrom(authorization), body);
     // The provider revokes every session of the actor on a successful change, this one included.
     // Leaving the refresh cookie in place would only buy an unexplained 401 on the next call.
+    response.setHeader('set-cookie', this.cookies.clear());
+    return result;
+  }
+
+  /**
+   * "¿Olvidaste tu contraseña?" — recovery for someone who cannot sign in, in two steps.
+   *
+   * Step one answers the same whether or not the address belongs to an account: the provider mails
+   * a code only when it does, and the screen says "if the account exists, a code is on its way".
+   * Both steps share the controller's per-IP budget, each with its own counter.
+   */
+  @Post('password/reset/request')
+  @ApiOperation({ summary: 'Request a mailed code to reset a forgotten password' })
+  @ApiOkResponse({
+    description: 'Request registered. Same answer whether or not the account exists.',
+    type: IdentityPasswordResetRequestedDto,
+  })
+  @HttpCode(HttpStatus.OK)
+  async requestPasswordReset(
+    @Headers('origin') origin: string | undefined,
+    @Body() body: IdentityPasswordResetRequestDto,
+  ) {
+    this.origins.assertAllowed(origin);
+    return this.sessions.requestPasswordReset(body);
+  }
+
+  @Post('password/reset/confirm')
+  @ApiOperation({ summary: 'Set a new password with the mailed reset code' })
+  @ApiOkResponse({ description: 'Password changed.', type: IdentityPasswordChangedDto })
+  @HttpCode(HttpStatus.OK)
+  async confirmPasswordReset(
+    @Headers('origin') origin: string | undefined,
+    @Body() body: IdentityPasswordResetConfirmDto,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    this.origins.assertAllowed(origin);
+    const result = await this.sessions.confirmPasswordReset(body);
+    // The provider revokes every session of the actor on a reset; a refresh cookie left in this
+    // browser would only point at one of them.
     response.setHeader('set-cookie', this.cookies.clear());
     return result;
   }

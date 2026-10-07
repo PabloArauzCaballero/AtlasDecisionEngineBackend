@@ -19,6 +19,8 @@ Etiquetas de API: **Portal Session**.
 | `POST` | `/v1/session/logout` | `identitySessionLogout` | Revoke the provider session and clear the refresh cookie |
 | `POST` | `/v1/session/password/change/confirm` | `identitySessionConfirmPasswordChange` | Confirm a password change with the mailed code |
 | `POST` | `/v1/session/password/change/request` | `identitySessionRequestPasswordChange` | Request the mailed code that confirms a password change |
+| `POST` | `/v1/session/password/reset/confirm` | `identitySessionConfirmPasswordReset` | Set a new password with the mailed reset code |
+| `POST` | `/v1/session/password/reset/request` | `identitySessionRequestPasswordReset` | Request a mailed code to reset a forgotten password |
 | `POST` | `/v1/session/refresh` | `identitySessionRefresh` | Rotate the provider session using the HttpOnly refresh cookie |
 
 ## Autorización
@@ -39,6 +41,9 @@ Este módulo no declara roles: o no expone rutas, o son públicas por diseño.
 - `IdentityPasswordChangeConfirmDto`
 - `IdentityPasswordChangeRequestDto`
 - `IdentityPasswordChangedDto`
+- `IdentityPasswordResetConfirmDto`
+- `IdentityPasswordResetRequestDto`
+- `IdentityPasswordResetRequestedDto`
 - `IdentityPinChallengeDto`
 - `IdentitySessionController`
 - `IdentitySessionModule`
