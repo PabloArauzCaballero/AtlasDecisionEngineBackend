@@ -20,4 +20,8 @@ Los tres runbooks del pliego de contratos (§15) cubren cada uno un dominio y en
 `cola-de-revision-vacia.md` cubre la cola de Revisión Manual vacía y el expediente de un comercio que no aparece.
 `artefactos-en-un-entorno-nuevo.md` cubre un entorno que arranca sin los artefactos que Atlas le
 pide decidir (crédito, riesgo, comercio): verificarlo con `scripts/verificar-artefactos-publicados.mjs`,
-publicarlos con `scripts/publicar-artefactos-faltantes.sh`, firmarlos dos personas y desplegar.
+publicarlos, firmarlos dos personas y desplegar.
+
+`publicar-todos-los-artefactos.md` es el comando único que hace eso para todos los artefactos del
+manifiesto (`scripts/publicar-todos-los-artefactos.mjs`): estado, ensayo, publicar, desplegar lo
+aprobado y verificar el despliegue activo. Empezar por ahí.
