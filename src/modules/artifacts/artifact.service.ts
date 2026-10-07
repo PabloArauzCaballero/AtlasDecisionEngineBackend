@@ -324,6 +324,10 @@ export class ArtifactService {
         actions: { include: { reasonMappings: true } },
         nodes: { include: { nodeConditions: true, nodeActions: true } },
         edges: { include: { edgeConditions: true } },
+        intermediateVariables: true,
+        outputContractFields: true,
+        nodeScripts: true,
+        calculatedFieldUses: true,
       },
     });
     if (!source)
@@ -344,6 +348,16 @@ export class ArtifactService {
           sourceVersionId: source.id,
           semanticVersion: dto.semanticVersion ?? this.incrementPatch(source.semanticVersion),
           changeSummary: dto.changeSummary,
+          /*
+           * La declaración del tratamiento viaja con el grafo. Sin ella el borrador nacía con los
+           * avisos «finalidad no declarada» y, peor, sin la política de sujeto ni de base
+           * habilitante que la versión de origen ya tenía aprobadas.
+           */
+          processingPurpose: source.processingPurpose,
+          legalBasis: source.legalBasis,
+          subjectReferencePolicy: source.subjectReferencePolicy,
+          subjectPolicyJustification: source.subjectPolicyJustification,
+          enablingBasisPolicy: source.enablingBasisPolicy ?? undefined,
           createdBy: principal.id,
           statusHistory: {
             create: {
@@ -365,6 +379,59 @@ export class ArtifactService {
           fallbackPolicy: dependency.fallbackPolicy,
           dependencyPath: dependency.dependencyPath,
         })),
+      });
+      /*
+       * Lo que el grafo DECLARA además de sus nodos: variables intermedias, contrato de salida,
+       * scripts de nodo y campos calculados. La clonación copiaba nodos, condiciones, acciones y
+       * aristas y se dejaba estas cuatro: el borrador salía con un grafo que referenciaba
+       * `intermediate.*` sin declararlas (18 errores UNDECLARED_INTERMEDIATE_REFERENCE en
+       * PARTNER_KYB_REVIEW v12) y no se podía compilar, de modo que «Nueva versión» —la única vía de
+       * cambiar una política aprobada— producía siempre una versión inservible.
+       */
+      await tx.decisionIntermediateVariable.createMany({
+        data: source.intermediateVariables.map(
+          ({ id: _id, createdAt: _c, updatedAt: _u, artifactVersionId: _v, ...rest }) => ({
+            ...rest,
+            initialValueJson: (rest.initialValueJson ?? undefined) as
+              Prisma.InputJsonValue | undefined,
+            constraintsJson: (rest.constraintsJson ?? undefined) as
+              Prisma.InputJsonValue | undefined,
+            availabilityConditionJson: (rest.availabilityConditionJson ?? undefined) as
+              Prisma.InputJsonValue | undefined,
+            artifactVersionId: version.id,
+          }),
+        ),
+      });
+      await tx.decisionOutputContractField.createMany({
+        data: source.outputContractFields.map(
+          ({ id: _id, createdAt: _c, updatedAt: _u, artifactVersionId: _v, ...rest }) => ({
+            ...rest,
+            valueMappingJson: (rest.valueMappingJson ?? undefined) as
+              Prisma.InputJsonValue | undefined,
+            exampleJson: (rest.exampleJson ?? undefined) as Prisma.InputJsonValue | undefined,
+            artifactVersionId: version.id,
+          }),
+        ),
+      });
+      await tx.decisionNodeScript.createMany({
+        data: source.nodeScripts.map(
+          ({ id: _id, createdAt: _c, updatedAt: _u, artifactVersionId: _v, ...rest }) => ({
+            ...rest,
+            inputVariablesJson: rest.inputVariablesJson as Prisma.InputJsonValue,
+            outputVariablesJson: rest.outputVariablesJson as Prisma.InputJsonValue,
+            artifactVersionId: version.id,
+          }),
+        ),
+      });
+      await tx.decisionArtifactCalculatedFieldUse.createMany({
+        data: source.calculatedFieldUses.map(
+          ({ id: _id, createdAt: _c, artifactVersionId: _v, ...rest }) => ({
+            ...rest,
+            inputMappingJson: rest.inputMappingJson as Prisma.InputJsonValue,
+            definitionJson: rest.definitionJson as Prisma.InputJsonValue,
+            artifactVersionId: version.id,
+          }),
+        ),
       });
       const conditionMap = new Map<bigint, bigint>();
       for (const condition of source.conditions) {

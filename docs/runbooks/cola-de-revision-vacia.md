@@ -47,3 +47,19 @@ cola esté vacía.
   decida el Motor (y la consola ya lo rechaza con `PARTNER_DECISION_DELEGADA_AL_MOTOR`).
 - No dar un entorno por listo porque «Enviar a revisión» devolvió 200: comprobar que el caso aparece
   en la cola.
+
+## «Nueva versión» del KYB sale con 18 errores (v12)
+
+Es la vía normal de publicar la versión del KYB que abre caso en la cola (`kyb-revision-manual.mjs`
+hace lo mismo por guion). El 2026-10-07 el borrador de `PARTNER_KYB_REVIEW` (v12, «Validación con
+errores») no compilaba: `UNDECLARED_INTERMEDIATE_REFERENCE` / `INTERMEDIATE_NOT_DECLARED` sobre
+`requisitos_faltantes` y `senales_operativas`, más los avisos de contrato de salida y finalidad.
+
+**Causa:** `ArtifactService.cloneVersion` copiaba nodos, condiciones, acciones y aristas, pero no lo que
+la versión **declara**: variables intermedias, contrato de salida, scripts de nodo, campos calculados,
+ni la finalidad, la base legal y la política de sujeto. Cualquier «Nueva versión» de un artefacto con
+intermedias salía inservible.
+
+**Arreglo:** la clonación copia las cuatro tablas y esas columnas
+(`test/artifact-clone-declarations.spec.ts`). **Un borrador ya creado antes del arreglo NO se
+repara solo**: hay que descartarlo y volver a hacer «Nueva versión» desde la versión desplegada.
