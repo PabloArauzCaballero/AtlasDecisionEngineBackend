@@ -247,6 +247,7 @@ nav:
           - Campos calculados: runbooks/CAMPOS_CALCULADOS.md
           - QA Lab: runbooks/QA_LAB.md
           - Artefactos en un entorno nuevo: runbooks/artefactos-en-un-entorno-nuevo.md
+          - La cola de revisión sale vacía: runbooks/cola-de-revision-vacia.md
   - Pruebas:
       - Estrategia: testing/strategy.md
       - Unitarias: testing/unit-tests.md

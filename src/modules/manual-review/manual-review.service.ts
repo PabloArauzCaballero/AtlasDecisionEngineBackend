@@ -14,6 +14,7 @@ import {
   ResolveManualReviewDto,
 } from './manual-review.dto';
 import { pageResult, paginationArgs } from '../../common/http/pagination';
+import { parseBigIntId } from '../../common/http/id';
 import { escapeLikeTerm } from '../../common/persistence/like-escape';
 
 /**
@@ -129,6 +130,22 @@ export class ManualReviewService {
       }),
     ]);
     return pageResult(items, total, paging.page, paging.pageSize);
+  }
+
+  /** El caso por su id numérico o por su código (`MR-…`): el código es lo que otros sistemas guardan. */
+  async resolveCaseId(tenantId: bigint, idOrCode: string): Promise<bigint> {
+    if (!/^MR-/i.test(idOrCode)) return parseBigIntId(idOrCode, 'caseId');
+    const row = await this.prisma.decisionManualReviewCase.findFirst({
+      where: { caseCode: idOrCode.toUpperCase(), tenantId },
+      select: { id: true },
+    });
+    if (!row)
+      throw new DomainException(
+        'MANUAL_REVIEW_NOT_FOUND',
+        'Manual review case not found',
+        HttpStatus.NOT_FOUND,
+      );
+    return row.id;
   }
 
   async get(tenantId: bigint, caseId: bigint) {
