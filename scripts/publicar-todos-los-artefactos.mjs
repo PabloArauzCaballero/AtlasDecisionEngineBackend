@@ -97,7 +97,9 @@ async function todasLasPaginas(path) {
 function elegidos() {
   const desconocidos = SOLO.filter((codigo) => !MANIFIESTO.some((fila) => fila.codigo === codigo));
   if (desconocidos.length) {
-    console.error(`--solo nombra códigos que no están en el manifiesto: ${desconocidos.join(', ')}`);
+    console.error(
+      `--solo nombra códigos que no están en el manifiesto: ${desconocidos.join(', ')}`,
+    );
     exit(2);
   }
   if (SOLO.length) return MANIFIESTO.filter((fila) => SOLO.includes(fila.codigo));
@@ -107,7 +109,7 @@ function elegidos() {
 }
 
 /** Lo que el Motor sabe de un artefacto: su versión más alta y dónde tiene despliegue activo. */
-async function leerEstado(fila, catalogo) {
+async function leerEstado(fila, catalogo, despliegues) {
   const artefacto = catalogo.find((item) => (item.artifactCode ?? item.code) === fila.codigo);
   if (!artefacto) return { existe: false, activos: [] };
   const detalle = await api(`/v1/artifacts/${artefacto.id}`);
@@ -116,10 +118,11 @@ async function leerEstado(fila, catalogo) {
       !mejor || Number(version.versionNumber) > Number(mejor.versionNumber) ? version : mejor,
     null,
   );
-  const despliegues = await todasLasPaginas(
-    `/v1/deployments?artifactCode=${encodeURIComponent(fila.codigo)}&status=ACTIVE`,
+  // Los despliegues se leen UNA vez para todos y se filtran aquí: el código del manifiesto no viaja en la URL.
+  const suyos = despliegues.filter(
+    (despliegue) => despliegue.artifactVersion?.artifact?.artifactCode === fila.codigo,
   );
-  const activos = despliegues.map((despliegue) => ({
+  const activos = suyos.map((despliegue) => ({
     entorno: despliegue.environment?.code ?? despliegue.environmentCode,
     versionId: String(despliegue.artifactVersionId ?? despliegue.artifactVersion?.id),
   }));
@@ -210,10 +213,12 @@ async function main() {
   }
   const filas = elegidos();
   let catalogo;
+  let despliegues;
   try {
     catalogo = await todasLasPaginas('/v1/artifacts');
+    despliegues = await todasLasPaginas('/v1/deployments?status=ACTIVE');
   } catch (error) {
-    console.error(`${error.message}. Sin catálogo no se publica a ciegas.`);
+    console.error(`${error.message}. Sin catálogo ni despliegues no se publica a ciegas.`);
     exit(2);
   }
 
@@ -221,9 +226,14 @@ async function main() {
   for (const fila of filas) {
     let estado;
     try {
-      estado = await leerEstado(fila, catalogo);
+      estado = await leerEstado(fila, catalogo, despliegues);
     } catch (error) {
-      resumen.push({ codigo: fila.codigo, resultado: 'FALLÓ', version: '-', motivo: error.message });
+      resumen.push({
+        codigo: fila.codigo,
+        resultado: 'FALLÓ',
+        version: '-',
+        motivo: error.message,
+      });
       continue;
     }
     const paso = decidir(fila, estado, {
