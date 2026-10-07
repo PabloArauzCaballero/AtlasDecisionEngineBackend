@@ -234,6 +234,15 @@ async function main() {
     const version = estado.ultima
       ? `v${estado.ultima.versionNumber} id ${estado.ultima.id} ${estado.ultima.status}`
       : '-';
+    // Una versión nueva atascada no dice si el artefacto dejó de decidir: la anterior puede seguir activa.
+    const otras = (estado.activos ?? []).filter(
+      (activo) => activo.versionId !== String(estado.ultima?.id),
+    );
+    if (otras.length) {
+      paso.motivo += ` (sigue decidiendo la versión id ${otras
+        .map((activo) => `${activo.versionId} en ${activo.entorno}`)
+        .join(', ')})`;
+    }
     if (paso.accion === 'nada' || SOLO_ESTADO) {
       const pendiente = paso.accion === 'nada' ? 'sin tocar' : `haría: ${paso.accion}`;
       const banderas = paso.banderas?.length ? ` [${paso.banderas.join(' ')}]` : '';

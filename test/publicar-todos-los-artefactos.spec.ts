@@ -164,6 +164,10 @@ describe('publicar-todos-los-artefactos.mjs --estado', () => {
     expect(linea(salida, 'PARTNER_KYB_REVIEW')).toMatch(/sin tocar.*falta desplegarla/);
     expect(linea(salida, 'PRIVACIDAD_SOLICITUD_TITULAR')).toMatch(/sin tocar.*una persona/);
     expect(linea(salida, 'ATLAS_RECALIFICACION_CAPACIDAD')).toMatch(/haría: publicar.*DRAFT/);
+    // La v2 en borrador no quita que la v1 siga decidiendo, y la tabla lo dice.
+    expect(linea(salida, 'ATLAS_RECALIFICACION_CAPACIDAD')).toContain(
+      'sigue decidiendo la versión id 5 en STAGING',
+    );
     // El de demostración no entra sin pedirlo.
     expect(salida).not.toContain('EXTRACTO_CAPACIDAD_PAGO');
   });

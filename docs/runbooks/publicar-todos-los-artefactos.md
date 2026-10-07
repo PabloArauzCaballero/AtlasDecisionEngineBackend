@@ -79,6 +79,9 @@ Cada corrida termina con una fila por artefacto: resultado, código, versión m�
 | `sin tocar` | No hacía falta, o le toca a una persona. El motivo lo dice. |
 | `FALLÓ` | El guion salió con error. Los demás se corrieron igual y la corrida sale 1. |
 
+Cuando la versión más alta no es la que decide, el motivo termina con «sigue decidiendo la versión
+id N en ENTORNO»: el artefacto no dejó de decidir, sólo hay una versión nueva a medio camino.
+
 Motivos de `sin tocar` y qué hacer:
 
 | Motivo | Qué hacer |
