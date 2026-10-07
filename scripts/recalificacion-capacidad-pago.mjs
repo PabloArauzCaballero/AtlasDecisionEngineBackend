@@ -68,7 +68,18 @@ if (!API_KEY) {
   exit(1);
 }
 
+/**
+ * Un valor que va DENTRO de una ruta se codifica como un solo segmento: un id con `/`, `?` o `..` no
+ * puede cambiar a qué recurso apunta la llamada. Lo que viene de la API o del JSON de definición es dato,
+ * no ruta.
+ */
+const segmento = (valor) => encodeURIComponent(String(valor));
+const RUTA_SEGURA = /^\/v1\/[A-Za-z0-9_\-/?=&%.]*$/;
+
 async function api(path, options = {}) {
+  if (!RUTA_SEGURA.test(path) || path.includes('..')) {
+    throw new Error(`Ruta fuera de /v1 o con caracteres no permitidos: ${path}`);
+  }
   const response = await fetch(`${BASE}${path}`, {
     ...options,
     headers: {
@@ -178,7 +189,7 @@ async function asegurarVariables() {
     const candidatas = await todas(`/v1/variables?search=${encodeURIComponent(variable.code)}`);
     const existente = candidatas.find((item) => item.variableCode === variable.code);
     if (existente) {
-      const detalle = await api(`/v1/variables/${existente.id}`);
+      const detalle = await api(`/v1/variables/${segmento(existente.id)}`);
       const ultima = (detalle.versions ?? []).reduce(
         (mejor, version) =>
           !mejor || Number(version.versionNumber) > Number(mejor.versionNumber) ? version : mejor,
@@ -286,22 +297,22 @@ function cuerpoDelGrafo(versiones, reasonIds) {
 /* ------------------------------------------------------------------------------------------ */
 
 async function esperarCorrida(runId, intentos = 40) {
-  let detalle = await api(`/v1/test-runs/${runId}`);
+  let detalle = await api(`/v1/test-runs/${segmento(runId)}`);
   for (let i = 0; i < intentos; i += 1) {
     const estado = String(detalle.status ?? detalle.runStatus ?? '').toUpperCase();
     if (estado && !['QUEUED', 'RUNNING', 'PENDING'].includes(estado)) return detalle;
     await new Promise((listo) => setTimeout(listo, 1_000));
-    detalle = await api(`/v1/test-runs/${runId}`);
+    detalle = await api(`/v1/test-runs/${segmento(runId)}`);
   }
   return detalle;
 }
 
 /** Crea la suite bloqueante si falta y la ejecuta. Devuelve `true` si quedó en verde. */
 async function asegurarSuiteBloqueante(versionId) {
-  const existentes = items(await api(`/v1/artifact-versions/${versionId}/test-suites`));
+  const existentes = items(await api(`/v1/artifact-versions/${segmento(versionId)}/test-suites`));
   let suite = existentes.find((s) => s.suiteCode === DEFINICION.suite.suiteCode);
   if (!suite) {
-    suite = await api(`/v1/artifact-versions/${versionId}/test-suites`, {
+    suite = await api(`/v1/artifact-versions/${segmento(versionId)}/test-suites`, {
       method: 'POST',
       body: JSON.stringify({ ...DEFINICION.suite, cases: DEFINICION.cases }),
     });
@@ -310,7 +321,7 @@ async function asegurarSuiteBloqueante(versionId) {
     console.log(`Suite ${DEFINICION.suite.suiteCode} ya existe (id ${suite.id}).`);
   }
 
-  const corrida = await api(`/v1/test-suites/${suite.id}/runs`, {
+  const corrida = await api(`/v1/test-suites/${segmento(suite.id)}/runs`, {
     method: 'POST',
     body: JSON.stringify({ triggerType: 'MANUAL' }),
   });
@@ -336,7 +347,7 @@ async function asegurarSuiteBloqueante(versionId) {
 }
 
 async function enviarARevision(versionId) {
-  return api(`/v1/artifact-versions/${versionId}/submit-for-review`, {
+  return api(`/v1/artifact-versions/${segmento(versionId)}/submit-for-review`, {
     method: 'POST',
     body: JSON.stringify({ requireCompliance: false }),
   });
@@ -352,8 +363,7 @@ function instruccionesDeAprobacion(versionId) {
   console.log(
     `  3. Y entonces: node scripts/recalificacion-capacidad-pago.mjs --deploy ${versionId} --environments ${ENVIRONMENTS.join(',')}`,
   );
-  console.log(
-  );
+  console.log();
   console.log('');
   console.log(
     'Ninguno de los tres puede ser quien corrió esto: la versión la creó este principal.',
@@ -382,14 +392,14 @@ async function main() {
     console.log(`Artefacto ${ARTIFACT_CODE} creado (id ${artefacto.id}).`);
     const primera = (artefacto.versions ?? [])[0];
     if (primera && authoringNotes) {
-      await api(`/v1/artifact-versions/${primera.id}/notes`, {
+      await api(`/v1/artifact-versions/${segmento(primera.id)}/notes`, {
         method: 'PATCH',
         body: JSON.stringify({ notes: authoringNotes }),
       }).catch((error) => console.log(`(notas de autoría no escritas: ${error.message})`));
     }
   }
 
-  const detalle = await api(`/v1/artifacts/${artefacto.id}`);
+  const detalle = await api(`/v1/artifacts/${segmento(artefacto.id)}`);
   const versionesArtefacto = detalle.versions ?? [];
   let vigente = versionesArtefacto.reduce(
     (mejor, version) =>
@@ -417,12 +427,17 @@ async function main() {
       );
       return;
     }
-    const clon = await api(`/v1/artifact-versions/${vigente.id}/clone`, {
+    const clon = await api(`/v1/artifact-versions/${segmento(vigente.id)}/clone`, {
       method: 'POST',
       body: JSON.stringify({ changeSummary: DEFINICION.artifact.authoringNotes.slice(-900) }),
     });
     console.log(`Clonada como versión id ${clon.id ?? clon.versionId}.`);
-    vigente = { ...clon, id: clon.id ?? clon.versionId, status: 'DRAFT', lockVersion: clon.lockVersion ?? 1 };
+    vigente = {
+      ...clon,
+      id: clon.id ?? clon.versionId,
+      status: 'DRAFT',
+      lockVersion: clon.lockVersion ?? 1,
+    };
   }
 
   if (EDITABLE.has(vigente.status)) {
@@ -432,16 +447,19 @@ async function main() {
       );
       return;
     }
-    const escrito = await api(`/v1/artifact-versions/${vigente.id}/graph`, {
+    const escrito = await api(`/v1/artifact-versions/${segmento(vigente.id)}/graph`, {
       method: 'PUT',
       headers: { 'if-match': String(vigente.lockVersion ?? 1) },
       body: JSON.stringify(cuerpoDelGrafo(versiones, reasonIds)),
     });
     console.log(`Grafo escrito (lockVersion ${escrito.lockVersion ?? '?'}).`);
-    const compilado = await api(`/v1/artifact-versions/${vigente.id}/validate-and-compile`, {
-      method: 'POST',
-      body: '{}',
-    });
+    const compilado = await api(
+      `/v1/artifact-versions/${segmento(vigente.id)}/validate-and-compile`,
+      {
+        method: 'POST',
+        body: '{}',
+      },
+    );
     // El Motor contesta 201 también cuando la validación FALLA: sin mirar esto, el guion decía «Compilada» y el
     // error sólo aparecía después, como «no hay artefacto compilado».
     if (compilado.validation?.valid === false) {
@@ -481,7 +499,7 @@ async function main() {
 /** Despliega una versión YA aprobada. Se separa porque el permiso para hacerlo es de otra persona. */
 async function desplegar(versionId) {
   for (const environmentCode of ENVIRONMENTS) {
-    const despliegue = await api(`/v1/artifact-versions/${versionId}/deployments`, {
+    const despliegue = await api(`/v1/artifact-versions/${segmento(versionId)}/deployments`, {
       method: 'POST',
       body: JSON.stringify({ environmentCode, deploymentMode: 'DIRECT', traffic: [] }),
     });
@@ -491,8 +509,7 @@ async function desplegar(versionId) {
       `Desplegada en ${environmentCode} (deployment ${despliegue.id ?? despliegue.deploymentId ?? '?'}).`,
     );
   }
-  console.log(
-  );
+  console.log();
 }
 
 const DEPLOY = args.get('deploy');
