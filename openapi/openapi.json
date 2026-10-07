@@ -3381,6 +3381,54 @@
         ]
       }
     },
+    "/v1/artifact-versions/{versionId}/test-suites/generate": {
+      "post": {
+        "description": "Busca, con el motor real, los casos que recorren todos los nodos del grafo y los guarda en la suite bloqueante `AUTO-COBERTURA` de la versión (regenerar desactiva los casos anteriores). Encola su corrida y responde qué cobertura consiguió: si algún nodo no se deja alcanzar, viene en `nodes.missing`. Los nodos WORKER se prueban con dobles (`workerDoubles` en la entrada del caso), sin llamar al servicio. Es una suite de REGRESIÓN: fija lo que el grafo hace hoy; no sustituye a los casos de negocio escritos a mano.",
+        "operationId": "testingGenerateCoverageSuite",
+        "parameters": [
+          {
+            "name": "versionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Identificador de la versión del artefacto."
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Suite generada y corrida encolada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneratedCoverageSuiteDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Generar la suite de cobertura de una versión compilada",
+        "tags": [
+          "Decision Testing"
+        ]
+      }
+    },
     "/v1/test-suites/{suiteId}/cases": {
       "get": {
         "operationId": "testingListCases",
@@ -20334,6 +20382,123 @@
           "suiteType",
           "isBlocking",
           "cases"
+        ]
+      },
+      "GeneratedCoverageNodeDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "example": "REVISAR_SANCIONES"
+          },
+          "label": {
+            "type": "string",
+            "example": "Revisión: coincidencia en lista restrictiva"
+          }
+        },
+        "required": [
+          "key",
+          "label"
+        ]
+      },
+      "GeneratedNodeCoverageDto": {
+        "type": "object",
+        "properties": {
+          "percentage": {
+            "type": "number",
+            "example": 100
+          },
+          "missing": {
+            "description": "Nodos que ningún caso generado alcanzó.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GeneratedCoverageNodeDto"
+            }
+          }
+        },
+        "required": [
+          "percentage",
+          "missing"
+        ]
+      },
+      "GeneratedEdgeCoverageDto": {
+        "type": "object",
+        "properties": {
+          "percentage": {
+            "type": "number",
+            "example": 100
+          },
+          "missing": {
+            "example": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "percentage",
+          "missing"
+        ]
+      },
+      "GeneratedCoverageSuiteDto": {
+        "type": "object",
+        "properties": {
+          "suiteId": {
+            "type": "string",
+            "example": "7001"
+          },
+          "suiteCode": {
+            "type": "string",
+            "example": "AUTO-COBERTURA"
+          },
+          "runId": {
+            "type": "string",
+            "example": "8501",
+            "description": "Corrida encolada de la suite generada."
+          },
+          "generation": {
+            "type": "number",
+            "example": 1,
+            "description": "Cuántas veces se ha generado para esta versión."
+          },
+          "cases": {
+            "type": "number",
+            "example": 10
+          },
+          "complete": {
+            "type": "boolean",
+            "example": true,
+            "description": "Si los casos recorren todos los nodos del grafo."
+          },
+          "exhaustedBudget": {
+            "type": "boolean",
+            "example": false,
+            "description": "Si la búsqueda agotó su presupuesto antes de recorrerlo todo."
+          },
+          "executions": {
+            "type": "number",
+            "example": 10,
+            "description": "Ejecuciones del motor que hizo la búsqueda."
+          },
+          "nodes": {
+            "$ref": "#/components/schemas/GeneratedNodeCoverageDto"
+          },
+          "edges": {
+            "$ref": "#/components/schemas/GeneratedEdgeCoverageDto"
+          }
+        },
+        "required": [
+          "suiteId",
+          "suiteCode",
+          "runId",
+          "generation",
+          "cases",
+          "complete",
+          "exhaustedBudget",
+          "executions",
+          "nodes",
+          "edges"
         ]
       },
       "TestCoverageDto": {

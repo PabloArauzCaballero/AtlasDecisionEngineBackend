@@ -82,4 +82,64 @@ describe('TestCaseExecutorService', () => {
       reasonCodes: ['VARIABLE_MISSING_OR_INVALID'],
     });
   });
+
+  it('un caso que no espera nada FALLA: sin aserciones no se comprueba nada', async () => {
+    // Antes pasaba siempre y además sumaba cobertura: una suite de casos vacíos dejaba la corrida
+    // en verde con el 100 % de los nodos sin haber verificado un solo desenlace.
+    const result = await build().execute({
+      tenantId: 1n,
+      artifactCode: 'DEMO',
+      runId: 1n,
+      payload,
+      testCase: { id: 1n, caseCode: 'VACIO', inputJson: { variables: {} }, expectedResultJson: {} },
+    });
+
+    expect(result.resultStatus).toBe('FAIL');
+    expect(result.assertions).toHaveLength(1);
+    expect(result.assertions[0]).toMatchObject({ path: '$', passed: false });
+    // La cobertura observada no se pierde: el generador la necesita para buscar.
+    expect(result.visitedNodeKeys).toEqual(['START', 'APPROVE']);
+  });
+
+  it('los dobles de worker del caso responden por sus nodos en vez del servicio real', async () => {
+    const engine = { execute: jest.fn().mockResolvedValue(engineResult) };
+    const real = { invoke: jest.fn() };
+    const executor = new TestCaseExecutorService(
+      engine as never,
+      { resolve: jest.fn().mockResolvedValue({ valid: true, values: {}, errors: [] }) } as never,
+      { bind: jest.fn() } as never,
+      { bind: jest.fn().mockReturnValue(real) } as never,
+    );
+
+    await executor.execute({
+      tenantId: 1n,
+      artifactCode: 'DEMO',
+      runId: 1n,
+      payload,
+      testCase: {
+        id: 1n,
+        caseCode: 'CON_DOBLE',
+        inputJson: {
+          variables: {},
+          workerDoubles: { VERIFICAR: { result: { decision: 'VERIFIED' } } },
+        },
+        expectedResultJson: { outcome: 'APPROVED' },
+      },
+    });
+
+    const invoker = engine.execute.mock.calls[0][5] as {
+      invoke: (request: unknown) => Promise<unknown>;
+    };
+    await expect(
+      invoker.invoke({
+        nodeKey: 'VERIFICAR',
+        service: 'identity',
+        operation: 'verify',
+        arguments: {},
+      }),
+    ).resolves.toMatchObject({
+      result: { decision: 'VERIFIED' },
+    });
+    expect(real.invoke).not.toHaveBeenCalled();
+  });
 });

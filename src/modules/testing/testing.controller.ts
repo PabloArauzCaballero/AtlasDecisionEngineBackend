@@ -18,12 +18,14 @@ import {
   TestSuiteListQueryDto,
 } from './testing.dto';
 import {
+  GeneratedCoverageSuiteDto,
   TestCaseRecordDto,
   TestRunDetailDto,
   TestRunQueuedDto,
   TestSuiteCreatedDto,
   TestSuiteWithEvidenceDto,
 } from './testing.response.dto';
+import { CoverageSuiteService } from './coverage-suite.service';
 import { TestExecutionService } from './test-execution.service';
 import { TestSuiteService } from './test-suite.service';
 
@@ -33,6 +35,7 @@ export class TestingController {
   constructor(
     private readonly suites: TestSuiteService,
     private readonly execution: TestExecutionService,
+    private readonly coverage: CoverageSuiteService,
   ) {}
 
   @Post('artifact-versions/:versionId/test-suites')
@@ -49,6 +52,25 @@ export class TestingController {
     @Body() dto: CreateTestSuiteDto,
   ) {
     return this.suites.createSuite(tenantId, parseBigIntId(versionId, 'versionId'), dto, principal);
+  }
+
+  @Post('artifact-versions/:versionId/test-suites/generate')
+  @ApiOperation({
+    summary: 'Generar la suite de cobertura de una versión compilada',
+    description:
+      'Busca, con el motor real, los casos que recorren todos los nodos del grafo y los guarda en la suite bloqueante `AUTO-COBERTURA` de la versión (regenerar desactiva los casos anteriores). Encola su corrida y responde qué cobertura consiguió: si algún nodo no se deja alcanzar, viene en `nodes.missing`. Los nodos WORKER se prueban con dobles (`workerDoubles` en la entrada del caso), sin llamar al servicio. Es una suite de REGRESIÓN: fija lo que el grafo hace hoy; no sustituye a los casos de negocio escritos a mano.',
+  })
+  @ApiCreatedResponse({
+    description: 'Suite generada y corrida encolada.',
+    type: GeneratedCoverageSuiteDto,
+  })
+  @Roles('QA_ANALYST', 'FRAUD_ANALYST')
+  generateCoverageSuite(
+    @TenantId() tenantId: bigint,
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('versionId') versionId: string,
+  ) {
+    return this.coverage.generate(tenantId, parseBigIntId(versionId, 'versionId'), principal);
   }
 
   @Get('artifact-versions/:versionId/test-suites')

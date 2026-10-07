@@ -6,6 +6,7 @@ import { NestedTreeExecutionService } from '../nested-trees/nested-tree-executio
 import { WorkerServiceInvokerService } from '../workers/worker-service-invoker.service';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
 import { VariableResolutionService } from '../variables/variable-resolution.service';
+import { readWorkerDoubles, withWorkerDoubles } from './worker-doubles';
 
 /**
  * The async test-run worker has no per-request principal (it is not driven by an HTTP
@@ -111,7 +112,11 @@ export class TestCaseExecutorService {
           this.nestedTrees.bind(tenantId, systemPrincipal(tenantId)),
           undefined,
           undefined,
-          this.workerServices.bind(tenantId, systemPrincipal(tenantId)),
+          // Los dobles del caso responden por los nodos WORKER que declaran; el resto llama al real.
+          withWorkerDoubles(
+            readWorkerDoubles(rawInput),
+            this.workerServices.bind(tenantId, systemPrincipal(tenantId)),
+          ),
         );
         visitedNodeKeys = result.visitedNodeKeys;
         traversedEdgeKeys = result.traversedEdgeKeys;
@@ -135,6 +140,21 @@ export class TestCaseExecutorService {
       }
 
       assertions = this.assertSubset(this.asRecord(testCase.expectedResultJson), actual);
+      /*
+       * Un caso que no espera nada no comprueba nada. Hasta 2026-10 pasaba siempre —cero aserciones,
+       * ninguna fallida— y además sumaba cobertura: una suite de casos vacíos dejaba la corrida en
+       * verde con el 100 % de los nodos sin haber verificado ni un desenlace. Ahora falla y lo dice.
+       */
+      if (!assertions.length) {
+        assertions = [
+          {
+            path: '$',
+            expected: 'al menos un valor esperado (desenlace, motivo o salida)',
+            actual: 'el caso no declara ninguno',
+            passed: false,
+          },
+        ];
+      }
       if (assertions.some((assertion) => !assertion.passed)) {
         resultStatus = TestCaseRunStatus.FAIL;
       }

@@ -3,7 +3,7 @@
 
 # Catálogo de endpoints
 
-Contrato **v1** · 214 rutas · 242 operaciones.
+Contrato **v1** · 215 rutas · 243 operaciones.
 
 La referencia interactiva completa —con esquemas, ejemplos y la posibilidad de probar cada
 llamada— está en `/docs/{API_VERSION}/reference` del propio backend. Esta página existe para
@@ -142,6 +142,7 @@ Suites de regresión, casos y corridas deterministas por versión.
 | --- | --- | --- | --- |
 | `POST` | `/v1/artifact-versions/{versionId}/test-suites` | `testingCreateSuite` | Create a version-scoped suite with initial cases |
 | `GET` | `/v1/artifact-versions/{versionId}/test-suites` | `testingListSuites` | List suites and recent run evidence for a version |
+| `POST` | `/v1/artifact-versions/{versionId}/test-suites/generate` | `testingGenerateCoverageSuite` | Generar la suite de cobertura de una versión compilada |
 | `GET` | `/v1/test-runs/{runId}` | `testingGetRun` | Get run status, assertions and graph coverage |
 | `GET` | `/v1/test-suites/{suiteId}/cases` | `testingListCases` | List deterministic cases in a suite |
 | `POST` | `/v1/test-suites/{suiteId}/cases` | `testingCreateCase` | Add one case to a suite |

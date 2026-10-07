@@ -3,7 +3,7 @@
 
 # Catálogo de códigos de error
 
-262 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
+264 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
 el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 
 | Código | Mensaje de referencia | Origen |
@@ -73,6 +73,8 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `CONSENT_REVOCATION_IN_FUTURE` | Una revocación no puede fecharse en el futuro. | `src/modules/risk-governance/risk-governance.service.ts` |
 | `CONSENT_REVOCATION_STALE` | La revocación es anterior al alta vigente de esta finalidad: ya fue superada. | `src/modules/risk-governance/risk-governance.service.ts` |
 | `CONSENT_WRITE_MACHINE_ONLY` | Los consentimientos se registran y se revocan en Atlas Core; el motor sólo recibe su | `src/modules/risk-governance/consent-replica-caller.ts` |
+| `COVERAGE_NO_USABLE_CASE` | No se pudo construir ningún caso ejecutable para esta versión: revisa su contrato de entrada | `src/modules/testing/coverage-suite.service.ts` |
+| `COVERAGE_VERSION_NOT_COMPILED` | La versión no tiene un artefacto compilado con éxito: compílala antes de generar sus pruebas | `src/modules/testing/coverage-suite.service.ts` |
 | `DEPLOYMENT_ALREADY_SUSPENDED` | Deployment is already suspended | `src/modules/deployments/deployment.service.ts` |
 | `DEPLOYMENT_NOT_ACTIVE` | Deployment is no longer the active deployment for this environment | `src/modules/deployments/deployment.service.ts` |
 | `DEPLOYMENT_NOT_FOUND` | Deployment not found | `src/modules/deployments/deployment.service.ts` |

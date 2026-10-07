@@ -9,6 +9,7 @@ import { JobSignalService } from '../../common/jobs/job-signal.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
 import type { CompiledDecisionArtifact } from '../graph/graph.types';
+import { judgeBlockingSuites } from './blocking-evidence';
 import { TestCaseExecutorService } from './test-case-executor.service';
 import { RunTestSuiteDto } from './testing.dto';
 
@@ -253,6 +254,10 @@ export class TestExecutionService {
     return { ...run, durationMs };
   }
 
+  /**
+   * La regla vive en `blocking-evidence.ts`; aquí sólo se lee lo que hace falta para aplicarla:
+   * por cada suite bloqueante, su corrida TERMINADA más reciente (verde o roja) con su cobertura.
+   */
   async verifyBlockingTests(tenantId: bigint, versionId: bigint) {
     const suites = await this.prisma.decisionTestSuite.findMany({
       where: {
@@ -262,31 +267,34 @@ export class TestExecutionService {
       },
       include: {
         runs: {
-          where: { status: TestRunStatus.PASSED },
-          orderBy: { startedAt: 'desc' },
+          where: { status: { in: [TestRunStatus.PASSED, TestRunStatus.FAILED] } },
+          orderBy: [{ finishedAt: 'desc' }, { id: 'desc' }],
           take: 1,
           include: { coverage: true },
         },
       },
     });
-    if (!suites.length) {
-      return {
-        passed: false,
-        evidence: [{ reason: 'NO_BLOCKING_TEST_SUITE' }],
-      };
-    }
-    const evidence = suites.map((suite) => {
-      const run = suite.runs[0];
-      const nodeCoverage = run?.coverage.find((item) => item.coverageType === 'NODE');
-      return {
-        suiteId: suite.id.toString(),
-        suiteCode: suite.suiteCode,
-        latestPassingRunId: run?.id.toString() ?? null,
-        nodeCoverage: nodeCoverage ? Number(nodeCoverage.coveragePercentage) : null,
-        passed: Boolean(run) && Number(nodeCoverage?.coveragePercentage ?? 0) >= 80,
-      };
-    });
-    return { passed: evidence.every((item) => item.passed), evidence };
+    return judgeBlockingSuites(
+      suites.map((suite) => {
+        const run = suite.runs[0];
+        const node = run?.coverage.find((item) => item.coverageType === 'NODE');
+        const details = (node?.detailsJson ?? {}) as { covered?: unknown; missing?: unknown };
+        const list = (value: unknown) => (Array.isArray(value) ? value.map(String) : []);
+        return {
+          suiteId: suite.id.toString(),
+          suiteCode: suite.suiteCode,
+          latestRun: run
+            ? {
+                id: run.id.toString(),
+                status: run.status,
+                coveredNodes: list(details.covered),
+                missingNodes: list(details.missing),
+                nodeCoverage: node ? Number(node.coveragePercentage) : null,
+              }
+            : null,
+        };
+      }),
+    );
   }
 
   private coverageRecord(type: string, covered: Set<string>, totalInput: string[]) {
