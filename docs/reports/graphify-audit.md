@@ -13,8 +13,8 @@ El grafo contiene **12281 nodos** y **29289 relaciones** repartidos en
 **32 módulos de dominio** en `src/modules/`, de los cuales
 todos están registrados en `src/app.module.ts` (comprobado sobre el fichero, no supuesto).
 
-El grafo cubre **715 de 746**
-ficheros TypeScript de `src/` (96 %).
+El grafo cubre **715 de 750**
+ficheros TypeScript de `src/` (95 %).
 **1 módulo(s) de dominio no aparecen en absoluto**: `atlas-callback`. Consultar el grafo sobre ellos no devuelve nada, así que su documentación **no** se deriva de aquí.
 
 ## Inventario cuantitativo
@@ -112,7 +112,7 @@ Es la dirección que más daño hace: sobre un fichero ausente el grafo no devue
 consulta vacía se lee igual que «no existe». Por eso los catálogos del portal se generan del
 código y del contrato, nunca de este grafo.
 
-**31 de 746** ficheros `.ts` de `src/` no aparecen en el grafo, incluidos **1 módulo(s) completos** (`atlas-callback`). Se listan los primeros 20:
+**35 de 750** ficheros `.ts` de `src/` no aparecen en el grafo, incluidos **1 módulo(s) completos** (`atlas-callback`). Se listan los primeros 20:
 
 - `src/common/config/build-identity.ts`
 - `src/common/observability/redacting-span-processor.ts`
@@ -133,7 +133,7 @@ código y del contrato, nunca de este grafo.
 - `src/modules/qa-lab/qa-run-summary.ts`
 - `src/modules/risk-governance/consent-replica-caller.ts`
 - `src/modules/risk-governance/enabling-basis.ts`
-- `src/modules/workers/identity-verification/core/forensics/document-color.ts`
+- `src/modules/testing/blocking-evidence.ts`
 
 ## Riesgos identificados
 

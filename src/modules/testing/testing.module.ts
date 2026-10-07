@@ -4,6 +4,7 @@ import { GraphModule } from '../graph/graph.module';
 import { NestedTreesModule } from '../nested-trees/nested-trees.module';
 import { WorkersModule } from '../workers/workers.module';
 import { VariableModule } from '../variables/variable.module';
+import { CoverageSuiteService } from './coverage-suite.service';
 import { TestingController } from './testing.controller';
 import { TestExecutionService } from './test-execution.service';
 import { TestCaseExecutorService } from './test-case-executor.service';
@@ -15,6 +16,7 @@ import { TestSuiteService } from './test-suite.service';
   controllers: [TestingController],
   providers: [
     TestSuiteService,
+    CoverageSuiteService,
     TestCaseExecutorService,
     TestExecutionService,
     TestRunWorkerService,

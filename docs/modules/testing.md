@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/testing/`](https://github.com/) · 8 ficheros TypeScript.
+Código: [`src/modules/testing/`](https://github.com/) · 12 ficheros TypeScript.
 
 Etiquetas de API: **Decision Testing**.
 
@@ -16,6 +16,7 @@ Etiquetas de API: **Decision Testing**.
 | --- | --- | --- | --- |
 | `POST` | `/v1/artifact-versions/{versionId}/test-suites` | `testingCreateSuite` | Create a version-scoped suite with initial cases |
 | `GET` | `/v1/artifact-versions/{versionId}/test-suites` | `testingListSuites` | List suites and recent run evidence for a version |
+| `POST` | `/v1/artifact-versions/{versionId}/test-suites/generate` | `testingGenerateCoverageSuite` | Generar la suite de cobertura de una versión compilada |
 | `GET` | `/v1/test-runs/{runId}` | `testingGetRun` | Get run status, assertions and graph coverage |
 | `GET` | `/v1/test-suites/{suiteId}/cases` | `testingListCases` | List deterministic cases in a suite |
 | `POST` | `/v1/test-suites/{suiteId}/cases` | `testingCreateCase` | Add one case to a suite |
@@ -30,14 +31,19 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `QA_ANAL
 
 - `BASELINE_COMPARISON_NOT_SUPPORTED`
 - `COMPILED_ARTIFACT_NOT_FOUND`
+- `COVERAGE_NO_USABLE_CASE`
+- `COVERAGE_VERSION_NOT_COMPILED`
 - `TEST_RUN_NOT_CLAIMED`
 - `TEST_RUN_NOT_FOUND`
 - `TEST_SUITE_NOT_FOUND`
 - `VERSION_NOT_FOUND`
+- `WORKER_SERVICE_NOT_CONFIGURED`
 
 ## Clases exportadas
 
+- `CoverageSuiteService`
 - `CreateTestSuiteDto`
+- `GeneratedCoverageSuiteDto`
 - `ImportTestCasesDto`
 - `RunTestSuiteDto`
 - `TestCaseDto`

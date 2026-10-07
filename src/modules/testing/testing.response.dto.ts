@@ -126,3 +126,43 @@ export class TestRunDetailDto {
   @ApiProperty({ type: [TestCoverageDto] }) coverage!: TestCoverageDto[];
   @ApiProperty({ type: [TestCaseRunDto] }) caseRuns!: TestCaseRunDto[];
 }
+
+class GeneratedCoverageNodeDto {
+  @ApiProperty({ example: 'REVISAR_SANCIONES' }) key!: string;
+  @ApiProperty({ example: 'Revisión: coincidencia en lista restrictiva' }) label!: string;
+}
+
+class GeneratedNodeCoverageDto {
+  @ApiProperty({ example: 100 }) percentage!: number;
+  @ApiProperty({
+    type: [GeneratedCoverageNodeDto],
+    description: 'Nodos que ningún caso generado alcanzó.',
+  })
+  missing!: GeneratedCoverageNodeDto[];
+}
+
+class GeneratedEdgeCoverageDto {
+  @ApiProperty({ example: 100 }) percentage!: number;
+  @ApiProperty({ type: [String], example: [] }) missing!: string[];
+}
+
+export class GeneratedCoverageSuiteDto {
+  @ApiProperty({ example: '7001' }) suiteId!: string;
+  @ApiProperty({ example: 'AUTO-COBERTURA' }) suiteCode!: string;
+  @ApiProperty({ example: '8501', description: 'Corrida encolada de la suite generada.' })
+  runId!: string;
+  @ApiProperty({ example: 1, description: 'Cuántas veces se ha generado para esta versión.' })
+  generation!: number;
+  @ApiProperty({ example: 10 }) cases!: number;
+  @ApiProperty({ example: true, description: 'Si los casos recorren todos los nodos del grafo.' })
+  complete!: boolean;
+  @ApiProperty({
+    example: false,
+    description: 'Si la búsqueda agotó su presupuesto antes de recorrerlo todo.',
+  })
+  exhaustedBudget!: boolean;
+  @ApiProperty({ example: 10, description: 'Ejecuciones del motor que hizo la búsqueda.' })
+  executions!: number;
+  @ApiProperty({ type: GeneratedNodeCoverageDto }) nodes!: GeneratedNodeCoverageDto;
+  @ApiProperty({ type: GeneratedEdgeCoverageDto }) edges!: GeneratedEdgeCoverageDto;
+}

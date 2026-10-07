@@ -34,7 +34,7 @@ real: sus controladores, sus etiquetas de API, sus roles exigidos y sus códigos
 | [`security-review`](security-review.md) | 2 | — | 4 |
 | [`seeding`](seeding.md) | 0 | — | 2 |
 | [`sql-console`](sql-console.md) | 4 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, RISK_ANALYST, RISK_APPROVER | 13 |
-| [`testing`](testing.md) | 7 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, QA_ANALYST, RISK_ANALYST | 8 |
+| [`testing`](testing.md) | 8 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, QA_ANALYST, RISK_ANALYST | 12 |
 | [`traceability`](traceability.md) | 6 | AUDITOR, COMPLIANCE, QA_ANALYST, RISK_ANALYST | 5 |
 | [`tutorials`](tutorials.md) | 2 | — | 5 |
 | [`variables`](variables.md) | 9 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, OPERATIONS, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 8 |
