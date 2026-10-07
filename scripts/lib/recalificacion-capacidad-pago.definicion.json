@@ -1,0 +1,1526 @@
+{
+  "artifact": {
+    "artifactCode": "ATLAS_RECALIFICACION_CAPACIDAD",
+    "artifactType": "CREDIT_POLICY",
+    "riskDomain": "CREDIT_ORIGINATION",
+    "ownerTeam": "RISK_DECISIONING",
+    "name": "Recalificación de la capacidad de pago",
+    "description": "Recalcula cuánto crédito soporta un cliente: el MENOR de cuatro techos (capacidad del extracto o ingreso declarado × 3 meses, escalera de relación, producto y subida escalonada), redondeado hacia abajo a un número entero múltiplo de 50.",
+    "businessPurpose": "Que la capacidad recomendada sea una decisión versionada y auditable del Motor, no una constante en el código de Core, y que nunca salga con decimales.",
+    "semanticVersion": "1.0.0",
+    "authoringNotes": "v1.0.0 (2026-10-06): espejo de assessPaymentCapacity (AtlasBackend, payment-capacity.ts) con los mismos topes: plazo 3 meses, tramo inicial Bs 1.500, techo de producto Bs 20.000, graduación ×2 y mínimo útil Bs 300. Novedad: la capacidad se redondea HACIA ABAJO a múltiplos de 50 (decisión de Pablo: números con decimales no son lo indicado, y hacia abajo nunca presta más de lo que la capacidad soporta). floor(x/50) no existe como operador del DSL: se implementó como 50 × round(x/50 − 0,5), exacto en 8 millones de casos en centavos (verificado en la suite). El mínimo útil se compara ANTES de redondear. Este artefacto recalifica la capacidad; el límite APROBADO sigue emitiéndolo ATLAS_BNPL_UNDERWRITING, que ya redondea a 50 sobre esta capacidad × banda."
+  },
+  "inputs": [
+    {
+      "code": "statement_eligible",
+      "dataType": "BOOLEAN",
+      "name": "Extracto utilizable",
+      "description": "El extracto bancario cubre los tres meses completos que exige el worker de extractos. Sin él, la capacidad se apoya en el ingreso declarado.",
+      "optional": true,
+      "freshnessSlaSeconds": 15552000
+    },
+    {
+      "code": "statement_max_installment",
+      "dataType": "DECIMAL",
+      "name": "Cuota máxima sostenible por el extracto",
+      "description": "Bs por mes que el extracto soporta: ingreso reconocido menos lo comprometido, tensionado por su volatilidad. Sale del worker de extractos.",
+      "constraints": {
+        "minimum": 0
+      },
+      "optional": true,
+      "freshnessSlaSeconds": 15552000
+    },
+    {
+      "code": "declared_monthly_income",
+      "dataType": "DECIMAL",
+      "name": "Ingreso mensual declarado",
+      "description": "Ingreso declarado en el alta, en Bs. Sólo cuenta cuando no hay extracto utilizable, y con una participación pequeña.",
+      "constraints": {
+        "minimum": 0
+      },
+      "optional": true,
+      "freshnessSlaSeconds": 15552000
+    },
+    {
+      "code": "relationship_score",
+      "dataType": "DECIMAL",
+      "name": "Puntaje de relación con la plataforma",
+      "description": "De 0 a 100: antigüedad, historial de pago en Atlas y fidelización. Core ya lo baja a 10 con una alerta de fraude y a 24 si todavía no hay historia.",
+      "constraints": {
+        "minimum": 0,
+        "maximum": 100
+      },
+      "optional": true,
+      "freshnessSlaSeconds": 15552000
+    },
+    {
+      "code": "current_credit_limit",
+      "dataType": "DECIMAL",
+      "name": "Límite vigente",
+      "description": "Línea actual del cliente, para que la subida sea escalonada (como mucho el doble por recálculo). Vacío en el primer cálculo.",
+      "constraints": {
+        "minimum": 0
+      },
+      "optional": true,
+      "freshnessSlaSeconds": 15552000
+    }
+  ],
+  "outputs": [
+    {
+      "code": "recommended_limit",
+      "dataType": "DECIMAL",
+      "usageType": "OUTPUT",
+      "name": "Capacidad recomendada",
+      "description": "Límite que la capacidad de pago soporta, siempre un número entero múltiplo de 50 y redondeado hacia abajo (nunca presta más de lo que la capacidad sostiene). 0 si no llega al mínimo útil de Bs 300 o no hay evidencia."
+    },
+    {
+      "code": "monthly_installment",
+      "dataType": "DECIMAL",
+      "usageType": "OUTPUT",
+      "name": "Cuota mensual sostenible",
+      "description": "Bs por mes que se tomó como base: la del extracto o el ingreso declarado × 10 %."
+    },
+    {
+      "code": "capacity_evidence",
+      "dataType": "STRING",
+      "usageType": "OUTPUT",
+      "name": "Evidencia de la capacidad",
+      "description": "EXTRACTO, DECLARADO o NINGUNA."
+    },
+    {
+      "code": "binding_constraint",
+      "dataType": "STRING",
+      "usageType": "OUTPUT",
+      "name": "Techo que limitó",
+      "description": "RELACION, PRODUCTO, CAPACIDAD, GRADUACION o SIN_CAPACIDAD."
+    },
+    {
+      "code": "capacity_decision",
+      "dataType": "STRING",
+      "usageType": "OUTPUT_PRIMARY",
+      "name": "Desenlace de la recalificación",
+      "description": "RECALIFICADA, BAJO_MINIMO o SIN_EVIDENCIA.",
+      "constraints": {
+        "allowedValues": [
+          "RECALIFICADA",
+          "BAJO_MINIMO",
+          "SIN_EVIDENCIA"
+        ]
+      }
+    }
+  ],
+  "reasonCodes": [
+    {
+      "reasonCode": "CAP_RECALIFICADA",
+      "category": "CREDIT_UNDERWRITING",
+      "publicMessage": "Actualizamos tu capacidad de pago.",
+      "internalMessage": "Capacidad recalificada: mínimo de cuatro techos, redondeada hacia abajo a múltiplos de 50.",
+      "severity": "LOW",
+      "isAdverseAction": false
+    },
+    {
+      "reasonCode": "CAP_POR_DEBAJO_DEL_MINIMO",
+      "category": "CREDIT_UNDERWRITING",
+      "publicMessage": "Por ahora tu capacidad de pago no alcanza el mínimo del producto.",
+      "internalMessage": "La capacidad medida queda por debajo del mínimo útil (Bs 300): límite 0.",
+      "severity": "MEDIUM",
+      "isAdverseAction": true
+    },
+    {
+      "reasonCode": "CAP_SIN_EVIDENCIA",
+      "category": "CREDIT_UNDERWRITING",
+      "publicMessage": "Necesitamos tu extracto bancario o tu ingreso para calcular tu capacidad de pago.",
+      "internalMessage": "No hay extracto utilizable ni ingreso declarado: no se propone ningún límite.",
+      "severity": "MEDIUM",
+      "isAdverseAction": false
+    }
+  ],
+  "intermediates": [
+    {
+      "code": "evidence",
+      "name": "Evidencia usada",
+      "description": "EXTRACTO si el extracto es utilizable y su cuota > 0; DECLARADO si hay ingreso declarado; NINGUNA si no hay nada.",
+      "dataType": "STRING",
+      "producerNodeKey": "SC_CAPACIDAD",
+      "consumerNodeKeys": []
+    },
+    {
+      "code": "installment",
+      "name": "Cuota mensual",
+      "description": "Cuota del extracto, o ingreso declarado × 0,10.",
+      "dataType": "DECIMAL",
+      "producerNodeKey": "SC_CAPACIDAD",
+      "consumerNodeKeys": []
+    },
+    {
+      "code": "by_capacity",
+      "name": "Techo por capacidad",
+      "description": "cuota × 3 meses.",
+      "dataType": "DECIMAL",
+      "producerNodeKey": "SC_CAPACIDAD",
+      "consumerNodeKeys": []
+    },
+    {
+      "code": "tier_multiplier",
+      "name": "Multiplicador de la escalera",
+      "description": "Relación ≥85: 6; ≥70: 4; ≥50: 2,5; ≥25: 1,5; resto: 1.",
+      "dataType": "DECIMAL",
+      "producerNodeKey": "SC_CAPACIDAD",
+      "consumerNodeKeys": []
+    },
+    {
+      "code": "by_relationship",
+      "name": "Techo por relación",
+      "description": "Bs 1.500 × multiplicador.",
+      "dataType": "DECIMAL",
+      "producerNodeKey": "SC_CAPACIDAD",
+      "consumerNodeKeys": []
+    },
+    {
+      "code": "by_graduation",
+      "name": "Techo por graduación",
+      "description": "límite vigente × 2; sin vigente, no limita.",
+      "dataType": "DECIMAL",
+      "producerNodeKey": "SC_CAPACIDAD",
+      "consumerNodeKeys": []
+    },
+    {
+      "code": "ceiling",
+      "name": "Mínimo de los techos",
+      "description": "min(relación, producto 20.000, capacidad, graduación).",
+      "dataType": "DECIMAL",
+      "producerNodeKey": "SC_CAPACIDAD",
+      "consumerNodeKeys": []
+    },
+    {
+      "code": "binding",
+      "name": "Techo que limitó",
+      "description": "Primero en empatar, en el orden RELACION, PRODUCTO, CAPACIDAD, GRADUACION (igual que Core).",
+      "dataType": "STRING",
+      "producerNodeKey": "SC_CAPACIDAD",
+      "consumerNodeKeys": []
+    },
+    {
+      "code": "limit",
+      "name": "Límite recomendado",
+      "description": "Sin evidencia o bajo Bs 300: 0. Si no, 50 × round(techo / 50 − 0,5), es decir, el techo redondeado hacia abajo al múltiplo de 50.",
+      "dataType": "DECIMAL",
+      "producerNodeKey": "SC_CAPACIDAD",
+      "consumerNodeKeys": []
+    }
+  ],
+  "conditions": [
+    {
+      "code": "SIN_EVIDENCIA",
+      "name": "Sin extracto ni ingreso",
+      "expressionType": "JSON_AST",
+      "expression": {
+        "op": "eq",
+        "left": {
+          "var": "intermediate.evidence"
+        },
+        "right": {
+          "value": "NINGUNA"
+        }
+      },
+      "severity": "BLOCKING",
+      "reusable": true
+    },
+    {
+      "code": "BAJO_MINIMO",
+      "name": "Capacidad bajo el mínimo útil",
+      "expressionType": "JSON_AST",
+      "expression": {
+        "op": "eq",
+        "left": {
+          "var": "intermediate.limit"
+        },
+        "right": {
+          "value": 0
+        }
+      },
+      "severity": "BLOCKING",
+      "reusable": true
+    }
+  ],
+  "actions": [
+    {
+      "code": "ACT_OK",
+      "type": "EMIT_REASON",
+      "payload": {},
+      "terminal": false,
+      "reasonCodes": [
+        {
+          "reasonCode": "CAP_RECALIFICADA",
+          "priority": 1
+        }
+      ]
+    },
+    {
+      "code": "ACT_BAJO",
+      "type": "EMIT_REASON",
+      "payload": {},
+      "terminal": false,
+      "reasonCodes": [
+        {
+          "reasonCode": "CAP_POR_DEBAJO_DEL_MINIMO",
+          "priority": 1
+        }
+      ]
+    },
+    {
+      "code": "ACT_SIN",
+      "type": "EMIT_REASON",
+      "payload": {},
+      "terminal": false,
+      "reasonCodes": [
+        {
+          "reasonCode": "CAP_SIN_EVIDENCIA",
+          "priority": 1
+        }
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "key": "START",
+      "type": "START",
+      "label": "Inicio",
+      "terminal": false,
+      "config": {},
+      "actions": []
+    },
+    {
+      "key": "SC_CAPACIDAD",
+      "type": "EXPRESSION",
+      "label": "Capacidad: techos y redondeo a 50",
+      "terminal": false,
+      "actions": [],
+      "config": {
+        "intermediateAssignments": [
+          {
+            "code": "evidence",
+            "source": "EXPRESSION",
+            "expression": {
+              "op": "if",
+              "condition": {
+                "op": "and",
+                "args": [
+                  {
+                    "op": "eq",
+                    "left": {
+                      "op": "coalesce",
+                      "args": [
+                        {
+                          "var": "statement_eligible"
+                        },
+                        {
+                          "value": false
+                        }
+                      ]
+                    },
+                    "right": {
+                      "value": true
+                    }
+                  },
+                  {
+                    "op": "gt",
+                    "left": {
+                      "op": "coalesce",
+                      "args": [
+                        {
+                          "var": "statement_max_installment"
+                        },
+                        {
+                          "value": 0
+                        }
+                      ]
+                    },
+                    "right": {
+                      "value": 0
+                    }
+                  }
+                ]
+              },
+              "then": {
+                "value": "EXTRACTO"
+              },
+              "else": {
+                "op": "if",
+                "condition": {
+                  "op": "gt",
+                  "left": {
+                    "op": "coalesce",
+                    "args": [
+                      {
+                        "var": "declared_monthly_income"
+                      },
+                      {
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "right": {
+                    "value": 0
+                  }
+                },
+                "then": {
+                  "value": "DECLARADO"
+                },
+                "else": {
+                  "value": "NINGUNA"
+                }
+              }
+            }
+          },
+          {
+            "code": "installment",
+            "source": "EXPRESSION",
+            "expression": {
+              "op": "round",
+              "precision": 2,
+              "arg": {
+                "op": "if",
+                "condition": {
+                  "op": "eq",
+                  "left": {
+                    "var": "intermediate.evidence"
+                  },
+                  "right": {
+                    "value": "EXTRACTO"
+                  }
+                },
+                "then": {
+                  "op": "coalesce",
+                  "args": [
+                    {
+                      "var": "statement_max_installment"
+                    },
+                    {
+                      "value": 0
+                    }
+                  ]
+                },
+                "else": {
+                  "op": "if",
+                  "condition": {
+                    "op": "eq",
+                    "left": {
+                      "var": "intermediate.evidence"
+                    },
+                    "right": {
+                      "value": "DECLARADO"
+                    }
+                  },
+                  "then": {
+                    "op": "mul",
+                    "args": [
+                      {
+                        "op": "coalesce",
+                        "args": [
+                          {
+                            "var": "declared_monthly_income"
+                          },
+                          {
+                            "value": 0
+                          }
+                        ]
+                      },
+                      {
+                        "value": 0.1
+                      }
+                    ]
+                  },
+                  "else": {
+                    "value": 0
+                  }
+                }
+              }
+            }
+          },
+          {
+            "code": "by_capacity",
+            "source": "EXPRESSION",
+            "expression": {
+              "op": "round",
+              "precision": 2,
+              "arg": {
+                "op": "mul",
+                "args": [
+                  {
+                    "var": "intermediate.installment"
+                  },
+                  {
+                    "value": 3
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "code": "tier_multiplier",
+            "source": "EXPRESSION",
+            "expression": {
+              "op": "if",
+              "condition": {
+                "op": "gte",
+                "left": {
+                  "op": "coalesce",
+                  "args": [
+                    {
+                      "var": "relationship_score"
+                    },
+                    {
+                      "value": 0
+                    }
+                  ]
+                },
+                "right": {
+                  "value": 85
+                }
+              },
+              "then": {
+                "value": 6
+              },
+              "else": {
+                "op": "if",
+                "condition": {
+                  "op": "gte",
+                  "left": {
+                    "op": "coalesce",
+                    "args": [
+                      {
+                        "var": "relationship_score"
+                      },
+                      {
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "right": {
+                    "value": 70
+                  }
+                },
+                "then": {
+                  "value": 4
+                },
+                "else": {
+                  "op": "if",
+                  "condition": {
+                    "op": "gte",
+                    "left": {
+                      "op": "coalesce",
+                      "args": [
+                        {
+                          "var": "relationship_score"
+                        },
+                        {
+                          "value": 0
+                        }
+                      ]
+                    },
+                    "right": {
+                      "value": 50
+                    }
+                  },
+                  "then": {
+                    "value": 2.5
+                  },
+                  "else": {
+                    "op": "if",
+                    "condition": {
+                      "op": "gte",
+                      "left": {
+                        "op": "coalesce",
+                        "args": [
+                          {
+                            "var": "relationship_score"
+                          },
+                          {
+                            "value": 0
+                          }
+                        ]
+                      },
+                      "right": {
+                        "value": 25
+                      }
+                    },
+                    "then": {
+                      "value": 1.5
+                    },
+                    "else": {
+                      "value": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "code": "by_relationship",
+            "source": "EXPRESSION",
+            "expression": {
+              "op": "mul",
+              "args": [
+                {
+                  "value": 1500
+                },
+                {
+                  "var": "intermediate.tier_multiplier"
+                }
+              ]
+            }
+          },
+          {
+            "code": "by_graduation",
+            "source": "EXPRESSION",
+            "expression": {
+              "op": "if",
+              "condition": {
+                "op": "gt",
+                "left": {
+                  "op": "coalesce",
+                  "args": [
+                    {
+                      "var": "current_credit_limit"
+                    },
+                    {
+                      "value": 0
+                    }
+                  ]
+                },
+                "right": {
+                  "value": 0
+                }
+              },
+              "then": {
+                "op": "mul",
+                "args": [
+                  {
+                    "op": "coalesce",
+                    "args": [
+                      {
+                        "var": "current_credit_limit"
+                      },
+                      {
+                        "value": 0
+                      }
+                    ]
+                  },
+                  {
+                    "value": 2
+                  }
+                ]
+              },
+              "else": {
+                "value": 1000000000000
+              }
+            }
+          },
+          {
+            "code": "ceiling",
+            "source": "EXPRESSION",
+            "expression": {
+              "op": "min",
+              "args": [
+                {
+                  "var": "intermediate.by_relationship"
+                },
+                {
+                  "value": 20000
+                },
+                {
+                  "var": "intermediate.by_capacity"
+                },
+                {
+                  "var": "intermediate.by_graduation"
+                }
+              ]
+            }
+          },
+          {
+            "code": "binding",
+            "source": "EXPRESSION",
+            "expression": {
+              "op": "if",
+              "condition": {
+                "op": "eq",
+                "left": {
+                  "var": "intermediate.evidence"
+                },
+                "right": {
+                  "value": "NINGUNA"
+                }
+              },
+              "then": {
+                "value": "SIN_CAPACIDAD"
+              },
+              "else": {
+                "op": "if",
+                "condition": {
+                  "op": "eq",
+                  "left": {
+                    "var": "intermediate.ceiling"
+                  },
+                  "right": {
+                    "var": "intermediate.by_relationship"
+                  }
+                },
+                "then": {
+                  "value": "RELACION"
+                },
+                "else": {
+                  "op": "if",
+                  "condition": {
+                    "op": "eq",
+                    "left": {
+                      "var": "intermediate.ceiling"
+                    },
+                    "right": {
+                      "value": 20000
+                    }
+                  },
+                  "then": {
+                    "value": "PRODUCTO"
+                  },
+                  "else": {
+                    "op": "if",
+                    "condition": {
+                      "op": "eq",
+                      "left": {
+                        "var": "intermediate.ceiling"
+                      },
+                      "right": {
+                        "var": "intermediate.by_capacity"
+                      }
+                    },
+                    "then": {
+                      "value": "CAPACIDAD"
+                    },
+                    "else": {
+                      "value": "GRADUACION"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "code": "limit",
+            "source": "EXPRESSION",
+            "expression": {
+              "op": "if",
+              "condition": {
+                "op": "or",
+                "args": [
+                  {
+                    "op": "eq",
+                    "left": {
+                      "var": "intermediate.evidence"
+                    },
+                    "right": {
+                      "value": "NINGUNA"
+                    }
+                  },
+                  {
+                    "op": "lt",
+                    "left": {
+                      "var": "intermediate.ceiling"
+                    },
+                    "right": {
+                      "value": 300
+                    }
+                  }
+                ]
+              },
+              "then": {
+                "value": 0
+              },
+              "else": {
+                "op": "max",
+                "args": [
+                  {
+                    "value": 0
+                  },
+                  {
+                    "op": "mul",
+                    "args": [
+                      {
+                        "value": 50
+                      },
+                      {
+                        "op": "round",
+                        "arg": {
+                          "op": "sub",
+                          "args": [
+                            {
+                              "op": "div",
+                              "args": [
+                                {
+                                  "var": "intermediate.ceiling"
+                                },
+                                {
+                                  "value": 50
+                                }
+                              ]
+                            },
+                            {
+                              "value": 0.5
+                            }
+                          ]
+                        },
+                        "precision": 0
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "key": "EVALUAR",
+      "type": "CONDITION",
+      "label": "Desenlace de la recalificación",
+      "terminal": false,
+      "config": {
+        "description": "Sin evidencia y bajo el mínimo útil dejan el límite en 0; el resto se recalifica."
+      },
+      "actions": []
+    },
+    {
+      "key": "ACT_SIN",
+      "type": "ACTION",
+      "label": "Anotar: sin evidencia",
+      "terminal": false,
+      "config": {},
+      "actions": [
+        {
+          "actionCode": "ACT_SIN",
+          "order": 1
+        }
+      ]
+    },
+    {
+      "key": "ACT_BAJO",
+      "type": "ACTION",
+      "label": "Anotar: bajo el mínimo",
+      "terminal": false,
+      "config": {},
+      "actions": [
+        {
+          "actionCode": "ACT_BAJO",
+          "order": 1
+        }
+      ]
+    },
+    {
+      "key": "ACT_OK",
+      "type": "ACTION",
+      "label": "Anotar: recalificada",
+      "terminal": false,
+      "config": {},
+      "actions": [
+        {
+          "actionCode": "ACT_OK",
+          "order": 1
+        }
+      ]
+    },
+    {
+      "key": "RES_SIN",
+      "type": "RESULT",
+      "label": "Sin evidencia: límite 0",
+      "terminal": true,
+      "actions": [],
+      "config": {
+        "mode": "MAPPING",
+        "assignments": [
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.limit"
+            },
+            "outputCode": "recommended_limit"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "op": "round",
+              "arg": {
+                "var": "intermediate.installment"
+              },
+              "precision": 2
+            },
+            "outputCode": "monthly_installment"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.evidence"
+            },
+            "outputCode": "capacity_evidence"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.binding"
+            },
+            "outputCode": "binding_constraint"
+          },
+          {
+            "source": "LITERAL",
+            "value": "SIN_EVIDENCIA",
+            "outputCode": "capacity_decision"
+          }
+        ]
+      }
+    },
+    {
+      "key": "RES_BAJO",
+      "type": "RESULT",
+      "label": "Bajo el mínimo: límite 0",
+      "terminal": true,
+      "actions": [],
+      "config": {
+        "mode": "MAPPING",
+        "assignments": [
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.limit"
+            },
+            "outputCode": "recommended_limit"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "op": "round",
+              "arg": {
+                "var": "intermediate.installment"
+              },
+              "precision": 2
+            },
+            "outputCode": "monthly_installment"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.evidence"
+            },
+            "outputCode": "capacity_evidence"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.binding"
+            },
+            "outputCode": "binding_constraint"
+          },
+          {
+            "source": "LITERAL",
+            "value": "BAJO_MINIMO",
+            "outputCode": "capacity_decision"
+          }
+        ]
+      }
+    },
+    {
+      "key": "RES_OK",
+      "type": "RESULT",
+      "label": "Capacidad recalificada",
+      "terminal": true,
+      "actions": [],
+      "config": {
+        "mode": "MAPPING",
+        "assignments": [
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.limit"
+            },
+            "outputCode": "recommended_limit"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "op": "round",
+              "arg": {
+                "var": "intermediate.installment"
+              },
+              "precision": 2
+            },
+            "outputCode": "monthly_installment"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.evidence"
+            },
+            "outputCode": "capacity_evidence"
+          },
+          {
+            "source": "EXPRESSION",
+            "expression": {
+              "var": "intermediate.binding"
+            },
+            "outputCode": "binding_constraint"
+          },
+          {
+            "source": "LITERAL",
+            "value": "RECALIFICADA",
+            "outputCode": "capacity_decision"
+          }
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "key": "E_START",
+      "from": "START",
+      "to": "SC_CAPACIDAD",
+      "type": "DEFAULT",
+      "priority": 1,
+      "default": true,
+      "conditions": []
+    },
+    {
+      "key": "E_SC",
+      "from": "SC_CAPACIDAD",
+      "to": "EVALUAR",
+      "type": "DEFAULT",
+      "priority": 1,
+      "default": true,
+      "conditions": []
+    },
+    {
+      "key": "E_SIN",
+      "from": "EVALUAR",
+      "to": "ACT_SIN",
+      "type": "CONDITIONAL",
+      "priority": 1,
+      "default": false,
+      "conditions": [
+        {
+          "conditionCode": "SIN_EVIDENCIA",
+          "order": 1
+        }
+      ]
+    },
+    {
+      "key": "E_BAJO",
+      "from": "EVALUAR",
+      "to": "ACT_BAJO",
+      "type": "CONDITIONAL",
+      "priority": 2,
+      "default": false,
+      "conditions": [
+        {
+          "conditionCode": "BAJO_MINIMO",
+          "order": 1
+        }
+      ]
+    },
+    {
+      "key": "E_OK",
+      "from": "EVALUAR",
+      "to": "ACT_OK",
+      "type": "DEFAULT",
+      "priority": 3,
+      "default": true,
+      "conditions": []
+    },
+    {
+      "key": "E_A_SIN",
+      "from": "ACT_SIN",
+      "to": "RES_SIN",
+      "type": "DEFAULT",
+      "priority": 1,
+      "default": true,
+      "conditions": []
+    },
+    {
+      "key": "E_A_BAJO",
+      "from": "ACT_BAJO",
+      "to": "RES_BAJO",
+      "type": "DEFAULT",
+      "priority": 1,
+      "default": true,
+      "conditions": []
+    },
+    {
+      "key": "E_A_OK",
+      "from": "ACT_OK",
+      "to": "RES_OK",
+      "type": "DEFAULT",
+      "priority": 1,
+      "default": true,
+      "conditions": []
+    }
+  ],
+  "cases": [
+    {
+      "caseCode": "EXTRACTO-ENTERA",
+      "testName": "Cuota 1000 × 3 = 3000, ya múltiplo de 50",
+      "input": {
+        "statement_eligible": true,
+        "statement_max_installment": 1000,
+        "relationship_score": 90
+      },
+      "expectedResult": {
+        "recommended_limit": 3000,
+        "monthly_installment": 1000,
+        "capacity_evidence": "EXTRACTO",
+        "binding_constraint": "CAPACIDAD",
+        "capacity_decision": "RECALIFICADA",
+        "reasonCodes": [
+          "CAP_RECALIFICADA"
+        ]
+      }
+    },
+    {
+      "caseCode": "REDONDEA-HACIA-ABAJO",
+      "testName": "Cuota 411,52 × 3 = 1234,56 baja a 1200, no sube a 1250",
+      "input": {
+        "statement_eligible": true,
+        "statement_max_installment": 411.52,
+        "relationship_score": 90
+      },
+      "expectedResult": {
+        "recommended_limit": 1200,
+        "monthly_installment": 411.52,
+        "capacity_evidence": "EXTRACTO",
+        "binding_constraint": "CAPACIDAD",
+        "capacity_decision": "RECALIFICADA",
+        "reasonCodes": [
+          "CAP_RECALIFICADA"
+        ]
+      }
+    },
+    {
+      "caseCode": "REDONDEA-1249-99",
+      "testName": "Techo 1249,98 baja a 1200 (nunca a 1250)",
+      "input": {
+        "statement_eligible": true,
+        "statement_max_installment": 416.66,
+        "relationship_score": 90
+      },
+      "expectedResult": {
+        "recommended_limit": 1200,
+        "monthly_installment": 416.66,
+        "capacity_evidence": "EXTRACTO",
+        "binding_constraint": "CAPACIDAD",
+        "capacity_decision": "RECALIFICADA",
+        "reasonCodes": [
+          "CAP_RECALIFICADA"
+        ]
+      }
+    },
+    {
+      "caseCode": "REDONDEA-1250-EXACTO",
+      "testName": "Techo 1250 exacto se queda en 1250",
+      "input": {
+        "statement_eligible": true,
+        "statement_max_installment": 416.6666666666667,
+        "relationship_score": 90
+      },
+      "expectedResult": {
+        "recommended_limit": 1250,
+        "monthly_installment": 416.67,
+        "capacity_evidence": "EXTRACTO",
+        "binding_constraint": "CAPACIDAD",
+        "capacity_decision": "RECALIFICADA",
+        "reasonCodes": [
+          "CAP_RECALIFICADA"
+        ]
+      }
+    },
+    {
+      "caseCode": "MINIMO-299-97-A-CERO",
+      "testName": "Techo 299,97 no llega a Bs 300: límite 0",
+      "input": {
+        "statement_eligible": true,
+        "statement_max_installment": 99.99,
+        "relationship_score": 90
+      },
+      "expectedResult": {
+        "recommended_limit": 0,
+        "monthly_installment": 99.99,
+        "capacity_evidence": "EXTRACTO",
+        "binding_constraint": "CAPACIDAD",
+        "capacity_decision": "BAJO_MINIMO",
+        "reasonCodes": [
+          "CAP_POR_DEBAJO_DEL_MINIMO"
+        ]
+      }
+    },
+    {
+      "caseCode": "MINIMO-300-EXACTO",
+      "testName": "Techo 300 exacto llega al mínimo y se queda en 300",
+      "input": {
+        "statement_eligible": true,
+        "statement_max_installment": 100,
+        "relationship_score": 90
+      },
+      "expectedResult": {
+        "recommended_limit": 300,
+        "monthly_installment": 100,
+        "capacity_evidence": "EXTRACTO",
+        "binding_constraint": "CAPACIDAD",
+        "capacity_decision": "RECALIFICADA",
+        "reasonCodes": [
+          "CAP_RECALIFICADA"
+        ]
+      }
+    },
+    {
+      "caseCode": "MINIMO-349-98-A-300",
+      "testName": "Techo 349,98 baja a 300",
+      "input": {
+        "statement_eligible": true,
+        "statement_max_installment": 116.66,
+        "relationship_score": 90
+      },
+      "expectedResult": {
+        "recommended_limit": 300,
+        "monthly_installment": 116.66,
+        "capacity_evidence": "EXTRACTO",
+        "binding_constraint": "CAPACIDAD",
+        "capacity_decision": "RECALIFICADA",
+        "reasonCodes": [
+          "CAP_RECALIFICADA"
+        ]
+      }
+    },
+    {
+      "caseCode": "RELACION-NUEVO-1500",
+      "testName": "Relación 10 (NUEVO) limita a 1500 aunque el extracto soporte 9000",
+      "input": {
+        "statement_eligible": true,
+        "statement_max_installment": 3000,
+        "relationship_score": 10
+      },
+      "expectedResult": {
+        "recommended_limit": 1500,
+        "monthly_installment": 3000,
+        "capacity_evidence": "EXTRACTO",
+        "binding_constraint": "RELACION",
+        "capacity_decision": "RECALIFICADA",
+        "reasonCodes": [
+          "CAP_RECALIFICADA"
+        ]
+      }
+    },
+    {
+      "caseCode": "RELACION-24-VS-25",
+      "testName": "Puntaje 24 sigue en NUEVO (×1): 1500",
+      "input": {
+        "statement_eligible": true,
+        "statement_max_installment": 3000,
+        "relationship_score": 24
+      },
+      "expectedResult": {
+        "recommended_limit": 1500,
+        "monthly_installment": 3000,
+        "capacity_evidence": "EXTRACTO",
+        "binding_constraint": "RELACION",
+        "capacity_decision": "RECALIFICADA",
+        "reasonCodes": [
+          "CAP_RECALIFICADA"
+        ]
+      }
+    },
+    {
+      "caseCode": "RELACION-25-ENTRA-1-5",
+      "testName": "Puntaje 25 sube a ×1,5: 2250",
+      "input": {
+        "statement_eligible": true,
+        "statement_max_installment": 3000,
+        "relationship_score": 25
+      },
+      "expectedResult": {
+        "recommended_limit": 2250,
+        "monthly_installment": 3000,
+        "capacity_evidence": "EXTRACTO",
+        "binding_constraint": "RELACION",
+        "capacity_decision": "RECALIFICADA",
+        "reasonCodes": [
+          "CAP_RECALIFICADA"
+        ]
+      }
+    },
+    {
+      "caseCode": "RELACION-50-X2-5",
+      "testName": "Puntaje 50 da ×2,5: 3750",
+      "input": {
+        "statement_eligible": true,
+        "statement_max_installment": 3000,
+        "relationship_score": 50
+      },
+      "expectedResult": {
+        "recommended_limit": 3750,
+        "monthly_installment": 3000,
+        "capacity_evidence": "EXTRACTO",
+        "binding_constraint": "RELACION",
+        "capacity_decision": "RECALIFICADA",
+        "reasonCodes": [
+          "CAP_RECALIFICADA"
+        ]
+      }
+    },
+    {
+      "caseCode": "RELACION-70-X4",
+      "testName": "Puntaje 70 da ×4: 6000",
+      "input": {
+        "statement_eligible": true,
+        "statement_max_installment": 3000,
+        "relationship_score": 70
+      },
+      "expectedResult": {
+        "recommended_limit": 6000,
+        "monthly_installment": 3000,
+        "capacity_evidence": "EXTRACTO",
+        "binding_constraint": "RELACION",
+        "capacity_decision": "RECALIFICADA",
+        "reasonCodes": [
+          "CAP_RECALIFICADA"
+        ]
+      }
+    },
+    {
+      "caseCode": "RELACION-85-X6",
+      "testName": "Puntaje 85 da ×6: 9000",
+      "input": {
+        "statement_eligible": true,
+        "statement_max_installment": 4000,
+        "relationship_score": 85
+      },
+      "expectedResult": {
+        "recommended_limit": 9000,
+        "monthly_installment": 4000,
+        "capacity_evidence": "EXTRACTO",
+        "binding_constraint": "RELACION",
+        "capacity_decision": "RECALIFICADA",
+        "reasonCodes": [
+          "CAP_RECALIFICADA"
+        ]
+      }
+    },
+    {
+      "caseCode": "GRADUACION-DOBLE-DEL-VIGENTE",
+      "testName": "Con vigente 400 sube como mucho a 800",
+      "input": {
+        "statement_eligible": true,
+        "statement_max_installment": 1000,
+        "relationship_score": 90,
+        "current_credit_limit": 400
+      },
+      "expectedResult": {
+        "recommended_limit": 800,
+        "monthly_installment": 1000,
+        "capacity_evidence": "EXTRACTO",
+        "binding_constraint": "GRADUACION",
+        "capacity_decision": "RECALIFICADA",
+        "reasonCodes": [
+          "CAP_RECALIFICADA"
+        ]
+      }
+    },
+    {
+      "caseCode": "GRADUACION-VIGENTE-CERO-NO-LIMITA",
+      "testName": "Vigente 0 se trata como primer cálculo",
+      "input": {
+        "statement_eligible": true,
+        "statement_max_installment": 1000,
+        "relationship_score": 90,
+        "current_credit_limit": 0
+      },
+      "expectedResult": {
+        "recommended_limit": 3000,
+        "monthly_installment": 1000,
+        "capacity_evidence": "EXTRACTO",
+        "binding_constraint": "CAPACIDAD",
+        "capacity_decision": "RECALIFICADA",
+        "reasonCodes": [
+          "CAP_RECALIFICADA"
+        ]
+      }
+    },
+    {
+      "caseCode": "GRADUACION-REDONDEA",
+      "testName": "Vigente 425 × 2 = 850 ya es múltiplo; 433 × 2 = 866 baja a 850",
+      "input": {
+        "statement_eligible": true,
+        "statement_max_installment": 1000,
+        "relationship_score": 90,
+        "current_credit_limit": 433
+      },
+      "expectedResult": {
+        "recommended_limit": 850,
+        "monthly_installment": 1000,
+        "capacity_evidence": "EXTRACTO",
+        "binding_constraint": "GRADUACION",
+        "capacity_decision": "RECALIFICADA",
+        "reasonCodes": [
+          "CAP_RECALIFICADA"
+        ]
+      }
+    },
+    {
+      "caseCode": "DECLARADO-5000",
+      "testName": "Sin extracto: 5000 × 10 % × 3 = 1500",
+      "input": {
+        "statement_eligible": false,
+        "declared_monthly_income": 5000,
+        "relationship_score": 90
+      },
+      "expectedResult": {
+        "recommended_limit": 1500,
+        "monthly_installment": 500,
+        "capacity_evidence": "DECLARADO",
+        "binding_constraint": "CAPACIDAD",
+        "capacity_decision": "RECALIFICADA",
+        "reasonCodes": [
+          "CAP_RECALIFICADA"
+        ]
+      }
+    },
+    {
+      "caseCode": "DECLARADO-REDONDEA",
+      "testName": "Ingreso 4321 → 1296,3 baja a 1250",
+      "input": {
+        "statement_eligible": false,
+        "declared_monthly_income": 4321,
+        "relationship_score": 90
+      },
+      "expectedResult": {
+        "recommended_limit": 1250,
+        "monthly_installment": 432.1,
+        "capacity_evidence": "DECLARADO",
+        "binding_constraint": "CAPACIDAD",
+        "capacity_decision": "RECALIFICADA",
+        "reasonCodes": [
+          "CAP_RECALIFICADA"
+        ]
+      }
+    },
+    {
+      "caseCode": "DECLARADO-SIN-ELEGIBILIDAD-IGNORA-CUOTA",
+      "testName": "Extracto no utilizable: se ignora su cuota y se usa lo declarado",
+      "input": {
+        "statement_eligible": false,
+        "statement_max_installment": 5000,
+        "declared_monthly_income": 2000,
+        "relationship_score": 90
+      },
+      "expectedResult": {
+        "recommended_limit": 600,
+        "monthly_installment": 200,
+        "capacity_evidence": "DECLARADO",
+        "binding_constraint": "CAPACIDAD",
+        "capacity_decision": "RECALIFICADA",
+        "reasonCodes": [
+          "CAP_RECALIFICADA"
+        ]
+      }
+    },
+    {
+      "caseCode": "EXTRACTO-CUOTA-CERO-CAE-A-DECLARADO",
+      "testName": "Extracto utilizable con cuota 0 usa el ingreso declarado",
+      "input": {
+        "statement_eligible": true,
+        "statement_max_installment": 0,
+        "declared_monthly_income": 5000,
+        "relationship_score": 90
+      },
+      "expectedResult": {
+        "recommended_limit": 1500,
+        "monthly_installment": 500,
+        "capacity_evidence": "DECLARADO",
+        "binding_constraint": "CAPACIDAD",
+        "capacity_decision": "RECALIFICADA",
+        "reasonCodes": [
+          "CAP_RECALIFICADA"
+        ]
+      }
+    },
+    {
+      "caseCode": "SIN-EVIDENCIA",
+      "testName": "Ni extracto ni ingreso: límite 0, sin capacidad",
+      "input": {
+        "relationship_score": 90
+      },
+      "expectedResult": {
+        "recommended_limit": 0,
+        "monthly_installment": 0,
+        "capacity_evidence": "NINGUNA",
+        "binding_constraint": "SIN_CAPACIDAD",
+        "capacity_decision": "SIN_EVIDENCIA",
+        "reasonCodes": [
+          "CAP_SIN_EVIDENCIA"
+        ]
+      }
+    },
+    {
+      "caseCode": "SIN-EVIDENCIA-INGRESO-CERO",
+      "testName": "Ingreso declarado 0 no es evidencia",
+      "input": {
+        "statement_eligible": false,
+        "declared_monthly_income": 0,
+        "relationship_score": 90
+      },
+      "expectedResult": {
+        "recommended_limit": 0,
+        "monthly_installment": 0,
+        "capacity_evidence": "NINGUNA",
+        "binding_constraint": "SIN_CAPACIDAD",
+        "capacity_decision": "SIN_EVIDENCIA",
+        "reasonCodes": [
+          "CAP_SIN_EVIDENCIA"
+        ]
+      }
+    },
+    {
+      "caseCode": "TODO-AUSENTE",
+      "testName": "Sin ninguna entrada no falla: límite 0",
+      "input": {},
+      "expectedResult": {
+        "recommended_limit": 0,
+        "monthly_installment": 0,
+        "capacity_evidence": "NINGUNA",
+        "binding_constraint": "SIN_CAPACIDAD",
+        "capacity_decision": "SIN_EVIDENCIA",
+        "reasonCodes": [
+          "CAP_SIN_EVIDENCIA"
+        ]
+      }
+    },
+    {
+      "caseCode": "SIN-PUNTAJE-ES-NUEVO",
+      "testName": "Sin relationship_score se trata como NUEVO (×1)",
+      "input": {
+        "statement_eligible": true,
+        "statement_max_installment": 3000
+      },
+      "expectedResult": {
+        "recommended_limit": 1500,
+        "monthly_installment": 3000,
+        "capacity_evidence": "EXTRACTO",
+        "binding_constraint": "RELACION",
+        "capacity_decision": "RECALIFICADA",
+        "reasonCodes": [
+          "CAP_RECALIFICADA"
+        ]
+      }
+    }
+  ],
+  "suite": {
+    "suiteCode": "RECALIFICACION-CAPACIDAD",
+    "name": "Recalificación de la capacidad: techos, mínimo y redondeo a 50",
+    "suiteType": "REGRESSION",
+    "isBlocking": true
+  }
+}
