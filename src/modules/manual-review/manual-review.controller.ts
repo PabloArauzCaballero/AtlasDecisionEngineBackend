@@ -35,8 +35,8 @@ export class ManualReviewController {
     description: 'Caso con la traza completa de la ejecución que lo originó.',
     type: ManualReviewDetailDto,
   })
-  get(@TenantId() tenantId: bigint, @Param('caseId') caseId: string) {
-    return this.reviews.get(tenantId, parseBigIntId(caseId, 'caseId'));
+  async get(@TenantId() tenantId: bigint, @Param('caseId') caseId: string) {
+    return this.reviews.get(tenantId, await this.reviews.resolveCaseId(tenantId, caseId));
   }
 
   @Post(':caseId/assign')

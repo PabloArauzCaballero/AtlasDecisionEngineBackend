@@ -17,6 +17,7 @@ Los tres runbooks del pliego de contratos (§15) cubren cada uno un dominio y en
 | `CAMPOS_CALCULADOS.md`      | §5–§8: campos calculados, librerías, runner aislado, cotas de memoria   | `../calculated-fields.md`    |
 | `QA_LAB.md`                 | §10: corridas generativas, distribuciones, contraejemplos reproducibles | `../calculated-fields.md` §6 |
 
+`cola-de-revision-vacia.md` cubre la cola de Revisión Manual vacía y el expediente de un comercio que no aparece.
 `artefactos-en-un-entorno-nuevo.md` cubre un entorno que arranca sin los artefactos que Atlas le
 pide decidir (crédito, riesgo, comercio): verificarlo con `scripts/verificar-artefactos-publicados.mjs`,
 publicarlos con `scripts/publicar-artefactos-faltantes.sh`, firmarlos dos personas y desplegar.
