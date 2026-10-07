@@ -1,4 +1,8 @@
-import { judgeBlockingSuites, type BlockingSuite } from '../src/modules/testing/blocking-evidence';
+import {
+  hasExpectation,
+  judgeBlockingSuites,
+  type BlockingSuite,
+} from '../src/modules/testing/blocking-evidence';
 import { expectedResultOf } from '../src/modules/testing/coverage-suite.service';
 import { readWorkerDoubles, withWorkerDoubles } from '../src/modules/testing/worker-doubles';
 
@@ -72,6 +76,38 @@ describe('pruebas bloqueantes · la regla de la revisión', () => {
       reason: 'NODE_COVERAGE_BELOW_MINIMUM',
       unionNodeCoverage: 50,
     });
+  });
+
+  it('una suite que no espera nada NO es evidencia: ni cuenta ni bloquea', () => {
+    // Las cinco suites de TEST del 2026-10-07: «en verde» con `expectedResult: {}`.
+    const vacia = { ...suite('VACIA', 'FAILED', []), assertable: false };
+    const veredicto = judgeBlockingSuites([suite('AUTO-COBERTURA', 'PASSED', NODOS), vacia]);
+
+    expect(veredicto.passed).toBe(true);
+    expect(veredicto.evidence).toContainEqual({
+      suiteId: 'VACIA',
+      suiteCode: 'VACIA',
+      ignored: 'NO_EXPECTATIONS',
+    });
+  });
+
+  it('si las únicas suites no esperan nada, falta una suite de verdad', () => {
+    const veredicto = judgeBlockingSuites([
+      { ...suite('VACIA', 'PASSED', NODOS), assertable: false },
+    ]);
+
+    expect(veredicto.passed).toBe(false);
+    expect(veredicto.evidence[0]).toEqual({
+      reason: 'NO_BLOCKING_TEST_SUITE',
+      detail: 'ONLY_SUITES_WITHOUT_EXPECTATIONS',
+    });
+  });
+
+  it('distingue un resultado esperado de un objeto vacío', () => {
+    expect(hasExpectation({ outcome: 'APPROVED' })).toBe(true);
+    expect(hasExpectation({})).toBe(false);
+    expect(hasExpectation(null)).toBe(false);
+    expect(hasExpectation([])).toBe(false);
   });
 
   it('una suite que nunca corrió no pasa', () => {

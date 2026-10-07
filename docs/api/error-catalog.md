@@ -3,7 +3,7 @@
 
 # Catálogo de códigos de error
 
-264 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
+265 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
 el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 
 | Código | Mensaje de referencia | Origen |
@@ -239,6 +239,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `SUBJECT_CONSENT_INVALID` | El titular tiene permisos que ya no amparan el tratamiento: | `src/modules/risk-governance/decision-guard.service.ts` |
 | `SUBJECT_NOT_FOUND` | No hay ninguna decisión registrada sobre ese titular en este tenant. | `src/modules/risk-governance/risk-governance.service.ts` |
 | `SUBJECT_REFERENCE_REQUIRED` | This environment requires subjectReference: a decision that cannot be attributed to | `src/modules/runtime/subject-policy.ts` |
+| `TEST_CASE_WITHOUT_EXPECTATION` | Estos casos no declaran ningún resultado esperado y no comprobarían nada: ${empty.join(', ')}. | `src/modules/testing/test-suite.service.ts` |
 | `TEST_RUN_NOT_CLAIMED` | Test run is missing or has not been claimed | `src/modules/testing/test-execution.service.ts` |
 | `TEST_RUN_NOT_FOUND` | Test run not found | `src/modules/testing/test-execution.service.ts` |
 | `TEST_SUITE_NOT_FOUND` | Test suite not found | `src/modules/testing/test-execution.service.ts` |

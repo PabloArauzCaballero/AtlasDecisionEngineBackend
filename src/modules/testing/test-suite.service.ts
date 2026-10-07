@@ -7,6 +7,7 @@ import { DomainException } from '../../common/errors/domain-exception';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { pageResult, paginationArgs } from '../../common/http/pagination';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
+import { hasExpectation } from './blocking-evidence';
 import { CreateTestSuiteDto, TestCaseDto, TestSuiteListQueryDto } from './testing.dto';
 
 @Injectable()
@@ -17,12 +18,31 @@ export class TestSuiteService {
     private readonly config: ConfigService,
   ) {}
 
+  /**
+   * Un caso sin resultado esperado no comprueba nada: el ejecutor lo marca como fallido, y aquí se
+   * rechaza al crearlo para que el error llegue a quien lo escribe y no a quien corre la suite.
+   */
+  private requireExpectations(cases: readonly TestCaseDto[]): void {
+    const empty = cases
+      .filter((testCase) => !hasExpectation(testCase.expectedResult))
+      .map((testCase) => testCase.caseCode);
+    if (!empty.length) return;
+    throw new DomainException(
+      'TEST_CASE_WITHOUT_EXPECTATION',
+      `Estos casos no declaran ningún resultado esperado y no comprobarían nada: ${empty.join(', ')}. ` +
+        'Pon al menos el desenlace, por ejemplo {"outcome": "APPROVED"}, o genera la suite de cobertura.',
+      HttpStatus.BAD_REQUEST,
+      { caseCodes: empty },
+    );
+  }
+
   async createSuite(
     tenantId: bigint,
     versionId: bigint,
     dto: CreateTestSuiteDto,
     principal: AuthenticatedPrincipal,
   ) {
+    this.requireExpectations(dto.cases);
     const version = await this.prisma.decisionArtifactVersion.findFirst({
       where: { id: versionId, artifact: { tenantId } },
       select: { id: true },
@@ -126,6 +146,7 @@ export class TestSuiteService {
     cases: TestCaseDto[],
     principal: AuthenticatedPrincipal,
   ) {
+    this.requireExpectations(cases);
     const suite = await this.prisma.decisionTestSuite.findFirst({
       where: { id: suiteId, artifactVersion: { artifact: { tenantId } } },
       select: { id: true },

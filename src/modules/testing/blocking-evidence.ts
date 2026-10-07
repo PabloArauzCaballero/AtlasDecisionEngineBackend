@@ -12,6 +12,12 @@
  *
  * Ahora: cada suite bloqueante tiene que tener su ÚLTIMA corrida terminada en verde, y entre
  * todas tienen que recorrer al menos `MIN_NODE_COVERAGE` de los nodos.
+ *
+ * Y una suite cuyos casos activos NO ESPERAN NADA no es evidencia: ni a favor ni en contra. El
+ * formulario «Crear suite» del portal nacía con «resultado esperado: {}» y «bloqueante: sí», y en
+ * TEST había cinco suites así sobre una sola versión (2026-10-07), todas «en verde» sin comprobar
+ * nada. No cuentan para pasar —si son las únicas, falta una suite de verdad— y tampoco bloquean
+ * cuando, al volver a correrlas, fallen por no tener nada que comprobar.
  */
 export const MIN_NODE_COVERAGE = 80;
 
@@ -29,6 +35,8 @@ export interface BlockingSuite {
   suiteCode: string;
   /** La corrida terminada más reciente, o `null` si nunca terminó ninguna. */
   latestRun: BlockingSuiteRun | null;
+  /** Falso si ningún caso activo declara un resultado esperado: la suite no comprueba nada. */
+  assertable?: boolean;
 }
 
 export interface BlockingSuiteEvidence {
@@ -47,8 +55,37 @@ export interface BlockingVerdict {
   evidence: Array<BlockingSuiteEvidence | Record<string, unknown>>;
 }
 
-export function judgeBlockingSuites(suites: readonly BlockingSuite[]): BlockingVerdict {
-  if (!suites.length) return { passed: false, evidence: [{ reason: 'NO_BLOCKING_TEST_SUITE' }] };
+/** ¿Declara este `expectedResultJson` algo que comprobar? */
+export function hasExpectation(expected: unknown): boolean {
+  return (
+    typeof expected === 'object' &&
+    expected !== null &&
+    !Array.isArray(expected) &&
+    Object.keys(expected).length > 0
+  );
+}
+
+export function judgeBlockingSuites(declared: readonly BlockingSuite[]): BlockingVerdict {
+  const suites = declared.filter((suite) => suite.assertable !== false);
+  const ignored = declared
+    .filter((suite) => suite.assertable === false)
+    .map((suite) => ({
+      suiteId: suite.suiteId,
+      suiteCode: suite.suiteCode,
+      ignored: 'NO_EXPECTATIONS',
+    }));
+  if (!suites.length) {
+    return {
+      passed: false,
+      evidence: [
+        {
+          reason: 'NO_BLOCKING_TEST_SUITE',
+          ...(ignored.length ? { detail: 'ONLY_SUITES_WITHOUT_EXPECTATIONS' } : {}),
+        },
+        ...ignored,
+      ],
+    };
+  }
 
   const evidence: BlockingSuiteEvidence[] = suites.map((suite) => {
     const run = suite.latestRun;
@@ -85,6 +122,7 @@ export function judgeBlockingSuites(suites: readonly BlockingSuite[]): BlockingV
     passed: allGreen && coverageOk,
     evidence: [
       ...evidence,
+      ...ignored,
       {
         reason: coverageOk ? 'NODE_COVERAGE_OK' : 'NODE_COVERAGE_BELOW_MINIMUM',
         unionNodeCoverage: Math.round(unionNodeCoverage * 100) / 100,
