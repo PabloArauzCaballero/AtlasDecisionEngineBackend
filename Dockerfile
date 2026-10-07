@@ -110,12 +110,14 @@ COPY scripts ./scripts
 #   corpus/            los paquetes de los dos corpus, cuyo SHA-256 sella los catálogos derivados
 #   docs/pdf-worker/visual-baseline.json   la huella del HTML compuesto de cada plantilla
 #   openapi/openapi.json                   el contrato que la conformidad compara con las rutas vivas
+#   docs/contracts/audit-execution.example.json   el detalle de ejecución que consume el portal
 COPY runner ./runner
 COPY smoke ./smoke
 COPY corpus ./corpus
 COPY openapi/openapi.json ./openapi/openapi.json
 COPY docs/script-prueba.js docs/script-prueba.py ./docs/
 COPY docs/pdf-worker/visual-baseline.json ./docs/pdf-worker/visual-baseline.json
+COPY docs/contracts/audit-execution.example.json ./docs/contracts/audit-execution.example.json
 # Chromium, porque las siete pruebas del generador documental componen con un navegador DE
 # VERDAD. Sin él fallaban dentro del contenedor con `PDF_RENDER_FAILED` y un «Fontconfig error»
 # —que se lee como un fallo del generador y no como una imagen sin navegador—, y son lo único

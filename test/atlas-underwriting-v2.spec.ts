@@ -1059,6 +1059,40 @@ describe('ATLAS_BNPL_UNDERWRITING v2 · el guion que clona v1 y escribe el grafo
       await motor.detener();
     });
 
+    it('un borrador en revisión de la versión ANTERIOR (sin EVALUAR_VETOS) no se da por bueno: se detiene', async () => {
+      // Lo que se vio en TEST el 2026-10-06: la versión 7 era la 2.1.0 en revisión y la firma vieja (`SC_LIMITE`)
+      // la reutilizaba, así que la 2.2.0 nunca se habría publicado.
+      const motor = new MotorFalso();
+      motor.versiones.push({ id: '7', versionNumber: 7, status: 'IN_REVIEW', lockVersion: 3 });
+      motor.grafosPorVersion.set('7', {
+        nodes: [{ key: 'START' }, { key: 'SC_LIMITE' }],
+        edges: [],
+      });
+      await motor.iniciar();
+      // `finally`: si una expectativa falla, el servidor de mentira se apaga igual y jest no se queda colgado.
+      try {
+        const salida = await correr(motor, []);
+        expect(salida.code).toBe(1);
+        expect(salida.stderr).toContain('NO son de esta v2');
+        expect(salida.stdout).not.toContain('Reutilizando');
+      } finally {
+        await motor.detener();
+      }
+    });
+
+    it('una versión RECHAZADA no es punto de partida: clona la última publicada', async () => {
+      const motor = new MotorFalso();
+      motor.versiones.push({ id: '7', versionNumber: 7, status: 'REJECTED', lockVersion: 3 });
+      await motor.iniciar();
+      try {
+        const salida = await correr(motor, ['--dry-run']);
+        expect(salida.code).toBe(0);
+        expect(salida.stdout).toContain(`Clonando la versión vigente 1 (id ${V1_ID}`);
+      } finally {
+        await motor.detener();
+      }
+    });
+
     it('si el artefacto no tiene ninguna versión publicada, falla en vez de crear una desde cero', async () => {
       const motor = new MotorFalso();
       motor.versiones = [];

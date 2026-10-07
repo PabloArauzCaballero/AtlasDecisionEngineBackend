@@ -33,6 +33,7 @@ docs
 # de regresión visual lee por ruta. Sin ella, esa suite muere al CARGAR con `ENOENT` y el rojo
 # se lee como una prueba rota en vez de como un fichero que no entró en el contexto.
 !docs/pdf-worker/visual-baseline.json
+!docs/contracts/audit-execution.example.json
 site
 mkdocs.yml
 graphify-out

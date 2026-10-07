@@ -94,10 +94,11 @@ const CREAR = args.get('crear') === 'true';
 
 const ARTIFACT_CODE = args.get('artifact') ?? DEFINICION.artifact.artifactCode;
 // La firma de esta versión: si un borrador ya trae este nodo, YA es el grafo de ESTA definición.
-// Es el nodo que la 2.1.0 añade (el límite por banda) y no `SC_PD_BAND`, que ya traía la 2.0.0:
-// con la firma vieja, publicar la 2.1 sobre un entorno con un borrador de la 2.0 lo habría dado
-// por bueno y se habría enviado a revisión una versión sin límite.
-const SIGNATURE_NODE_KEY = 'SC_LIMITE';
+// Tiene que ser un nodo que sólo la versión ACTUAL trae. La 2.1.0 usaba `SC_LIMITE` (el límite por banda)
+// porque `SC_PD_BAND` ya venía en la 2.0.0; la 2.2.0 heredó `SC_LIMITE` sin cambiarla, y el 2026-10-06 en
+// TEST el ensayo en seco dio por buena la versión 7 —la 2.1.0, en revisión— y no habría publicado la 2.2.0.
+// `EVALUAR_VETOS` es el nodo que la 2.2.0 añade. Al subir de versión, cambiar esta constante.
+const SIGNATURE_NODE_KEY = 'EVALUAR_VETOS';
 // El compromiso de frescura de lo que Core lee en vivo al decidir. Lo que NO es en vivo —identidad
 // verificada una vez, expediente económico declarado en el alta— declara el suyo en la definición.
 const FRESHNESS_EN_VIVO_S = 60;
@@ -579,9 +580,10 @@ async function main() {
     versionId = borradorPropio.id;
     console.log(`Reutilizando el borrador de v2 ya escrito (id ${versionId}).`);
   } else {
-    // La vigente para clonar es la última NO-borrador (normalmente la v1 desplegada).
+    // La vigente para clonar es la última NO-borrador (normalmente la v1 desplegada). Una versión
+    // RECHAZADA tampoco: lo rechazado no es punto de partida de nada.
     const vigente = versionesArtefacto
-      .filter((version) => version.status !== 'DRAFT')
+      .filter((version) => version.status !== 'DRAFT' && version.status !== 'REJECTED')
       .reduce(
         (mejor, version) =>
           !mejor || Number(version.versionNumber) > Number(mejor.versionNumber) ? version : mejor,

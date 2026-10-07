@@ -5,6 +5,7 @@ import { findBankStatementFixture } from '../src/modules/workers/bank-statement/
 import type { SemanticAnalysisPipeline } from '../src/modules/workers/semantic-analysis/core/application/semantic-analysis.pipeline';
 import type { AudioTtsRuntimeFactory } from '../src/modules/workers/audio-tts/audio-tts.runtime';
 import type { IdentityPipelineService } from '../src/modules/workers/identity-verification/identity-pipeline.service';
+import type { IdentityVerificationService } from '../src/modules/workers/identity-verification/identity-verification.service';
 import type { AuthenticatedPrincipal } from '../src/common/security/security.types';
 import type { WorkerServiceRequest } from '../src/modules/graph/graph.types';
 
@@ -69,10 +70,17 @@ function build(overrides: Record<string, unknown> = {}) {
    * arranque para una suite que nunca llega a llamarlo.
    */
   const identity = { run: jest.fn() } as unknown as IdentityPipelineService;
-  return new WorkerServiceInvokerService(config, semantic, audio, institutions, identity).bind(
-    1n,
-    principal,
-  );
+  const identityRuns = {
+    recordInlineEvidence: jest.fn(),
+  } as unknown as IdentityVerificationService;
+  return new WorkerServiceInvokerService(
+    config,
+    semantic,
+    audio,
+    institutions,
+    identity,
+    identityRuns,
+  ).bind(1n, principal);
 }
 
 const statement = findBankStatementFixture('valid-complete')!;

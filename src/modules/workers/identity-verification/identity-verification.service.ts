@@ -11,6 +11,7 @@ import { ObjectStorageService } from '../../../common/storage/object-storage.ser
 import type { AuthenticatedPrincipal } from '../../../common/security/security.types';
 import { IDENTITY_DEFAULTS } from './core/identity-options';
 import { IDENTITY_PIPELINE_VERSION } from './identity-pipeline-version';
+import type { IdentityVerificationOutcome } from './identity-result';
 import {
   newRequestId,
   type ValidatedIdentityImage,
@@ -192,6 +193,93 @@ export class IdentityVerificationService {
         `Verificación ya encolada para esta huella; se devuelve ${existing.requestId}`,
       );
       return { run: existing, deduplicated: true };
+    }
+  }
+
+  /**
+   * Conserva las imágenes de una verificación que hizo un nodo `WORKER` del grafo.
+   *
+   * Por la subida HTTP las imágenes se copiaban al almacén; por el nodo, no: el pipeline corría,
+   * la decisión se tomaba, y las variables sensibles se guardaban sólo como huella. El detalle de
+   * la ejecución no tenía qué enseñar de la cara y el carnet sobre los que se decidió. Esta fila
+   * es esa evidencia, con el mismo almacén, la misma ruta y el mismo endpoint autenticado que una
+   * subida —`GET runs/:requestId/images/:kind`—, y su `requestId` viaja en la traza del paso.
+   *
+   * Nace CERRADA y sin motivo de revisión: la decisión ya la tomó el grafo, y enrutar a una persona
+   * es cosa del grafo. Si entrara como `PENDING_REVIEW` cada decisión dudosa aparecería dos veces,
+   * una en cada bandeja. Las columnas `Bytes` no se rellenan: sólo existían para el worker.
+   *
+   * Devuelve `null` sin almacén: una decisión no se cae por no poder guardar su evidencia (quien
+   * llama lo deja dicho en la traza). Las mismas fotos con las mismas reglas reutilizan la fila
+   * que ya existe, por el índice único `(tenant_id, input_hash)`.
+   */
+  async recordInlineEvidence(
+    tenantId: bigint,
+    principal: AuthenticatedPrincipal,
+    input: ValidatedIdentityInput,
+    outcome: IdentityVerificationOutcome,
+    documentCountry: string,
+  ): Promise<string | null> {
+    if (!this.objectStorage.isConfigured()) return null;
+
+    const requestId = newRequestId();
+    const objectKeys = await this.storeIdentityImages(
+      tenantId,
+      requestId,
+      input,
+      WorkerInputSource.INLINE,
+    );
+    const now = new Date();
+    try {
+      await this.prisma.identityVerificationRun.create({
+        data: {
+          tenantId,
+          requestId,
+          status:
+            outcome.decision === 'VERIFIED'
+              ? WorkerRunStatus.SUCCEEDED
+              : WorkerRunStatus.SUCCEEDED_WITH_WARNINGS,
+          progress: 100,
+          inputSource: WorkerInputSource.INLINE,
+          inputHash: input.inputHash,
+          documentCountry,
+          documentFileName: input.document.fileName,
+          selfieFileName: input.selfie.fileName,
+          imageSizeBytes:
+            input.document.bytes.byteLength +
+            (input.documentBack?.bytes.byteLength ?? 0) +
+            input.selfie.bytes.byteLength,
+          resultJson: outcome as unknown as Prisma.InputJsonValue,
+          warningsJson: [
+            ...new Set([...outcome.reasonCodes, ...outcome.riskFlags]),
+          ] as unknown as Prisma.InputJsonValue,
+          decision: outcome.decision,
+          documentType: outcome.documentType,
+          documentTypeConfidence: outcome.documentEvidence.confidence,
+          similarityScore: outcome.faceMatch?.similarityScore ?? null,
+          documentObjectKey: objectKeys?.document ?? null,
+          documentBackObjectKey: objectKeys?.documentBack ?? null,
+          selfieObjectKey: objectKeys?.selfie ?? null,
+          documentSha256: objectKeys?.documentSha256 ?? null,
+          documentBackSha256: objectKeys?.documentBackSha256 ?? null,
+          selfieSha256: objectKeys?.selfieSha256 ?? null,
+          startedAt: now,
+          finishedAt: now,
+          requestedBy: principal.id,
+          correlationId: principal.requestId,
+        },
+        select: { id: true },
+      });
+      return requestId;
+    } catch (error) {
+      await this.discardOrphanImages(objectKeys);
+      if (!isUniqueViolation(error)) throw error;
+      const existing = await this.prisma.identityVerificationRun.findFirst({
+        where: { tenantId, inputHash: input.inputHash },
+        select: { requestId: true },
+      });
+      if (!existing) throw error;
+      return existing.requestId;
     }
   }
 
