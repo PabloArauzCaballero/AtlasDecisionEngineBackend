@@ -63,3 +63,18 @@ intermedias salía inservible.
 **Arreglo:** la clonación copia las cuatro tablas y esas columnas
 (`test/artifact-clone-declarations.spec.ts`). **Un borrador ya creado antes del arreglo NO se
 repara solo**: hay que descartarlo y volver a hacer «Nueva versión» desde la versión desplegada.
+
+## Cómo se arregla la causa 0 (probado el 2026-10-07)
+
+1. Publicar la versión que abre caso: `MANAGEMENT_API_KEY=… node scripts/kyb-revision-manual.mjs --base <Motor> --environments STAGING`
+   (clona la vigente, convierte `REVISAR` en `MANUAL_REVIEW` de la cola `MERCHANT_KYB`, corre la suite de 9 casos y la manda a revisión).
+2. Firman **dos personas distintas** en el portal del Motor (Gobierno → Revisiones): `QA_ANALYST` y luego `RISK_APPROVER`. Quien corrió el guion no puede firmar.
+3. Desplegar: `… node scripts/kyb-revision-manual.mjs --deploy <versionId> --environments STAGING`.
+4. En ≤5 minutos el job `sync_partner_kyb_reviews` reevalúa los expedientes pendientes y el caso aparece en la cola.
+
+## El candado
+
+`node scripts/verificar-artefactos-publicados.mjs --base <Motor> --environments STAGING --exigir-despliegue`
+sale 1 con `SIN BANDEJA PARTNER_KYB_REVIEW (REVISAR es RESULT)` si la versión DESPLEGADA no abre caso.
+Antes sólo comprobaba «publicado» y «desplegado», y los dos estaban en verde con este defecto.
+Hay que correrlo al dar por listo un entorno.

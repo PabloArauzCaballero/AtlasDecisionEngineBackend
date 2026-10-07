@@ -1,4 +1,5 @@
-import { spawn } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
+import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -241,5 +242,36 @@ describe('verificar-artefactos-publicados.mjs', () => {
     expect(despliegue.code).toBe(1);
     expect(despliegue.salida).toMatch(/decide\s+IDENTIDAD_CARNET_MOVIL@STAGING/);
     expect(despliegue.salida).toMatch(/SIN DESPLIEGUE\s+PARTNER_KYB_REVIEW@STAGING/);
+  });
+
+  /*
+   * «Desplegado» no basta: la versión activa tiene que abrir caso donde dice «revisión». Un nodo
+   * RESULT que emite REVISION_MANUAL no crea bandeja y el Motor lo rechaza con 422
+   * MANUAL_REVIEW_WITHOUT_CASE (PARTNER_KYB_REVIEW v2 en TEST, 2026-10-07): la cola salía vacía y
+   * ningún chequeo de «publicado» ni «desplegado» lo veía.
+   */
+  it('distingue un REVISAR que abre caso del que no', () => {
+    const revisa = (grafo: unknown) =>
+      JSON.parse(
+        execFileSync(
+          process.execPath,
+          [
+            '--input-type=module',
+            '-e',
+            `import { revisionAbreCaso } from ${JSON.stringify(pathToFileURL(VERIFICAR).href)};
+             console.log(JSON.stringify(revisionAbreCaso(${JSON.stringify(grafo)})));`,
+          ],
+          { encoding: 'utf8' },
+        ),
+      );
+    expect(revisa({ nodes: [{ key: 'REVISAR', type: 'RESULT' }] })).toEqual({
+      abre: false,
+      tipo: 'RESULT',
+    });
+    expect(revisa({ nodes: [{ key: 'REVISAR', type: 'MANUAL_REVIEW' }] })).toEqual({
+      abre: true,
+      tipo: 'MANUAL_REVIEW',
+    });
+    expect(revisa({ nodes: [] })).toEqual({ abre: false, tipo: null });
   });
 });

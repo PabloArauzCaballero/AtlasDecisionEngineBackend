@@ -46,6 +46,23 @@ export function faltantes(requeridos, publicados) {
   return requeridos.filter((codigo) => !presentes.has(codigo));
 }
 
+/**
+ * ¿El grafo abre caso donde dice «revisión»?
+ *
+ * Un nodo `RESULT` que emite `REVISION_MANUAL` no crea ninguna bandeja, y el Motor lo rechaza con
+ * 422 `MANUAL_REVIEW_WITHOUT_CASE`: cada expediente que debía ir a una persona moría ahí y la cola
+ * salía vacía (2026-10-07, `PARTNER_KYB_REVIEW` v2). «Publicado» y «desplegado» no lo detectan.
+ * Devuelve el tipo del nodo que decide la revisión, y si abre caso.
+ */
+export function revisionAbreCaso(grafo, nodoRevision = 'REVISAR') {
+  const nodo = (grafo?.nodes ?? []).find((fila) => fila.key === nodoRevision);
+  if (!nodo) return { abre: false, tipo: null };
+  return { abre: nodo.type === 'MANUAL_REVIEW', tipo: nodo.type };
+}
+
+/** Artefactos cuyo desenlace de revisión TIENE que abrir caso, y el nodo que lo decide. */
+const ABRE_CASO = { PARTNER_KYB_REVIEW: 'REVISAR' };
+
 function opcion(nombre) {
   const i = argv.indexOf(`--${nombre}`);
   return i >= 0 ? argv[i + 1] : undefined;
@@ -113,11 +130,14 @@ async function main() {
   }
 
   if (!exigirDespliegue) return;
-  const activos = (await paginas('/v1/deployments?status=ACTIVE&', 'despliegues')).map(
+  const filasActivas = await paginas('/v1/deployments?status=ACTIVE&', 'despliegues');
+  const activos = filasActivas.map(
     (fila) =>
       `${fila.artifactVersion?.artifact?.artifactCode ?? fila.artifactCode}@${fila.environment?.code ?? fila.environmentCode}`,
   );
-  const esperados = requeridos.flatMap((codigo) => entornos.map((entorno) => `${codigo}@${entorno}`));
+  const esperados = requeridos.flatMap((codigo) =>
+    entornos.map((entorno) => `${codigo}@${entorno}`),
+  );
   const sinDespliegue = faltantes(esperados, activos);
   console.log('');
   for (const par of esperados) {
@@ -126,6 +146,41 @@ async function main() {
   if (sinDespliegue.length > 0) {
     console.error(
       `\n${sinDespliegue.length} sin despliegue activo: publicado no es desplegado, faltan las firmas o el --deploy.`,
+    );
+    exit(1);
+  }
+
+  // Desplegado no es suficiente: la versión activa tiene que abrir caso donde dice «revisión».
+  let sinCaso = 0;
+  for (const [codigo, nodo] of Object.entries(ABRE_CASO)) {
+    if (!requeridos.includes(codigo)) continue;
+    const fila = filasActivas.find(
+      (activa) =>
+        (activa.artifactVersion?.artifact?.artifactCode ?? activa.artifactCode) === codigo,
+    );
+    const versionId = fila?.artifactVersionId ?? fila?.artifactVersion?.id;
+    if (!versionId) continue;
+    const respuesta = await fetch(
+      `${base}/v1/artifact-versions/${encodeURIComponent(versionId)}/graph`,
+      {
+        headers: { 'x-api-key': clave, 'x-tenant-id': tenant },
+      },
+    );
+    if (!respuesta.ok) {
+      console.error(
+        `GET grafo de ${codigo} → ${respuesta.status}: no se puede afirmar que abra caso.`,
+      );
+      exit(2);
+    }
+    const { abre, tipo } = revisionAbreCaso(await respuesta.json(), nodo);
+    console.log(
+      `${abre ? 'abre caso    ' : 'SIN BANDEJA  '}  ${codigo} (${nodo} es ${tipo ?? 'inexistente'})`,
+    );
+    if (!abre) sinCaso += 1;
+  }
+  if (sinCaso > 0) {
+    console.error(
+      `\n${sinCaso} artefacto(s) desplegado(s) cuyo desenlace de revisión no abre caso: el Motor responde 422 MANUAL_REVIEW_WITHOUT_CASE y la cola sale vacía. Ver docs/runbooks/cola-de-revision-vacia.md.`,
     );
     exit(1);
   }
