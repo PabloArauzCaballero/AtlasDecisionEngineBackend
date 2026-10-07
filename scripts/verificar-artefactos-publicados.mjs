@@ -16,18 +16,30 @@
  *
  * ## Uso
  *
- *   MANAGEMENT_API_KEY=… node scripts/verificar-artefactos-publicados.mjs --base https://motor.example [--codes A,B]
+ *   MANAGEMENT_API_KEY=… node scripts/verificar-artefactos-publicados.mjs --base https://motor.example [--codes A,B] [--todos]
+ *   MANAGEMENT_API_KEY=… node scripts/verificar-artefactos-publicados.mjs --base https://motor.example --exigir-despliegue --environments STAGING
  *
- * `--codes` sustituye la lista por defecto (los cuatro que consume AtlasBackend).
+ * La lista sale de `lib/artefactos.manifiesto.json`: por defecto los `exigido` (los que AtlasBackend
+ * necesita para decidir); `--todos` añade los demás salvo los de demostración; `--codes` la
+ * sustituye. `--exigir-despliegue` comprueba además que cada uno tenga despliegue ACTIVO en cada
+ * entorno de `--environments`: estar en el catálogo no basta, sin despliegue el Motor sigue
+ * respondiendo `ACTIVE_DEPLOYMENT_NOT_FOUND`.
  */
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { argv, env, exit } from 'node:process';
 
-const POR_DEFECTO = [
-  'IDENTIDAD_CARNET_MOVIL',
-  'ATLAS_BNPL_UNDERWRITING',
-  'RIESGO_ONBOARDING_CLIENTE',
-  'PARTNER_KYB_REVIEW',
-];
+const MANIFIESTO = JSON.parse(
+  readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), 'lib', 'artefactos.manifiesto.json'),
+    'utf8',
+  ),
+).artefactos;
+const TODOS = argv.includes('--todos');
+const POR_DEFECTO = MANIFIESTO.filter((fila) => (TODOS ? !fila.demo : fila.exigido)).map(
+  (fila) => fila.codigo,
+);
 
 export function faltantes(requeridos, publicados) {
   const presentes = new Set(publicados);
@@ -53,20 +65,36 @@ async function main() {
     exit(2);
   }
 
-  const publicados = [];
-  for (let page = 1; page < 50; page += 1) {
-    const respuesta = await fetch(`${base}/v1/artifacts?page=${page}&pageSize=100`, {
-      headers: { 'x-api-key': clave, 'x-tenant-id': tenant },
-    });
-    if (!respuesta.ok) {
-      console.error(`GET /v1/artifacts → ${respuesta.status}. Sin catálogo no hay veredicto.`);
-      exit(2);
-    }
-    const cuerpo = await respuesta.json();
-    const filas = Array.isArray(cuerpo) ? cuerpo : (cuerpo?.items ?? cuerpo?.data ?? []);
-    publicados.push(...filas.map((fila) => fila.artifactCode ?? fila.code));
-    if (!cuerpo?.hasNextPage) break;
+  const entornos = (opcion('environments') ?? '')
+    .split(',')
+    .map((codigo) => codigo.trim())
+    .filter(Boolean);
+  const exigirDespliegue = argv.includes('--exigir-despliegue');
+  if (exigirDespliegue && entornos.length === 0) {
+    console.error('--exigir-despliegue necesita --environments: ¿activo en qué entorno?');
+    exit(2);
   }
+
+  async function paginas(ruta, queEs) {
+    const filas = [];
+    for (let page = 1; page < 50; page += 1) {
+      const respuesta = await fetch(`${base}${ruta}page=${page}&pageSize=100`, {
+        headers: { 'x-api-key': clave, 'x-tenant-id': tenant },
+      });
+      if (!respuesta.ok) {
+        console.error(`GET ${ruta} → ${respuesta.status}. Sin ${queEs} no hay veredicto.`);
+        exit(2);
+      }
+      const cuerpo = await respuesta.json();
+      filas.push(...(Array.isArray(cuerpo) ? cuerpo : (cuerpo?.items ?? cuerpo?.data ?? [])));
+      if (!cuerpo?.hasNextPage) break;
+    }
+    return filas;
+  }
+
+  const publicados = (await paginas('/v1/artifacts?', 'catálogo')).map(
+    (fila) => fila.artifactCode ?? fila.code,
+  );
 
   if (publicados.length === 0) {
     console.error('El Motor devolvió un catálogo VACÍO: no se puede afirmar que esté bien.');
@@ -80,6 +108,24 @@ async function main() {
   if (faltan.length > 0) {
     console.error(
       `\n${faltan.length} artefacto(s) sin publicar: la decisión correspondiente fallará con ACTIVE_DEPLOYMENT_NOT_FOUND.`,
+    );
+    exit(1);
+  }
+
+  if (!exigirDespliegue) return;
+  const activos = (await paginas('/v1/deployments?status=ACTIVE&', 'despliegues')).map(
+    (fila) =>
+      `${fila.artifactVersion?.artifact?.artifactCode ?? fila.artifactCode}@${fila.environment?.code ?? fila.environmentCode}`,
+  );
+  const esperados = requeridos.flatMap((codigo) => entornos.map((entorno) => `${codigo}@${entorno}`));
+  const sinDespliegue = faltantes(esperados, activos);
+  console.log('');
+  for (const par of esperados) {
+    console.log(`${sinDespliegue.includes(par) ? 'SIN DESPLIEGUE' : 'decide        '}  ${par}`);
+  }
+  if (sinDespliegue.length > 0) {
+    console.error(
+      `\n${sinDespliegue.length} sin despliegue activo: publicado no es desplegado, faltan las firmas o el --deploy.`,
     );
     exit(1);
   }

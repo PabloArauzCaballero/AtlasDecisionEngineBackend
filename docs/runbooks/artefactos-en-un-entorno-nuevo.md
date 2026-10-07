@@ -21,6 +21,10 @@ prueba nada.
 
 ## Pasos, en orden
 
+**El camino corto es un solo comando por paso:**
+[Publicar todos los artefactos de una vez](publicar-todos-los-artefactos.md). Lo de abajo es lo
+mismo, artefacto por artefacto, para cuando hace falta tocar uno solo.
+
 1. **Verificar** (sólo lectura):
    `MANAGEMENT_API_KEY=… node scripts/verificar-artefactos-publicados.mjs --base <url del Motor>`
    Sale 1 y lista cuáles FALTAN; sale 2 si el catálogo no se pudo leer o llegó vacío.

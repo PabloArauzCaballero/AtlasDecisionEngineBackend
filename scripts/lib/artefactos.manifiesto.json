@@ -1,0 +1,96 @@
+{
+  "nota": "Lista ÚNICA de los artefactos que se publican por guion. La leen publicar-todos-los-artefactos.mjs y verificar-artefactos-publicados.mjs, y test/publicar-todos-los-artefactos.spec.ts falla si aparece un scripts/lib/*.definicion.json sin fila aquí. Campos en docs/runbooks/publicar-todos-los-artefactos.md.",
+  "artefactos": [
+    {
+      "codigo": "IDENTIDAD_CARNET_MOVIL",
+      "guion": "identidad-carnet-movil.mjs",
+      "definicion": "identidad-carnet-movil.definicion.json",
+      "decide": "Verificación de identidad con carnet y selfie",
+      "variableDeAtlasBackend": "DECISION_ENGINE_IDENTITY_ARTIFACT",
+      "exigido": true,
+      "demo": false,
+      "banderasAlCrear": [],
+      "banderasNuevaVersion": ["--nueva-version"],
+      "estadosQueReanuda": ["DRAFT", "VALIDATION_FAILED", "VALIDATED", "COMPILED"],
+      "requisito": "Las migraciones del Motor ya lo crean. Su suite alojada llama al worker de identidad: si no pasa, el camino es --sin-revision y sembrar-despliegue.mjs (ver el guion)."
+    },
+    {
+      "codigo": "ATLAS_BNPL_UNDERWRITING",
+      "guion": "atlas-underwriting-v2.mjs",
+      "definicion": "atlas-underwriting-v2.definicion.json",
+      "decide": "Crédito: aprobación, banda, tasa y límite",
+      "variableDeAtlasBackend": "DECISION_ENGINE_CREDIT_ARTIFACT",
+      "exigido": true,
+      "demo": false,
+      "banderasAlCrear": ["--crear"],
+      "banderasNuevaVersion": [],
+      "estadosQueReanuda": ["DRAFT"],
+      "requisito": null
+    },
+    {
+      "codigo": "RIESGO_ONBOARDING_CLIENTE",
+      "guion": "riesgo-onboarding-cliente.mjs",
+      "definicion": "riesgo-onboarding-cliente.definicion.json",
+      "decide": "Riesgo del alta de un cliente",
+      "variableDeAtlasBackend": "DECISION_ENGINE_RISK_ARTIFACT",
+      "exigido": true,
+      "demo": false,
+      "banderasAlCrear": [],
+      "banderasNuevaVersion": ["--nueva-version"],
+      "estadosQueReanuda": ["DRAFT", "VALIDATION_FAILED", "VALIDATED", "COMPILED"],
+      "requisito": null
+    },
+    {
+      "codigo": "PARTNER_KYB_REVIEW",
+      "guion": "partner-kyb-review.mjs",
+      "definicion": "partner-kyb-review.definicion.json",
+      "decide": "Alta de un comercio (KYB)",
+      "variableDeAtlasBackend": "DECISION_ENGINE_PARTNER_ARTIFACT",
+      "exigido": true,
+      "demo": false,
+      "banderasAlCrear": [],
+      "banderasNuevaVersion": null,
+      "estadosQueReanuda": ["DRAFT", "VALIDATED", "COMPILED"],
+      "requisito": null
+    },
+    {
+      "codigo": "PRIVACIDAD_SOLICITUD_TITULAR",
+      "guion": "privacidad-solicitud-titular.mjs",
+      "definicion": "privacidad-solicitud-titular.definicion.json",
+      "decide": "Solicitudes del titular: corregir o borrar datos",
+      "variableDeAtlasBackend": "DECISION_ENGINE_PRIVACY_ARTIFACT",
+      "exigido": false,
+      "demo": false,
+      "banderasAlCrear": [],
+      "banderasNuevaVersion": null,
+      "estadosQueReanuda": ["DRAFT", "VALIDATED", "COMPILED"],
+      "requisito": "El Motor necesita la migración 20261004120000_decision_kind_data_subject_rights."
+    },
+    {
+      "codigo": "ATLAS_RECALIFICACION_CAPACIDAD",
+      "guion": "recalificacion-capacidad-pago.mjs",
+      "definicion": "recalificacion-capacidad-pago.definicion.json",
+      "decide": "Recalificación de la capacidad de pago",
+      "variableDeAtlasBackend": null,
+      "exigido": false,
+      "demo": false,
+      "banderasAlCrear": [],
+      "banderasNuevaVersion": ["--nueva-version"],
+      "estadosQueReanuda": ["DRAFT", "VALIDATION_FAILED", "VALIDATED", "COMPILED"],
+      "requisito": null
+    },
+    {
+      "codigo": "EXTRACTO_CAPACIDAD_PAGO",
+      "guion": "extracto-capacidad-pago.mjs",
+      "definicion": "extracto-capacidad-pago.definicion.json",
+      "decide": "Demostración: capacidad de pago por extracto bancario",
+      "variableDeAtlasBackend": null,
+      "exigido": false,
+      "demo": true,
+      "banderasAlCrear": [],
+      "banderasNuevaVersion": null,
+      "estadosQueReanuda": ["DRAFT", "VALIDATED", "COMPILED"],
+      "requisito": "Necesita el worker de extractos alcanzable desde el Motor."
+    }
+  ]
+}
