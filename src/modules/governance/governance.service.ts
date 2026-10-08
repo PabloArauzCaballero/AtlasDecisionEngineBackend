@@ -330,6 +330,23 @@ export class GovernanceService {
         HttpStatus.FORBIDDEN,
       );
     }
+    // «Dos personas firman»: quien ya decidió OTRO paso de la misma solicitud no firma éste.
+    // Sin esto, una persona con QA_ANALYST y RISK_APPROVER (o un PLATFORM_ADMIN, que pasa
+    // el filtro de rol en todos) aprobaba la versión entera ella sola.
+    if (
+      step.separationOfDuties &&
+      step.approvalRequest.steps.some(
+        (other) =>
+          other.id !== step.id &&
+          (other.decisions ?? []).some((decision) => decision.decidedBy === principal.id),
+      )
+    ) {
+      throw new DomainException(
+        'SEPARATION_OF_DUTIES_VIOLATION',
+        'This principal already decided another step of the same approval request',
+        HttpStatus.FORBIDDEN,
+      );
+    }
     if (step.decisions.some((decision) => decision.decidedBy === principal.id)) {
       throw new DomainException(
         'DUPLICATE_APPROVAL_DECISION',

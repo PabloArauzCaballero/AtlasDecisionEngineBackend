@@ -119,6 +119,8 @@ export class PrismaAuditRetentionRepository implements AuditRetentionRepository 
   constructor(private readonly prisma: PrismaService) {}
 
   async purgeOlderThan(days: number): Promise<number> {
+    // Defensa en profundidad: 0 (o menos) desactiva la purga; sin esto el corte sería `now()`.
+    if (!(days > 0)) return 0;
     const result = await this.prisma.semanticAnalysisRun.deleteMany({
       where: { finishedAt: { lt: daysAgo(days) } },
     });
@@ -126,6 +128,7 @@ export class PrismaAuditRetentionRepository implements AuditRetentionRepository 
   }
 
   async minimizeOlderThan(days: number): Promise<number> {
+    if (!(days > 0)) return 0;
     // `md5` del propio Postgres: la huella se calcula donde está el dato, sin
     // traer a memoria del worker textos que precisamente se quieren dejar de
     // retener. `$transaction` por la RLS forzada de la tabla; ver

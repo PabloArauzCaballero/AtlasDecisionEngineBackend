@@ -171,6 +171,74 @@ describe('guardSql — funciones que leen fuera de los datasets', () => {
   });
 });
 
+describe('guardSql — funciones prohibidas escritas para esquivar la lista', () => {
+  const INTERNA = "'select input_snapshot_json from public.decision_execution', true, false, ''";
+
+  it('rechaza query_to_xml entre comillas dobles, que lee cualquier tabla de public', () => {
+    rechaza(`SELECT "query_to_xml"(${INTERNA})`, 'SQL_FORBIDDEN_FUNCTION');
+  });
+
+  it('rechaza set_config y current_setting entre comillas, que cambian o leen el tenant', () => {
+    rechaza(`SELECT "set_config"('app.tenant_id', '2', false)`, 'SQL_FORBIDDEN_FUNCTION');
+    rechaza(`SELECT "current_setting"('app.tenant_id')`, 'SQL_FORBIDDEN_FUNCTION');
+  });
+
+  it('rechaza el nombre entre comillas aunque el cambio de tenant vaya junto a la lectura', () => {
+    rechaza(
+      `SELECT "set_config"('app.tenant_id', '2', true), "query_to_xml"(${INTERNA})`,
+      'SQL_FORBIDDEN_FUNCTION',
+    );
+  });
+
+  it('rechaza las variantes en mayúsculas, con y sin comillas', () => {
+    rechaza(`SELECT QUERY_TO_XML(${INTERNA})`, 'SQL_FORBIDDEN_FUNCTION');
+    rechaza(`SELECT "QUERY_TO_XML"(${INTERNA})`, 'SQL_FORBIDDEN_FUNCTION');
+    rechaza(`SELECT "Set_Config"('app.tenant_id', '2', false)`, 'SQL_FORBIDDEN_FUNCTION');
+  });
+
+  it('rechaza la función calificada con esquema, con comillas o sin ellas', () => {
+    rechaza(`SELECT pg_catalog.query_to_xml(${INTERNA})`, 'SQL_FORBIDDEN_FUNCTION');
+    rechaza(`SELECT pg_catalog.set_config('app.tenant_id', '2', false)`, 'SQL_FORBIDDEN_FUNCTION');
+    rechaza(`SELECT "pg_catalog"."query_to_xml"(${INTERNA})`, 'SQL_FORBIDDEN_FUNCTION');
+    rechaza(
+      `SELECT pg_catalog."set_config"('app.tenant_id', '2', false)`,
+      'SQL_FORBIDDEN_FUNCTION',
+    );
+    rechaza(`SELECT public.query_to_xml(${INTERNA})`, 'SQL_FORBIDDEN_FUNCTION');
+  });
+
+  it('rechaza las demás funciones que leen fuera de los datasets, entre comillas', () => {
+    rechaza(`SELECT "table_to_xml"('public.decision_execution', true, false, '')`);
+    rechaza(`SELECT "database_to_xml"(true, false, '')`);
+    rechaza(`SELECT "pg_read_file"('/etc/passwd')`);
+    rechaza(`SELECT "pg_sleep"(30)`);
+    rechaza(`SELECT "dblink"('host=x', 'select 1')`);
+    rechaza(`SELECT "atlas_current_tenant"()`);
+  });
+
+  it('rechaza las palabras sin paréntesis entre comillas, como "current_user"', () => {
+    rechaza('SELECT "current_user"', 'SQL_FORBIDDEN_FUNCTION');
+  });
+
+  it('rechaza los identificadores con escapes unicode, que se resuelven en la base', () => {
+    rechaza(`SELECT U&"query\\005fto\\005fxml"(${INTERNA})`, 'SQL_UNICODE_ESCAPE');
+    rechaza(`SELECT u&"set\\005fconfig"('app.tenant_id', '2', false)`, 'SQL_UNICODE_ESCAPE');
+    rechaza(
+      'SELECT U&"d!0061t!0061" FROM decisiones.ejecuciones UESCAPE \'!\'',
+      'SQL_UNICODE_ESCAPE',
+    );
+  });
+
+  it('rechaza llamar a cualquier función entre comillas, aunque no esté en la lista', () => {
+    rechaza(`SELECT "una_funcion_nueva"(1)`, 'SQL_FORBIDDEN_FUNCTION');
+  });
+
+  it('sigue admitiendo alias entre comillas y la lista de columnas de un alias', () => {
+    acepta('SELECT estado AS "Estado final" FROM decisiones.ejecuciones');
+    acepta('SELECT t."n" FROM generate_series(1, 3) AS "t"("n")');
+  });
+});
+
 describe('guardSql — el analizador léxico no se engaña con delimitadores', () => {
   it('rechaza las cadenas con dólar, que esconden cualquier carga útil', () => {
     rechaza('SELECT $$ DELETE FROM catalogo.motivos $$', 'SQL_DOLLAR_QUOTED');

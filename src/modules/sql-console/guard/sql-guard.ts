@@ -184,7 +184,8 @@ const FORBIDDEN_NAME_PATTERNS: readonly RegExp[] = [
 ];
 
 const WORD = (word: string) => new RegExp(`(?<![A-Za-z0-9_."])${word}(?![A-Za-z0-9_])`, 'i');
-const FUNCTION_CALL = (name: string) => new RegExp(`(?<![A-Za-z0-9_."])${name}\\s*\\(`, 'i');
+// Sin `.` en el lookbehind: `pg_catalog.set_config(` es la misma llamada que `set_config(`.
+const FUNCTION_CALL = (name: string) => new RegExp(`(?<![A-Za-z0-9_"])${name}\\s*\\(`, 'i');
 
 /**
  * Caracteres de control, comprobados por código y no con una expresión regular.
@@ -342,6 +343,46 @@ export function guardSql(sql: string, allowed: ReadonlySet<string>): GuardResult
       push(
         'SQL_FORBIDDEN_NAME',
         `El identificador "${quoted}" no es consultable desde la consola.`,
+      );
+    }
+  }
+
+  // El enmascarado borra el contenido de los identificadores entre comillas, así que
+  // `"query_to_xml"(…)` no coincide con ninguna regla de función de arriba. Se revisa cada
+  // uno por su valor, esté donde esté: una función prohibida no deja de serlo por escribirse
+  // entre comillas, en mayúsculas o calificada con esquema (`pg_catalog."set_config"(`).
+  const forbiddenFunctionNames = new Set<string>(FORBIDDEN_FUNCTIONS);
+  const forbiddenBare = new Set<string>(FORBIDDEN_BARE_WORDS);
+  for (const range of scan.quotedRanges) {
+    if (range.unicodeEscaped) {
+      // `U&"…\\0071uery…"` se resuelve en la base, no aquí: no se intenta decodificar, se
+      // rechaza. Ninguna consulta de análisis necesita escribir un nombre con escapes.
+      push(
+        'SQL_UNICODE_ESCAPE',
+        'Los identificadores con escapes unicode (U&"…") no se admiten.',
+        range.start,
+      );
+      continue;
+    }
+    const lowered = range.value.toLowerCase();
+    if (forbiddenFunctionNames.has(lowered) || forbiddenBare.has(lowered)) {
+      push(
+        'SQL_FORBIDDEN_FUNCTION',
+        `El identificador "${range.value}" nombra una función que no está disponible en la consola.`,
+        range.start,
+      );
+      continue;
+    }
+    // Un identificador entre comillas seguido de `(` es una llamada a función. Sólo se
+    // tolera como lista de columnas de un alias (`AS "t"(a, b)`); calificado con esquema
+    // (`"pg_catalog"."x"(`) o suelto no se admite.
+    const after = masked.slice(range.end).trimStart();
+    const before = masked.slice(0, range.start).trimEnd();
+    if (after.startsWith('(') && !/\bAS$/i.test(before)) {
+      push(
+        'SQL_FORBIDDEN_FUNCTION',
+        `No se admite llamar a "${range.value}"(…): los nombres de función no van entre comillas.`,
+        range.start,
       );
     }
   }

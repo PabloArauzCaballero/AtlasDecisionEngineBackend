@@ -26,8 +26,16 @@ export class AuditRetentionService {
    * mantendría texto íntegro más tiempo del debido.
    */
   public async apply(): Promise<RetentionOutcome> {
-    const minimized = await this.repository.minimizeOlderThan(this.config.auditMinimizeAfterDays);
-    const deleted = await this.repository.purgeOlderThan(this.config.auditRetentionDays);
+    // Un plazo en 0 significa «esa operación está desactivada», no «hace 0 días»: con
+    // `daysAgo(0)` el corte es `now()` y la barrida tocaría TODAS las ejecuciones terminadas.
+    const minimized =
+      this.config.auditMinimizeAfterDays > 0
+        ? await this.repository.minimizeOlderThan(this.config.auditMinimizeAfterDays)
+        : 0;
+    const deleted =
+      this.config.auditRetentionDays > 0
+        ? await this.repository.purgeOlderThan(this.config.auditRetentionDays)
+        : 0;
 
     if (minimized > 0 || deleted > 0) {
       this.logger.log(

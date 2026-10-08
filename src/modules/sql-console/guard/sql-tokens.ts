@@ -22,10 +22,22 @@ export interface ScannedSql {
   readonly masked: string;
   /** Identificadores entre comillas dobles, sin las comillas. */
   readonly quotedIdentifiers: readonly string[];
+  /**
+   * Los mismos identificadores con su posición en el SQL original y si llevan el prefijo
+   * `U&` (escapes unicode: `U&"query\\005fto\\005fxml"` resuelve a `query_to_xml`).
+   */
+  readonly quotedRanges: readonly QuotedRange[];
   /** Hubo una cadena con dólar (`$$…$$`), que la guardia rechaza sin más análisis. */
   readonly hasDollarQuoted: boolean;
   /** Un comentario o literal quedó abierto al acabar la entrada. */
   readonly unterminated: 'comentario' | 'literal' | 'identificador' | null;
+}
+
+export interface QuotedRange {
+  readonly value: string;
+  readonly start: number;
+  readonly end: number;
+  readonly unicodeEscaped: boolean;
 }
 
 const SPACE = ' ';
@@ -39,6 +51,7 @@ function blank(source: string, from: number, to: number): string {
 
 export function scanSql(sql: string): ScannedSql {
   const quotedIdentifiers: string[] = [];
+  const quotedRanges: QuotedRange[] = [];
   let masked = '';
   let hasDollarQuoted = false;
   let unterminated: ScannedSql['unterminated'] = null;
@@ -147,6 +160,8 @@ export function scanSql(sql: string): ScannedSql {
       }
       if (!closed) unterminated = 'identificador';
       quotedIdentifiers.push(value);
+      const unicodeEscaped = /[uU]&$/.test(masked) && !/[A-Za-z0-9_]/.test(masked.slice(-3, -2));
+      quotedRanges.push({ value, start: i, end: Math.min(j, sql.length), unicodeEscaped });
       // Se deja en blanco para que las reglas de palabra no lo lean como sintaxis, pero su
       // contenido ya se ha guardado aparte y se revisa por su cuenta.
       masked += blank(sql, i, Math.min(j, sql.length));
@@ -158,7 +173,7 @@ export function scanSql(sql: string): ScannedSql {
     i += 1;
   }
 
-  return { masked, quotedIdentifiers, hasDollarQuoted, unterminated };
+  return { masked, quotedIdentifiers, quotedRanges, hasDollarQuoted, unterminated };
 }
 
 /** Posición legible (línea y columna, base 1) de un desplazamiento dentro del SQL. */
