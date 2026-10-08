@@ -330,20 +330,20 @@ export class GovernanceService {
         HttpStatus.FORBIDDEN,
       );
     }
-    // «Dos personas firman»: quien ya decidió OTRO paso de la misma solicitud no firma éste.
-    // Sin esto, una persona con QA_ANALYST y RISK_APPROVER (o un PLATFORM_ADMIN, que pasa
-    // el filtro de rol en todos) aprobaba la versión entera ella sola.
+    // «Dos personas firman»: nadie firma TODOS los pasos de una solicitud. Se bloquea sólo al
+    // firmar el último paso pendiente habiendo firmado ya todos los demás; una misma persona
+    // puede firmar dos pasos si otra firma el resto. PLATFORM_ADMIN no se salta la regla.
+    const otherSteps = step.approvalRequest.steps.filter((other) => other.id !== step.id);
     if (
       step.separationOfDuties &&
-      step.approvalRequest.steps.some(
-        (other) =>
-          other.id !== step.id &&
-          (other.decisions ?? []).some((decision) => decision.decidedBy === principal.id),
+      otherSteps.length > 0 &&
+      otherSteps.every((other) =>
+        (other.decisions ?? []).some((decision) => decision.decidedBy === principal.id),
       )
     ) {
       throw new DomainException(
         'SEPARATION_OF_DUTIES_VIOLATION',
-        'This principal already decided another step of the same approval request',
+        'At least two different people must sign an approval request; this principal already signed every other step',
         HttpStatus.FORBIDDEN,
       );
     }

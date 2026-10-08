@@ -119,51 +119,43 @@ describe('GovernanceService — guardas de aprobación', () => {
     expect(result).not.toBeInstanceOf(DomainException);
   });
 
-  it('quien ya firmó otro paso de la misma solicitud no firma éste (dos personas, no una)', async () => {
-    const dosPasos = step({
-      requiredRole: 'RISK_APPROVER',
-      stepOrder: 2,
+  const tresPasos = (firmas: Record<number, string>, actual = 3) =>
+    step({
+      stepOrder: actual,
       approvalRequest: {
         ...step().approvalRequest,
-        steps: [
-          { id: 41n, stepOrder: 1, status: 'APPROVED', decisions: [{ decidedBy: 'bea' }] },
-          { id: STEP, stepOrder: 2, status: 'PENDING', decisions: [] },
-        ],
+        steps: [1, 2, 3].map((n) => ({
+          id: n === actual ? STEP : 100n + BigInt(n),
+          stepOrder: n,
+          status: n === actual ? 'PENDING' : 'APPROVED',
+          decisions: firmas[n] ? [{ decidedBy: firmas[n] }] : [],
+        })),
       },
     });
-    const error = await decide(dosPasos, principal('bea', ['QA_ANALYST', 'RISK_APPROVER']));
+
+  it('una persona que firmó los pasos 1 y 2 no firma el 3 (dos personas, no una)', async () => {
+    const error = await decide(
+      tresPasos({ 1: 'bea', 2: 'bea' }),
+      principal('bea', ['RISK_APPROVER', 'COMPLIANCE']),
+    );
     expect((error as DomainException).code).toBe('SEPARATION_OF_DUTIES_VIOLATION');
     expect((error as DomainException).status).toBe(403);
   });
 
-  it('un PLATFORM_ADMIN que firmó el paso 1 tampoco firma el 2', async () => {
-    const dosPasos = step({
-      stepOrder: 2,
-      approvalRequest: {
-        ...step().approvalRequest,
-        steps: [
-          { id: 41n, stepOrder: 1, status: 'APPROVED', decisions: [{ decidedBy: 'admin' }] },
-          { id: STEP, stepOrder: 2, status: 'PENDING', decisions: [] },
-        ],
-      },
-    });
-    const error = await decide(dosPasos, principal('admin', ['PLATFORM_ADMIN']));
-    expect((error as DomainException).code).toBe('SEPARATION_OF_DUTIES_VIOLATION');
+  it('dos personas distintas con tres pasos: la misma puede firmar dos', async () => {
+    const result = await decide(
+      tresPasos({ 1: 'bea', 2: 'carla' }),
+      principal('bea', ['RISK_APPROVER']),
+    );
+    expect(result).not.toBeInstanceOf(DomainException);
   });
 
-  it('otra persona distinta sí firma el paso 2', async () => {
-    const dosPasos = step({
-      stepOrder: 2,
-      approvalRequest: {
-        ...step().approvalRequest,
-        steps: [
-          { id: 41n, stepOrder: 1, status: 'APPROVED', decisions: [{ decidedBy: 'bea' }] },
-          { id: STEP, stepOrder: 2, status: 'PENDING', decisions: [] },
-        ],
-      },
-    });
-    const result = await decide(dosPasos, principal('carla', ['RISK_APPROVER']));
-    expect(result).not.toBeInstanceOf(DomainException);
+  it('PLATFORM_ADMIN no se salta la regla', async () => {
+    const error = await decide(
+      tresPasos({ 1: 'admin', 2: 'admin' }),
+      principal('admin', ['PLATFORM_ADMIN']),
+    );
+    expect((error as DomainException).code).toBe('SEPARATION_OF_DUTIES_VIOLATION');
   });
 
   it('un paso de otro tenant es 404', async () => {
