@@ -68,7 +68,15 @@ export class SecurityReviewService {
         where: { tenantId, artifactVersionId: versionId },
       }),
       this.prisma.decisionAuditEvent.findMany({
-        where: { tenantId, aggregateType: 'ArtifactVersion', aggregateId: versionId.toString() },
+        where: {
+          tenantId,
+          // Los dos nombres existen: el ciclo de vida y el grafo auditan como `ArtifactVersion`;
+          // gobierno, despliegues, árboles anidados y el expediente del modelo, como
+          // `DecisionArtifactVersion`. Con sólo el primero la revisión omitía justo las
+          // aprobaciones y los despliegues.
+          aggregateType: { in: ['ArtifactVersion', 'DecisionArtifactVersion'] },
+          aggregateId: versionId.toString(),
+        },
         orderBy: { id: 'desc' },
         take: 50,
       }),

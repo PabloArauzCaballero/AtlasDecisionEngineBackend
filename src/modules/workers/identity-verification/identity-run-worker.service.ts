@@ -16,6 +16,7 @@ import { IdentityDomainError } from './core/domain/identity-domain.error';
 import {
   outcomeForIdentityError,
   outcomeForIdentityVerdict,
+  timestampsForOutcome,
   type IdentityRunOutcome,
 } from './identity-outcome';
 import { IdentityPipelineService } from './identity-pipeline.service';
@@ -241,7 +242,7 @@ export class IdentityRunWorkerService implements OnModuleInit, OnModuleDestroy, 
           // umbrales están bien puestos.
           documentTypeConfidence: outcome.documentEvidence.confidence,
           similarityScore: outcome.faceMatch?.similarityScore ?? null,
-          finishedAt: new Date(),
+          ...timestampsForOutcome(desenlace.status),
           leaseExpiresAt: null,
           // Las imágenes dejan de conservarse en cuanto hay veredicto. Lo que
           // queda es la decisión y su evidencia, con el documento enmascarado.

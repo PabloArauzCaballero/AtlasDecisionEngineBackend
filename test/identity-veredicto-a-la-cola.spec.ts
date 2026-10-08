@@ -1,5 +1,8 @@
 import { IdentityReviewReason, WorkerRunStatus } from '@prisma/client';
-import { outcomeForIdentityVerdict } from '../src/modules/workers/identity-verification/identity-outcome';
+import {
+  outcomeForIdentityVerdict,
+  timestampsForOutcome,
+} from '../src/modules/workers/identity-verification/identity-outcome';
 import { IdentityDecision } from '../src/modules/workers/identity-verification/core/domain/identity-enums';
 import { IdentityDecisionEngine } from '../src/modules/workers/identity-verification/core/domain/identity-decision.engine';
 
@@ -131,5 +134,23 @@ describe('caducidad y vigencia indefinida', () => {
   it('sin fecha de nacimiento legible no se asume nada: la caducidad decide', () => {
     const r = new IdentityDecisionEngine().decide({ ...base, dateOfBirth: null } as never);
     expect(r.decision).toBe(IdentityDecision.NOT_VERIFIED);
+  });
+});
+
+describe('un caso que entra en la bandeja trae sus marcas de tiempo', () => {
+  const ahora = new Date('2026-10-05T12:00:00Z');
+
+  it('PENDING_REVIEW: abierto ahora y sin terminar', () => {
+    expect(timestampsForOutcome(WorkerRunStatus.PENDING_REVIEW, ahora)).toEqual({
+      reviewOpenedAt: ahora,
+      finishedAt: null,
+    });
+  });
+
+  it('un desenlace terminal: terminado y fuera de la bandeja', () => {
+    expect(timestampsForOutcome(WorkerRunStatus.SUCCEEDED, ahora)).toEqual({
+      reviewOpenedAt: null,
+      finishedAt: ahora,
+    });
   });
 });

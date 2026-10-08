@@ -63,9 +63,12 @@ export class UnresolvedResolutionService {
 
     const categoryCode = await this.categoriaElegida(input);
 
+    let aplicado = true;
     await this.prisma.$transaction(async (tx) => {
-      await tx.unresolvedClassification.update({
-        where: { id: pendiente.id },
+      // Condicionado a PENDING: entre la lectura de arriba y esta escritura puede haber cerrado el
+      // caso otra persona o la reevaluación automática; el `update` por id pisaba su decisión.
+      const cerrado = await tx.unresolvedClassification.updateMany({
+        where: { id: pendiente.id, status: 'PENDING' },
         data: {
           status: this.estadoFinal(input.resolutionType),
           resolvedCategoryCode: categoryCode,
@@ -87,10 +90,22 @@ export class UnresolvedResolutionService {
         },
       });
 
+      if (cerrado.count === 0) {
+        aplicado = false;
+        return;
+      }
       if (categoryCode !== null) {
         await this.aprenderAlias(tx, input.tenantId, pendiente.normalizedValue, categoryCode);
       }
     });
+
+    if (!aplicado) {
+      const actual = await this.prisma.unresolvedClassification.findFirst({
+        where: { tenantId: input.tenantId, id: BigInt(input.id) },
+        select: { status: true },
+      });
+      return { id: input.id, status: actual?.status ?? pendiente.status, alreadyResolved: true };
+    }
 
     this.logger.log(
       `Pendiente ${input.id} resuelto por ${input.resolvedBy} como ${input.resolutionType}` +

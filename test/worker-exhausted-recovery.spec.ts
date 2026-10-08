@@ -91,4 +91,22 @@ describe('recuperación de ejecuciones con lease vencido', () => {
     // el PDF de nadie: la promesa de no conservarlo vale también al cerrar.
     expect(cerradas?.data.fileBytes).toBeNull();
   });
+
+  it('el extracto recuperado reinicia su espera: no se deriva a TIMEOUT en la misma pasada', async () => {
+    const { prisma, updateMany } = espiaPrisma('bankStatementRun');
+    const worker = new BankStatementRunWorkerService(
+      prisma,
+      new ConfigService({ BANK_STATEMENT_MAX_ATTEMPTS: 3 }),
+      scheduler,
+      trace,
+      new InstitutionCatalogService(prisma),
+    );
+    const antes = Date.now();
+
+    await (worker as unknown as { recoverExpiredRuns: () => Promise<void> }).recoverExpiredRuns();
+
+    const { aLaCola } = mitades(updateMany);
+    expect(aLaCola?.data.queuedAt).toBeInstanceOf(Date);
+    expect((aLaCola?.data.queuedAt as Date).getTime()).toBeGreaterThanOrEqual(antes);
+  });
 });

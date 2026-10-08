@@ -887,6 +887,13 @@ export class RuntimeService {
    * business outcome and is safe to cache.
    */
   private isRetryable(error: unknown): boolean {
+    // «Sin despliegue activo» es un 404 pero NO es un veredicto sobre la solicitud: es el estado
+    // del entorno (un rollback en curso, una ventana entre despliegues). Cachearlo como FAILED
+    // durante el TTL de idempotencia (24 h) devolvía el mismo 404 a quien reintentaba con su misma
+    // clave después de arreglar el despliegue.
+    if (error instanceof DomainException && error.code === 'ACTIVE_DEPLOYMENT_NOT_FOUND') {
+      return true;
+    }
     if (error instanceof DomainException) return error.status >= 500;
     return true;
   }

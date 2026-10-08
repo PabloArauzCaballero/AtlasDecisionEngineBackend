@@ -43,7 +43,7 @@ describe('TestRunWorkerService', () => {
       decisionTestCaseRun: { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) },
     };
     const prisma = {
-      decisionTestRun: { findMany: jest.fn().mockResolvedValue([{ id: 15n }]) },
+      decisionTestRun: { findMany: jest.fn().mockResolvedValue([{ id: 15n, attemptCount: 1 }]) },
       $transaction: jest.fn(async (callback: (client: typeof tx) => Promise<void>) => callback(tx)),
     };
     const worker = new TestRunWorkerService(
@@ -122,5 +122,39 @@ describe('TestRunWorkerService', () => {
 
       expect(await testWorker.runOnce()).toBe(0);
     });
+  });
+
+  it('dead-letter: una corrida que agotó sus intentos pasa a ERROR y no vuelve a la cola', async () => {
+    const tx = {
+      decisionTestRun: { updateMany: jest.fn() },
+      decisionTestCoverage: { deleteMany: jest.fn() },
+      decisionTestCaseRun: { deleteMany: jest.fn() },
+    };
+    const prisma = {
+      decisionTestRun: {
+        findMany: jest.fn().mockResolvedValue([{ id: 15n, attemptCount: 3 }]),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      $transaction: jest.fn(async (callback: (client: typeof tx) => Promise<void>) => callback(tx)),
+    };
+    const worker = new TestRunWorkerService(
+      prisma as unknown as PrismaService,
+      {} as TestExecutionService,
+      new ConfigService({ TEST_RUN_MAX_ATTEMPTS: 3 }),
+      fakeScheduler,
+    );
+    (worker as unknown as { lastRecoveryAt: number }).lastRecoveryAt = 0;
+
+    await (worker as unknown as { recoverExpiredRuns: () => Promise<void> }).recoverExpiredRuns();
+
+    expect(prisma.decisionTestRun.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: 15n, status: 'RUNNING' }),
+        data: expect.objectContaining({ status: 'ERROR', leaseExpiresAt: null }),
+      }),
+    );
+    // Ni se reencola ni se borra la evidencia parcial: es lo único que dice dónde murió.
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(tx.decisionTestRun.updateMany).not.toHaveBeenCalled();
   });
 });

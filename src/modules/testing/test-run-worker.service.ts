@@ -191,10 +191,26 @@ export class TestRunWorkerService implements OnModuleInit, OnModuleDestroy, Back
       },
       orderBy: { leaseExpiresAt: 'asc' },
       take: this.config.get<number>('TEST_RUN_WORKER_CONCURRENCY') ?? 2,
-      select: { id: true },
+      select: { id: true, attemptCount: true },
     });
+    const maxAttempts = this.config.get<number>('TEST_RUN_MAX_ATTEMPTS') ?? 3;
 
     for (const run of stale) {
+      // Dead-letter: `claimNextRun` ya contó este intento. Una corrida que agota los suyos
+      // (típicamente porque mata al proceso en cada intento) no vuelve a la cola: pasa a ERROR.
+      if (run.attemptCount >= maxAttempts) {
+        const dead = await this.prisma.decisionTestRun.updateMany({
+          where: { id: run.id, status: TestRunStatus.RUNNING, ...expiredLease },
+          data: { status: TestRunStatus.ERROR, finishedAt: new Date(), leaseExpiresAt: null },
+        });
+        if (dead.count) {
+          this.logger.error(
+            `Test run ${run.id.toString()} agotó ${maxAttempts} intentos con el lease vencido; ` +
+              'se cierra como ERROR en vez de reencolarla.',
+          );
+        }
+        continue;
+      }
       await this.prisma.$transaction(async (tx) => {
         const reset = await tx.decisionTestRun.updateMany({
           where: {

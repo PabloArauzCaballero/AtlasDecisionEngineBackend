@@ -211,3 +211,19 @@ export const IDENTITY_REVIEW_STATUSES: readonly WorkerRunStatus[] = [
   WorkerRunStatus.PENDING_REVIEW,
   WorkerRunStatus.IN_REVIEW,
 ];
+
+/**
+ * Las dos marcas de tiempo que acompañan a un desenlace.
+ *
+ * Un caso que entra en la bandeja tiene que traer `reviewOpenedAt`: la cola ordena por él, filtra
+ * por fechas con él y mide con él la antigüedad. Sin la marca (NULL), Postgres lo ordena el ÚLTIMO
+ * dentro de su prioridad y el SLA de la bandeja no lo ve, justo en la vía principal de entrada
+ * (el veredicto `REVIEW_REQUIRED`). Y un caso pendiente no está terminado: `finishedAt` va vacío.
+ */
+export function timestampsForOutcome(
+  status: WorkerRunStatus,
+  now: Date = new Date(),
+): { reviewOpenedAt: Date | null; finishedAt: Date | null } {
+  const enRevision = status === WorkerRunStatus.PENDING_REVIEW;
+  return { reviewOpenedAt: enRevision ? now : null, finishedAt: enRevision ? null : now };
+}

@@ -356,6 +356,8 @@ export class BankStatementRunWorkerService implements OnModuleInit, OnModuleDest
         startedAt: null,
         leaseExpiresAt: null,
         progress: 0,
+        // Mismo motivo que en la recuperación: la espera de un reintento empieza al reencolar.
+        queuedAt: new Date(),
       },
     });
   }
@@ -409,6 +411,10 @@ export class BankStatementRunWorkerService implements OnModuleInit, OnModuleDest
         startedAt: null,
         leaseExpiresAt: null,
         progress: 0,
+        // Vuelve a esperar DESDE AHORA. Sin esto conserva el `queuedAt` original, que ya es más
+        // viejo que el lease (300 s) y que el presupuesto de espera (180 s): `deriveLongWaits`, que
+        // corre en la misma pasada, la mandaba a la cola humana como TIMEOUT sin reintentarla.
+        queuedAt: new Date(),
       },
     });
     if (recovered.count > 0) {

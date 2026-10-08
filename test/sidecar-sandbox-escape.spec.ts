@@ -140,6 +140,10 @@ describe('runner sidecar JavaScript sandbox escape', () => {
       "node.func.attr in ('format', 'format_map')",
     );
     expect(inProcess.replace(/\s+/g, ' ')).toContain("node.func.attr in ('format', 'format_map')");
+    // Y el rechazo de los atributos de introspección de frames, que no empiezan por '__'.
+    const frames = "node.attr.startswith(('f_', 'gi_', 'cr_', 'ag_', 'tb_', 'co_'))";
+    expect(wrapperOf('PYTHON_WRAPPER').replace(/\s+/g, ' ')).toContain(frames);
+    expect(inProcess.replace(/\s+/g, ' ')).toContain(frames);
   });
 
   /**

@@ -21,6 +21,12 @@ const TERMINAL_STATUSES: readonly WorkerRunStatus[] = [
 ];
 
 /** Lo que se devuelve al cliente. El audio NUNCA está aquí: se pide aparte. */
+/** Terminales SIN resultado: reenviar la misma locución vuelve a intentarla. */
+const RETRYABLE_STATUSES: readonly WorkerRunStatus[] = [
+  WorkerRunStatus.FAILED,
+  WorkerRunStatus.CANCELLED,
+];
+
 const RUN_SELECTION = {
   requestId: true,
   status: true,
@@ -130,9 +136,57 @@ export class AudioTtsService {
         select: RUN_SELECTION,
       });
       if (!existing) throw error;
+      /*
+       * Un intento sin resultado (FALLIDO o CANCELADO) no se sirve de la caché: la clave se deriva
+       * del contenido y no caduca, así que la misma frase respondía con aquel fallo PARA SIEMPRE
+       * (presupuesto de fin de mes, caída del proveedor, una cancelación). Se reencola la misma
+       * fila —el `requestId` es el que alguien puede estar siguiendo—, y el UPDATE condicionado al
+       * estado hace que dos reenvíos simultáneos sólo reencolen una vez.
+       */
+      if (RETRYABLE_STATUSES.includes(existing.status)) {
+        const requeued = await this.requeue(tenantId, principal, existing.requestId);
+        if (requeued) return { run: requeued, deduplicated: false };
+        const current = await this.getRun(tenantId, existing.requestId);
+        return { run: current, deduplicated: true };
+      }
       this.logger.debug(`Locución ya encolada; se devuelve ${existing.requestId}`);
       return { run: existing, deduplicated: true };
     }
+  }
+
+  /** Devuelve a la cola una locución que terminó sin resultado; `null` si otro ya lo hizo. */
+  private async requeue(
+    tenantId: bigint,
+    principal: AuthenticatedPrincipal,
+    requestId: string,
+  ): Promise<AudioTtsRunView | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.audioTtsRun.updateMany({
+        where: { tenantId, requestId, status: { in: [...RETRYABLE_STATUSES] } },
+        data: {
+          status: WorkerRunStatus.QUEUED,
+          progress: 0,
+          outcome: null,
+          assetId: null,
+          cacheHit: false,
+          resultJson: Prisma.DbNull,
+          warningsJson: Prisma.DbNull,
+          errorCode: null,
+          errorMessage: null,
+          attemptCount: 0,
+          leaseExpiresAt: null,
+          queuedAt: new Date(),
+          startedAt: null,
+          finishedAt: null,
+          requestedBy: principal.id,
+          correlationId: principal.requestId,
+          traceCarrier: persistableCarrier(this.messagingTrace.inject()),
+        },
+      });
+      if (updated.count === 0) return null;
+      await this.jobSignal.notify(tx, JobName.AudioTts);
+      return tx.audioTtsRun.findFirst({ where: { tenantId, requestId }, select: RUN_SELECTION });
+    });
   }
 
   async getRun(tenantId: bigint, requestId: string): Promise<AudioTtsRunView> {

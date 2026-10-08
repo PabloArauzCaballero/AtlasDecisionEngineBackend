@@ -73,6 +73,13 @@ function prismaFalso(inicial: FilaFalsa[] = []) {
         if (fila) Object.assign(fila, { status: data.status });
         return Promise.resolve(fila);
       }),
+      updateMany: jest.fn(({ where, data }: any) => {
+        const fila = filas.find(
+          (f) => f.id === where.id && (where.status === undefined || f.status === where.status),
+        );
+        if (fila) Object.assign(fila, { status: data.status ?? fila.status });
+        return Promise.resolve({ count: fila ? 1 : 0 });
+      }),
     },
     semanticEntityAlias: {
       findFirst: jest.fn(({ where }: any) =>
@@ -359,5 +366,27 @@ describe('UnresolvedResolution', () => {
     expect(categorias.upsert).toHaveBeenCalled();
     expect(resultado.categoryCode).toBe('GASTOS.NUEVA');
     expect(alias[0].canonicalName).toBe('GASTOS.NUEVA');
+  });
+
+  it('si otra persona lo cerró entre la lectura y la escritura, no pisa su decisión ni enseña alias', async () => {
+    const { resolucion, client, filas, alias } = armar();
+    // La carrera: el findFirst ve PENDING y, antes del UPDATE, alguien lo resuelve.
+    const lectura = client.unresolvedClassification.findFirst;
+    lectura.mockImplementationOnce(({ where }: any) => {
+      const vista = { ...filas.find((f) => f.id === where.id) };
+      filas[0].status = 'RESOLVED';
+      return Promise.resolve(vista);
+    });
+
+    const resultado = await resolucion.resolve({
+      tenantId: TENANT,
+      id: '1',
+      resolutionType: 'ASSIGN_EXISTING',
+      categoryCode: 'GASTOS.PROFESIONALES',
+      resolvedBy: 'segundo@atlas.internal',
+    });
+
+    expect(resultado.alreadyResolved).toBe(true);
+    expect(alias).toHaveLength(0);
   });
 });

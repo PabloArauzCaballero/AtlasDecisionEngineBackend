@@ -67,7 +67,7 @@ export class AudioGenerationProcessor {
 
     if (claim.outcome !== 'CLAIMED') {
       this.reportSkippedClaim(claim, log);
-      if (claim.outcome === 'EXHAUSTED') await this.compensate(claim.asset);
+      if (claim.outcome === 'EXHAUSTED' && claim.transitioned) await this.compensate(claim.asset);
       return;
     }
     await this.generate(claim.asset, log);
@@ -104,7 +104,7 @@ export class AudioGenerationProcessor {
       });
       if (firstTime) {
         await this.quota.settleBudget(
-          { provider: this.tts.providerName, monthKey: monthKeyOf(new Date()) },
+          { provider: this.tts.providerName, monthKey: monthKeyOf(asset.createdAt) },
           asset.reservedUnits,
           result.usageUnits,
         );
@@ -180,7 +180,7 @@ export class AudioGenerationProcessor {
   ): Promise<void> {
     const retryable = isRetryable(error);
     const code = errorCodeOf(error);
-    await this.repo.markFailed(asset.id, code, retryable);
+    const closed = await this.repo.markFailed(asset.id, code, retryable);
     this.metrics.increment(AUDIO_METRIC.providerErrors, {
       code,
       retryable: String(retryable),
@@ -198,7 +198,22 @@ export class AudioGenerationProcessor {
       // Se propaga para que la cola durable aplique su backoff y su DLQ.
       throw error;
     }
-    await this.compensate(asset);
+    // Sólo quien cierra el asset devuelve la reserva: un reintento duplicado no la resta dos veces.
+    if (closed) await this.compensate(asset);
+  }
+
+  /**
+   * Da por perdido un asset cuya ejecución agotó sus intentos con un fallo reintentable.
+   *
+   * La ejecución admite menos intentos que el asset, así que éste se quedaba en FAILED_RETRYABLE
+   * con su reserva contada hasta fin de mes: una caída del proveedor bastaba para que
+   * `reserveBudget` empezara a negar a todo el tenant sin que se hubiera gastado nada.
+   */
+  async abandon(assetId: string): Promise<void> {
+    const asset = await this.repo.findById(assetId);
+    if (!asset || asset.status === 'READY') return;
+    const closed = await this.repo.markFailed(assetId, 'AUDIO_RUN_RETRIES_EXHAUSTED', false);
+    if (closed) await this.compensate(asset);
   }
 
   /** Libera reserva de presupuesto y cuota diaria de un asset que ya nunca se generará. */

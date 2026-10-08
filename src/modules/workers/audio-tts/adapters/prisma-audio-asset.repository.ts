@@ -191,15 +191,21 @@ export class PrismaAudioAssetRepository implements AudioAssetRepositoryPort {
     if (!current) return { outcome: 'NOT_FOUND' };
     if (current.status === 'READY') return { outcome: 'ALREADY_READY', asset: current };
     if (current.attempts >= input.maxAttempts) {
-      await this.prisma.audioAsset.updateMany({
+      // Sin tocar lo que ya es FAILED_PERMANENT: ésa es la transición que da derecho a devolver la
+      // reserva, y repetirla en cada petición de la misma frase restaba el presupuesto sin límite.
+      const closed = await this.prisma.audioAsset.updateMany({
         where: {
           tenantId: this.tenantId,
           id: input.assetId,
-          status: { not: AudioAssetStatus.READY },
+          status: { notIn: [AudioAssetStatus.READY, AudioAssetStatus.FAILED_PERMANENT] },
         },
         data: { status: AudioAssetStatus.FAILED_PERMANENT, claimedAt: null, claimedBy: null },
       });
-      return { outcome: 'EXHAUSTED', asset: { ...current, status: 'FAILED_PERMANENT' } };
+      return {
+        outcome: 'EXHAUSTED',
+        asset: { ...current, status: 'FAILED_PERMANENT' },
+        transitioned: closed.count > 0,
+      };
     }
 
     const now = new Date();
@@ -261,9 +267,13 @@ export class PrismaAudioAssetRepository implements AudioAssetRepositoryPort {
     return updated.count > 0;
   }
 
-  async markFailed(assetId: string, code: string, retryable: boolean): Promise<void> {
-    await this.prisma.audioAsset.updateMany({
-      where: { tenantId: this.tenantId, id: assetId, status: { not: AudioAssetStatus.READY } },
+  async markFailed(assetId: string, code: string, retryable: boolean): Promise<boolean> {
+    const updated = await this.prisma.audioAsset.updateMany({
+      where: {
+        tenantId: this.tenantId,
+        id: assetId,
+        status: { notIn: [AudioAssetStatus.READY, AudioAssetStatus.FAILED_PERMANENT] },
+      },
       data: {
         status: retryable ? AudioAssetStatus.FAILED_RETRYABLE : AudioAssetStatus.FAILED_PERMANENT,
         lastErrorCode: code,
@@ -271,6 +281,7 @@ export class PrismaAudioAssetRepository implements AudioAssetRepositoryPort {
         claimedBy: null,
       },
     });
+    return updated.count > 0 && !retryable;
   }
 
   /**

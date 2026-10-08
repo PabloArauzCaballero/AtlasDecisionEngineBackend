@@ -93,8 +93,11 @@ blocked = (ast.Import, ast.ImportFrom, ast.Global, ast.Nonlocal, ast.ClassDef, a
 for node in ast.walk(tree):
     if isinstance(node, blocked):
         raise ValueError('Unsupported Python statement in RESULT node')
-    if isinstance(node, ast.Attribute) and node.attr.startswith('__'):
-        raise ValueError('Dunder attributes are not allowed')
+    # Los atributos de introspeccion de frames/generadores/corrutinas/traceback/codigo NO empiezan
+    # por '__' (gi_frame, f_back, f_builtins...) y llegan a los builtins REALES del frame del
+    # wrapper: se rechazan por prefijo, no por lista, para no depender de acordarse de cada uno.
+    if isinstance(node, ast.Attribute) and (node.attr.startswith('__') or node.attr.startswith(('f_', 'gi_', 'cr_', 'ag_', 'tb_', 'co_'))):
+        raise ValueError('Dunder and frame-introspection attributes are not allowed')
     if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in ('format', 'format_map'):
         raise ValueError('String formatting methods are not allowed')
 safe_builtins = {

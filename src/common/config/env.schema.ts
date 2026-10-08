@@ -325,6 +325,9 @@ export const envSchema = z
     // TEST_RUN_LEASE_SECONDS, así que buscarlas más a menudo no puede encontrar nada nuevo.
     TEST_RUN_RECOVERY_INTERVAL_MS: z.coerce.number().int().min(1_000).max(600_000).default(30_000),
     TEST_RUN_WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(2),
+    // Tope de intentos de una corrida de pruebas: una que mata al worker (OOM) en cada intento
+    // deja de reencolarse y pasa a ERROR, en vez de tumbar el proceso cada TEST_RUN_LEASE_SECONDS.
+    TEST_RUN_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(3),
     TEST_RUN_LEASE_SECONDS: z.coerce.number().int().min(30).max(3_600).default(300),
     TEST_CASE_CONCURRENCY: z.coerce.number().int().min(1).max(32).default(4),
 
@@ -626,7 +629,7 @@ export const envSchema = z
      * Sin `OPENROUTER_API_KEY` se queda apagado en silencio: el documento se lee
      * como se leía antes de que existiera.
      */
-    BANK_STATEMENT_COLUMN_ADVISOR_ENABLED: z.coerce.boolean().default(false),
+    BANK_STATEMENT_COLUMN_ADVISOR_ENABLED: booleanFromString.default(false),
     BANK_STATEMENT_COLUMN_ADVISOR_MODEL: emptyAsUndefined(z.string().trim().min(1).optional()),
     /*
      * Cuánto puede esperar un documento en la cola antes de derivarse solo.
@@ -702,7 +705,7 @@ export const envSchema = z
      * el comportamiento correcto: ausente, el caso queda igual que si nunca se
      * hubiera pedido la relectura.
      */
-    IDENTITY_SECOND_READER_ENABLED: z.coerce.boolean().default(false),
+    IDENTITY_SECOND_READER_ENABLED: booleanFromString.default(false),
     IDENTITY_SECOND_READER_MODEL: emptyAsUndefined(z.string().trim().min(1).optional()),
     /*
      * Umbrales de la comparación biométrica. **Sin valor por omisión y

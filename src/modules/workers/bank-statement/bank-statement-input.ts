@@ -28,6 +28,19 @@ const PDF_SIGNATURE = Buffer.from('%PDF-', 'ascii');
 const UNSAFE_FILE_NAME = /[\x00-\x1f\x7f/\\]|\.\./;
 
 /**
+ * Tope DURO de multer, antes de que el archivo exista en memoria.
+ *
+ * `FileInterceptor` sin `limits` acumula el multipart ENTERO en un Buffer antes de que
+ * `validateStatementUpload` pueda mirar su tamaño: un multipart de varios GB agotaba la memoria de
+ * la API. El tope es el máximo que admite `BANK_STATEMENT_MAX_UPLOAD_BYTES` en el esquema de
+ * entorno (50 MiB); el valor configurado, más bajo, se sigue aplicando después. Multer lo traduce
+ * a 413 (`PayloadTooLargeException`) sin llegar a retener el resto.
+ */
+export const BANK_STATEMENT_MULTER_OPTIONS = {
+  limits: { fileSize: 52_428_800, files: 1, fields: 20 },
+} as const;
+
+/**
  * Valida un archivo subido antes de que exista ninguna ejecución.
  *
  * El orden importa: primero lo que es barato y rechaza más (tamaño), y sólo
