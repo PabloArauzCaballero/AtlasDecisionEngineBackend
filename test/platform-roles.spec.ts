@@ -60,6 +60,23 @@ describe('Platform role canon', () => {
     }
   });
 
+  it('ningún cargo de Core que trabaja en el Motor llega sin rol', () => {
+    // Antes de 2026-10-08 estos cargos entraban con cero roles y veían el portal vacío.
+    for (const code of ['OPERATIONS_MANAGER', 'OPERATIONS_ANALYST', 'MERCHANT_OPERATIONS']) {
+      expect(mapIdentityRoles([code])).toEqual([PlatformRole.OPERATIONS]);
+    }
+    for (const code of [
+      'FINANCE_MANAGER',
+      'EXECUTIVE_READONLY',
+      'DATA_GOVERNANCE_MANAGER',
+      'DATA_QUALITY_ANALYST',
+    ]) {
+      expect(mapIdentityRoles([code])).toEqual([PlatformRole.AUDITOR]);
+    }
+    // Cobranza no tiene nada que hacer en el Motor: sigue sin rol a propósito.
+    expect(mapIdentityRoles(['COLLECTIONS_AGENT', 'COLLECTIONS_MANAGER'])).toEqual([]);
+  });
+
   it('los roles de Core que firman gobierno llegan al Motor', () => {
     // Sin RISK_MANAGER → RISK_APPROVER nadie podía firmar el paso 2 de una aprobación.
     expect(mapIdentityRoles(['RISK_MANAGER'])).toEqual([PlatformRole.RISK_APPROVER]);

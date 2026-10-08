@@ -25,6 +25,19 @@ const ROLE_ALIASES: Readonly<Record<string, readonly PlatformRole[]>> = {
   OPERATIONS_AGENT: [PlatformRole.OPERATIONS],
   SUPPORT_AGENT: [PlatformRole.OPERATIONS],
   INTERNAL_OPERATOR: [PlatformRole.OPERATIONS],
+  /*
+   * 2026-10-08: cargos de Core que llegaban al Motor sin ningún rol y veían el portal vacío.
+   * Operaciones atiende las colas de revisión manual (también el expediente de comercios, que se
+   * decide aquí). Finanzas, datos y dirección consultan sin modificar: AUDITOR es el rol de sólo
+   * lectura, el mismo que ya recibía «Ejecutivo solo lectura» por su rol heredado.
+   */
+  OPERATIONS_MANAGER: [PlatformRole.OPERATIONS],
+  OPERATIONS_ANALYST: [PlatformRole.OPERATIONS],
+  MERCHANT_OPERATIONS: [PlatformRole.OPERATIONS],
+  FINANCE_MANAGER: [PlatformRole.AUDITOR],
+  EXECUTIVE_READONLY: [PlatformRole.AUDITOR],
+  DATA_GOVERNANCE_MANAGER: [PlatformRole.AUDITOR],
+  DATA_QUALITY_ANALYST: [PlatformRole.AUDITOR],
 };
 
 export function mapIdentityRoles(roleCodes: readonly string[]): string[] {
