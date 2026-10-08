@@ -3,7 +3,7 @@
 
 # Catálogo de códigos de error
 
-265 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
+266 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
 el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 
 | Código | Mensaje de referencia | Origen |
@@ -182,6 +182,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `OUTPUT_TYPE_INVALID` | Output ${code} cannot be null | `src/modules/graph/execution-engine.service.ts` |
 | `POLICY_NOT_FOUND` | Policy requirement not found | `src/modules/traceability/traceability.service.ts` |
 | `PRIMARY_OUTPUT_TOO_LONG` | Primary output ${code} exceeds 80 characters | `src/modules/graph/execution-engine.service.ts` |
+| `PROCESSING_BASIS_LOCKED` | La finalidad y la base legal sólo se pueden cambiar en una versión en borrador. | `src/modules/artifacts/artifact.service.ts` |
 | `QA_COUNTEREXAMPLE_NOT_FOUND` | Contraejemplo no encontrado | `src/modules/qa-lab/qa-lab.service.ts` |
 | `QA_DISTRIBUTION_DUPLICATED` | La variable ${entry.variableCode} tiene más de una distribución declarada | `src/modules/qa-lab/qa-lab.service.ts` |
 | `QA_DISTRIBUTION_VARIABLE_UNKNOWN` | La variable ${entry.variableCode} no es una entrada del contrato de esta versión | `src/modules/qa-lab/qa-lab.service.ts` |
