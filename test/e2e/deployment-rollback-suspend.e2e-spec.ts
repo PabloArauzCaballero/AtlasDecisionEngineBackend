@@ -33,6 +33,7 @@ describe('Deployment rollback & suspend (e2e)', () => {
   let ageVariableVersionId: string;
   let firstDeploymentId: string;
   let secondDeploymentId: string;
+  let secondVersionId: string;
 
   async function approveAndDeploy(versionId: string): Promise<string> {
     await request(server())
@@ -258,7 +259,7 @@ describe('Deployment rollback & suspend (e2e)', () => {
       .set(author)
       .send({ changeSummary: 'Segunda versión para ejercitar rollback/suspend.' })
       .expect(201);
-    const secondVersionId = cloned.body.id as string;
+    secondVersionId = cloned.body.id as string;
     secondDeploymentId = await approveAndDeploy(secondVersionId);
   }, 60_000);
 
@@ -304,13 +305,17 @@ describe('Deployment rollback & suspend (e2e)', () => {
         .expect(403);
     });
 
-    it('rolls the active deployment back to its predecessor for PLATFORM_ADMIN', async () => {
+    /*
+     * El anterior (v1) quedó SUSPENDED en el bloque de suspend. Revertir sobre él lo reactivaría sin que
+     * nadie lo haya revisado, así que el rollback se rechaza y el despliegue activo no cambia.
+     */
+    it('refuses to roll back onto a suspended predecessor with 409', async () => {
       const response = await request(server())
         .post(`/v1/deployments/${secondDeploymentId}/rollback`)
         .set(deployer)
-        .send({ reason: 'Revertido por la batería de rutas de escritura.' })
-        .expect(201);
-      expect(response.body.rolledBackDeploymentId).toBe(secondDeploymentId);
+        .send({ reason: 'No debe reactivar un despliegue suspendido.' })
+        .expect(409);
+      expect(JSON.stringify(response.body)).toContain('ROLLBACK_TARGET_NOT_AVAILABLE');
 
       const history = await request(server())
         .get('/v1/deployments')
@@ -318,8 +323,35 @@ describe('Deployment rollback & suspend (e2e)', () => {
         .set(deployer)
         .expect(200);
       const items = history.body.items as Array<{ id: string; deploymentStatus: string }>;
-      const rolledBack = items.find((item) => item.id === secondDeploymentId);
-      expect(rolledBack?.deploymentStatus).toBe('ROLLED_BACK');
+      expect(items.find((item) => item.id === secondDeploymentId)?.deploymentStatus).toBe('ACTIVE');
+    });
+
+    it('rolls the active deployment back to its predecessor for PLATFORM_ADMIN', async () => {
+      // Tercera versión: su anterior (v2) queda SUPERSEDED, es decir, un destino de rollback válido.
+      const cloned = await request(server())
+        .post(`/v1/artifact-versions/${secondVersionId}/clone`)
+        .set(author)
+        .send({ changeSummary: 'Tercera versión para el rollback sobre un anterior sano.' })
+        .expect(201);
+      const thirdDeploymentId = await approveAndDeploy(cloned.body.id as string);
+
+      const response = await request(server())
+        .post(`/v1/deployments/${thirdDeploymentId}/rollback`)
+        .set(deployer)
+        .send({ reason: 'Revertido por la batería de rutas de escritura.' })
+        .expect(201);
+      expect(response.body.rolledBackDeploymentId).toBe(thirdDeploymentId);
+
+      const history = await request(server())
+        .get('/v1/deployments')
+        .query({ artifactCode, pageSize: 20 })
+        .set(deployer)
+        .expect(200);
+      const items = history.body.items as Array<{ id: string; deploymentStatus: string }>;
+      expect(items.find((item) => item.id === thirdDeploymentId)?.deploymentStatus).toBe(
+        'ROLLED_BACK',
+      );
+      expect(items.find((item) => item.id === secondDeploymentId)?.deploymentStatus).toBe('ACTIVE');
     });
   });
 });
