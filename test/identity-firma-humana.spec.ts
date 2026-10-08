@@ -16,9 +16,10 @@ import { DomainException } from '../src/common/errors/domain-exception';
  */
 const PRINCIPAL = { id: 'revisora', requestId: 'req-1' };
 
-function servicioCon(fila: Record<string, unknown>) {
+function servicioCon(fila: Record<string, unknown>, filasAfectadas = 1) {
   const escrituras: Record<string, unknown>[] = [];
   const auditado: Record<string, unknown>[] = [];
+  const condiciones: Record<string, unknown>[] = [];
   const prisma = {
     identityVerificationRun: {
       findFirst: () => Promise.resolve(fila),
@@ -30,9 +31,16 @@ function servicioCon(fila: Record<string, unknown>) {
     $transaction: async (fn: (tx: unknown) => unknown) =>
       fn({
         identityVerificationRun: {
-          update: ({ data }: { data: Record<string, unknown> }) => {
-            escrituras.push(data);
-            return Promise.resolve({});
+          updateMany: ({
+            where,
+            data,
+          }: {
+            where: Record<string, unknown>;
+            data: Record<string, unknown>;
+          }) => {
+            condiciones.push(where);
+            if (filasAfectadas > 0) escrituras.push(data);
+            return Promise.resolve({ count: filasAfectadas });
           },
         },
       }),
@@ -49,7 +57,7 @@ function servicioCon(fila: Record<string, unknown>) {
     { get: () => 100 } as never,
     { notifyDetached: () => undefined } as never,
   );
-  return { service, escrituras, auditado };
+  return { service, escrituras, auditado, condiciones };
 }
 
 /** Un caso que ya tiene veredicto: llegó a la cola porque nadie pudo firmarlo. */
@@ -148,5 +156,32 @@ describe('la firma humana sobre la identidad', () => {
 
     expect(fallo).toBeInstanceOf(DomainException);
     expect((fallo as DomainException).code).toBe('IDENTITY_REVIEW_ALREADY_HAS_VERDICT');
+  });
+});
+
+describe('cierre de un caso reclamado: la guarda va en la escritura', () => {
+  it('la escritura exige que el caso siga IN_REVIEW y reclamado por quien firma', async () => {
+    const { service, condiciones } = servicioCon(CON_VEREDICTO);
+
+    await service.resolve(1n, 'r1', { action: 'CONFIRM_IDENTITY' } as never, PRINCIPAL as never);
+
+    expect(condiciones[0]).toMatchObject({
+      status: WorkerRunStatus.IN_REVIEW,
+      reviewClaimedBy: PRINCIPAL.id,
+    });
+  });
+
+  it.each([
+    [{ action: 'CONFIRM_IDENTITY' }, CON_VEREDICTO],
+    [{ action: 'CONFIRM_DOCUMENT', documentType: 'CEDULA' }, SIN_VEREDICTO],
+  ])('si otra petición ya lo cerró (0 filas), responde 409 y no audita: %j', async (dto, fila) => {
+    const { service, escrituras, auditado } = servicioCon(fila, 0);
+
+    await expect(service.resolve(1n, 'r1', dto as never, PRINCIPAL as never)).rejects.toMatchObject(
+      { code: 'IDENTITY_REVIEW_NOT_ASSIGNED' },
+    );
+
+    expect(escrituras).toHaveLength(0);
+    expect(auditado).toHaveLength(0);
   });
 });

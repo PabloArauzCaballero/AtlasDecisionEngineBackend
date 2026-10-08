@@ -192,6 +192,9 @@ export class ModelMonitoringService {
         // Solo lo observado: una ejecución sin desenlace no dice nada del desempeño.
         outcomeObservations: { some: {} },
       },
+      // Las MÁS RECIENTES: sin orden, Postgres devolvía las primeras que encontraba (las más
+      // viejas) y la degradación reciente no entraba nunca en la muestra.
+      orderBy: { executedAt: 'desc' },
       take: MAX_ANALYSIS_ROWS,
       select: {
         businessOutcome: true,
@@ -220,6 +223,9 @@ export class ModelMonitoringService {
     const bucketsOf = async (from: Date, to: Date) => {
       const rows = await this.prisma.decisionExecution.findMany({
         where: { tenantId, artifactVersionId, executedAt: { gte: from, lte: to } },
+        // Las MÁS RECIENTES: sin orden, Postgres devolvía las primeras que encontraba (las más
+        // viejas) y la degradación reciente no entraba nunca en la muestra.
+        orderBy: { executedAt: 'desc' },
         take: MAX_ANALYSIS_ROWS,
         select: { inputSnapshotJson: true },
       });
@@ -254,6 +260,9 @@ export class ModelMonitoringService {
         ...this.executedAtFilter(query),
         monitoringAttributes: { some: { attribute: query.attribute } },
       },
+      // Las MÁS RECIENTES: sin orden, Postgres devolvía las primeras que encontraba (las más
+      // viejas) y la degradación reciente no entraba nunca en la muestra.
+      orderBy: { executedAt: 'desc' },
       take: MAX_ANALYSIS_ROWS,
       select: {
         businessOutcome: true,

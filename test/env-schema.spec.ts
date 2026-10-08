@@ -479,3 +479,24 @@ describe('ajustes que antes llegaban crudos', () => {
     expect(result.SEMANTIC_TRANSFORMER_TIMEOUT_MS).toBeUndefined();
   });
 });
+
+describe('banderas booleanas de los workers', () => {
+  it('BANK_STATEMENT_COLUMN_ADVISOR_ENABLED=false APAGA el consejero (z.coerce.boolean lo encendía)', () => {
+    expect(
+      validateEnvironment({ ...base, BANK_STATEMENT_COLUMN_ADVISOR_ENABLED: 'false' })
+        .BANK_STATEMENT_COLUMN_ADVISOR_ENABLED,
+    ).toBe(false);
+    expect(
+      validateEnvironment({ ...base, BANK_STATEMENT_COLUMN_ADVISOR_ENABLED: 'true' })
+        .BANK_STATEMENT_COLUMN_ADVISOR_ENABLED,
+    ).toBe(true);
+    expect(validateEnvironment(base).BANK_STATEMENT_COLUMN_ADVISOR_ENABLED).toBe(false);
+  });
+
+  it('IDENTITY_SECOND_READER_ENABLED=false APAGA el segundo lector', () => {
+    expect(
+      validateEnvironment({ ...base, IDENTITY_SECOND_READER_ENABLED: 'false' })
+        .IDENTITY_SECOND_READER_ENABLED,
+    ).toBe(false);
+  });
+});

@@ -116,6 +116,22 @@ describe('ScriptNodeRunnerService Python sandbox escape (IN_PROCESS)', () => {
     ).rejects.toThrow();
   });
 
+  it.each([
+    ['gi_frame', "g = (i for i in range(1))\nresult = {'x': str(g.gi_frame)}"],
+    [
+      'gi_frame.f_back.f_builtins',
+      "g = (i for i in range(1))\nresult = {'x': str(g.gi_frame.f_back.f_builtins)}",
+    ],
+    ['gi_code', "g = (i for i in range(1))\nresult = {'x': str(g.gi_code)}"],
+  ])(
+    'rejects frame-introspection attributes (%s), which do not start with a dunder',
+    async (_n, payload) => {
+      await expect(
+        runner.execute('PYTHON', payload, { variables: {}, decision: {}, output: {} }),
+      ).rejects.toThrow();
+    },
+  );
+
   it('still allows ordinary str() and string concatenation', async () => {
     const payload = "result = {'value': str(variables['amount']) + '-ok'}";
     const result = await runner.execute('PYTHON', payload, {

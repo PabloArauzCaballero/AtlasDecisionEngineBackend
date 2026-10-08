@@ -24,7 +24,7 @@ describe('SecurityReviewService', () => {
     scripts?: unknown[];
     sensitive?: boolean;
   }) {
-    const calls: { versionWhere?: unknown } = {};
+    const calls: { versionWhere?: unknown; auditWhere?: unknown } = {};
     const version = {
       id: VERSION,
       versionNumber: 3,
@@ -64,7 +64,12 @@ describe('SecurityReviewService', () => {
       decisionArtifactReference: { findMany: empty },
       decisionApprovalRequest: { findMany: empty },
       decisionCodeImport: { findMany: empty },
-      decisionAuditEvent: { findMany: empty },
+      decisionAuditEvent: {
+        findMany: (args: { where?: unknown }) => {
+          calls.auditWhere = args.where;
+          return Promise.resolve([]);
+        },
+      },
       decisionExecution: { findMany: empty },
     } as unknown as PrismaService;
     return { prisma, calls };
@@ -76,6 +81,16 @@ describe('SecurityReviewService', () => {
     // El `where` tiene que llevar las dos cosas: el id pedido y el tenant del solicitante.
     // Sin lo segundo, un id de otro cliente devolvería su versión.
     expect(calls.versionWhere).toEqual({ id: VERSION, artifact: { tenantId: TENANT } });
+  });
+
+  it('lee los eventos de AMBOS aggregateType: gobierno y despliegues auditan como DecisionArtifactVersion', async () => {
+    const { prisma, calls } = makePrisma({ versionFound: true });
+    await new SecurityReviewService(prisma).getVersionReview(TENANT, VERSION);
+    expect(calls.auditWhere).toEqual({
+      tenantId: TENANT,
+      aggregateType: { in: ['ArtifactVersion', 'DecisionArtifactVersion'] },
+      aggregateId: VERSION.toString(),
+    });
   });
 
   it('responde 404 —no 403— cuando la versión no es de este tenant', async () => {

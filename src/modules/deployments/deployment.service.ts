@@ -1,5 +1,5 @@
 /** Enforces approval, separation of duties and atomic environment-binding invariants. */
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DecisionKind, DeploymentStatus, Prisma, VersionStatus } from '@prisma/client';
 import { AuditService } from '../../common/audit/audit.service';
@@ -24,8 +24,13 @@ import { BaselineCaptureService } from '../model-monitoring/baseline-capture.ser
 import { reviewEconomicContract } from '../risk-governance/semantic-outputs';
 import { DeploymentResolverService } from './deployment-resolver.service';
 
+/** Holgura de reloj entre quien despliega y el servidor. */
+const EFFECTIVE_FROM_TOLERANCE_MS = 60_000;
+
 @Injectable()
 export class DeploymentService {
+  private readonly logger = new Logger(DeploymentService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly governance: GovernanceService,
@@ -99,6 +104,46 @@ export class DeploymentService {
           'Traffic percentages must total 100',
         );
       }
+    }
+
+    /*
+     * Lo que el runtime no sabe hacer se RECHAZA, no se guarda.
+     *
+     * `DeploymentResolverService.resolve` no lee `deploymentMode` ni `traffic`: devuelve siempre el
+     * despliegue enlazado y desactiva el anterior. Aceptar un CANARY al 10 % y mandar el 100 % de
+     * las decisiones a la versión nueva —con el historial diciendo «canario»— es peor que decir que
+     * no. Cuando el resolver sepa enrutar por segmento o porcentaje, se retira esta guarda.
+     */
+    if (dto.deploymentMode !== 'DIRECT' || dto.traffic.length > 0) {
+      throw new DomainException(
+        'DEPLOYMENT_MODE_NOT_SUPPORTED',
+        'Sólo se admiten despliegues DIRECT sin reglas de tráfico: el runtime todavía no enruta ' +
+          'por porcentaje ni por segmento y mandaría el 100 % a la versión nueva.',
+        HttpStatus.BAD_REQUEST,
+        { deploymentMode: dto.deploymentMode, trafficRules: dto.traffic.length },
+      );
+    }
+    /*
+     * Una ventana de vigencia que no cubre «ahora» deja el artefacto SIN despliegue activo: el
+     * anterior se marca SUPERSEDED y el binding apunta al nuevo al instante, pero el resolver
+     * filtra por `effectiveFrom <= now` y `effectiveTo > now` y responde ACTIVE_DEPLOYMENT_NOT_FOUND.
+     */
+    const now = Date.now();
+    const effectiveFrom = dto.effectiveFrom ? new Date(dto.effectiveFrom).getTime() : now;
+    if (effectiveFrom > now + EFFECTIVE_FROM_TOLERANCE_MS) {
+      throw new DomainException(
+        'DEPLOYMENT_EFFECTIVE_FROM_IN_FUTURE',
+        'effectiveFrom no puede ser futuro: el despliegue anterior dejaría de servir ya y el ' +
+          'artefacto quedaría sin despliegue activo hasta esa fecha.',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    if (dto.effectiveTo && new Date(dto.effectiveTo).getTime() <= Math.max(effectiveFrom, now)) {
+      throw new DomainException(
+        'DEPLOYMENT_EFFECTIVE_WINDOW_INVALID',
+        'effectiveTo debe ser posterior a effectiveFrom y a la hora actual.',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     const deployment = await this.prisma.$transaction(async (tx) => {
@@ -220,7 +265,7 @@ export class DeploymentService {
     });
     // Cache invalidation stays outside the transaction: it is not rollback-able, so it must
     // only run once the deployment is durably committed.
-    await this.resolver.invalidate(tenantId, version.artifact.artifactCode, environment.code);
+    await this.invalidateAfterCommit(tenantId, version.artifact.artifactCode, environment.code);
     /*
      * Congelar la población de referencia justo aquí, y no antes ni después.
      *
@@ -240,6 +285,30 @@ export class DeploymentService {
       principal.id,
     );
     return deployment;
+  }
+
+  /**
+   * Invalida la caché del resolver DESPUÉS del commit, sin que un fallo suyo tumbe la respuesta.
+   *
+   * El despliegue ya es durable. Si Redis falla (y en producción no hay respaldo en memoria), el
+   * `del` lanza: el cliente recibía un 5xx de algo que sí se hizo, reintentaba y creaba un segundo
+   * despliegue con su segundo `VERSION_PUBLISHED`. La caché caduca sola (TTL corto), así que lo
+   * peor de no invalidar es servir el binding viejo unos segundos, que se registra.
+   */
+  private async invalidateAfterCommit(
+    tenantId: bigint,
+    artifactCode: string,
+    environmentCode: string,
+  ): Promise<void> {
+    try {
+      await this.resolver.invalidate(tenantId, artifactCode, environmentCode);
+    } catch (error) {
+      this.logger.error(
+        `El despliegue de ${artifactCode} en ${environmentCode} se confirmó, pero no se pudo ` +
+          `invalidar la caché del resolver; se seguirá sirviendo el binding anterior hasta que ` +
+          `caduque: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   /**
@@ -327,6 +396,23 @@ export class DeploymentService {
           HttpStatus.CONFLICT,
         );
       }
+      /*
+       * Sólo se vuelve a un despliegue que salió de servicio por SUPERSEDED. Uno SUSPENDED fue
+       * sacado a propósito (por un defecto, por una orden de operaciones): reactivarlo en un
+       * rollback devolvería al aire justo la versión que alguien apagó.
+       */
+      const freshPrevious = await tx.decisionDeployment.findUniqueOrThrow({
+        where: { id: previous.id },
+      });
+      if (freshPrevious.deploymentStatus !== DeploymentStatus.SUPERSEDED) {
+        throw new DomainException(
+          'ROLLBACK_TARGET_NOT_AVAILABLE',
+          `El despliegue anterior está ${freshPrevious.deploymentStatus} y no puede reactivarse ` +
+            'con un rollback.',
+          HttpStatus.CONFLICT,
+          { previousDeploymentId: previous.id.toString() },
+        );
+      }
       await tx.decisionDeployment.update({
         where: { id: current.id },
         data: {
@@ -379,7 +465,7 @@ export class DeploymentService {
         tx,
       );
     });
-    await this.resolver.invalidate(
+    await this.invalidateAfterCommit(
       tenantId,
       current.artifactVersion.artifact.artifactCode,
       current.environment.code,
@@ -448,7 +534,7 @@ export class DeploymentService {
         tx,
       );
     });
-    await this.resolver.invalidate(
+    await this.invalidateAfterCommit(
       tenantId,
       deployment.artifactVersion.artifact.artifactCode,
       deployment.environment.code,

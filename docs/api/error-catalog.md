@@ -3,7 +3,7 @@
 
 # Catálogo de códigos de error
 
-266 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
+270 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
 el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 
 | Código | Mensaje de referencia | Origen |
@@ -76,6 +76,9 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `COVERAGE_NO_USABLE_CASE` | No se pudo construir ningún caso ejecutable para esta versión: revisa su contrato de entrada | `src/modules/testing/coverage-suite.service.ts` |
 | `COVERAGE_VERSION_NOT_COMPILED` | La versión no tiene un artefacto compilado con éxito: compílala antes de generar sus pruebas | `src/modules/testing/coverage-suite.service.ts` |
 | `DEPLOYMENT_ALREADY_SUSPENDED` | Deployment is already suspended | `src/modules/deployments/deployment.service.ts` |
+| `DEPLOYMENT_EFFECTIVE_FROM_IN_FUTURE` | effectiveFrom no puede ser futuro: el despliegue anterior dejaría de servir ya y el | `src/modules/deployments/deployment.service.ts` |
+| `DEPLOYMENT_EFFECTIVE_WINDOW_INVALID` | effectiveTo debe ser posterior a effectiveFrom y a la hora actual. | `src/modules/deployments/deployment.service.ts` |
+| `DEPLOYMENT_MODE_NOT_SUPPORTED` | Sólo se admiten despliegues DIRECT sin reglas de tráfico: el runtime todavía no enruta | `src/modules/deployments/deployment.service.ts` |
 | `DEPLOYMENT_NOT_ACTIVE` | Deployment is no longer the active deployment for this environment | `src/modules/deployments/deployment.service.ts` |
 | `DEPLOYMENT_NOT_FOUND` | Deployment not found | `src/modules/deployments/deployment.service.ts` |
 | `DUPLICATE_APPROVAL_DECISION` | This principal already decided this step | `src/modules/governance/governance.service.ts` |
@@ -113,7 +116,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `IDENTITY_REQUEST_REJECTED` | — | `src/common/security/identity-provider.client.ts` |
 | `IDENTITY_REVIEW_ALREADY_HAS_VERDICT` | Este caso ya tiene veredicto del worker y espera que una persona lo firme: resuélvelo con CONFIRM_IDENTITY o DENY_IDENTITY. | `src/modules/workers/identity-verification/review/identity-review.service.ts` |
 | `IDENTITY_REVIEW_DOCUMENT_TYPE_REQUIRED` | Confirmar el documento exige declarar cuál es: sin tipo no hay analizador y el caso volvería a la misma cola. | `src/modules/workers/identity-verification/review/identity-review.service.ts` |
-| `IDENTITY_REVIEW_NOT_ASSIGNED` | Sólo quien reclamó el caso puede cerrarlo. Recláma1o primero. | `src/modules/workers/identity-verification/review/identity-review.service.ts` |
+| `IDENTITY_REVIEW_NOT_ASSIGNED` | El caso ya no está reclamado por ti: otra petición lo cerró o lo liberó. | `src/modules/workers/identity-verification/review/identity-review.service.ts` |
 | `IDENTITY_REVIEW_NOT_CLAIMABLE` | — | `src/modules/workers/identity-verification/review/identity-review.service.ts` |
 | `IDENTITY_REVIEW_NOT_FOUND` | No hay ningún caso de arbitraje con ese identificador. | `src/modules/workers/identity-verification/review/identity-review.service.ts` |
 | `IDENTITY_REVIEW_NO_VERDICT_YET` | Este caso llegó a la cola porque no se supo qué documento era: todavía no hay veredicto que confirmar ni negar. Resuélvelo con CONFIRM_DOCUMENT o REJECT_DOCUMENT. | `src/modules/workers/identity-verification/review/identity-review.service.ts` |
@@ -207,6 +210,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `RESOURCE_ALREADY_EXISTS` | Ya existe un registro con ese identificador único | `src/common/errors/domain-exception.filter.ts` |
 | `RESULT_MODE_INVALID` | Unsupported RESULT mode ${mode} | `src/modules/graph/execution-engine.service.ts` |
 | `RESULT_SCRIPT_LANGUAGE_INVALID` | — | `src/modules/graph/execution-engine.service.ts` |
+| `ROLLBACK_TARGET_NOT_AVAILABLE` | El despliegue anterior está ${freshPrevious.deploymentStatus} y no puede reactivarse | `src/modules/deployments/deployment.service.ts` |
 | `ROLLBACK_TARGET_NOT_FOUND` | No previous deployment is available | `src/modules/deployments/deployment.service.ts` |
 | `RUNTIME_ACTION_NOT_FOUND` | Action ${reference.code} not found | `src/modules/graph/execution-engine.service.ts` |
 | `RUNTIME_CREDENTIAL_REQUIRED` | Runtime routes require a credential with a verifiable runtime audience | `src/common/security/authentication.guard.ts` |

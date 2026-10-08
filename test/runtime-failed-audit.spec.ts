@@ -153,6 +153,19 @@ describe('RuntimeService: evidencia de una decisión fallida', () => {
     expect(harness.failed).toEqual([]);
   });
 
+  it('«sin despliegue activo» libera la clave: es el estado del entorno, no un veredicto', async () => {
+    const harness = makeService(
+      new DomainException('ACTIVE_DEPLOYMENT_NOT_FOUND', 'sin despliegue', HttpStatus.NOT_FOUND),
+    );
+
+    await expect(harness.service.execute(1n, 'ART-1', dto, principal)).rejects.toThrow(
+      'sin despliegue',
+    );
+
+    expect(harness.releasedCount()).toBe(1);
+    expect(harness.failed).toEqual([]);
+  });
+
   it('un fallo transitorio libera la reserva y no se audita como decisión', async () => {
     const harness = makeService(
       new DomainException('DEPENDENCY_UNAVAILABLE', 'down', HttpStatus.SERVICE_UNAVAILABLE),

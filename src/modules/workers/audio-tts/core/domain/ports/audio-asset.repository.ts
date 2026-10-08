@@ -43,8 +43,11 @@ export type ClaimOutcome =
   | { outcome: 'ALREADY_READY'; asset: AudioAssetRecord }
   /** Otro worker sostiene un lease vigente. */
   | { outcome: 'LEASED_ELSEWHERE'; asset: AudioAssetRecord }
-  /** Agotó los intentos permitidos: se marcó FAILED_PERMANENT. */
-  | { outcome: 'EXHAUSTED'; asset: AudioAssetRecord }
+  /**
+   * Agotó los intentos permitidos: se marcó FAILED_PERMANENT. `transitioned` es true SÓLO para
+   * quien hizo esa transición: es quien debe devolver la reserva, y sólo una vez.
+   */
+  | { outcome: 'EXHAUSTED'; asset: AudioAssetRecord; transitioned: boolean }
   /** No existe fila para ese id: inconsistencia que debe alertarse. */
   | { outcome: 'NOT_FOUND' };
 
@@ -63,7 +66,8 @@ export interface AudioAssetRepositoryPort {
   claimForGeneration(input: ClaimInput): Promise<ClaimOutcome>;
   /** Idempotente: devuelve false si el asset ya estaba READY. */
   markReady(input: MarkReadyInput): Promise<boolean>;
-  markFailed(assetId: string, code: string, retryable: boolean): Promise<void>;
+  /** Devuelve true si el asset PASÓ a FAILED_PERMANENT en esta llamada (no estaba ya cerrado). */
+  markFailed(assetId: string, code: string, retryable: boolean): Promise<boolean>;
   /** Assets encallados que ninguna cola volverá a entregar. */
   findStaleAssets(staleSeconds: number, limit: number): Promise<AudioAssetRecord[]>;
   touchReconciled(assetIds: readonly string[]): Promise<void>;

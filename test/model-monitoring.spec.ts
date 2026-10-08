@@ -38,6 +38,7 @@ describe('ModelMonitoringService', () => {
   }) {
     const audited: Array<Record<string, unknown>> = [];
     const upserts: Array<Record<string, unknown>> = [];
+    const findManyArgs: Array<Record<string, unknown>> = [];
     const audit = {
       append: (input: Record<string, unknown>) => {
         audited.push(input);
@@ -64,7 +65,10 @@ describe('ModelMonitoringService', () => {
         // filtro. Fijar un número aquí haría que el caso feliz fallara al crecer el lote.
         count: (args: { where: { id: { in: bigint[] } } }) =>
           Promise.resolve(options.executionsFound ?? args.where.id.in.length),
-        findMany: () => Promise.resolve(options.executions ?? []),
+        findMany: (args: Record<string, unknown>) => {
+          findManyArgs.push(args);
+          return Promise.resolve(options.executions ?? []);
+        },
       },
       decisionArtifactVersion: {
         findFirst: () => Promise.resolve(options.versionFound === false ? null : { id: 4001n }),
@@ -75,6 +79,7 @@ describe('ModelMonitoringService', () => {
       service: new ModelMonitoringService(prisma, audit, metrics),
       audited,
       upserts,
+      findManyArgs,
     };
   }
 
@@ -181,6 +186,12 @@ describe('ModelMonitoringService', () => {
       const report = await service.performance(TENANT, query);
       expect(report.approved).toBe(2);
       expect(report.badRate).toBeCloseTo(0.5);
+    });
+
+    it('el desempeño analiza las ejecuciones MÁS RECIENTES cuando hay más de las que caben', async () => {
+      const { service, findManyArgs } = make({});
+      await service.performance(TENANT, query);
+      expect(findManyArgs[0]).toMatchObject({ orderBy: { executedAt: 'desc' }, take: 20_000 });
     });
 
     it('un artefacto sin puntaje publicado no impide el resto del informe', async () => {

@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../common/prisma/prisma.service';
+import { MOTIVOS_DE_REVISION } from './core/domain/review-reason';
 import { SemanticAnalysisPipeline } from './core/application/semantic-analysis.pipeline';
 
 /**
@@ -122,8 +123,9 @@ export class UnresolvedReevaluationService {
        * pantalla que hace falta para decidir en un clic.
        */
       if (veredicto.resuelto && veredicto.categoryCode !== null && this.bastante(veredicto)) {
-        await this.cerrar(fila.id, veredicto.categoryCode, veredicto.confidence);
-        resueltos += 1;
+        // Si una persona lo resolvió mientras corría la pasada, `cerrar` no escribe y no cuenta.
+        if (await this.cerrar(fila.id, veredicto.categoryCode, veredicto.confidence))
+          resueltos += 1;
         continue;
       }
       if (await this.refrescar(fila, veredicto)) refrescados += 1;
@@ -272,7 +274,21 @@ export class UnresolvedReevaluationService {
       }));
       const primera = candidatas[0];
       return {
-        resuelto: resultado.status === 'MATCH' && primera !== undefined,
+        /*
+         * Un MATCH que el propio pipeline degradó NO es una resolución: con la cuota del tenant
+         * agotada (PROCESSING_ERROR) o el reloj vencido (TIMEOUT) decidió una regla de rescate y
+         * marcó `requiresReview`. Cerrarlo «por el catálogo» lo sacaba de la bandeja humana por una
+         * causa que no tiene que ver con su texto. La regla por INSTRUMENTO, en cambio, sí cierra
+         * (ver `bastante`): es determinista y esa política está medida.
+         */
+        resuelto:
+          resultado.status === 'MATCH' &&
+          primera !== undefined &&
+          !(
+            resultado.requiresReview &&
+            (resultado.reviewReason === MOTIVOS_DE_REVISION.PROCESSING_ERROR ||
+              resultado.reviewReason === MOTIVOS_DE_REVISION.TIMEOUT)
+          ),
         categoryCode: primera?.categoryCode ?? null,
         confidence: primera?.confidence ?? null,
         textoClasificado: resultado.normalizedText,
@@ -293,9 +309,18 @@ export class UnresolvedReevaluationService {
    * audite esta fila tiene que poder distinguir de un vistazo lo que decidió
    * alguien de lo que se cerró solo porque el catálogo mejoró.
    */
-  private async cerrar(id: bigint, categoryCode: string, confidence: number | null): Promise<void> {
-    await this.prisma.unresolvedClassification.update({
-      where: { id },
+  private async cerrar(
+    id: bigint,
+    categoryCode: string,
+    confidence: number | null,
+  ): Promise<boolean> {
+    /*
+     * `updateMany` con `status: 'PENDING'` y no `update` por id: la pasada carga hasta 200 filas al
+     * principio y tarda minutos (1,5 s por fila). Una persona pudo resolver ésta mientras tanto; el
+     * `update` pisaba su decisión y su metadata de auditoría con `resolvedBy: 'catalogo'`.
+     */
+    const cerrado = await this.prisma.unresolvedClassification.updateMany({
+      where: { id, status: 'PENDING' },
       data: {
         status: 'AUTO_RESOLVED',
         resolvedCategoryCode: categoryCode,
@@ -310,6 +335,7 @@ export class UnresolvedReevaluationService {
         } as Prisma.InputJsonValue,
       },
     });
+    return cerrado.count > 0;
   }
 
   /**
@@ -336,8 +362,10 @@ export class UnresolvedReevaluationService {
     } as Prisma.InputJsonValue;
 
     const primera = veredicto.candidatas[0];
-    await this.prisma.unresolvedClassification.update({
-      where: { id: fila.id },
+    // Sólo si sigue PENDING: refrescar una fila que una persona ya resolvió reescribiría su
+    // recomendación y su contexto después del hecho.
+    const refrescado = await this.prisma.unresolvedClassification.updateMany({
+      where: { id: fila.id, status: 'PENDING' },
       data: {
         context: contexto,
         ...(primera === undefined
@@ -349,6 +377,6 @@ export class UnresolvedReevaluationService {
             }),
       },
     });
-    return primera !== undefined;
+    return refrescado.count > 0 && primera !== undefined;
   }
 }

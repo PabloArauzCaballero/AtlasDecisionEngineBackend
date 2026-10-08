@@ -3,7 +3,7 @@
 
 # Variables de entorno
 
-342 variables declaradas. El esquema se valida al arrancar: un valor ausente o
+343 variables declaradas. El esquema se valida al arrancar: un valor ausente o
 fuera de rango impide el arranque en vez de degradar el comportamiento en caliente.
 
 | Variable | Obligatoria | Valor por defecto | Para qué |
@@ -111,6 +111,7 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `TEST_RUN_WORKER_MAX_POLL_MS` | no | `30_000` | Techo del retroceso cuando la cola lleva rato vacía. |
 | `TEST_RUN_RECOVERY_INTERVAL_MS` | no | `30_000` | Cada cuánto se buscan corridas con el lease vencido. Un lease dura TEST_RUN_LEASE_SECONDS, así que buscarlas más a menudo no puede encontrar nada nuevo. |
 | `TEST_RUN_WORKER_CONCURRENCY` | no | `2` | — |
+| `TEST_RUN_MAX_ATTEMPTS` | no | `3` | Tope de intentos de una corrida de pruebas: una que mata al worker (OOM) en cada intento deja de reencolarse y pasa a ERROR, en vez de tumbar el proceso cada TEST_RUN_LEASE_SECONDS. |
 | `TEST_RUN_LEASE_SECONDS` | no | `300` | — |
 | `TEST_CASE_CONCURRENCY` | no | `4` | — |
 | `SEMANTIC_ANALYSIS_WORKER_ENABLED` | no | `false` | --- Workers adicionales (ADR-0026) ------------------------------------- Los dos vienen APAGADOS por defecto, al revés que los trabajos nativos: un despliegue que se actualice no debe empezar a consumir cuota de un proveedor de modelos ni a cargar `pdfjs-dist` sin que nadie lo haya pedido. |

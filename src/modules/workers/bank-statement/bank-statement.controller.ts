@@ -36,7 +36,7 @@ import {
   WorkerRunQueryDto,
 } from '../workers.dto';
 import { toWorkerRunDto } from '../workers.mapper';
-import { validateStatementUpload } from './bank-statement-input';
+import { BANK_STATEMENT_MULTER_OPTIONS, validateStatementUpload } from './bank-statement-input';
 import { BankStatementService } from './bank-statement.service';
 import type { NormalizedBankStatement } from './core/engine/normalized/normalized-model';
 import {
@@ -90,7 +90,7 @@ export class BankStatementController {
    */
   @Post('runs')
   @HttpCode(HttpStatus.ACCEPTED)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', BANK_STATEMENT_MULTER_OPTIONS))
   @ApiConsumes('multipart/form-data', 'application/json')
   @ApiOperation({ summary: 'Encola una conversión de extracto' })
   @ApiBody({ type: CreateBankStatementRunDto })

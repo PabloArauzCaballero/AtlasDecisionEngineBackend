@@ -196,7 +196,13 @@ export class BankStatementService {
        * cuesta lo mismo que costó fallar, y es lo que quiere decir quien vuelve
        * a subir el mismo archivo.
        */
-      if (RETRYABLE_STATUSES.includes(existing.status)) {
+      /*
+       * Salvo que una PERSONA ya lo resolviera: un REJECT o un MARK_INVALID de la cola de revisión
+       * deja la fila en FAILED / PDF_INVALID, pero con `reviewResolvedAt`. Reencolarla borraba esa
+       * decisión (y su autor y sus notas) y mandaba el mismo archivo a buscar otro revisor. Una
+       * resolución humana se respeta: se devuelve la ejecución con su veredicto.
+       */
+      if (RETRYABLE_STATUSES.includes(existing.status) && !existing.reviewResolvedAt) {
         this.logger.debug(
           `Extracto con intento ${existing.status} para esta huella; se reencola ${existing.requestId}`,
         );

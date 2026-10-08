@@ -316,9 +316,12 @@ export class IdentityReviewService {
     const confirma = dto.action === 'CONFIRM_DOCUMENT';
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.identityVerificationRun.update({
-        where: { tenantId_requestId: { tenantId, requestId } },
-        data: confirma
+      await this.cerrarSiSigueAsignado(
+        tx,
+        tenantId,
+        requestId,
+        principal,
+        confirma
           ? {
               status: WorkerRunStatus.QUEUED,
               // El tipo que decidió la persona ES la respuesta: el worker lo lee
@@ -348,7 +351,7 @@ export class IdentityReviewService {
               documentBackBytes: null,
               selfieBytes: null,
             },
-      });
+      );
       await this.audit.append(
         {
           tenantId,
@@ -436,22 +439,19 @@ export class IdentityReviewService {
     const status = confirma ? WorkerRunStatus.SUCCEEDED : WorkerRunStatus.SUCCEEDED_WITH_WARNINGS;
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.identityVerificationRun.update({
-        where: { tenantId_requestId: { tenantId, requestId } },
-        data: {
-          status,
-          humanDecision,
-          // Sólo si viene: un sujeto sin declarar deja la fila sin agrupar, y el exportador del
-          // corpus lo CUENTA y lo dice, en vez de inventarse que cada caso es una persona distinta.
-          ...(dto.subjectKey ? { subjectKey: dto.subjectKey } : {}),
-          reviewResolvedBy: principal.id,
-          reviewResolvedAt: new Date(),
-          reviewNotes: dto.notes,
-          finishedAt: new Date(),
-          leaseExpiresAt: null,
-          // El motivo por el que ENTRÓ se conserva: es lo que permite medir meses después qué
-          // clase de duda se resolvió cómo, y es la mitad de la lectura del corpus.
-        },
+      await this.cerrarSiSigueAsignado(tx, tenantId, requestId, principal, {
+        status,
+        humanDecision,
+        // Sólo si viene: un sujeto sin declarar deja la fila sin agrupar, y el exportador del
+        // corpus lo CUENTA y lo dice, en vez de inventarse que cada caso es una persona distinta.
+        ...(dto.subjectKey ? { subjectKey: dto.subjectKey } : {}),
+        reviewResolvedBy: principal.id,
+        reviewResolvedAt: new Date(),
+        reviewNotes: dto.notes,
+        finishedAt: new Date(),
+        leaseExpiresAt: null,
+        // El motivo por el que ENTRÓ se conserva: es lo que permite medir meses después qué
+        // clase de duda se resolvió cómo, y es la mitad de la lectura del corpus.
       });
       await this.audit.append(
         {
@@ -483,6 +483,40 @@ export class IdentityReviewService {
         `(el worker dijo ${actual.decision ?? 'nada'}).`,
     );
     return { requestId, status, resolvedBy: principal.id };
+  }
+
+  /**
+   * Cierra el caso SÓLO si sigue reclamado por quien firma.
+   *
+   * `asignadoA` comprueba la asignación fuera de la transacción; entre esa lectura y la escritura
+   * cabe otra petición entera (doble clic, un reintento del portal, CONFIRM y REJECT a la vez). Un
+   * `update` por clave escribiría encima de lo que la primera ya cerró —incluida una ejecución que
+   * el worker ya tiene en RUNNING—. La guarda va en el WHERE: gana una, la otra recibe 409 y
+   * ninguna auditoría de más.
+   */
+  private async cerrarSiSigueAsignado(
+    tx: Prisma.TransactionClient,
+    tenantId: bigint,
+    requestId: string,
+    principal: AuthenticatedPrincipal,
+    data: Prisma.IdentityVerificationRunUpdateManyMutationInput,
+  ): Promise<void> {
+    const cerrado = await tx.identityVerificationRun.updateMany({
+      where: {
+        tenantId,
+        requestId,
+        status: WorkerRunStatus.IN_REVIEW,
+        reviewClaimedBy: principal.id,
+      },
+      data,
+    });
+    if (cerrado.count === 0) {
+      throw new DomainException(
+        'IDENTITY_REVIEW_NOT_ASSIGNED',
+        'El caso ya no está reclamado por ti: otra petición lo cerró o lo liberó.',
+        HttpStatus.CONFLICT,
+      );
+    }
   }
 
   private async asignadoA(

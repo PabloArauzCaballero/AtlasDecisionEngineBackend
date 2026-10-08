@@ -193,6 +193,9 @@ export class MonitoringEvaluatorService implements OnModuleInit, BackgroundJob {
         artifactVersionId: version.artifactVersionId,
         executedAt: { gte: new Date(Date.now() - CURRENT_WINDOW_MS) },
       },
+      // Las MÁS RECIENTES: sin orden, Postgres devolvía las primeras que encontraba (las más
+      // viejas) y la degradación reciente no entraba nunca en la muestra.
+      orderBy: { executedAt: 'desc' },
       take: MAX_ANALYSIS_ROWS,
       select: { inputSnapshotJson: true },
     });
@@ -229,6 +232,9 @@ export class MonitoringEvaluatorService implements OnModuleInit, BackgroundJob {
         artifactVersionId: version.artifactVersionId,
         outcomeObservations: { some: {} },
       },
+      // Las MÁS RECIENTES: sin orden, Postgres devolvía las primeras que encontraba (las más
+      // viejas) y la degradación reciente no entraba nunca en la muestra.
+      orderBy: { executedAt: 'desc' },
       take: MAX_ANALYSIS_ROWS,
       select: {
         businessOutcome: true,
@@ -280,6 +286,9 @@ export class MonitoringEvaluatorService implements OnModuleInit, BackgroundJob {
           artifactVersionId: version.artifactVersionId,
           monitoringAttributes: { some: { attribute } },
         },
+        // Las MÁS RECIENTES: sin orden, Postgres devolvía las primeras que encontraba (las más
+        // viejas) y la degradación reciente no entraba nunca en la muestra.
+        orderBy: { executedAt: 'desc' },
         take: MAX_ANALYSIS_ROWS,
         select: {
           businessOutcome: true,

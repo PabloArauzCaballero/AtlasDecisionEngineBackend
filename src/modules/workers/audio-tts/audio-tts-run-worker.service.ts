@@ -187,7 +187,20 @@ export class AudioTtsRunWorkerService implements OnModuleInit, OnModuleDestroy, 
       // ejecución ya sostiene.
       if (resolved.status === 'QUEUED') {
         await this.setProgress(runId, 55);
-        await runtime.processor.process(resolved.assetId, run.correlationId);
+        try {
+          await runtime.processor.process(resolved.assetId, run.correlationId);
+        } catch (error) {
+          // Último intento de la ejecución: nadie volverá a generar este asset, así que su reserva
+          // de presupuesto se devuelve ahora en vez de quedar contada hasta fin de mes.
+          if (!(error instanceof AudioDomainError) && (await this.isLastAttempt(runId))) {
+            await runtime.processor.abandon(resolved.assetId).catch((abandonError: unknown) => {
+              this.logger.warn(
+                `No se pudo liberar el presupuesto del asset ${resolved.assetId}: ${describeError(abandonError)}`,
+              );
+            });
+          }
+          throw error;
+        }
       }
 
       const outcome = await buildAudioOutcome(runtime, resolved);
@@ -268,6 +281,14 @@ export class AudioTtsRunWorkerService implements OnModuleInit, OnModuleDestroy, 
         progress: 0,
       },
     });
+  }
+
+  private async isLastAttempt(runId: bigint): Promise<boolean> {
+    const current = await this.prisma.audioTtsRun.findUnique({
+      where: { id: runId },
+      select: { attemptCount: true },
+    });
+    return (current?.attemptCount ?? this.maxAttempts()) >= this.maxAttempts();
   }
 
   private async failRun(runId: bigint, code: string, message: string): Promise<void> {

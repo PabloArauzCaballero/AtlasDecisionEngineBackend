@@ -49,7 +49,11 @@ interface Registro {
  * Servicio con el alta ya ocupada por `existente`: crear choca contra el índice,
  * que es exactamente lo que ocurre al subir dos veces el mismo archivo.
  */
-function servicioCon(existente: { status: WorkerRunStatus; requestId: string }): {
+function servicioCon(existente: {
+  status: WorkerRunStatus;
+  requestId: string;
+  reviewResolvedAt?: Date | null;
+}): {
   service: BankStatementService;
   registro: Registro;
 } {
@@ -188,5 +192,27 @@ describe('alta de una conversión de extracto ya subida', () => {
 
     expect(deduplicated).toBe(true);
     expect(registro.actualizaciones).toHaveLength(0);
+  });
+
+  it('NO reencola lo que una persona ya resolvió (REJECT / MARK_INVALID): respeta su veredicto', async () => {
+    for (const status of [WorkerRunStatus.FAILED, WorkerRunStatus.PDF_INVALID]) {
+      const { service, registro } = servicioCon({
+        status,
+        requestId: 'req-viejo',
+        reviewResolvedAt: new Date('2026-10-01T10:00:00Z'),
+      });
+
+      const { run, deduplicated } = await service.createRun(
+        TENANT,
+        PRINCIPAL,
+        ENTRADA,
+        WorkerInputSource.UPLOAD,
+      );
+
+      expect(deduplicated).toBe(true);
+      expect(run.requestId).toBe('req-viejo');
+      expect(registro.actualizaciones).toHaveLength(0);
+      expect(registro.notificaciones).toBe(0);
+    }
   });
 });
