@@ -119,6 +119,45 @@ describe('GovernanceService — guardas de aprobación', () => {
     expect(result).not.toBeInstanceOf(DomainException);
   });
 
+  const tresPasos = (firmas: Record<number, string>, actual = 3) =>
+    step({
+      stepOrder: actual,
+      approvalRequest: {
+        ...step().approvalRequest,
+        steps: [1, 2, 3].map((n) => ({
+          id: n === actual ? STEP : 100n + BigInt(n),
+          stepOrder: n,
+          status: n === actual ? 'PENDING' : 'APPROVED',
+          decisions: firmas[n] ? [{ decidedBy: firmas[n] }] : [],
+        })),
+      },
+    });
+
+  it('una persona que firmó los pasos 1 y 2 no firma el 3 (dos personas, no una)', async () => {
+    const error = await decide(
+      tresPasos({ 1: 'bea', 2: 'bea' }),
+      principal('bea', ['RISK_APPROVER', 'COMPLIANCE']),
+    );
+    expect((error as DomainException).code).toBe('SEPARATION_OF_DUTIES_VIOLATION');
+    expect((error as DomainException).status).toBe(403);
+  });
+
+  it('dos personas distintas con tres pasos: la misma puede firmar dos', async () => {
+    const result = await decide(
+      tresPasos({ 1: 'bea', 2: 'carla' }),
+      principal('bea', ['RISK_APPROVER']),
+    );
+    expect(result).not.toBeInstanceOf(DomainException);
+  });
+
+  it('PLATFORM_ADMIN no se salta la regla', async () => {
+    const error = await decide(
+      tresPasos({ 1: 'admin', 2: 'admin' }),
+      principal('admin', ['PLATFORM_ADMIN']),
+    );
+    expect((error as DomainException).code).toBe('SEPARATION_OF_DUTIES_VIOLATION');
+  });
+
   it('un paso de otro tenant es 404', async () => {
     const error = await decide(null, principal('ana', ['RISK_APPROVER']));
     expect((error as DomainException).code).toBe('APPROVAL_STEP_NOT_FOUND');

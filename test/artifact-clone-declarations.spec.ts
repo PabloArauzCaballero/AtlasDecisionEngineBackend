@@ -42,7 +42,12 @@ describe('ArtifactService.cloneVersion copia lo que la versión declara', () => 
       decisionRuleEdge: { create: async () => ({ id: 8n }) },
       decisionEdgeCondition: { createMany: record('edgeConditions') },
       decisionIntermediateVariable: { createMany: record('intermedias') },
-      decisionOutputContractField: { createMany: record('contrato') },
+      decisionOutputContractField: {
+        create: async (args: any) => {
+          (createMany.contrato ??= []).push(args.data);
+          return { id: 55n };
+        },
+      },
       decisionNodeScript: { createMany: record('scripts') },
       decisionArtifactCalculatedFieldUse: { createMany: record('calculados') },
     };
@@ -99,6 +104,10 @@ describe('ArtifactService.cloneVersion copia lo que la versión declara', () => 
           contractVersion: '1',
           sensitivityClass: 'INTERNAL',
           tracePolicy: 'FULL',
+          reasonCodes: [
+            { id: 9n, outputFieldId: 1n, reasonCodeId: 70n, priority: 10 },
+            { id: 10n, outputFieldId: 1n, reasonCodeId: 71n, priority: 20 },
+          ],
         },
       ],
       nodeScripts: [
@@ -160,6 +169,19 @@ describe('ArtifactService.cloneVersion copia lo que la versión declara', () => 
       calculatedFieldVersionId: 3n,
       artifactVersionId: 99n,
     });
+  });
+
+  it('conserva los motivos de ausencia de cada campo del contrato de salida', async () => {
+    const { service, createMany } = make();
+    await service.cloneVersion(1n, 12n, {} as any, principal);
+
+    expect(createMany.contrato[0].reasonCodes).toEqual({
+      create: [
+        { reasonCodeId: 70n, priority: 10 },
+        { reasonCodeId: 71n, priority: 20 },
+      ],
+    });
+    expect(createMany.contrato[0]).not.toHaveProperty('outputFieldId');
   });
 
   it('no arrastra ids ni marcas de tiempo de la fila de origen', async () => {

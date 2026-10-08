@@ -240,6 +240,22 @@ export class ArtifactService {
           'Artifact version not found',
           HttpStatus.NOT_FOUND,
         );
+      if (
+        (input.legalBasis !== undefined || input.processingPurpose !== undefined) &&
+        version.status !== VersionStatus.DRAFT &&
+        version.status !== VersionStatus.VALIDATION_FAILED
+      ) {
+        // `legalBasis` DERIVA la política de base habilitante que el runtime exige en cada
+        // decisión: cambiarla en una versión aprobada o desplegada relajaría el consentimiento
+        // de PROD sin pasar por gobierno. Mismos estados editables que el grafo; para corregir
+        // una versión aprobada se clona y se vuelve a aprobar.
+        throw new DomainException(
+          'PROCESSING_BASIS_LOCKED',
+          'La finalidad y la base legal sólo se pueden cambiar en una versión en borrador. ' +
+            'Clona la versión para corregirlas y vuelve a aprobarla.',
+          HttpStatus.CONFLICT,
+        );
+      }
       if (input.enablingBasisPolicy !== undefined) {
         // La política de base habilitante es un CONTROL de la versión: cambiarla después de
         // aprobada sería saltarse el doble control con un PATCH.
@@ -325,7 +341,7 @@ export class ArtifactService {
         nodes: { include: { nodeConditions: true, nodeActions: true } },
         edges: { include: { edgeConditions: true } },
         intermediateVariables: true,
-        outputContractFields: true,
+        outputContractFields: { include: { reasonCodes: true } },
         nodeScripts: true,
         calculatedFieldUses: true,
       },
@@ -402,17 +418,33 @@ export class ArtifactService {
           }),
         ),
       });
-      await tx.decisionOutputContractField.createMany({
-        data: source.outputContractFields.map(
-          ({ id: _id, createdAt: _c, updatedAt: _u, artifactVersionId: _v, ...rest }) => ({
+      // Una a una (no `createMany`) porque cada campo arrastra sus motivos de ausencia
+      // (`reasonCodes`), una relación hija que `createMany` no puede escribir.
+      for (const field of source.outputContractFields) {
+        const {
+          id: _id,
+          createdAt: _c,
+          updatedAt: _u,
+          artifactVersionId: _v,
+          reasonCodes,
+          ...rest
+        } = field;
+        await tx.decisionOutputContractField.create({
+          data: {
             ...rest,
             valueMappingJson: (rest.valueMappingJson ?? undefined) as
               Prisma.InputJsonValue | undefined,
             exampleJson: (rest.exampleJson ?? undefined) as Prisma.InputJsonValue | undefined,
             artifactVersionId: version.id,
-          }),
-        ),
-      });
+            reasonCodes: {
+              create: reasonCodes.map((mapping) => ({
+                reasonCodeId: mapping.reasonCodeId,
+                priority: mapping.priority,
+              })),
+            },
+          },
+        });
+      }
       await tx.decisionNodeScript.createMany({
         data: source.nodeScripts.map(
           ({ id: _id, createdAt: _c, updatedAt: _u, artifactVersionId: _v, ...rest }) => ({

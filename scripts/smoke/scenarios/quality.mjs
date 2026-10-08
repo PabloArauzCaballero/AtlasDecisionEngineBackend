@@ -427,7 +427,24 @@ export async function run({ probe, reporter, state }) {
       });
 
       // Camino bueno: cada paso lo decide quien tiene su rol, y nunca el autor.
+      // «Dos personas firman»: quien ya firmó todos los demás pasos no firma el último. El
+      // smoke corre con UNA identidad por tipo de usuario, así que si firmó los pasos previos
+      // el último debe rechazarse con 403; completar la aprobación exige a otra persona.
+      let signedPrevious = true;
       for (const [index, step] of sorted.entries()) {
+        if (index === sorted.length - 1 && sorted.length >= 2 && index > 0 && signedPrevious) {
+          await probe.invalid({
+            id: `approval-decide-step-${index + 1}`,
+            case: 'same-signer-all-steps',
+            title: `La misma persona no firma el último paso (${step.requiredRole})`,
+            method: 'POST',
+            path: `/v1/approval-steps/${step.id}/decisions`,
+            roles: [step.requiredRole],
+            body: { decision: 'APPROVE', evidence: [] },
+            expect: { status: 403, errorCode: 'SEPARATION_OF_DUTIES_VIOLATION' },
+          });
+          continue;
+        }
         const decided = await probe.ok({
           id: `approval-decide-step-${index + 1}`,
           title: `POST decide el paso ${index + 1} (${step.requiredRole})`,
@@ -437,6 +454,7 @@ export async function run({ probe, reporter, state }) {
           body: { decision: 'APPROVE', comments: 'Aprobado por el smoke integral.', evidence: [] },
         });
 
+        if (!(decided.allowed && decided.response.ok)) signedPrevious = false;
         // Repetir la misma decisión con el mismo principal no puede contar dos veces.
         if (decided.allowed && decided.response.ok) {
           await probe.invalid({

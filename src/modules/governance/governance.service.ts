@@ -330,6 +330,23 @@ export class GovernanceService {
         HttpStatus.FORBIDDEN,
       );
     }
+    // «Dos personas firman»: nadie firma TODOS los pasos de una solicitud. Se bloquea sólo al
+    // firmar el último paso pendiente habiendo firmado ya todos los demás; una misma persona
+    // puede firmar dos pasos si otra firma el resto. PLATFORM_ADMIN no se salta la regla.
+    const otherSteps = step.approvalRequest.steps.filter((other) => other.id !== step.id);
+    if (
+      step.separationOfDuties &&
+      otherSteps.length > 0 &&
+      otherSteps.every((other) =>
+        (other.decisions ?? []).some((decision) => decision.decidedBy === principal.id),
+      )
+    ) {
+      throw new DomainException(
+        'SEPARATION_OF_DUTIES_VIOLATION',
+        'At least two different people must sign an approval request; this principal already signed every other step',
+        HttpStatus.FORBIDDEN,
+      );
+    }
     if (step.decisions.some((decision) => decision.decidedBy === principal.id)) {
       throw new DomainException(
         'DUPLICATE_APPROVAL_DECISION',

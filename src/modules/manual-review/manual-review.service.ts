@@ -324,20 +324,39 @@ export class ManualReviewService {
           : ManualReviewStatus.CANCELLED;
     const ruta = rutaDeCallback(review.queueCode);
     const resuelto = await this.prisma.$transaction(async (tx) => {
-      const updated = await tx.decisionManualReviewCase.update({
-        where: { id: caseId },
-        data: {
-          status,
-          assignedTo: review.assignedTo,
-          resolutionJson: {
-            decision: dto.decision,
-            reason: dto.reason,
-            metadata: dto.metadata ?? {},
-            resolvedBy: principal.id,
-          } as Prisma.InputJsonValue,
-          resolvedAt: new Date(),
-        },
-      });
+      /*
+       * La transición es CONDICIONAL al estado: el `findFirst` de arriba va fuera de la
+       * transacción, así que dos resoluciones simultáneas (doble clic, o analista y supervisor a
+       * la vez) leían las dos ASSIGNED y las dos escribían, y cada una encolaba su aviso a
+       * AtlasBackend: APPROVE y DECLINE para la misma ejecución. Con el estado en el `where`, la
+       * segunda espera el bloqueo de fila, ve el caso ya cerrado y falla con P2025 ANTES de
+       * encolar nada; la transacción se deshace entera.
+       */
+      const updated = await tx.decisionManualReviewCase
+        .update({
+          where: { id: caseId, tenantId, status: { in: openStatuses } },
+          data: {
+            status,
+            assignedTo: review.assignedTo,
+            resolutionJson: {
+              decision: dto.decision,
+              reason: dto.reason,
+              metadata: dto.metadata ?? {},
+              resolvedBy: principal.id,
+            } as Prisma.InputJsonValue,
+            resolvedAt: new Date(),
+          },
+        })
+        .catch((error: unknown) => {
+          if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+            throw new DomainException(
+              'MANUAL_REVIEW_CLOSED',
+              'Manual review case is already closed',
+              HttpStatus.CONFLICT,
+            );
+          }
+          throw error;
+        });
       /*
        * Y se le dice a AtlasBackend, que es donde vive el cliente o la solicitud.
        *
