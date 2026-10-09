@@ -136,7 +136,11 @@ describe('Frontera de sesión de navegador', () => {
       });
 
       it('sin ningún secreto no se firma: falla cerrado', () => {
-        const sinClave = new SessionCookieService(new ConfigService({}));
+        // Un ConfigService de verdad cae a `process.env`, y en CI `AUDIT_HASH_SECRET` está puesto:
+        // aquí se necesita una configuración que de verdad no tenga ninguno.
+        const sinClave = new SessionCookieService({
+          get: () => undefined,
+        } as unknown as ConfigService);
         expect(() => sinClave.serialize('tok', 1)).toThrow();
         expect(sinClave.readSession('atlas_refresh=v1.1.mac.tok')?.startedAt).toBeNull();
       });
