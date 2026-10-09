@@ -430,9 +430,10 @@ describe('external identity integration', () => {
         NODE_ENV: 'production',
         IDENTITY_REFRESH_COOKIE_NAME: 'atlas_refresh',
         IDENTITY_REFRESH_COOKIE_MAX_AGE_SECONDS: 900,
+        AUDIT_HASH_SECRET: 'una-clave-de-auditoria-de-prueba-de-32+',
       }),
     );
-    const serialized = cookies.serialize('refresh/with special chars');
+    const serialized = cookies.serialize('refresh/with special chars', Date.now());
 
     expect(serialized).toContain('HttpOnly');
     expect(serialized).toContain('SameSite=Strict');

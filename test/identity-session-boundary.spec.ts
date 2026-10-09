@@ -24,27 +24,29 @@ import type { ExecutionContext } from '@nestjs/common';
  *
  * Y el token de refresco nunca sale en el cuerpo: viaja solo en la cookie.
  */
+const SECRET = 'una-clave-de-auditoria-de-prueba-de-32+';
+
 describe('Frontera de sesión de navegador', () => {
   describe('SessionCookieService', () => {
     const cookies = (env: Record<string, unknown> = {}) =>
-      new SessionCookieService(new ConfigService(env));
+      new SessionCookieService(new ConfigService({ AUDIT_HASH_SECRET: SECRET, ...env }));
 
     it('marca la cookie HttpOnly, SameSite=Strict y acotada a /v1/session', () => {
-      const header = cookies({ NODE_ENV: 'development' }).serialize('tok');
+      const header = cookies({ NODE_ENV: 'development' }).serialize('tok', 0);
       expect(header).toContain('HttpOnly');
       expect(header).toContain('SameSite=Strict');
       expect(header).toContain('Path=/v1/session');
     });
 
     it('añade Secure solo en producción', () => {
-      expect(cookies({ NODE_ENV: 'production' }).serialize('tok')).toContain('; Secure');
+      expect(cookies({ NODE_ENV: 'production' }).serialize('tok', 0)).toContain('; Secure');
       // En desarrollo el portal corre sobre http; exigir Secure lo dejaría sin sesión.
-      expect(cookies({ NODE_ENV: 'development' }).serialize('tok')).not.toContain('; Secure');
+      expect(cookies({ NODE_ENV: 'development' }).serialize('tok', 0)).not.toContain('; Secure');
     });
 
     it('codifica el token, para que un carácter especial no rompa la cabecera', () => {
-      const header = cookies({ NODE_ENV: 'development' }).serialize('a b;c=d');
-      expect(header).toContain(encodeURIComponent('a b;c=d'));
+      const header = cookies({ NODE_ENV: 'development' }).serialize('a b;c=d', 0);
+      expect(header).toContain(encodeURIComponent('.a b;c=d'));
       // Un `;` sin codificar cerraría el valor y el resto se leería como atributos.
       expect(header.split(';')[0]).not.toContain(' ');
     });
@@ -75,8 +77,69 @@ describe('Frontera de sesión de navegador', () => {
 
     it('respeta el nombre de cookie configurado', () => {
       const service = cookies({ IDENTITY_REFRESH_COOKIE_NAME: 'mi_cookie' });
-      expect(service.serialize('t').startsWith('mi_cookie=')).toBe(true);
+      expect(service.serialize('t', 0).startsWith('mi_cookie=')).toBe(true);
       expect(service.read('mi_cookie=valor')).toBe('valor');
+    });
+
+    describe('inicio de sesión firmado (MOT-08)', () => {
+      const leer = (service: SessionCookieService, header: string) =>
+        service.readSession(header.split(';')[0]);
+
+      it('el inicio viaja en la cookie y se recupera tal cual, con un token que lleva puntos', () => {
+        const service = cookies();
+        const header = service.serialize('cabecera.cuerpo.firma', 1_700_000_000_000);
+        expect(leer(service, header)).toEqual({
+          refreshToken: 'cabecera.cuerpo.firma',
+          startedAt: 1_700_000_000_000,
+        });
+        // `read` sigue dando el token desnudo: el cierre de sesión lo necesita para revocarlo.
+        expect(service.read(header.split(';')[0])).toBe('cabecera.cuerpo.firma');
+      });
+
+      it('adelantar el inicio invalida la firma: no se puede rejuvenecer una sesión', () => {
+        const service = cookies();
+        const valor = decodeURIComponent(
+          service.serialize('tok', 1_000).split(';')[0].split('=')[1],
+        );
+        const alterado = valor.replace('v1.1000.', 'v1.9999999999999.');
+        expect(service.readSession(`atlas_refresh=${encodeURIComponent(alterado)}`)).toEqual({
+          refreshToken: 'tok',
+          startedAt: null,
+        });
+      });
+
+      it('la firma ata el inicio a SU token: no se puede trasplantar a otra sesión', () => {
+        const service = cookies();
+        const valor = decodeURIComponent(
+          service.serialize('tok-a', 1_000).split(';')[0].split('=')[1],
+        );
+        const trasplantado = valor.replace(/tok-a$/, 'tok-b');
+        expect(
+          service.readSession(`atlas_refresh=${encodeURIComponent(trasplantado)}`)?.startedAt,
+        ).toBeNull();
+      });
+
+      it('otra clave no valida la firma', () => {
+        const header = cookies().serialize('tok', 1_000);
+        const otra = cookies({ AUDIT_HASH_SECRET: 'otra-clave-de-auditoria-de-32-caracteres!' });
+        expect(leer(otra, header)?.startedAt).toBeNull();
+        const dedicada = cookies({ IDENTITY_SESSION_SIGNING_SECRET: 'x'.repeat(32) });
+        expect(leer(dedicada, header)?.startedAt).toBeNull();
+        expect(leer(dedicada, dedicada.serialize('tok', 1_000))?.startedAt).toBe(1_000);
+      });
+
+      it('una cookie del formato anterior no prueba su inicio', () => {
+        expect(cookies().readSession('atlas_refresh=token-viejo')).toEqual({
+          refreshToken: 'token-viejo',
+          startedAt: null,
+        });
+      });
+
+      it('sin ningún secreto no se firma: falla cerrado', () => {
+        const sinClave = new SessionCookieService(new ConfigService({}));
+        expect(() => sinClave.serialize('tok', 1)).toThrow();
+        expect(sinClave.readSession('atlas_refresh=v1.1.mac.tok')?.startedAt).toBeNull();
+      });
     });
   });
 
@@ -195,6 +258,7 @@ describe('Frontera de sesión de navegador', () => {
   });
 
   describe('IdentitySessionService', () => {
+    const config = (env: Record<string, unknown> = {}) => new ConfigService(env);
     const provider = (overrides: Record<string, unknown> = {}) =>
       ({
         login: () =>
@@ -210,7 +274,7 @@ describe('Frontera de sesión de navegador', () => {
       }) as unknown as IdentityProviderClient;
 
     it('el token de refresco NO viaja en el cuerpo: solo en la cookie', async () => {
-      const result = await new IdentitySessionService(provider()).login({
+      const result = await new IdentitySessionService(provider(), config()).login({
         username: 'u',
         password: 'p',
       } as never);
@@ -236,6 +300,7 @@ describe('Frontera de sesión de navegador', () => {
       };
       const result = await new IdentitySessionService(
         provider({ login: () => Promise.resolve(challenge) }),
+        config(),
       ).login({ username: 'u', password: 'p' } as never);
 
       expect(isChallengeResult(result)).toBe(true);
@@ -253,6 +318,7 @@ describe('Frontera de sesión de navegador', () => {
               user: { id: 'u1' },
             }),
         }),
+        config(),
       );
 
       const result = await service.verifyLoginPin({
@@ -264,24 +330,98 @@ describe('Frontera de sesión de navegador', () => {
     });
 
     it('renovar sin cookie es 401, no un 500 ni una sesión nueva', async () => {
-      const error = await new IdentitySessionService(provider())
+      const error = await new IdentitySessionService(provider(), config())
         .refresh(undefined)
         .catch((caught: unknown) => caught);
       expect((error as DomainException).code).toBe('UNAUTHORIZED');
       expect((error as DomainException).status).toBe(401);
     });
 
+    describe('vida absoluta de la sesión (MOT-08)', () => {
+      const HORA = 3_600_000;
+      const AHORA = 1_800_000_000_000;
+
+      class ConReloj extends IdentitySessionService {
+        protected override now(): number {
+          return AHORA;
+        }
+      }
+
+      function servicio(env: Record<string, unknown> = {}) {
+        const logout = jest.fn(() => Promise.resolve());
+        const refresh = jest.fn(() =>
+          Promise.resolve({ refreshToken: 'nuevo', accessToken: 'acceso2', user: { id: 'u1' } }),
+        );
+        return { sut: new ConReloj(provider({ logout, refresh }), config(env)), logout, refresh };
+      }
+
+      it('dentro de las 12 h renueva y CONSERVA el inicio: refrescar no rejuvenece', async () => {
+        const { sut, refresh } = servicio();
+        const inicio = AHORA - 11 * HORA;
+        const result = await sut.refresh({ refreshToken: 'tok', startedAt: inicio });
+        expect(refresh).toHaveBeenCalledWith('tok');
+        expect(result.startedAt).toBe(inicio);
+        expect(result.refreshToken).toBe('nuevo');
+      });
+
+      it('pasadas las 12 h es 401 SESSION_EXPIRED, no llama a refresh y revoca la sesión', async () => {
+        const { sut, refresh, logout } = servicio();
+        const error = await sut
+          .refresh({ refreshToken: 'tok', startedAt: AHORA - 12 * HORA - 1 })
+          .catch((caught: unknown) => caught);
+        expect((error as DomainException).code).toBe('SESSION_EXPIRED');
+        expect((error as DomainException).status).toBe(401);
+        expect(refresh).not.toHaveBeenCalled();
+        expect(logout).toHaveBeenCalledWith('tok', false);
+      });
+
+      it('el tope se configura por variable', async () => {
+        const { sut } = servicio({ IDENTITY_SESSION_ABSOLUTE_MAX_HOURS: 2 });
+        await expect(
+          sut.refresh({ refreshToken: 'tok', startedAt: AHORA - 3 * HORA }),
+        ).rejects.toMatchObject({ code: 'SESSION_EXPIRED' });
+        await expect(
+          sut.refresh({ refreshToken: 'tok', startedAt: AHORA - HORA }),
+        ).resolves.toMatchObject({ startedAt: AHORA - HORA });
+      });
+
+      it('una cookie sin inicio probado, o con un inicio futuro, obliga a entrar de nuevo', async () => {
+        const { sut, refresh } = servicio();
+        await expect(sut.refresh({ refreshToken: 'tok', startedAt: null })).rejects.toMatchObject({
+          code: 'SESSION_EXPIRED',
+        });
+        await expect(
+          sut.refresh({ refreshToken: 'tok', startedAt: AHORA + 6 * 60_000 }),
+        ).rejects.toMatchObject({ code: 'SESSION_EXPIRED' });
+        expect(refresh).not.toHaveBeenCalled();
+      });
+
+      it('si el proveedor falla al revocar, sigue siendo 401 y no un 5xx', async () => {
+        const logout = jest.fn(() => Promise.reject(new Error('proveedor caído')));
+        const sut = new ConReloj(provider({ logout }), config());
+        await expect(sut.refresh({ refreshToken: 'tok', startedAt: null })).rejects.toMatchObject({
+          status: 401,
+        });
+      });
+
+      it('el login fija el inicio en el instante en que se entra', async () => {
+        const result = await new ConReloj(provider(), config()).login({} as never);
+        if (isChallengeResult(result)) throw new Error('se esperaba una sesión');
+        expect(result.startedAt).toBe(AHORA);
+      });
+    });
+
     it('cerrar sesión sin cookie no llama al proveedor ni falla', async () => {
       const logout = jest.fn(() => Promise.resolve());
       await expect(
-        new IdentitySessionService(provider({ logout })).logout(undefined, false),
+        new IdentitySessionService(provider({ logout }), config()).logout(undefined, false),
       ).resolves.toBeUndefined();
       expect(logout).not.toHaveBeenCalled();
     });
 
     it('cerrar sesión en todos los dispositivos se delega tal cual', async () => {
       const logout = jest.fn(() => Promise.resolve());
-      await new IdentitySessionService(provider({ logout })).logout('tok', true);
+      await new IdentitySessionService(provider({ logout }), config()).logout('tok', true);
       expect(logout).toHaveBeenCalledWith('tok', true);
     });
   });

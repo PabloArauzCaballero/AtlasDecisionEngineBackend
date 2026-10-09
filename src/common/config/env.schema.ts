@@ -224,6 +224,10 @@ export const envSchema = z
       .max(7_776_000)
       .default(2_592_000),
     IDENTITY_SESSION_RATE_LIMIT: z.coerce.number().int().min(1).max(1_000).default(20),
+    // MOT-08: absolute lifetime of a portal session, counted from sign-in. A refresh never extends it.
+    IDENTITY_SESSION_ABSOLUTE_MAX_HOURS: z.coerce.number().min(1).max(168).default(12),
+    // Signs the session start inside the refresh cookie. Optional: derived from AUDIT_HASH_SECRET when unset.
+    IDENTITY_SESSION_SIGNING_SECRET: emptyAsUndefined(z.string().min(32).optional()),
 
     CORS_ALLOWED_ORIGINS: z.string().default(''),
     TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(10).default(1),

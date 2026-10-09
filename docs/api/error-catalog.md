@@ -3,7 +3,7 @@
 
 # Catálogo de códigos de error
 
-270 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
+271 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
 el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 
 | Código | Mensaje de referencia | Origen |
@@ -239,6 +239,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `SEMANTIC_TEXT_TOO_LONG` | El texto supera el máximo de ${maxLength} caracteres. | `src/modules/workers/semantic-analysis/semantic-analysis.service.ts` |
 | `SEPARATION_OF_DUTIES_VIOLATION` | The version author cannot deploy the same version alone | `src/modules/deployments/deployment.service.ts` |
 | `SERVICE_NOT_READY` | One or more required dependencies are unavailable | `src/modules/health/health.controller.ts` |
+| `SESSION_EXPIRED` | The session reached its absolute lifetime; sign in again | `src/modules/identity-session/identity-session.service.ts` |
 | `SIMULATION_PROD_FORBIDDEN` | El simulador no opera sobre PROD, tampoco para generar valores de prueba | `src/modules/runtime/sample-input.service.ts` |
 | `STATEMENT_FILE_STORAGE_NOT_CONFIGURED` | No se puede analizar un extracto sin un sitio donde conservarlo: declara | `src/modules/workers/bank-statement/bank-statement.service.ts` |
 | `SUBJECT_CONSENT_INVALID` | El titular tiene permisos que ya no amparan el tratamiento: | `src/modules/risk-governance/decision-guard.service.ts` |

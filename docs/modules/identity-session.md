@@ -30,6 +30,7 @@ Este módulo no declara roles: o no expone rutas, o son públicas por diseño.
 ## Códigos de error propios
 
 - `RATE_LIMIT_EXCEEDED`
+- `SESSION_EXPIRED`
 - `UNAUTHORIZED`
 - `UNTRUSTED_ORIGIN`
 

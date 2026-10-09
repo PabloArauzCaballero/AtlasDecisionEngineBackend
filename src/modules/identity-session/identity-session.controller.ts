@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
+import { DomainException } from '../../common/errors/domain-exception';
 import { Public } from '../../common/security/security.decorators';
 import {
   IdentityLoginDto,
@@ -56,7 +57,7 @@ export class IdentitySessionController {
     // A challenge is not a session: there is no refresh token yet, so no cookie is issued. The
     // caller gets the challenge token and must come back through `login/pin`.
     if (isChallengeResult(result)) return result.challenge;
-    response.setHeader('set-cookie', this.cookies.serialize(result.refreshToken));
+    response.setHeader('set-cookie', this.cookies.serialize(result.refreshToken, result.startedAt));
     return result.session;
   }
 
@@ -70,7 +71,7 @@ export class IdentitySessionController {
   ) {
     this.origins.assertAllowed(origin);
     const result = await this.sessions.verifyLoginPin(body);
-    response.setHeader('set-cookie', this.cookies.serialize(result.refreshToken));
+    response.setHeader('set-cookie', this.cookies.serialize(result.refreshToken, result.startedAt));
     return result.session;
   }
 
@@ -163,8 +164,19 @@ export class IdentitySessionController {
     @Res({ passthrough: true }) response: Response,
   ) {
     this.origins.assertAllowed(origin);
-    const result = await this.sessions.refresh(this.cookies.read(cookieHeader));
-    response.setHeader('set-cookie', this.cookies.serialize(result.refreshToken));
+    let result: Awaited<ReturnType<IdentitySessionService['refresh']>>;
+    try {
+      result = await this.sessions.refresh(this.cookies.readSession(cookieHeader));
+    } catch (error) {
+      // A session that cannot be renewed (MOT-08: past its absolute lifetime) leaves no cookie
+      // behind: keeping it would only buy the same 401 on every reload.
+      if (error instanceof DomainException && error.code === 'SESSION_EXPIRED') {
+        response.setHeader('set-cookie', this.cookies.clear());
+      }
+      throw error;
+    }
+    // The START travels unchanged: a refresh renews the session, never its absolute lifetime.
+    response.setHeader('set-cookie', this.cookies.serialize(result.refreshToken, result.startedAt));
     return result.session;
   }
 
