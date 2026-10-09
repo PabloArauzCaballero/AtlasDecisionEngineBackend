@@ -1,5 +1,6 @@
 /** Delegates login/refresh/logout to the identity provider and returns only normalized session data. */
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { DomainException } from '../../common/errors/domain-exception';
 import { IdentityProviderClient } from '../../common/security/identity-provider.client';
 import {
@@ -17,8 +18,17 @@ import type {
   IdentityPasswordResetConfirmDto,
   IdentityPasswordResetRequestDto,
 } from './identity-session.dto';
+import type { SessionCookie } from './session-cookie.service';
 
-export type SessionResult = { session: PublicIdentitySession; refreshToken: string };
+/** `startedAt`: epoch ms of the sign-in that opened the session; a refresh carries it forward. */
+export type SessionResult = {
+  session: PublicIdentitySession;
+  refreshToken: string;
+  startedAt: number;
+};
+
+/** Tolerance for a clock a little ahead on another replica, so a fresh session is not «future». */
+const CLOCK_SKEW_MS = 5 * 60_000;
 export type LoginResult = SessionResult | { challenge: IdentityPinChallenge };
 
 export function isChallengeResult(
@@ -29,7 +39,17 @@ export function isChallengeResult(
 
 @Injectable()
 export class IdentitySessionService {
-  constructor(private readonly identityProvider: IdentityProviderClient) {}
+  private readonly logger = new Logger(IdentitySessionService.name);
+
+  constructor(
+    private readonly identityProvider: IdentityProviderClient,
+    private readonly config: ConfigService,
+  ) {}
+
+  /** Injectable clock, so the absolute limit can be tested without waiting twelve hours. */
+  protected now(): number {
+    return Date.now();
+  }
 
   /**
    * The password step. It does not always produce a session: when the provider enforces a second
@@ -39,16 +59,55 @@ export class IdentitySessionService {
   async login(input: IdentityLoginDto): Promise<LoginResult> {
     const outcome = await this.identityProvider.login(input);
     if (isPinChallenge(outcome)) return { challenge: outcome };
-    return this.toResult(outcome);
+    return this.toResult(outcome, this.now());
   }
 
   async verifyLoginPin(input: IdentityLoginPinDto): Promise<SessionResult> {
-    return this.toResult(await this.identityProvider.verifyLoginPin(input));
+    return this.toResult(await this.identityProvider.verifyLoginPin(input), this.now());
   }
 
-  async refresh(refreshToken: string | undefined): Promise<SessionResult> {
-    if (!refreshToken) throw this.unauthorized();
-    return this.toResult(await this.identityProvider.refresh(refreshToken));
+  /**
+   * MOT-08 — rotates the session ONLY while it is younger than its absolute lifetime.
+   *
+   * The limit used to exist only in the portal, which restarted the clock on every reload: a stolen
+   * cookie, or a tab kept alive, stretched the session forever. Here the start instant comes from
+   * the signed cookie (`SessionCookieService`) and is carried, unchanged, into the next cookie. A
+   * cookie that cannot prove its start —old format or tampered— is treated as an expired session:
+   * the person signs in once more. When the limit is reached the provider session is revoked too,
+   * so the token cannot be replayed elsewhere.
+   */
+  async refresh(cookie: SessionCookie | undefined): Promise<SessionResult> {
+    if (!cookie?.refreshToken) throw this.unauthorized();
+    const { refreshToken, startedAt } = cookie;
+    const now = this.now();
+    const tooOld = startedAt !== null && now - startedAt > this.absoluteLifetimeMs();
+    const future = startedAt !== null && startedAt > now + CLOCK_SKEW_MS;
+
+    if (startedAt === null || tooOld || future) {
+      await this.revokeQuietly(refreshToken);
+      throw new DomainException(
+        'SESSION_EXPIRED',
+        'The session reached its absolute lifetime; sign in again',
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
+    return this.toResult(await this.identityProvider.refresh(refreshToken), startedAt);
+  }
+
+  private absoluteLifetimeMs(): number {
+    const hours = Number(this.config.get('IDENTITY_SESSION_ABSOLUTE_MAX_HOURS') ?? 12);
+    return (Number.isFinite(hours) && hours > 0 ? hours : 12) * 3_600_000;
+  }
+
+  /** Best effort: the 401 is the answer either way, and a provider outage must not turn it 5xx. */
+  private async revokeQuietly(refreshToken: string): Promise<void> {
+    try {
+      await this.identityProvider.logout(refreshToken, false);
+    } catch (error) {
+      this.logger.warn(
+        `Could not revoke an expired session at the provider: ${(error as Error).message}`,
+      );
+    }
   }
 
   /**
@@ -108,9 +167,9 @@ export class IdentitySessionService {
     await this.identityProvider.logout(refreshToken, allDevices);
   }
 
-  private toResult(response: IdentitySession): SessionResult {
+  private toResult(response: IdentitySession, startedAt: number): SessionResult {
     const { refreshToken, ...session } = response;
-    return { session, refreshToken };
+    return { session, refreshToken, startedAt };
   }
 
   private unauthorized(): DomainException {

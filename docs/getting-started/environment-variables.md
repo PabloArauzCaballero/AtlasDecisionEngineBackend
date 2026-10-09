@@ -3,7 +3,7 @@
 
 # Variables de entorno
 
-344 variables declaradas. El esquema se valida al arrancar: un valor ausente o
+346 variables declaradas. El esquema se valida al arrancar: un valor ausente o
 fuera de rango impide el arranque en vez de degradar el comportamiento en caliente.
 
 | Variable | Obligatoria | Valor por defecto | Para qué |
@@ -64,6 +64,8 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `IDENTITY_REFRESH_COOKIE_NAME` | **sí** | — | — |
 | `IDENTITY_REFRESH_COOKIE_MAX_AGE_SECONDS` | **sí** | — | — |
 | `IDENTITY_SESSION_RATE_LIMIT` | no | `20` | — |
+| `IDENTITY_SESSION_ABSOLUTE_MAX_HOURS` | no | `12` | MOT-08: absolute lifetime of a portal session, counted from sign-in. A refresh never extends it. |
+| `IDENTITY_SESSION_SIGNING_SECRET` | no | — | Signs the session start inside the refresh cookie. Optional: derived from AUDIT_HASH_SECRET when unset. |
 | `CORS_ALLOWED_ORIGINS` | no | `''` | — |
 | `TRUST_PROXY_HOPS` | no | `1` | — |
 | `BODY_LIMIT_BYTES` | no | `1_048_576` | — |

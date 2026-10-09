@@ -1,9 +1,10 @@
-import { UnauthorizedException, ValidationPipe } from '@nestjs/common';
+import { HttpStatus, UnauthorizedException, ValidationPipe } from '@nestjs/common';
 import type { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { CacheService } from '../src/common/cache/cache.service';
+import { DomainException } from '../src/common/errors/domain-exception';
 import { DomainExceptionFilter } from '../src/common/errors/domain-exception.filter';
 import { IdentitySessionController } from '../src/modules/identity-session/identity-session.controller';
 import { IdentitySessionService } from '../src/modules/identity-session/identity-session.service';
@@ -55,12 +56,19 @@ type Route = keyof typeof ROUTES;
 
 const sessionBody = { accessToken: 'acceso-de-prueba', expiresIn: 900, user: { id: '7' } };
 const REFRESH = 'refresco-que-no-debe-salir-en-el-cuerpo';
+const STARTED = 1_800_000_000_000;
 
 function fakeSessions() {
   return {
-    login: jest.fn().mockResolvedValue({ session: sessionBody, refreshToken: REFRESH }),
-    verifyLoginPin: jest.fn().mockResolvedValue({ session: sessionBody, refreshToken: REFRESH }),
-    refresh: jest.fn().mockResolvedValue({ session: sessionBody, refreshToken: REFRESH }),
+    login: jest
+      .fn()
+      .mockResolvedValue({ session: sessionBody, refreshToken: REFRESH, startedAt: STARTED }),
+    verifyLoginPin: jest
+      .fn()
+      .mockResolvedValue({ session: sessionBody, refreshToken: REFRESH, startedAt: STARTED }),
+    refresh: jest
+      .fn()
+      .mockResolvedValue({ session: sessionBody, refreshToken: REFRESH, startedAt: STARTED }),
     logout: jest.fn().mockResolvedValue(undefined),
     requestPasswordChange: jest
       .fn()
@@ -93,6 +101,7 @@ async function buildApp(
     CORS_ALLOWED_ORIGINS: ALLOWED_ORIGIN,
     RATE_LIMIT_ENABLED: true,
     IDENTITY_SESSION_RATE_LIMIT: LIMIT,
+    AUDIT_HASH_SECRET: 'una-clave-de-auditoria-de-prueba-de-32+',
     ...env,
   });
   const moduleRef = await Test.createTestingModule({
@@ -274,7 +283,40 @@ describe('Contrato HTTP de v1/session', () => {
       .set('Cookie', 'otra=1; atlas_refresh=el-de-la-cookie')
       .send({})
       .expect(200);
-    expect(sessions.refresh).toHaveBeenCalledWith('el-de-la-cookie');
+    // Una cookie del formato anterior llega sin inicio probado: el servicio decidirá (MOT-08).
+    expect(sessions.refresh).toHaveBeenCalledWith({
+      refreshToken: 'el-de-la-cookie',
+      startedAt: null,
+    });
+  });
+
+  it('MOT-08: el login emite la cookie con el inicio firmado y el refresco lo devuelve intacto', async () => {
+    const login = await post(app, '/v1/session/login')
+      .set('Origin', ALLOWED_ORIGIN)
+      .send(ROUTES['/v1/session/login'])
+      .expect(200);
+    const cookie = String(login.headers['set-cookie']).split(';')[0];
+    expect(decodeURIComponent(cookie)).toMatch(new RegExp(`^atlas_refresh=v1\\.${STARTED}\\.`));
+
+    const refresh = await post(app, '/v1/session/refresh')
+      .set('Origin', ALLOWED_ORIGIN)
+      .set('Cookie', cookie)
+      .send({})
+      .expect(200);
+    expect(sessions.refresh).toHaveBeenCalledWith({ refreshToken: REFRESH, startedAt: STARTED });
+    expect(decodeURIComponent(String(refresh.headers['set-cookie']))).toContain(`v1.${STARTED}.`);
+  });
+
+  it('MOT-08: una sesión caducada responde 401 y BORRA la cookie', async () => {
+    sessions.refresh.mockRejectedValueOnce(
+      new DomainException('SESSION_EXPIRED', 'caducada', HttpStatus.UNAUTHORIZED),
+    );
+    const response = await post(app, '/v1/session/refresh')
+      .set('Origin', ALLOWED_ORIGIN)
+      .set('Cookie', 'atlas_refresh=lo-que-sea')
+      .send({});
+    expect(response.status).toBe(401);
+    expect(String(response.headers['set-cookie'])).toMatch(/^atlas_refresh=;.*Max-Age=0/);
   });
 
   it('un desafío de PIN no emite cookie', async () => {
