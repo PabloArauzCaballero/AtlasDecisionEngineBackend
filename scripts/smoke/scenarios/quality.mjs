@@ -426,6 +426,17 @@ export async function run({ probe, reporter, state }) {
         expect: { status: 400, errorCode: 'HTTP_400' },
       });
 
+      await probe.invalid({
+        id: 'approval-decide',
+        case: 'missing-comment',
+        title: 'Una firma sin comentario es rechazada (la justificación es obligatoria)',
+        method: 'POST',
+        path: `/v1/approval-steps/${sorted[0].id}/decisions`,
+        roles: DECIDE,
+        body: { decision: 'APPROVE', comments: '   ', evidence: [] },
+        expect: { status: 400, errorCode: 'HTTP_400' },
+      });
+
       // Camino bueno: cada paso lo decide quien tiene su rol, y nunca el autor.
       // «Dos personas firman»: quien ya firmó todos los demás pasos no firma el último. El
       // smoke corre con UNA identidad por tipo de usuario, así que si firmó los pasos previos
@@ -440,7 +451,7 @@ export async function run({ probe, reporter, state }) {
             method: 'POST',
             path: `/v1/approval-steps/${step.id}/decisions`,
             roles: [step.requiredRole],
-            body: { decision: 'APPROVE', evidence: [] },
+            body: { decision: 'APPROVE', comments: 'Firma de prueba del smoke integral.', evidence: [] },
             expect: { status: 403, errorCode: 'SEPARATION_OF_DUTIES_VIOLATION' },
           });
           continue;
@@ -464,7 +475,7 @@ export async function run({ probe, reporter, state }) {
             method: 'POST',
             path: `/v1/approval-steps/${step.id}/decisions`,
             roles: [step.requiredRole],
-            body: { decision: 'APPROVE', evidence: [] },
+            body: { decision: 'APPROVE', comments: 'Firma de prueba del smoke integral.', evidence: [] },
             expect: {
               status: 409,
               errorCode: ['DUPLICATE_APPROVAL_DECISION', 'APPROVAL_STEP_CLOSED'],
@@ -484,7 +495,7 @@ export async function run({ probe, reporter, state }) {
     method: 'POST',
     path: '/v1/approval-steps/9007199254740991/decisions',
     roles: DECIDE,
-    body: { decision: 'APPROVE', evidence: [] },
+    body: { decision: 'APPROVE', comments: 'Firma de prueba del smoke integral.', evidence: [] },
     expect: { statusIn: [400, 404], errorCode: ['APPROVAL_STEP_NOT_FOUND', 'INVALID_ID'] },
   });
 }

@@ -1,5 +1,5 @@
 /** Review contracts keep evidence bounded and decisions inside the approved vocabulary. */
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { PaginationQueryDto } from '../../common/http/pagination';
 import {
   IsArray,
@@ -12,6 +12,7 @@ import {
   IsString,
   MaxLength,
   Min,
+  MinLength,
   ValidateNested,
 } from 'class-validator';
 
@@ -28,10 +29,25 @@ export class ApprovalEvidenceDto {
   @IsOptional() metadata?: unknown;
 }
 
+/** Lo justo para una frase con sentido («Revisé cobertura y umbrales»), no un «ok». */
+export const APPROVAL_COMMENT_MIN_LENGTH = 10;
+export const APPROVAL_COMMENT_MAX_LENGTH = 8_000;
+
 export class RecordApprovalDecisionDto {
   @IsIn(['APPROVE', 'REQUEST_CHANGES', 'REJECT'])
   decision!: 'APPROVE' | 'REQUEST_CHANGES' | 'REJECT';
-  @IsOptional() @IsString() @MaxLength(8_000) comments?: string;
+  /**
+   * Justificación de la firma (ISO 27002 8.32): obligatoria en las tres decisiones. Antes sólo la
+   * exigía el portal; una llamada directa a la API podía aprobar sin dejar ni una palabra. Se
+   * recorta antes de validar para que un comentario de espacios no cuente.
+   */
+  @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString({ message: 'El comentario de la firma es obligatorio.' })
+  @MinLength(APPROVAL_COMMENT_MIN_LENGTH, {
+    message: `El comentario de la firma debe tener al menos ${APPROVAL_COMMENT_MIN_LENGTH} caracteres.`,
+  })
+  @MaxLength(APPROVAL_COMMENT_MAX_LENGTH)
+  comments!: string;
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ApprovalEvidenceDto)

@@ -310,10 +310,9 @@ export class GovernanceService {
         HttpStatus.CONFLICT,
       );
     }
-    if (
-      !principal.roles.includes(step.requiredRole) &&
-      !principal.roles.includes(PlatformRole.PLATFORM_ADMIN)
-    ) {
+    const holdsRequiredRole = principal.roles.includes(step.requiredRole);
+    const signedByAdminWildcard = !holdsRequiredRole && this.adminWildcardApplies(principal);
+    if (!holdsRequiredRole && !signedByAdminWildcard) {
       throw new DomainException(
         'APPROVAL_ROLE_REQUIRED',
         `Role ${step.requiredRole} is required`,
@@ -371,7 +370,7 @@ export class GovernanceService {
         versionNumber: reviewedVersion.versionNumber,
         authorId: reviewedVersion.createdBy,
         decidedBy: principal.id,
-        comments: dto.comments ?? null,
+        comments: dto.comments,
       },
     };
     const result = await this.prisma.$transaction(async (tx) => {
@@ -406,7 +405,7 @@ export class GovernanceService {
           step.approvalRequest.artifactVersionId,
           VersionStatus.CHANGES_REQUESTED,
           principal.id,
-          dto.comments ?? 'Changes requested',
+          dto.comments,
           tx,
         );
         await this.outbox.publish(tx, {
@@ -426,7 +425,7 @@ export class GovernanceService {
           step.approvalRequest.artifactVersionId,
           VersionStatus.REJECTED,
           principal.id,
-          dto.comments ?? 'Rejected',
+          dto.comments,
           tx,
         );
         await this.outbox.publish(tx, {
@@ -487,6 +486,9 @@ export class GovernanceService {
             requiredRole: step.requiredRole,
             decision: dto.decision,
             evidenceCount: dto.evidence.length,
+            // Segregación de funciones (ISO 27002 5.3): una firma que no salió del rol del
+            // paso sino del comodín de PLATFORM_ADMIN tiene que poder encontrarse después.
+            signedVia: signedByAdminWildcard ? 'PLATFORM_ADMIN_WILDCARD' : 'REQUIRED_ROLE',
           },
         },
         tx,
@@ -495,6 +497,23 @@ export class GovernanceService {
     });
 
     return result;
+  }
+
+  /**
+   * ¿Puede PLATFORM_ADMIN firmar un paso cuyo rol no tiene?
+   *
+   * Por defecto NO (ISO 27002 5.3): el comodín convertía a cualquier administrador en QA, riesgo y
+   * cumplimiento a la vez. Sólo vale si el entorno lo activa con
+   * `GOVERNANCE_ADMIN_CAN_SIGN_ANY_STEP=true` —TEST/DEV, mientras nadie tenga asignados los roles
+   * de cada paso— y, como en `RolesGuard`, sólo sobre una identidad firmada: una clave de API debe
+   * tener el rol exacto. La regla de «al menos dos personas» se aplica igual.
+   */
+  private adminWildcardApplies(principal: AuthenticatedPrincipal): boolean {
+    return (
+      this.config.get<boolean>('GOVERNANCE_ADMIN_CAN_SIGN_ANY_STEP') === true &&
+      principal.roles.includes(PlatformRole.PLATFORM_ADMIN) &&
+      (principal.authMethod === 'jwt' || principal.authMethod === 'identity_provider')
+    );
   }
 
   async getRequest(tenantId: bigint, requestId: bigint) {

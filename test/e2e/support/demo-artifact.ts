@@ -315,7 +315,7 @@ async function provisionar(app: INestApplication): Promise<void> {
     const decision = await request(server())
       .post(`/v1/approval-steps/${paso.id}/decisions`)
       .set(firmante)
-      .send({ decision: 'APPROVE', evidence: [] });
+      .send({ decision: 'APPROVE', comments: 'Revisado en la prueba e2e.', evidence: [] });
     if (decision.status !== 201 && decision.status !== 200) {
       throw new Error(
         `El paso ${paso.requiredRole} no se pudo aprobar: ${decision.status} ` +

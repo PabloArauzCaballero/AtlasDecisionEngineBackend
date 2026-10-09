@@ -1145,6 +1145,9 @@ export const envSchema = z
       .regex(/^[1-9][0-9]*$/)
       .optional(),
     BOOTSTRAP_MANAGEMENT_ROLES: z.string().default(''),
+    // Gobierno: PLATFORM_ADMIN firma un paso sin tener su rol (QA, riesgo, cumplimiento). Apagado
+    // por defecto (ISO 27002 5.3); sólo TEST/DEV lo encienden mientras nadie tiene esos roles.
+    GOVERNANCE_ADMIN_CAN_SIGN_ANY_STEP: booleanFromString.default(false),
     BOOTSTRAP_RUNTIME_ROLES: z.string().default(''),
 
     // --- Almacenamiento persistente de objetos (MinIO) ------------------------------------

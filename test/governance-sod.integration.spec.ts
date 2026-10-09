@@ -39,21 +39,30 @@ describeDb('GovernanceService separation of duties (integration)', () => {
   // Only submitForReview consults the test runner; its verdict is the gate under test there,
   // so it is stubbed rather than running a real suite.
   const verifyBlockingTests = jest.fn();
-  const service = new GovernanceService(
-    prisma as unknown as PrismaService,
-    { verifyBlockingTests } as unknown as TestExecutionService,
-    new VersionStateService(prisma as unknown as PrismaService),
-    new AuditService(prisma as unknown as PrismaService, new HashService(config)),
-    new OutboxPublisherService(
-      {
-        notify: jest.fn().mockResolvedValue(undefined),
-      } as unknown as JobSignalService,
-      new MessagingTraceService(new TracingService()),
-    ),
-    // La revisión de seguridad sólo decide si se emite el aviso de riesgo alto; aquí lo que
-    // se prueba es el orden de las aprobaciones, así que devuelve el caso sin hallazgos.
-    { getVersionReview: jest.fn().mockResolvedValue({ severity: 'LOW', findings: [] }) } as never,
-    config,
+  const buildService = (cfg: ConfigService) =>
+    new GovernanceService(
+      prisma as unknown as PrismaService,
+      { verifyBlockingTests } as unknown as TestExecutionService,
+      new VersionStateService(prisma as unknown as PrismaService),
+      new AuditService(prisma as unknown as PrismaService, new HashService(config)),
+      new OutboxPublisherService(
+        {
+          notify: jest.fn().mockResolvedValue(undefined),
+        } as unknown as JobSignalService,
+        new MessagingTraceService(new TracingService()),
+      ),
+      // La revisión de seguridad sólo decide si se emite el aviso de riesgo alto; aquí lo que
+      // se prueba es el orden de las aprobaciones, así que devuelve el caso sin hallazgos.
+      { getVersionReview: jest.fn().mockResolvedValue({ severity: 'LOW', findings: [] }) } as never,
+      cfg,
+    );
+  const service = buildService(config);
+  // TEST/DEV encienden el comodín de PLATFORM_ADMIN mientras nadie tenga los roles de cada paso.
+  const serviceWithAdminWildcard = buildService(
+    new ConfigService({
+      AUDIT_HASH_SECRET: 'test-secret-that-is-long-enough',
+      GOVERNANCE_ADMIN_CAN_SIGN_ANY_STEP: true,
+    }),
   );
 
   beforeEach(() => {
@@ -66,10 +75,16 @@ describeDb('GovernanceService separation of duties (integration)', () => {
   const AUTHOR = 'author@atlas.test';
 
   const principal = (id: string, roles: string[]): AuthenticatedPrincipal =>
-    ({ id, roles, tenantId, requestId: 'req-test' }) as unknown as AuthenticatedPrincipal;
+    ({
+      id,
+      roles,
+      tenantId,
+      requestId: 'req-test',
+      authMethod: 'identity_provider',
+    }) as unknown as AuthenticatedPrincipal;
 
   const evidence = [{ evidenceType: 'TEST_REPORT', uri: 'https://ci/run/1', checksum: 'abc123' }];
-  const approve = { decision: 'APPROVE' as const, evidence };
+  const approve = { decision: 'APPROVE' as const, comments: 'Revisado en la prueba.', evidence };
 
   /** A version IN_REVIEW with a two-step (QA then RISK) approval request. */
   async function fixture() {
@@ -171,15 +186,32 @@ describeDb('GovernanceService separation of duties (integration)', () => {
     ).rejects.toMatchObject({ code: 'APPROVAL_ROLE_REQUIRED' });
   });
 
-  it('lets a platform admin stand in for the required role', async () => {
+  it('refuses a platform admin without the step role by default', async () => {
     const { qaStep } = await fixture();
-    const decision = await service.recordDecision(
+    await expect(
+      service.recordDecision(
+        tenantId,
+        qaStep.id,
+        approve,
+        principal('admin@atlas.test', [PlatformRole.PLATFORM_ADMIN]),
+      ),
+    ).rejects.toMatchObject({ code: 'APPROVAL_ROLE_REQUIRED' });
+  });
+
+  it('lets a platform admin stand in only when the wildcard is enabled, and audits it', async () => {
+    const { qaStep } = await fixture();
+    const decision = await serviceWithAdminWildcard.recordDecision(
       tenantId,
       qaStep.id,
       approve,
       principal('admin@atlas.test', [PlatformRole.PLATFORM_ADMIN]),
     );
     expect(decision.decision).toBe('APPROVE');
+    const auditRow = await prisma.decisionAuditEvent.findFirst({
+      where: { tenantId, eventType: 'APPROVAL_APPROVE', actorId: 'admin@atlas.test' },
+      orderBy: { id: 'desc' },
+    });
+    expect(auditRow?.payloadJson).toMatchObject({ signedVia: 'PLATFORM_ADMIN_WILDCARD' });
   });
 
   it('refuses the version author approving their own version', async () => {

@@ -12,6 +12,8 @@ Cada una indica dónde se aplica y qué la cubre.
 | G3 | Los pasos de aprobación se resuelven en orden | `governance.service.ts` | idem |
 | G4 | Un mismo principal no vota dos veces el mismo paso | `governance.service.ts` | idem |
 | G5 | `PLATFORM_ADMIN` sustituye a un rol exigido, pero **solo** en identidades firmadas | `roles.guard.ts` | `api-key-privilege-escalation.spec.ts` |
+| G6 | Un paso de aprobación exige su rol exacto; `PLATFORM_ADMIN` sólo lo sustituye con `GOVERNANCE_ADMIN_CAN_SIGN_ANY_STEP=true` y queda marcado en la auditoría | `governance.service.ts` | `governance-approval-guards.spec.ts` |
+| G7 | Toda decisión de aprobación lleva comentario (10–8000 caracteres) | `governance.dto.ts` | `governance-decision-dto.spec.ts` |
 
 ## Contratos de datos
 

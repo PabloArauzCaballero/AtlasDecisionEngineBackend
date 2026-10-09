@@ -257,12 +257,12 @@ const x = ;
     await request(server())
       .post(`/v1/approval-steps/${qaStep.id}/decisions`)
       .set(qaApprover)
-      .send({ decision: 'APPROVE', evidence: [] })
+      .send({ decision: 'APPROVE', comments: 'Revisado en la prueba e2e.', evidence: [] })
       .expect(201);
     await request(server())
       .post(`/v1/approval-steps/${riskStep.id}/decisions`)
       .set(riskApprover)
-      .send({ decision: 'APPROVE', evidence: [] })
+      .send({ decision: 'APPROVE', comments: 'Revisado en la prueba e2e.', evidence: [] })
       .expect(201);
     await request(server())
       .post(`/v1/artifact-versions/${versionId}/deployments`)
