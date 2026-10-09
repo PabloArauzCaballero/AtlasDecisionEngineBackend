@@ -52,8 +52,10 @@ mismo, artefacto por artefacto, para cuando hace falta tocar uno solo.
   `--environments STAGING`; con el valor por defecto (`DEV,TEST`) el guion avisa y no despliega.
 - `atlas-underwriting-v2.mjs` publica una versión nueva de crédito; en un entorno sin
   `ATLAS_BNPL_UNDERWRITING` se corre con `--crear` y esa definición pasa a ser la v1.
-- Un `SUPER_ADMIN` de Core llega al Motor como `PLATFORM_ADMIN` y no firma. Firman `QA_ENGINEER`
-  (→ `QA_ANALYST`) y `RISK_MANAGER` (→ `RISK_APPROVER`), dos personas que no sean la autora.
+- Un `SUPER_ADMIN` de Core llega al Motor como `PLATFORM_ADMIN` y, por defecto, no firma. Firman
+  `QA_ENGINEER` (→ `QA_ANALYST`) y `RISK_MANAGER` (→ `RISK_APPROVER`), dos personas que no sean la autora.
+  Sólo con `GOVERNANCE_ADMIN_CAN_SIGN_ANY_STEP=true` (TEST/DEV) firma un paso cuyo rol no tiene, y la
+  auditoría lo marca como `PLATFORM_ADMIN_WILDCARD`.
 
 ## Qué mirar si vuelve a pasar
 

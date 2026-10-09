@@ -7,7 +7,7 @@ import type { PrismaService } from '../src/common/prisma/prisma.service';
 import type { VersionStateService } from '../src/modules/artifacts/version-state.service';
 import type { TestExecutionService } from '../src/modules/testing/test-execution.service';
 import type { SecurityReviewService } from '../src/modules/security-review/security-review.service';
-import type { AuthenticatedPrincipal } from '../src/common/security/security.types';
+import type { AuthMethod, AuthenticatedPrincipal } from '../src/common/security/security.types';
 import type { RecordApprovalDecisionDto } from '../src/modules/governance/governance.dto';
 
 /**
@@ -19,14 +19,21 @@ import type { RecordApprovalDecisionDto } from '../src/modules/governance/govern
  * El orden en que se evalúan también importa y por eso se prueba: quien no tiene el rol no
  * debe enterarse de si el paso está abierto o de quién lo firmó.
  */
+const COMODIN = { GOVERNANCE_ADMIN_CAN_SIGN_ANY_STEP: true };
+
 describe('GovernanceService — guardas de aprobación', () => {
   const TENANT = 8n;
   const STEP = 42n;
 
-  const principal = (id: string, roles: string[]) =>
-    ({ id, roles, requestId: 'req-1' }) as AuthenticatedPrincipal;
+  // Por omisión, una persona que entró por el portal (identidad firmada por el IdP).
+  const principal = (id: string, roles: string[], authMethod: AuthMethod = 'identity_provider') =>
+    ({ id, roles, requestId: 'req-1', authMethod }) as AuthenticatedPrincipal;
 
-  const audit = { append: () => Promise.resolve({}) } as unknown as AuditService;
+  const auditAppend = jest.fn((_event: { payload: Record<string, unknown> }) =>
+    Promise.resolve({}),
+  );
+  const audit = { append: auditAppend } as unknown as AuditService;
+  beforeEach(() => auditAppend.mockClear());
   const outbox = { publish: () => Promise.resolve({}) } as unknown as OutboxPublisherService;
   const states = { transition: () => Promise.resolve({}) } as unknown as VersionStateService;
   // Ninguna de las guardas que se prueban aquí llega a usarlos: se declaran para satisfacer
@@ -41,6 +48,8 @@ describe('GovernanceService — guardas de aprobación', () => {
       status: 'PENDING',
       requiredRole: 'RISK_APPROVER',
       separationOfDuties: true,
+      minApprovals: 1,
+      approvalRequestId: 1n,
       decisions: [],
       approvalRequest: {
         id: 1n,
@@ -57,7 +66,11 @@ describe('GovernanceService — guardas de aprobación', () => {
     };
   }
 
-  function service(found: Record<string, unknown> | null, graphEditors: string[] = []) {
+  function service(
+    found: Record<string, unknown> | null,
+    graphEditors: string[] = [],
+    env: Record<string, unknown> = {},
+  ) {
     const prisma = {
       decisionApprovalStep: { findFirst: () => Promise.resolve(found) },
       // La bitácora de guardados del grafo: quién TOCÓ la regla, además de quién creó la versión.
@@ -69,7 +82,11 @@ describe('GovernanceService — guardas de aprobación', () => {
       $transaction: (fn: (tx: unknown) => Promise<unknown>) =>
         fn({
           decisionApprovalDecision: { create: () => Promise.resolve({ id: 1n }) },
-          decisionApprovalStep: { update: () => Promise.resolve({}) },
+          // Queda otro paso abierto: la firma se registra sin cerrar la solicitud.
+          decisionApprovalStep: {
+            update: () => Promise.resolve({}),
+            count: () => Promise.resolve(1),
+          },
           decisionApprovalRequest: { update: () => Promise.resolve({}) },
         }),
     } as unknown as PrismaService;
@@ -80,18 +97,23 @@ describe('GovernanceService — guardas de aprobación', () => {
       audit,
       outbox,
       securityReview,
-      new ConfigService({}),
+      new ConfigService(env),
     );
   }
 
-  const dto = { decision: 'APPROVE', comments: 'ok' } as RecordApprovalDecisionDto;
+  const dto = {
+    decision: 'APPROVE',
+    comments: 'Revisado por la prueba.',
+    evidence: [],
+  } as RecordApprovalDecisionDto;
 
   const decide = (
     found: Record<string, unknown> | null,
     who: AuthenticatedPrincipal,
     graphEditors: string[] = [],
+    env: Record<string, unknown> = {},
   ) =>
-    service(found, graphEditors)
+    service(found, graphEditors, env)
       .recordDecision(TENANT, STEP, dto, who)
       .catch((caught: unknown) => caught);
 
@@ -150,10 +172,12 @@ describe('GovernanceService — guardas de aprobación', () => {
     expect(result).not.toBeInstanceOf(DomainException);
   });
 
-  it('PLATFORM_ADMIN no se salta la regla', async () => {
+  it('PLATFORM_ADMIN no se salta la regla, ni con el comodín encendido', async () => {
     const error = await decide(
       tresPasos({ 1: 'admin', 2: 'admin' }),
       principal('admin', ['PLATFORM_ADMIN']),
+      [],
+      COMODIN,
     );
     expect((error as DomainException).code).toBe('SEPARATION_OF_DUTIES_VIOLATION');
   });
@@ -223,15 +247,60 @@ describe('GovernanceService — guardas de aprobación', () => {
    * outbox, notificación—, y entonces la prueba dejaría de hablar de la guarda para hablar de
    * lo que hay detrás. Lo que aquí importa es que el rechazo NO se produce.
    */
-  const guardaQueSalta = async (who: AuthenticatedPrincipal, found = step()) => {
-    const result = await decide(found, who);
+  const guardaQueSalta = async (
+    who: AuthenticatedPrincipal,
+    found = step(),
+    env: Record<string, unknown> = {},
+  ) => {
+    const result = await decide(found, who, [], env);
     return result instanceof DomainException ? result.code : null;
   };
 
-  it('PLATFORM_ADMIN no queda bloqueado por el rol del paso', async () => {
-    expect(await guardaQueSalta(principal('admin', ['PLATFORM_ADMIN']))).not.toBe(
-      'APPROVAL_ROLE_REQUIRED',
+  /*
+   * MOT-01 (ISO 27002 5.3): el comodín de PLATFORM_ADMIN hacía de cualquier administrador QA,
+   * riesgo y cumplimiento a la vez. Ahora está apagado salvo que el entorno lo encienda, sólo
+   * vale sobre una identidad firmada y deja rastro en la auditoría.
+   */
+  it('por defecto, PLATFORM_ADMIN sin el rol del paso NO firma', async () => {
+    const error = await decide(step(), principal('admin', ['PLATFORM_ADMIN']));
+    expect((error as DomainException).code).toBe('APPROVAL_ROLE_REQUIRED');
+    expect((error as DomainException).status).toBe(403);
+  });
+
+  it('con GOVERNANCE_ADMIN_CAN_SIGN_ANY_STEP=false explícito, tampoco', async () => {
+    expect(
+      await guardaQueSalta(principal('admin', ['PLATFORM_ADMIN']), step(), {
+        GOVERNANCE_ADMIN_CAN_SIGN_ANY_STEP: false,
+      }),
+    ).toBe('APPROVAL_ROLE_REQUIRED');
+  });
+
+  it('con el comodín encendido, PLATFORM_ADMIN firma y la auditoría lo marca', async () => {
+    const result = await decide(step(), principal('admin', ['PLATFORM_ADMIN']), [], COMODIN);
+    expect(result).not.toBeInstanceOf(DomainException);
+    if (result instanceof Error && !(result instanceof DomainException)) throw result;
+    expect(auditAppend).toHaveBeenCalledTimes(1);
+    expect(auditAppend.mock.calls[0][0].payload).toMatchObject({
+      requiredRole: 'RISK_APPROVER',
+      signedVia: 'PLATFORM_ADMIN_WILDCARD',
+    });
+  });
+
+  it('quien tiene el rol del paso firma por su rol, aunque además sea PLATFORM_ADMIN', async () => {
+    const result = await decide(
+      step(),
+      principal('ana', ['PLATFORM_ADMIN', 'RISK_APPROVER']),
+      [],
+      COMODIN,
     );
+    expect(result).not.toBeInstanceOf(DomainException);
+    expect(auditAppend.mock.calls[0][0].payload).toMatchObject({ signedVia: 'REQUIRED_ROLE' });
+  });
+
+  it('el comodín no vale para una clave de API, aunque esté encendido', async () => {
+    expect(
+      await guardaQueSalta(principal('admin', ['PLATFORM_ADMIN'], 'api_key'), step(), COMODIN),
+    ).toBe('APPROVAL_ROLE_REQUIRED');
   });
 
   it('el autor de la versión no la aprueba cuando el paso exige segregación', async () => {

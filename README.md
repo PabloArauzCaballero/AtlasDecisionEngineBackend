@@ -158,8 +158,13 @@ funciones (`governance.service.ts`):
 
 - quien contribuyó a la versión no puede aprobarla (`SEPARATION_OF_DUTIES_VIOLATION`);
 - nadie firma TODOS los pasos de una solicitud: al firmar el último pendiente habiendo firmado ya los demás
-  se rechaza. Una persona puede firmar dos pasos si otra firma el resto. `PLATFORM_ADMIN` sustituye al rol
-  del paso, pero no se salta estas dos reglas;
+  se rechaza. Una persona puede firmar dos pasos si otra firma el resto;
+- hace falta el rol EXACTO del paso (`APPROVAL_ROLE_REQUIRED`). `PLATFORM_ADMIN` sólo lo sustituye si el
+  entorno pone `GOVERNANCE_ADMIN_CAN_SIGN_ANY_STEP=true` (por defecto `false`; TEST/DEV lo encienden en
+  `docker-compose.coolify.yml` mientras nadie tenga los roles de cada paso), sólo con identidad firmada, y la
+  firma queda marcada en la auditoría (`signedVia: PLATFORM_ADMIN_WILDCARD`). Ni así se salta las dos reglas
+  anteriores;
+- cada decisión lleva un comentario de al menos 10 caracteres (la API lo exige, no sólo el portal);
 - una persona no decide dos veces el mismo paso (`DUPLICATE_APPROVAL_DECISION`).
 
 La reidentificación de un titular (`risk-governance`) también exige dos personas: quien la pide no puede

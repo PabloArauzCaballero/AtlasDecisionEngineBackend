@@ -238,6 +238,14 @@ services:
       # Por omisión `true`, igual que `docker-compose.yml`; `${VAR:-true}` también cubre la
       # variable presente pero VACÍA, que el esquema no aceptaría como booleano.
       IDENTITY_VERIFICATION_WORKER_ENABLED: '${IDENTITY_VERIFICATION_WORKER_ENABLED:-true}'
+      # GOBIERNO: que PLATFORM_ADMIN firme un paso sin tener su rol (QA, riesgo, cumplimiento).
+      # El código lo trae APAGADO (ISO 27002 5.3); este compose sirve TEST (Contabo) y DEV (H310),
+      # donde a 2026-10-09 nadie tiene QA_ANALYST ni COMPLIANCE —sólo SUPER_ADMIN y un
+      # RISK_MANAGER—, así que sin esto ninguna versión podría aprobarse. Cada firma por comodín
+      # queda marcada en la auditoría (`signedVia: PLATFORM_ADMIN_WILDCARD`) y la regla de dos
+      # personas sigue intacta. Sólo lo lee la API. Un entorno productivo lo pone a `false` en sus
+      # variables, y en cuanto haya personas con cada rol se quita de aquí.
+      GOVERNANCE_ADMIN_CAN_SIGN_ANY_STEP: '${GOVERNANCE_ADMIN_CAN_SIGN_ANY_STEP:-true}'
       # Fakers del servidor mock para los datos de prueba del QA Lab y del simulador. El mock
       # vive en la red `coolify` con el alias `external-providers-mock`. Va NOMBRADA aquí por su
       # valor por omisión: si Coolify no la tiene, llega este destino y no el `127.0.0.1` del

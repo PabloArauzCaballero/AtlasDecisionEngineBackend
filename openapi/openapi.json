@@ -24351,6 +24351,8 @@
           },
           "comments": {
             "type": "string",
+            "description": "Justificación de la firma (ISO 27002 8.32): obligatoria en las tres decisiones. Antes sólo la\nexigía el portal; una llamada directa a la API podía aprobar sin dejar ni una palabra. Se\nrecorta antes de validar para que un comentario de espacios no cuente.",
+            "minLength": 10,
             "maxLength": 8000
           },
           "evidence": {
@@ -24362,6 +24364,7 @@
         },
         "required": [
           "decision",
+          "comments",
           "evidence"
         ]
       },

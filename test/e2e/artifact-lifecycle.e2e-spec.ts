@@ -291,7 +291,7 @@ describe('Artifact lifecycle (e2e)', () => {
     await request(server())
       .post(`/v1/approval-steps/${qaStep.id}/decisions`)
       .set(managementHeaders('e2e.author', ['QA_ANALYST']))
-      .send({ decision: 'APPROVE', evidence: [] })
+      .send({ decision: 'APPROVE', comments: 'Revisado en la prueba e2e.', evidence: [] })
       .expect(403);
 
     const qaDecision = await request(server())
@@ -304,7 +304,7 @@ describe('Artifact lifecycle (e2e)', () => {
     const riskDecision = await request(server())
       .post(`/v1/approval-steps/${riskStep.id}/decisions`)
       .set(riskApprover)
-      .send({ decision: 'APPROVE', evidence: [] })
+      .send({ decision: 'APPROVE', comments: 'Revisado en la prueba e2e.', evidence: [] })
       .expect(201);
     expect(riskDecision.body.decision).toBe('APPROVE');
 

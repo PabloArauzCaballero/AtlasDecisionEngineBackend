@@ -3,7 +3,7 @@
 
 # Variables de entorno
 
-343 variables declaradas. El esquema se valida al arrancar: un valor ausente o
+344 variables declaradas. El esquema se valida al arrancar: un valor ausente o
 fuera de rango impide el arranque en vez de degradar el comportamiento en caliente.
 
 | Variable | Obligatoria | Valor por defecto | Para qué |
@@ -315,6 +315,7 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `BOOTSTRAP_TENANT_ID` | **sí** | — | Bootstrap integration clients. Read straight from process.env by the seed helpers (they stay framework-free so `prisma db seed` can run them without Nest); declared here so the values are validated and documented instead of being magic strings.  El tenant de TODO lo que siembra el módulo, no sólo de estos clientes: lo resuelve `seeding/data/helpers.ts`. `[1-9][0-9]*` y no `[0-9]+` para que las dos validaciones digan lo mismo — el `0` pasaba aquí y el resolutor lo rechaza, así que un despliegue arrancaba y la siembra moría después, que es el peor sitio para enterarse. |
 | `SEED_TENANT_ID` | **sí** | — | Sinónimo histórico, el que usan los guiones de `prisma/dev-seeds/`. Se declara para que valide igual; si están las dos, manda BOOTSTRAP_TENANT_ID. |
 | `BOOTSTRAP_MANAGEMENT_ROLES` | no | `''` | — |
+| `GOVERNANCE_ADMIN_CAN_SIGN_ANY_STEP` | no | `false` | Gobierno: PLATFORM_ADMIN firma un paso sin tener su rol (QA, riesgo, cumplimiento). Apagado por defecto (ISO 27002 5.3); sólo TEST/DEV lo encienden mientras nadie tiene esos roles. |
 | `BOOTSTRAP_RUNTIME_ROLES` | no | `''` | — |
 | `STORAGE_S3_ENDPOINT` | no | — | --- Almacenamiento persistente de objetos (MinIO) ------------------------------------  Hasta 2026-09-03 el motor no tenía ninguno, y las imágenes de identidad vivían en columnas `Bytes` que se ponían a `null` al cerrar cada ejecución. Eso resolvía la privacidad y el crecimiento de la tabla a la vez, pero significaba que la cara y la cédula de un cliente NO EXISTÍAN en cuanto había veredicto: ni para revisar el caso más tarde, ni para responder a una impugnación, ni para auditar la decisión.  Ahora las imágenes se copian a MinIO al INGRESAR —una sola escritura, antes de crear la fila— y las columnas `Bytes` siguen siendo la copia de trabajo del pipeline y se siguen borrando igual. Los seis sitios que las ponían a `null` no cambiaron.  Vacío = sin almacén: las imágenes vuelven a perderse al cerrar. Se permite porque las pruebas y el desarrollo local no siempre levantan MinIO, pero `IDENTITY_IMAGE_RETENTION_REQUIRED` lo convierte en un fallo de arranque donde importa. |
 | `STORAGE_S3_PUBLIC_ENDPOINT` | no | — | Por donde llega el NAVEGADOR del revisor, si no es el mismo camino que este proceso. |
