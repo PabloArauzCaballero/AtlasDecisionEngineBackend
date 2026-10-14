@@ -1,5 +1,5 @@
 import type { PrismaService } from '../src/common/prisma/prisma.service';
-import { QaLabService } from '../src/modules/qa-lab/qa-lab.service';
+import { buildQaLab } from './support/qa-lab.factory';
 
 /**
  * El lote por VERSIÓN existe para un caso concreto: rellenar la entrada de un caso de
@@ -34,7 +34,7 @@ describe('QaLabService.sampleInputs', () => {
         findFirst: jest.fn().mockResolvedValue(payload ? { compiledPayloadJson: payload } : null),
       },
     } as unknown as PrismaService;
-    return new QaLabService(prisma, {} as never, {} as never, {} as never, {} as never);
+    return buildQaLab(prisma, {} as never, {} as never, {} as never, {} as never).lab;
   }
 
   it('genera solo las entradas de la versión, dentro de su contrato', async () => {

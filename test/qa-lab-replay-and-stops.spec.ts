@@ -5,8 +5,9 @@ import type { AuthenticatedPrincipal } from '../src/common/security/security.typ
 import type { CompiledDecisionArtifact } from '../src/modules/graph/graph.types';
 import type { ExecutionEngineService } from '../src/modules/graph/execution-engine.service';
 import type { VariableResolutionService } from '../src/modules/variables/variable-resolution.service';
-import { QA_LAB_ENVIRONMENT, QaLabService } from '../src/modules/qa-lab/qa-lab.service';
+import { QA_LAB_ENVIRONMENT } from '../src/modules/qa-lab/qa-run-config';
 import { parseReplayKind, readRunSummary } from '../src/modules/qa-lab/qa-run-summary';
+import { buildQaLab } from './support/qa-lab.factory';
 
 /**
  * Tres promesas del QA Lab que la pantalla hacía y el motor no cumplía:
@@ -137,14 +138,19 @@ function build(options: Options = {}) {
     }),
   } as unknown as ExecutionEngineService;
 
-  const service = new QaLabService(
+  const { lab: service, history } = buildQaLab(
     prisma,
     { append: jest.fn(async () => undefined) } as unknown as AuditService,
     new MetricsService(),
     variables,
     engine,
   );
-  return { service, fila: () => filas.get(1n) as Record<string, unknown>, calls: () => calls };
+  return {
+    service,
+    history,
+    fila: () => filas.get(1n) as Record<string, unknown>,
+    calls: () => calls,
+  };
 }
 
 async function esperar(condicion: () => boolean, que: string): Promise<void> {
@@ -236,7 +242,7 @@ describe('una corrida cortada lo dice', () => {
     expect(summary.executedCases).toBe(1);
     expect(summary.summary).toEqual({ INPUT_CONTRACT_ENFORCED: 1 });
 
-    const detalle = await banco.service.getRun(1n, 1n);
+    const detalle = await banco.history.getRun(1n, 1n);
     expect(detalle).toMatchObject({
       stoppedReason: 'FIRST_FAILURE',
       executedCases: 1,

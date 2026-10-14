@@ -16,11 +16,15 @@ import { GenerateQaRunDto, GenerateSampleCasesDto, QaRunQueryDto } from './qa-la
 import { QaRunDto, QaRunListItemDto, QaReplayResultDto } from './qa-lab.response.dto';
 import { VersionSampleInputsDto } from './sample-inputs.response.dto';
 import { QaLabService } from './qa-lab.service';
+import { QaRunHistoryService } from './qa-run-history.service';
 
 @ApiTags('QA Lab')
 @Controller('v1/qa-lab')
 export class QaLabController {
-  constructor(private readonly qaLab: QaLabService) {}
+  constructor(
+    private readonly qaLab: QaLabService,
+    private readonly history: QaRunHistoryService,
+  ) {}
 
   @Get('properties')
   @ApiOperation({ summary: 'Propiedades que el QA Lab verifica en cada ejecución' })
@@ -37,7 +41,7 @@ export class QaLabController {
   @ApiPagedResponse('Página de corridas generativas del tenant.', QaRunListItemDto)
   @Roles('QA_ANALYST', 'RISK_ANALYST', 'FRAUD_ANALYST', 'COMPLIANCE', 'AUDITOR')
   listRuns(@TenantId() tenantId: bigint, @Query() query: QaRunQueryDto) {
-    return this.qaLab.listRuns(tenantId, query);
+    return this.history.listRuns(tenantId, query);
   }
 
   @Get('runs/:runId')
@@ -45,7 +49,7 @@ export class QaLabController {
   @ApiOkResponse({ description: 'Corrida con sus contraejemplos completos.', type: QaRunDto })
   @Roles('QA_ANALYST', 'RISK_ANALYST', 'FRAUD_ANALYST', 'COMPLIANCE', 'AUDITOR')
   getRun(@TenantId() tenantId: bigint, @Param('runId') runId: string) {
-    return this.qaLab.getRun(tenantId, parseBigIntId(runId, 'runId'));
+    return this.history.getRun(tenantId, parseBigIntId(runId, 'runId'));
   }
 
   @Post('versions/:versionId/runs')
