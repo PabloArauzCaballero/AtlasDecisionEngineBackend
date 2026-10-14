@@ -1,6 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { MetricsService } from '../src/common/observability/metrics.service';
-import { ExecutionEngineService } from '../src/modules/graph/execution-engine.service';
+import { buildExecutionEngine } from './support/execution-engine.factory';
 import { ExpressionEvaluator } from '../src/modules/graph/expression-evaluator';
 import { ScriptNodeRunnerService } from '../src/modules/graph/script-node-runner.service';
 import { compiledFixture } from './graph.fixture';
@@ -33,7 +33,7 @@ import type {
  * ningún desenlace de rechazo.
  */
 describe('RIESGO_ONBOARDING_CLIENTE · la política versionada del riesgo de onboarding', () => {
-  const engine = new ExecutionEngineService(
+  const engine = buildExecutionEngine(
     new ExpressionEvaluator(),
     new ConfigService({ MAX_EXECUTION_STEPS: 64 }),
     new ScriptNodeRunnerService(new ConfigService({ SCRIPT_NODES_ENABLED: false })),

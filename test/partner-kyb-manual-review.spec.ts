@@ -1,6 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { MetricsService } from '../src/common/observability/metrics.service';
-import { ExecutionEngineService } from '../src/modules/graph/execution-engine.service';
+import { buildExecutionEngine } from './support/execution-engine.factory';
 import { ExpressionEvaluator } from '../src/modules/graph/expression-evaluator';
 import { ScriptNodeRunnerService } from '../src/modules/graph/script-node-runner.service';
 import { compiledFixture } from './graph.fixture';
@@ -33,7 +33,7 @@ import type {
  * cumple esto.
  */
 describe('PARTNER_KYB_REVIEW · la derivación a revisión abre caso', () => {
-  const engine = new ExecutionEngineService(
+  const engine = buildExecutionEngine(
     new ExpressionEvaluator(),
     new ConfigService({ MAX_EXECUTION_STEPS: 32 }),
     new ScriptNodeRunnerService(new ConfigService({ SCRIPT_NODES_ENABLED: false })),

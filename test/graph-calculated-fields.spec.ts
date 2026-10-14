@@ -1,5 +1,5 @@
 import { ConfigService } from '@nestjs/config';
-import { ExecutionEngineService } from '../src/modules/graph/execution-engine.service';
+import { buildExecutionEngine } from './support/execution-engine.factory';
 import { ExpressionEvaluator } from '../src/modules/graph/expression-evaluator';
 import { ScriptNodeRunnerService } from '../src/modules/graph/script-node-runner.service';
 import { MetricsService } from '../src/common/observability/metrics.service';
@@ -18,7 +18,7 @@ import type {
  * ese camino completo: validación del enlace, ejecución dentro del motor y traza.
  */
 const config = new ConfigService({ MAX_EXECUTION_STEPS: 32, SCRIPT_NODES_ENABLED: false });
-const engine = new ExecutionEngineService(
+const engine = buildExecutionEngine(
   new ExpressionEvaluator(),
   config,
   new ScriptNodeRunnerService(config),

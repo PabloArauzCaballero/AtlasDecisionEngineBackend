@@ -4,7 +4,7 @@ import { BranchExtractorService } from '../src/modules/code-import/branch-extrac
 import { ContractExtractorService } from '../src/modules/code-import/contract-extractor.service';
 import { GraphGeneratorService } from '../src/modules/code-import/graph-generator.service';
 import { CompilerService } from '../src/modules/graph/compiler.service';
-import { ExecutionEngineService } from '../src/modules/graph/execution-engine.service';
+import { buildExecutionEngine } from './support/execution-engine.factory';
 import { ExpressionEvaluator } from '../src/modules/graph/expression-evaluator';
 import { GraphValidatorService } from '../src/modules/graph/graph-validator.service';
 import { ScriptNodeRunnerService } from '../src/modules/graph/script-node-runner.service';
@@ -197,7 +197,7 @@ describe('un algoritmo importado emite sus motivos', () => {
   });
 
   const hashes = new HashService(new ConfigService({ AUDIT_HASH_SECRET: 'x'.repeat(32) }));
-  const engine = new ExecutionEngineService(
+  const engine = buildExecutionEngine(
     new ExpressionEvaluator(),
     new ConfigService({ MAX_EXECUTION_STEPS: 256 }),
     new ScriptNodeRunnerService(new ConfigService({ SCRIPT_NODES_ENABLED: false })),
