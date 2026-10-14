@@ -166,7 +166,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `MONITORING_BATCH_TOO_LARGE` | Un lote admite como máximo ${MAX_BATCH} ${field}; divídalo | `src/modules/model-monitoring/model-monitoring.service.ts` |
 | `NESTED_EXECUTION_FAILED` | — | `src/modules/nested-trees/nested-tree-execution.service.ts` |
 | `NESTED_EXECUTION_TIMEOUT` | Nested artifact execution exceeded ${timeoutMs}ms | `src/modules/nested-trees/nested-tree-execution.service.ts` |
-| `NESTED_REFERENCE_NOT_CONFIGURED` | RESULT node ${node.key} invokes a nested artifact reference, but no reference resolver was supplied to this execution | `src/modules/graph/execution-engine.service.ts` |
+| `NESTED_REFERENCE_NOT_CONFIGURED` | RESULT node ${node.key} invokes a nested artifact reference, but no reference resolver was supplied to this execution | `src/modules/graph/execution/result-node.executor.ts` |
 | `NESTED_TREE_MAX_ARTIFACTS_EXCEEDED` | La cadena supera los ${this.limits.maxArtifacts} artefactos encadenados (nodo ${nodeKey}) | `src/modules/nested-trees/chain-budget.ts` |
 | `NESTED_TREE_MAX_DEPTH_EXCEEDED` | Nested execution depth ${cursor.depth} exceeds the configured maximum of ${maxDepth} | `src/modules/nested-trees/nested-tree-execution.service.ts` |
 | `NESTED_TREE_MEMORY_EXCEEDED` | La cadena retiene ${this.retainedBytes} bytes de resultados y el máximo es ${this.limits.maxRetainedBytes} (nodo ${nodeKey}) | `src/modules/nested-trees/chain-budget.ts` |
@@ -174,7 +174,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `NESTED_TREE_TOTAL_TIMEOUT_EXCEEDED` | La cadena superó el tiempo total de ${this.limits.maxTotalMs} ms | `src/modules/nested-trees/chain-budget.ts` |
 | `NODE_ACTION_NOT_FOUND` | Node ${node.key} references unknown action ${binding.actionCode} | `src/modules/artifacts/artifact-graph-writer.service.ts` |
 | `NODE_CONDITION_NOT_FOUND` | Node ${node.key} references unknown condition ${binding.conditionCode} | `src/modules/artifacts/artifact-graph-writer.service.ts` |
-| `NON_NUMERIC_DECISION_VALUE` | ${what} de ${code} no produjo un número finito | `src/modules/graph/execution-engine.service.ts` |
+| `NON_NUMERIC_DECISION_VALUE` | ${what} de ${code} no produjo un número finito | `src/modules/graph/execution/execution-state.ts` |
 | `NOTIFICATION_NOT_FOUND` | Notification not found | `src/modules/notifications/notification.service.ts` |
 | `NO_MATCHING_EDGE` | No outgoing edge matched node ${node.key} | `src/modules/graph/execution-engine.service.ts` |
 | `OBJECTIVE_NOT_FOUND` | Business objective not found | `src/modules/traceability/traceability.service.ts` |
@@ -182,19 +182,19 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `OPENROUTER_CATALOG_UNAVAILABLE` | No se pudo leer el catálogo de modelos de OpenRouter. Vuelve a intentarlo; si persiste, el motor no alcanza openrouter.ai. | `src/modules/workers/semantic-analysis/model-settings/openrouter-catalog.service.ts` |
 | `OUTCOME_BATCH_EMPTY` | El lote de ${field} está vacío | `src/modules/outcome-ingestion/outcome-ingestion.service.ts` |
 | `OUTCOME_BATCH_TOO_LARGE` | Un lote admite como máximo ${MAX_BATCH} ${field}; divídalo | `src/modules/outcome-ingestion/outcome-ingestion.service.ts` |
-| `OUTPUT_TYPE_INVALID` | Output ${code} cannot be null | `src/modules/graph/execution-engine.service.ts` |
+| `OUTPUT_TYPE_INVALID` | Output ${code} cannot be null | `src/modules/graph/execution/output-contract.service.ts` |
 | `POLICY_NOT_FOUND` | Policy requirement not found | `src/modules/traceability/traceability.service.ts` |
-| `PRIMARY_OUTPUT_TOO_LONG` | Primary output ${code} exceeds 80 characters | `src/modules/graph/execution-engine.service.ts` |
+| `PRIMARY_OUTPUT_TOO_LONG` | Primary output ${code} exceeds 80 characters | `src/modules/graph/execution/output-contract.service.ts` |
 | `PROCESSING_BASIS_LOCKED` | La finalidad y la base legal sólo se pueden cambiar en una versión en borrador. | `src/modules/artifacts/artifact.service.ts` |
 | `QA_COUNTEREXAMPLE_NOT_FOUND` | Contraejemplo no encontrado | `src/modules/qa-lab/qa-lab.service.ts` |
-| `QA_DISTRIBUTION_DUPLICATED` | La variable ${entry.variableCode} tiene más de una distribución declarada | `src/modules/qa-lab/qa-lab.service.ts` |
-| `QA_DISTRIBUTION_VARIABLE_UNKNOWN` | La variable ${entry.variableCode} no es una entrada del contrato de esta versión | `src/modules/qa-lab/qa-lab.service.ts` |
-| `QA_DISTRIBUTION_WEIGHT_INVALID` | El peso de ${entry.variableCode}.${value} debe ser un número finito no negativo | `src/modules/qa-lab/qa-lab.service.ts` |
-| `QA_RUN_NOT_FOUND` | Corrida de QA no encontrada | `src/modules/qa-lab/qa-lab.service.ts` |
-| `QA_RUN_OUTCOME_UNKNOWN` | Estos desenlaces no existen en la versión: ${unknown.join(', ')}. Los alcanzables son: ${reachable.join(', ')} | `src/modules/qa-lab/qa-lab.service.ts` |
-| `QA_RUN_OUTCOME_WEIGHT_INVALID` | Los pesos por desenlace tienen que ser números no negativos | `src/modules/qa-lab/qa-lab.service.ts` |
+| `QA_DISTRIBUTION_DUPLICATED` | La variable ${entry.variableCode} tiene más de una distribución declarada | `src/modules/qa-lab/qa-run-planner.service.ts` |
+| `QA_DISTRIBUTION_VARIABLE_UNKNOWN` | La variable ${entry.variableCode} no es una entrada del contrato de esta versión | `src/modules/qa-lab/qa-run-planner.service.ts` |
+| `QA_DISTRIBUTION_WEIGHT_INVALID` | El peso de ${entry.variableCode}.${value} debe ser un número finito no negativo | `src/modules/qa-lab/qa-run-planner.service.ts` |
+| `QA_RUN_NOT_FOUND` | Corrida de QA no encontrada | `src/modules/qa-lab/qa-run-history.service.ts` |
+| `QA_RUN_OUTCOME_UNKNOWN` | Estos desenlaces no existen en la versión: ${unknown.join(', ')}. Los alcanzables son: ${reachable.join(', ')} | `src/modules/qa-lab/qa-run-planner.service.ts` |
+| `QA_RUN_OUTCOME_WEIGHT_INVALID` | Los pesos por desenlace tienen que ser números no negativos | `src/modules/qa-lab/qa-run-planner.service.ts` |
 | `QA_RUN_PROD_FORBIDDEN` | El QA Lab no puede ejecutarse contra PROD | `src/modules/qa-lab/qa-lab.service.ts` |
-| `QA_VERSION_NOT_COMPILED` | La versión no tiene un artefacto compilado con éxito: compílala antes de generar casos | `src/modules/qa-lab/qa-lab.service.ts` |
+| `QA_VERSION_NOT_COMPILED` | La versión no tiene un artefacto compilado con éxito: compílala antes de generar casos | `src/modules/qa-lab/qa-compiled-artifact.service.ts` |
 | `RATE_LIMIT_EXCEEDED` | Too many requests | `src/common/security/rate-limit.guard.ts` |
 | `REASON_CODE_NOT_FOUND` | Unknown reason codes in the output contract: ${missing.join(', ')} | `src/modules/artifacts/artifact-graph-writer.service.ts` |
 | `REDIS_REQUIRED` | In-memory cache fallback is disabled in production | `src/common/cache/cache.service.ts` |
@@ -206,15 +206,15 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `REIDENTIFICATION_NOT_FOUND` | La solicitud no existe | `src/modules/risk-governance/risk-governance.service.ts` |
 | `REIDENTIFICATION_SELF_APPROVAL` | Quien pide una reidentificación no puede aprobarla. | `src/modules/risk-governance/risk-governance.service.ts` |
 | `REQUEST_TIMEOUT` | Request exceeded ${this.timeoutMs} ms | `src/common/observability/request-timeout.interceptor.ts` |
-| `REQUIRED_OUTPUT_MISSING` | Execution finished without required output ${contract.code} | `src/modules/graph/execution-engine.service.ts` |
+| `REQUIRED_OUTPUT_MISSING` | Execution finished without required output ${contract.code} | `src/modules/graph/execution/output-contract.service.ts` |
 | `RESOURCE_ALREADY_EXISTS` | Ya existe un registro con ese identificador único | `src/common/errors/domain-exception.filter.ts` |
-| `RESULT_MODE_INVALID` | Unsupported RESULT mode ${mode} | `src/modules/graph/execution-engine.service.ts` |
-| `RESULT_SCRIPT_LANGUAGE_INVALID` | — | `src/modules/graph/execution-engine.service.ts` |
+| `RESULT_MODE_INVALID` | Unsupported RESULT mode ${mode} | `src/modules/graph/execution/result-node.executor.ts` |
+| `RESULT_SCRIPT_LANGUAGE_INVALID` | — | `src/modules/graph/execution/result-node.executor.ts` |
 | `ROLLBACK_TARGET_NOT_AVAILABLE` | El despliegue anterior está ${freshPrevious.deploymentStatus} y no puede reactivarse | `src/modules/deployments/deployment.service.ts` |
 | `ROLLBACK_TARGET_NOT_FOUND` | No previous deployment is available | `src/modules/deployments/deployment.service.ts` |
-| `RUNTIME_ACTION_NOT_FOUND` | Action ${reference.code} not found | `src/modules/graph/execution-engine.service.ts` |
+| `RUNTIME_ACTION_NOT_FOUND` | Action ${reference.code} not found | `src/modules/graph/execution/action-node.executor.ts` |
 | `RUNTIME_CREDENTIAL_REQUIRED` | Runtime routes require a credential with a verifiable runtime audience | `src/common/security/authentication.guard.ts` |
-| `RUNTIME_NODE_NOT_FOUND` | Compiled node ${currentKey} not found | `src/modules/graph/execution-engine.service.ts` |
+| `RUNTIME_NODE_NOT_FOUND` | Compiled node ${nodeKey} not found | `src/modules/graph/execution-engine.service.ts` |
 | `SCRIPT_EXECUTION_FAILED` | RESULT ${language} script ${reason} | `src/modules/graph/script-node-runner.service.ts` |
 | `SCRIPT_INVALID_OUTPUT` | RESULT script must return a JSON object | `src/modules/graph/script-node-runner.service.ts` |
 | `SCRIPT_NODES_DISABLED` | Script RESULT nodes are disabled. Set SCRIPT_NODES_ENABLED=true only with an isolated runner. | `src/modules/graph/script-node-runner.service.ts` |
@@ -250,11 +250,11 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `TEST_RUN_NOT_FOUND` | Test run not found | `src/modules/testing/test-execution.service.ts` |
 | `TEST_SUITE_NOT_FOUND` | Test suite not found | `src/modules/testing/test-execution.service.ts` |
 | `UNAUTHORIZED` | Invalid metrics token | `src/common/observability/metrics.controller.ts` |
-| `UNDECLARED_OUTPUT` | RESULT node wrote undeclared output ${code} | `src/modules/graph/execution-engine.service.ts` |
+| `UNDECLARED_OUTPUT` | RESULT node wrote undeclared output ${code} | `src/modules/graph/execution/output-contract.service.ts` |
 | `UNRESOLVED_CATEGORY_REQUIRED` | Esta resolución necesita una categoría. | `src/modules/workers/semantic-analysis/unresolved-resolution.service.ts` |
 | `UNRESOLVED_CLASSIFICATION_NOT_FOUND` | No existe el pendiente ${id}. | `src/modules/workers/semantic-analysis/unresolved-classification.service.ts` |
 | `UNRESOLVED_NEW_CATEGORY_REQUIRED` | Para crear una categoría hay que enviarla. | `src/modules/workers/semantic-analysis/unresolved-resolution.service.ts` |
-| `UNSUPPORTED_ACTION_TYPE` | Unsupported action type ${action.type} | `src/modules/graph/execution-engine.service.ts` |
+| `UNSUPPORTED_ACTION_TYPE` | Unsupported action type ${action.type} | `src/modules/graph/execution/action-node.executor.ts` |
 | `UNSUPPORTED_EXPRESSION_OPERATOR` | Unsupported operator: ${op} | `src/modules/graph/expression-evaluator.ts` |
 | `UNTRUSTED_ORIGIN` | Request origin is not allowed | `src/modules/identity-session/session-origin.service.ts` |
 | `VALIDATION_REQUIRED` | Graph is no longer valid and cannot be compiled | `src/modules/artifacts/artifact-lifecycle.service.ts` |
@@ -275,7 +275,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `WORKER_FIXTURE_NOT_FOUND` | No existe ese escenario de prueba. | `src/modules/workers/audio-tts/audio-tts.controller.ts` |
 | `WORKER_NOT_FOUND` | Este motor no publica ningún worker con ese código. | `src/modules/workers/workers.controller.ts` |
 | `WORKER_SERVICE_FAILED` | La llamada del nodo ${request.nodeKey} a ${request.service}.${request.operation} falló: | `src/modules/workers/worker-service-invoker.service.ts` |
-| `WORKER_SERVICE_NOT_CONFIGURED` | El nodo ${node.key} llama al servicio ${call.service}, pero esta ejecución no recibió un invocador de servicios | `src/modules/graph/execution-engine.service.ts` |
+| `WORKER_SERVICE_NOT_CONFIGURED` | El nodo ${node.key} llama al servicio ${call.service}, pero esta ejecución no recibió un invocador de servicios | `src/modules/graph/execution/worker-node.executor.ts` |
 | `WORKER_SERVICE_TIMEOUT` | La llamada del nodo ${request.nodeKey} a ${request.service}.${request.operation} superó ${timeoutMs} ms | `src/modules/workers/worker-service-invoker.service.ts` |
 | `WORKER_SERVICE_UNAVAILABLE` | El nodo ${nodeKey} llama al servicio ${service}, que no está habilitado en este despliegue | `src/modules/workers/worker-service-invoker.service.ts` |
 | `WORKER_SERVICE_UNKNOWN` | El nodo ${request.nodeKey} invoca ${key}, que este motor no sabe ejecutar | `src/modules/workers/worker-service-invoker.service.ts` |

@@ -16,7 +16,7 @@ real: sus controladores, sus etiquetas de API, sus roles exigidos y sus códigos
 | [`data-subject`](data-subject.md) | 2 | AUDITOR, COMPLIANCE, OPERATIONS | 5 |
 | [`deployments`](deployments.md) | 5 | AUDITOR, COMPLIANCE, OPERATIONS, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 6 |
 | [`governance`](governance.md) | 4 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, QA_ANALYST, RISK_ANALYST, RISK_APPROVER | 5 |
-| [`graph`](graph.md) | 0 | — | 22 |
+| [`graph`](graph.md) | 0 | — | 36 |
 | [`health`](health.md) | 5 | — | 4 |
 | [`identity-session`](identity-session.md) | 8 | — | 8 |
 | [`libraries`](libraries.md) | 3 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 6 |
@@ -28,9 +28,9 @@ real: sus controladores, sus etiquetas de API, sus roles exigidos y sus códigos
 | [`outbox-relay`](outbox-relay.md) | 0 | — | 2 |
 | [`outcome-ingestion`](outcome-ingestion.md) | 4 | AUDITOR, COMPLIANCE, OPERATIONS, RISK_ANALYST, RISK_APPROVER | 6 |
 | [`platform-catalog`](platform-catalog.md) | 1 | AUDITOR, COMPLIANCE, OPERATIONS, PLATFORM_ADMIN | 8 |
-| [`qa-lab`](qa-lab.md) | 7 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 19 |
+| [`qa-lab`](qa-lab.md) | 7 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 28 |
 | [`risk-governance`](risk-governance.md) | 12 | AUDITOR, COMPLIANCE, OPERATIONS, RISK_ANALYST, RISK_APPROVER | 11 |
-| [`runtime`](runtime.md) | 3 | FRAUD_ANALYST, QA_ANALYST | 14 |
+| [`runtime`](runtime.md) | 3 | FRAUD_ANALYST, QA_ANALYST | 21 |
 | [`security-review`](security-review.md) | 2 | — | 4 |
 | [`seeding`](seeding.md) | 0 | — | 2 |
 | [`sql-console`](sql-console.md) | 4 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, RISK_ANALYST, RISK_APPROVER | 13 |
@@ -39,4 +39,4 @@ real: sus controladores, sus etiquetas de API, sus roles exigidos y sus códigos
 | [`tutorials`](tutorials.md) | 2 | — | 5 |
 | [`variables`](variables.md) | 9 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, OPERATIONS, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 8 |
 | [`views`](views.md) | 9 | — | 5 |
-| [`workers`](workers.md) | 66 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, OPERATIONS, QA_ANALYST, RISK_ANALYST | 260 |
+| [`workers`](workers.md) | 66 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, OPERATIONS, QA_ANALYST, RISK_ANALYST | 271 |

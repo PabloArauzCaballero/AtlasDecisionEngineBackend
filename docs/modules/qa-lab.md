@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/qa-lab/`](https://github.com/) · 19 ficheros TypeScript.
+Código: [`src/modules/qa-lab/`](https://github.com/) · 28 ficheros TypeScript.
 
 Etiquetas de API: **QA Lab**.
 
@@ -44,6 +44,9 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `PLATFOR
 - `FakerUnavailableError`
 - `GenerateQaRunDto`
 - `GenerateSampleCasesDto`
+- `QaCaseObserverService`
+- `QaCompiledArtifactService`
+- `QaCounterexampleStoreService`
 - `QaFakerReportDto`
 - `QaFakersClient`
 - `QaFakersModule`
@@ -53,7 +56,10 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `PLATFOR
 - `QaLabService`
 - `QaReplayResultDto`
 - `QaRunDto`
+- `QaRunExecutorService`
+- `QaRunHistoryService`
 - `QaRunListItemDto`
+- `QaRunPlannerService`
 - `QaRunQueryDto`
 - `ReplayCounterexampleDto`
 - `SampleCaseDto`
