@@ -54,6 +54,13 @@ import {
   findIdentityFixture,
   IDENTITY_FIXTURES,
 } from '../src/modules/workers/identity-verification/fixtures/identity-fixtures';
+import { DocumentAuthenticityService } from '../src/modules/workers/identity-verification/pipeline/document-authenticity.service';
+import { DocumentFieldsService } from '../src/modules/workers/identity-verification/pipeline/document-fields.service';
+import { DocumentGateService } from '../src/modules/workers/identity-verification/pipeline/document-gate.service';
+import { DocumentIntakeService } from '../src/modules/workers/identity-verification/pipeline/document-intake.service';
+import { DocumentOrientationService } from '../src/modules/workers/identity-verification/pipeline/document-orientation.service';
+import { DocumentTextReaderService } from '../src/modules/workers/identity-verification/pipeline/document-text-reader.service';
+import { FaceCaptureService } from '../src/modules/workers/identity-verification/pipeline/face-capture.service';
 import { IdentityPipelineService } from '../src/modules/workers/identity-verification/identity-pipeline.service';
 import type { IdentityVerificationOutcome } from '../src/modules/workers/identity-verification/identity-result';
 
@@ -172,15 +179,31 @@ function buildPipeline(
     new PassportDocumentParser(),
     new GenericDocumentParser(),
   );
-  return new IdentityPipelineService(
+  const quality = new ImageQualityAssessmentService(options);
+  const detector = new HumanFaceDetectorAdapter(options);
+  const textReader = new DocumentTextReaderService(
     options,
     images,
     ocr,
     new HeuristicDocumentClassifierAdapter(),
-    new HumanFaceDetectorAdapter(options),
-    new HumanFaceMatchAdapter(options),
-    new HumanLivenessAdapter(options),
-    arbitration,
+  );
+  return new IdentityPipelineService(
+    options,
+    new DocumentIntakeService(
+      options,
+      images,
+      quality,
+      textReader,
+      new DocumentOrientationService(options, images, textReader),
+    ),
+    new DocumentGateService(options, arbitration),
+    /*
+     * Sin segundo lector, que es como va por omisión. Lo que hace esta batería
+     * es fijar lo que el pipeline saca del OCR y del analizador; un lector que
+     * rellenara huecos por detrás enmascararía justo las lecturas rotas que
+     * estos escenarios existen para detectar.
+     */
+    new DocumentFieldsService(parsers, null),
     /*
      * Sin codificador: la batería corre sin servidor de embeddings levantado.
      *
@@ -190,16 +213,10 @@ function buildPipeline(
      * el resto del análisis: la plantilla del catálogo y la física de la imagen,
      * que sí corren en local y sin red.
      */
-    null,
-    /*
-     * Sin segundo lector, que es como va por omisión. Lo que hace esta batería
-     * es fijar lo que el pipeline saca del OCR y del analizador; un lector que
-     * rellenara huecos por detrás enmascararía justo las lecturas rotas que
-     * estos escenarios existen para detectar.
-     */
-    null,
-    parsers,
-    new ImageQualityAssessmentService(options),
+    new DocumentAuthenticityService(options, null),
+    new FaceCaptureService(options, images, detector, quality),
+    new HumanLivenessAdapter(options),
+    new HumanFaceMatchAdapter(options),
   );
 }
 

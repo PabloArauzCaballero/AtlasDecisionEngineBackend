@@ -51,6 +51,13 @@ import { numeroDeConfig } from '../../common/config/config-coercion.util';
 import { TransformerIdentityEmbedderAdapter } from './identity-verification/core/adapters/transformer-identity.adapter';
 import { buildIdentityOptions } from './identity-verification/identity-config.bridge';
 import { IdentityPipelineService } from './identity-verification/identity-pipeline.service';
+import { DocumentAuthenticityService } from './identity-verification/pipeline/document-authenticity.service';
+import { DocumentFieldsService } from './identity-verification/pipeline/document-fields.service';
+import { DocumentGateService } from './identity-verification/pipeline/document-gate.service';
+import { DocumentIntakeService } from './identity-verification/pipeline/document-intake.service';
+import { DocumentOrientationService } from './identity-verification/pipeline/document-orientation.service';
+import { DocumentTextReaderService } from './identity-verification/pipeline/document-text-reader.service';
+import { FaceCaptureService } from './identity-verification/pipeline/face-capture.service';
 import { AtlasCallbackModule } from '../atlas-callback/atlas-callback.module';
 import { IdentityReviewController } from './identity-verification/review/identity-review.controller';
 import { IdentityReviewService } from './identity-verification/review/identity-review.service';
@@ -238,6 +245,13 @@ function maybe<K extends string, V>(
     IdentityVerificationService,
     IdentityRunWorkerService,
     IdentityPipelineService,
+    DocumentIntakeService,
+    DocumentTextReaderService,
+    DocumentOrientationService,
+    DocumentGateService,
+    DocumentFieldsService,
+    DocumentAuthenticityService,
+    FaceCaptureService,
     IdentityReviewService,
     // Núcleo absorbido: analizadores, medida de calidad y proveedores.
     BoliviaCiDocumentParser,
