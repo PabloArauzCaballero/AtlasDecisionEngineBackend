@@ -1,8 +1,6 @@
 import { ConfigService } from '@nestjs/config';
-import type { AuditService } from '../src/common/audit/audit.service';
-import { MetricsService } from '../src/common/observability/metrics.service';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
-import { NestedTreeService } from '../src/modules/nested-trees/nested-tree.service';
+import { DependencyGraphService } from '../src/modules/nested-trees/dependency-graph.service';
 
 /**
  * The dependency-graph view used to read `decision_artifact_reference` with nothing but
@@ -11,7 +9,7 @@ import { NestedTreeService } from '../src/modules/nested-trees/nested-tree.servi
  * catalog even for an artifact with no dependencies at all, which is a cheap OOM for anyone
  * who can open the screen. It now walks level by level, querying only the frontier.
  */
-describe('NestedTreeService.getDependencyGraph acotado', () => {
+describe('DependencyGraphService.getDependencyGraph acotado', () => {
   interface Reference {
     id: bigint;
     nodeKey: string;
@@ -70,12 +68,7 @@ describe('NestedTreeService.getDependencyGraph acotado', () => {
       },
     } as unknown as PrismaService;
 
-    const service = new NestedTreeService(
-      prisma,
-      {} as AuditService,
-      new ConfigService(config),
-      new MetricsService(),
-    );
+    const service = new DependencyGraphService(prisma, new ConfigService(config));
     return { service, referenceQueries };
   }
 
