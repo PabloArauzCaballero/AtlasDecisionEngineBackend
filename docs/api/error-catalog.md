@@ -34,8 +34,8 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `BANK_STATEMENT_REVIEW_NOT_CLAIMABLE` | — | `src/modules/workers/bank-statement/review/statement-review.service.ts` |
 | `BANK_STATEMENT_REVIEW_NOT_CLAIMED` | Hay que reclamar el caso antes de resolverlo. | `src/modules/workers/bank-statement/review/statement-review.service.ts` |
 | `BANK_STATEMENT_REVIEW_NOT_FOUND` | No hay ningún caso de revisión con ese identificador. | `src/modules/workers/bank-statement/review/statement-review.service.ts` |
-| `BANK_STATEMENT_RUN_NOT_CANCELLABLE` | — | `src/modules/workers/bank-statement/bank-statement.service.ts` |
-| `BANK_STATEMENT_RUN_NOT_FOUND` | No existe esa ejecución. | `src/modules/workers/bank-statement/bank-statement.service.ts` |
+| `BANK_STATEMENT_RUN_NOT_CANCELLABLE` | — | `src/modules/workers/bank-statement/statement-run.service.ts` |
+| `BANK_STATEMENT_RUN_NOT_FOUND` | No existe esa ejecución. | `src/modules/workers/bank-statement/statement-run.service.ts` |
 | `BASELINE_COMPARISON_NOT_SUPPORTED` | Baseline comparison is not available; omit baselineCompiledArtifactId and use explicit expected results | `src/modules/testing/test-execution.service.ts` |
 | `BLOCKING_TESTS_NOT_PASSED` | Blocking tests and minimum coverage must pass before review | `src/modules/governance/governance.service.ts` |
 | `CALCULATED_FIELD_ARGUMENT_INVALID` | ${operation} espera un número y recibió ${describe(value)} | `src/modules/calculated-fields/operation-evaluator.ts` |
@@ -154,11 +154,11 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `LIVE_EXECUTION_PROD_FORBIDDEN` | Production decisions cannot be executed through live execution | `src/modules/live-execution/live-execution.controller.ts` |
 | `LIVE_EXECUTION_VARIABLES_INVALID` | variables must be a JSON object | `src/modules/live-execution/live-execution.controller.ts` |
 | `LOCK_CONFLICT` | The version was modified by another actor | `src/modules/artifacts/artifact-graph-writer.service.ts` |
-| `MANUAL_REVIEW_ASSIGNEE_MISMATCH` | Only the analyst assigned to this manual review case may resolve it | `src/modules/manual-review/manual-review.service.ts` |
-| `MANUAL_REVIEW_ASSIGN_FORBIDDEN` | Only a supervisor may reassign a case already held by another analyst | `src/modules/manual-review/manual-review.service.ts` |
-| `MANUAL_REVIEW_CLOSED` | Manual review case is already closed | `src/modules/manual-review/manual-review.service.ts` |
-| `MANUAL_REVIEW_NOT_ASSIGNED` | Manual review case must be assigned before it can be resolved | `src/modules/manual-review/manual-review.service.ts` |
-| `MANUAL_REVIEW_NOT_FOUND` | Manual review case not found | `src/modules/manual-review/manual-review.service.ts` |
+| `MANUAL_REVIEW_ASSIGNEE_MISMATCH` | Only the analyst assigned to this manual review case may resolve it | `src/modules/manual-review/manual-review-resolution.service.ts` |
+| `MANUAL_REVIEW_ASSIGN_FORBIDDEN` | Only a supervisor may reassign a case already held by another analyst | `src/modules/manual-review/manual-review-assignment.service.ts` |
+| `MANUAL_REVIEW_CLOSED` | Manual review case is already closed | `src/modules/manual-review/manual-review-assignment.service.ts` |
+| `MANUAL_REVIEW_NOT_ASSIGNED` | Manual review case must be assigned before it can be resolved | `src/modules/manual-review/manual-review-resolution.service.ts` |
+| `MANUAL_REVIEW_NOT_FOUND` | Manual review case not found | `src/modules/manual-review/manual-review-assignment.service.ts` |
 | `MAX_EXECUTION_STEPS_EXCEEDED` | Execution exceeded ${this.maxSteps} steps | `src/modules/graph/execution-engine.service.ts` |
 | `METRICS_DISABLED` | Metrics endpoint is disabled | `src/common/observability/metrics.controller.ts` |
 | `MODEL_VALIDATION_NOT_INDEPENDENT` | Quien creó la versión no puede firmar su validación independiente. | `src/modules/risk-governance/risk-governance.service.ts` |
@@ -241,7 +241,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `SERVICE_NOT_READY` | One or more required dependencies are unavailable | `src/modules/health/health.controller.ts` |
 | `SESSION_EXPIRED` | The session reached its absolute lifetime; sign in again | `src/modules/identity-session/identity-session.service.ts` |
 | `SIMULATION_PROD_FORBIDDEN` | El simulador no opera sobre PROD, tampoco para generar valores de prueba | `src/modules/runtime/sample-input.service.ts` |
-| `STATEMENT_FILE_STORAGE_NOT_CONFIGURED` | No se puede analizar un extracto sin un sitio donde conservarlo: declara | `src/modules/workers/bank-statement/bank-statement.service.ts` |
+| `STATEMENT_FILE_STORAGE_NOT_CONFIGURED` | No se puede analizar un extracto sin un sitio donde conservarlo: declara | `src/modules/workers/bank-statement/statement-file-store.service.ts` |
 | `SUBJECT_CONSENT_INVALID` | El titular tiene permisos que ya no amparan el tratamiento: | `src/modules/risk-governance/decision-guard.service.ts` |
 | `SUBJECT_NOT_FOUND` | No hay ninguna decisión registrada sobre ese titular en este tenant. | `src/modules/risk-governance/risk-governance.service.ts` |
 | `SUBJECT_REFERENCE_REQUIRED` | This environment requires subjectReference: a decision that cannot be attributed to | `src/modules/runtime/subject-policy.ts` |
@@ -259,9 +259,9 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `UNTRUSTED_ORIGIN` | Request origin is not allowed | `src/modules/identity-session/session-origin.service.ts` |
 | `VALIDATION_REQUIRED` | Graph is no longer valid and cannot be compiled | `src/modules/artifacts/artifact-lifecycle.service.ts` |
 | `VARIABLE_CONTRACT_INCOMPATIBLE` | El cambio rompe el contrato y ${deployedUses} versión(es) aprobadas o desplegadas usan esta variable | `src/modules/variables/variable-contract.service.ts` |
-| `VARIABLE_CONTRACT_INVALID` | El contrato de ${dto.variableCode} no es válido: ${contract.issues[0].message} | `src/modules/variables/variable.service.ts` |
+| `VARIABLE_CONTRACT_INVALID` | El contrato de ${dto.variableCode} no es válido: ${contract.issues[0].message} | `src/modules/variables/variable-definition.service.ts` |
 | `VARIABLE_DEPENDENCY_NOT_FOUND` | One or more variable versions do not exist in this tenant | `src/modules/artifacts/artifact-graph-writer.service.ts` |
-| `VARIABLE_NOT_FOUND` | Variable definition not found | `src/modules/variables/variable.service.ts` |
+| `VARIABLE_NOT_FOUND` | Variable definition not found | `src/modules/variables/variable-definition.service.ts` |
 | `VERSION_IMMUTABLE` | Only DRAFT or VALIDATION_FAILED versions are editable; current state is ${version.status} | `src/modules/artifacts/artifact-graph-writer.service.ts` |
 | `VERSION_NOT_APPROVED` | Version is not fully approved | `src/modules/governance/governance.service.ts` |
 | `VERSION_NOT_COMPILABLE` | No se puede compilar una versión en estado ${version.status}: sólo se compila lo que está VALIDATED. Si ya está desplegada, crea una versión nueva. | `src/modules/artifacts/artifact-lifecycle.service.ts` |

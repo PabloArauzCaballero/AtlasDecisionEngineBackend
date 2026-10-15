@@ -20,5 +20,5 @@ auditoría los conserva.
 | `version.published` | `DecisionEventType.VERSION_PUBLISHED` | `src/modules/deployments/deploy-version.service.ts` | `src/modules/notifications/notification-projector.service.ts` |
 | `security.risk_detected` | `DecisionEventType.SECURITY_RISK_DETECTED` | `src/modules/governance/governance.service.ts` | `src/modules/notifications/notification-projector.service.ts` |
 | `atlas.callback_requested` | `DecisionEventType.ATLAS_CALLBACK_REQUESTED` | `src/modules/atlas-callback/atlas-callback.service.ts` | `src/modules/atlas-callback/atlas-callback.dispatcher.ts` |
-| `MONITORING_BREACH_DETECTED` | `DecisionEventType.MONITORING_BREACH_DETECTED` | `src/modules/model-monitoring/monitoring-evaluator.service.ts` | `src/modules/notifications/notification-projector.service.ts` |
+| `MONITORING_BREACH_DETECTED` | `DecisionEventType.MONITORING_BREACH_DETECTED` | `src/modules/model-monitoring/monitoring-evaluation-writer.ts` | `src/modules/notifications/notification-projector.service.ts` |
 

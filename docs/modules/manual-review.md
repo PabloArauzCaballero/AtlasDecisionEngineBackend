@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/manual-review/`](https://github.com/) · 8 ficheros TypeScript.
+Código: [`src/modules/manual-review/`](https://github.com/) · 11 ficheros TypeScript.
 
 Etiquetas de API: **Manual Review**.
 
@@ -38,12 +38,14 @@ Roles exigidos por sus rutas: `FRAUD_ANALYST`, `OPERATIONS`, `RISK_ANALYST`. La 
 
 - `AssignManualReviewDto`
 - `AttachOnboardingDossierDto`
+- `ManualReviewAssignmentService`
 - `ManualReviewController`
 - `ManualReviewDetailDto`
 - `ManualReviewListItemDto`
 - `ManualReviewListQueryDto`
 - `ManualReviewModule`
-- `ManualReviewService`
+- `ManualReviewQueryService`
+- `ManualReviewResolutionService`
 - `ManualReviewWriteResultDto`
 - `OnboardingDossierController`
 - `OnboardingDossierResultDto`
