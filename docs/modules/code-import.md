@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/code-import/`](https://github.com/) · 14 ficheros TypeScript.
+Código: [`src/modules/code-import/`](https://github.com/) · 19 ficheros TypeScript.
 
 Etiquetas de API: **Code to Flow Import**.
 
@@ -38,6 +38,9 @@ Roles exigidos por sus rutas: `AUDITOR`, `FRAUD_ANALYST`, `QA_ANALYST`, `RISK_AN
 - `AnalyzeCodeImportDto`
 - `BranchExtractorService`
 - `CodeImportAnalyzedDto`
+- `CodeImportAnalyzer`
+- `CodeImportArtifactWriter`
+- `CodeImportCatalogService`
 - `CodeImportConfirmedDto`
 - `CodeImportController`
 - `CodeImportDraftSavedDto`
@@ -45,6 +48,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `FRAUD_ANALYST`, `QA_ANALYST`, `RISK_AN
 - `CodeImportModule`
 - `CodeImportRecordDto`
 - `CodeImportService`
+- `CodeImportSourceInspector`
 - `ContractExtractorService`
 - `ContractValidatorService`
 - `ExpressionParseError`

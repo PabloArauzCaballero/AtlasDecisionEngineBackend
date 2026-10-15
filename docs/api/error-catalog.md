@@ -63,11 +63,11 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `CHILD_VERSION_NOT_COMPILED` | The referenced child version has no successful compiled artifact | `src/modules/nested-trees/nested-tree-execution.service.ts` |
 | `CHILD_VERSION_NOT_FOUND` | Child artifact version not found | `src/modules/nested-trees/nested-tree.service.ts` |
 | `CIRCULAR_ARTIFACT_REFERENCE` | This reference would create a circular dependency: ${(cycle.path ?? []).join(' -> ')} | `src/modules/nested-trees/nested-tree.service.ts` |
-| `CODE_IMPORT_HAS_BLOCKING_ISSUES` | This code import has unresolved errors and cannot be written to an artifact graph | `src/modules/code-import/code-import.service.ts` |
+| `CODE_IMPORT_HAS_BLOCKING_ISSUES` | This code import has unresolved errors and cannot be written to an artifact graph | `src/modules/code-import/code-import-artifact-writer.service.ts` |
 | `CODE_IMPORT_NOT_FOUND` | Code import not found | `src/modules/code-import/code-import.service.ts` |
-| `CODE_IMPORT_REASON_CODE_MISSING` | These reason codes no longer exist in the catalog: ${missing.join(', ')} | `src/modules/code-import/code-import.service.ts` |
-| `CODE_IMPORT_SOURCE_TOO_LARGE` | Source exceeds ${maxBytes} bytes | `src/modules/code-import/code-import.service.ts` |
-| `CODE_IMPORT_VARIABLE_NOT_IN_CATALOG` | These variables are not declared in the catalog: ${missing.join(', ')} | `src/modules/code-import/code-import.service.ts` |
+| `CODE_IMPORT_REASON_CODE_MISSING` | These reason codes no longer exist in the catalog: ${missing.join(', ')} | `src/modules/code-import/code-import-catalog.service.ts` |
+| `CODE_IMPORT_SOURCE_TOO_LARGE` | Source exceeds ${maxBytes} bytes | `src/modules/code-import/code-import-analyzer.service.ts` |
+| `CODE_IMPORT_VARIABLE_NOT_IN_CATALOG` | These variables are not declared in the catalog: ${missing.join(', ')} | `src/modules/code-import/code-import-catalog.service.ts` |
 | `COMPILED_ARTIFACT_NOT_FOUND` | Compiled artifact not found | `src/modules/deployments/deployment.service.ts` |
 | `CONSENT_GRANT_REPLAYED` | El alta es anterior a la situación vigente de esta finalidad (una revocación o un alta | `src/modules/risk-governance/risk-governance.service.ts` |
 | `CONSENT_REVOCATION_IN_FUTURE` | Una revocación no puede fecharse en el futuro. | `src/modules/risk-governance/risk-governance.service.ts` |
@@ -268,15 +268,15 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `VERSION_NOT_FOUND` | Artifact version not found | `src/modules/artifacts/artifact-graph-reader.service.ts` |
 | `VERSION_NOT_REVIEWABLE` | Version must be COMPILED before review | `src/modules/governance/governance.service.ts` |
 | `VERSION_NOT_VALIDATABLE` | Version in state ${version.status} cannot be validated | `src/modules/artifacts/artifact-lifecycle.service.ts` |
-| `WORKER_ARGUMENT_INVALID` | El argumento ${argumento} que el nodo ${request.nodeKey} envía no es base64 válido | `src/modules/workers/worker-service-invoker.service.ts` |
-| `WORKER_ARGUMENT_MISSING` | El nodo ${request.nodeKey} llama a semantic-analysis.classify sin el argumento text | `src/modules/workers/worker-service-invoker.service.ts` |
-| `WORKER_ARGUMENT_TOO_LONG` | El texto que el nodo ${request.nodeKey} envía a clasificar supera los ${maxLength} caracteres | `src/modules/workers/worker-service-invoker.service.ts` |
+| `WORKER_ARGUMENT_INVALID` | El argumento ${argumento} que el nodo ${request.nodeKey} envía no es base64 válido | `src/modules/workers/service-calls/worker-call.ts` |
+| `WORKER_ARGUMENT_MISSING` | El nodo ${request.nodeKey} llama a audio-tts.speak sin el argumento templateCode | `src/modules/workers/service-calls/audio-speak-call.handler.ts` |
+| `WORKER_ARGUMENT_TOO_LONG` | El texto que el nodo ${request.nodeKey} envía a clasificar supera los ${maxLength} caracteres | `src/modules/workers/service-calls/semantic-classification-call.handler.ts` |
 | `WORKER_FIXTURES_DISABLED` | Los escenarios de prueba están deshabilitados en este entorno. | `src/modules/workers/audio-tts/audio-tts.controller.ts` |
 | `WORKER_FIXTURE_NOT_FOUND` | No existe ese escenario de prueba. | `src/modules/workers/audio-tts/audio-tts.controller.ts` |
 | `WORKER_NOT_FOUND` | Este motor no publica ningún worker con ese código. | `src/modules/workers/workers.controller.ts` |
-| `WORKER_SERVICE_FAILED` | La llamada del nodo ${request.nodeKey} a ${request.service}.${request.operation} falló: | `src/modules/workers/worker-service-invoker.service.ts` |
+| `WORKER_SERVICE_FAILED` | La llamada del nodo ${request.nodeKey} a ${request.service}.${request.operation} falló: | `src/modules/workers/service-calls/worker-call.ts` |
 | `WORKER_SERVICE_NOT_CONFIGURED` | El nodo ${node.key} llama al servicio ${call.service}, pero esta ejecución no recibió un invocador de servicios | `src/modules/graph/execution/worker-node.executor.ts` |
-| `WORKER_SERVICE_TIMEOUT` | La llamada del nodo ${request.nodeKey} a ${request.service}.${request.operation} superó ${timeoutMs} ms | `src/modules/workers/worker-service-invoker.service.ts` |
-| `WORKER_SERVICE_UNAVAILABLE` | El nodo ${nodeKey} llama al servicio ${service}, que no está habilitado en este despliegue | `src/modules/workers/worker-service-invoker.service.ts` |
+| `WORKER_SERVICE_TIMEOUT` | La llamada del nodo ${request.nodeKey} a ${request.service}.${request.operation} superó ${timeoutMs} ms | `src/modules/workers/service-calls/worker-call.ts` |
+| `WORKER_SERVICE_UNAVAILABLE` | El nodo ${nodeKey} llama al servicio ${service}, que no está habilitado en este despliegue | `src/modules/workers/service-calls/worker-call.ts` |
 | `WORKER_SERVICE_UNKNOWN` | El nodo ${request.nodeKey} invoca ${key}, que este motor no sabe ejecutar | `src/modules/workers/worker-service-invoker.service.ts` |
 

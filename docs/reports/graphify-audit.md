@@ -13,8 +13,8 @@ El grafo contiene **12281 nodos** y **29289 relaciones** repartidos en
 **32 módulos de dominio** en `src/modules/`, de los cuales
 todos están registrados en `src/app.module.ts` (comprobado sobre el fichero, no supuesto).
 
-El grafo cubre **715 de 791**
-ficheros TypeScript de `src/` (90 %).
+El grafo cubre **715 de 863**
+ficheros TypeScript de `src/` (83 %).
 **1 módulo(s) de dominio no aparecen en absoluto**: `atlas-callback`. Consultar el grafo sobre ellos no devuelve nada, así que su documentación **no** se deriva de aquí.
 
 ## Inventario cuantitativo
@@ -112,9 +112,14 @@ Es la dirección que más daño hace: sobre un fichero ausente el grafo no devue
 consulta vacía se lee igual que «no existe». Por eso los catálogos del portal se generan del
 código y del contrato, nunca de este grafo.
 
-**76 de 791** ficheros `.ts` de `src/` no aparecen en el grafo, incluidos **1 módulo(s) completos** (`atlas-callback`). Se listan los primeros 20:
+**148 de 863** ficheros `.ts` de `src/` no aparecen en el grafo, incluidos **1 módulo(s) completos** (`atlas-callback`). Se listan los primeros 20:
 
 - `src/common/config/build-identity.ts`
+- `src/common/observability/job-metrics.ts`
+- `src/common/observability/metrics-registry.ts`
+- `src/common/observability/model-monitoring-metrics.ts`
+- `src/common/observability/outbox-metrics.ts`
+- `src/common/observability/persistence-metrics.ts`
 - `src/common/observability/redacting-span-processor.ts`
 - `src/common/observability/sql-redaction.ts`
 - `src/common/persistence/like-escape.ts`
@@ -123,17 +128,12 @@ código y del contrato, nunca de este grafo.
 - `src/modules/atlas-callback/atlas-callback.dispatcher.ts`
 - `src/modules/atlas-callback/atlas-callback.module.ts`
 - `src/modules/atlas-callback/atlas-callback.service.ts`
+- `src/modules/code-import/code-import-analyzer.service.ts`
+- `src/modules/code-import/code-import-artifact-writer.service.ts`
+- `src/modules/code-import/code-import-catalog.service.ts`
+- `src/modules/code-import/code-import-replace-graph.ts`
+- `src/modules/code-import/code-import-source-inspector.service.ts`
 - `src/modules/graph/execution/action-node.executor.ts`
-- `src/modules/graph/execution/assignment-value.ts`
-- `src/modules/graph/execution/calculated-field.executor.ts`
-- `src/modules/graph/execution/edge-selector.ts`
-- `src/modules/graph/execution/execution-result.ts`
-- `src/modules/graph/execution/execution-state.ts`
-- `src/modules/graph/execution/intermediate-variables.service.ts`
-- `src/modules/graph/execution/manual-review-request.ts`
-- `src/modules/graph/execution/node-variable-state.ts`
-- `src/modules/graph/execution/output-contract.service.ts`
-- `src/modules/graph/execution/result-node.executor.ts`
 
 ## Riesgos identificados
 

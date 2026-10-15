@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/workers/`](https://github.com/) · 271 ficheros TypeScript.
+Código: [`src/modules/workers/`](https://github.com/) · 328 ficheros TypeScript.
 
 Etiquetas de API: **Workers · Locución**, **Workers · Extractos bancarios**, **Workers · Entidades financieras**, **Workers · Verificación de identidad**, **Workers · Modelo semántico**, **Workers · Análisis semántico**, **Workers · Categorías semánticas**, **Workers · Pendientes de clasificación**, **Workers**.
 
@@ -164,6 +164,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `AudioDomainError`
 - `AudioGenerationProcessor`
 - `AudioSegmentAssembler`
+- `AudioSpeakCallHandler`
 - `AudioTemplateDto`
 - `AudioTtsController`
 - `AudioTtsRunWorkerService`
@@ -172,7 +173,10 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `AudioValueCipher`
 - `AuditRetentionService`
 - `BancoSolStatementParser`
+- `BankStatementCallHandler`
 - `BankStatementController`
+- `BankStatementRunRecovery`
+- `BankStatementRunStore`
 - `BankStatementRunWorkerService`
 - `BankStatementService`
 - `BankStatementWorkerService`
@@ -180,6 +184,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `BnbStatementParser`
 - `BoliviaCiDocumentParser`
 - `Bulkhead`
+- `CandidateRetrievalStage`
 - `CascadingSemanticProvider`
 - `CatalogCache`
 - `CircuitBreaker`
@@ -222,6 +227,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `GenericDocumentParser`
 - `GenericStatementStrategy`
 - `GlosaFallbackClassifier`
+- `GlosaPreparationStage`
 - `HeuristicDocumentClassifierAdapter`
 - `HumanFaceDetectorAdapter`
 - `HumanFaceMatchAdapter`
@@ -238,6 +244,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `IdentityReviewResolvedDto`
 - `IdentityReviewService`
 - `IdentityRunWorkerService`
+- `IdentityVerificationCallHandler`
 - `IdentityVerificationController`
 - `IdentityVerificationService`
 - `ImageQualityAssessmentService`
@@ -282,6 +289,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `ResolveStatementReviewDto`
 - `ResolveUnresolvedDto`
 - `ResolveUnresolvedResultDto`
+- `RuleSafetyNet`
 - `RunScopedAudioQueue`
 - `SemanticAnalysisController`
 - `SemanticAnalysisError`
@@ -294,6 +302,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `SemanticCategoryDto`
 - `SemanticCategoryImportSummaryDto`
 - `SemanticCategoryService`
+- `SemanticClassificationCallHandler`
 - `SemanticConfigurationError`
 - `SemanticExhaustedError`
 - `SemanticModelProbeDto`
@@ -307,6 +316,8 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `SemanticTimeoutError`
 - `SharpImageAdapter`
 - `SpecializedParserStrategy`
+- `StageTimer`
+- `StatementAdmissionGates`
 - `StatementDownloadQueryDto`
 - `StatementExtractor`
 - `StatementParserRegistry`
@@ -322,6 +333,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `TenantBudgetGuard`
 - `TesseractOcrAdapter`
 - `TextNormalizer`
+- `TieredModelClassifier`
 - `TimeoutExceededError`
 - `TransformerEmbeddingProvider`
 - `TransformerIdentityEmbedderAdapter`
