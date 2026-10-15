@@ -15,6 +15,10 @@
  * en vez de disfrazarla de acierto del modelo.
  */
 import { DecisionEngine } from '../src/modules/workers/semantic-analysis/core/application/decision-engine';
+import { CandidateRetrievalStage } from '../src/modules/workers/semantic-analysis/core/application/candidate-retrieval.stage';
+import { GlosaPreparationStage } from '../src/modules/workers/semantic-analysis/core/application/glosa-preparation.stage';
+import { RuleSafetyNet } from '../src/modules/workers/semantic-analysis/core/application/rule-safety-net';
+import { TieredModelClassifier } from '../src/modules/workers/semantic-analysis/core/application/tiered-model-classifier';
 import { GlosaFallbackClassifier } from '../src/modules/workers/semantic-analysis/core/application/glosa-fallback';
 import { SemanticAnalysisPipeline } from '../src/modules/workers/semantic-analysis/core/application/semantic-analysis.pipeline';
 import { SemanticAnalysisResultBuilder } from '../src/modules/workers/semantic-analysis/core/application/semantic-analysis.result-builder';
@@ -96,33 +100,42 @@ function montar(
     recordProviderCall: jest.fn(),
   };
 
+  const presupuesto = {
+    reserve: () =>
+      Promise.resolve(
+        opciones.presupuestoAgotado === true
+          ? { allowed: false, reason: 'cuota agotada' }
+          : { allowed: true },
+      ),
+    recordProviderCalls: () => Promise.resolve(),
+  } as never;
+  const retriever = {
+    retrieve: (_texto: string, categorias: readonly SemanticCategory[]) =>
+      Promise.resolve(categorias.map((category) => ({ category, retrievalScore: 0.5 }))),
+  } as never;
   const pipeline = new SemanticAnalysisPipeline(
-    { classify, modelFor: () => 'modelo-de-prueba' } as never,
     config,
-    metricas as never,
-    {
-      retrieve: (_texto: string, categorias: readonly SemanticCategory[]) =>
-        Promise.resolve(categorias.map((category) => ({ category, retrievalScore: 0.5 }))),
-    } as never,
-    {
-      load: () => Promise.resolve({ categories: CATEGORIAS, aliases: [], signature: 'v1' }),
-    } as never,
+    new GlosaPreparationStage(
+      {
+        load: () => Promise.resolve({ categories: CATEGORIAS, aliases: [], signature: 'v1' }),
+      } as never,
+      { normalize: (texto: string) => texto, forClassification: (texto: string) => texto } as never,
+      { resolve: () => [] } as never,
+    ),
+    new CandidateRetrievalStage(config, retriever, TRAZA),
     { read: () => undefined, write: () => undefined } as never,
-    {
-      reserve: () =>
-        Promise.resolve(
-          opciones.presupuestoAgotado === true
-            ? { allowed: false, reason: 'cuota agotada' }
-            : { allowed: true },
-        ),
-      recordProviderCalls: () => Promise.resolve(),
-    } as never,
-    { normalize: (texto: string) => texto, forClassification: (texto: string) => texto } as never,
-    { resolve: () => [] } as never,
-    new DecisionEngine(),
+    presupuesto,
     TRAZA,
     new SemanticAnalysisResultBuilder(metricas as never, TRAZA),
-    new GlosaFallbackClassifier(),
+    new RuleSafetyNet(new GlosaFallbackClassifier(), config),
+    new TieredModelClassifier(
+      { classify, modelFor: () => 'modelo-de-prueba' } as never,
+      config,
+      metricas as never,
+      TRAZA,
+      new DecisionEngine(),
+      presupuesto,
+    ),
   );
 
   return { pipeline, classify };

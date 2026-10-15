@@ -98,6 +98,10 @@ import { UNRESOLVED_SINK } from './semantic-analysis/core/application/ports';
 import { SemanticAnalysisProcessor } from './semantic-analysis/core/application/semantic-analysis.processor';
 import { SemanticAnalysisResultBuilder } from './semantic-analysis/core/application/semantic-analysis.result-builder';
 import { GlosaFallbackClassifier } from './semantic-analysis/core/application/glosa-fallback';
+import { CandidateRetrievalStage } from './semantic-analysis/core/application/candidate-retrieval.stage';
+import { GlosaPreparationStage } from './semantic-analysis/core/application/glosa-preparation.stage';
+import { RuleSafetyNet } from './semantic-analysis/core/application/rule-safety-net';
+import { TieredModelClassifier } from './semantic-analysis/core/application/tiered-model-classifier';
 import { TenantBudgetGuard } from './semantic-analysis/core/application/tenant-budget.guard';
 import { TextNormalizer } from './semantic-analysis/core/application/text-normalizer';
 import { SemanticAnalysisController } from './semantic-analysis/semantic-analysis.controller';
@@ -442,6 +446,10 @@ function maybe<K extends string, V>(
     TenantBudgetGuard,
     SemanticAnalysisResultBuilder,
     GlosaFallbackClassifier,
+    RuleSafetyNet,
+    GlosaPreparationStage,
+    CandidateRetrievalStage,
+    TieredModelClassifier,
     SemanticAnalysisPipeline,
     SemanticAnalysisProcessor,
     // `TracingService` ya no se declara aquí: la capa de trazado se promovió a
