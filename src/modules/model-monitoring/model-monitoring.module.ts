@@ -4,7 +4,10 @@ import { EventsModule } from '../../common/events/events.module';
 import { BaselineCaptureService } from './baseline-capture.service';
 import { CutoffAnalysisService } from './cutoff-analysis.service';
 import { DecisionCoverageService } from './decision-coverage.service';
+import { MonitoringEvaluationWriter } from './monitoring-evaluation-writer';
 import { MonitoringEvaluatorService } from './monitoring-evaluator.service';
+import { OperationalMeasurements } from './operational-measurements';
+import { PopulationMeasurements } from './population-measurements';
 import { ModelMonitoringController } from './model-monitoring.controller';
 import { ModelMonitoringService } from './model-monitoring.service';
 
@@ -17,6 +20,9 @@ import { ModelMonitoringService } from './model-monitoring.service';
   providers: [
     ModelMonitoringService,
     DecisionCoverageService,
+    PopulationMeasurements,
+    OperationalMeasurements,
+    MonitoringEvaluationWriter,
     MonitoringEvaluatorService,
     BaselineCaptureService,
     CutoffAnalysisService,

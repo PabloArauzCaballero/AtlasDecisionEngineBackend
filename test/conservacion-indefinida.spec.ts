@@ -28,7 +28,7 @@ const RAIZ = join(__dirname, '..', 'src');
  */
 const PERMITIDOS = new Set([
   'modules/workers/identity-verification/identity-image-store.service.ts',
-  'modules/workers/bank-statement/bank-statement.service.ts',
+  'modules/workers/bank-statement/statement-file-store.service.ts',
 ]);
 
 function ficherosTs(directorio: string): string[] {

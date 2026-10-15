@@ -7,7 +7,7 @@ class ExecutionSummaryRefDto {
   @ApiProperty({ example: '4001' }) artifactVersionId!: string;
 }
 
-/** `ManualReviewService.list`: forma real de `decision_manual_review_case` con la ejecución resumida. */
+/** `ManualReviewQueryService.list`: forma real de `decision_manual_review_case` con la ejecución resumida. */
 export class ManualReviewListItemDto {
   @ApiProperty({ example: '12001' }) id!: string;
   @ApiProperty({ example: '88001' }) executionId!: string;
@@ -74,7 +74,7 @@ class ExecutionDetailRefDto {
   @ApiProperty({ type: [ExecutionReasonRefDto] }) reasons!: ExecutionReasonRefDto[];
 }
 
-/** `ManualReviewService.get`: caso con la traza completa de la ejecución que lo originó. */
+/** `ManualReviewQueryService.get`: caso con la traza completa de la ejecución que lo originó. */
 export class ManualReviewDetailDto {
   @ApiProperty({ example: '12001' }) id!: string;
   @ApiProperty({ example: '88001' }) executionId!: string;
@@ -91,7 +91,7 @@ export class ManualReviewDetailDto {
   @ApiProperty({ type: ExecutionDetailRefDto }) execution!: ExecutionDetailRefDto;
 }
 
-/** `ManualReviewService.assign` / `.resolve`: forma real de `decision_manual_review_case` tras la escritura. */
+/** `ManualReviewAssignmentService.assign` / `ManualReviewResolutionService.resolve`: forma real de `decision_manual_review_case` tras la escritura. */
 export class ManualReviewWriteResultDto {
   @ApiProperty({ example: '12001' }) id!: string;
   @ApiProperty({ example: '88001' }) executionId!: string;

@@ -1,4 +1,4 @@
-import { rutaDeCallback } from '../src/modules/manual-review/manual-review.service';
+import { rutaDeCallback } from '../src/modules/manual-review/manual-review.policy';
 
 /**
  * A qué endpoint de AtlasBackend vuelve cada resolución.

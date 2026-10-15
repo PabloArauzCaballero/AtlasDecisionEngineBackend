@@ -2,7 +2,8 @@ import { HttpStatus } from '@nestjs/common';
 import { WorkerInputSource } from '@prisma/client';
 import { IdentityImageStore } from '../src/modules/workers/identity-verification/identity-image-store.service';
 import { IdentityRunIntakeService } from '../src/modules/workers/identity-verification/identity-run-intake.service';
-import { BankStatementService } from '../src/modules/workers/bank-statement/bank-statement.service';
+import { StatementFileStore } from '../src/modules/workers/bank-statement/statement-file-store.service';
+import { StatementRunIntakeService } from '../src/modules/workers/bank-statement/statement-run-intake.service';
 import { DomainException } from '../src/common/errors/domain-exception';
 
 /**
@@ -100,12 +101,11 @@ describe('sin almacén de objetos no se acepta una subida real', () => {
   });
 
   it('extractos: el mismo corte, con su propio código', async () => {
-    const service = new BankStatementService(
+    const service = new StatementRunIntakeService(
       PRISMA_PROHIBIDO as never,
       NADA,
       NADA,
-      NADA,
-      SIN_ALMACEN as never,
+      new StatementFileStore(SIN_ALMACEN as never),
     );
 
     const fallo = await service

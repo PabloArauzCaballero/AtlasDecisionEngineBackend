@@ -5,7 +5,7 @@ import type { AuditService } from '../src/common/audit/audit.service';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
 import type { AtlasCallbackService } from '../src/modules/atlas-callback/atlas-callback.service';
 import type { ManualReviewListQueryDto } from '../src/modules/manual-review/manual-review.dto';
-import { ManualReviewService } from '../src/modules/manual-review/manual-review.service';
+import { buildManualReview } from './support/manual-review.factory';
 import { createDecisionFixture, createExecution } from './support/decision-fixture';
 import { uniqueTenantId } from './support/unique-tenant';
 
@@ -22,7 +22,7 @@ const describeDb = DATABASE_URL ? describe : describe.skip;
 
 describeDb('ManualReviewService.list · search (integration)', () => {
   const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: DATABASE_URL }) });
-  const service = new ManualReviewService(
+  const service = buildManualReview(
     prisma as unknown as PrismaService,
     {} as AuditService,
     new ConfigService({ MAX_PAGE_SIZE: 100 }),
@@ -36,7 +36,7 @@ describeDb('ManualReviewService.list · search (integration)', () => {
   const CODE_C = `MR-${suffix}-0044`;
 
   const list = (query: Partial<ManualReviewListQueryDto>) =>
-    service.list(tenantId, { page: 1, pageSize: 25, ...query } as ManualReviewListQueryDto);
+    service.queries.list(tenantId, { page: 1, pageSize: 25, ...query } as ManualReviewListQueryDto);
   const codes = async (query: Partial<ManualReviewListQueryDto>) =>
     (await list(query)).items.map((item) => item.caseCode).sort();
 

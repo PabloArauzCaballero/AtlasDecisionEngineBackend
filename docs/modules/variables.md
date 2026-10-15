@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/variables/`](https://github.com/) · 8 ficheros TypeScript.
+Código: [`src/modules/variables/`](https://github.com/) · 10 ficheros TypeScript.
 
 Etiquetas de API: **Variable Catalog**.
 
@@ -41,15 +41,17 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `CreateVariableVersionDto`
 - `ReasonCodeCreatedDto`
 - `ReasonCodeListQueryDto`
+- `ReasonCodeService`
 - `UpdateVariableDefinitionDto`
 - `ValidateVariableContractDto`
 - `VariableContractService`
 - `VariableController`
+- `VariableDefinitionService`
 - `VariableDependenciesDto`
 - `VariableListQueryDto`
 - `VariableModule`
+- `VariableQueryService`
 - `VariableResolutionService`
-- `VariableService`
 - `VariableSourceDto`
 - `VariableValidationRuleDto`
 - `VariableVersionDto`

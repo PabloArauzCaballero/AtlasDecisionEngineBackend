@@ -1,6 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { DomainException } from '../src/common/errors/domain-exception';
-import { ManualReviewService } from '../src/modules/manual-review/manual-review.service';
+import { buildManualReview } from './support/manual-review.factory';
 import type { AuditService } from '../src/common/audit/audit.service';
 import type { AtlasCallbackService } from '../src/modules/atlas-callback/atlas-callback.service';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
@@ -22,7 +22,7 @@ import type {
  * Sin la primera, cualquier principal con el rol de revisión abriría y cerraría un caso en una
  * sola llamada, que es exactamente lo que la segregación existe para impedir.
  */
-describe('ManualReviewService — segregación de funciones', () => {
+describe('Revisión manual — segregación de funciones', () => {
   const TENANT = 9n;
   const CASE = 77n;
   /*
@@ -96,7 +96,7 @@ describe('ManualReviewService — segregación de funciones', () => {
       },
     } as unknown as AtlasCallbackService;
     return {
-      service: new ManualReviewService(prisma, audit, new ConfigService({}), callbacks),
+      service: buildManualReview(prisma, audit, new ConfigService({}), callbacks),
       audited,
       updates,
       avisos,
@@ -111,7 +111,7 @@ describe('ManualReviewService — segregación de funciones', () => {
   describe('assign()', () => {
     it('404 cuando el caso no es de este tenant', async () => {
       const { service } = make(null);
-      const error = await service
+      const error = await service.assignments
         .assign(TENANT, CASE, assignDto, analista)
         .catch((caught: unknown) => caught);
       expect((error as DomainException).code).toBe('MANUAL_REVIEW_NOT_FOUND');
@@ -120,7 +120,7 @@ describe('ManualReviewService — segregación de funciones', () => {
 
     it('asigna un caso abierto y deja la evidencia en la misma transacción', async () => {
       const { service, audited, updates } = make({ id: CASE, status: 'OPEN', assignedTo: null });
-      await service.assign(TENANT, CASE, assignDto, analista);
+      await service.assignments.assign(TENANT, CASE, assignDto, analista);
       expect(updates[0]).toMatchObject({ assignedTo: 'ana', status: 'ASSIGNED' });
       expect(audited).toEqual(['MANUAL_REVIEW_ASSIGNED']);
     });
@@ -136,7 +136,7 @@ describe('ManualReviewService — segregación de funciones', () => {
        * mal era el sujeto.
        */
       const { service, updates } = make({ id: CASE, status: 'ASSIGNED', assignedTo: 'beto' });
-      await service.assign(TENANT, CASE, assignDto, otro);
+      await service.assignments.assign(TENANT, CASE, assignDto, otro);
       expect(updates[0]).toMatchObject({ assignedTo: 'ana' });
     });
 
@@ -146,7 +146,7 @@ describe('ManualReviewService — segregación de funciones', () => {
         status: 'RESOLVED_APPROVED',
         assignedTo: 'ana',
       });
-      const error = await service
+      const error = await service.assignments
         .assign(TENANT, CASE, assignDto, analista)
         .catch((caught: unknown) => caught);
       expect((error as DomainException).code).toBe('MANUAL_REVIEW_CLOSED');
@@ -165,7 +165,7 @@ describe('ManualReviewService — segregación de funciones', () => {
      */
     it('un caso que ya es de otra persona NO lo mueve un par', async () => {
       const { service, updates } = make({ id: CASE, status: 'ASSIGNED', assignedTo: 'ana' });
-      const error = await service
+      const error = await service.assignments
         .assign(TENANT, CASE, { assignedTo: 'beto' } as AssignManualReviewDto, otro)
         .catch((caught: unknown) => caught);
 
@@ -177,7 +177,7 @@ describe('ManualReviewService — segregación de funciones', () => {
     it('quien supervisa SÍ puede reasignarlo', async () => {
       const { service, updates } = make({ id: CASE, status: 'ASSIGNED', assignedTo: 'ana' });
 
-      await service.assign(
+      await service.assignments.assign(
         TENANT,
         CASE,
         { assignedTo: 'beto' } as AssignManualReviewDto,
@@ -195,7 +195,12 @@ describe('ManualReviewService — segregación de funciones', () => {
        */
       const { service, updates } = make({ id: CASE, status: 'ASSIGNED', assignedTo: 'ana' });
 
-      await service.assign(TENANT, CASE, { assignedTo: 'beto' } as AssignManualReviewDto, analista);
+      await service.assignments.assign(
+        TENANT,
+        CASE,
+        { assignedTo: 'beto' } as AssignManualReviewDto,
+        analista,
+      );
 
       expect(updates[0]?.assignedTo).toBe('beto');
     });
@@ -203,7 +208,7 @@ describe('ManualReviewService — segregación de funciones', () => {
     it('un caso de NADIE lo toma cualquiera', async () => {
       const { service, updates } = make({ id: CASE, status: 'OPEN', assignedTo: null });
 
-      await service.assign(TENANT, CASE, {} as AssignManualReviewDto, otro);
+      await service.assignments.assign(TENANT, CASE, {} as AssignManualReviewDto, otro);
 
       expect(updates[0]?.assignedTo).toBe('beto');
     });
@@ -212,7 +217,7 @@ describe('ManualReviewService — segregación de funciones', () => {
   describe('resolve()', () => {
     it('exige asignación previa: nadie abre y cierra en una sola llamada', async () => {
       const { service, audited } = make({ id: CASE, status: 'OPEN', assignedTo: null });
-      const error = await service
+      const error = await service.resolutions
         .resolve(TENANT, CASE, resolveDto('APPROVE'), analista)
         .catch((caught: unknown) => caught);
       expect((error as DomainException).code).toBe('MANUAL_REVIEW_NOT_ASSIGNED');
@@ -222,7 +227,7 @@ describe('ManualReviewService — segregación de funciones', () => {
 
     it('solo el analista asignado puede resolver', async () => {
       const { service } = make({ id: CASE, status: 'ASSIGNED', assignedTo: 'ana' });
-      const error = await service
+      const error = await service.resolutions
         .resolve(TENANT, CASE, resolveDto('APPROVE'), otro)
         .catch((caught: unknown) => caught);
       expect((error as DomainException).code).toBe('MANUAL_REVIEW_ASSIGNEE_MISMATCH');
@@ -242,7 +247,7 @@ describe('ManualReviewService — segregación de funciones', () => {
     it('quien supervisa SÍ puede resolver un caso asignado a otra persona', async () => {
       const { service, updates } = make({ id: CASE, status: 'ASSIGNED', assignedTo: 'ana' });
 
-      await service.resolve(TENANT, CASE, resolveDto('APPROVE'), supervisora);
+      await service.resolutions.resolve(TENANT, CASE, resolveDto('APPROVE'), supervisora);
 
       /*
        * El caso se cierra Y queda registrado quién decidió DE VERDAD: una resolución por
@@ -261,7 +266,7 @@ describe('ManualReviewService — segregación de funciones', () => {
        * ejercer el único control que impide que cualquiera cierre el caso de cualquiera.
        */
       const { service } = make({ id: CASE, status: 'ASSIGNED', assignedTo: 'ana' });
-      const error = await service
+      const error = await service.resolutions
         .resolve(TENANT, CASE, resolveDto('APPROVE'), sinRoles)
         .catch((caught: unknown) => caught);
 
@@ -275,7 +280,7 @@ describe('ManualReviewService — segregación de funciones', () => {
        * API le devolvería por la puerta de atrás el permiso que `RolesGuard` acaba de negarle.
        */
       const { service } = make({ id: CASE, status: 'ASSIGNED', assignedTo: 'ana' });
-      const error = await service
+      const error = await service.resolutions
         .resolve(TENANT, CASE, resolveDto('APPROVE'), claveConComodin)
         .catch((caught: unknown) => caught);
 
@@ -285,7 +290,7 @@ describe('ManualReviewService — segregación de funciones', () => {
 
     it('un caso cerrado no se resuelve dos veces', async () => {
       const { service } = make({ id: CASE, status: 'CANCELLED', assignedTo: 'ana' });
-      const error = await service
+      const error = await service.resolutions
         .resolve(TENANT, CASE, resolveDto('APPROVE'), analista)
         .catch((caught: unknown) => caught);
       expect((error as DomainException).code).toBe('MANUAL_REVIEW_CLOSED');
@@ -293,7 +298,7 @@ describe('ManualReviewService — segregación de funciones', () => {
 
     it('404 cuando el caso no es de este tenant', async () => {
       const { service } = make(null);
-      const error = await service
+      const error = await service.resolutions
         .resolve(TENANT, CASE, resolveDto('APPROVE'), analista)
         .catch((caught: unknown) => caught);
       expect((error as DomainException).code).toBe('MANUAL_REVIEW_NOT_FOUND');
@@ -309,14 +314,14 @@ describe('ManualReviewService — segregación de funciones', () => {
         status: 'ASSIGNED',
         assignedTo: 'ana',
       });
-      await service.resolve(TENANT, CASE, resolveDto(decision), analista);
+      await service.resolutions.resolve(TENANT, CASE, resolveDto(decision), analista);
       expect(updates[0].status).toBe(expected);
       expect(audited).toHaveLength(1);
     });
 
     it('la resolución guarda quién la tomó, no solo qué se decidió', async () => {
       const { service, updates } = make({ id: CASE, status: 'ASSIGNED', assignedTo: 'ana' });
-      await service.resolve(TENANT, CASE, resolveDto('DECLINE'), analista);
+      await service.resolutions.resolve(TENANT, CASE, resolveDto('DECLINE'), analista);
       expect(updates[0].resolutionJson).toMatchObject({
         decision: 'DECLINE',
         reason: 'motivo',
@@ -340,7 +345,7 @@ describe('ManualReviewService — segregación de funciones', () => {
         queueCode: 'IDENTIDAD',
         executionId: 555n,
       });
-      await service.resolve(TENANT, CASE, resolveDto('APPROVE'), analista);
+      await service.resolutions.resolve(TENANT, CASE, resolveDto('APPROVE'), analista);
       expect(avisos).toHaveLength(1);
       expect(avisos[0].tx).toBe(tx);
       expect(avisos[0].aviso).toMatchObject({
@@ -368,7 +373,7 @@ describe('ManualReviewService — segregación de funciones', () => {
         queueCode,
         executionId: 1n,
       });
-      await service.resolve(TENANT, CASE, resolveDto('DECLINE'), analista);
+      await service.resolutions.resolve(TENANT, CASE, resolveDto('DECLINE'), analista);
       expect(avisos.map((entrada) => entrada.aviso.ruta)).toEqual([ruta]);
     });
 
@@ -380,7 +385,7 @@ describe('ManualReviewService — segregación de funciones', () => {
         queueCode: 'MERCHANT_KYB',
         executionId: 1n,
       });
-      await service.resolve(TENANT, CASE, resolveDto('APPROVE'), analista);
+      await service.resolutions.resolve(TENANT, CASE, resolveDto('APPROVE'), analista);
       expect(avisos).toHaveLength(0);
     });
 
@@ -392,7 +397,9 @@ describe('ManualReviewService — segregación de funciones', () => {
         queueCode: 'IDENTIDAD',
         executionId: 1n,
       });
-      await service.resolve(TENANT, CASE, resolveDto('APPROVE'), analista).catch(() => undefined);
+      await service.resolutions
+        .resolve(TENANT, CASE, resolveDto('APPROVE'), analista)
+        .catch(() => undefined);
       expect(avisos).toHaveLength(0);
     });
   });

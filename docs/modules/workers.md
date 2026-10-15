@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/workers/`](https://github.com/) · 347 ficheros TypeScript.
+Código: [`src/modules/workers/`](https://github.com/) · 354 ficheros TypeScript.
 
 Etiquetas de API: **Workers · Locución**, **Workers · Extractos bancarios**, **Workers · Entidades financieras**, **Workers · Verificación de identidad**, **Workers · Modelo semántico**, **Workers · Análisis semántico**, **Workers · Categorías semánticas**, **Workers · Pendientes de clasificación**, **Workers**.
 
@@ -178,7 +178,6 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `BankStatementRunRecovery`
 - `BankStatementRunStore`
 - `BankStatementRunWorkerService`
-- `BankStatementService`
 - `BankStatementWorkerService`
 - `BcpStatementParser`
 - `BnbStatementParser`
@@ -248,7 +247,9 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `IdentityReviewQueueService`
 - `IdentityReviewResolutionService`
 - `IdentityReviewResolvedDto`
+- `IdentityRunFailureService`
 - `IdentityRunIntakeService`
+- `IdentityRunLeaseService`
 - `IdentityRunService`
 - `IdentityRunWorkerService`
 - `IdentityVerdictSigner`
@@ -327,6 +328,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `StatementAdmissionGates`
 - `StatementDownloadQueryDto`
 - `StatementExtractor`
+- `StatementFileStore`
 - `StatementParserRegistry`
 - `StatementProcessingError`
 - `StatementReprocessedDto`
@@ -335,6 +337,9 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `StatementReviewItemDto`
 - `StatementReviewQueryDto`
 - `StatementReviewService`
+- `StatementRunIntakeService`
+- `StatementRunService`
+- `StatementUploadPolicy`
 - `StorageReferencesController`
 - `TableAnalyzer`
 - `TenantBudgetGuard`

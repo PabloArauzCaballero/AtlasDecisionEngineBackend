@@ -6,7 +6,10 @@ import { AudioTtsRuntimeFactory } from './audio-tts/audio-tts.runtime';
 import { AudioTtsService } from './audio-tts/audio-tts.service';
 import { BankStatementController } from './bank-statement/bank-statement.controller';
 import { BankStatementRunWorkerService } from './bank-statement/bank-statement-run-worker.service';
-import { BankStatementService } from './bank-statement/bank-statement.service';
+import { StatementFileStore } from './bank-statement/statement-file-store.service';
+import { StatementRunIntakeService } from './bank-statement/statement-run-intake.service';
+import { StatementRunService } from './bank-statement/statement-run.service';
+import { StatementUploadPolicy } from './bank-statement/statement-upload.policy';
 import { FinancialInstitutionController } from './bank-statement/institutions/financial-institution.controller';
 import { FinancialInstitutionService } from './bank-statement/institutions/financial-institution.service';
 import { InstitutionCatalogService } from './bank-statement/institutions/institution-catalog.service';
@@ -65,6 +68,8 @@ import { IdentityReviewClaimService } from './identity-verification/review/ident
 import { IdentityReviewQueueService } from './identity-verification/review/identity-review-queue.service';
 import { IdentityReviewResolutionService } from './identity-verification/review/identity-review-resolution.service';
 import { IdentityVerdictSigner } from './identity-verification/review/identity-verdict-signer.service';
+import { IdentityRunFailureService } from './identity-verification/identity-run-failure.service';
+import { IdentityRunLeaseService } from './identity-verification/identity-run-lease.service';
 import { IdentityRunWorkerService } from './identity-verification/identity-run-worker.service';
 import { IdentityVerificationController } from './identity-verification/identity-verification.controller';
 import { IdentityDecisionPolicy } from './identity-verification/identity-decision-policy.service';
@@ -231,7 +236,10 @@ function maybe<K extends string, V>(
     WorkerMetricsService,
 
     // --- Worker B: extractos bancarios -------------------------------------
-    BankStatementService,
+    StatementFileStore,
+    StatementRunIntakeService,
+    StatementRunService,
+    StatementUploadPolicy,
     BankStatementRunWorkerService,
     // La cola de revisión humana. Servicio aparte del de ejecuciones porque
     // responde a otra pregunta y la contesta con otras reglas: quién puede
@@ -253,6 +261,8 @@ function maybe<K extends string, V>(
     IdentityRunIntakeService,
     IdentityRunService,
     IdentityDecisionPolicy,
+    IdentityRunLeaseService,
+    IdentityRunFailureService,
     IdentityRunWorkerService,
     IdentityPipelineService,
     DocumentIntakeService,
@@ -524,7 +534,6 @@ function maybe<K extends string, V>(
   exports: [
     AudioTtsService,
     AudioTtsRuntimeFactory,
-    BankStatementService,
     SemanticAnalysisService,
     WorkerServiceInvokerService,
   ],
