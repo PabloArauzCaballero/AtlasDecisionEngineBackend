@@ -5,7 +5,7 @@ import type { AuthenticatedPrincipal } from '../src/common/security/security.typ
 import type { CompiledDecisionArtifact } from '../src/modules/graph/graph.types';
 import type { ExecutionEngineService } from '../src/modules/graph/execution-engine.service';
 import type { VariableResolutionService } from '../src/modules/variables/variable-resolution.service';
-import { QaLabService } from '../src/modules/qa-lab/qa-lab.service';
+import { buildQaLab } from './support/qa-lab.factory';
 
 /**
  * La corrida sobrevive a la petición que la lanzó (§10.4).
@@ -149,7 +149,7 @@ function build({ engineFails = false } = {}) {
 
   const audit = { append: jest.fn(async () => undefined) } as unknown as AuditService;
 
-  const service = new QaLabService(prisma, audit, new MetricsService(), variables, engine);
+  const { lab: service } = buildQaLab(prisma, audit, new MetricsService(), variables, engine);
   return {
     service,
     prisma,

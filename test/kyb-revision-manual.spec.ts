@@ -12,7 +12,7 @@ import type { PrismaService } from '../src/common/prisma/prisma.service';
 import { ReplaceGraphDto } from '../src/modules/artifacts/artifact.dto';
 import type { ResolvedDeployment } from '../src/modules/deployments/deployment-resolver.service';
 import { CompilerService } from '../src/modules/graph/compiler.service';
-import { ExecutionEngineService } from '../src/modules/graph/execution-engine.service';
+import { buildExecutionEngine } from './support/execution-engine.factory';
 import { ExpressionEvaluator } from '../src/modules/graph/expression-evaluator';
 import { GraphValidatorService } from '../src/modules/graph/graph-validator.service';
 import { ScriptNodeRunnerService } from '../src/modules/graph/script-node-runner.service';
@@ -61,7 +61,7 @@ const NUEVA_ID = '471';
 
 const hashes = new HashService(new ConfigService({}));
 const validador = new GraphValidatorService(new ExpressionEvaluator(), hashes);
-const engine = new ExecutionEngineService(
+const engine = buildExecutionEngine(
   new ExpressionEvaluator(),
   new ConfigService({ MAX_EXECUTION_STEPS: 32 }),
   new ScriptNodeRunnerService(new ConfigService({ SCRIPT_NODES_ENABLED: false })),

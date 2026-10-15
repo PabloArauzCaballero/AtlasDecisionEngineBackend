@@ -1,7 +1,7 @@
 import { MetricsService } from '../src/common/observability/metrics.service';
 import fc from 'fast-check';
 import { ConfigService } from '@nestjs/config';
-import { ExecutionEngineService } from '../src/modules/graph/execution-engine.service';
+import { buildExecutionEngine } from './support/execution-engine.factory';
 import { ExpressionEvaluator } from '../src/modules/graph/expression-evaluator';
 import { ScriptNodeRunnerService } from '../src/modules/graph/script-node-runner.service';
 import { checkProperties } from '../src/modules/qa-lab/qa-properties';
@@ -20,7 +20,7 @@ import type {
  * generadas, no con tres ejemplos escogidos a mano.
  */
 const config = new ConfigService({ MAX_EXECUTION_STEPS: 64, SCRIPT_NODES_ENABLED: false });
-const engine = new ExecutionEngineService(
+const engine = buildExecutionEngine(
   new ExpressionEvaluator(),
   config,
   new ScriptNodeRunnerService(config),

@@ -12,6 +12,9 @@ import type { VariableResolutionService } from '../src/modules/variables/variabl
 import type { ExecutionWriterService } from '../src/modules/runtime/execution-writer.service';
 import type { IdempotencyService } from '../src/modules/runtime/idempotency.service';
 import { DecisionGuardService } from '../src/modules/risk-governance/decision-guard.service';
+import { DecisionOutcomeRecorderService } from '../src/modules/runtime/decision-outcome-recorder.service';
+import { DecisionRefusalRecorderService } from '../src/modules/runtime/decision-refusal-recorder.service';
+import { DecisionSafeguardsService } from '../src/modules/runtime/decision-safeguards.service';
 import { RuntimeService } from '../src/modules/runtime/runtime.service';
 import type { ExecuteDecisionDto } from '../src/modules/runtime/runtime.dto';
 import type { AuthenticatedPrincipal } from '../src/common/security/security.types';
@@ -62,41 +65,29 @@ describe('RuntimeService: evidencia de una decisión fallida', () => {
       $transaction: (callback: (tx: unknown) => Promise<unknown>) => callback(transactionToken),
     } as unknown as PrismaService;
 
-    const service = new RuntimeService(
-      config,
-      prisma,
-      new HashService(config),
-      {
-        // `lease` es el comprobante de propiedad que `reserve()` devuelve y que `fail()`/
-        // `release()` exigen: sin él, un titular cuya ejecución se pasó del lease pisaría la
-        // reserva que otra petición ya reclamó.
-        reserve: () => Promise.resolve({ kind: 'reserved' as const, id: 42n, lease: LEASE }),
-        complete: () => Promise.resolve(),
-        fail: (id: bigint, lease: Date, _response: unknown, tx?: unknown) => {
-          failed.push({ id, lease, tx });
-          return Promise.resolve();
-        },
-        release: () => {
-          released += 1;
-          return Promise.resolve();
-        },
-      } as unknown as IdempotencyService,
-      {
-        resolve: () => Promise.reject(failure),
-      } as unknown as DeploymentResolverService,
-      {} as VariableResolutionService,
-      {} as ExecutionEngineService,
-      {} as ExecutionWriterService,
-      {
-        append: (input: { eventType: string }, tx?: unknown) => {
-          audited.push({ eventType: input.eventType, tx });
-          return Promise.resolve({} as never);
-        },
-      } as unknown as AuditService,
-      new MetricsService(),
-      { bind: () => undefined } as unknown as NestedTreeExecutionService,
-      { bind: () => undefined } as unknown as WorkerServiceInvokerService,
-      new TracingService(),
+    const hashes = new HashService(config);
+    const idempotency = {
+      // `lease` es el comprobante de propiedad que `reserve()` devuelve y que `fail()`/
+      // `release()` exigen: sin él, un titular cuya ejecución se pasó del lease pisaría la
+      // reserva que otra petición ya reclamó.
+      reserve: () => Promise.resolve({ kind: 'reserved' as const, id: 42n, lease: LEASE }),
+      complete: () => Promise.resolve(),
+      fail: (id: bigint, lease: Date, _response: unknown, tx?: unknown) => {
+        failed.push({ id, lease, tx });
+        return Promise.resolve();
+      },
+      release: () => {
+        released += 1;
+        return Promise.resolve();
+      },
+    } as unknown as IdempotencyService;
+    const audit = {
+      append: (input: { eventType: string }, tx?: unknown) => {
+        audited.push({ eventType: input.eventType, tx });
+        return Promise.resolve({} as never);
+      },
+    } as unknown as AuditService;
+    const guard =
       /*
        * El guardia de decisión (apetito de cartera y licitud vigente) no participa en lo que esta
        * prueba afirma: aquí el despliegue falla ANTES de llegar a él. Un doble inerte deja el
@@ -105,7 +96,35 @@ describe('RuntimeService: evidencia de una decisión fallida', () => {
       {
         assertCanDecide: () => Promise.resolve(),
         reviewOutputs: () => Promise.resolve([]),
-      } as unknown as DecisionGuardService,
+      } as unknown as DecisionGuardService;
+    const service = new RuntimeService(
+      config,
+      hashes,
+      idempotency,
+      {
+        resolve: () => Promise.reject(failure),
+      } as unknown as DeploymentResolverService,
+      {} as VariableResolutionService,
+      {} as ExecutionEngineService,
+      { bind: () => undefined } as unknown as NestedTreeExecutionService,
+      { bind: () => undefined } as unknown as WorkerServiceInvokerService,
+      new TracingService(),
+      new DecisionSafeguardsService(config, prisma, hashes, guard),
+      new DecisionOutcomeRecorderService(
+        config,
+        prisma,
+        {} as ExecutionWriterService,
+        idempotency,
+        audit,
+        new MetricsService(),
+      ),
+      new DecisionRefusalRecorderService(
+        prisma,
+        {} as ExecutionWriterService,
+        idempotency,
+        audit,
+        new MetricsService(),
+      ),
     );
 
     return { service, audited, failed, released, transactionToken, releasedCount: () => released };

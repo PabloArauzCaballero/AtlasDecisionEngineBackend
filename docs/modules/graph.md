@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/graph/`](https://github.com/) · 22 ficheros TypeScript.
+Código: [`src/modules/graph/`](https://github.com/) · 36 ficheros TypeScript.
 
 No expone endpoints HTTP.
 
@@ -52,10 +52,18 @@ Este módulo no declara roles: o no expone rutas, o son públicas por diseño.
 
 ## Clases exportadas
 
+- `ActionNodeExecutor`
+- `CalculatedFieldExecutor`
 - `CompilerService`
+- `EdgeSelector`
 - `ExecutionEngineService`
 - `ExpressionEvaluator`
 - `GraphModule`
 - `GraphValidatorService`
 - `IntermediateScope`
+- `IntermediateVariablesService`
+- `OutputContractService`
+- `ResultNodeExecutor`
+- `ScoreNodeExecutor`
 - `ScriptNodeRunnerService`
+- `WorkerNodeExecutor`

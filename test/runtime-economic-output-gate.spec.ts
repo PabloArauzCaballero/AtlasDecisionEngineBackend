@@ -39,6 +39,9 @@ import type {
 } from '../src/modules/runtime/execution-writer.service';
 import type { IdempotencyService } from '../src/modules/runtime/idempotency.service';
 import type { ExecuteDecisionDto } from '../src/modules/runtime/runtime.dto';
+import { DecisionOutcomeRecorderService } from '../src/modules/runtime/decision-outcome-recorder.service';
+import { DecisionRefusalRecorderService } from '../src/modules/runtime/decision-refusal-recorder.service';
+import { DecisionSafeguardsService } from '../src/modules/runtime/decision-safeguards.service';
 import { RuntimeService } from '../src/modules/runtime/runtime.service';
 import type { VariableResolutionService } from '../src/modules/variables/variable-resolution.service';
 import type { WorkerServiceInvokerService } from '../src/modules/workers/worker-service-invoker.service';
@@ -115,22 +118,35 @@ function harness(
     ...result,
   };
 
+  const hashes = new HashService(config);
+  const idempotency = {
+    reserve: () => Promise.resolve({ kind: 'reserved' as const, id: 42n, lease: AHORA }),
+    complete: (_id: bigint, _lease: Date, response: unknown) => {
+      completed.push(response);
+      return Promise.resolve();
+    },
+    fail: (_id: bigint, _lease: Date, response: unknown) => {
+      failed.push(response);
+      return Promise.resolve();
+    },
+    release: () => Promise.resolve(),
+  } as unknown as IdempotencyService;
+  const writer = {
+    write: (input: WriteExecutionInput) => {
+      writes.push(input);
+      return Promise.resolve({ id: 99n });
+    },
+  } as unknown as ExecutionWriterService;
+  const audit = {
+    append: (input: { eventType: string }) => {
+      audited.push(input.eventType);
+      return Promise.resolve({} as never);
+    },
+  } as unknown as AuditService;
   const service = new RuntimeService(
     config,
-    prisma,
-    new HashService(config),
-    {
-      reserve: () => Promise.resolve({ kind: 'reserved' as const, id: 42n, lease: AHORA }),
-      complete: (_id: bigint, _lease: Date, response: unknown) => {
-        completed.push(response);
-        return Promise.resolve();
-      },
-      fail: (_id: bigint, _lease: Date, response: unknown) => {
-        failed.push(response);
-        return Promise.resolve();
-      },
-      release: () => Promise.resolve(),
-    } as unknown as IdempotencyService,
+    hashes,
+    idempotency,
     { resolve: () => Promise.resolve(deployment) } as unknown as DeploymentResolverService,
     {
       resolve: () =>
@@ -142,23 +158,19 @@ function harness(
         }),
     } as unknown as VariableResolutionService,
     { execute: () => Promise.resolve(engineResult) } as unknown as ExecutionEngineService,
-    {
-      write: (input: WriteExecutionInput) => {
-        writes.push(input);
-        return Promise.resolve({ id: 99n });
-      },
-    } as unknown as ExecutionWriterService,
-    {
-      append: (input: { eventType: string }) => {
-        audited.push(input.eventType);
-        return Promise.resolve({} as never);
-      },
-    } as unknown as AuditService,
-    new MetricsService(),
     { bind: () => undefined } as unknown as NestedTreeExecutionService,
     { bind: workerServicesBind } as unknown as WorkerServiceInvokerService,
     new TracingService(),
-    new DecisionGuardService(prisma),
+    new DecisionSafeguardsService(config, prisma, hashes, new DecisionGuardService(prisma)),
+    new DecisionOutcomeRecorderService(
+      config,
+      prisma,
+      writer,
+      idempotency,
+      audit,
+      new MetricsService(),
+    ),
+    new DecisionRefusalRecorderService(prisma, writer, idempotency, audit, new MetricsService()),
     () => AHORA,
   );
   const dto = {

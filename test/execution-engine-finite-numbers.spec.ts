@@ -1,11 +1,11 @@
 import { ConfigService } from '@nestjs/config';
 import { MetricsService } from '../src/common/observability/metrics.service';
 import { DomainException } from '../src/common/errors/domain-exception';
-import { ExecutionEngineService } from '../src/modules/graph/execution-engine.service';
 import { ExpressionEvaluator } from '../src/modules/graph/expression-evaluator';
 import { ScriptNodeRunnerService } from '../src/modules/graph/script-node-runner.service';
 import { compiledFixture } from './graph.fixture';
 import type { CompiledDecisionArtifact } from '../src/modules/graph/graph.types';
+import { buildExecutionEngine } from './support/execution-engine.factory';
 
 /**
  * El motor no puede publicar un número que no llegó a calcular.
@@ -21,7 +21,7 @@ import type { CompiledDecisionArtifact } from '../src/modules/graph/graph.types'
  * nodo y desde el payload de las acciones, que se escriben a mano en el editor.
  */
 describe('ExecutionEngineService — valores numéricos no finitos', () => {
-  const engine = new ExecutionEngineService(
+  const engine = buildExecutionEngine(
     new ExpressionEvaluator(),
     new ConfigService({ MAX_EXECUTION_STEPS: 32 }),
     new ScriptNodeRunnerService(new ConfigService({ SCRIPT_NODES_ENABLED: false })),

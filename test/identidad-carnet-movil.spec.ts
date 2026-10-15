@@ -1,7 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import { DomainException } from '../src/common/errors/domain-exception';
 import { MetricsService } from '../src/common/observability/metrics.service';
-import { ExecutionEngineService } from '../src/modules/graph/execution-engine.service';
+import { buildExecutionEngine } from './support/execution-engine.factory';
 import { ExpressionEvaluator } from '../src/modules/graph/expression-evaluator';
 import { ScriptNodeRunnerService } from '../src/modules/graph/script-node-runner.service';
 import { compiledFixture } from './graph.fixture';
@@ -89,7 +89,7 @@ const WORKER: Record<Caso['worker'], () => WorkerServiceOutcome | Error> = {
 };
 
 describe('IDENTIDAD_CARNET_MOVIL 1.2.0 · la política de identidad con la bitácora del alta', () => {
-  const engine = new ExecutionEngineService(
+  const engine = buildExecutionEngine(
     new ExpressionEvaluator(),
     new ConfigService({ MAX_EXECUTION_STEPS: 64 }),
     new ScriptNodeRunnerService(new ConfigService({ SCRIPT_NODES_ENABLED: false })),

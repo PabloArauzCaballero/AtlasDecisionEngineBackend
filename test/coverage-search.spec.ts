@@ -1,6 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { MetricsService } from '../src/common/observability/metrics.service';
-import { ExecutionEngineService } from '../src/modules/graph/execution-engine.service';
+import { buildExecutionEngine } from './support/execution-engine.factory';
 import { ExpressionEvaluator } from '../src/modules/graph/expression-evaluator';
 import { ScriptNodeRunnerService } from '../src/modules/graph/script-node-runner.service';
 import type { CompiledDecisionArtifact } from '../src/modules/graph/graph.types';
@@ -25,7 +25,7 @@ import { compilarDefinicion, contratoDeEntrada } from './definicion-compilada';
  * verdad. Es la prueba de que «generar una suite que recorra todo» funciona donde importa: el
  * puntaje de crédito (intermedias calculadas), identidad y extractos (nodos WORKER).
  */
-const engine = new ExecutionEngineService(
+const engine = buildExecutionEngine(
   new ExpressionEvaluator(),
   new ConfigService({ MAX_EXECUTION_STEPS: 128 }),
   new ScriptNodeRunnerService(new ConfigService({ SCRIPT_NODES_ENABLED: false })),

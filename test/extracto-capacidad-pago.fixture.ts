@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { HashService } from '../src/common/crypto/hash.service';
 import { MetricsService } from '../src/common/observability/metrics.service';
 import { CompilerService } from '../src/modules/graph/compiler.service';
-import { ExecutionEngineService } from '../src/modules/graph/execution-engine.service';
+import { buildExecutionEngine } from './support/execution-engine.factory';
 import { ExpressionEvaluator } from '../src/modules/graph/expression-evaluator';
 import { GraphValidatorService } from '../src/modules/graph/graph-validator.service';
 import { ScriptNodeRunnerService } from '../src/modules/graph/script-node-runner.service';
@@ -266,7 +266,7 @@ const config = new ConfigService({
   AUDIT_HASH_SECRET: 'test-secret-with-at-least-24-characters',
 });
 
-export const motor = new ExecutionEngineService(
+export const motor = buildExecutionEngine(
   new ExpressionEvaluator(),
   config,
   new ScriptNodeRunnerService(config),
