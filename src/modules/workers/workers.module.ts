@@ -14,7 +14,12 @@ import { FinancialInstitutionController } from './bank-statement/institutions/fi
 import { FinancialInstitutionService } from './bank-statement/institutions/financial-institution.service';
 import { InstitutionCatalogService } from './bank-statement/institutions/institution-catalog.service';
 import { StatementReviewController } from './bank-statement/review/statement-review.controller';
-import { StatementReviewService } from './bank-statement/review/statement-review.service';
+import { StatementReprocessService } from './bank-statement/review/statement-reprocess.service';
+import { StatementReviewAssignment } from './bank-statement/review/statement-review-assignment.service';
+import { StatementReviewClaimService } from './bank-statement/review/statement-review-claim.service';
+import { StatementReviewDocuments } from './bank-statement/review/statement-review-documents.service';
+import { StatementReviewQueueService } from './bank-statement/review/statement-review-queue.service';
+import { StatementReviewResolutionService } from './bank-statement/review/statement-review-resolution.service';
 import {
   DisabledLivenessAdapter,
   HeuristicDocumentClassifierAdapter,
@@ -244,7 +249,12 @@ function maybe<K extends string, V>(
     // La cola de revisión humana. Servicio aparte del de ejecuciones porque
     // responde a otra pregunta y la contesta con otras reglas: quién puede
     // resolver, en qué orden se trabaja y qué queda en la auditoría.
-    StatementReviewService,
+    StatementReviewDocuments,
+    StatementReviewQueueService,
+    StatementReviewAssignment,
+    StatementReviewClaimService,
+    StatementReviewResolutionService,
+    StatementReprocessService,
 
     // --- Worker D: locución -------------------------------------------------
     //

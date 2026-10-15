@@ -1,14 +1,14 @@
-import { ConfigService } from '@nestjs/config';
 import { WorkerRunStatus } from '@prisma/client';
 import type { AuditService } from '../src/common/audit/audit.service';
-import type { JobSignalService } from '../src/common/jobs/job-signal.service';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
 import type { AuthenticatedPrincipal } from '../src/common/security/security.types';
 import type { AtlasCallbackService } from '../src/modules/atlas-callback/atlas-callback.service';
+import { StatementReviewAssignment } from '../src/modules/workers/bank-statement/review/statement-review-assignment.service';
+import { StatementReviewDocuments } from '../src/modules/workers/bank-statement/review/statement-review-documents.service';
 import {
   RUTA_DE_CALLBACK_DE_EXTRACTOS,
-  StatementReviewService,
-} from '../src/modules/workers/bank-statement/review/statement-review.service';
+  StatementReviewResolutionService,
+} from '../src/modules/workers/bank-statement/review/statement-review-resolution.service';
 import type { ResolveStatementReviewDto } from '../src/modules/workers/bank-statement/review/statement-review.dto';
 
 /**
@@ -17,7 +17,7 @@ import type { ResolveStatementReviewDto } from '../src/modules/workers/bank-stat
  * Sin el aviso, la revisión del cliente en Atlas se quedaba `processing` para siempre y le
  * impedía subir otro extracto (`409 BANK_STATEMENT_REVIEW_ALREADY_OPEN`).
  */
-describe('StatementReviewService.resolve · aviso a AtlasBackend', () => {
+describe('StatementReviewResolutionService.resolve · aviso a AtlasBackend', () => {
   const analista = {
     id: 'ana',
     requestId: 'req-7',
@@ -54,12 +54,11 @@ describe('StatementReviewService.resolve · aviso a AtlasBackend', () => {
         avisos.push({ tx: client, aviso });
       }),
     } as unknown as AtlasCallbackService;
-    const service = new StatementReviewService(
+    const service = new StatementReviewResolutionService(
       prisma,
       audit,
-      new ConfigService({}),
-      { notify: jest.fn() } as unknown as JobSignalService,
       callbacks,
+      new StatementReviewAssignment(prisma, new StatementReviewDocuments(prisma)),
     );
     return { service, avisos, tx, orden };
   }
