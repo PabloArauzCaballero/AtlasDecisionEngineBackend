@@ -15,13 +15,17 @@ import {
   VariableListQueryDto,
 } from './variable.dto';
 import { VariableContractService } from './variable-contract.service';
-import { VariableService } from './variable.service';
+import { ReasonCodeService } from './reason-code.service';
+import { VariableDefinitionService } from './variable-definition.service';
+import { VariableQueryService } from './variable-query.service';
 
 @ApiTags('Variable Catalog')
 @Controller('v1')
 export class VariableController {
   constructor(
-    private readonly variables: VariableService,
+    private readonly definitions: VariableDefinitionService,
+    private readonly queries: VariableQueryService,
+    private readonly reasonCodes: ReasonCodeService,
     private readonly contracts: VariableContractService,
   ) {}
 
@@ -63,7 +67,7 @@ export class VariableController {
   })
   @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST', 'COMPLIANCE', 'AUDITOR')
   dependencies(@TenantId() tenantId: bigint, @Param('definitionId') definitionId: string) {
-    return this.variables.dependencies(tenantId, parseBigIntId(definitionId, 'definitionId'));
+    return this.queries.dependencies(tenantId, parseBigIntId(definitionId, 'definitionId'));
   }
 
   @Post('variables')
@@ -74,7 +78,7 @@ export class VariableController {
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Body() dto: CreateVariableDefinitionDto,
   ) {
-    return this.variables.createDefinition(tenantId, dto, principal);
+    return this.definitions.createDefinition(tenantId, dto, principal);
   }
 
   @Get('variables')
@@ -82,14 +86,14 @@ export class VariableController {
   @ApiPagedResponse('Página de definiciones de variable con su versión activa.')
   @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST', 'COMPLIANCE', 'AUDITOR')
   list(@TenantId() tenantId: bigint, @Query() query: VariableListQueryDto) {
-    return this.variables.list(tenantId, query);
+    return this.queries.list(tenantId, query);
   }
 
   @Get('variables/:definitionId')
   @ApiOperation({ summary: 'Get a variable definition and complete version history' })
   @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST', 'COMPLIANCE', 'AUDITOR')
   get(@TenantId() tenantId: bigint, @Param('definitionId') definitionId: string) {
-    return this.variables.get(tenantId, parseBigIntId(definitionId, 'definitionId'));
+    return this.queries.get(tenantId, parseBigIntId(definitionId, 'definitionId'));
   }
 
   @Post('variables/:definitionId/versions')
@@ -101,7 +105,7 @@ export class VariableController {
     @Param('definitionId') definitionId: string,
     @Body() dto: CreateVariableVersionDto,
   ) {
-    return this.variables.createVersion(
+    return this.definitions.createVersion(
       tenantId,
       parseBigIntId(definitionId, 'definitionId'),
       dto,
@@ -118,7 +122,7 @@ export class VariableController {
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Body() dto: CreateReasonCodeDto,
   ) {
-    return this.variables.createReasonCode(tenantId, dto, principal);
+    return this.reasonCodes.createReasonCode(tenantId, dto, principal);
   }
 
   @Get('reason-codes')
@@ -126,6 +130,6 @@ export class VariableController {
   @ApiPagedResponse('Página de códigos de razón del catálogo.')
   @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST', 'COMPLIANCE', 'AUDITOR', 'OPERATIONS')
   listReasons(@TenantId() tenantId: bigint, @Query() query: ReasonCodeListQueryDto) {
-    return this.variables.listReasonCodes(tenantId, query);
+    return this.reasonCodes.listReasonCodes(tenantId, query);
   }
 }

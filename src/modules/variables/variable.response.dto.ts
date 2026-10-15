@@ -26,7 +26,7 @@ class VariableUsageRowDto {
   @ApiProperty({ example: 2 }) variableVersionNumber!: number;
 }
 
-/** `VariableService.dependencies`: qué artefactos usan una definición de variable. */
+/** `VariableQueryService.dependencies`: qué artefactos usan una definición de variable. */
 export class VariableDependenciesDto {
   @ApiProperty({ example: 8 }) total!: number;
   @ApiProperty({
