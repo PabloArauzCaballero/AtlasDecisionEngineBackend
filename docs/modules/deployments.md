@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/deployments/`](https://github.com/) · 6 ficheros TypeScript.
+Código: [`src/modules/deployments/`](https://github.com/) · 13 ficheros TypeScript.
 
 Etiquetas de API: **Decision Deployments**.
 
@@ -45,15 +45,20 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `OPERATIONS`, `PLATFORM_A
 ## Clases exportadas
 
 - `DeployVersionDto`
+- `DeployVersionService`
+- `DeploymentCacheInvalidator`
 - `DeploymentController`
 - `DeploymentEnvironmentDto`
 - `DeploymentListItemDto`
 - `DeploymentListQueryDto`
 - `DeploymentModule`
+- `DeploymentQueryService`
 - `DeploymentResolverService`
+- `DeploymentRollbackService`
 - `DeploymentRolledBackDto`
-- `DeploymentService`
 - `DeploymentSuspendedDto`
+- `DeploymentSuspensionService`
+- `EconomicContractGate`
 - `RollbackDeploymentDto`
 - `SuspendDeploymentDto`
 - `TrafficRuleDto`

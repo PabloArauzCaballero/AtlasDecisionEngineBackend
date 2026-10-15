@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/testing/`](https://github.com/) · 12 ficheros TypeScript.
+Código: [`src/modules/testing/`](https://github.com/) · 23 ficheros TypeScript.
 
 Etiquetas de API: **Decision Testing**.
 
@@ -45,8 +45,10 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `QA_ANAL
 - `CoverageSuiteService`
 - `CreateTestSuiteDto`
 - `GeneratedCoverageSuiteDto`
+- `GoalDistance`
 - `ImportTestCasesDto`
 - `RunTestSuiteDto`
+- `ShadowModel`
 - `TestCaseDto`
 - `TestCaseExecutorService`
 - `TestCaseRecordDto`

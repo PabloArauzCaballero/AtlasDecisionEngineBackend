@@ -13,8 +13,8 @@ El grafo contiene **12281 nodos** y **29289 relaciones** repartidos en
 **32 módulos de dominio** en `src/modules/`, de los cuales
 todos están registrados en `src/app.module.ts` (comprobado sobre el fichero, no supuesto).
 
-El grafo cubre **715 de 863**
-ficheros TypeScript de `src/` (83 %).
+El grafo cubre **708 de 917**
+ficheros TypeScript de `src/` (77 %).
 **1 módulo(s) de dominio no aparecen en absoluto**: `atlas-callback`. Consultar el grafo sobre ellos no devuelve nada, así que su documentación **no** se deriva de aquí.
 
 ## Inventario cuantitativo
@@ -104,7 +104,15 @@ La mayoría son ficheros de configuración y documentos sueltos, que por natural
 
 ### El grafo menciona ficheros que ya no existen
 
-Todo fichero referenciado por el grafo existe en el árbol de trabajo.
+**7 ficheros** referenciados por el grafo ya no existen en disco. El grafo está desactualizado respecto al árbol; ejecute `graphify update .`:
+
+- `src/modules/artifacts/artifact.service.ts`
+- `src/modules/deployments/deployment.service.ts`
+- `src/modules/nested-trees/nested-tree.service.ts`
+- `src/modules/qa-lab/outcome-coverage.ts`
+- `src/modules/workers/identity-verification/core/parsers/mrz-td1.ts`
+- `src/modules/workers/identity-verification/identity-verification.service.ts`
+- `src/modules/workers/identity-verification/review/identity-review.service.ts`
 
 ### El disco tiene código que el grafo desconoce
 
@@ -112,7 +120,7 @@ Es la dirección que más daño hace: sobre un fichero ausente el grafo no devue
 consulta vacía se lee igual que «no existe». Por eso los catálogos del portal se generan del
 código y del contrato, nunca de este grafo.
 
-**148 de 863** ficheros `.ts` de `src/` no aparecen en el grafo, incluidos **1 módulo(s) completos** (`atlas-callback`). Se listan los primeros 20:
+**209 de 917** ficheros `.ts` de `src/` no aparecen en el grafo, incluidos **1 módulo(s) completos** (`atlas-callback`). Se listan los primeros 20:
 
 - `src/common/config/build-identity.ts`
 - `src/common/observability/job-metrics.ts`
@@ -124,16 +132,16 @@ código y del contrato, nunca de este grafo.
 - `src/common/observability/sql-redaction.ts`
 - `src/common/persistence/like-escape.ts`
 - `src/common/time/clock.ts`
+- `src/modules/artifacts/artifact-catalog.service.ts`
+- `src/modules/artifacts/clone-version-declarations.ts`
+- `src/modules/artifacts/clone-version-graph.ts`
+- `src/modules/artifacts/clone-version-source.ts`
+- `src/modules/artifacts/version-authoring.service.ts`
+- `src/modules/artifacts/version-clone.service.ts`
 - `src/modules/artifacts/version-contributors.ts`
 - `src/modules/atlas-callback/atlas-callback.dispatcher.ts`
 - `src/modules/atlas-callback/atlas-callback.module.ts`
 - `src/modules/atlas-callback/atlas-callback.service.ts`
-- `src/modules/code-import/code-import-analyzer.service.ts`
-- `src/modules/code-import/code-import-artifact-writer.service.ts`
-- `src/modules/code-import/code-import-catalog.service.ts`
-- `src/modules/code-import/code-import-replace-graph.ts`
-- `src/modules/code-import/code-import-source-inspector.service.ts`
-- `src/modules/graph/execution/action-node.executor.ts`
 
 ## Riesgos identificados
 

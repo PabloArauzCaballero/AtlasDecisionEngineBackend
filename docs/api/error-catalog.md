@@ -16,7 +16,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `APPROVAL_STEP_NOT_FOUND` | Approval step not found | `src/modules/governance/governance.service.ts` |
 | `APPROVAL_STEP_OUT_OF_ORDER` | Previous approval steps must complete first | `src/modules/governance/governance.service.ts` |
 | `ARTIFACT_HAS_NO_INPUTS` | La versión no declara variables de entrada, así que no hay valores que generar | `src/modules/qa-lab/qa-lab.service.ts` |
-| `ARTIFACT_NOT_FOUND` | Artifact not found | `src/modules/artifacts/artifact.service.ts` |
+| `ARTIFACT_NOT_FOUND` | Artifact not found | `src/modules/artifacts/artifact-catalog.service.ts` |
 | `AUDIO_ASSET_NOT_READY` | El audio de esta locución ya no está disponible. | `src/modules/workers/audio-tts/audio-tts.service.ts` |
 | `AUDIO_RUN_NOT_CANCELLABLE` | — | `src/modules/workers/audio-tts/audio-tts.service.ts` |
 | `AUDIO_RUN_NOT_FOUND` | No existe esa locución. | `src/modules/workers/audio-tts/audio-tts.service.ts` |
@@ -59,36 +59,36 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `CALCULATED_FIELD_VERSION_IN_USE` | No se puede retirar: ${uses} artefacto(s) invocan esta versión | `src/modules/calculated-fields/calculated-field.service.ts` |
 | `CALCULATED_FIELD_VERSION_NOT_FOUND` | El nodo ${nodeKey} invoca la versión de campo calculado ${call.calculatedFieldVersionId}, que no existe en este tenant | `src/modules/artifacts/calculated-field-binding.service.ts` |
 | `CHECKSUM_MISMATCH` | Graph changed after validation; validate again | `src/modules/artifacts/artifact-lifecycle.service.ts` |
-| `CHILD_ARTIFACT_NOT_FOUND` | Child artifact not found | `src/modules/nested-trees/nested-tree.service.ts` |
+| `CHILD_ARTIFACT_NOT_FOUND` | Child artifact not found | `src/modules/nested-trees/reference-child-validator.service.ts` |
 | `CHILD_VERSION_NOT_COMPILED` | The referenced child version has no successful compiled artifact | `src/modules/nested-trees/nested-tree-execution.service.ts` |
-| `CHILD_VERSION_NOT_FOUND` | Child artifact version not found | `src/modules/nested-trees/nested-tree.service.ts` |
-| `CIRCULAR_ARTIFACT_REFERENCE` | This reference would create a circular dependency: ${(cycle.path ?? []).join(' -> ')} | `src/modules/nested-trees/nested-tree.service.ts` |
+| `CHILD_VERSION_NOT_FOUND` | Child artifact version not found | `src/modules/nested-trees/artifact-reference.service.ts` |
+| `CIRCULAR_ARTIFACT_REFERENCE` | This reference would create a circular dependency: ${(cycle.path ?? []).join(' -> ')} | `src/modules/nested-trees/reference-cycle-guard.service.ts` |
 | `CODE_IMPORT_HAS_BLOCKING_ISSUES` | This code import has unresolved errors and cannot be written to an artifact graph | `src/modules/code-import/code-import-artifact-writer.service.ts` |
 | `CODE_IMPORT_NOT_FOUND` | Code import not found | `src/modules/code-import/code-import.service.ts` |
 | `CODE_IMPORT_REASON_CODE_MISSING` | These reason codes no longer exist in the catalog: ${missing.join(', ')} | `src/modules/code-import/code-import-catalog.service.ts` |
 | `CODE_IMPORT_SOURCE_TOO_LARGE` | Source exceeds ${maxBytes} bytes | `src/modules/code-import/code-import-analyzer.service.ts` |
 | `CODE_IMPORT_VARIABLE_NOT_IN_CATALOG` | These variables are not declared in the catalog: ${missing.join(', ')} | `src/modules/code-import/code-import-catalog.service.ts` |
-| `COMPILED_ARTIFACT_NOT_FOUND` | Compiled artifact not found | `src/modules/deployments/deployment.service.ts` |
+| `COMPILED_ARTIFACT_NOT_FOUND` | Compiled artifact not found | `src/modules/deployments/deploy-version.service.ts` |
 | `CONSENT_GRANT_REPLAYED` | El alta es anterior a la situación vigente de esta finalidad (una revocación o un alta | `src/modules/risk-governance/risk-governance.service.ts` |
 | `CONSENT_REVOCATION_IN_FUTURE` | Una revocación no puede fecharse en el futuro. | `src/modules/risk-governance/risk-governance.service.ts` |
 | `CONSENT_REVOCATION_STALE` | La revocación es anterior al alta vigente de esta finalidad: ya fue superada. | `src/modules/risk-governance/risk-governance.service.ts` |
 | `CONSENT_WRITE_MACHINE_ONLY` | Los consentimientos se registran y se revocan en Atlas Core; el motor sólo recibe su | `src/modules/risk-governance/consent-replica-caller.ts` |
 | `COVERAGE_NO_USABLE_CASE` | No se pudo construir ningún caso ejecutable para esta versión: revisa su contrato de entrada | `src/modules/testing/coverage-suite.service.ts` |
 | `COVERAGE_VERSION_NOT_COMPILED` | La versión no tiene un artefacto compilado con éxito: compílala antes de generar sus pruebas | `src/modules/testing/coverage-suite.service.ts` |
-| `DEPLOYMENT_ALREADY_SUSPENDED` | Deployment is already suspended | `src/modules/deployments/deployment.service.ts` |
-| `DEPLOYMENT_EFFECTIVE_FROM_IN_FUTURE` | effectiveFrom no puede ser futuro: el despliegue anterior dejaría de servir ya y el | `src/modules/deployments/deployment.service.ts` |
-| `DEPLOYMENT_EFFECTIVE_WINDOW_INVALID` | effectiveTo debe ser posterior a effectiveFrom y a la hora actual. | `src/modules/deployments/deployment.service.ts` |
-| `DEPLOYMENT_MODE_NOT_SUPPORTED` | Sólo se admiten despliegues DIRECT sin reglas de tráfico: el runtime todavía no enruta | `src/modules/deployments/deployment.service.ts` |
-| `DEPLOYMENT_NOT_ACTIVE` | Deployment is no longer the active deployment for this environment | `src/modules/deployments/deployment.service.ts` |
-| `DEPLOYMENT_NOT_FOUND` | Deployment not found | `src/modules/deployments/deployment.service.ts` |
+| `DEPLOYMENT_ALREADY_SUSPENDED` | Deployment is already suspended | `src/modules/deployments/deployment-suspension.service.ts` |
+| `DEPLOYMENT_EFFECTIVE_FROM_IN_FUTURE` | effectiveFrom no puede ser futuro: el despliegue anterior dejaría de servir ya y el | `src/modules/deployments/deploy-request.rules.ts` |
+| `DEPLOYMENT_EFFECTIVE_WINDOW_INVALID` | effectiveTo debe ser posterior a effectiveFrom y a la hora actual. | `src/modules/deployments/deploy-request.rules.ts` |
+| `DEPLOYMENT_MODE_NOT_SUPPORTED` | Sólo se admiten despliegues DIRECT sin reglas de tráfico: el runtime todavía no enruta | `src/modules/deployments/deploy-request.rules.ts` |
+| `DEPLOYMENT_NOT_ACTIVE` | Deployment is no longer the active deployment for this environment | `src/modules/deployments/deployment-rollback.service.ts` |
+| `DEPLOYMENT_NOT_FOUND` | Deployment not found | `src/modules/deployments/deployment-rollback.service.ts` |
 | `DUPLICATE_APPROVAL_DECISION` | This principal already decided this step | `src/modules/governance/governance.service.ts` |
-| `ECONOMIC_CONTRACT_INCOMPLETE` | ${problems.join(' ')} Si esta decisión no origina crédito, decláralo en su | `src/modules/deployments/deployment.service.ts` |
+| `ECONOMIC_CONTRACT_INCOMPLETE` | ${problems.join(' ')} Si esta decisión no origina crédito, decláralo en su | `src/modules/deployments/economic-contract.gate.ts` |
 | `EDGE_CONDITION_NOT_FOUND` | Edge ${edge.key} references unknown condition ${binding.conditionCode} | `src/modules/artifacts/artifact-graph-writer.service.ts` |
 | `EDGE_NODE_NOT_FOUND` | Edge ${edge.key} references an unknown node | `src/modules/artifacts/artifact-graph-writer.service.ts` |
 | `ENABLING_BASIS_INVALID` | La decisión exige una base habilitante que el titular no tiene vigente: | `src/modules/risk-governance/decision-guard.service.ts` |
-| `ENABLING_BASIS_POLICY_INVALID` | — | `src/modules/artifacts/artifact.service.ts` |
-| `ENABLING_BASIS_POLICY_LOCKED` | La política de base habilitante sólo se puede cambiar en una versión en borrador. | `src/modules/artifacts/artifact.service.ts` |
-| `ENVIRONMENT_NOT_FOUND` | Deployment environment not found or inactive | `src/modules/deployments/deployment.service.ts` |
+| `ENABLING_BASIS_POLICY_INVALID` | — | `src/modules/artifacts/version-authoring.service.ts` |
+| `ENABLING_BASIS_POLICY_LOCKED` | La política de base habilitante sólo se puede cambiar en una versión en borrador. | `src/modules/artifacts/version-authoring.service.ts` |
+| `ENVIRONMENT_NOT_FOUND` | Deployment environment not found or inactive | `src/modules/deployments/deploy-version.service.ts` |
 | `EXECUTION_NOT_FOUND` | Decision execution not found | `src/modules/audit-query/audit-query.service.ts` |
 | `EXECUTION_PERSISTENCE_CONFLICT` | The request or execution evidence already exists | `src/modules/runtime/execution-writer.service.ts` |
 | `EXECUTION_WITHOUT_TERMINAL` | Execution ended without a terminal node | `src/modules/graph/execution-engine.service.ts` |
@@ -105,23 +105,23 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `IDEMPOTENCY_PAYLOAD_MISMATCH` | The idempotency key was already used with a different request payload | `src/modules/runtime/idempotency.service.ts` |
 | `IDENTITY_IMAGE_KIND_INVALID` | La imagen pedida no existe: usa document, documentBack o selfie. | `src/modules/workers/identity-verification/identity-verification.controller.ts` |
 | `IDENTITY_IMAGE_NOT_AVAILABLE` | Esa imagen no está disponible para esta verificación. | `src/modules/workers/identity-verification/identity-verification.controller.ts` |
-| `IDENTITY_IMAGE_STORAGE_NOT_CONFIGURED` | No se puede verificar una identidad sin un sitio donde conservar las imágenes: | `src/modules/workers/identity-verification/identity-verification.service.ts` |
+| `IDENTITY_IMAGE_STORAGE_NOT_CONFIGURED` | No se puede verificar una identidad sin un sitio donde conservar las imágenes: | `src/modules/workers/identity-verification/identity-image-store.service.ts` |
 | `IDENTITY_PROVIDER_ERROR` | Identity provider rejected the request | `src/common/security/identity-provider.client.ts` |
 | `IDENTITY_PROVIDER_INVALID_RESPONSE` | Identity provider did not return ${what} matching the expected contract | `src/common/security/identity-provider.client.ts` |
 | `IDENTITY_PROVIDER_NOT_CONFIGURED` | Identity provider is not configured | `src/common/security/identity-provider.client.ts` |
 | `IDENTITY_PROVIDER_UNAVAILABLE` | Identity provider is unavailable | `src/common/security/identity-provider.client.ts` |
 | `IDENTITY_RATE_LIMITED` | Too many authentication attempts | `src/common/security/identity-provider.client.ts` |
-| `IDENTITY_REJECTION_REASON_REQUIRED` | Rechazar un documento exige declarar el motivo: un rechazo sin motivo no es medible. | `src/modules/workers/identity-verification/review/identity-review.service.ts` |
+| `IDENTITY_REJECTION_REASON_REQUIRED` | Rechazar un documento exige declarar el motivo: un rechazo sin motivo no es medible. | `src/modules/workers/identity-verification/review/identity-review-resolution.service.ts` |
 | `IDENTITY_REQUEST_INVALID` | Invalid identity request | `src/common/security/identity-provider.client.ts` |
 | `IDENTITY_REQUEST_REJECTED` | — | `src/common/security/identity-provider.client.ts` |
-| `IDENTITY_REVIEW_ALREADY_HAS_VERDICT` | Este caso ya tiene veredicto del worker y espera que una persona lo firme: resuélvelo con CONFIRM_IDENTITY o DENY_IDENTITY. | `src/modules/workers/identity-verification/review/identity-review.service.ts` |
-| `IDENTITY_REVIEW_DOCUMENT_TYPE_REQUIRED` | Confirmar el documento exige declarar cuál es: sin tipo no hay analizador y el caso volvería a la misma cola. | `src/modules/workers/identity-verification/review/identity-review.service.ts` |
-| `IDENTITY_REVIEW_NOT_ASSIGNED` | El caso ya no está reclamado por ti: otra petición lo cerró o lo liberó. | `src/modules/workers/identity-verification/review/identity-review.service.ts` |
-| `IDENTITY_REVIEW_NOT_CLAIMABLE` | — | `src/modules/workers/identity-verification/review/identity-review.service.ts` |
-| `IDENTITY_REVIEW_NOT_FOUND` | No hay ningún caso de arbitraje con ese identificador. | `src/modules/workers/identity-verification/review/identity-review.service.ts` |
-| `IDENTITY_REVIEW_NO_VERDICT_YET` | Este caso llegó a la cola porque no se supo qué documento era: todavía no hay veredicto que confirmar ni negar. Resuélvelo con CONFIRM_DOCUMENT o REJECT_DOCUMENT. | `src/modules/workers/identity-verification/review/identity-review.service.ts` |
-| `IDENTITY_RUN_NOT_CANCELLABLE` | — | `src/modules/workers/identity-verification/identity-verification.service.ts` |
-| `IDENTITY_RUN_NOT_FOUND` | No existe esa verificación. | `src/modules/workers/identity-verification/identity-verification.service.ts` |
+| `IDENTITY_REVIEW_ALREADY_HAS_VERDICT` | Este caso ya tiene veredicto del worker y espera que una persona lo firme: resuélvelo con CONFIRM_IDENTITY o DENY_IDENTITY. | `src/modules/workers/identity-verification/review/identity-review-resolution.service.ts` |
+| `IDENTITY_REVIEW_DOCUMENT_TYPE_REQUIRED` | Confirmar el documento exige declarar cuál es: sin tipo no hay analizador y el caso volvería a la misma cola. | `src/modules/workers/identity-verification/review/identity-review-resolution.service.ts` |
+| `IDENTITY_REVIEW_NOT_ASSIGNED` | El caso ya no está reclamado por ti: otra petición lo cerró o lo liberó. | `src/modules/workers/identity-verification/review/identity-review-assignment.service.ts` |
+| `IDENTITY_REVIEW_NOT_CLAIMABLE` | — | `src/modules/workers/identity-verification/review/identity-review-claim.service.ts` |
+| `IDENTITY_REVIEW_NOT_FOUND` | No hay ningún caso de arbitraje con ese identificador. | `src/modules/workers/identity-verification/review/identity-review-assignment.service.ts` |
+| `IDENTITY_REVIEW_NO_VERDICT_YET` | Este caso llegó a la cola porque no se supo qué documento era: todavía no hay veredicto que confirmar ni negar. Resuélvelo con CONFIRM_DOCUMENT o REJECT_DOCUMENT. | `src/modules/workers/identity-verification/review/identity-review-resolution.service.ts` |
+| `IDENTITY_RUN_NOT_CANCELLABLE` | — | `src/modules/workers/identity-verification/identity-run.service.ts` |
+| `IDENTITY_RUN_NOT_FOUND` | No existe esa verificación. | `src/modules/workers/identity-verification/identity-run.service.ts` |
 | `IF_MATCH_REQUIRED` | If-Match header with current lock_version is required | `src/common/http/id.ts` |
 | `INSTITUTION_INVALID_PATTERN` | El patrón de ${field} «${source}» ${reason}. | `src/modules/workers/bank-statement/institutions/financial-institution.service.ts` |
 | `INSTITUTION_LOGO_ACTIVE_SVG` | El SVG contiene guiones o contenido incrustado y no se puede servir. Expórtalo otra vez sin scripts. | `src/modules/workers/bank-statement/institutions/financial-institution.service.ts` |
@@ -142,7 +142,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `INVALID_IF_MATCH` | If-Match must be a positive integer | `src/common/http/id.ts` |
 | `INVALID_SECURITY_CONTEXT` | x-tenant-id is required for clients authorised on multiple tenants | `src/common/security/authentication.guard.ts` |
 | `INVALID_SIGNAL_DESCRIPTOR` | — | `src/modules/workers/bank-statement/institutions/financial-institution.service.ts` |
-| `INVALID_TRAFFIC_PERCENTAGE` | Traffic percentages must total 100 | `src/modules/deployments/deployment.service.ts` |
+| `INVALID_TRAFFIC_PERCENTAGE` | Traffic percentages must total 100 | `src/modules/deployments/deploy-request.rules.ts` |
 | `INVALID_VERSION_TRANSITION` | Cannot transition artifact version from ${version.status} to ${to} | `src/modules/artifacts/version-state.service.ts` |
 | `LIBRARY_ENVIRONMENT_FORBIDDEN` | La librería ${row.logicalName} no está habilitada en el ambiente ${environmentCode} | `src/modules/libraries/library.service.ts` |
 | `LIBRARY_FUNCTION_NOT_EXPOSED` | El prelude de ${dto.packageName} no expone: ${unknown.join(', ')} | `src/modules/libraries/library.service.ts` |
@@ -185,7 +185,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `OUTPUT_TYPE_INVALID` | Output ${code} cannot be null | `src/modules/graph/execution/output-contract.service.ts` |
 | `POLICY_NOT_FOUND` | Policy requirement not found | `src/modules/traceability/traceability.service.ts` |
 | `PRIMARY_OUTPUT_TOO_LONG` | Primary output ${code} exceeds 80 characters | `src/modules/graph/execution/output-contract.service.ts` |
-| `PROCESSING_BASIS_LOCKED` | La finalidad y la base legal sólo se pueden cambiar en una versión en borrador. | `src/modules/artifacts/artifact.service.ts` |
+| `PROCESSING_BASIS_LOCKED` | La finalidad y la base legal sólo se pueden cambiar en una versión en borrador. | `src/modules/artifacts/version-authoring.service.ts` |
 | `QA_COUNTEREXAMPLE_NOT_FOUND` | Contraejemplo no encontrado | `src/modules/qa-lab/qa-lab.service.ts` |
 | `QA_DISTRIBUTION_DUPLICATED` | La variable ${entry.variableCode} tiene más de una distribución declarada | `src/modules/qa-lab/qa-run-planner.service.ts` |
 | `QA_DISTRIBUTION_VARIABLE_UNKNOWN` | La variable ${entry.variableCode} no es una entrada del contrato de esta versión | `src/modules/qa-lab/qa-run-planner.service.ts` |
@@ -199,9 +199,9 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `REASON_CODE_NOT_FOUND` | Unknown reason codes in the output contract: ${missing.join(', ')} | `src/modules/artifacts/artifact-graph-writer.service.ts` |
 | `REDIS_REQUIRED` | In-memory cache fallback is disabled in production | `src/common/cache/cache.service.ts` |
 | `REDIS_UNAVAILABLE` | Redis is required but unavailable | `src/common/cache/cache.service.ts` |
-| `REFERENCE_CONTRACT_INCOMPATIBLE` | El contrato del artefacto referenciado no puede satisfacerse: ${issues[0].message} | `src/modules/nested-trees/nested-tree.service.ts` |
+| `REFERENCE_CONTRACT_INCOMPATIBLE` | El contrato del artefacto referenciado no puede satisfacerse: ${issues[0].message} | `src/modules/nested-trees/reference-child-validator.service.ts` |
 | `REFERENCE_NOT_FOUND` | No artifact reference configured for node ${nodeKey} | `src/modules/nested-trees/nested-tree-execution.service.ts` |
-| `REFERENCE_VERSION_POLICY_FORBIDDEN` | En PROD la referencia debe fijar una versión exacta: resolver la activa del ambiente haría la decisión irreproducible | `src/modules/nested-trees/nested-tree.service.ts` |
+| `REFERENCE_VERSION_POLICY_FORBIDDEN` | En PROD la referencia debe fijar una versión exacta: resolver la activa del ambiente haría la decisión irreproducible | `src/modules/nested-trees/reference-child-validator.service.ts` |
 | `REIDENTIFICATION_ALREADY_DECIDED` | Esta solicitud ya se resolvió. Una autorización gastada no vale para la siguiente consulta. | `src/modules/risk-governance/risk-governance.service.ts` |
 | `REIDENTIFICATION_NOT_FOUND` | La solicitud no existe | `src/modules/risk-governance/risk-governance.service.ts` |
 | `REIDENTIFICATION_SELF_APPROVAL` | Quien pide una reidentificación no puede aprobarla. | `src/modules/risk-governance/risk-governance.service.ts` |
@@ -210,8 +210,8 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `RESOURCE_ALREADY_EXISTS` | Ya existe un registro con ese identificador único | `src/common/errors/domain-exception.filter.ts` |
 | `RESULT_MODE_INVALID` | Unsupported RESULT mode ${mode} | `src/modules/graph/execution/result-node.executor.ts` |
 | `RESULT_SCRIPT_LANGUAGE_INVALID` | — | `src/modules/graph/execution/result-node.executor.ts` |
-| `ROLLBACK_TARGET_NOT_AVAILABLE` | El despliegue anterior está ${freshPrevious.deploymentStatus} y no puede reactivarse | `src/modules/deployments/deployment.service.ts` |
-| `ROLLBACK_TARGET_NOT_FOUND` | No previous deployment is available | `src/modules/deployments/deployment.service.ts` |
+| `ROLLBACK_TARGET_NOT_AVAILABLE` | El despliegue anterior está ${freshPrevious.deploymentStatus} y no puede reactivarse | `src/modules/deployments/deployment-rollback.service.ts` |
+| `ROLLBACK_TARGET_NOT_FOUND` | No previous deployment is available | `src/modules/deployments/deployment-rollback.service.ts` |
 | `RUNTIME_ACTION_NOT_FOUND` | Action ${reference.code} not found | `src/modules/graph/execution/action-node.executor.ts` |
 | `RUNTIME_CREDENTIAL_REQUIRED` | Runtime routes require a credential with a verifiable runtime audience | `src/common/security/authentication.guard.ts` |
 | `RUNTIME_NODE_NOT_FOUND` | Compiled node ${nodeKey} not found | `src/modules/graph/execution-engine.service.ts` |
@@ -221,7 +221,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `SCRIPT_RUNNER_INSECURE_IN_PRODUCTION` | The in-process script runner cannot execute in production; use SCRIPT_RUNNER_MODE=SIDECAR. | `src/modules/graph/script-node-runner.service.ts` |
 | `SCRIPT_RUNNER_UNAVAILABLE` | Could not reach the isolated script runner: ${error.message} | `src/modules/graph/script-node-runner.service.ts` |
 | `SCRIPT_SOURCE_TOO_LARGE` | Script exceeds ${this.maxSourceBytes} bytes | `src/modules/graph/script-node-runner.service.ts` |
-| `SELF_REFERENCE_FORBIDDEN` | An artifact cannot directly reference itself | `src/modules/nested-trees/nested-tree.service.ts` |
+| `SELF_REFERENCE_FORBIDDEN` | An artifact cannot directly reference itself | `src/modules/nested-trees/reference-child-validator.service.ts` |
 | `SEMANTIC_CATEGORY_DUPLICATE_CODE` | El lote repite estos códigos: ${[...new Set(duplicados)].join(', ')}. | `src/modules/workers/semantic-analysis/semantic-category.service.ts` |
 | `SEMANTIC_CATEGORY_HAS_ACTIVE_CHILDREN` | No se puede desactivar ${code}: tiene ${String(hijasActivas)} categoría(s) hija(s) activa(s). Desactívalas primero. | `src/modules/workers/semantic-analysis/semantic-category.service.ts` |
 | `SEMANTIC_CATEGORY_NOT_FOUND` | No existe la categoría ${code}. | `src/modules/workers/semantic-analysis/semantic-category.service.ts` |
@@ -237,7 +237,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `SEMANTIC_RUN_NOT_FOUND` | No existe ese análisis. | `src/modules/workers/semantic-analysis/semantic-analysis.service.ts` |
 | `SEMANTIC_TEXT_EMPTY` | El texto a analizar está vacío. | `src/modules/workers/semantic-analysis/semantic-analysis.service.ts` |
 | `SEMANTIC_TEXT_TOO_LONG` | El texto supera el máximo de ${maxLength} caracteres. | `src/modules/workers/semantic-analysis/semantic-analysis.service.ts` |
-| `SEPARATION_OF_DUTIES_VIOLATION` | The version author cannot deploy the same version alone | `src/modules/deployments/deployment.service.ts` |
+| `SEPARATION_OF_DUTIES_VIOLATION` | The version author cannot deploy the same version alone | `src/modules/deployments/deploy-version.service.ts` |
 | `SERVICE_NOT_READY` | One or more required dependencies are unavailable | `src/modules/health/health.controller.ts` |
 | `SESSION_EXPIRED` | The session reached its absolute lifetime; sign in again | `src/modules/identity-session/identity-session.service.ts` |
 | `SIMULATION_PROD_FORBIDDEN` | El simulador no opera sobre PROD, tampoco para generar valores de prueba | `src/modules/runtime/sample-input.service.ts` |
@@ -265,7 +265,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `VERSION_IMMUTABLE` | Only DRAFT or VALIDATION_FAILED versions are editable; current state is ${version.status} | `src/modules/artifacts/artifact-graph-writer.service.ts` |
 | `VERSION_NOT_APPROVED` | Version is not fully approved | `src/modules/governance/governance.service.ts` |
 | `VERSION_NOT_COMPILABLE` | No se puede compilar una versión en estado ${version.status}: sólo se compila lo que está VALIDATED. Si ya está desplegada, crea una versión nueva. | `src/modules/artifacts/artifact-lifecycle.service.ts` |
-| `VERSION_NOT_FOUND` | Artifact version not found | `src/modules/artifacts/artifact-graph-reader.service.ts` |
+| `VERSION_NOT_FOUND` | Artifact version not found | `src/modules/artifacts/artifact-catalog.service.ts` |
 | `VERSION_NOT_REVIEWABLE` | Version must be COMPILED before review | `src/modules/governance/governance.service.ts` |
 | `VERSION_NOT_VALIDATABLE` | Version in state ${version.status} cannot be validated | `src/modules/artifacts/artifact-lifecycle.service.ts` |
 | `WORKER_ARGUMENT_INVALID` | El argumento ${argumento} que el nodo ${request.nodeKey} envía no es base64 válido | `src/modules/workers/service-calls/worker-call.ts` |

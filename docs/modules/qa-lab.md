@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/qa-lab/`](https://github.com/) · 28 ficheros TypeScript.
+Código: [`src/modules/qa-lab/`](https://github.com/) · 36 ficheros TypeScript.
 
 Etiquetas de API: **QA Lab**.
 

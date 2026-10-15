@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/artifacts/`](https://github.com/) · 13 ficheros TypeScript.
+Código: [`src/modules/artifacts/`](https://github.com/) · 18 ficheros TypeScript.
 
 Etiquetas de API: **Decision Artifacts**.
 
@@ -60,6 +60,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 
 - `ActionDto`
 - `ActionReasonDto`
+- `ArtifactCatalogService`
 - `ArtifactController`
 - `ArtifactCreatedDto`
 - `ArtifactDetailDto`
@@ -71,7 +72,6 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `ArtifactListItemDto`
 - `ArtifactListQueryDto`
 - `ArtifactModule`
-- `ArtifactService`
 - `ArtifactVersionClonedDto`
 - `ArtifactVersionDetailDto`
 - `ArtifactVersionDiffDto`
@@ -101,5 +101,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `ReplaceGraphDto`
 - `UpdateVersionNotesDto`
 - `ValidateAndCompileResultDto`
+- `VersionAuthoringService`
+- `VersionCloneService`
 - `VersionStateService`
 - `VersionWriteResultDto`
