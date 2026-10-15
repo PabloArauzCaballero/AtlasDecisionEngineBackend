@@ -11,7 +11,8 @@ import { StatementRunIntakeService } from './bank-statement/statement-run-intake
 import { StatementRunService } from './bank-statement/statement-run.service';
 import { StatementUploadPolicy } from './bank-statement/statement-upload.policy';
 import { FinancialInstitutionController } from './bank-statement/institutions/financial-institution.controller';
-import { FinancialInstitutionService } from './bank-statement/institutions/financial-institution.service';
+import { InstitutionLogoService } from './bank-statement/institutions/institution-logo.service';
+import { InstitutionRegistryService } from './bank-statement/institutions/institution-registry.service';
 import { InstitutionCatalogService } from './bank-statement/institutions/institution-catalog.service';
 import { StatementReviewController } from './bank-statement/review/statement-review.controller';
 import { StatementReprocessService } from './bank-statement/review/statement-reprocess.service';
@@ -217,7 +218,8 @@ function maybe<K extends string, V>(
     // extracto. El catálogo va antes que el CRUD porque éste lo invalida en cada
     // escritura, y antes que el worker porque el motor lo lee en cada documento.
     InstitutionCatalogService,
-    FinancialInstitutionService,
+    InstitutionRegistryService,
+    InstitutionLogoService,
     SemanticCategoryService,
     UnresolvedClassificationService,
     UnresolvedResolutionService,
