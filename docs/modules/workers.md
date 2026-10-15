@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/workers/`](https://github.com/) · 366 ficheros TypeScript.
+Código: [`src/modules/workers/`](https://github.com/) · 368 ficheros TypeScript.
 
 Etiquetas de API: **Workers · Locución**, **Workers · Extractos bancarios**, **Workers · Entidades financieras**, **Workers · Verificación de identidad**, **Workers · Modelo semántico**, **Workers · Análisis semántico**, **Workers · Categorías semánticas**, **Workers · Pendientes de clasificación**, **Workers**.
 
@@ -38,7 +38,8 @@ Etiquetas de API: **Workers · Locución**, **Workers · Extractos bancarios**, 
 | `GET` | `/v1/workers/bank-statement/reviews` | `statementReviewList` | Cola de documentos pendientes de revisión humana |
 | `GET` | `/v1/workers/bank-statement/reviews/{requestId}` | `statementReviewGet` | Un caso, con su clasificación, lo extraído y lo que falló |
 | `POST` | `/v1/workers/bank-statement/reviews/{requestId}/claim` | `statementReviewClaim` | Reclama el caso para revisarlo |
-| `POST` | `/v1/workers/bank-statement/reviews/{requestId}/reprocess` | `statementReviewReprocess` | Devuelve el documento a la cola del worker |
+| `GET` | `/v1/workers/bank-statement/reviews/{requestId}/document` | `statementReviewDocument` | El PDF original del caso, para verlo al revisar |
+| `POST` | `/v1/workers/bank-statement/reviews/{requestId}/reprocess` | `statementReviewReprocess` | Devuelve el documento a la cola del worker, opcionalmente con la entidad asignada a mano |
 | `POST` | `/v1/workers/bank-statement/reviews/{requestId}/resolve` | `statementReviewResolve` | Cierra el caso: aprobar, corregir, rechazar o marcar no válido |
 | `GET` | `/v1/workers/bank-statement/reviews/categories` | `statementReviewCategories` | Contadores por categoría de la cola de revisión |
 | `POST` | `/v1/workers/bank-statement/runs` | `bankStatementCreateRun` | Encola una conversión de extracto |
@@ -46,6 +47,7 @@ Etiquetas de API: **Workers · Locución**, **Workers · Extractos bancarios**, 
 | `GET` | `/v1/workers/bank-statement/runs/{requestId}` | `bankStatementGetRun` | Estado, progreso y resultado de una ejecución |
 | `POST` | `/v1/workers/bank-statement/runs/{requestId}/cancel` | `bankStatementCancelRun` | Cancela una ejecución que nadie ha reclamado todavía |
 | `GET` | `/v1/workers/bank-statement/runs/{requestId}/download` | `bankStatementDownload` | Descarga el resultado en CSV o JSON |
+| `POST` | `/v1/workers/bank-statement/runs/{requestId}/reprocess` | `bankStatementReprocessRun` | Vuelve a analizar una ejecución cerrada que no dejó resultado ni movimientos |
 | `GET` | `/v1/workers/identity-verification/fixtures` | `identityVerificationListFixtures` | Escenarios de prueba disponibles |
 | `GET` | `/v1/workers/identity-verification/reviews` | `identityReviewList` | Cola de documentos a la espera de arbitraje |
 | `GET` | `/v1/workers/identity-verification/reviews/{requestId}` | `identityReviewGet` | Un caso, con la evidencia que lo trajo a la cola |
@@ -97,6 +99,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `BANK_STATEMENT_FILE_NOT_PDF`
 - `BANK_STATEMENT_FILE_REQUIRED`
 - `BANK_STATEMENT_FILE_TOO_LARGE`
+- `BANK_STATEMENT_INSTITUTION_UNKNOWN`
 - `BANK_STATEMENT_REJECTION_REASON_REQUIRED`
 - `BANK_STATEMENT_RESULT_NOT_READY`
 - `BANK_STATEMENT_REVIEW_ASSIGNEE_MISMATCH`
@@ -105,6 +108,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `BANK_STATEMENT_REVIEW_NOT_FOUND`
 - `BANK_STATEMENT_RUN_NOT_CANCELLABLE`
 - `BANK_STATEMENT_RUN_NOT_FOUND`
+- `BANK_STATEMENT_RUN_NOT_REPROCESSABLE`
 - `IDENTITY_IMAGE_KIND_INVALID`
 - `IDENTITY_IMAGE_NOT_AVAILABLE`
 - `IDENTITY_IMAGE_STORAGE_NOT_CONFIGURED`
@@ -293,6 +297,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `ProviderRateGate`
 - `ReevaluationStateDto`
 - `ReevaluationSummaryDto`
+- `ReprocessStatementReviewDto`
 - `ResolveIdentityReviewDto`
 - `ResolveStatementReviewDto`
 - `ResolveUnresolvedDto`

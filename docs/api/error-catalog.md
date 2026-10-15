@@ -3,7 +3,7 @@
 
 # Catálogo de códigos de error
 
-271 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
+273 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
 el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 
 | Código | Mensaje de referencia | Origen |
@@ -28,6 +28,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `BANK_STATEMENT_FILE_NOT_PDF` | El archivo no es un PDF. Se comprueba su contenido, no su extensión. | `src/modules/workers/bank-statement/bank-statement-input.ts` |
 | `BANK_STATEMENT_FILE_REQUIRED` | Se requiere un archivo PDF del extracto. | `src/modules/workers/bank-statement/bank-statement-input.ts` |
 | `BANK_STATEMENT_FILE_TOO_LARGE` | El archivo supera el máximo permitido de ${Math.floor(maxBytes / 1_048_576)} MiB. | `src/modules/workers/bank-statement/bank-statement-input.ts` |
+| `BANK_STATEMENT_INSTITUTION_UNKNOWN` | No hay ninguna entidad con el código ${code} en el padrón ni en la nómina de ASFI. | `src/modules/workers/bank-statement/review/statement-reprocess.service.ts` |
 | `BANK_STATEMENT_REJECTION_REASON_REQUIRED` | Marcar un documento como no válido exige declarar el motivo. | `src/modules/workers/bank-statement/review/statement-review-resolution.service.ts` |
 | `BANK_STATEMENT_RESULT_NOT_READY` | — | `src/modules/workers/bank-statement/bank-statement.controller.ts` |
 | `BANK_STATEMENT_REVIEW_ASSIGNEE_MISMATCH` | Sólo quien reclamó este caso puede resolverlo. | `src/modules/workers/bank-statement/review/statement-review-assignment.service.ts` |
@@ -35,7 +36,8 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `BANK_STATEMENT_REVIEW_NOT_CLAIMED` | Hay que reclamar el caso antes de resolverlo. | `src/modules/workers/bank-statement/review/statement-review-assignment.service.ts` |
 | `BANK_STATEMENT_REVIEW_NOT_FOUND` | No hay ningún caso de revisión con ese identificador. | `src/modules/workers/bank-statement/review/statement-review-assignment.service.ts` |
 | `BANK_STATEMENT_RUN_NOT_CANCELLABLE` | — | `src/modules/workers/bank-statement/statement-run.service.ts` |
-| `BANK_STATEMENT_RUN_NOT_FOUND` | No existe esa ejecución. | `src/modules/workers/bank-statement/statement-run.service.ts` |
+| `BANK_STATEMENT_RUN_NOT_FOUND` | No existe ese extracto. | `src/modules/workers/bank-statement/review/statement-reprocess.service.ts` |
+| `BANK_STATEMENT_RUN_NOT_REPROCESSABLE` | Sólo se vuelve a analizar una ejecución cerrada que no dejó resultado ni movimientos. | `src/modules/workers/bank-statement/review/statement-reprocess.service.ts` |
 | `BASELINE_COMPARISON_NOT_SUPPORTED` | Baseline comparison is not available; omit baselineCompiledArtifactId and use explicit expected results | `src/modules/testing/test-execution.service.ts` |
 | `BLOCKING_TESTS_NOT_PASSED` | Blocking tests and minimum coverage must pass before review | `src/modules/governance/approval-submission.service.ts` |
 | `CALCULATED_FIELD_ARGUMENT_INVALID` | ${operation} espera un número y recibió ${describe(value)} | `src/modules/calculated-fields/operation-evaluator.ts` |

@@ -4444,6 +4444,63 @@
         ]
       }
     },
+    "/v1/workers/bank-statement/runs/{requestId}/reprocess": {
+      "post": {
+        "operationId": "bankStatementReprocessRun",
+        "parameters": [
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Identificador de correlación de la petición; el mismo que viaja en la cabecera `x-request-id`."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReprocessStatementReviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "La ejecución vuelve a `QUEUED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatementReprocessedDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "Vuelve a analizar una ejecución cerrada que no dejó resultado ni movimientos",
+        "tags": [
+          "Workers · Extractos bancarios"
+        ]
+      }
+    },
     "/v1/workers/bank-statement/runs/{requestId}/download": {
       "get": {
         "operationId": "bankStatementDownload",
@@ -4725,6 +4782,54 @@
         ]
       }
     },
+    "/v1/workers/bank-statement/reviews/{requestId}/document": {
+      "get": {
+        "operationId": "statementReviewDocument",
+        "parameters": [
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Identificador de correlación de la petición; el mismo que viaja en la cabecera `x-request-id`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "El PDF tal como lo subió el cliente.",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          }
+        },
+        "summary": "El PDF original del caso, para verlo al revisar",
+        "tags": [
+          "Workers · Extractos bancarios"
+        ]
+      }
+    },
     "/v1/workers/bank-statement/reviews/{requestId}/claim": {
       "post": {
         "operationId": "statementReviewClaim",
@@ -4843,6 +4948,16 @@
             "description": "Identificador de correlación de la petición; el mismo que viaja en la cabecera `x-request-id`."
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReprocessStatementReviewDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "La ejecución vuelve a `QUEUED`.",
@@ -4870,7 +4985,7 @@
             "$ref": "#/components/responses/Error500"
           }
         },
-        "summary": "Devuelve el documento a la cola del worker",
+        "summary": "Devuelve el documento a la cola del worker, opcionalmente con la entidad asignada a mano",
         "tags": [
           "Workers · Extractos bancarios"
         ]
@@ -21504,6 +21619,10 @@
             "type": "object",
             "description": "Resultado, cuando la ejecución terminó bien."
           },
+          "provisionalResult": {
+            "type": "object",
+            "description": "Sólo extractos con el emisor en duda: el análisis completo (movimientos, ingresos, gastos, capacidad) para que una persona decida. NO es un resultado aplicable: el consumidor sigue leyendo `result`."
+          },
           "warnings": {
             "type": "object",
             "description": "Advertencias de un resultado utilizable pero revisable."
@@ -21578,6 +21697,35 @@
             "description": "Escenario de prueba. Excluyente con el archivo subido."
           }
         }
+      },
+      "ReprocessStatementReviewDto": {
+        "type": "object",
+        "properties": {
+          "institutionCode": {
+            "type": "string",
+            "maxLength": 16,
+            "description": "Código ASFI de la entidad que emitió el extracto (p. ej. `BNB`)."
+          }
+        }
+      },
+      "StatementReprocessedDto": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "QUEUED"
+            ],
+            "type": "string",
+            "description": "Siempre `QUEUED`: el caso vuelve a la cola del worker."
+          }
+        },
+        "required": [
+          "requestId",
+          "status"
+        ]
       },
       "StatementReviewItemDto": {
         "type": "object",
@@ -21766,25 +21914,6 @@
         "required": [
           "action",
           "notes"
-        ]
-      },
-      "StatementReprocessedDto": {
-        "type": "object",
-        "properties": {
-          "requestId": {
-            "type": "string"
-          },
-          "status": {
-            "enum": [
-              "QUEUED"
-            ],
-            "type": "string",
-            "description": "Siempre `QUEUED`: el caso vuelve a la cola del worker."
-          }
-        },
-        "required": [
-          "requestId",
-          "status"
         ]
       },
       "FinancialInstitutionDto": {

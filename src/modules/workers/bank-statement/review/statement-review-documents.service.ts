@@ -76,4 +76,27 @@ export class StatementReviewDocuments {
       HttpStatus.GONE,
     );
   }
+
+  /**
+   * Garantiza la copia de TRABAJO (`file_bytes`) que lee el worker, restaurándola desde la copia
+   * duradera del almacén si ya se había borrado. Es lo que permite volver a analizar una ejecución
+   * cerrada (2026-10-15: una aprobada sin resultado se quedaba así para siempre). `false` si no hay de
+   * dónde sacarla.
+   */
+  async ensureWorkingCopy(tenantId: bigint, requestId: string): Promise<boolean> {
+    if (await this.isAvailable(tenantId, requestId)) return true;
+    let pdf: StatementReviewPdf;
+    try {
+      pdf = await this.read(tenantId, requestId);
+    } catch {
+      return false;
+    }
+    await consultaCrudaConTenant(this.prisma, (tx) =>
+      tx.$executeRaw(Prisma.sql`
+        UPDATE decision_bank_statement_run SET file_bytes = ${pdf.content}
+        WHERE tenant_id = ${tenantId} AND request_id = ${requestId}
+      `),
+    );
+    return true;
+  }
 }

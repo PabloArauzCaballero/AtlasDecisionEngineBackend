@@ -1,5 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { Prisma, WorkerRunStatus } from '@prisma/client';
+import { WorkerRunStatus } from '@prisma/client';
 import { AuditService } from '../../../../common/audit/audit.service';
 import { DomainException } from '../../../../common/errors/domain-exception';
 import { JobName } from '../../../../common/jobs/job-names';
@@ -7,8 +7,16 @@ import { JobSignalService } from '../../../../common/jobs/job-signal.service';
 import { PrismaService } from '../../../../common/prisma/prisma.service';
 import type { AuthenticatedPrincipal } from '../../../../common/security/security.types';
 import { BOLIVIA_INSTITUTIONS } from '../core/institutions/bolivia-institutions';
+import { requeueFields } from './requeue-fields';
 import { StatementReviewAssignment } from './statement-review-assignment.service';
+import { StatementReviewDocuments } from './statement-review-documents.service';
 import type { StatementReprocessedDto } from './statement-review.dto';
+
+/** Estados cerrados que pueden volver a analizarse si no dejaron nada utilizable. */
+const REABRIBLES: readonly WorkerRunStatus[] = [
+  WorkerRunStatus.SUCCEEDED_WITH_WARNINGS,
+  WorkerRunStatus.FAILED,
+];
 
 @Injectable()
 export class StatementReprocessService {
@@ -17,6 +25,7 @@ export class StatementReprocessService {
     private readonly audit: AuditService,
     private readonly jobSignal: JobSignalService,
     private readonly assignment: StatementReviewAssignment,
+    private readonly documents: StatementReviewDocuments,
   ) {}
 
   /**
@@ -38,7 +47,10 @@ export class StatementReprocessService {
     const assigned = institutionCode?.trim()
       ? await this.assertKnownInstitution(tenantId, institutionCode)
       : undefined;
-    if (!(await current.documentAvailable())) {
+    if (
+      !(await current.documentAvailable()) &&
+      !(await this.documents.ensureWorkingCopy(tenantId, requestId))
+    ) {
       throw new DomainException(
         'BANK_STATEMENT_DOCUMENT_UNAVAILABLE',
         'El documento original ya no está disponible: hay que volver a subirlo.',
@@ -48,39 +60,7 @@ export class StatementReprocessService {
     await this.prisma.$transaction(async (tx) => {
       await tx.bankStatementRun.update({
         where: { tenantId_requestId: { tenantId, requestId } },
-        data: {
-          status: WorkerRunStatus.QUEUED,
-          progress: 0,
-          // El expediente entero vuelve a cero: una fila en cola que conserve el
-          // motivo de revisión describe un caso que ya no existe, y la base lo
-          // rechaza.
-          reviewReason: null,
-          rejectionReason: null,
-          reviewPriority: null,
-          reviewOpenedAt: null,
-          reviewClaimedBy: null,
-          reviewClaimedAt: null,
-          errorCode: null,
-          errorMessage: null,
-          // Los intentos se reponen: los que gastó fueron contra la versión
-          // anterior del análisis, y arrastrarlos haría que el reproceso naciera
-          // ya agotado.
-          attemptCount: 0,
-          leaseExpiresAt: null,
-          queuedAt: new Date(),
-          startedAt: null,
-          finishedAt: null,
-          // Lo leído antes se rehace: un provisional viejo junto a una ejecución en cola describiría
-          // un análisis que ya no es el que va a salir.
-          provisionalResultJson: Prisma.DbNull,
-          ...(assigned
-            ? {
-                assignedInstitutionCode: assigned,
-                assignedInstitutionBy: principal.id,
-                assignedInstitutionAt: new Date(),
-              }
-            : {}),
-        },
+        data: requeueFields(principal, assigned),
       });
       await this.audit.append(
         {
@@ -110,11 +90,84 @@ export class StatementReprocessService {
   }
 
   /**
+   * Volver a analizar una ejecución CERRADA que no dejó resultado ni movimientos (2026-10-15).
+   *
+   * En TEST había una `SUCCEEDED_WITH_WARNINGS` sin resultado ni movimientos —un caso de banco no
+   * reconocido aprobado antes de que existiera el análisis provisional— y, como la deduplicación por
+   * huella devuelve esa misma ejecución a quien vuelve a subir el PDF, se quedaba así para siempre. Aquí
+   * se reanaliza la MISMA fila con el mismo documento (restaurado desde el almacén si hace falta), con el
+   * padrón de hoy y, si se pide, con la entidad asignada a mano. Una ejecución con resultado no se reabre:
+   * su análisis ya existe y es el que se aplicó.
+   */
+  async reprocessRun(
+    tenantId: bigint,
+    requestId: string,
+    principal: AuthenticatedPrincipal,
+    institutionCode?: string,
+  ): Promise<StatementReprocessedDto> {
+    const run = await this.prisma.bankStatementRun.findFirst({
+      where: { tenantId, requestId },
+      select: { status: true, resultJson: true, transactionCount: true },
+    });
+    if (!run) {
+      throw new DomainException(
+        'BANK_STATEMENT_RUN_NOT_FOUND',
+        'No existe ese extracto.',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    const sinNada = run.resultJson === null || !run.transactionCount;
+    if (!REABRIBLES.includes(run.status) || !sinNada) {
+      throw new DomainException(
+        'BANK_STATEMENT_RUN_NOT_REPROCESSABLE',
+        'Sólo se vuelve a analizar una ejecución cerrada que no dejó resultado ni movimientos. ' +
+          'Los casos en revisión se reprocesan desde su bandeja.',
+        HttpStatus.CONFLICT,
+        { status: run.status },
+      );
+    }
+    const assigned = institutionCode?.trim()
+      ? await this.assertKnownInstitution(tenantId, institutionCode)
+      : undefined;
+    if (!(await this.documents.ensureWorkingCopy(tenantId, requestId))) {
+      throw new DomainException(
+        'BANK_STATEMENT_DOCUMENT_UNAVAILABLE',
+        'El documento original ya no está guardado: hay que volver a subirlo.',
+        HttpStatus.CONFLICT,
+      );
+    }
+    await this.prisma.$transaction(async (tx) => {
+      await tx.bankStatementRun.update({
+        where: { tenantId_requestId: { tenantId, requestId } },
+        data: requeueFields(principal, assigned),
+      });
+      await this.audit.append(
+        {
+          tenantId,
+          eventType: 'BANK_STATEMENT_RUN_REPROCESSED',
+          aggregateType: 'BankStatementRun',
+          aggregateId: requestId,
+          actorId: principal.id,
+          requestId: principal.requestId,
+          payload: {
+            requestId,
+            previousStatus: run.status,
+            ...(assigned ? { assignedInstitutionCode: assigned } : {}),
+          },
+        },
+        tx,
+      );
+      await this.jobSignal.notify(tx, JobName.BankStatement);
+    });
+    return { requestId, status: WorkerRunStatus.QUEUED };
+  }
+
+  /**
    * La entidad tiene que existir: en el padrón del entorno o, si el padrón está vacío o incompleto, en
    * la nómina compilada de ASFI. Un código inventado no se guarda, porque el motor lo ignoraría y el
    * caso volvería a la cola con el mismo motivo sin que nadie supiera por qué.
    */
-  private async assertKnownInstitution(tenantId: bigint, raw: string): Promise<string> {
+  async assertKnownInstitution(tenantId: bigint, raw: string): Promise<string> {
     const code = raw.trim().toUpperCase();
     const enPadron = await this.prisma.financialInstitution.findFirst({
       where: { tenantId, code },

@@ -26,6 +26,8 @@ export interface WorkerRunRow {
   requestedBy: string;
   correlationId: string;
   resultJson?: unknown;
+  /** Sólo extractos: lo leído de un documento que va a revisión con el emisor en duda. */
+  provisionalResultJson?: unknown;
   warningsJson?: unknown;
   errorCode: string | null;
   errorMessage: string | null;
@@ -61,6 +63,7 @@ export function toWorkerRunDto(row: WorkerRunRow): WorkerRunDto {
     requestedBy: row.requestedBy,
     correlationId: row.correlationId,
     ...(row.resultJson ? { result: row.resultJson } : {}),
+    ...(row.provisionalResultJson ? { provisionalResult: row.provisionalResultJson } : {}),
     ...(row.warningsJson ? { warnings: row.warningsJson } : {}),
     errorCode: row.errorCode,
     errorMessage: row.errorMessage,

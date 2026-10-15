@@ -3,7 +3,7 @@
 
 # Catálogo de endpoints
 
-Contrato **v1** · 215 rutas · 243 operaciones.
+Contrato **v1** · 217 rutas · 245 operaciones.
 
 La referencia interactiva completa —con esquemas, ejemplos y la posibilidad de probar cada
 llamada— está en `/docs/{API_VERSION}/reference` del propio backend. Esta página existe para
@@ -440,7 +440,8 @@ Conversión de un extracto bancario en PDF a movimientos normalizados. Asíncron
 | `GET` | `/v1/workers/bank-statement/reviews` | `statementReviewList` | Cola de documentos pendientes de revisión humana |
 | `GET` | `/v1/workers/bank-statement/reviews/{requestId}` | `statementReviewGet` | Un caso, con su clasificación, lo extraído y lo que falló |
 | `POST` | `/v1/workers/bank-statement/reviews/{requestId}/claim` | `statementReviewClaim` | Reclama el caso para revisarlo |
-| `POST` | `/v1/workers/bank-statement/reviews/{requestId}/reprocess` | `statementReviewReprocess` | Devuelve el documento a la cola del worker |
+| `GET` | `/v1/workers/bank-statement/reviews/{requestId}/document` | `statementReviewDocument` | El PDF original del caso, para verlo al revisar |
+| `POST` | `/v1/workers/bank-statement/reviews/{requestId}/reprocess` | `statementReviewReprocess` | Devuelve el documento a la cola del worker, opcionalmente con la entidad asignada a mano |
 | `POST` | `/v1/workers/bank-statement/reviews/{requestId}/resolve` | `statementReviewResolve` | Cierra el caso: aprobar, corregir, rechazar o marcar no válido |
 | `GET` | `/v1/workers/bank-statement/reviews/categories` | `statementReviewCategories` | Contadores por categoría de la cola de revisión |
 | `POST` | `/v1/workers/bank-statement/runs` | `bankStatementCreateRun` | Encola una conversión de extracto |
@@ -448,6 +449,7 @@ Conversión de un extracto bancario en PDF a movimientos normalizados. Asíncron
 | `GET` | `/v1/workers/bank-statement/runs/{requestId}` | `bankStatementGetRun` | Estado, progreso y resultado de una ejecución |
 | `POST` | `/v1/workers/bank-statement/runs/{requestId}/cancel` | `bankStatementCancelRun` | Cancela una ejecución que nadie ha reclamado todavía |
 | `GET` | `/v1/workers/bank-statement/runs/{requestId}/download` | `bankStatementDownload` | Descarga el resultado en CSV o JSON |
+| `POST` | `/v1/workers/bank-statement/runs/{requestId}/reprocess` | `bankStatementReprocessRun` | Vuelve a analizar una ejecución cerrada que no dejó resultado ni movimientos |
 
 ## Workers · Locución
 
