@@ -332,6 +332,9 @@ nav:
       - Ejemplos de API (documento original): API_EXAMPLES.md
       - Auditoría de seguridad: SECURITY_AUDIT.md
       - Preparación productiva (documento original): PRODUCTION_READINESS.md
+  - Trabajo DDD y código expresivo:
+      - Plan 2026-09-22: trabajo/2026-09-22-ddd-codigo-expresivo/PLAN.md
+      - Reporte 2026-09-22: trabajo/2026-09-22-ddd-codigo-expresivo/REPORTE.md
   - Informes:
       - Línea base: reports/baseline.md
       - Matriz de resiliencia: reports/resilience-run.md
