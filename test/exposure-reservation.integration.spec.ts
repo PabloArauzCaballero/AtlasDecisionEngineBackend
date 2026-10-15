@@ -27,7 +27,8 @@ import type { EngineExecutionResult } from '../src/modules/graph/graph.types';
 import type { NestedTreeExecutionService } from '../src/modules/nested-trees/nested-tree-execution.service';
 import { OutcomeIngestionService } from '../src/modules/outcome-ingestion/outcome-ingestion.service';
 import { DecisionGuardService } from '../src/modules/risk-governance/decision-guard.service';
-import { RiskGovernanceService } from '../src/modules/risk-governance/risk-governance.service';
+import { SubjectConsentService } from '../src/modules/risk-governance/subject-consent.service';
+import { SubjectDirectory } from '../src/modules/risk-governance/subject-directory.service';
 import { ExecutionWriterService } from '../src/modules/runtime/execution-writer.service';
 import { IdempotencyService } from '../src/modules/runtime/idempotency.service';
 import type { ExecuteDecisionDto } from '../src/modules/runtime/runtime.dto';
@@ -57,7 +58,7 @@ describeDb('Exposición y circuito de desenlaces, lado motor (integration)', () 
   });
   const hashes = new HashService(config);
   const audit = new AuditService(db, hashes);
-  const governance = new RiskGovernanceService(db, hashes, audit);
+  const governance = new SubjectConsentService(db, audit, new SubjectDirectory(db, hashes));
   const operator = { id: 'core-sync', requestId: 'sync-1' } as unknown as AuthenticatedPrincipal;
   const runtimePrincipal = {
     id: 'core-runtime',

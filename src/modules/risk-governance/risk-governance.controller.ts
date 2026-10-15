@@ -22,13 +22,19 @@ import {
   GovernanceWriteResultDto,
   ReidentificationListDto,
 } from './risk-governance.response.dto';
-import { RiskGovernanceService } from './risk-governance.service';
+import { ExposureLimitService } from './exposure-limit.service';
+import { ModelDossierService } from './model-dossier.service';
+import { ReidentificationService } from './reidentification.service';
+import { SubjectConsentService } from './subject-consent.service';
 
 @ApiTags('Risk Governance')
 @Controller('v1/risk-governance')
 export class RiskGovernanceController {
   constructor(
-    private readonly governance: RiskGovernanceService,
+    private readonly limits: ExposureLimitService,
+    private readonly subjectConsents: SubjectConsentService,
+    private readonly reidentifications: ReidentificationService,
+    private readonly dossiers: ModelDossierService,
     private readonly calibration: CalibrationService,
   ) {}
 
@@ -45,7 +51,7 @@ export class RiskGovernanceController {
   @ApiOkResponse({ description: 'Límites y consumo.', type: ExposureLimitListDto })
   @Roles('RISK_ANALYST', 'RISK_APPROVER', 'COMPLIANCE', 'AUDITOR', 'OPERATIONS')
   listLimits(@TenantId() tenantId: bigint) {
-    return this.governance.listLimits(tenantId);
+    return this.limits.listLimits(tenantId);
   }
 
   /** Sólo `RISK_APPROVER`: un límite de cartera es apetito de riesgo, no configuración. */
@@ -59,7 +65,7 @@ export class RiskGovernanceController {
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Body() dto: UpsertExposureLimitDto,
   ) {
-    return this.governance.upsertLimit(tenantId, dto, principal);
+    return this.limits.upsertLimit(tenantId, dto, principal);
   }
 
   /** Lo reporta la conciliación con el sistema de cartera, no una persona. */
@@ -73,7 +79,7 @@ export class RiskGovernanceController {
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Body() dto: RecordPortfolioStateDto,
   ) {
-    return this.governance.recordPortfolioState(tenantId, dto, principal);
+    return this.limits.recordPortfolioState(tenantId, dto, principal);
   }
 
   // --- Licitud vigente ----------------------------------------------------
@@ -88,7 +94,7 @@ export class RiskGovernanceController {
   @ApiOkResponse({ description: 'Permisos del titular.', type: ConsentListDto })
   @Roles('COMPLIANCE', 'OPERATIONS', 'AUDITOR')
   consents(@TenantId() tenantId: bigint, @Body() dto: RevokeConsentDto) {
-    return this.governance.consentsOf(tenantId, dto.subjectReference);
+    return this.subjectConsents.consentsOf(tenantId, dto.subjectReference);
   }
 
   @Post('consents')
@@ -106,7 +112,7 @@ export class RiskGovernanceController {
     @Body() dto: RecordConsentDto,
   ) {
     assertConsentReplicaCaller(principal);
-    return this.governance.recordConsent(tenantId, dto, principal);
+    return this.subjectConsents.recordConsent(tenantId, dto, principal);
   }
 
   @Post('consents/revoke')
@@ -124,7 +130,7 @@ export class RiskGovernanceController {
     @Body() dto: RevokeConsentDto,
   ) {
     assertConsentReplicaCaller(principal);
-    return this.governance.revokeConsent(tenantId, dto, principal);
+    return this.subjectConsents.revokeConsent(tenantId, dto, principal);
   }
 
   // --- Reidentificación ---------------------------------------------------
@@ -134,7 +140,7 @@ export class RiskGovernanceController {
   @ApiOkResponse({ description: 'Solicitudes de reidentificación.', type: ReidentificationListDto })
   @Roles('COMPLIANCE', 'AUDITOR', 'RISK_APPROVER')
   listReidentifications(@TenantId() tenantId: bigint) {
-    return this.governance.listReidentifications(tenantId);
+    return this.reidentifications.listReidentifications(tenantId);
   }
 
   @Post('reidentifications')
@@ -147,7 +153,7 @@ export class RiskGovernanceController {
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Body() dto: RequestReidentificationDto,
   ) {
-    return this.governance.requestReidentification(tenantId, dto, principal);
+    return this.reidentifications.requestReidentification(tenantId, dto, principal);
   }
 
   /** El servicio rechaza que quien pidió sea quien aprueba: sin eso, la segunda firma es teatro. */
@@ -161,7 +167,7 @@ export class RiskGovernanceController {
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Body() dto: DecideReidentificationDto,
   ) {
-    return this.governance.decideReidentification(tenantId, dto, principal);
+    return this.reidentifications.decideReidentification(tenantId, dto, principal);
   }
 
   // --- Calibración y expediente ------------------------------------------
@@ -198,6 +204,6 @@ export class RiskGovernanceController {
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Body() dto: RecordModelDossierDto,
   ) {
-    return this.governance.recordDossier(tenantId, dto, principal);
+    return this.dossiers.recordDossier(tenantId, dto, principal);
   }
 }

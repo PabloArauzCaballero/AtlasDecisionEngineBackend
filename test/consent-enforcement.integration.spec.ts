@@ -1,7 +1,7 @@
 /**
  * Sujeto y base habilitante exigibles, contra Postgres (P-09, brecha B11).
  *
- * Lo que se mide es el CIRCUITO: la réplica de la base desde el core (`RiskGovernanceService`),
+ * Lo que se mide es el CIRCUITO: la réplica de la base desde el core (`SubjectConsentService`),
  * la decisión (`RuntimeService` con guardia, escritor, idempotencia y auditoría reales) y lo que
  * queda escrito. Sólo el grafo y la resolución de variables son dobles: aquí no se juzga el
  * modelo, se juzga si se le deja decidir.
@@ -25,7 +25,8 @@ import type { ExecutionEngineService } from '../src/modules/graph/execution-engi
 import type { EngineExecutionResult } from '../src/modules/graph/graph.types';
 import type { NestedTreeExecutionService } from '../src/modules/nested-trees/nested-tree-execution.service';
 import { DecisionGuardService } from '../src/modules/risk-governance/decision-guard.service';
-import { RiskGovernanceService } from '../src/modules/risk-governance/risk-governance.service';
+import { SubjectConsentService } from '../src/modules/risk-governance/subject-consent.service';
+import { SubjectDirectory } from '../src/modules/risk-governance/subject-directory.service';
 import { ExecutionWriterService } from '../src/modules/runtime/execution-writer.service';
 import { IdempotencyService } from '../src/modules/runtime/idempotency.service';
 import type { ExecuteDecisionDto } from '../src/modules/runtime/runtime.dto';
@@ -50,7 +51,7 @@ describeDb('Base habilitante exigible de extremo a extremo (integration)', () =>
   });
   const hashes = new HashService(config);
   const audit = new AuditService(db, hashes);
-  const governance = new RiskGovernanceService(db, hashes, audit);
+  const governance = new SubjectConsentService(db, audit, new SubjectDirectory(db, hashes));
   const operator = { id: 'core-sync', requestId: 'sync-1' } as unknown as AuthenticatedPrincipal;
   const runtimePrincipal = {
     id: 'core-runtime',
