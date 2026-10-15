@@ -1,6 +1,7 @@
 import { HttpStatus } from '@nestjs/common';
 import { WorkerInputSource } from '@prisma/client';
-import { IdentityVerificationService } from '../src/modules/workers/identity-verification/identity-verification.service';
+import { IdentityImageStore } from '../src/modules/workers/identity-verification/identity-image-store.service';
+import { IdentityRunIntakeService } from '../src/modules/workers/identity-verification/identity-run-intake.service';
 import { BankStatementService } from '../src/modules/workers/bank-statement/bank-statement.service';
 import { DomainException } from '../src/common/errors/domain-exception';
 
@@ -77,12 +78,11 @@ const NADA = {} as never;
 
 describe('sin almacén de objetos no se acepta una subida real', () => {
   it('identidad: la subida se rechaza con 503 y un código propio', async () => {
-    const service = new IdentityVerificationService(
+    const service = new IdentityRunIntakeService(
       PRISMA_PROHIBIDO as never,
       NADA,
       NADA,
-      NADA,
-      SIN_ALMACEN as never,
+      new IdentityImageStore(SIN_ALMACEN as never),
     );
 
     const fallo = await service
@@ -144,12 +144,11 @@ describe('la huella del original se guarda con su clave', () => {
         }),
     };
 
-    const service = new IdentityVerificationService(
+    const service = new IdentityRunIntakeService(
       prisma as never,
       { notify: () => Promise.resolve() } as never,
-      NADA,
       { inject: () => ({}) } as never,
-      {
+      new IdentityImageStore({
         isConfigured: () => true,
         buildIdentityKey: () => 'identity/1/r1/x',
         put: () =>
@@ -160,7 +159,7 @@ describe('la huella del original se guarda con su clave', () => {
             sha256Hex: SHA,
           }),
         remove: () => Promise.resolve(),
-      } as never,
+      } as never),
     );
 
     await service.createRun(

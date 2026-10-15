@@ -63,7 +63,10 @@ import { IdentityReviewController } from './identity-verification/review/identit
 import { IdentityReviewService } from './identity-verification/review/identity-review.service';
 import { IdentityRunWorkerService } from './identity-verification/identity-run-worker.service';
 import { IdentityVerificationController } from './identity-verification/identity-verification.controller';
-import { IdentityVerificationService } from './identity-verification/identity-verification.service';
+import { IdentityDecisionPolicy } from './identity-verification/identity-decision-policy.service';
+import { IdentityImageStore } from './identity-verification/identity-image-store.service';
+import { IdentityRunIntakeService } from './identity-verification/identity-run-intake.service';
+import { IdentityRunService } from './identity-verification/identity-run.service';
 import { EngineSemanticMetricsRecorder } from './semantic-analysis/adapters/engine-metrics.recorder';
 import { PrismaSemanticAuditRepository } from './semantic-analysis/adapters/prisma-audit.repository';
 import {
@@ -242,7 +245,10 @@ function maybe<K extends string, V>(
     AudioTtsRuntimeFactory,
 
     // --- Worker C: verificación de identidad --------------------------------
-    IdentityVerificationService,
+    IdentityImageStore,
+    IdentityRunIntakeService,
+    IdentityRunService,
+    IdentityDecisionPolicy,
     IdentityRunWorkerService,
     IdentityPipelineService,
     DocumentIntakeService,
@@ -512,7 +518,6 @@ function maybe<K extends string, V>(
     AudioTtsRuntimeFactory,
     BankStatementService,
     SemanticAnalysisService,
-    IdentityVerificationService,
     WorkerServiceInvokerService,
   ],
 })

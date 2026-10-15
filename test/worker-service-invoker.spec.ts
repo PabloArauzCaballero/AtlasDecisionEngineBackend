@@ -9,7 +9,7 @@ import { findBankStatementFixture } from '../src/modules/workers/bank-statement/
 import type { SemanticAnalysisPipeline } from '../src/modules/workers/semantic-analysis/core/application/semantic-analysis.pipeline';
 import type { AudioTtsRuntimeFactory } from '../src/modules/workers/audio-tts/audio-tts.runtime';
 import type { IdentityPipelineService } from '../src/modules/workers/identity-verification/identity-pipeline.service';
-import type { IdentityVerificationService } from '../src/modules/workers/identity-verification/identity-verification.service';
+import type { IdentityRunIntakeService } from '../src/modules/workers/identity-verification/identity-run-intake.service';
 import type { AuthenticatedPrincipal } from '../src/common/security/security.types';
 import type { WorkerServiceRequest } from '../src/modules/graph/graph.types';
 
@@ -76,7 +76,7 @@ function build(overrides: Record<string, unknown> = {}) {
   const identity = { run: jest.fn() } as unknown as IdentityPipelineService;
   const identityRuns = {
     recordInlineEvidence: jest.fn(),
-  } as unknown as IdentityVerificationService;
+  } as unknown as IdentityRunIntakeService;
   return new WorkerServiceInvokerService(
     new BankStatementCallHandler(config, institutions),
     new SemanticClassificationCallHandler(config, semantic),
