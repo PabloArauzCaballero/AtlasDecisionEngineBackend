@@ -12,7 +12,7 @@ import { seededVariableVersionId } from './support/seeded-variables';
  *  - POST /v1/deployments/:deploymentId/suspend
  *
  * Ambas exigen `PLATFORM_ADMIN`. El rollback necesita, además, un DESPLIEGUE PREDECESOR:
- * `DeploymentService.rollback` responde `ROLLBACK_TARGET_NOT_FOUND` si no lo hay. Por eso
+ * `DeploymentRollbackService.rollback` responde `ROLLBACK_TARGET_NOT_FOUND` si no lo hay. Por eso
  * esta suite despliega la misma versión dos veces sobre DEV: primero una versión, luego un
  * clon aprobado de esa misma versión — exactamente el camino real que produce un
  * `previousDeploymentId`, no un `INSERT` a mano.

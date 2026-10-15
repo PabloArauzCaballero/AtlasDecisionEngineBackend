@@ -27,7 +27,7 @@ class DeploymentArtifactRefDto {
   artifact!: { artifactCode: string; name: string };
 }
 
-/** `DeploymentService.list`: fila real de `decision_deployment`. */
+/** `DeploymentQueryService.list`: fila real de `decision_deployment`. */
 export class DeploymentListItemDto {
   @ApiProperty({ example: '55001' }) id!: string;
   @ApiProperty({ example: '4001' }) artifactVersionId!: string;
@@ -51,13 +51,13 @@ export class DeploymentListItemDto {
   @ApiProperty({ type: [TrafficRuleDto] }) traffic!: TrafficRuleDto[];
 }
 
-/** `DeploymentService.rollback`. */
+/** `DeploymentRollbackService.rollback`. */
 export class DeploymentRolledBackDto {
   @ApiProperty({ example: '55001' }) rolledBackDeploymentId!: string;
   @ApiProperty({ example: '54990' }) activeDeploymentId!: string;
 }
 
-/** `DeploymentService.suspend`. */
+/** `DeploymentSuspensionService.suspend`. */
 export class DeploymentSuspendedDto {
   @ApiProperty({ example: '55001' }) deploymentId!: string;
   @ApiProperty({ example: 'SUSPENDED' }) status!: string;
