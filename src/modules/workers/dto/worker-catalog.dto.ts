@@ -95,6 +95,11 @@ export class WorkerRunDto {
   rejectionReason?: StatementRejectionReason | null;
   @ApiPropertyOptional({ description: '1 alta · 2 media · 3 baja.' })
   reviewPriority?: number | null;
+  @ApiPropertyOptional({
+    description:
+      'Sólo al encolar: `true` si ese mismo archivo ya estaba en el motor y se devuelve su ejecución en vez de crear otra.',
+  })
+  deduplicated?: boolean;
 }
 
 export class WorkerRunQueryDto extends PaginationQueryDto {
