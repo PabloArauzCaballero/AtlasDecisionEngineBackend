@@ -8,7 +8,7 @@ real: sus controladores, sus etiquetas de API, sus roles exigidos y sus códigos
 
 | Módulo | Endpoints | Roles exigidos | Ficheros |
 | --- | ---: | --- | ---: |
-| [`artifacts`](artifacts.md) | 13 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, OPERATIONS, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 18 |
+| [`artifacts`](artifacts.md) | 13 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, OPERATIONS, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 29 |
 | [`atlas-callback`](atlas-callback.md) | 0 | — | 3 |
 | [`audit-query`](audit-query.md) | 7 | AUDITOR, COMPLIANCE, OPERATIONS, RISK_ANALYST | 8 |
 | [`calculated-fields`](calculated-fields.md) | 14 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 14 |
@@ -16,7 +16,7 @@ real: sus controladores, sus etiquetas de API, sus roles exigidos y sus códigos
 | [`data-subject`](data-subject.md) | 2 | AUDITOR, COMPLIANCE, OPERATIONS | 5 |
 | [`deployments`](deployments.md) | 5 | AUDITOR, COMPLIANCE, OPERATIONS, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 13 |
 | [`governance`](governance.md) | 4 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, QA_ANALYST, RISK_ANALYST, RISK_APPROVER | 5 |
-| [`graph`](graph.md) | 0 | — | 36 |
+| [`graph`](graph.md) | 0 | — | 44 |
 | [`health`](health.md) | 5 | — | 4 |
 | [`identity-session`](identity-session.md) | 8 | — | 8 |
 | [`libraries`](libraries.md) | 3 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 6 |
@@ -39,4 +39,4 @@ real: sus controladores, sus etiquetas de API, sus roles exigidos y sus códigos
 | [`tutorials`](tutorials.md) | 2 | — | 5 |
 | [`variables`](variables.md) | 9 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, OPERATIONS, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 10 |
 | [`views`](views.md) | 9 | — | 5 |
-| [`workers`](workers.md) | 66 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, OPERATIONS, QA_ANALYST, RISK_ANALYST | 354 |
+| [`workers`](workers.md) | 66 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, OPERATIONS, QA_ANALYST, RISK_ANALYST | 360 |

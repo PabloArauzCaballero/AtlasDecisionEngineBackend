@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/artifacts/`](https://github.com/) · 18 ficheros TypeScript.
+Código: [`src/modules/artifacts/`](https://github.com/) · 29 ficheros TypeScript.
 
 Etiquetas de API: **Decision Artifacts**.
 
@@ -60,6 +60,10 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 
 - `ActionDto`
 - `ActionReasonDto`
+- `ApprovalDecisionDto`
+- `ApprovalEvidenceDto`
+- `ApprovalRequestDto`
+- `ApprovalStepDto`
 - `ArtifactCatalogService`
 - `ArtifactController`
 - `ArtifactCreatedDto`
@@ -72,12 +76,15 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `ArtifactListItemDto`
 - `ArtifactListQueryDto`
 - `ArtifactModule`
+- `ArtifactSummaryDto`
 - `ArtifactVersionClonedDto`
 - `ArtifactVersionDetailDto`
 - `ArtifactVersionDiffDto`
 - `ArtifactVersionStatusHistoryDto`
+- `ArtifactVersionSummaryDto`
 - `CalculatedFieldBindingService`
 - `CalculatedFieldCallDto`
+- `CalculatedFieldCallSnapshotDto`
 - `CalculatedFieldInputSourceDto`
 - `CloneVersionDto`
 - `CompiledArtifactSummaryDto`
@@ -85,23 +92,35 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `ContractExtensionsDto`
 - `CreateArtifactDto`
 - `DependencyDto`
+- `DeploymentEnvironmentDto`
+- `DiffEntryDto`
 - `EdgeConditionBindingDto`
 - `EdgeDto`
 - `EnablingBasisPolicyDto`
 - `EnablingBasisRequirementDto`
+- `GraphActionDto`
+- `GraphConditionDto`
+- `GraphEdgeDto`
+- `GraphNodeDto`
 - `GraphValidationReportDto`
 - `IntermediateVariableDto`
+- `IntermediateVariableSnapshotDto`
 - `NodeActionBindingDto`
 - `NodeConditionBindingDto`
 - `NodeDto`
 - `OutputContractFieldDto`
+- `OutputContractFieldSnapshotDto`
 - `PdfArtifactContractAdapter`
 - `ProcessingBasisDto`
 - `ProcessingBasisResultDto`
+- `ReasonCodeDto`
 - `ReplaceGraphDto`
 - `UpdateVersionNotesDto`
 - `ValidateAndCompileResultDto`
+- `ValidationIssueDto`
+- `VariableContractDto`
 - `VersionAuthoringService`
 - `VersionCloneService`
+- `VersionDeploymentDto`
 - `VersionStateService`
 - `VersionWriteResultDto`

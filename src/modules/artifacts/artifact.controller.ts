@@ -21,17 +21,21 @@ import {
 import {
   ArtifactCreatedDto,
   ArtifactDetailDto,
-  ArtifactGraphSnapshotDto,
   ArtifactListItemDto,
-  ArtifactVersionClonedDto,
-  ArtifactVersionDetailDto,
-  ArtifactVersionDiffDto,
   CompiledArtifactSummaryDto,
+} from './response/artifact-catalog.dto';
+import { ArtifactGraphSnapshotDto } from './response/graph-structure.dto';
+import {
+  ArtifactVersionDiffDto,
   GraphValidationReportDto,
   ProcessingBasisResultDto,
   ValidateAndCompileResultDto,
+} from './response/validation-and-diff.dto';
+import {
+  ArtifactVersionClonedDto,
+  ArtifactVersionDetailDto,
   VersionWriteResultDto,
-} from './artifact.response.dto';
+} from './response/version-governance.dto';
 
 @ApiTags('Decision Artifacts')
 @Controller('v1')
