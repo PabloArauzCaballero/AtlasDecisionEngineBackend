@@ -8,6 +8,9 @@ export const bootstrapEnv = {
   // propios fixtures. Solo surte efecto donde corren los trabajos de fondo
   // (WORKER_ROLE ∈ ALL, WORKER): una réplica de API nunca siembra, aunque esto esté en `true`.
   STARTUP_SEED_ENABLED: booleanFromString.optional(),
+  // El catálogo de REFERENCIA (padrón ASFI, logotipos, árbol de categorías): se siembra en cada arranque,
+  // creando sólo lo que falte, independiente de STARTUP_SEED_ENABLED. `false` lo apaga (no debería hacer falta).
+  REFERENCE_CATALOG_SEED_ENABLED: booleanFromString.optional(),
   // Bootstrap integration clients. Read straight from process.env by the seed helpers
   // (they stay framework-free so `prisma db seed` can run them without Nest); declared
   // here so the values are validated and documented instead of being magic strings.

@@ -3,7 +3,7 @@
 
 # Variables de entorno
 
-346 variables declaradas. El esquema se valida al arrancar: un valor ausente o
+347 variables declaradas. El esquema se valida al arrancar: un valor ausente o
 fuera de rango impide el arranque en vez de degradar el comportamiento en caliente.
 
 | Variable | Obligatoria | Valor por defecto | Para qué |
@@ -314,6 +314,7 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `OUTBOX_MAX_ATTEMPTS` | no | `8` | Failed dispatches back off exponentially via available_at; after this many attempts the event is dead-lettered (status DEAD) for operator attention. |
 | `OUTBOX_LEASE_MS` | no | `30_000` | Claim lease: a relay replica that dies mid-batch frees its rows after this lapse. |
 | `STARTUP_SEED_ENABLED` | no | — | Al arrancar, trae el conjunto sembrado que publica la rama `SEED_SOURCE_*` SI la base está vacía; si ya tiene datos no toca nada, porque la carga es un reemplazo y no un upsert. Sin declarar está activo en todas partes menos en `test`, donde las suites aportan sus propios fixtures. Solo surte efecto donde corren los trabajos de fondo (WORKER_ROLE ∈ ALL, WORKER): una réplica de API nunca siembra, aunque esto esté en `true`. |
+| `REFERENCE_CATALOG_SEED_ENABLED` | no | — | El catálogo de REFERENCIA (padrón ASFI, logotipos, árbol de categorías): se siembra en cada arranque, creando sólo lo que falte, independiente de STARTUP_SEED_ENABLED. `false` lo apaga (no debería hacer falta). |
 | `BOOTSTRAP_TENANT_ID` | **sí** | — | Bootstrap integration clients. Read straight from process.env by the seed helpers (they stay framework-free so `prisma db seed` can run them without Nest); declared here so the values are validated and documented instead of being magic strings.  El tenant de TODO lo que siembra el módulo, no sólo de estos clientes: lo resuelve `seeding/data/helpers.ts`. `[1-9][0-9]*` y no `[0-9]+` para que las dos validaciones digan lo mismo — el `0` pasaba aquí y el resolutor lo rechaza, así que un despliegue arrancaba y la siembra moría después, que es el peor sitio para enterarse. |
 | `SEED_TENANT_ID` | **sí** | — | Sinónimo histórico, el que usan los guiones de `prisma/dev-seeds/`. Se declara para que valide igual; si están las dos, manda BOOTSTRAP_TENANT_ID. |
 | `BOOTSTRAP_MANAGEMENT_ROLES` | no | `''` | — |

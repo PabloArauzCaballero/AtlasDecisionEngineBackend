@@ -37,6 +37,7 @@ import { QaLabModule } from './modules/qa-lab/qa-lab.module';
 import { RuntimeModule } from './modules/runtime/runtime.module';
 import { SecurityReviewModule } from './modules/security-review/security-review.module';
 import { SeedingModule } from './modules/seeding/seeding.module';
+import { ReferenceCatalogModule } from './modules/reference-catalog/reference-catalog.module';
 import { SqlConsoleModule } from './modules/sql-console/sql-console.module';
 import { TestingModule } from './modules/testing/testing.module';
 import { TraceabilityModule } from './modules/traceability/traceability.module';
@@ -69,6 +70,7 @@ import { PdfWorkerModule } from './pdf-worker/pdf-worker.module';
     // despertar en la misma transacción que el cambio que la origina.
     JobsModule,
     SeedingModule,
+    ReferenceCatalogModule,
     CryptoModule,
     CacheModule,
     AuditModule,
