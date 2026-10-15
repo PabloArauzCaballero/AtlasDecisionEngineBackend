@@ -65,6 +65,8 @@ import { IdentityReviewClaimService } from './identity-verification/review/ident
 import { IdentityReviewQueueService } from './identity-verification/review/identity-review-queue.service';
 import { IdentityReviewResolutionService } from './identity-verification/review/identity-review-resolution.service';
 import { IdentityVerdictSigner } from './identity-verification/review/identity-verdict-signer.service';
+import { IdentityRunFailureService } from './identity-verification/identity-run-failure.service';
+import { IdentityRunLeaseService } from './identity-verification/identity-run-lease.service';
 import { IdentityRunWorkerService } from './identity-verification/identity-run-worker.service';
 import { IdentityVerificationController } from './identity-verification/identity-verification.controller';
 import { IdentityDecisionPolicy } from './identity-verification/identity-decision-policy.service';
@@ -253,6 +255,8 @@ function maybe<K extends string, V>(
     IdentityRunIntakeService,
     IdentityRunService,
     IdentityDecisionPolicy,
+    IdentityRunLeaseService,
+    IdentityRunFailureService,
     IdentityRunWorkerService,
     IdentityPipelineService,
     DocumentIntakeService,
