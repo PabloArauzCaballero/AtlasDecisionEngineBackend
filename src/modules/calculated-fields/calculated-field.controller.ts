@@ -34,13 +34,19 @@ import {
   SampleCalculatedFieldInputsDto,
 } from './calculated-field.dto';
 import { CalculatedFieldPreviewService } from './calculated-field-preview.service';
-import { CalculatedFieldService } from './calculated-field.service';
+import { CalculatedFieldCatalogService } from './calculated-field-catalog.service';
+import { CalculatedFieldLoader } from './calculated-field-loader.service';
+import { CalculatedFieldTestingService } from './calculated-field-testing.service';
+import { CalculatedFieldVersionService } from './calculated-field-version.service';
 
 @ApiTags('Calculated Fields')
 @Controller('v1/calculated-fields')
 export class CalculatedFieldController {
   constructor(
-    private readonly fields: CalculatedFieldService,
+    private readonly catalog: CalculatedFieldCatalogService,
+    private readonly versions: CalculatedFieldVersionService,
+    private readonly testing: CalculatedFieldTestingService,
+    private readonly loader: CalculatedFieldLoader,
     private readonly preview: CalculatedFieldPreviewService,
   ) {}
 
@@ -133,7 +139,7 @@ export class CalculatedFieldController {
   @ApiPagedResponse('Página de campos calculados del tenant.', CalculatedFieldListItemDto)
   @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST', 'COMPLIANCE', 'AUDITOR')
   list(@TenantId() tenantId: bigint, @Query() query: CalculatedFieldQueryDto) {
-    return this.fields.list(tenantId, query);
+    return this.catalog.list(tenantId, query);
   }
 
   @Get(':fieldId')
@@ -144,7 +150,7 @@ export class CalculatedFieldController {
   })
   @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST', 'COMPLIANCE', 'AUDITOR')
   get(@TenantId() tenantId: bigint, @Param('fieldId') fieldId: string) {
-    return this.fields.get(tenantId, parseBigIntId(fieldId, 'fieldId'));
+    return this.catalog.get(tenantId, parseBigIntId(fieldId, 'fieldId'));
   }
 
   @Post()
@@ -156,7 +162,7 @@ export class CalculatedFieldController {
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Body() dto: CreateCalculatedFieldDto,
   ) {
-    return this.fields.create(tenantId, dto, principal);
+    return this.catalog.create(tenantId, dto, principal);
   }
 
   @Post(':fieldId/versions')
@@ -176,7 +182,7 @@ export class CalculatedFieldController {
     @Param('fieldId') fieldId: string,
     @Body() dto: CreateCalculatedFieldVersionDto,
   ) {
-    return this.fields.createVersion(tenantId, parseBigIntId(fieldId, 'fieldId'), dto, principal);
+    return this.versions.createVersion(tenantId, parseBigIntId(fieldId, 'fieldId'), dto, principal);
   }
 
   @Post('versions/:versionId/promote')
@@ -189,7 +195,7 @@ export class CalculatedFieldController {
     @Param('versionId') versionId: string,
     @Body() dto: PromoteCalculatedFieldVersionDto,
   ) {
-    return this.fields.promote(tenantId, parseBigIntId(versionId, 'versionId'), dto, principal);
+    return this.versions.promote(tenantId, parseBigIntId(versionId, 'versionId'), dto, principal);
   }
 
   @Post('versions/:versionId/try')
@@ -204,7 +210,7 @@ export class CalculatedFieldController {
     @Param('versionId') versionId: string,
     @Body() dto: TryCalculatedFieldDto,
   ) {
-    return this.fields.tryRun(tenantId, parseBigIntId(versionId, 'versionId'), dto.inputs);
+    return this.testing.tryRun(tenantId, parseBigIntId(versionId, 'versionId'), dto.inputs);
   }
 
   @Post('versions/:versionId/sample-inputs')
@@ -223,7 +229,7 @@ export class CalculatedFieldController {
     @Param('versionId') versionId: string,
     @Body() dto: SampleCalculatedFieldInputsDto,
   ) {
-    return this.fields.sampleInputs(tenantId, parseBigIntId(versionId, 'versionId'), dto);
+    return this.testing.sampleInputs(tenantId, parseBigIntId(versionId, 'versionId'), dto);
   }
 
   @Post('versions/:versionId/outcomes')
@@ -242,7 +248,7 @@ export class CalculatedFieldController {
     @Param('versionId') versionId: string,
     @Body() dto: CalculatedFieldOutcomeCoverageDto,
   ) {
-    const executable = await this.fields.toExecutable(
+    const executable = await this.loader.toExecutable(
       tenantId,
       parseBigIntId(versionId, 'versionId'),
     );
@@ -257,6 +263,6 @@ export class CalculatedFieldController {
   })
   @Roles('QA_ANALYST', 'FRAUD_ANALYST', 'PLATFORM_ADMIN')
   test(@TenantId() tenantId: bigint, @Param('versionId') versionId: string) {
-    return this.fields.runTestCases(tenantId, parseBigIntId(versionId, 'versionId'));
+    return this.testing.runTestCases(tenantId, parseBigIntId(versionId, 'versionId'));
   }
 }

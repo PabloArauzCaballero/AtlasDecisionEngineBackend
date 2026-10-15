@@ -66,7 +66,7 @@ export class OperationCatalogDto {
   maxExecutableLines!: number;
 }
 
-/** `CalculatedFieldService.list`: forma aplanada, una fila por campo con su última versión. */
+/** `CalculatedFieldCatalogService.list`: forma aplanada, una fila por campo con su última versión. */
 export class CalculatedFieldListItemDto {
   @ApiProperty({ example: '6001' }) id!: string;
   @ApiProperty({ example: 'DEBT_TO_INCOME' }) fieldCode!: string;
@@ -145,7 +145,7 @@ class CalculatedFieldVersionDetailDto {
   @ApiProperty({ type: [CalculatedFieldTestCaseDto] }) testCases!: CalculatedFieldTestCaseDto[];
 }
 
-/** `CalculatedFieldService.get`: campo con todas sus versiones y su evidencia de uso. */
+/** `CalculatedFieldCatalogService.get`: campo con todas sus versiones y su evidencia de uso. */
 export class CalculatedFieldDetailDto {
   @ApiProperty({ example: '6001' }) id!: string;
   @ApiProperty({ example: 'DEBT_TO_INCOME' }) fieldCode!: string;
@@ -159,20 +159,20 @@ export class CalculatedFieldDetailDto {
   versions!: CalculatedFieldVersionDetailDto[];
 }
 
-/** `CalculatedFieldService.create`. */
+/** `CalculatedFieldCatalogService.create`. */
 export class CalculatedFieldCreatedDto {
   @ApiProperty({ example: '6001' }) id!: string;
   @ApiProperty({ example: 'DEBT_TO_INCOME' }) fieldCode!: string;
 }
 
-/** `CalculatedFieldService.createVersion`: proyección mínima; ver `get` para el detalle completo. */
+/** `CalculatedFieldVersionService.createVersion`: proyección mínima; ver `get` para el detalle completo. */
 export class CalculatedFieldVersionCreatedDto {
   @ApiProperty({ example: '6101' }) id!: string;
   @ApiProperty({ example: 2 }) versionNumber!: number;
   @ApiProperty({ example: 'DRAFT' }) status!: string;
 }
 
-/** `CalculatedFieldService.promote`. */
+/** `CalculatedFieldVersionService.promote`. */
 export class CalculatedFieldPromotedDto {
   @ApiProperty({ example: '6101' }) id!: string;
   @ApiProperty({ example: 'APPROVED' }) status!: string;
@@ -215,7 +215,7 @@ class CalculatedFieldTestResultDto {
   @ApiProperty({ nullable: true }) expected?: unknown;
 }
 
-/** `CalculatedFieldService.runTestCases`. */
+/** `CalculatedFieldTestingService.runTestCases`. */
 export class CalculatedFieldTestReportDto {
   @ApiProperty({ example: 5 }) total!: number;
   @ApiProperty({ example: 5 }) passed!: number;

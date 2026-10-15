@@ -5,16 +5,22 @@ import { LibraryModule } from '../libraries/library.module';
 import { CalculatedFieldController } from './calculated-field.controller';
 import { CalculatedFieldExecutorService } from './calculated-field-executor.service';
 import { CalculatedFieldPreviewService } from './calculated-field-preview.service';
-import { CalculatedFieldService } from './calculated-field.service';
+import { CalculatedFieldCatalogService } from './calculated-field-catalog.service';
+import { CalculatedFieldLoader } from './calculated-field-loader.service';
+import { CalculatedFieldTestingService } from './calculated-field-testing.service';
+import { CalculatedFieldVersionService } from './calculated-field-version.service';
 
 @Module({
   imports: [GraphModule, LibraryModule],
   controllers: [CalculatedFieldController],
   providers: [
-    CalculatedFieldService,
+    CalculatedFieldCatalogService,
+    CalculatedFieldVersionService,
+    CalculatedFieldTestingService,
+    CalculatedFieldLoader,
     CalculatedFieldExecutorService,
     CalculatedFieldPreviewService,
   ],
-  exports: [CalculatedFieldService, CalculatedFieldExecutorService],
+  exports: [CalculatedFieldExecutorService],
 })
 export class CalculatedFieldsModule {}
