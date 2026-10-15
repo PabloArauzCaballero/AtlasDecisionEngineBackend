@@ -29,6 +29,7 @@ real: sus controladores, sus etiquetas de API, sus roles exigidos y sus códigos
 | [`outcome-ingestion`](outcome-ingestion.md) | 4 | AUDITOR, COMPLIANCE, OPERATIONS, RISK_ANALYST, RISK_APPROVER | 8 |
 | [`platform-catalog`](platform-catalog.md) | 1 | AUDITOR, COMPLIANCE, OPERATIONS, PLATFORM_ADMIN | 8 |
 | [`qa-lab`](qa-lab.md) | 7 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 36 |
+| [`reference-catalog`](reference-catalog.md) | 0 | — | 11 |
 | [`risk-governance`](risk-governance.md) | 12 | AUDITOR, COMPLIANCE, OPERATIONS, RISK_ANALYST, RISK_APPROVER | 15 |
 | [`runtime`](runtime.md) | 3 | FRAUD_ANALYST, QA_ANALYST | 21 |
 | [`security-review`](security-review.md) | 2 | — | 4 |
