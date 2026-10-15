@@ -39,6 +39,10 @@ import type { NestedTreeExecutionService } from '../src/modules/nested-trees/nes
 import { TestCaseExecutorService } from '../src/modules/testing/test-case-executor.service';
 import { ASFI_SEED_REGISTRY } from '../src/modules/workers/bank-statement/core/institutions/institution-registry';
 import type { InstitutionCatalogService } from '../src/modules/workers/bank-statement/institutions/institution-catalog.service';
+import { AudioSpeakCallHandler } from '../src/modules/workers/service-calls/audio-speak-call.handler';
+import { BankStatementCallHandler } from '../src/modules/workers/service-calls/bank-statement-call.handler';
+import { IdentityVerificationCallHandler } from '../src/modules/workers/service-calls/identity-verification-call.handler';
+import { SemanticClassificationCallHandler } from '../src/modules/workers/service-calls/semantic-classification-call.handler';
 import { WorkerServiceInvokerService } from '../src/modules/workers/worker-service-invoker.service';
 import {
   cargarCuerpos,
@@ -60,17 +64,18 @@ function invocador(sobrescribe: Record<string, unknown>): WorkerServiceInvokerSe
     BANK_STATEMENT_AUTHENTICITY_ENFORCE: true,
     ...sobrescribe,
   };
+  // Un doble y no `new ConfigService(valores)`: éste da prioridad a `process.env`, y un `.env`
+  // local trae las banderas como texto (`'false'` es verdadero), lo que cambiaría el resultado.
+  const config = { get: (clave: string) => valores[clave] } as unknown as ConfigService;
+  const institutions = {
+    ensureLoaded: () => Promise.resolve(),
+    registryFor: () => ASFI_SEED_REGISTRY,
+  } as unknown as InstitutionCatalogService;
   return new WorkerServiceInvokerService(
-    // Un doble y no `new ConfigService(valores)`: éste da prioridad a `process.env`, y un `.env`
-    // local trae las banderas como texto (`'false'` es verdadero), lo que cambiaría el resultado.
-    { get: (clave: string) => valores[clave] } as unknown as ConfigService,
-    {} as never,
-    {} as never,
-    {
-      ensureLoaded: () => Promise.resolve(),
-      registryFor: () => ASFI_SEED_REGISTRY,
-    } as unknown as InstitutionCatalogService,
-    {} as never,
+    new BankStatementCallHandler(config, institutions),
+    new SemanticClassificationCallHandler(config, {} as never),
+    new AudioSpeakCallHandler(config, {} as never),
+    new IdentityVerificationCallHandler(config, {} as never, {} as never),
   );
 }
 

@@ -6,7 +6,12 @@ import { AccessLogInterceptor } from './access-log.interceptor';
 import { MessagingTraceService } from './messaging-trace.service';
 import { MetricsController } from './metrics.controller';
 import { MetricsInterceptor } from './metrics.interceptor';
+import { JobMetrics } from './job-metrics';
+import { MetricsRegistry } from './metrics-registry';
 import { MetricsService } from './metrics.service';
+import { ModelMonitoringMetrics } from './model-monitoring-metrics';
+import { OutboxMetrics } from './outbox-metrics';
+import { PersistenceMetrics } from './persistence-metrics';
 import { RequestTimeoutInterceptor } from './request-timeout.interceptor';
 import { StructuredLoggerService } from './structured-logger.service';
 import { TraceContextService } from './trace-context.service';
@@ -19,7 +24,12 @@ import { TracingService } from './tracing.service';
   providers: [
     RequestContextService,
     StructuredLoggerService,
+    MetricsRegistry,
     MetricsService,
+    JobMetrics,
+    ModelMonitoringMetrics,
+    OutboxMetrics,
+    PersistenceMetrics,
     // La capa de trazado es global por la misma razón que el logger: un dominio no debería
     // tener que importar un módulo para poder instrumentarse, porque el que no lo importa es
     // justamente el que se queda sin observabilidad.
@@ -35,7 +45,12 @@ import { TracingService } from './tracing.service';
   exports: [
     RequestContextService,
     StructuredLoggerService,
+    MetricsRegistry,
     MetricsService,
+    JobMetrics,
+    ModelMonitoringMetrics,
+    OutboxMetrics,
+    PersistenceMetrics,
     TracingService,
     TraceContextService,
     MessagingTraceService,

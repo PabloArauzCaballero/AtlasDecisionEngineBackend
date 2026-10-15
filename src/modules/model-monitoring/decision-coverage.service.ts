@@ -17,7 +17,7 @@
  */
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { MetricsService } from '../../common/observability/metrics.service';
+import { ModelMonitoringMetrics } from '../../common/observability/model-monitoring-metrics';
 import type { CoverageQueryDto } from './model-monitoring.dto';
 import { DEMO_REQUEST_LIKE } from '../../common/seeding/demo-marker';
 
@@ -47,7 +47,7 @@ interface DailyRow {
 export class DecisionCoverageService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly metrics: MetricsService,
+    private readonly metrics: ModelMonitoringMetrics,
   ) {}
 
   async coverage(tenantId: bigint, query: CoverageQueryDto) {

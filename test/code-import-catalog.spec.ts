@@ -1,4 +1,4 @@
-import { CodeImportService } from '../src/modules/code-import/code-import.service';
+import { CodeImportCatalogService } from '../src/modules/code-import/code-import-catalog.service';
 import { ContractExtractorService } from '../src/modules/code-import/contract-extractor.service';
 import { ContractValidatorService } from '../src/modules/code-import/contract-validator.service';
 import type { GeneratedGraphPreview } from '../src/modules/code-import/code-import.types';
@@ -28,28 +28,9 @@ function prismaWith(rows: CatalogRow[]) {
   };
 }
 
-interface CatalogChecks {
-  catalogIssues: (
-    tenantId: bigint,
-    dependencies: GeneratedGraphPreview['dependencies'],
-  ) => Promise<Array<{ code: string; severity: string; message: string }>>;
-  resolveVariableVersions: (
-    tenantId: bigint,
-    dependencies: GeneratedGraphPreview['dependencies'],
-  ) => Promise<Map<string, bigint>>;
-}
-
-/**
- * Sólo se ejercitan las comprobaciones del catálogo, que no colaboran con nada
- * más del servicio: se monta la instancia con su única dependencia real (Prisma)
- * en vez de fabricar las once que pide el constructor y no intervienen aquí.
- */
-function serviceWith(rows: CatalogRow[]): CatalogChecks {
-  const service = Object.create(CodeImportService.prototype) as CatalogChecks & {
-    prisma: unknown;
-  };
-  service.prisma = prismaWith(rows);
-  return service;
+/** Sólo se monta la única dependencia real del catálogo: Prisma. */
+function serviceWith(rows: CatalogRow[]): CodeImportCatalogService {
+  return new CodeImportCatalogService(prismaWith(rows) as never);
 }
 
 const DEPENDENCIES: GeneratedGraphPreview['dependencies'] = [
@@ -75,7 +56,7 @@ const DECISION: CatalogRow = {
   versions: [{ id: 11n, dataType: 'STRING' }],
 };
 
-describe('CodeImportService — contrato contra el catálogo', () => {
+describe('CodeImportCatalogService — contrato contra el catálogo', () => {
   it('marca como error la variable que el catálogo no declara', async () => {
     const service = serviceWith([EDAD]);
 

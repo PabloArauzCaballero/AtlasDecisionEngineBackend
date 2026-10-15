@@ -21,7 +21,7 @@ import { persistableCarrier } from '../src/common/events/trace-carrier';
 import type { JobSchedulerService } from '../src/common/jobs/job-scheduler.service';
 import type { JobSignalService } from '../src/common/jobs/job-signal.service';
 import { MessagingTraceService } from '../src/common/observability/messaging-trace.service';
-import type { MetricsService } from '../src/common/observability/metrics.service';
+import type { OutboxMetrics } from '../src/common/observability/outbox-metrics';
 import { TracingService } from '../src/common/observability/tracing.service';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
 import { OutboxRelayService } from '../src/modules/outbox-relay/outbox-relay.service';
@@ -55,7 +55,7 @@ describeDb('Propagación de traza API → worker por el outbox (integration)', (
     setOutboxPending: jest.fn(),
     recordOutboxDispatched: jest.fn(),
     recordOutboxDead: jest.fn(),
-  } as unknown as MetricsService;
+  } as unknown as OutboxMetrics;
   const jobSignal = {
     notify: jest.fn().mockResolvedValue(undefined),
   } as unknown as JobSignalService;

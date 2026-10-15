@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { runsBackgroundJobs, workerRoleOf } from '../config/worker-role';
-import { MetricsService } from '../observability/metrics.service';
+import { JobMetrics } from '../observability/job-metrics';
 import { APP_ATTRIBUTES, SPAN_NAMES } from '../observability/telemetry.constants';
 import { TracingService } from '../observability/tracing.service';
 import { BackgroundJob, JobCadence } from './background-job';
@@ -80,7 +80,7 @@ export class JobSchedulerService implements OnModuleInit, OnApplicationBootstrap
   constructor(
     private readonly config: ConfigService,
     private readonly signal: JobSignalService,
-    private readonly metrics: MetricsService,
+    private readonly metrics: JobMetrics,
     private readonly tracing: TracingService,
   ) {
     this.defaults = {

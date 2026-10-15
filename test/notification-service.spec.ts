@@ -1,10 +1,10 @@
 import { ConfigService } from '@nestjs/config';
-import type { MetricsService } from '../src/common/observability/metrics.service';
+import type { OutboxMetrics } from '../src/common/observability/outbox-metrics';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
 import { NotificationService } from '../src/modules/notifications/notification.service';
 
 const config = new ConfigService({ MAX_PAGE_SIZE: 100 });
-const metrics = { recordNotificationCreated: jest.fn() } as unknown as MetricsService;
+const metrics = { recordNotificationCreated: jest.fn() } as unknown as OutboxMetrics;
 
 describe('NotificationService recipient scoping (RBAC)', () => {
   it('lists only notifications addressed to the caller principal or a held role', async () => {

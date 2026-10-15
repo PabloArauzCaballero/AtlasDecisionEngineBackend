@@ -13,6 +13,10 @@
  * externo falla, el caso termina delante de una persona con el motivo escrito.
  */
 import { DecisionEngine } from '../src/modules/workers/semantic-analysis/core/application/decision-engine';
+import { CandidateRetrievalStage } from '../src/modules/workers/semantic-analysis/core/application/candidate-retrieval.stage';
+import { GlosaPreparationStage } from '../src/modules/workers/semantic-analysis/core/application/glosa-preparation.stage';
+import { RuleSafetyNet } from '../src/modules/workers/semantic-analysis/core/application/rule-safety-net';
+import { TieredModelClassifier } from '../src/modules/workers/semantic-analysis/core/application/tiered-model-classifier';
 import { GlosaFallbackClassifier } from '../src/modules/workers/semantic-analysis/core/application/glosa-fallback';
 import { SemanticAnalysisPipeline } from '../src/modules/workers/semantic-analysis/core/application/semantic-analysis.pipeline';
 import { SemanticAnalysisProcessor } from '../src/modules/workers/semantic-analysis/core/application/semantic-analysis.processor';
@@ -134,28 +138,37 @@ function montar(gateway: () => Response | Promise<Response>): Montaje {
     recordReviewEscalation: jest.fn(),
   };
 
+  const presupuesto = {
+    reserve: () => Promise.resolve({ allowed: true }),
+    recordProviderCalls: () => Promise.resolve(),
+  } as never;
+  const retriever = {
+    retrieve: (_texto: string, categorias: readonly SemanticCategory[]) =>
+      Promise.resolve(categorias.map((category) => ({ category, retrievalScore: 0.5 }))),
+  } as never;
   const pipeline = new SemanticAnalysisPipeline(
-    provider,
     config,
-    metricas as never,
-    {
-      retrieve: (_texto: string, categorias: readonly SemanticCategory[]) =>
-        Promise.resolve(categorias.map((category) => ({ category, retrievalScore: 0.5 }))),
-    } as never,
-    {
-      load: () => Promise.resolve({ categories: CATEGORIAS, aliases: [], signature: 'v1' }),
-    } as never,
+    new GlosaPreparationStage(
+      {
+        load: () => Promise.resolve({ categories: CATEGORIAS, aliases: [], signature: 'v1' }),
+      } as never,
+      { normalize: (texto: string) => texto, forClassification: (texto: string) => texto } as never,
+      { resolve: () => [] } as never,
+    ),
+    new CandidateRetrievalStage(config, retriever, TRAZA),
     { read: () => undefined, write: () => undefined } as never,
-    {
-      reserve: () => Promise.resolve({ allowed: true }),
-      recordProviderCalls: () => Promise.resolve(),
-    } as never,
-    { normalize: (texto: string) => texto, forClassification: (texto: string) => texto } as never,
-    { resolve: () => [] } as never,
-    new DecisionEngine(),
+    presupuesto,
     TRAZA,
     new SemanticAnalysisResultBuilder(metricas as never, TRAZA),
-    new GlosaFallbackClassifier(),
+    new RuleSafetyNet(new GlosaFallbackClassifier(), config),
+    new TieredModelClassifier(
+      provider,
+      config,
+      metricas as never,
+      TRAZA,
+      new DecisionEngine(),
+      presupuesto,
+    ),
   );
 
   const pendientes: { rawValue: string; context: Record<string, unknown> }[] = [];

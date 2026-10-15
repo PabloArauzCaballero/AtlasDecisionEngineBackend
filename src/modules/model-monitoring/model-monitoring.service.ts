@@ -3,7 +3,7 @@ import { ObservedOutcomeLabel, Prisma } from '@prisma/client';
 import { AuditService } from '../../common/audit/audit.service';
 import { DomainException } from '../../common/errors/domain-exception';
 import { parseBigIntId } from '../../common/http/id';
-import { MetricsService } from '../../common/observability/metrics.service';
+import { ModelMonitoringMetrics } from '../../common/observability/model-monitoring-metrics';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
 import {
@@ -48,7 +48,7 @@ export class ModelMonitoringService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
-    private readonly metrics: MetricsService,
+    private readonly metrics: ModelMonitoringMetrics,
   ) {}
 
   /**

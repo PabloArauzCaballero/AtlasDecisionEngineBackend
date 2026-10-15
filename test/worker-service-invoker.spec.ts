@@ -1,5 +1,9 @@
 import { ConfigService } from '@nestjs/config';
 import { InstitutionCatalogService } from '../src/modules/workers/bank-statement/institutions/institution-catalog.service';
+import { AudioSpeakCallHandler } from '../src/modules/workers/service-calls/audio-speak-call.handler';
+import { BankStatementCallHandler } from '../src/modules/workers/service-calls/bank-statement-call.handler';
+import { IdentityVerificationCallHandler } from '../src/modules/workers/service-calls/identity-verification-call.handler';
+import { SemanticClassificationCallHandler } from '../src/modules/workers/service-calls/semantic-classification-call.handler';
 import { WorkerServiceInvokerService } from '../src/modules/workers/worker-service-invoker.service';
 import { findBankStatementFixture } from '../src/modules/workers/bank-statement/fixtures/bank-statement-fixtures';
 import type { SemanticAnalysisPipeline } from '../src/modules/workers/semantic-analysis/core/application/semantic-analysis.pipeline';
@@ -74,12 +78,10 @@ function build(overrides: Record<string, unknown> = {}) {
     recordInlineEvidence: jest.fn(),
   } as unknown as IdentityVerificationService;
   return new WorkerServiceInvokerService(
-    config,
-    semantic,
-    audio,
-    institutions,
-    identity,
-    identityRuns,
+    new BankStatementCallHandler(config, institutions),
+    new SemanticClassificationCallHandler(config, semantic),
+    new AudioSpeakCallHandler(config, audio),
+    new IdentityVerificationCallHandler(config, identity, identityRuns),
   ).bind(1n, principal);
 }
 

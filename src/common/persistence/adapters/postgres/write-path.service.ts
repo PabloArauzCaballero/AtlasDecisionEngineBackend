@@ -9,7 +9,7 @@
  */
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
-import { MetricsService } from '../../../observability/metrics.service';
+import { PersistenceMetrics } from '../../../observability/persistence-metrics';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { WRITE_CONNECTION } from '../../connections/connection-registry.service';
 import { normalizePostgresError } from '../../errors/postgres-error-mapper';
@@ -41,7 +41,7 @@ export function transactionClientOf(
 export class WritePathService implements TransactionManager {
   constructor(
     private readonly client: PrismaService,
-    private readonly metrics: MetricsService,
+    private readonly metrics: PersistenceMetrics,
   ) {}
 
   /** Cliente de escritura para operaciones sueltas, dentro o fuera de una transacción. */

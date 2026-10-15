@@ -10,7 +10,7 @@ import { NotificationProjectorService } from '../src/modules/notifications/notif
 import { NotificationService } from '../src/modules/notifications/notification.service';
 import { OutboxRelayService } from '../src/modules/outbox-relay/outbox-relay.service';
 import type { JobSchedulerService } from '../src/common/jobs/job-scheduler.service';
-import type { MetricsService } from '../src/common/observability/metrics.service';
+import type { OutboxMetrics } from '../src/common/observability/outbox-metrics';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
 import { uniqueTenantId } from './support/unique-tenant';
 import { TracingService } from '../src/common/observability/tracing.service';
@@ -34,7 +34,7 @@ describeDb('Outbox relay + notification projector (integration)', () => {
     recordOutboxDispatched: jest.fn(),
     recordOutboxDead: jest.fn(),
     recordNotificationCreated: jest.fn(),
-  } as unknown as MetricsService;
+  } as unknown as OutboxMetrics;
   const config = new ConfigService({
     MAX_PAGE_SIZE: 100,
     OUTBOX_MAX_ATTEMPTS: 8,

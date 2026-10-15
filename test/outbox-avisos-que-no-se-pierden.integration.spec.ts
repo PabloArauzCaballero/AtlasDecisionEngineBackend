@@ -8,7 +8,7 @@ import { OutboxPublisherService } from '../src/common/events/outbox-publisher.se
 import type { JobSchedulerService } from '../src/common/jobs/job-scheduler.service';
 import type { JobSignalService } from '../src/common/jobs/job-signal.service';
 import { MessagingTraceService } from '../src/common/observability/messaging-trace.service';
-import type { MetricsService } from '../src/common/observability/metrics.service';
+import type { OutboxMetrics } from '../src/common/observability/outbox-metrics';
 import { TracingService } from '../src/common/observability/tracing.service';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
 import { AtlasCallbackDispatcher } from '../src/modules/atlas-callback/atlas-callback.dispatcher';
@@ -37,7 +37,7 @@ describeDb('Outbox: avisos que ya no se pierden (integración)', () => {
     recordOutboxDispatched: jest.fn(),
     recordOutboxDead: jest.fn(),
     recordNotificationCreated: jest.fn(),
-  } as unknown as MetricsService;
+  } as unknown as OutboxMetrics;
   const jobSignal = {
     notify: jest.fn().mockResolvedValue(undefined),
   } as unknown as JobSignalService;

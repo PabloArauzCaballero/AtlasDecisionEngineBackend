@@ -18,7 +18,7 @@ import { runsBackgroundJobs, workerRoleOf } from '../../common/config/worker-rol
 import { BackgroundJob } from '../../common/jobs/background-job';
 import { JobName } from '../../common/jobs/job-names';
 import { JobSchedulerService } from '../../common/jobs/job-scheduler.service';
-import { MetricsService } from '../../common/observability/metrics.service';
+import { ModelMonitoringMetrics } from '../../common/observability/model-monitoring-metrics';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import {
   DecisionEventType,
@@ -74,7 +74,7 @@ export class MonitoringEvaluatorService implements OnModuleInit, BackgroundJob {
     config: ConfigService,
     private readonly scheduler: JobSchedulerService,
     private readonly outbox: OutboxPublisherService,
-    private readonly metrics: MetricsService,
+    private readonly metrics: ModelMonitoringMetrics,
   ) {
     this.role = workerRoleOf(config);
     this.enabled =

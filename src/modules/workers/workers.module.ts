@@ -97,7 +97,6 @@ import { SemanticAnalysisPipeline } from './semantic-analysis/core/application/s
 import { UNRESOLVED_SINK } from './semantic-analysis/core/application/ports';
 import { SemanticAnalysisProcessor } from './semantic-analysis/core/application/semantic-analysis.processor';
 import { SemanticAnalysisResultBuilder } from './semantic-analysis/core/application/semantic-analysis.result-builder';
-import { GlosaFallbackClassifier } from './semantic-analysis/core/application/glosa-fallback';
 import { TenantBudgetGuard } from './semantic-analysis/core/application/tenant-budget.guard';
 import { TextNormalizer } from './semantic-analysis/core/application/text-normalizer';
 import { SemanticAnalysisController } from './semantic-analysis/semantic-analysis.controller';
@@ -122,6 +121,7 @@ import { OpenRouterSecondReaderAdapter } from './identity-verification/core/adap
 import { WorkersController } from './workers.controller';
 import { StorageReferencesController } from './storage-references.controller';
 import { WorkerMetricsService } from './worker-metrics.service';
+import { WORKER_SUPPORT_PROVIDERS } from './worker-support.providers';
 import { WorkerServiceInvokerService } from './worker-service-invoker.service';
 
 /**
@@ -441,7 +441,7 @@ function maybe<K extends string, V>(
     ClassificationCache,
     TenantBudgetGuard,
     SemanticAnalysisResultBuilder,
-    GlosaFallbackClassifier,
+    ...WORKER_SUPPORT_PROVIDERS,
     SemanticAnalysisPipeline,
     SemanticAnalysisProcessor,
     // `TracingService` ya no se declara aquí: la capa de trazado se promovió a

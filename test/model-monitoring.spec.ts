@@ -1,5 +1,6 @@
 import { DomainException } from '../src/common/errors/domain-exception';
-import { MetricsService } from '../src/common/observability/metrics.service';
+import { ModelMonitoringMetrics } from '../src/common/observability/model-monitoring-metrics';
+import { MetricsRegistry } from '../src/common/observability/metrics-registry';
 import { ModelMonitoringService } from '../src/modules/model-monitoring/model-monitoring.service';
 import type { AuditService } from '../src/common/audit/audit.service';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
@@ -29,7 +30,8 @@ import type {
 describe('ModelMonitoringService', () => {
   const TENANT = 7n;
   const principal = { id: 'riesgo', requestId: 'req-1' } as AuthenticatedPrincipal;
-  const metrics = new MetricsService();
+  const registry = new MetricsRegistry();
+  const metrics = new ModelMonitoringMetrics(registry);
 
   function make(options: {
     executionsFound?: number;

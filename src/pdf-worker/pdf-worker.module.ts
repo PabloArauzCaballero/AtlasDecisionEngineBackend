@@ -53,7 +53,7 @@ import { DocumentComposer } from './application/services/document-composer';
 import { ArtifactBindingUseCase } from './application/use-cases/artifact-binding/artifact-binding.use-case';
 import { ComposeHtmlUseCase } from './application/use-cases/compose-html/compose-html.use-case';
 import { ManageTemplatesUseCase } from './application/use-cases/manage-templates/manage-templates.use-case';
-import { GeneratePdfUseCase } from './application/use-cases/generate-pdf/generate-pdf.use-case';
+import { GENERATE_PDF_PROVIDERS } from './application/use-cases/generate-pdf/generate-pdf.providers';
 import { GetTemplateDefinitionUseCase } from './application/use-cases/get-template-definition/get-template-definition.use-case';
 import { PreviewTemplateUseCase } from './application/use-cases/preview-template/preview-template.use-case';
 import { ValidatePayloadUseCase } from './application/use-cases/validate-template/validate-payload.use-case';
@@ -226,7 +226,7 @@ export class PdfWorkerModule {
 
       // --- Aplicación ---
       DocumentComposer,
-      GeneratePdfUseCase,
+      ...GENERATE_PDF_PROVIDERS,
       PreviewTemplateUseCase,
       ValidatePayloadUseCase,
       GetTemplateDefinitionUseCase,
