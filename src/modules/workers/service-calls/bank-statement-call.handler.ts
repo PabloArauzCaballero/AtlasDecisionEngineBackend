@@ -2,11 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { validateStatementUpload } from '../bank-statement/bank-statement-input';
 import { InstitutionCatalogService } from '../bank-statement/institutions/institution-catalog.service';
+import { statementEngineOptions } from '../bank-statement/statement-engine-options';
 import {
   createStatementEngine,
   type StatementEngine,
 } from '../bank-statement/core/statement-engine';
-import type { SimilarityMode } from '../bank-statement/core/engine/similarity/similarity-scorer';
 import type { WorkerServiceOutcome } from '../../graph/graph.types';
 import {
   assertAvailable,
@@ -110,50 +110,9 @@ export class BankStatementCallHandler implements WorkerServiceHandler {
     const key = tenantId.toString();
     let engine = this.statementEngines.get(key);
     if (engine) return engine;
-    engine = createStatementEngine({
-      limits: {
-        maxFileSizeBytes: this.config.get<number>('BANK_STATEMENT_MAX_UPLOAD_BYTES') ?? 10_485_760,
-        maxPageCount: 60,
-        processingTimeoutMs: this.config.get<number>('BANK_STATEMENT_TIMEOUT_MS') ?? 60_000,
-      },
-      triage: {
-        accept: this.config.get<number>('BANK_STATEMENT_DOCUMENT_ACCEPT_CONFIDENCE'),
-        review: this.config.get<number>('BANK_STATEMENT_DOCUMENT_REVIEW_CONFIDENCE'),
-      },
-      institutions: this.institutions.registryFor(tenantId),
-      issuerGate: {
-        requireLicensedIssuer:
-          this.config.get<boolean>('BANK_STATEMENT_REQUIRE_LICENSED_ISSUER') ?? true,
-      },
-      /*
-       * La compuerta del contenedor también sale del entorno. Era la única de las
-       * cuatro sin perillas, y es la que más documentos legítimos detenía: un PDF
-       * reabierto en Vista Previa de macOS declara `Quartz PDFContext` y puntúa 85
-       * —rechazo— sin que su contenido tenga nada de malo.
-       */
-      authenticityGate: {
-        enforce: this.config.get<boolean>('BANK_STATEMENT_AUTHENTICITY_ENFORCE') ?? true,
-        rejectScore: this.config.get<number>('BANK_STATEMENT_AUTHENTICITY_REJECT_SCORE') ?? 70,
-        reviewScore: this.config.get<number>('BANK_STATEMENT_AUTHENTICITY_REVIEW_SCORE') ?? 30,
-      },
-      affordability: {
-        enforceMinimumMonths:
-          this.config.get<boolean>('BANK_STATEMENT_ENFORCE_MINIMUM_MONTHS') ?? false,
-      },
-      recencyGate: {
-        enforce: this.config.get<boolean>('BANK_STATEMENT_RECENCY_ENFORCE') ?? true,
-        toleranceDays: this.config.get<number>('BANK_STATEMENT_RECENCY_TOLERANCE_DAYS') ?? 3,
-        futureToleranceDays:
-          this.config.get<number>('BANK_STATEMENT_RECENCY_FUTURE_TOLERANCE_DAYS') ?? 3,
-      },
-      similarityMode:
-        this.config.get<SimilarityMode>('BANK_STATEMENT_SIMILARITY_MODE') ?? 'CORROBORATE',
-      similarity: {
-        matchScore: this.config.get<number>('BANK_STATEMENT_SIMILARITY_MATCH_SCORE') ?? 70,
-        partialScore: this.config.get<number>('BANK_STATEMENT_SIMILARITY_PARTIAL_SCORE') ?? 35,
-        minimumSampleSize: this.config.get<number>('BANK_STATEMENT_SIMILARITY_MIN_SAMPLE') ?? 3,
-      },
-    });
+    engine = createStatementEngine(
+      statementEngineOptions(this.config, this.institutions, tenantId),
+    );
     this.statementEngines.set(key, engine);
     return engine;
   }

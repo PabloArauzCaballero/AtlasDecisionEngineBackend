@@ -5,6 +5,8 @@ import { AudioTtsRunWorkerService } from './audio-tts/audio-tts-run-worker.servi
 import { AudioTtsRuntimeFactory } from './audio-tts/audio-tts.runtime';
 import { AudioTtsService } from './audio-tts/audio-tts.service';
 import { BankStatementController } from './bank-statement/bank-statement.controller';
+import { BankStatementRunRecovery } from './bank-statement/bank-statement-run-recovery';
+import { BankStatementRunStore } from './bank-statement/bank-statement-run.store';
 import { BankStatementRunWorkerService } from './bank-statement/bank-statement-run-worker.service';
 import { BankStatementService } from './bank-statement/bank-statement.service';
 import { FinancialInstitutionController } from './bank-statement/institutions/financial-institution.controller';
@@ -237,6 +239,8 @@ function maybe<K extends string, V>(
 
     // --- Worker B: extractos bancarios -------------------------------------
     BankStatementService,
+    BankStatementRunStore,
+    BankStatementRunRecovery,
     BankStatementRunWorkerService,
     // La cola de revisión humana. Servicio aparte del de ejecuciones porque
     // responde a otra pregunta y la contesta con otras reglas: quién puede

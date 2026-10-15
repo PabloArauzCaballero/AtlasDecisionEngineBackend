@@ -3,8 +3,7 @@ import { WorkerRunStatus } from '@prisma/client';
 import type { JobSchedulerService } from '../src/common/jobs/job-scheduler.service';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
 import type { MessagingTraceService } from '../src/common/observability/messaging-trace.service';
-import { BankStatementRunWorkerService } from '../src/modules/workers/bank-statement/bank-statement-run-worker.service';
-import { InstitutionCatalogService } from '../src/modules/workers/bank-statement/institutions/institution-catalog.service';
+import { BankStatementRunRecovery } from '../src/modules/workers/bank-statement/bank-statement-run-recovery';
 import { SemanticRunWorkerService } from '../src/modules/workers/semantic-analysis/semantic-run-worker.service';
 import type { SemanticAnalysisProcessor } from '../src/modules/workers/semantic-analysis/core/application/semantic-analysis.processor';
 
@@ -71,13 +70,9 @@ describe('recuperación de ejecuciones con lease vencido', () => {
 
   it('el worker de extractos hace lo mismo y además suelta el documento', async () => {
     const { prisma, updateMany } = espiaPrisma('bankStatementRun');
-    const worker = new BankStatementRunWorkerService(
+    const worker = new BankStatementRunRecovery(
       prisma,
       new ConfigService({ BANK_STATEMENT_MAX_ATTEMPTS: 3 }),
-      scheduler,
-      trace,
-      // La recuperación de leases no toca el padrón; basta con que exista.
-      new InstitutionCatalogService(prisma),
     );
 
     await (worker as unknown as { recoverExpiredRuns: () => Promise<void> }).recoverExpiredRuns();
@@ -94,12 +89,9 @@ describe('recuperación de ejecuciones con lease vencido', () => {
 
   it('el extracto recuperado reinicia su espera: no se deriva a TIMEOUT en la misma pasada', async () => {
     const { prisma, updateMany } = espiaPrisma('bankStatementRun');
-    const worker = new BankStatementRunWorkerService(
+    const worker = new BankStatementRunRecovery(
       prisma,
       new ConfigService({ BANK_STATEMENT_MAX_ATTEMPTS: 3 }),
-      scheduler,
-      trace,
-      new InstitutionCatalogService(prisma),
     );
     const antes = Date.now();
 
