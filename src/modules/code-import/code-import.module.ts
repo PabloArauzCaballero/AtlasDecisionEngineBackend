@@ -8,6 +8,10 @@
 import { Module } from '@nestjs/common';
 import { ArtifactModule } from '../artifacts/artifact.module';
 import { CodeImportController } from './code-import.controller';
+import { CodeImportAnalyzer } from './code-import-analyzer.service';
+import { CodeImportArtifactWriter } from './code-import-artifact-writer.service';
+import { CodeImportCatalogService } from './code-import-catalog.service';
+import { CodeImportSourceInspector } from './code-import-source-inspector.service';
 import { CodeImportService } from './code-import.service';
 import { ContractExtractorService } from './contract-extractor.service';
 import { ContractValidatorService } from './contract-validator.service';
@@ -21,6 +25,10 @@ import { SyntaxAnalyzerService } from './syntax-analyzer.service';
   controllers: [CodeImportController],
   providers: [
     CodeImportService,
+    CodeImportAnalyzer,
+    CodeImportArtifactWriter,
+    CodeImportCatalogService,
+    CodeImportSourceInspector,
     SyntaxAnalyzerService,
     BranchExtractorService,
     ContractExtractorService,
