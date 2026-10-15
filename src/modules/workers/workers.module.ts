@@ -126,6 +126,10 @@ import { OpenRouterSecondReaderAdapter } from './identity-verification/core/adap
 import { WorkersController } from './workers.controller';
 import { StorageReferencesController } from './storage-references.controller';
 import { WorkerMetricsService } from './worker-metrics.service';
+import { AudioSpeakCallHandler } from './service-calls/audio-speak-call.handler';
+import { BankStatementCallHandler } from './service-calls/bank-statement-call.handler';
+import { IdentityVerificationCallHandler } from './service-calls/identity-verification-call.handler';
+import { SemanticClassificationCallHandler } from './service-calls/semantic-classification-call.handler';
 import { WorkerServiceInvokerService } from './worker-service-invoker.service';
 
 /**
@@ -218,6 +222,10 @@ function maybe<K extends string, V>(
      * en `GraphModule`, porque quien conoce a los workers es este módulo; el motor solo
      * conoce la interfaz `WorkerServiceInvoker`, que recibe como argumento de llamada.
      */
+    BankStatementCallHandler,
+    SemanticClassificationCallHandler,
+    AudioSpeakCallHandler,
+    IdentityVerificationCallHandler,
     WorkerServiceInvokerService,
 
     /**

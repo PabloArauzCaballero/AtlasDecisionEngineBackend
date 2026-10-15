@@ -72,6 +72,10 @@ import { FaceCaptureService } from '../src/modules/workers/identity-verification
 import { IdentityPipelineService } from '../src/modules/workers/identity-verification/identity-pipeline.service';
 import type { IdentityVerificationService } from '../src/modules/workers/identity-verification/identity-verification.service';
 import type { IdentityVerificationOutcome } from '../src/modules/workers/identity-verification/identity-result';
+import { AudioSpeakCallHandler } from '../src/modules/workers/service-calls/audio-speak-call.handler';
+import { BankStatementCallHandler } from '../src/modules/workers/service-calls/bank-statement-call.handler';
+import { IdentityVerificationCallHandler } from '../src/modules/workers/service-calls/identity-verification-call.handler';
+import { SemanticClassificationCallHandler } from '../src/modules/workers/service-calls/semantic-classification-call.handler';
 import { WorkerServiceInvokerService } from '../src/modules/workers/worker-service-invoker.service';
 import type { SemanticAnalysisPipeline } from '../src/modules/workers/semantic-analysis/core/application/semantic-analysis.pipeline';
 import type { AudioTtsRuntimeFactory } from '../src/modules/workers/audio-tts/audio-tts.runtime';
@@ -639,13 +643,16 @@ describe('el origen llega desde el `context` de la ejecución hasta el pipeline'
       providers: { ocr: 'x', face: 'x', liveness: 'x' },
       ...cambios,
     } satisfies IdentityVerificationOutcome);
+    const config = new ConfigService({ IDENTITY_VERIFICATION_WORKER_ENABLED: true });
     const service = new WorkerServiceInvokerService(
-      new ConfigService({ IDENTITY_VERIFICATION_WORKER_ENABLED: true }),
-      {} as SemanticAnalysisPipeline,
-      {} as AudioTtsRuntimeFactory,
-      {} as InstitutionCatalogService,
-      { run } as unknown as IdentityPipelineService,
-      { recordInlineEvidence } as unknown as IdentityVerificationService,
+      new BankStatementCallHandler(config, {} as InstitutionCatalogService),
+      new SemanticClassificationCallHandler(config, {} as SemanticAnalysisPipeline),
+      new AudioSpeakCallHandler(config, {} as AudioTtsRuntimeFactory),
+      new IdentityVerificationCallHandler(
+        config,
+        { run } as unknown as IdentityPipelineService,
+        { recordInlineEvidence } as unknown as IdentityVerificationService,
+      ),
     );
     return { invoker: service.bind(1n, principal, context), run, recordInlineEvidence };
   }
