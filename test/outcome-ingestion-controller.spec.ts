@@ -19,7 +19,8 @@
 import 'reflect-metadata';
 import { REQUIRED_ROLES } from '../src/common/security/security.decorators';
 import { OutcomeIngestionController } from '../src/modules/outcome-ingestion/outcome-ingestion.controller';
-import type { OutcomeIngestionService } from '../src/modules/outcome-ingestion/outcome-ingestion.service';
+import type { FacilityRegistrationService } from '../src/modules/outcome-ingestion/facility-registration.service';
+import type { OutcomeRecordingService } from '../src/modules/outcome-ingestion/outcome-recording.service';
 import type { VintageService } from '../src/modules/outcome-ingestion/vintage.service';
 import type { AuthenticatedPrincipal } from '../src/common/security/security.types';
 
@@ -79,15 +80,17 @@ describe('OutcomeIngestionController · autorización', () => {
 });
 
 describe('OutcomeIngestionController · delegación', () => {
-  const ingestion = {
+  const facilities = {
     registerFacilities: jest.fn(),
+  } as unknown as jest.Mocked<FacilityRegistrationService>;
+  const outcomes = {
     recordBatch: jest.fn(),
-  } as unknown as jest.Mocked<OutcomeIngestionService>;
+  } as unknown as jest.Mocked<OutcomeRecordingService>;
   const vintages = {
     pending: jest.fn(),
     vintage: jest.fn(),
   } as unknown as jest.Mocked<VintageService>;
-  const controller = new OutcomeIngestionController(ingestion, vintages);
+  const controller = new OutcomeIngestionController(facilities, outcomes, vintages);
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -95,11 +98,11 @@ describe('OutcomeIngestionController · delegación', () => {
     // El tenant llega del guardia, no del cuerpo. Que el controlador lo reenvíe tal cual es lo
     // que impide que una petición escriba en la cartera de otra organización.
     const dto = { facilities: [] } as never;
-    (ingestion.registerFacilities as jest.Mock).mockResolvedValue({ rows: [] });
+    (facilities.registerFacilities as jest.Mock).mockResolvedValue({ rows: [] });
 
     await controller.registerFacilities(TENANT, PRINCIPAL, dto);
 
-    expect(ingestion.registerFacilities).toHaveBeenCalledWith(TENANT, dto, PRINCIPAL);
+    expect(facilities.registerFacilities).toHaveBeenCalledWith(TENANT, dto, PRINCIPAL);
   });
 
   it('devuelve el veredicto por fila del servicio, sin reducirlo a un conteo', async () => {
@@ -115,7 +118,7 @@ describe('OutcomeIngestionController · delegación', () => {
         { reference: 'CRED-2', status: 'REJECTED', reason: 'FACILITY_NOT_FOUND' },
       ],
     };
-    (ingestion.recordBatch as jest.Mock).mockResolvedValue(respuesta);
+    (outcomes.recordBatch as jest.Mock).mockResolvedValue(respuesta);
 
     const salida = await controller.recordBatch(TENANT, PRINCIPAL, { outcomes: [] } as never);
 
