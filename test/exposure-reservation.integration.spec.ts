@@ -25,7 +25,8 @@ import type { DeploymentResolverService } from '../src/modules/deployments/deplo
 import type { ExecutionEngineService } from '../src/modules/graph/execution-engine.service';
 import type { EngineExecutionResult } from '../src/modules/graph/graph.types';
 import type { NestedTreeExecutionService } from '../src/modules/nested-trees/nested-tree-execution.service';
-import { OutcomeIngestionService } from '../src/modules/outcome-ingestion/outcome-ingestion.service';
+import { FacilityRegistrationService } from '../src/modules/outcome-ingestion/facility-registration.service';
+import { OutcomeRecordingService } from '../src/modules/outcome-ingestion/outcome-recording.service';
 import { DecisionGuardService } from '../src/modules/risk-governance/decision-guard.service';
 import { SubjectConsentService } from '../src/modules/risk-governance/subject-consent.service';
 import { SubjectDirectory } from '../src/modules/risk-governance/subject-directory.service';
@@ -130,7 +131,7 @@ describeDb('Exposición y circuito de desenlaces, lado motor (integration)', () 
   it('exposición 900, límite 1.000 y dos decisiones simultáneas de 80: el motor NO reserva y lo dice', async () => {
     const tenantId = uniqueTenantId(95);
     const fixture = await createDecisionFixture(prisma, tenantId);
-    const ingestion = new OutcomeIngestionService(db, audit, new ModelMonitoringMetrics(), config);
+    const facilities = new FacilityRegistrationService(db, audit, config);
     await governance.recordConsent(
       tenantId,
       {
@@ -159,7 +160,7 @@ describeDb('Exposición y circuito de desenlaces, lado motor (integration)', () 
       requestId: `prev-${Date.now()}`,
       subjectId: subject.id,
     });
-    await ingestion.registerFacilities(
+    await facilities.registerFacilities(
       tenantId,
       { facilities: [facilityRow(`L-900-${tenantId}`, previous.id, 900)] },
       operator,
@@ -201,7 +202,7 @@ describeDb('Exposición y circuito de desenlaces, lado motor (integration)', () 
   it('el registro de un crédito es idempotente por referencia externa y no cambia de sujeto al reenviarse', async () => {
     const tenantId = uniqueTenantId(96);
     const fixture = await createDecisionFixture(prisma, tenantId);
-    const ingestion = new OutcomeIngestionService(db, audit, new ModelMonitoringMetrics(), config);
+    const facilities = new FacilityRegistrationService(db, audit, config);
     const s1 = await prisma.decisionSubject.create({
       data: { tenantId, subjectReferenceHash: hashes.hmac('titular-1') },
     });
@@ -218,17 +219,17 @@ describeDb('Exposición y circuito de desenlaces, lado motor (integration)', () 
     });
     const reference = `L-REENVIO-${tenantId}`;
 
-    const first = await ingestion.registerFacilities(
+    const first = await facilities.registerFacilities(
       tenantId,
       { facilities: [facilityRow(reference, e1.id)] },
       operator,
     );
-    const resend = await ingestion.registerFacilities(
+    const resend = await facilities.registerFacilities(
       tenantId,
       { facilities: [facilityRow(reference, e1.id, 85)] },
       operator,
     );
-    const hijack = await ingestion.registerFacilities(
+    const hijack = await facilities.registerFacilities(
       tenantId,
       { facilities: [facilityRow(reference, e2.id)] },
       operator,
@@ -255,7 +256,7 @@ describeDb('Exposición y circuito de desenlaces, lado motor (integration)', () 
   it('error parcial por fila: la fila mala vuelve con su código y el resto del lote se registra', async () => {
     const tenantId = uniqueTenantId(97);
     const fixture = await createDecisionFixture(prisma, tenantId);
-    const ingestion = new OutcomeIngestionService(db, audit, new ModelMonitoringMetrics(), config);
+    const facilities = new FacilityRegistrationService(db, audit, config);
     const subject = await prisma.decisionSubject.create({
       data: { tenantId, subjectReferenceHash: hashes.hmac('titular-lote') },
     });
@@ -277,7 +278,7 @@ describeDb('Exposición y circuito de desenlaces, lado motor (integration)', () 
         facilityRow(`L-D-${tenantId}`, good.id, 1e20),
       ],
     };
-    const result = await ingestion.registerFacilities(tenantId, batch, operator);
+    const result = await facilities.registerFacilities(tenantId, batch, operator);
     expect(result.rows.map((row) => [row.accepted, row.code ?? null])).toEqual([
       [true, null],
       [false, 'EXECUTION_NOT_DECIDED'],
@@ -285,7 +286,7 @@ describeDb('Exposición y circuito de desenlaces, lado motor (integration)', () 
       [false, 'FACILITY_REGISTRATION_FAILED'],
     ]);
     // Reenviar el lote entero es seguro: la buena sale como duplicada, nada se duplica.
-    const again = await ingestion.registerFacilities(tenantId, batch, operator);
+    const again = await facilities.registerFacilities(tenantId, batch, operator);
     expect(again.rows[0]).toMatchObject({ accepted: true, duplicate: true });
     expect(
       await prisma.creditFacility.count({
@@ -299,7 +300,8 @@ describeDb('Exposición y circuito de desenlaces, lado motor (integration)', () 
     const fixture = await createDecisionFixture(prisma, tenantId);
     const metrics = new ModelMonitoringMetrics();
     const counted = jest.spyOn(metrics, 'recordObservedOutcome');
-    const ingestion = new OutcomeIngestionService(db, audit, metrics, config);
+    const facilities = new FacilityRegistrationService(db, audit, config);
+    const outcomes = new OutcomeRecordingService(db, audit, metrics);
     const subject = await prisma.decisionSubject.create({
       data: { tenantId, subjectReferenceHash: hashes.hmac('titular-desenlace') },
     });
@@ -308,7 +310,7 @@ describeDb('Exposición y circuito de desenlaces, lado motor (integration)', () 
       subjectId: subject.id,
     });
     const reference = `L-OUT-${tenantId}`;
-    await ingestion.registerFacilities(
+    await facilities.registerFacilities(
       tenantId,
       { facilities: [facilityRow(reference, execution.id)] },
       operator,
@@ -320,20 +322,16 @@ describeDb('Exposición y circuito de desenlaces, lado motor (integration)', () 
       source: 'core',
     };
 
-    const first = await ingestion.recordBatch(tenantId, { outcomes: [outcome] }, operator);
+    const first = await outcomes.recordBatch(tenantId, { outcomes: [outcome] }, operator);
     const observedAt = (
       await prisma.decisionOutcomeObservation.findFirstOrThrow({
         where: { executionId: execution.id, windowDays: 30 },
       })
     ).observedAt;
     // Reenvío idéntico, y además repetido dentro del mismo lote.
-    const resend = await ingestion.recordBatch(
-      tenantId,
-      { outcomes: [outcome, outcome] },
-      operator,
-    );
+    const resend = await outcomes.recordBatch(tenantId, { outcomes: [outcome, outcome] }, operator);
     // Otra etiqueta para la misma ventana: conflicto, no se pisa la evidencia.
-    const conflict = await ingestion.recordBatch(
+    const conflict = await outcomes.recordBatch(
       tenantId,
       { outcomes: [{ ...outcome, label: 'BAD' as const }] },
       operator,
@@ -360,7 +358,8 @@ describeDb('Exposición y circuito de desenlaces, lado motor (integration)', () 
     const fixture = await createDecisionFixture(prisma, tenantId);
     const metrics = new ModelMonitoringMetrics();
     const counted = jest.spyOn(metrics, 'recordObservedOutcome');
-    const ingestion = new OutcomeIngestionService(db, audit, metrics, config);
+    const facilities = new FacilityRegistrationService(db, audit, config);
+    const outcomes = new OutcomeRecordingService(db, audit, metrics);
     const subject = await prisma.decisionSubject.create({
       data: { tenantId, subjectReferenceHash: hashes.hmac('titular-antiguo') },
     });
@@ -369,7 +368,7 @@ describeDb('Exposición y circuito de desenlaces, lado motor (integration)', () 
       subjectId: subject.id,
     });
     const reference = `L-OLD-${tenantId}`;
-    await ingestion.registerFacilities(
+    await facilities.registerFacilities(
       tenantId,
       { facilities: [facilityRow(reference, execution.id)] },
       operator,
@@ -385,7 +384,7 @@ describeDb('Exposición y circuito de desenlaces, lado motor (integration)', () 
         recordedBy: 'legacy',
       },
     });
-    const result = await ingestion.recordBatch(
+    const result = await outcomes.recordBatch(
       tenantId,
       {
         outcomes: [{ externalReference: reference, windowDays: 60, label: 'GOOD', source: 'core' }],

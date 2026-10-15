@@ -15,14 +15,16 @@ import {
   PendingWindowsDto,
   VintageMatrixDto,
 } from './outcome-ingestion.response.dto';
-import { OutcomeIngestionService } from './outcome-ingestion.service';
+import { FacilityRegistrationService } from './facility-registration.service';
+import { OutcomeRecordingService } from './outcome-recording.service';
 import { VintageService } from './vintage.service';
 
 @ApiTags('Outcome Ingestion')
 @Controller('v1/outcomes')
 export class OutcomeIngestionController {
   constructor(
-    private readonly ingestion: OutcomeIngestionService,
+    private readonly facilities: FacilityRegistrationService,
+    private readonly outcomes: OutcomeRecordingService,
     private readonly vintages: VintageService,
   ) {}
 
@@ -45,7 +47,7 @@ export class OutcomeIngestionController {
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Body() dto: RegisterFacilityBatchDto,
   ) {
-    return this.ingestion.registerFacilities(tenantId, dto, principal);
+    return this.facilities.registerFacilities(tenantId, dto, principal);
   }
 
   /**
@@ -65,7 +67,7 @@ export class OutcomeIngestionController {
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Body() dto: FacilityOutcomeBatchDto,
   ) {
-    return this.ingestion.recordBatch(tenantId, dto, principal);
+    return this.outcomes.recordBatch(tenantId, dto, principal);
   }
 
   /** La cola de trabajo: ventanas vencidas que nadie observó, la más vieja primero. */

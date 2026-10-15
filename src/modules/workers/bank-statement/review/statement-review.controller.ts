@@ -10,7 +10,10 @@ import {
   StatementReviewItemDto,
   StatementReviewQueryDto,
 } from './statement-review.dto';
-import { StatementReviewService } from './statement-review.service';
+import { StatementReprocessService } from './statement-reprocess.service';
+import { StatementReviewClaimService } from './statement-review-claim.service';
+import { StatementReviewQueueService } from './statement-review-queue.service';
+import { StatementReviewResolutionService } from './statement-review-resolution.service';
 
 /**
  * Cola de revisión humana de extractos.
@@ -28,7 +31,12 @@ import { StatementReviewService } from './statement-review.service';
 @ApiTags('Workers · Extractos bancarios')
 @Controller('v1/workers/bank-statement/reviews')
 export class StatementReviewController {
-  constructor(private readonly reviews: StatementReviewService) {}
+  constructor(
+    private readonly queue: StatementReviewQueueService,
+    private readonly claims: StatementReviewClaimService,
+    private readonly resolutions: StatementReviewResolutionService,
+    private readonly reprocesses: StatementReprocessService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Cola de documentos pendientes de revisión humana' })
@@ -38,7 +46,7 @@ export class StatementReviewController {
   )
   @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'OPERATIONS', 'COMPLIANCE', 'AUDITOR')
   async list(@TenantId() tenantId: bigint, @Query() query: StatementReviewQueryDto) {
-    return this.reviews.list(tenantId, query);
+    return this.queue.list(tenantId, query);
   }
 
   @Get('categories')
@@ -49,7 +57,7 @@ export class StatementReviewController {
   )
   @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'OPERATIONS', 'COMPLIANCE', 'AUDITOR')
   async categories(@TenantId() tenantId: bigint): Promise<StatementReviewCategoryDto[]> {
-    return this.reviews.categories(tenantId);
+    return this.queue.categories(tenantId);
   }
 
   @Get(':requestId')
@@ -57,7 +65,7 @@ export class StatementReviewController {
   @ApiOkResponse({ type: StatementReviewItemDto })
   @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'OPERATIONS', 'COMPLIANCE', 'AUDITOR')
   async get(@TenantId() tenantId: bigint, @Param('requestId') requestId: string) {
-    return this.reviews.get(tenantId, requestId);
+    return this.queue.get(tenantId, requestId);
   }
 
   @Post(':requestId/claim')
@@ -69,7 +77,7 @@ export class StatementReviewController {
     @Param('requestId') requestId: string,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
   ) {
-    return this.reviews.claim(tenantId, requestId, principal);
+    return this.claims.claim(tenantId, requestId, principal);
   }
 
   @Post(':requestId/resolve')
@@ -82,7 +90,7 @@ export class StatementReviewController {
     @Body() dto: ResolveStatementReviewDto,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
   ) {
-    return this.reviews.resolve(tenantId, requestId, dto, principal);
+    return this.resolutions.resolve(tenantId, requestId, dto, principal);
   }
 
   @Post(':requestId/reprocess')
@@ -94,6 +102,6 @@ export class StatementReviewController {
     @Param('requestId') requestId: string,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
   ) {
-    return this.reviews.reprocess(tenantId, requestId, principal);
+    return this.reprocesses.reprocess(tenantId, requestId, principal);
   }
 }

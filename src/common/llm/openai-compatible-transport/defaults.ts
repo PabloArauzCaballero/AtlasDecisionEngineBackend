@@ -1,0 +1,5 @@
+export const DEFAULT_MAX_ATTEMPTS = 3;
+export const DEFAULT_INITIAL_BACKOFF_MS = 500;
+export const DEFAULT_MAX_BACKOFF_MS = 8_000;
+export const DEFAULT_TIMEOUT_MS = 30_000;
+export const DEFAULT_MAX_OUTPUT_TOKENS = 2_048;

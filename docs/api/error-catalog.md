@@ -22,18 +22,18 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `AUDIO_RUN_NOT_FOUND` | No existe esa locución. | `src/modules/workers/audio-tts/audio-tts.service.ts` |
 | `AUDIO_RUN_WITHOUT_AUDIO` | Esta locución todavía no tiene audio. | `src/modules/workers/audio-tts/audio-tts.service.ts` |
 | `AUTH_RATE_LIMIT_EXCEEDED` | Too many failed authentication attempts | `src/common/security/authentication.guard.ts` |
-| `BANK_STATEMENT_DOCUMENT_UNAVAILABLE` | El documento original ya no está disponible: hay que volver a subirlo. | `src/modules/workers/bank-statement/review/statement-review.service.ts` |
+| `BANK_STATEMENT_DOCUMENT_UNAVAILABLE` | El documento original ya no está disponible: hay que volver a subirlo. | `src/modules/workers/bank-statement/review/statement-reprocess.service.ts` |
 | `BANK_STATEMENT_FILE_EMPTY` | El archivo recibido está vacío. | `src/modules/workers/bank-statement/bank-statement-input.ts` |
 | `BANK_STATEMENT_FILE_NAME_INVALID` | El nombre del archivo contiene caracteres no permitidos. | `src/modules/workers/bank-statement/bank-statement-input.ts` |
 | `BANK_STATEMENT_FILE_NOT_PDF` | El archivo no es un PDF. Se comprueba su contenido, no su extensión. | `src/modules/workers/bank-statement/bank-statement-input.ts` |
 | `BANK_STATEMENT_FILE_REQUIRED` | Se requiere un archivo PDF del extracto. | `src/modules/workers/bank-statement/bank-statement-input.ts` |
 | `BANK_STATEMENT_FILE_TOO_LARGE` | El archivo supera el máximo permitido de ${Math.floor(maxBytes / 1_048_576)} MiB. | `src/modules/workers/bank-statement/bank-statement-input.ts` |
-| `BANK_STATEMENT_REJECTION_REASON_REQUIRED` | Marcar un documento como no válido exige declarar el motivo. | `src/modules/workers/bank-statement/review/statement-review.service.ts` |
+| `BANK_STATEMENT_REJECTION_REASON_REQUIRED` | Marcar un documento como no válido exige declarar el motivo. | `src/modules/workers/bank-statement/review/statement-review-resolution.service.ts` |
 | `BANK_STATEMENT_RESULT_NOT_READY` | — | `src/modules/workers/bank-statement/bank-statement.controller.ts` |
-| `BANK_STATEMENT_REVIEW_ASSIGNEE_MISMATCH` | Sólo quien reclamó este caso puede resolverlo. | `src/modules/workers/bank-statement/review/statement-review.service.ts` |
-| `BANK_STATEMENT_REVIEW_NOT_CLAIMABLE` | — | `src/modules/workers/bank-statement/review/statement-review.service.ts` |
-| `BANK_STATEMENT_REVIEW_NOT_CLAIMED` | Hay que reclamar el caso antes de resolverlo. | `src/modules/workers/bank-statement/review/statement-review.service.ts` |
-| `BANK_STATEMENT_REVIEW_NOT_FOUND` | No hay ningún caso de revisión con ese identificador. | `src/modules/workers/bank-statement/review/statement-review.service.ts` |
+| `BANK_STATEMENT_REVIEW_ASSIGNEE_MISMATCH` | Sólo quien reclamó este caso puede resolverlo. | `src/modules/workers/bank-statement/review/statement-review-assignment.service.ts` |
+| `BANK_STATEMENT_REVIEW_NOT_CLAIMABLE` | — | `src/modules/workers/bank-statement/review/statement-review-claim.service.ts` |
+| `BANK_STATEMENT_REVIEW_NOT_CLAIMED` | Hay que reclamar el caso antes de resolverlo. | `src/modules/workers/bank-statement/review/statement-review-assignment.service.ts` |
+| `BANK_STATEMENT_REVIEW_NOT_FOUND` | No hay ningún caso de revisión con ese identificador. | `src/modules/workers/bank-statement/review/statement-review-assignment.service.ts` |
 | `BANK_STATEMENT_RUN_NOT_CANCELLABLE` | — | `src/modules/workers/bank-statement/statement-run.service.ts` |
 | `BANK_STATEMENT_RUN_NOT_FOUND` | No existe esa ejecución. | `src/modules/workers/bank-statement/statement-run.service.ts` |
 | `BASELINE_COMPARISON_NOT_SUPPORTED` | Baseline comparison is not available; omit baselineCompiledArtifactId and use explicit expected results | `src/modules/testing/test-execution.service.ts` |
@@ -106,14 +106,14 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `IDENTITY_IMAGE_KIND_INVALID` | La imagen pedida no existe: usa document, documentBack o selfie. | `src/modules/workers/identity-verification/identity-verification.controller.ts` |
 | `IDENTITY_IMAGE_NOT_AVAILABLE` | Esa imagen no está disponible para esta verificación. | `src/modules/workers/identity-verification/identity-verification.controller.ts` |
 | `IDENTITY_IMAGE_STORAGE_NOT_CONFIGURED` | No se puede verificar una identidad sin un sitio donde conservar las imágenes: | `src/modules/workers/identity-verification/identity-image-store.service.ts` |
-| `IDENTITY_PROVIDER_ERROR` | Identity provider rejected the request | `src/common/security/identity-provider.client.ts` |
-| `IDENTITY_PROVIDER_INVALID_RESPONSE` | Identity provider did not return ${what} matching the expected contract | `src/common/security/identity-provider.client.ts` |
-| `IDENTITY_PROVIDER_NOT_CONFIGURED` | Identity provider is not configured | `src/common/security/identity-provider.client.ts` |
-| `IDENTITY_PROVIDER_UNAVAILABLE` | Identity provider is unavailable | `src/common/security/identity-provider.client.ts` |
-| `IDENTITY_RATE_LIMITED` | Too many authentication attempts | `src/common/security/identity-provider.client.ts` |
+| `IDENTITY_PROVIDER_ERROR` | Identity provider rejected the request | `src/common/security/identity-provider.transport.ts` |
+| `IDENTITY_PROVIDER_INVALID_RESPONSE` | Identity provider returned a profile that does not match the expected contract | `src/common/security/identity-provider.client.ts` |
+| `IDENTITY_PROVIDER_NOT_CONFIGURED` | Identity provider is not configured | `src/common/security/identity-provider.transport.ts` |
+| `IDENTITY_PROVIDER_UNAVAILABLE` | Identity provider is unavailable | `src/common/security/identity-provider.transport.ts` |
+| `IDENTITY_RATE_LIMITED` | Too many authentication attempts | `src/common/security/identity-provider.transport.ts` |
 | `IDENTITY_REJECTION_REASON_REQUIRED` | Rechazar un documento exige declarar el motivo: un rechazo sin motivo no es medible. | `src/modules/workers/identity-verification/review/identity-review-resolution.service.ts` |
-| `IDENTITY_REQUEST_INVALID` | Invalid identity request | `src/common/security/identity-provider.client.ts` |
-| `IDENTITY_REQUEST_REJECTED` | — | `src/common/security/identity-provider.client.ts` |
+| `IDENTITY_REQUEST_INVALID` | Invalid identity request | `src/common/security/identity-provider.transport.ts` |
+| `IDENTITY_REQUEST_REJECTED` | — | `src/common/security/identity-provider.transport.ts` |
 | `IDENTITY_REVIEW_ALREADY_HAS_VERDICT` | Este caso ya tiene veredicto del worker y espera que una persona lo firme: resuélvelo con CONFIRM_IDENTITY o DENY_IDENTITY. | `src/modules/workers/identity-verification/review/identity-review-resolution.service.ts` |
 | `IDENTITY_REVIEW_DOCUMENT_TYPE_REQUIRED` | Confirmar el documento exige declarar cuál es: sin tipo no hay analizador y el caso volvería a la misma cola. | `src/modules/workers/identity-verification/review/identity-review-resolution.service.ts` |
 | `IDENTITY_REVIEW_NOT_ASSIGNED` | El caso ya no está reclamado por ti: otra petición lo cerró o lo liberó. | `src/modules/workers/identity-verification/review/identity-review-assignment.service.ts` |
@@ -180,8 +180,8 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `OBJECTIVE_NOT_FOUND` | Business objective not found | `src/modules/traceability/traceability.service.ts` |
 | `ONBOARDING_DOSSIER_TOO_LARGE` | The onboarding dossier is ${bytes} bytes; the limit is ${MAX_DOSSIER_BYTES} | `src/modules/manual-review/onboarding-dossier.service.ts` |
 | `OPENROUTER_CATALOG_UNAVAILABLE` | No se pudo leer el catálogo de modelos de OpenRouter. Vuelve a intentarlo; si persiste, el motor no alcanza openrouter.ai. | `src/modules/workers/semantic-analysis/model-settings/openrouter-catalog.service.ts` |
-| `OUTCOME_BATCH_EMPTY` | El lote de ${field} está vacío | `src/modules/outcome-ingestion/outcome-ingestion.service.ts` |
-| `OUTCOME_BATCH_TOO_LARGE` | Un lote admite como máximo ${MAX_BATCH} ${field}; divídalo | `src/modules/outcome-ingestion/outcome-ingestion.service.ts` |
+| `OUTCOME_BATCH_EMPTY` | El lote de ${field} está vacío | `src/modules/outcome-ingestion/outcome-batch.rules.ts` |
+| `OUTCOME_BATCH_TOO_LARGE` | Un lote admite como máximo ${MAX_BATCH} ${field}; divídalo | `src/modules/outcome-ingestion/outcome-batch.rules.ts` |
 | `OUTPUT_TYPE_INVALID` | Output ${code} cannot be null | `src/modules/graph/execution/output-contract.service.ts` |
 | `POLICY_NOT_FOUND` | Policy requirement not found | `src/modules/traceability/traceability.service.ts` |
 | `PRIMARY_OUTPUT_TOO_LONG` | Primary output ${code} exceeds 80 characters | `src/modules/graph/execution/output-contract.service.ts` |

@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/outcome-ingestion/`](https://github.com/) · 6 ficheros TypeScript.
+Código: [`src/modules/outcome-ingestion/`](https://github.com/) · 8 ficheros TypeScript.
 
 Etiquetas de API: **Outcome Ingestion**.
 
@@ -33,10 +33,11 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `OPERATIONS`, `RISK_ANALY
 - `FacilityOutcomeBatchDto`
 - `FacilityOutcomeDto`
 - `FacilityRegistrationResultDto`
+- `FacilityRegistrationService`
 - `OutcomeBatchResultDto`
 - `OutcomeIngestionController`
 - `OutcomeIngestionModule`
-- `OutcomeIngestionService`
+- `OutcomeRecordingService`
 - `PendingWindowsDto`
 - `PendingWindowsQueryDto`
 - `RegisterFacilityBatchDto`

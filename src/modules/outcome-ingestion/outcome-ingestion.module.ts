@@ -7,12 +7,13 @@
  */
 import { Module } from '@nestjs/common';
 import { OutcomeIngestionController } from './outcome-ingestion.controller';
-import { OutcomeIngestionService } from './outcome-ingestion.service';
+import { FacilityRegistrationService } from './facility-registration.service';
+import { OutcomeRecordingService } from './outcome-recording.service';
 import { VintageService } from './vintage.service';
 
 @Module({
   controllers: [OutcomeIngestionController],
-  providers: [OutcomeIngestionService, VintageService],
-  exports: [OutcomeIngestionService, VintageService],
+  providers: [FacilityRegistrationService, OutcomeRecordingService, VintageService],
+  exports: [FacilityRegistrationService, OutcomeRecordingService, VintageService],
 })
 export class OutcomeIngestionModule {}
