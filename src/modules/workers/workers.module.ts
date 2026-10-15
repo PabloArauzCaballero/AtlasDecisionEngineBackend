@@ -5,8 +5,6 @@ import { AudioTtsRunWorkerService } from './audio-tts/audio-tts-run-worker.servi
 import { AudioTtsRuntimeFactory } from './audio-tts/audio-tts.runtime';
 import { AudioTtsService } from './audio-tts/audio-tts.service';
 import { BankStatementController } from './bank-statement/bank-statement.controller';
-import { BankStatementRunRecovery } from './bank-statement/bank-statement-run-recovery';
-import { BankStatementRunStore } from './bank-statement/bank-statement-run.store';
 import { BankStatementRunWorkerService } from './bank-statement/bank-statement-run-worker.service';
 import { BankStatementService } from './bank-statement/bank-statement.service';
 import { FinancialInstitutionController } from './bank-statement/institutions/financial-institution.controller';
@@ -99,11 +97,6 @@ import { SemanticAnalysisPipeline } from './semantic-analysis/core/application/s
 import { UNRESOLVED_SINK } from './semantic-analysis/core/application/ports';
 import { SemanticAnalysisProcessor } from './semantic-analysis/core/application/semantic-analysis.processor';
 import { SemanticAnalysisResultBuilder } from './semantic-analysis/core/application/semantic-analysis.result-builder';
-import { GlosaFallbackClassifier } from './semantic-analysis/core/application/glosa-fallback';
-import { CandidateRetrievalStage } from './semantic-analysis/core/application/candidate-retrieval.stage';
-import { GlosaPreparationStage } from './semantic-analysis/core/application/glosa-preparation.stage';
-import { RuleSafetyNet } from './semantic-analysis/core/application/rule-safety-net';
-import { TieredModelClassifier } from './semantic-analysis/core/application/tiered-model-classifier';
 import { TenantBudgetGuard } from './semantic-analysis/core/application/tenant-budget.guard';
 import { TextNormalizer } from './semantic-analysis/core/application/text-normalizer';
 import { SemanticAnalysisController } from './semantic-analysis/semantic-analysis.controller';
@@ -128,10 +121,7 @@ import { OpenRouterSecondReaderAdapter } from './identity-verification/core/adap
 import { WorkersController } from './workers.controller';
 import { StorageReferencesController } from './storage-references.controller';
 import { WorkerMetricsService } from './worker-metrics.service';
-import { AudioSpeakCallHandler } from './service-calls/audio-speak-call.handler';
-import { BankStatementCallHandler } from './service-calls/bank-statement-call.handler';
-import { IdentityVerificationCallHandler } from './service-calls/identity-verification-call.handler';
-import { SemanticClassificationCallHandler } from './service-calls/semantic-classification-call.handler';
+import { WORKER_SUPPORT_PROVIDERS } from './worker-support.providers';
 import { WorkerServiceInvokerService } from './worker-service-invoker.service';
 
 /**
@@ -224,10 +214,6 @@ function maybe<K extends string, V>(
      * en `GraphModule`, porque quien conoce a los workers es este módulo; el motor solo
      * conoce la interfaz `WorkerServiceInvoker`, que recibe como argumento de llamada.
      */
-    BankStatementCallHandler,
-    SemanticClassificationCallHandler,
-    AudioSpeakCallHandler,
-    IdentityVerificationCallHandler,
     WorkerServiceInvokerService,
 
     /**
@@ -239,8 +225,6 @@ function maybe<K extends string, V>(
 
     // --- Worker B: extractos bancarios -------------------------------------
     BankStatementService,
-    BankStatementRunStore,
-    BankStatementRunRecovery,
     BankStatementRunWorkerService,
     // La cola de revisión humana. Servicio aparte del de ejecuciones porque
     // responde a otra pregunta y la contesta con otras reglas: quién puede
@@ -457,11 +441,7 @@ function maybe<K extends string, V>(
     ClassificationCache,
     TenantBudgetGuard,
     SemanticAnalysisResultBuilder,
-    GlosaFallbackClassifier,
-    RuleSafetyNet,
-    GlosaPreparationStage,
-    CandidateRetrievalStage,
-    TieredModelClassifier,
+    ...WORKER_SUPPORT_PROVIDERS,
     SemanticAnalysisPipeline,
     SemanticAnalysisProcessor,
     // `TracingService` ya no se declara aquí: la capa de trazado se promovió a
