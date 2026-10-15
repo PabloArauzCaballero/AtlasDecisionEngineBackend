@@ -78,7 +78,8 @@
     "pdf:evidencia": "ts-node -P tsconfig.json -T src/pdf-worker/cli/evidencia.ts",
     "pdf:openapi": "ts-node -P tsconfig.json -T scripts/pdf/export-openapi.ts",
     "security:audit:todo": "node scripts/audit-high.mjs --todos",
-    "docs:graph-audit": "node scripts/docs/analyze-graphify.mjs"
+    "docs:graph-audit": "node scripts/docs/analyze-graphify.mjs",
+    "check:file-size": "ts-node -P tsconfig.json -T scripts/check-file-size.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.5",
