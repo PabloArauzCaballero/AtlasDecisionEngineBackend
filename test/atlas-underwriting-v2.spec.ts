@@ -9,7 +9,7 @@ import { HashService } from '../src/common/crypto/hash.service';
 import { MetricsService } from '../src/common/observability/metrics.service';
 import { ReplaceGraphDto } from '../src/modules/artifacts/artifact.dto';
 import { CompilerService } from '../src/modules/graph/compiler.service';
-import { ExecutionEngineService } from '../src/modules/graph/execution-engine.service';
+import { buildExecutionEngine } from './support/execution-engine.factory';
 import { ExpressionEvaluator } from '../src/modules/graph/expression-evaluator';
 import { GraphValidatorService } from '../src/modules/graph/graph-validator.service';
 import { ScriptNodeRunnerService } from '../src/modules/graph/script-node-runner.service';
@@ -126,7 +126,7 @@ interface ReasonCodeGuardado {
 
 const hashes = new HashService(new ConfigService({}));
 const validador = new GraphValidatorService(new ExpressionEvaluator(), hashes);
-const engine = new ExecutionEngineService(
+const engine = buildExecutionEngine(
   new ExpressionEvaluator(),
   new ConfigService({ MAX_EXECUTION_STEPS: 128 }),
   new ScriptNodeRunnerService(new ConfigService({ SCRIPT_NODES_ENABLED: false })),

@@ -6,6 +6,9 @@ import { GraphModule } from '../graph/graph.module';
 import { NestedTreesModule } from '../nested-trees/nested-trees.module';
 import { WorkersModule } from '../workers/workers.module';
 import { VariableModule } from '../variables/variable.module';
+import { DecisionOutcomeRecorderService } from './decision-outcome-recorder.service';
+import { DecisionRefusalRecorderService } from './decision-refusal-recorder.service';
+import { DecisionSafeguardsService } from './decision-safeguards.service';
 import { ExecutionWriterService } from './execution-writer.service';
 import { IdempotencyService } from './idempotency.service';
 import { RetentionSweeperService } from './retention-sweeper.service';
@@ -29,6 +32,9 @@ import { QaFakersModule } from '../qa-lab/qa-fakers.module';
   controllers: [RuntimeController, SimulationController],
   providers: [
     RuntimeService,
+    DecisionSafeguardsService,
+    DecisionOutcomeRecorderService,
+    DecisionRefusalRecorderService,
     SimulationService,
     SampleInputService,
     IdempotencyService,

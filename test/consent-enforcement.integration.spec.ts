@@ -29,6 +29,9 @@ import { RiskGovernanceService } from '../src/modules/risk-governance/risk-gover
 import { ExecutionWriterService } from '../src/modules/runtime/execution-writer.service';
 import { IdempotencyService } from '../src/modules/runtime/idempotency.service';
 import type { ExecuteDecisionDto } from '../src/modules/runtime/runtime.dto';
+import { DecisionOutcomeRecorderService } from '../src/modules/runtime/decision-outcome-recorder.service';
+import { DecisionRefusalRecorderService } from '../src/modules/runtime/decision-refusal-recorder.service';
+import { DecisionSafeguardsService } from '../src/modules/runtime/decision-safeguards.service';
 import { RuntimeService } from '../src/modules/runtime/runtime.service';
 import type { VariableResolutionService } from '../src/modules/variables/variable-resolution.service';
 import type { WorkerServiceInvokerService } from '../src/modules/workers/worker-service-invoker.service';
@@ -72,11 +75,11 @@ describeDb('Base habilitante exigible de extremo a extremo (integration)', () =>
   };
 
   function runtimeFor(fixture: DecisionFixture) {
+    const idempotency = new IdempotencyService(db, hashes, config);
     return new RuntimeService(
       config,
-      db,
       hashes,
-      new IdempotencyService(db, hashes, config),
+      idempotency,
       {
         resolve: () => Promise.resolve(fixture.deployment),
       } as unknown as DeploymentResolverService,
@@ -90,13 +93,25 @@ describeDb('Base habilitante exigible de extremo a extremo (integration)', () =>
           return Promise.resolve(approved);
         },
       } as unknown as ExecutionEngineService,
-      new ExecutionWriterService(db, hashes, config),
-      audit,
-      new MetricsService(),
       { bind: () => undefined } as unknown as NestedTreeExecutionService,
       { bind: () => undefined } as unknown as WorkerServiceInvokerService,
       new TracingService(),
-      new DecisionGuardService(db),
+      new DecisionSafeguardsService(config, db, hashes, new DecisionGuardService(db)),
+      new DecisionOutcomeRecorderService(
+        config,
+        db,
+        new ExecutionWriterService(db, hashes, config),
+        idempotency,
+        audit,
+        new MetricsService(),
+      ),
+      new DecisionRefusalRecorderService(
+        db,
+        new ExecutionWriterService(db, hashes, config),
+        idempotency,
+        audit,
+        new MetricsService(),
+      ),
     );
   }
 

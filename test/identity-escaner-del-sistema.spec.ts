@@ -62,6 +62,13 @@ import {
   buildIdentityFixtureImages,
   findIdentityFixture,
 } from '../src/modules/workers/identity-verification/fixtures/identity-fixtures';
+import { DocumentAuthenticityService } from '../src/modules/workers/identity-verification/pipeline/document-authenticity.service';
+import { DocumentFieldsService } from '../src/modules/workers/identity-verification/pipeline/document-fields.service';
+import { DocumentGateService } from '../src/modules/workers/identity-verification/pipeline/document-gate.service';
+import { DocumentIntakeService } from '../src/modules/workers/identity-verification/pipeline/document-intake.service';
+import { DocumentOrientationService } from '../src/modules/workers/identity-verification/pipeline/document-orientation.service';
+import { DocumentTextReaderService } from '../src/modules/workers/identity-verification/pipeline/document-text-reader.service';
+import { FaceCaptureService } from '../src/modules/workers/identity-verification/pipeline/face-capture.service';
 import { IdentityPipelineService } from '../src/modules/workers/identity-verification/identity-pipeline.service';
 import type { IdentityVerificationService } from '../src/modules/workers/identity-verification/identity-verification.service';
 import type { IdentityVerificationOutcome } from '../src/modules/workers/identity-verification/identity-result';
@@ -126,23 +133,32 @@ function buildPipeline(options: IdentityOptions = OPTIONS): {
 } {
   const images = new SharpImageAdapter(options);
   const frame = jest.spyOn(images, 'frame');
+  const classifier = new HeuristicDocumentClassifierAdapter();
+  const detector = new HumanFaceDetectorAdapter(options);
+  const quality = new ImageQualityAssessmentService(options);
+  const textReader = new DocumentTextReaderService(options, images, ocr, classifier);
   const pipeline = new IdentityPipelineService(
     options,
-    images,
-    ocr,
-    new HeuristicDocumentClassifierAdapter(),
-    new HumanFaceDetectorAdapter(options),
-    new HumanFaceMatchAdapter(options),
-    new HumanLivenessAdapter(options),
-    new HumanIdentityArbitrationAdapter(),
-    null,
-    null,
-    new DocumentParserRegistry(
-      new BoliviaCiDocumentParser(),
-      new PassportDocumentParser(),
-      new GenericDocumentParser(),
+    new DocumentIntakeService(
+      options,
+      images,
+      quality,
+      textReader,
+      new DocumentOrientationService(options, images, textReader),
     ),
-    new ImageQualityAssessmentService(options),
+    new DocumentGateService(options, new HumanIdentityArbitrationAdapter()),
+    new DocumentFieldsService(
+      new DocumentParserRegistry(
+        new BoliviaCiDocumentParser(),
+        new PassportDocumentParser(),
+        new GenericDocumentParser(),
+      ),
+      null,
+    ),
+    new DocumentAuthenticityService(options, null),
+    new FaceCaptureService(options, images, detector, quality),
+    new HumanLivenessAdapter(options),
+    new HumanFaceMatchAdapter(options),
   );
   return { pipeline, frame };
 }

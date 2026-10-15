@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/runtime/`](https://github.com/) · 14 ficheros TypeScript.
+Código: [`src/modules/runtime/`](https://github.com/) · 21 ficheros TypeScript.
 
 Etiquetas de API: **Decision Runtime**, **Decision Simulation**.
 
@@ -35,6 +35,9 @@ Roles exigidos por sus rutas: `FRAUD_ANALYST`, `QA_ANALYST`. La decisión es del
 
 ## Clases exportadas
 
+- `DecisionOutcomeRecorderService`
+- `DecisionRefusalRecorderService`
+- `DecisionSafeguardsService`
 - `ExecuteDecisionDto`
 - `ExecutionWriterService`
 - `GenerateSampleInputsDto`

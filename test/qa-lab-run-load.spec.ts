@@ -3,7 +3,7 @@ import { MetricsService } from '../src/common/observability/metrics.service';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
 import type { ExecutionEngineService } from '../src/modules/graph/execution-engine.service';
 import type { VariableResolutionService } from '../src/modules/variables/variable-resolution.service';
-import { QaLabService } from '../src/modules/qa-lab/qa-lab.service';
+import { buildQaLab } from './support/qa-lab.factory';
 
 /**
  * El listado de corridas publica la CARGA con la que se corrió cada una.
@@ -44,22 +44,22 @@ function build(rows: Array<Record<string, unknown>>) {
     },
   } as unknown as PrismaService;
 
-  return new QaLabService(
+  return buildQaLab(
     prisma,
     { append: jest.fn() } as unknown as AuditService,
     new MetricsService(),
     {} as unknown as VariableResolutionService,
     {} as unknown as ExecutionEngineService,
-  );
+  ).history;
 }
 
 describe('el listado de corridas de QA publica la carga archivada', () => {
   it('devuelve concurrencia, determinismo y casos planificados', async () => {
-    const service = build([
+    const history = build([
       { configJson: { concurrency: 1, checkDeterminism: true, plannedCases: 512 } },
     ]);
 
-    const pagina = (await service.listRuns(1n, {} as never)) as {
+    const pagina = (await history.listRuns(1n, {} as never)) as {
       items: Array<Record<string, unknown>>;
     };
 
@@ -76,9 +76,9 @@ describe('el listado de corridas de QA publica la carga archivada', () => {
      * serie inventaría una medición: diría que aquella tanda fue a ocho en paralelo sin que
      * nadie lo sepa, y la comparación con una corrida nueva saldría con toda naturalidad.
      */
-    const service = build([{ configJson: { plannedCases: 200 } }, { configJson: null }]);
+    const history = build([{ configJson: { plannedCases: 200 } }, { configJson: null }]);
 
-    const pagina = (await service.listRuns(1n, {} as never)) as {
+    const pagina = (await history.listRuns(1n, {} as never)) as {
       items: Array<Record<string, unknown>>;
     };
 
@@ -97,11 +97,11 @@ describe('el listado de corridas de QA publica la carga archivada', () => {
   it('descarta un valor que no es del tipo esperado', async () => {
     // La configuración es JSON libre en la fila: nada impide que llegue con otra forma, y un
     // `"8"` de texto colado como número dejaría de ser comparable sin que nada avisara.
-    const service = build([
+    const history = build([
       { configJson: { concurrency: '8', checkDeterminism: 'sí', plannedCases: 'muchos' } },
     ]);
 
-    const pagina = (await service.listRuns(1n, {} as never)) as {
+    const pagina = (await history.listRuns(1n, {} as never)) as {
       items: Array<Record<string, unknown>>;
     };
 

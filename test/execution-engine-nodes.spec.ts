@@ -1,6 +1,5 @@
 import { MetricsService } from '../src/common/observability/metrics.service';
 import { ConfigService } from '@nestjs/config';
-import { ExecutionEngineService } from '../src/modules/graph/execution-engine.service';
 import { ExpressionEvaluator } from '../src/modules/graph/expression-evaluator';
 import { ScriptNodeRunnerService } from '../src/modules/graph/script-node-runner.service';
 import { compiledFixture } from './graph.fixture';
@@ -13,6 +12,7 @@ import type {
   NodeType,
   VariableContractSnapshot,
 } from '../src/modules/graph/graph.types';
+import { buildExecutionEngine } from './support/execution-engine.factory';
 
 /**
  * Node-type and action-type coverage for the execution engine — the code that walks a
@@ -21,7 +21,7 @@ import type {
  * failing test rather than a wrong decision in production.
  */
 describe('ExecutionEngineService node and action coverage', () => {
-  const engine = new ExecutionEngineService(
+  const engine = buildExecutionEngine(
     new ExpressionEvaluator(),
     new ConfigService({ MAX_EXECUTION_STEPS: 32 }),
     new ScriptNodeRunnerService(new ConfigService({ SCRIPT_NODES_ENABLED: false })),
