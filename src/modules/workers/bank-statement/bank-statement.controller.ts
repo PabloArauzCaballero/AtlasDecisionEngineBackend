@@ -37,6 +37,11 @@ import {
 } from '../workers.dto';
 import { toWorkerRunDto } from '../workers.mapper';
 import { BANK_STATEMENT_MULTER_OPTIONS, validateStatementUpload } from './bank-statement-input';
+import { StatementReprocessService } from './review/statement-reprocess.service';
+import {
+  ReprocessStatementReviewDto,
+  StatementReprocessedDto,
+} from './review/statement-review.dto';
 import { StatementRunIntakeService } from './statement-run-intake.service';
 import { StatementRunService } from './statement-run.service';
 import { StatementUploadPolicy } from './statement-upload.policy';
@@ -67,6 +72,7 @@ export class BankStatementController {
     private readonly runs: StatementRunService,
     private readonly uploads: StatementUploadPolicy,
     private readonly config: ConfigService,
+    private readonly reprocesses: StatementReprocessService,
   ) {}
 
   @Get('fixtures')
@@ -170,6 +176,25 @@ export class BankStatementController {
     @Param('requestId') requestId: string,
   ): Promise<WorkerRunDto> {
     return toWorkerRunDto(await this.runs.cancelRun(tenantId, requestId));
+  }
+
+  /**
+   * Vuelve a analizar una ejecución cerrada que no dejó resultado ni movimientos (2026-10-15), con el
+   * padrón de hoy y, si se pide, con la entidad asignada a mano. Ver `StatementReprocessService.reprocessRun`.
+   */
+  @Post('runs/:requestId/reprocess')
+  @ApiOperation({
+    summary: 'Vuelve a analizar una ejecución cerrada que no dejó resultado ni movimientos',
+  })
+  @ApiOkResponse({ description: 'La ejecución vuelve a `QUEUED`.', type: StatementReprocessedDto })
+  @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'OPERATIONS')
+  async reprocessRun(
+    @TenantId() tenantId: bigint,
+    @Param('requestId') requestId: string,
+    @Body() dto: ReprocessStatementReviewDto,
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+  ): Promise<StatementReprocessedDto> {
+    return this.reprocesses.reprocessRun(tenantId, requestId, principal, dto?.institutionCode);
   }
 
   @Get('runs/:requestId/download')

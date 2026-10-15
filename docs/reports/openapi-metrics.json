@@ -1,13 +1,13 @@
 {
   "apiVersion": "v1",
-  "paths": 215,
-  "operations": 243,
-  "withOperationId": 243,
-  "withSummary": 243,
-  "withTag": 243,
-  "withSecurity": 239,
-  "withSuccessSchema": 243,
-  "schemas": 380,
+  "paths": 217,
+  "operations": 245,
+  "withOperationId": 245,
+  "withSummary": 245,
+  "withTag": 245,
+  "withSecurity": 241,
+  "withSuccessSchema": 245,
+  "schemas": 381,
   "publicOperations": 4,
   "successSchemaDebt": 0
 }

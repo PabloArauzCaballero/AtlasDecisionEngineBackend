@@ -19,7 +19,9 @@ import {
   buildSyntheticPdf,
   lineY,
 } from '../src/modules/workers/bank-statement/fixtures/synthetic-pdf';
+import { provisionalStatementOf } from '../src/modules/workers/bank-statement/core/application/provisional-analysis';
 import { StatementProcessingError } from '../src/modules/workers/bank-statement/core/domain/errors';
+import { fixedRegistry } from '../src/modules/workers/bank-statement/core/institutions/institution-registry';
 import {
   createStatementEngine,
   type StatementEngine,
@@ -356,5 +358,71 @@ describe('escenarios de prueba del worker de extractos', () => {
         'invalid-example',
       ]),
     );
+  });
+});
+
+/*
+ * El análisis PROVISIONAL y la entidad asignada a mano (2026-10-15). Va en ESTE archivo y no en uno
+ * propio: el lector de PDF carga `pdfjs` como ESM y, en el mismo proceso de Jest (`--runInBand`), un
+ * segundo archivo que lo importe falla en 0 ms con PDF_EXTRACTION_FAILED. Este es el único archivo de
+ * pruebas unitarias que lee PDF reales.
+ *
+ * El análisis PROVISIONAL y la entidad asignada a mano (2026-10-15).
+ *
+ * Pablo: «que haga el ejercicio que ya sabe hacer —ingresos, gastos y categorías— sin fijarse si es o no
+ * entidad validada», y «poder ponerle manualmente la entidad». Un emisor no reconocido cortaba el
+ * proceso antes de leer los movimientos: el caso llegaba a la cola vacío.
+ */
+const RELOJ = { now: () => new Date('2026-04-01T09:00:00Z') };
+const LIMITES = { maxFileSizeBytes: 10 * 1_048_576, maxPageCount: 60, processingTimeoutMs: 30_000 };
+
+describe('análisis provisional de un extracto con el emisor en duda', () => {
+  // Un padrón que no conoce al Banco Ganadero: su extracto no se puede atribuir.
+  let engine: StatementEngine;
+  let pdf: Buffer;
+  beforeAll(() => {
+    engine = createStatementEngine({
+      limits: LIMITES,
+      institutions: fixedRegistry([]),
+      recencyGate: RELOJ,
+    });
+    pdf = findBankStatementFixture('valid-basic')!.build();
+  });
+
+  it('va a revisión, pero con los movimientos, ingresos, gastos y capacidad ya leídos', async () => {
+    const error = await engine.normalize(pdf, { fileName: 'x.pdf' }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(StatementProcessingError);
+    expect((error as StatementProcessingError).disposition).toBe('REVIEW');
+
+    const provisional = provisionalStatementOf(error);
+    expect(provisional).toBeDefined();
+    expect(provisional!.transactions.length).toBe(24);
+    expect(provisional!.affordability.coverage.monthsComplete).toBe(3);
+    expect(provisional!.affordability.income.monthlyRecognized).toBeGreaterThan(0);
+  });
+
+  it('con la entidad asignada a mano, el mismo documento se procesa', async () => {
+    const normalized = await engine.normalize(pdf, {
+      fileName: 'x.pdf',
+      assignedInstitutionCode: 'bga',
+    });
+    expect(normalized.institution.id).toBe('BGA');
+    expect(normalized.transactions.length).toBe(24);
+  });
+
+  it('un código que no existe no es una asignación: vuelve a la detección', async () => {
+    const error = await engine
+      .normalize(pdf, { fileName: 'x.pdf', assignedInstitutionCode: 'NO-EXISTE' })
+      .catch((e: unknown) => e);
+    expect((error as StatementProcessingError).code).toBe('UNSUPPORTED_INSTITUTION');
+  });
+
+  it('lo que el emisor RECHAZA sigue sin leerse: no hay nada que revisar', async () => {
+    const foreign = findBankStatementFixture('foreign-issuer')!.build();
+    const error = await createStatementEngine({ limits: LIMITES, recencyGate: RELOJ })
+      .normalize(foreign, { fileName: 'y.pdf' })
+      .catch((e: unknown) => e);
+    expect((error as StatementProcessingError).disposition).not.toBe('REVIEW');
+    expect(provisionalStatementOf(error)).toBeUndefined();
   });
 });

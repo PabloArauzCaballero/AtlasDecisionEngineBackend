@@ -44,6 +44,7 @@ function montar(deduplicated: boolean) {
     {} as never,
     uploads as never,
     {} as never,
+    {} as never,
   );
   return controller;
 }

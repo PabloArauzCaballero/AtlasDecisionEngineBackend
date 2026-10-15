@@ -23,6 +23,7 @@ import {
   type SimilarityMode,
   type SimilarityThresholds,
 } from '../engine/similarity/similarity-scorer';
+import { StatementProcessingError } from '../domain/errors';
 import type { StatementContext } from '../engine/statement-context';
 import { toAffordabilityInput } from './affordability-input';
 import {
@@ -173,6 +174,40 @@ export class StatementAdmissionGates {
    * el extracto que dice llegar hasta agosto y cuyo último apunte es de mayo,
    * que es justo el documento que esta compuerta existe para detener.
    */
+  /**
+   * Como `admitIssuer`, pero DEVUELVE el rechazo cuando su desenlace es la revisión humana en vez de
+   * lanzarlo: el worker sigue leyendo el documento para adjuntar el análisis provisional
+   * (`provisional-analysis.ts`). Lo que se rechaza en firme se lanza igual que siempre.
+   */
+  holdIssuer(
+    context: StatementContext,
+    timer: StageTimer,
+    correlation: string,
+  ): StatementProcessingError | undefined {
+    try {
+      this.admitIssuer(context, timer, correlation);
+      return undefined;
+    } catch (error) {
+      if (error instanceof StatementProcessingError && error.disposition === 'REVIEW') return error;
+      throw error;
+    }
+  }
+
+  /**
+   * La misma medición que `admitPeriod`, sin admitir ni rechazar: para el análisis PROVISIONAL de un
+   * documento que ya va a una persona por otro motivo. Que le falten meses o esté vencido se ve en la
+   * propia evaluación (`coverage`, `recency`); aquí no decide nada.
+   */
+  measurePeriod(statement: ParsedStatement, timer: StageTimer): PeriodAdmission {
+    const affordability = timer.timeSync('capacidad', () =>
+      assessAffordability(toAffordabilityInput(statement), this.policy.affordability),
+    );
+    const recency = timer.timeSync('vigencia', () =>
+      assessRecency(affordability.coverage.to, this.policy.recency),
+    );
+    return { affordability, recency };
+  }
+
   admitPeriod(statement: ParsedStatement, timer: StageTimer, correlation: string): PeriodAdmission {
     const affordability = timer.timeSync('capacidad', () =>
       assessAffordability(toAffordabilityInput(statement), this.policy.affordability),

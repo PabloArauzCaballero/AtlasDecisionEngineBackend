@@ -20,6 +20,12 @@ export interface StatementProcessingContext {
    * controla quien sube el documento.
    */
   readonly fileName?: string;
+  /**
+   * La entidad que una persona asignó a mano al revisar el extracto (código del padrón). Sustituye a
+   * la detección automática: quien revisa vio el PDF y firma de quién es. Ver
+   * `InstitutionDetector.assigned`.
+   */
+  readonly assignedInstitutionCode?: string;
 }
 
 /**

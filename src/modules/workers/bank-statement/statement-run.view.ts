@@ -39,6 +39,7 @@ export const RUN_SELECTION = {
   fileHash: true,
   fileSizeBytes: true,
   resultJson: true,
+  provisionalResultJson: true,
   warningsJson: true,
   confidence: true,
   documentTypeConfidence: true,

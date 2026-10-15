@@ -131,6 +131,24 @@ export class StatementReprocessedDto {
   status!: WorkerRunStatus;
 }
 
+/**
+ * Reprocesar, opcionalmente con la entidad que asigna quien revisa (2026-10-15).
+ *
+ * Sin `institutionCode` es el reproceso de siempre. Con él, el motor deja de adivinar de quién es el
+ * documento y usa la entidad elegida —del padrón, o de la nómina compilada de ASFI si el padrón del
+ * entorno no la tiene—. Queda en la fila (quién y cuándo) y en la auditoría.
+ */
+export class ReprocessStatementReviewDto {
+  @ApiPropertyOptional({
+    description: 'Código ASFI de la entidad que emitió el extracto (p. ej. `BNB`).',
+    maxLength: 16,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(16)
+  institutionCode?: string;
+}
+
 /** Qué se puede hacer con un pendiente. */
 export const REVIEW_ACTIONS = ['APPROVE', 'CORRECT', 'REJECT', 'MARK_INVALID'] as const;
 export type ReviewAction = (typeof REVIEW_ACTIONS)[number];

@@ -1,4 +1,5 @@
 import { BankStatementWorkerService } from './application/bank-statement-worker.service';
+import { normalizeProvisional } from './application/provisional-analysis';
 import type { ParsedStatement } from './domain/models';
 import type { StatementProcessingContext } from './domain/processing-context';
 import type { StatementParser } from './domain/statement-parser';
@@ -180,7 +181,15 @@ export function createStatementEngine(options: StatementEngineOptions = {}): Sta
     metrics,
     process: (pdf, context) => worker.process(pdf, context),
     analyze: (pdf, context) => worker.analyze(pdf, context),
-    normalize: async (pdf, context) => toNormalizedStatement(await worker.analyze(pdf, context)),
+    normalize: async (pdf, context) => {
+      try {
+        return toNormalizedStatement(await worker.analyze(pdf, context));
+      } catch (error) {
+        // El análisis provisional de un caso que va a revisión viaja ya en el contrato normalizado.
+        normalizeProvisional(error, toNormalizedStatement);
+        throw error;
+      }
+    },
     describe: async (pdf, context) =>
       listTransactionDescriptions(await worker.analyze(pdf, context)),
   };

@@ -1,9 +1,11 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ApiArrayResponse, ApiPagedResponse } from '../../../../common/http/pagination.dto';
 import { CurrentPrincipal, Roles, TenantId } from '../../../../common/security/security.decorators';
 import type { AuthenticatedPrincipal } from '../../../../common/security/security.types';
 import {
+  ReprocessStatementReviewDto,
   ResolveStatementReviewDto,
   StatementReprocessedDto,
   StatementReviewCategoryDto,
@@ -11,6 +13,7 @@ import {
   StatementReviewQueryDto,
 } from './statement-review.dto';
 import { StatementReprocessService } from './statement-reprocess.service';
+import { StatementReviewDocuments } from './statement-review-documents.service';
 import { StatementReviewClaimService } from './statement-review-claim.service';
 import { StatementReviewQueueService } from './statement-review-queue.service';
 import { StatementReviewResolutionService } from './statement-review-resolution.service';
@@ -36,6 +39,7 @@ export class StatementReviewController {
     private readonly claims: StatementReviewClaimService,
     private readonly resolutions: StatementReviewResolutionService,
     private readonly reprocesses: StatementReprocessService,
+    private readonly documents: StatementReviewDocuments,
   ) {}
 
   @Get()
@@ -68,6 +72,34 @@ export class StatementReviewController {
     return this.queue.get(tenantId, requestId);
   }
 
+  /**
+   * El PDF que subió el cliente, para verlo al revisar. Antes no había forma de abrirlo: el caso decía
+   * «el PDF original sigue guardado» y nada más.
+   *
+   * `inline` (para el visor del portal) y sin caché: es el documento más sensible del expediente.
+   * `nosniff` porque el tipo lo fija el servidor, no el contenido.
+   */
+  @Get(':requestId/document')
+  @ApiOperation({ summary: 'El PDF original del caso, para verlo al revisar' })
+  @ApiOkResponse({
+    description: 'El PDF tal como lo subió el cliente.',
+    content: { 'application/pdf': { schema: { type: 'string', format: 'binary' } } },
+  })
+  @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'OPERATIONS', 'COMPLIANCE', 'AUDITOR')
+  async document(
+    @TenantId() tenantId: bigint,
+    @Param('requestId') requestId: string,
+    @Res() response: Response,
+  ): Promise<void> {
+    const pdf = await this.documents.read(tenantId, requestId);
+    const name = (pdf.fileName || 'extracto.pdf').replace(/["\\\r\n]/g, '');
+    response.setHeader('Content-Type', 'application/pdf');
+    response.setHeader('Content-Disposition', `inline; filename="${name}"`);
+    response.setHeader('Cache-Control', 'private, no-store');
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+    response.send(pdf.content);
+  }
+
   @Post(':requestId/claim')
   @ApiOperation({ summary: 'Reclama el caso para revisarlo' })
   @ApiOkResponse({ type: StatementReviewItemDto })
@@ -94,14 +126,18 @@ export class StatementReviewController {
   }
 
   @Post(':requestId/reprocess')
-  @ApiOperation({ summary: 'Devuelve el documento a la cola del worker' })
+  @ApiOperation({
+    summary:
+      'Devuelve el documento a la cola del worker, opcionalmente con la entidad asignada a mano',
+  })
   @ApiOkResponse({ description: 'La ejecución vuelve a `QUEUED`.', type: StatementReprocessedDto })
   @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'OPERATIONS')
   async reprocess(
     @TenantId() tenantId: bigint,
     @Param('requestId') requestId: string,
+    @Body() dto: ReprocessStatementReviewDto,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
   ) {
-    return this.reprocesses.reprocess(tenantId, requestId, principal);
+    return this.reprocesses.reprocess(tenantId, requestId, principal, dto?.institutionCode);
   }
 }

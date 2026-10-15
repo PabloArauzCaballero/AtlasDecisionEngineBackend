@@ -133,7 +133,18 @@ export class StatementRunIntakeService {
        * decisión (y su autor y sus notas) y mandaba el mismo archivo a buscar otro revisor. Una
        * resolución humana se respeta: se devuelve la ejecución con su veredicto.
        */
-      if (RETRYABLE_STATUSES.includes(existing.status) && !existing.reviewResolvedAt) {
+      /*
+       * Tampoco se devuelve una ejecución cerrada SIN resultado (2026-10-15): un caso de banco no
+       * reconocido aprobado antes de que existiera el análisis provisional quedó `SUCCEEDED_WITH_WARNINGS`
+       * sin movimientos, y la deduplicación se lo devolvía para siempre a quien volvía a subir el PDF. No
+       * hay análisis que respetar: se vuelve a leer.
+       */
+      const cerradaSinNada =
+        existing.status === WorkerRunStatus.SUCCEEDED_WITH_WARNINGS && existing.resultJson === null;
+      if (
+        (RETRYABLE_STATUSES.includes(existing.status) && !existing.reviewResolvedAt) ||
+        cerradaSinNada
+      ) {
         this.logger.debug(
           `Extracto con intento ${existing.status} para esta huella; se reencola ${existing.requestId}`,
         );
@@ -195,6 +206,7 @@ export class StatementRunIntakeService {
           // error junto a un estado QUEUED describiría una ejecución que no
           // existe.
           resultJson: Prisma.DbNull,
+          provisionalResultJson: Prisma.DbNull,
           warningsJson: Prisma.DbNull,
           confidence: null,
           documentTypeConfidence: null,

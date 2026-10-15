@@ -53,6 +53,7 @@ function servicioCon(existente: {
   status: WorkerRunStatus;
   requestId: string;
   reviewResolvedAt?: Date | null;
+  resultJson?: unknown;
 }): {
   service: StatementRunIntakeService;
   registro: Registro;
@@ -215,5 +216,43 @@ describe('alta de una conversión de extracto ya subida', () => {
       expect(registro.actualizaciones).toHaveLength(0);
       expect(registro.notificaciones).toBe(0);
     }
+  });
+
+  /*
+   * 2026-10-15: un caso de banco no reconocido aprobado antes del análisis provisional quedó
+   * SUCCEEDED_WITH_WARNINGS SIN resultado, y volver a subir el PDF devolvía esa fila vacía para siempre.
+   */
+  it('vuelve a leer una ejecución cerrada que no dejó resultado, aunque una persona la resolviera', async () => {
+    const { service, registro } = servicioCon({
+      status: WorkerRunStatus.SUCCEEDED_WITH_WARNINGS,
+      requestId: 'req-vacio',
+      resultJson: null,
+      reviewResolvedAt: new Date('2026-10-08T10:00:00Z'),
+    });
+    const { deduplicated } = await service.createRun(
+      TENANT,
+      PRINCIPAL,
+      ENTRADA,
+      WorkerInputSource.UPLOAD,
+    );
+    expect(deduplicated).toBe(false);
+    expect(registro.actualizaciones[0]).toMatchObject({ status: WorkerRunStatus.QUEUED });
+    expect(registro.notificaciones).toBe(1);
+  });
+
+  it('una SUCCEEDED_WITH_WARNINGS CON resultado se respeta', async () => {
+    const { service, registro } = servicioCon({
+      status: WorkerRunStatus.SUCCEEDED_WITH_WARNINGS,
+      requestId: 'req-con-resultado',
+      resultJson: { transactions: [{}] },
+    });
+    const { deduplicated } = await service.createRun(
+      TENANT,
+      PRINCIPAL,
+      ENTRADA,
+      WorkerInputSource.UPLOAD,
+    );
+    expect(deduplicated).toBe(true);
+    expect(registro.actualizaciones).toHaveLength(0);
   });
 });

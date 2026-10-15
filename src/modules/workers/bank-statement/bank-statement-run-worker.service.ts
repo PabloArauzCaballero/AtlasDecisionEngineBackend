@@ -5,6 +5,7 @@ import { runsBackgroundJobs, workerRoleOf } from '../../../common/config/worker-
 import { BackgroundJob } from '../../../common/jobs/background-job';
 import { JobName } from '../../../common/jobs/job-names';
 import { JobSchedulerService } from '../../../common/jobs/job-scheduler.service';
+import { provisionalStatementOf } from './core/application/provisional-analysis';
 import { StatementProcessingError } from './core/domain/errors';
 import { InstitutionCatalogService } from './institutions/institution-catalog.service';
 import { createStatementEngine, type StatementEngine } from './core/statement-engine';
@@ -179,6 +180,8 @@ export class BankStatementRunWorkerService implements OnModuleInit, OnModuleDest
         {
           fileName: run.fileName,
           correlationId: run.correlationId,
+          // La entidad que asignó a mano quien revisó; sin ella, la detección de siempre.
+          assignedInstitutionCode: run.assignedInstitutionCode ?? undefined,
         },
       );
       await this.store.setProgress(runId, 80);
@@ -199,11 +202,13 @@ export class BankStatementRunWorkerService implements OnModuleInit, OnModuleDest
    */
   private async recordFailure(runId: bigint, error: unknown): Promise<void> {
     if (error instanceof StatementProcessingError) {
+      // Si va a revisión con algo leído, se guarda para que la persona decida con datos.
       await this.store.closeRun(
         runId,
         outcomeForError(error.code, error.disposition),
         error.code,
         error.message,
+        provisionalStatementOf(error),
       );
       return;
     }

@@ -35,6 +35,7 @@ import { diagnoseAnalysis } from './analysis-diagnostics';
 import { buildStatementContext } from './statement-context-builder';
 import { StageTimer } from './stage-timer';
 import { StatementAdmissionGates } from './statement-admission-gates';
+import { attachProvisional } from './provisional-analysis';
 import { noTransactionsFound, unsupportedStatement } from './statement-rejections';
 
 /** Token de los analizadores especializados con los que se puebla el registro. */
@@ -187,11 +188,12 @@ export class BankStatementWorkerService {
       timer,
       correlation,
     );
-    this.gates.admitIssuer(context, timer, correlation);
+    // Emisor en DUDA: va a una persona igual, pero se lee entero (ver `provisional-analysis.ts`).
+    const issuerHold = this.gates.holdIssuer(context, timer, correlation);
 
     const candidates = await timer.time('resolucion', () => this.registry.resolveAll(context));
     if (candidates.length === 0) {
-      throw unsupportedStatement(context);
+      throw issuerHold ?? unsupportedStatement(context);
     }
 
     for (const candidate of candidates) {
@@ -218,7 +220,10 @@ export class BankStatementWorkerService {
         checksRun: validation.checksRun,
       });
 
-      const { affordability, recency } = this.gates.admitPeriod(statement, timer, correlation);
+      // Con el emisor en duda se MIDE el periodo sin admitirlo: el caso ya va a una persona.
+      const { affordability, recency } = issuerHold
+        ? this.gates.measurePeriod(statement, timer)
+        : this.gates.admitPeriod(statement, timer, correlation);
 
       const warnings = [
         ...extraction.warnings,
@@ -226,7 +231,7 @@ export class BankStatementWorkerService {
         ...admissionWarnings(affordability, recency, similarity, rescatado),
       ];
 
-      return {
+      const analysis: StatementAnalysis = {
         statement,
         context,
         authenticity,
@@ -249,8 +254,11 @@ export class BankStatementWorkerService {
         stageDurations: timer.durations,
         durationMs: Date.now() - startedAt,
       };
+      if (issuerHold) throw attachProvisional(issuerHold, analysis);
+      return analysis;
     }
 
+    if (issuerHold) throw issuerHold;
     throw noTransactionsFound(
       context,
       candidates.map((candidate) => candidate.strategy.id),

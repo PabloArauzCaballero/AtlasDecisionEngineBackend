@@ -112,6 +112,10 @@ export class StatementReviewQueueService {
       select: {
         ...QUEUE_SELECTION,
         resultJson: true,
+        provisionalResultJson: true,
+        assignedInstitutionCode: true,
+        assignedInstitutionBy: true,
+        assignedInstitutionAt: true,
         warningsJson: true,
         fileSizeBytes: true,
         fileHash: true,
@@ -132,6 +136,18 @@ export class StatementReviewQueueService {
     return {
       ...toReviewItem(run, Date.now()),
       result: run.resultJson,
+      /*
+       * Lo que el motor leyó aunque no reconociera el emisor: movimientos, ingresos, gastos, categorías
+       * y capacidad. Es para DECIDIR, no un resultado aplicado (ver `provisional-analysis.ts`).
+       */
+      provisional: run.provisionalResultJson,
+      assignedInstitution: run.assignedInstitutionCode
+        ? {
+            code: run.assignedInstitutionCode,
+            by: run.assignedInstitutionBy,
+            at: run.assignedInstitutionAt,
+          }
+        : null,
       warnings: run.warningsJson,
       fileHash: run.fileHash,
       fileSizeBytes: run.fileSizeBytes,

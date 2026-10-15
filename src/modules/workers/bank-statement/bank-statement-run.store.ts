@@ -36,6 +36,7 @@ export class BankStatementRunStore {
         fileName: true,
         attemptCount: true,
         correlationId: true,
+        assignedInstitutionCode: true,
       },
     });
   }
@@ -164,6 +165,8 @@ export class BankStatementRunStore {
     outcome: StatementOutcome,
     code: string,
     message: string,
+    /** Lo que el motor leyó de un documento que va a revisión. Nunca es `resultJson`: no se aplica. */
+    provisional?: NormalizedBankStatement,
   ): Promise<void> {
     await this.prisma.bankStatementRun.updateMany({
       where: { id: runId, status: WorkerRunStatus.RUNNING },
@@ -172,6 +175,14 @@ export class BankStatementRunStore {
         errorCode: code,
         errorMessage: message,
         leaseExpiresAt: null,
+        provisionalResultJson:
+          provisional && outcome.status === WorkerRunStatus.PENDING_REVIEW
+            ? (provisional as unknown as Prisma.InputJsonValue)
+            : Prisma.DbNull,
+        transactionCount:
+          provisional && outcome.status === WorkerRunStatus.PENDING_REVIEW
+            ? provisional.transactions.length
+            : undefined,
       },
     });
   }

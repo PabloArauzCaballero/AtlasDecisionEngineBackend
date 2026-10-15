@@ -72,6 +72,12 @@ export class WorkerRunDto {
   correlationId!: string;
   @ApiPropertyOptional({ description: 'Resultado, cuando la ejecución terminó bien.' })
   result?: unknown;
+  @ApiPropertyOptional({
+    description:
+      'Sólo extractos con el emisor en duda: el análisis completo (movimientos, ingresos, gastos, capacidad) ' +
+      'para que una persona decida. NO es un resultado aplicable: el consumidor sigue leyendo `result`.',
+  })
+  provisionalResult?: unknown;
   @ApiPropertyOptional({ description: 'Advertencias de un resultado utilizable pero revisable.' })
   warnings?: unknown;
   @ApiPropertyOptional() errorCode?: string | null;

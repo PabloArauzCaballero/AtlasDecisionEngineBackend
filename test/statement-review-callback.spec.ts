@@ -24,12 +24,19 @@ describe('StatementReviewResolutionService.resolve · aviso a AtlasBackend', () 
     roles: [],
   } as unknown as AuthenticatedPrincipal;
 
-  function montar(run: Record<string, unknown> | null) {
+  function montar(
+    run: Record<string, unknown> | null,
+    guardado: { resultJson: unknown; provisionalResultJson: unknown } = {
+      resultJson: { transactions: [] },
+      provisionalResultJson: null,
+    },
+  ) {
     const avisos: Array<{ tx: unknown; aviso: Record<string, unknown> }> = [];
     const orden: string[] = [];
     const tx = {
       bankStatementRun: {
-        update: jest.fn(async () => {
+        findUnique: jest.fn(async () => guardado),
+        update: jest.fn(async (_args: { data: Record<string, unknown> }) => {
           orden.push('update');
           return {};
         }),
@@ -58,7 +65,7 @@ describe('StatementReviewResolutionService.resolve · aviso a AtlasBackend', () 
       prisma,
       audit,
       callbacks,
-      new StatementReviewAssignment(prisma, new StatementReviewDocuments(prisma)),
+      new StatementReviewAssignment(prisma, new StatementReviewDocuments(prisma, {} as never)),
     );
     return { service, avisos, tx, orden };
   }
@@ -122,5 +129,74 @@ describe('StatementReviewResolutionService.resolve · aviso a AtlasBackend', () 
       service.resolve(3n, 'bs-1', { action: 'APPROVE' } as ResolveStatementReviewDto, analista),
     ).rejects.toMatchObject({ code: 'BANK_STATEMENT_REVIEW_ASSIGNEE_MISMATCH' });
     expect(avisos).toHaveLength(0);
+  });
+
+  /*
+   * 2026-10-15: un caso de banco no reconocido llega con análisis PROVISIONAL. Aprobarlo lo convierte
+   * en el resultado —la firma de quien vio el PDF—; sin esto AtlasBackend lo leía sin capacidad y lo
+   * rechazaba.
+   */
+  describe('el análisis provisional', () => {
+    const provisional = {
+      institution: { id: 'BNB' },
+      transactions: [{}, {}, {}],
+      quality: { warnings: [] },
+      authenticity: { verdict: 'CLEAN', suspicionScore: 0 },
+      affordability: {
+        eligible: true,
+        score: 71,
+        band: 'B',
+        coverage: { monthsComplete: 3 },
+        income: { monthlyRecognized: 6200 },
+        obligations: { monthly: 900 },
+        capacity: { maxAffordableInstallment: 1500 },
+      },
+    };
+
+    it('aprobar lo promueve a resultado, con su capacidad', async () => {
+      const { service, tx } = montar(reclamado, {
+        resultJson: null,
+        provisionalResultJson: provisional,
+      });
+      await service.resolve(
+        3n,
+        'bs-1',
+        { action: 'APPROVE', notes: 'visto' } as ResolveStatementReviewDto,
+        analista,
+      );
+      const data = tx.bankStatementRun.update.mock.calls[0][0].data;
+      expect(data.resultJson).toBe(provisional);
+      expect(data.institutionId).toBe('BNB');
+      expect(data.transactionCount).toBe(3);
+      expect(data.affordabilityScore).toBe(71);
+    });
+
+    it('rechazar no promueve nada', async () => {
+      const { service, tx } = montar(reclamado, {
+        resultJson: null,
+        provisionalResultJson: provisional,
+      });
+      await service.resolve(
+        3n,
+        'bs-1',
+        { action: 'REJECT', notes: 'no' } as ResolveStatementReviewDto,
+        analista,
+      );
+      expect(tx.bankStatementRun.update.mock.calls[0][0].data.resultJson).toBeUndefined();
+    });
+
+    it('con resultado propio, aprobar no lo pisa', async () => {
+      const { service, tx } = montar(reclamado, {
+        resultJson: { propio: true },
+        provisionalResultJson: provisional,
+      });
+      await service.resolve(
+        3n,
+        'bs-1',
+        { action: 'APPROVE', notes: 'ok' } as ResolveStatementReviewDto,
+        analista,
+      );
+      expect(tx.bankStatementRun.update.mock.calls[0][0].data.resultJson).toBeUndefined();
+    });
   });
 });

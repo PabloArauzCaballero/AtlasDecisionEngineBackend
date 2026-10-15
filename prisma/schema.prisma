@@ -2667,6 +2667,15 @@ model BankStatementRun {
   /// número de cuenta completo.
   resultJson Json? @map("result_json")
 
+  /// El análisis de un documento cuyo emisor no se reconoció: se guarda para que la persona que revisa
+  /// decida con datos, pero NO es un resultado aplicable (por eso no va en `resultJson`).
+  provisionalResultJson Json? @map("provisional_result_json")
+
+  /// La entidad que asignó a mano quien revisa, con quién y cuándo. El reproceso la usa en vez de detectarla.
+  assignedInstitutionCode String?   @map("assigned_institution_code") @db.VarChar(16)
+  assignedInstitutionBy   String?   @map("assigned_institution_by") @db.VarChar(160)
+  assignedInstitutionAt   DateTime? @map("assigned_institution_at") @db.Timestamptz(6)
+
   warningsJson           Json?    @map("warnings_json")
   /// Confianza de la EXTRACCIÓN: qué tan bien se leyeron los movimientos.
   /// Conserva el nombre `confidence` porque es la que ya publicaban la API y el

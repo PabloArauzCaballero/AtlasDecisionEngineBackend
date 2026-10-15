@@ -1,5 +1,7 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
-import { StatementRejectionReason, WorkerRunStatus } from '@prisma/client';
+import { Prisma, StatementRejectionReason, WorkerRunStatus } from '@prisma/client';
+import { affordabilityColumns } from '../bank-statement-run-columns';
+import type { NormalizedBankStatement } from '../core/engine/normalized/normalized-model';
 import { AuditService } from '../../../../common/audit/audit.service';
 import { DomainException } from '../../../../common/errors/domain-exception';
 import { PrismaService } from '../../../../common/prisma/prisma.service';
@@ -47,6 +49,16 @@ export class StatementReviewResolutionService {
     const outcome = resolutionOutcome(dto, current.transactionCount);
 
     await this.prisma.$transaction(async (tx) => {
+      /*
+       * Aprobar un caso que sólo tiene análisis PROVISIONAL (emisor no reconocido) lo convierte en el
+       * resultado: es la firma de quien vio el PDF y los movimientos. Sin esto, la aprobación cerraba
+       * el caso sin resultado y AtlasBackend lo leía como «sin capacidad utilizable» y lo rechazaba.
+       * Rechazar o marcar no válido no promueve nada.
+       */
+      const promoted =
+        dto.action === 'APPROVE' || dto.action === 'CORRECT'
+          ? await this.provisionalToPromote(tx, tenantId, requestId)
+          : null;
       await tx.bankStatementRun.update({
         where: { tenantId_requestId: { tenantId, requestId } },
         data: {
@@ -61,6 +73,14 @@ export class StatementReviewResolutionService {
           // El caso se cierra: el documento deja de hacer falta, y la regla de
           // privacidad del módulo vuelve a aplicar.
           fileBytes: null,
+          ...(promoted
+            ? {
+                resultJson: promoted as unknown as Prisma.InputJsonValue,
+                institutionId: promoted.institution.id,
+                transactionCount: promoted.transactions.length,
+                ...affordabilityColumns(promoted),
+              }
+            : {}),
         },
       });
       /*
@@ -101,6 +121,7 @@ export class StatementReviewResolutionService {
             reviewReason: current.reviewReason,
             rejectionReason: outcome.rejectionReason,
             notes: dto.notes,
+            ...(promoted ? { promotedProvisionalAnalysis: true } : {}),
           },
         },
         tx,
@@ -114,6 +135,19 @@ export class StatementReviewResolutionService {
       where: { tenantId, requestId },
       select: { ...QUEUE_SELECTION, reviewNotes: true, rejectionReason: true },
     });
+  }
+  /** El provisional, si el caso no tiene resultado propio. Con resultado, aprobar no cambia nada. */
+  private async provisionalToPromote(
+    tx: Prisma.TransactionClient,
+    tenantId: bigint,
+    requestId: string,
+  ): Promise<NormalizedBankStatement | null> {
+    const row = await tx.bankStatementRun.findUnique({
+      where: { tenantId_requestId: { tenantId, requestId } },
+      select: { resultJson: true, provisionalResultJson: true },
+    });
+    if (!row || row.resultJson !== null || row.provisionalResultJson === null) return null;
+    return row.provisionalResultJson as unknown as NormalizedBankStatement;
   }
 }
 
