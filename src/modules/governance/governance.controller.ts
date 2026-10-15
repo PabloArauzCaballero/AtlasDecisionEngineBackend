@@ -4,7 +4,9 @@ import { parseBigIntId } from '../../common/http/id';
 import { CurrentPrincipal, Roles, TenantId } from '../../common/security/security.decorators';
 import { ApiPagedResponse } from '../../common/http/pagination.dto';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
-import { GovernanceService } from './governance.service';
+import { ApprovalDecisionService } from './approval-decision.service';
+import { ApprovalQueryService } from './approval-query.service';
+import { ApprovalSubmissionService } from './approval-submission.service';
 import {
   ApprovalRequestListQueryDto,
   RecordApprovalDecisionDto,
@@ -15,14 +17,18 @@ import { ApprovalRequestListItemDto } from './governance.response.dto';
 @ApiTags('Decision Governance')
 @Controller('v1')
 export class GovernanceController {
-  constructor(private readonly governance: GovernanceService) {}
+  constructor(
+    private readonly queries: ApprovalQueryService,
+    private readonly submissions: ApprovalSubmissionService,
+    private readonly decisions: ApprovalDecisionService,
+  ) {}
 
   @Get('approval-requests')
   @ApiOperation({ summary: 'List the tenant approval queue' })
   @ApiPagedResponse('Página de la cola de aprobación del tenant.', ApprovalRequestListItemDto)
   @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST', 'RISK_APPROVER', 'COMPLIANCE', 'AUDITOR')
   list(@TenantId() tenantId: bigint, @Query() query: ApprovalRequestListQueryDto) {
-    return this.governance.listRequests(tenantId, query);
+    return this.queries.listRequests(tenantId, query);
   }
 
   @Post('artifact-versions/:versionId/submit-for-review')
@@ -34,7 +40,7 @@ export class GovernanceController {
     @Param('versionId') versionId: string,
     @Body() dto: SubmitReviewDto,
   ) {
-    return this.governance.submitForReview(
+    return this.submissions.submitForReview(
       tenantId,
       parseBigIntId(versionId, 'versionId'),
       dto,
@@ -51,18 +57,13 @@ export class GovernanceController {
     @Param('stepId') stepId: string,
     @Body() dto: RecordApprovalDecisionDto,
   ) {
-    return this.governance.recordDecision(
-      tenantId,
-      parseBigIntId(stepId, 'stepId'),
-      dto,
-      principal,
-    );
+    return this.decisions.recordDecision(tenantId, parseBigIntId(stepId, 'stepId'), dto, principal);
   }
 
   @Get('approval-requests/:requestId')
   @ApiOperation({ summary: 'Get one approval request and all evidence' })
   @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST', 'RISK_APPROVER', 'COMPLIANCE', 'AUDITOR')
   get(@TenantId() tenantId: bigint, @Param('requestId') requestId: string) {
-    return this.governance.getRequest(tenantId, parseBigIntId(requestId, 'requestId'));
+    return this.queries.getRequest(tenantId, parseBigIntId(requestId, 'requestId'));
   }
 }

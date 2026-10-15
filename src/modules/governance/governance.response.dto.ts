@@ -10,7 +10,7 @@ class ApprovalStepRefDto {
   @ApiProperty({ example: true }) separationOfDuties!: boolean;
 }
 
-/** `GovernanceService.listRequests`: `decision_approval_request` anotada para la cola. */
+/** `ApprovalQueryService.listRequests`: `decision_approval_request` anotada para la cola. */
 export class ApprovalRequestListItemDto {
   @ApiProperty({ example: '1' }) id!: string;
   @ApiProperty({ example: '4001' }) artifactVersionId!: string;

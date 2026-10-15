@@ -12,7 +12,7 @@
  * Lo detectó el smoke integral, al quedarse sin emisor la rama del proyector.
  */
 import { ConfigService } from '@nestjs/config';
-import { GovernanceService } from '../src/modules/governance/governance.service';
+import { buildGovernance } from './support/governance.factory';
 import { NotificationProjectorService } from '../src/modules/notifications/notification-projector.service';
 import { DecisionEventType } from '../src/common/events/event-types';
 
@@ -47,7 +47,7 @@ function governanceWith(review: unknown) {
     $transaction: jest.fn(async (fn: (client: unknown) => Promise<unknown>) => fn(tx)),
   };
 
-  const service = new GovernanceService(
+  const service = buildGovernance(
     prisma as never,
     {
       verifyBlockingTests: jest.fn().mockResolvedValue({ passed: true, evidence: {} }),
@@ -78,7 +78,7 @@ describe('aviso de riesgo de seguridad', () => {
   it('emite security.risk_detected cuando la versión entra en revisión con riesgo ALTO', async () => {
     const { service, published } = governanceWith(HIGH_REVIEW);
 
-    await service.submitForReview(
+    await service.submissions.submitForReview(
       1n,
       7n,
       { requireCompliance: false } as never,
@@ -101,7 +101,7 @@ describe('aviso de riesgo de seguridad', () => {
       findings: [{ severity: 'MEDIUM', code: 'NESTED_REFERENCES', message: 'x' }],
     });
 
-    await service.submitForReview(
+    await service.submissions.submitForReview(
       1n,
       7n,
       { requireCompliance: false } as never,

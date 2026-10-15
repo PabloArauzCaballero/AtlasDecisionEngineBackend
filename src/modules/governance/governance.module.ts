@@ -5,12 +5,22 @@ import { ArtifactModule } from '../artifacts/artifact.module';
 import { SecurityReviewModule } from '../security-review/security-review.module';
 import { TestingModule } from '../testing/testing.module';
 import { GovernanceController } from './governance.controller';
-import { GovernanceService } from './governance.service';
+import { ApprovalDecisionGuard } from './approval-decision.guard';
+import { ApprovalDecisionService } from './approval-decision.service';
+import { ApprovalQueryService } from './approval-query.service';
+import { ApprovalSubmissionService } from './approval-submission.service';
+import { VersionApprovalGate } from './version-approval-gate';
 
 @Module({
   imports: [ArtifactModule, TestingModule, EventsModule, SecurityReviewModule],
   controllers: [GovernanceController],
-  providers: [GovernanceService],
-  exports: [GovernanceService],
+  providers: [
+    ApprovalQueryService,
+    ApprovalSubmissionService,
+    ApprovalDecisionGuard,
+    ApprovalDecisionService,
+    VersionApprovalGate,
+  ],
+  exports: [VersionApprovalGate],
 })
 export class GovernanceModule {}
