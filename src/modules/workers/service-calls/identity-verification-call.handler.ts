@@ -4,7 +4,7 @@ import type { AuthenticatedPrincipal } from '../../../common/security/security.t
 import type { WorkerServiceOutcome, WorkerServiceRequest } from '../../graph/graph.types';
 import { documentCaptureSourceFromContext } from '../identity-verification/document-capture-source';
 import { IdentityPipelineService } from '../identity-verification/identity-pipeline.service';
-import { IdentityVerificationService } from '../identity-verification/identity-verification.service';
+import { IdentityRunIntakeService } from '../identity-verification/identity-run-intake.service';
 import { validateIdentityUpload } from '../identity-verification/identity-verification-input';
 import type { IdentityVerificationOutcome } from '../identity-verification/identity-result';
 import {
@@ -62,7 +62,7 @@ export class IdentityVerificationCallHandler implements WorkerServiceHandler {
   constructor(
     private readonly config: ConfigService,
     private readonly identity: IdentityPipelineService,
-    private readonly identityRuns: IdentityVerificationService,
+    private readonly identityRuns: IdentityRunIntakeService,
   ) {}
 
   async handle({
@@ -173,7 +173,7 @@ export class IdentityVerificationCallHandler implements WorkerServiceHandler {
 
   /**
    * Guarda la cara y el carnet sobre los que el nodo decidió, para que el detalle de la ejecución
-   * pueda enseñarlos (`IdentityVerificationService.recordInlineEvidence`).
+   * pueda enseñarlos (`IdentityRunIntakeService.recordInlineEvidence`).
    *
    * Best-effort a propósito: el veredicto ya está calculado, y tirar la decisión porque el almacén
    * no respondió castigaría al solicitante por una avería ajena. Lo que no puede es pasar en

@@ -1,5 +1,6 @@
 import { Prisma, WorkerInputSource, WorkerRunStatus } from '@prisma/client';
-import { IdentityVerificationService } from '../src/modules/workers/identity-verification/identity-verification.service';
+import { IdentityImageStore } from '../src/modules/workers/identity-verification/identity-image-store.service';
+import { IdentityRunIntakeService } from '../src/modules/workers/identity-verification/identity-run-intake.service';
 import type { IdentityVerificationOutcome } from '../src/modules/workers/identity-verification/identity-result';
 
 /**
@@ -43,7 +44,12 @@ function almacen() {
 
 function servicio(prisma: unknown, storage: unknown) {
   const nada = {} as never;
-  return new IdentityVerificationService(prisma as never, nada, nada, nada, storage as never);
+  return new IdentityRunIntakeService(
+    prisma as never,
+    nada,
+    nada,
+    new IdentityImageStore(storage as never),
+  );
 }
 
 describe('evidencia de identidad de un nodo del grafo', () => {

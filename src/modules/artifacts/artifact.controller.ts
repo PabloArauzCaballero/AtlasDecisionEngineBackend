@@ -7,7 +7,9 @@ import { CurrentPrincipal, Roles, TenantId } from '../../common/security/securit
 import { ArtifactGraphReaderService } from './artifact-graph-reader.service';
 import { ArtifactGraphWriterService } from './artifact-graph-writer.service';
 import { ArtifactLifecycleService } from './artifact-lifecycle.service';
-import { ArtifactService } from './artifact.service';
+import { ArtifactCatalogService } from './artifact-catalog.service';
+import { VersionAuthoringService } from './version-authoring.service';
+import { VersionCloneService } from './version-clone.service';
 import {
   ArtifactListQueryDto,
   CloneVersionDto,
@@ -35,7 +37,9 @@ import {
 @Controller('v1')
 export class ArtifactController {
   constructor(
-    private readonly artifacts: ArtifactService,
+    private readonly catalog: ArtifactCatalogService,
+    private readonly authoring: VersionAuthoringService,
+    private readonly clones: VersionCloneService,
     private readonly graphReader: ArtifactGraphReaderService,
     private readonly graphWriter: ArtifactGraphWriterService,
     private readonly lifecycle: ArtifactLifecycleService,
@@ -53,7 +57,7 @@ export class ArtifactController {
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Body() dto: CreateArtifactDto,
   ) {
-    return this.artifacts.create(tenantId, dto, principal);
+    return this.catalog.create(tenantId, dto, principal);
   }
 
   @Get('artifacts')
@@ -61,7 +65,7 @@ export class ArtifactController {
   @ApiPagedResponse('Página de artefactos de decisión.', ArtifactListItemDto)
   @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST', 'COMPLIANCE', 'AUDITOR', 'OPERATIONS')
   list(@TenantId() tenantId: bigint, @Query() query: ArtifactListQueryDto) {
-    return this.artifacts.list(tenantId, query);
+    return this.catalog.list(tenantId, query);
   }
 
   @Get('artifacts/:artifactId')
@@ -72,7 +76,7 @@ export class ArtifactController {
   })
   @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST', 'COMPLIANCE', 'AUDITOR', 'OPERATIONS')
   get(@TenantId() tenantId: bigint, @Param('artifactId') artifactId: string) {
-    return this.artifacts.get(tenantId, parseBigIntId(artifactId, 'artifactId'));
+    return this.catalog.get(tenantId, parseBigIntId(artifactId, 'artifactId'));
   }
 
   @Get('artifact-versions/:versionId')
@@ -83,7 +87,7 @@ export class ArtifactController {
   })
   @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST', 'COMPLIANCE', 'AUDITOR', 'OPERATIONS')
   getVersion(@TenantId() tenantId: bigint, @Param('versionId') versionId: string) {
-    return this.artifacts.getVersion(tenantId, parseBigIntId(versionId, 'versionId'));
+    return this.catalog.getVersion(tenantId, parseBigIntId(versionId, 'versionId'));
   }
 
   @Get('artifact-versions/:versionId/graph')
@@ -110,7 +114,7 @@ export class ArtifactController {
     @Param('versionId') versionId: string,
     @Body() dto: CloneVersionDto,
   ) {
-    return this.artifacts.cloneVersion(
+    return this.clones.cloneVersion(
       tenantId,
       parseBigIntId(versionId, 'versionId'),
       dto,
@@ -151,7 +155,7 @@ export class ArtifactController {
     @Param('versionId') versionId: string,
     @Body() dto: UpdateVersionNotesDto,
   ) {
-    return this.artifacts.updateVersionNotes(
+    return this.authoring.updateVersionNotes(
       tenantId,
       parseBigIntId(versionId, 'versionId'),
       dto.notes ?? null,
@@ -178,7 +182,7 @@ export class ArtifactController {
     @Param('versionId') versionId: string,
     @Body() dto: ProcessingBasisDto,
   ) {
-    return this.artifacts.updateProcessingBasis(
+    return this.authoring.updateProcessingBasis(
       tenantId,
       parseBigIntId(versionId, 'versionId'),
       dto,

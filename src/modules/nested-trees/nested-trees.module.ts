@@ -2,7 +2,11 @@ import { Module } from '@nestjs/common';
 import { GraphModule } from '../graph/graph.module';
 import { DependencyGraphController, NestedTreeController } from './nested-tree.controller';
 import { NestedTreeExecutionService } from './nested-tree-execution.service';
-import { NestedTreeService } from './nested-tree.service';
+import { ArtifactReferenceService } from './artifact-reference.service';
+import { DependencyGraphService } from './dependency-graph.service';
+import { ReferenceChildValidator } from './reference-child-validator.service';
+import { ReferenceCycleGuard } from './reference-cycle-guard.service';
+import { ReferenceOwnershipService } from './reference-ownership.service';
 
 /**
  * Nested decision trees (Fase 7). Depends one-way on GraphModule (for
@@ -14,7 +18,14 @@ import { NestedTreeService } from './nested-tree.service';
 @Module({
   imports: [GraphModule],
   controllers: [NestedTreeController, DependencyGraphController],
-  providers: [NestedTreeService, NestedTreeExecutionService],
-  exports: [NestedTreeService, NestedTreeExecutionService],
+  providers: [
+    ArtifactReferenceService,
+    DependencyGraphService,
+    ReferenceOwnershipService,
+    ReferenceChildValidator,
+    ReferenceCycleGuard,
+    NestedTreeExecutionService,
+  ],
+  exports: [ArtifactReferenceService, DependencyGraphService, NestedTreeExecutionService],
 })
 export class NestedTreesModule {}

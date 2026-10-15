@@ -17,12 +17,20 @@ import {
   DeploymentRolledBackDto,
   DeploymentSuspendedDto,
 } from './deployment.response.dto';
-import { DeploymentService } from './deployment.service';
+import { DeployVersionService } from './deploy-version.service';
+import { DeploymentQueryService } from './deployment-query.service';
+import { DeploymentRollbackService } from './deployment-rollback.service';
+import { DeploymentSuspensionService } from './deployment-suspension.service';
 
 @ApiTags('Decision Deployments')
 @Controller('v1')
 export class DeploymentController {
-  constructor(private readonly deployments: DeploymentService) {}
+  constructor(
+    private readonly deployer: DeployVersionService,
+    private readonly rollbacks: DeploymentRollbackService,
+    private readonly suspensions: DeploymentSuspensionService,
+    private readonly queries: DeploymentQueryService,
+  ) {}
 
   @Get('environments')
   @ApiOperation({ summary: 'List active decision environments' })
@@ -32,7 +40,7 @@ export class DeploymentController {
   )
   @Roles('PLATFORM_ADMIN', 'RISK_ANALYST', 'QA_ANALYST', 'AUDITOR')
   environments() {
-    return this.deployments.listEnvironments();
+    return this.queries.listEnvironments();
   }
 
   @Post('artifact-versions/:versionId/deployments')
@@ -44,7 +52,7 @@ export class DeploymentController {
     @Param('versionId') versionId: string,
     @Body() dto: DeployVersionDto,
   ) {
-    return this.deployments.deploy(tenantId, parseBigIntId(versionId, 'versionId'), dto, principal);
+    return this.deployer.deploy(tenantId, parseBigIntId(versionId, 'versionId'), dto, principal);
   }
 
   @Post('deployments/:deploymentId/rollback')
@@ -60,7 +68,7 @@ export class DeploymentController {
     @Param('deploymentId') deploymentId: string,
     @Body() dto: RollbackDeploymentDto,
   ) {
-    return this.deployments.rollback(
+    return this.rollbacks.rollback(
       tenantId,
       parseBigIntId(deploymentId, 'deploymentId'),
       dto,
@@ -78,7 +86,7 @@ export class DeploymentController {
     @Param('deploymentId') deploymentId: string,
     @Body() dto: SuspendDeploymentDto,
   ) {
-    return this.deployments.suspend(
+    return this.suspensions.suspend(
       tenantId,
       parseBigIntId(deploymentId, 'deploymentId'),
       dto,
@@ -91,6 +99,6 @@ export class DeploymentController {
   @ApiPagedResponse('Página del historial de despliegues.', DeploymentListItemDto)
   @Roles('PLATFORM_ADMIN', 'RISK_ANALYST', 'QA_ANALYST', 'COMPLIANCE', 'AUDITOR', 'OPERATIONS')
   list(@TenantId() tenantId: bigint, @Query() query: DeploymentListQueryDto) {
-    return this.deployments.list(tenantId, query);
+    return this.queries.list(tenantId, query);
   }
 }

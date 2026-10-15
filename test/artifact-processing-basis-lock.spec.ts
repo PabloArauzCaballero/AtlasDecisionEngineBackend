@@ -1,13 +1,12 @@
-import { ConfigService } from '@nestjs/config';
 import { DomainException } from '../src/common/errors/domain-exception';
-import { ArtifactService } from '../src/modules/artifacts/artifact.service';
+import { VersionAuthoringService } from '../src/modules/artifacts/version-authoring.service';
 import type { AuthenticatedPrincipal } from '../src/common/security/security.types';
 
 /**
  * `legalBasis` deriva la política de base habilitante que el runtime exige en cada decisión.
  * Un PATCH sobre una versión aprobada o desplegada la relajaba sin pasar por gobierno.
  */
-describe('ArtifactService.updateProcessingBasis respeta el estado de la versión', () => {
+describe('VersionAuthoringService.updateProcessingBasis respeta el estado de la versión', () => {
   const principal = { id: 'qa', requestId: 'r-1', roles: ['QA_ANALYST'] } as AuthenticatedPrincipal;
 
   function make(status: string) {
@@ -25,7 +24,7 @@ describe('ArtifactService.updateProcessingBasis respeta el estado de la versión
     };
     const prisma = { $transaction: (cb: (t: unknown) => unknown) => cb(tx) };
     const audit = { append: jest.fn().mockResolvedValue({}) };
-    const service = new ArtifactService(prisma as never, audit as never, new ConfigService({}));
+    const service = new VersionAuthoringService(prisma as never, audit as never);
     return { service, update };
   }
 

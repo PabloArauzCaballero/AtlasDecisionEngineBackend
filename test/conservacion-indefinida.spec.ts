@@ -27,7 +27,7 @@ const RAIZ = join(__dirname, '..', 'src');
  * que se sabe cuáles son; no tocan la evidencia de nada ya decidido.
  */
 const PERMITIDOS = new Set([
-  'modules/workers/identity-verification/identity-verification.service.ts',
+  'modules/workers/identity-verification/identity-image-store.service.ts',
   'modules/workers/bank-statement/bank-statement.service.ts',
 ]);
 

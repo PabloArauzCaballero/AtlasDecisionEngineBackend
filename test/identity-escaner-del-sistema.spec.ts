@@ -70,7 +70,7 @@ import { DocumentOrientationService } from '../src/modules/workers/identity-veri
 import { DocumentTextReaderService } from '../src/modules/workers/identity-verification/pipeline/document-text-reader.service';
 import { FaceCaptureService } from '../src/modules/workers/identity-verification/pipeline/face-capture.service';
 import { IdentityPipelineService } from '../src/modules/workers/identity-verification/identity-pipeline.service';
-import type { IdentityVerificationService } from '../src/modules/workers/identity-verification/identity-verification.service';
+import type { IdentityRunIntakeService } from '../src/modules/workers/identity-verification/identity-run-intake.service';
 import type { IdentityVerificationOutcome } from '../src/modules/workers/identity-verification/identity-result';
 import { AudioSpeakCallHandler } from '../src/modules/workers/service-calls/audio-speak-call.handler';
 import { BankStatementCallHandler } from '../src/modules/workers/service-calls/bank-statement-call.handler';
@@ -651,7 +651,7 @@ describe('el origen llega desde el `context` de la ejecución hasta el pipeline'
       new IdentityVerificationCallHandler(
         config,
         { run } as unknown as IdentityPipelineService,
-        { recordInlineEvidence } as unknown as IdentityVerificationService,
+        { recordInlineEvidence } as unknown as IdentityRunIntakeService,
       ),
     );
     return { invoker: service.bind(1n, principal, context), run, recordInlineEvidence };

@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/workers/`](https://github.com/) · 328 ficheros TypeScript.
+Código: [`src/modules/workers/`](https://github.com/) · 347 ficheros TypeScript.
 
 Etiquetas de API: **Workers · Locución**, **Workers · Extractos bancarios**, **Workers · Entidades financieras**, **Workers · Verificación de identidad**, **Workers · Modelo semántico**, **Workers · Análisis semántico**, **Workers · Categorías semánticas**, **Workers · Pendientes de clasificación**, **Workers**.
 
@@ -235,18 +235,25 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `HumanLivenessAdapter`
 - `HybridCandidateRetriever`
 - `IdentityDecisionEngine`
+- `IdentityDecisionPolicy`
 - `IdentityDomainError`
+- `IdentityImageStore`
 - `IdentityPipelineService`
+- `IdentityReviewAssignment`
 - `IdentityReviewCategoryDto`
+- `IdentityReviewClaimService`
 - `IdentityReviewController`
 - `IdentityReviewItemDto`
 - `IdentityReviewQueryDto`
+- `IdentityReviewQueueService`
+- `IdentityReviewResolutionService`
 - `IdentityReviewResolvedDto`
-- `IdentityReviewService`
+- `IdentityRunIntakeService`
+- `IdentityRunService`
 - `IdentityRunWorkerService`
+- `IdentityVerdictSigner`
 - `IdentityVerificationCallHandler`
 - `IdentityVerificationController`
-- `IdentityVerificationService`
 - `ImageQualityAssessmentService`
 - `ImportSemanticCategoriesDto`
 - `InstitutionCatalogService`

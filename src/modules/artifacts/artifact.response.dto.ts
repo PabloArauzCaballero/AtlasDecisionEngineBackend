@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-// --- Listado (forma aplanada de ArtifactService.list) ---
+// --- Listado (forma aplanada de ArtifactCatalogService.list) ---
 
 export class ArtifactListItemDto {
   @ApiProperty({ example: '4000' }) id!: string;
@@ -105,7 +105,7 @@ class ArtifactVersionSummaryDto {
   @ApiProperty({ nullable: true }) retiredAt!: string | null;
 }
 
-/** `ArtifactService.get`: artefacto con todas sus versiones y su despliegue/compilación. */
+/** `ArtifactCatalogService.get`: artefacto con todas sus versiones y su despliegue/compilación. */
 export class ArtifactDetailVersionDto extends ArtifactVersionSummaryDto {
   @ApiProperty({ type: [CompiledArtifactSummaryDto] })
   compiledArtifacts!: CompiledArtifactSummaryDto[];
@@ -116,7 +116,7 @@ export class ArtifactDetailDto extends ArtifactSummaryDto {
   @ApiProperty({ type: [ArtifactDetailVersionDto] }) versions!: ArtifactDetailVersionDto[];
 }
 
-/** `ArtifactService.create`: artefacto recién creado con su primera versión DRAFT. */
+/** `ArtifactCatalogService.create`: artefacto recién creado con su primera versión DRAFT. */
 export class ArtifactCreatedDto extends ArtifactSummaryDto {
   @ApiProperty({ type: [ArtifactVersionSummaryDto] }) versions!: ArtifactVersionSummaryDto[];
 }
@@ -159,7 +159,7 @@ class ApprovalRequestDto {
   @ApiProperty({ type: [ApprovalStepDto] }) steps!: ApprovalStepDto[];
 }
 
-/** `ArtifactService.getVersion`: gobierno completo de una versión. */
+/** `ArtifactCatalogService.getVersion`: gobierno completo de una versión. */
 export class ArtifactVersionDetailDto extends ArtifactVersionSummaryDto {
   @ApiProperty({ type: ArtifactSummaryDto }) artifact!: ArtifactSummaryDto;
   @ApiProperty({ type: [CompiledArtifactSummaryDto] })
@@ -169,7 +169,7 @@ export class ArtifactVersionDetailDto extends ArtifactVersionSummaryDto {
   @ApiProperty({ type: [ApprovalRequestDto] }) approvalRequests!: ApprovalRequestDto[];
 }
 
-/** Registro creado por `ArtifactService.cloneVersion`: la nueva versión DRAFT, sin relaciones cargadas. */
+/** Registro creado por `VersionCloneService.cloneVersion`: la nueva versión DRAFT, sin relaciones cargadas. */
 export class ArtifactVersionClonedDto extends ArtifactVersionSummaryDto {}
 
 /** Devuelto por `updateVersionNotes` y por `replaceDraftGraph`: proyección mínima tras la escritura. */
@@ -565,7 +565,7 @@ export class ArtifactVersionDiffDto {
   @ApiProperty({ type: DiffEntryDto }) variables!: DiffEntryDto<VariableContractDto>;
 }
 
-/** `ArtifactService.updateProcessingBasis`: finalidad y base legal declaradas de una versión. */
+/** `VersionAuthoringService.updateProcessingBasis`: finalidad y base legal declaradas de una versión. */
 export class ProcessingBasisResultDto {
   @ApiProperty({ example: '4001' }) id!: string;
   @ApiProperty({

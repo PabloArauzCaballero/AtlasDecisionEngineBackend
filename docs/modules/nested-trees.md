@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/nested-trees/`](https://github.com/) · 9 ficheros TypeScript.
+Código: [`src/modules/nested-trees/`](https://github.com/) · 13 ficheros TypeScript.
 
 Etiquetas de API: **Nested Decision Trees**.
 
@@ -48,15 +48,19 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `QA_ANAL
 ## Clases exportadas
 
 - `ArtifactReferenceDto`
+- `ArtifactReferenceService`
 - `ChainBudget`
 - `CreateArtifactReferenceDto`
 - `DependencyGraphController`
 - `DependencyGraphResponseDto`
+- `DependencyGraphService`
 - `InputMappingEntryDto`
 - `NestedTreeController`
 - `NestedTreeExecutionService`
-- `NestedTreeService`
 - `NestedTreesModule`
 - `OutputMappingEntryDto`
+- `ReferenceChildValidator`
+- `ReferenceCycleGuard`
 - `ReferenceListQueryDto`
+- `ReferenceOwnershipService`
 - `UpdateArtifactReferenceDto`

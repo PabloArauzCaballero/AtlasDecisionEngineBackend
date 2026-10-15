@@ -1,5 +1,7 @@
 import { WorkerRunStatus } from '@prisma/client';
-import { IdentityReviewService } from '../src/modules/workers/identity-verification/review/identity-review.service';
+import { IdentityReviewAssignment } from '../src/modules/workers/identity-verification/review/identity-review-assignment.service';
+import { IdentityReviewResolutionService } from '../src/modules/workers/identity-verification/review/identity-review-resolution.service';
+import { IdentityVerdictSigner } from '../src/modules/workers/identity-verification/review/identity-verdict-signer.service';
 import { DomainException } from '../src/common/errors/domain-exception';
 
 /**
@@ -51,11 +53,13 @@ function servicioCon(fila: Record<string, unknown>, filasAfectadas = 1) {
       return Promise.resolve();
     },
   };
-  const service = new IdentityReviewService(
+  const assignment = new IdentityReviewAssignment(prisma as never);
+  const service = new IdentityReviewResolutionService(
     prisma as never,
     audit as never,
-    { get: () => 100 } as never,
     { notifyDetached: () => undefined } as never,
+    assignment,
+    new IdentityVerdictSigner(prisma as never, audit as never, assignment),
   );
   return { service, escrituras, auditado, condiciones };
 }

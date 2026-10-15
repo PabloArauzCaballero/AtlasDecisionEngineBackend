@@ -6,14 +6,18 @@ import { ArtifactGraphReaderService } from './artifact-graph-reader.service';
 import { ArtifactGraphWriterService } from './artifact-graph-writer.service';
 import { CalculatedFieldBindingService } from './calculated-field-binding.service';
 import { ArtifactLifecycleService } from './artifact-lifecycle.service';
-import { ArtifactService } from './artifact.service';
+import { ArtifactCatalogService } from './artifact-catalog.service';
+import { VersionAuthoringService } from './version-authoring.service';
+import { VersionCloneService } from './version-clone.service';
 import { VersionStateService } from './version-state.service';
 
 @Module({
   imports: [GraphModule],
   controllers: [ArtifactController],
   providers: [
-    ArtifactService,
+    ArtifactCatalogService,
+    VersionAuthoringService,
+    VersionCloneService,
     ArtifactGraphReaderService,
     ArtifactGraphWriterService,
     CalculatedFieldBindingService,
@@ -21,7 +25,9 @@ import { VersionStateService } from './version-state.service';
     VersionStateService,
   ],
   exports: [
-    ArtifactService,
+    ArtifactCatalogService,
+    VersionAuthoringService,
+    VersionCloneService,
     ArtifactGraphReaderService,
     ArtifactGraphWriterService,
     ArtifactLifecycleService,

@@ -41,7 +41,9 @@ import {
   IDENTITY_FIXTURES,
 } from './fixtures/identity-fixtures';
 import { validateIdentityUpload, type ValidatedIdentityInput } from './identity-verification-input';
-import { IdentityVerificationService } from './identity-verification.service';
+import { IdentityDecisionPolicy } from './identity-decision-policy.service';
+import { IdentityRunIntakeService } from './identity-run-intake.service';
+import { IdentityRunService } from './identity-run.service';
 
 /** Los tres campos de archivo que acepta el alta. */
 const IMAGE_FIELDS = [
@@ -86,7 +88,9 @@ interface UploadedImages {
 @Controller('v1/workers/identity-verification')
 export class IdentityVerificationController {
   constructor(
-    private readonly identity: IdentityVerificationService,
+    private readonly intake: IdentityRunIntakeService,
+    private readonly runs: IdentityRunService,
+    private readonly policy: IdentityDecisionPolicy,
     private readonly config: ConfigService,
   ) {}
 
@@ -126,7 +130,7 @@ export class IdentityVerificationController {
     @Body() dto: CreateIdentityVerificationRunDto,
     @UploadedFiles() files?: UploadedImages,
   ): Promise<WorkerRunDto> {
-    const country = (dto.documentCountry ?? this.identity.defaultDocumentCountry()).toUpperCase();
+    const country = (dto.documentCountry ?? this.policy.defaultDocumentCountry()).toUpperCase();
     const prepared = dto.fixtureCode
       ? await this.fixtureInput(dto.fixtureCode, dto.idempotencyKey)
       : {
@@ -135,7 +139,7 @@ export class IdentityVerificationController {
           validated: this.uploadInput(files, dto.idempotencyKey),
         };
 
-    const { run } = await this.identity.createRun(
+    const { run } = await this.intake.createRun(
       tenantId,
       principal,
       prepared.validated,
@@ -154,7 +158,7 @@ export class IdentityVerificationController {
   @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST', 'OPERATIONS', 'COMPLIANCE', 'AUDITOR')
   async listRuns(@TenantId() tenantId: bigint, @Query() query: WorkerRunQueryDto) {
     const { page, pageSize } = paginationArgs(query);
-    const { items, total } = await this.identity.listRuns(tenantId, {
+    const { items, total } = await this.runs.listRuns(tenantId, {
       page,
       pageSize,
       ...(query.status ? { status: query.status } : {}),
@@ -177,7 +181,7 @@ export class IdentityVerificationController {
     @TenantId() tenantId: bigint,
     @Param('requestId') requestId: string,
   ): Promise<WorkerRunDto> {
-    return toWorkerRunDto(await this.identity.getRun(tenantId, requestId));
+    return toWorkerRunDto(await this.runs.getRun(tenantId, requestId));
   }
 
   @Get('runs/:requestId/images/:kind')
@@ -216,7 +220,7 @@ export class IdentityVerificationController {
       );
     }
 
-    const image = await this.identity.getRunImage(tenantId, requestId, kind);
+    const image = await this.runs.getRunImage(tenantId, requestId, kind);
     if (!image) {
       throw new DomainException(
         'IDENTITY_IMAGE_NOT_AVAILABLE',
@@ -241,7 +245,7 @@ export class IdentityVerificationController {
     @TenantId() tenantId: bigint,
     @Param('requestId') requestId: string,
   ): Promise<WorkerRunDto> {
-    return toWorkerRunDto(await this.identity.cancelRun(tenantId, requestId));
+    return toWorkerRunDto(await this.runs.cancelRun(tenantId, requestId));
   }
 
   private uploadInput(
@@ -254,9 +258,9 @@ export class IdentityVerificationController {
         ...(files?.documentBack?.[0] ? { documentBack: files.documentBack[0] } : {}),
         ...(files?.selfie?.[0] ? { selfie: files.selfie[0] } : {}),
       },
-      this.identity.maxUploadBytes(),
+      this.policy.maxUploadBytes(),
       idempotencyKey,
-      this.identity.decisionRulesFingerprint(),
+      this.policy.decisionRulesFingerprint(),
     );
   }
 
@@ -299,9 +303,9 @@ export class IdentityVerificationController {
             : {}),
           selfie: { originalname: `${fixture.code}-selfie.png`, buffer: images.selfie },
         },
-        this.identity.maxUploadBytes(),
+        this.policy.maxUploadBytes(),
         idempotencyKey,
-        this.identity.decisionRulesFingerprint(),
+        this.policy.decisionRulesFingerprint(),
       ),
     };
   }

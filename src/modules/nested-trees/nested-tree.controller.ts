@@ -6,7 +6,8 @@ import { CurrentPrincipal, Roles, TenantId } from '../../common/security/securit
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
 import { CreateArtifactReferenceDto, UpdateArtifactReferenceDto } from './nested-tree.dto';
 import { ArtifactReferenceDto, DependencyGraphResponseDto } from './nested-tree.response.dto';
-import { NestedTreeService } from './nested-tree.service';
+import { ArtifactReferenceService } from './artifact-reference.service';
+import { DependencyGraphService } from './dependency-graph.service';
 
 /**
  * Nested decision trees (Fase 7). A reference is created against the PARENT artifact
@@ -19,7 +20,7 @@ import { NestedTreeService } from './nested-tree.service';
 @ApiTags('Nested Decision Trees')
 @Controller('v1/artifact-versions/:versionId/references')
 export class NestedTreeController {
-  constructor(private readonly nestedTrees: NestedTreeService) {}
+  constructor(private readonly references: ArtifactReferenceService) {}
 
   @Post()
   @ApiOperation({ summary: 'Create a validated child-artifact reference' })
@@ -31,7 +32,7 @@ export class NestedTreeController {
     @Param('versionId') versionId: string,
     @Body() dto: CreateArtifactReferenceDto,
   ) {
-    return this.nestedTrees.create(tenantId, parseBigIntId(versionId, 'versionId'), dto, principal);
+    return this.references.create(tenantId, parseBigIntId(versionId, 'versionId'), dto, principal);
   }
 
   @Get()
@@ -42,7 +43,7 @@ export class NestedTreeController {
   )
   @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST', 'COMPLIANCE', 'AUDITOR')
   list(@TenantId() tenantId: bigint, @Param('versionId') versionId: string) {
-    return this.nestedTrees.list(tenantId, parseBigIntId(versionId, 'versionId'));
+    return this.references.list(tenantId, parseBigIntId(versionId, 'versionId'));
   }
 
   @Put(':referenceId')
@@ -56,7 +57,7 @@ export class NestedTreeController {
     @Param('referenceId') referenceId: string,
     @Body() dto: UpdateArtifactReferenceDto,
   ) {
-    return this.nestedTrees.update(
+    return this.references.update(
       tenantId,
       parseBigIntId(versionId, 'versionId'),
       parseBigIntId(referenceId, 'referenceId'),
@@ -75,7 +76,7 @@ export class NestedTreeController {
     @Param('versionId') versionId: string,
     @Param('referenceId') referenceId: string,
   ) {
-    return this.nestedTrees.delete(
+    return this.references.delete(
       tenantId,
       parseBigIntId(versionId, 'versionId'),
       parseBigIntId(referenceId, 'referenceId'),
@@ -87,7 +88,7 @@ export class NestedTreeController {
 @ApiTags('Nested Decision Trees')
 @Controller('v1/artifacts/:artifactId/dependency-graph')
 export class DependencyGraphController {
-  constructor(private readonly nestedTrees: NestedTreeService) {}
+  constructor(private readonly dependencyGraph: DependencyGraphService) {}
 
   @Get()
   @ApiOperation({ summary: 'Get upstream and downstream artifact dependencies' })
@@ -97,6 +98,9 @@ export class DependencyGraphController {
   })
   @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST', 'COMPLIANCE', 'AUDITOR')
   get(@TenantId() tenantId: bigint, @Param('artifactId') artifactId: string) {
-    return this.nestedTrees.getDependencyGraph(tenantId, parseBigIntId(artifactId, 'artifactId'));
+    return this.dependencyGraph.getDependencyGraph(
+      tenantId,
+      parseBigIntId(artifactId, 'artifactId'),
+    );
   }
 }

@@ -60,10 +60,17 @@ import { DocumentTextReaderService } from './identity-verification/pipeline/docu
 import { FaceCaptureService } from './identity-verification/pipeline/face-capture.service';
 import { AtlasCallbackModule } from '../atlas-callback/atlas-callback.module';
 import { IdentityReviewController } from './identity-verification/review/identity-review.controller';
-import { IdentityReviewService } from './identity-verification/review/identity-review.service';
+import { IdentityReviewAssignment } from './identity-verification/review/identity-review-assignment.service';
+import { IdentityReviewClaimService } from './identity-verification/review/identity-review-claim.service';
+import { IdentityReviewQueueService } from './identity-verification/review/identity-review-queue.service';
+import { IdentityReviewResolutionService } from './identity-verification/review/identity-review-resolution.service';
+import { IdentityVerdictSigner } from './identity-verification/review/identity-verdict-signer.service';
 import { IdentityRunWorkerService } from './identity-verification/identity-run-worker.service';
 import { IdentityVerificationController } from './identity-verification/identity-verification.controller';
-import { IdentityVerificationService } from './identity-verification/identity-verification.service';
+import { IdentityDecisionPolicy } from './identity-verification/identity-decision-policy.service';
+import { IdentityImageStore } from './identity-verification/identity-image-store.service';
+import { IdentityRunIntakeService } from './identity-verification/identity-run-intake.service';
+import { IdentityRunService } from './identity-verification/identity-run.service';
 import { EngineSemanticMetricsRecorder } from './semantic-analysis/adapters/engine-metrics.recorder';
 import { PrismaSemanticAuditRepository } from './semantic-analysis/adapters/prisma-audit.repository';
 import {
@@ -242,7 +249,10 @@ function maybe<K extends string, V>(
     AudioTtsRuntimeFactory,
 
     // --- Worker C: verificación de identidad --------------------------------
-    IdentityVerificationService,
+    IdentityImageStore,
+    IdentityRunIntakeService,
+    IdentityRunService,
+    IdentityDecisionPolicy,
     IdentityRunWorkerService,
     IdentityPipelineService,
     DocumentIntakeService,
@@ -252,7 +262,11 @@ function maybe<K extends string, V>(
     DocumentFieldsService,
     DocumentAuthenticityService,
     FaceCaptureService,
-    IdentityReviewService,
+    IdentityReviewQueueService,
+    IdentityReviewClaimService,
+    IdentityReviewAssignment,
+    IdentityVerdictSigner,
+    IdentityReviewResolutionService,
     // Núcleo absorbido: analizadores, medida de calidad y proveedores.
     BoliviaCiDocumentParser,
     PassportDocumentParser,
@@ -512,7 +526,6 @@ function maybe<K extends string, V>(
     AudioTtsRuntimeFactory,
     BankStatementService,
     SemanticAnalysisService,
-    IdentityVerificationService,
     WorkerServiceInvokerService,
   ],
 })

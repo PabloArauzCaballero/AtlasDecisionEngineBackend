@@ -1,5 +1,4 @@
-import { ConfigService } from '@nestjs/config';
-import { ArtifactService } from '../src/modules/artifacts/artifact.service';
+import { VersionCloneService } from '../src/modules/artifacts/version-clone.service';
 import type { AuthenticatedPrincipal } from '../src/common/security/security.types';
 
 /**
@@ -11,7 +10,7 @@ import type { AuthenticatedPrincipal } from '../src/common/security/security.typ
  * `UNDECLARED_INTERMEDIATE_REFERENCE` y no se podía compilar: la única vía de cambiar una política
  * aprobada producía siempre una versión inservible.
  */
-describe('ArtifactService.cloneVersion copia lo que la versión declara', () => {
+describe('VersionCloneService.cloneVersion copia lo que la versión declara', () => {
   const principal = {
     id: 'ana',
     requestId: 'r-1',
@@ -141,11 +140,7 @@ describe('ArtifactService.cloneVersion copia lo que la versión declara', () => 
       decisionArtifactVersion: { findFirst: async () => source },
       $transaction: async (cb: (t: unknown) => unknown) => cb(tx),
     };
-    const service = new ArtifactService(
-      prisma,
-      { append: async () => ({}) } as any,
-      new ConfigService({}),
-    );
+    const service = new VersionCloneService(prisma, { append: async () => ({}) } as any);
     return { service, createMany, version: () => versionData };
   }
 
