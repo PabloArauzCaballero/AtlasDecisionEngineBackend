@@ -16,7 +16,7 @@ import type { AuditService } from '../src/common/audit/audit.service';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
 import type { AuthenticatedPrincipal } from '../src/common/security/security.types';
 import type { AtlasCallbackService } from '../src/modules/atlas-callback/atlas-callback.service';
-import { ManualReviewService } from '../src/modules/manual-review/manual-review.service';
+import { buildManualReview } from './support/manual-review.factory';
 import type { ResolveManualReviewDto } from '../src/modules/manual-review/manual-review.dto';
 import { OnboardingDossierController } from '../src/modules/manual-review/onboarding-dossier.controller';
 import type { AttachOnboardingDossierDto } from '../src/modules/manual-review/onboarding-dossier.dto';
@@ -250,10 +250,10 @@ describe('caso abierto por el expediente → resolución', () => {
       },
     } as unknown as AtlasCallbackService;
     const audit = { append: () => Promise.resolve({}) } as unknown as AuditService;
-    const reviews = new ManualReviewService(prisma, audit, new ConfigService({}), callbacks);
+    const reviews = buildManualReview(prisma, audit, new ConfigService({}), callbacks);
     const ana = { id: 'ana', requestId: 'req-r', roles: [] } as unknown as AuthenticatedPrincipal;
 
-    await reviews.resolve(
+    await reviews.resolutions.resolve(
       TENANT,
       501n,
       { decision: 'APPROVE', reason: 'todo cuadra' } as ResolveManualReviewDto,

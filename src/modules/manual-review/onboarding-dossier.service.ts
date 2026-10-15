@@ -10,7 +10,7 @@
  * Esta ruta cierra ese hueco sin tocar la invariante de `ExecutionWriterService` (revisión ⇔ caso
  * AL ESCRIBIR la ejecución): el caso que se abre aquí es posterior y explícito, lo pide quien tiene
  * la política —AtlasBackend— y queda auditado como tal. Al resolverse sigue el camino de siempre:
- * `ManualReviewService.resolve` avisa por la cola, y en `IDENTIDAD` eso es el callback de identidad
+ * `ManualReviewResolutionService.resolve` avisa por la cola, y en `IDENTIDAD` eso es el callback de identidad
  * con el `executionId` de este caso.
  */
 import { HttpStatus, Injectable } from '@nestjs/common';

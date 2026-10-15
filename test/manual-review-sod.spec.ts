@@ -1,13 +1,13 @@
 import { ConfigService } from '@nestjs/config';
 import { ManualReviewStatus } from '@prisma/client';
-import { ManualReviewService } from '../src/modules/manual-review/manual-review.service';
+import { buildManualReview } from './support/manual-review.factory';
 import { DomainException } from '../src/common/errors/domain-exception';
 import type { AuthenticatedPrincipal } from '../src/common/security/security.types';
 
 // Segregation of duties on manual-review resolution: a fraud/AML/credit review must be
 // explicitly assigned first and may only be resolved by its assignee. Without this, any single
 // analyst could open and close a case unilaterally (collusion/self-approval risk).
-describe('ManualReviewService.resolve — segregation of duties', () => {
+describe('Revisión manual.resolve — segregation of duties', () => {
   const principal = (id: string): AuthenticatedPrincipal =>
     ({ id, requestId: 'req-1', roles: ['FRAUD_ANALYST'] }) as unknown as AuthenticatedPrincipal;
 
@@ -32,7 +32,7 @@ describe('ManualReviewService.resolve — segregation of duties', () => {
         }),
     };
     const audit = { append: async () => ({}) };
-    const service = new ManualReviewService(prisma as any, audit as any, new ConfigService({}), {
+    const service = buildManualReview(prisma as any, audit as any, new ConfigService({}), {
       solicitar: async () => undefined,
     } as any);
     return { service, updateCalls };
@@ -46,11 +46,11 @@ describe('ManualReviewService.resolve — segregation of duties', () => {
       status: ManualReviewStatus.OPEN,
       assignedTo: null,
     });
-    await expect(service.resolve(1n, 1n, resolveDto, principal('analyst-a'))).rejects.toMatchObject(
-      {
-        code: 'MANUAL_REVIEW_NOT_ASSIGNED',
-      },
-    );
+    await expect(
+      service.resolutions.resolve(1n, 1n, resolveDto, principal('analyst-a')),
+    ).rejects.toMatchObject({
+      code: 'MANUAL_REVIEW_NOT_ASSIGNED',
+    });
     expect(updateCalls).toHaveLength(0);
   });
 
@@ -61,11 +61,11 @@ describe('ManualReviewService.resolve — segregation of duties', () => {
       assignedTo: 'analyst-a',
     });
     await expect(
-      service.resolve(1n, 1n, resolveDto, principal('analyst-b')),
+      service.resolutions.resolve(1n, 1n, resolveDto, principal('analyst-b')),
     ).rejects.toBeInstanceOf(DomainException);
-    await expect(service.resolve(1n, 1n, resolveDto, principal('analyst-b'))).rejects.toMatchObject(
-      { code: 'MANUAL_REVIEW_ASSIGNEE_MISMATCH' },
-    );
+    await expect(
+      service.resolutions.resolve(1n, 1n, resolveDto, principal('analyst-b')),
+    ).rejects.toMatchObject({ code: 'MANUAL_REVIEW_ASSIGNEE_MISMATCH' });
     expect(updateCalls).toHaveLength(0);
   });
 
@@ -76,7 +76,7 @@ describe('ManualReviewService.resolve — segregation of duties', () => {
       assignedTo: 'analyst-a',
     });
     await expect(
-      service.resolve(1n, 1n, resolveDto, principal('analyst-a')),
+      service.resolutions.resolve(1n, 1n, resolveDto, principal('analyst-a')),
     ).resolves.toMatchObject({ status: ManualReviewStatus.RESOLVED_APPROVED });
     expect(updateCalls).toHaveLength(1);
   });

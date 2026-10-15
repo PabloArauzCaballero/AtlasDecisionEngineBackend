@@ -5,7 +5,7 @@ import type { AuditService } from '../src/common/audit/audit.service';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
 import type { AuthenticatedPrincipal } from '../src/common/security/security.types';
 import type { AtlasCallbackService } from '../src/modules/atlas-callback/atlas-callback.service';
-import { ManualReviewService } from '../src/modules/manual-review/manual-review.service';
+import { buildManualReview } from './support/manual-review.factory';
 import type { ResolveManualReviewDto } from '../src/modules/manual-review/manual-review.dto';
 
 /**
@@ -14,7 +14,7 @@ import type { ResolveManualReviewDto } from '../src/modules/manual-review/manual
  * El mock imita la fila: `update` con `status` en el `where` falla con P2025 si la fila ya no
  * cumple, que es lo que hace Postgres tras el bloqueo de fila.
  */
-describe('ManualReviewService.resolve — resoluciones concurrentes', () => {
+describe('Revisión manual.resolve — resoluciones concurrentes', () => {
   const CASE = 7n;
   const ana = { id: 'ana', requestId: 'r-1', roles: ['FRAUD_ANALYST'] } as AuthenticatedPrincipal;
   const jefe = { id: 'jefa', requestId: 'r-2', roles: ['OPERATIONS'] } as AuthenticatedPrincipal;
@@ -67,7 +67,7 @@ describe('ManualReviewService.resolve — resoluciones concurrentes', () => {
         return Promise.resolve();
       },
     } as unknown as AtlasCallbackService;
-    const service = new ManualReviewService(prisma, audit, new ConfigService({}), callbacks);
+    const service = buildManualReview(prisma, audit, new ConfigService({}), callbacks);
     return { service, avisos, audited, row };
   }
 
@@ -77,8 +77,8 @@ describe('ManualReviewService.resolve — resoluciones concurrentes', () => {
     const { service, avisos, audited, row } = make();
 
     const results = await Promise.allSettled([
-      service.resolve(1n, CASE, dto('APPROVE'), ana),
-      service.resolve(1n, CASE, dto('DECLINE'), jefe),
+      service.resolutions.resolve(1n, CASE, dto('APPROVE'), ana),
+      service.resolutions.resolve(1n, CASE, dto('DECLINE'), jefe),
     ]);
 
     const rejected = results.filter((r) => r.status === 'rejected');

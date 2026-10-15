@@ -14,19 +14,25 @@ import {
   ManualReviewListItemDto,
   ManualReviewWriteResultDto,
 } from './manual-review.response.dto';
-import { ManualReviewService } from './manual-review.service';
+import { ManualReviewAssignmentService } from './manual-review-assignment.service';
+import { ManualReviewQueryService } from './manual-review-query.service';
+import { ManualReviewResolutionService } from './manual-review-resolution.service';
 
 @ApiTags('Manual Review')
 @Controller('v1/manual-reviews')
 @Roles('OPERATIONS', 'RISK_ANALYST', 'FRAUD_ANALYST')
 export class ManualReviewController {
-  constructor(private readonly reviews: ManualReviewService) {}
+  constructor(
+    private readonly queries: ManualReviewQueryService,
+    private readonly assignments: ManualReviewAssignmentService,
+    private readonly resolutions: ManualReviewResolutionService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'List manual-review cases visible to the tenant' })
   @ApiPagedResponse('Página de casos de revisión manual del tenant.', ManualReviewListItemDto)
   list(@TenantId() tenantId: bigint, @Query() query: ManualReviewListQueryDto) {
-    return this.reviews.list(tenantId, query);
+    return this.queries.list(tenantId, query);
   }
 
   @Get(':caseId')
@@ -36,7 +42,7 @@ export class ManualReviewController {
     type: ManualReviewDetailDto,
   })
   async get(@TenantId() tenantId: bigint, @Param('caseId') caseId: string) {
-    return this.reviews.get(tenantId, await this.reviews.resolveCaseId(tenantId, caseId));
+    return this.queries.get(tenantId, await this.queries.resolveCaseId(tenantId, caseId));
   }
 
   @Post(':caseId/assign')
@@ -54,7 +60,7 @@ export class ManualReviewController {
     @Param('caseId') caseId: string,
     @Body() dto: AssignManualReviewDto,
   ) {
-    return this.reviews.assign(tenantId, parseBigIntId(caseId, 'caseId'), dto, principal);
+    return this.assignments.assign(tenantId, parseBigIntId(caseId, 'caseId'), dto, principal);
   }
 
   @Post(':caseId/resolve')
@@ -72,6 +78,6 @@ export class ManualReviewController {
     @Param('caseId') caseId: string,
     @Body() dto: ResolveManualReviewDto,
   ) {
-    return this.reviews.resolve(tenantId, parseBigIntId(caseId, 'caseId'), dto, principal);
+    return this.resolutions.resolve(tenantId, parseBigIntId(caseId, 'caseId'), dto, principal);
   }
 }
