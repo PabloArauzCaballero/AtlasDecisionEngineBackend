@@ -1,12 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { SEMANTIC_WORKER_CONFIG } from './ports';
 import { Decision } from './decision-engine';
-import {
-  GlosaFallbackClassifier,
-  ladoDelCodigo,
-  sentidoDeclarado,
-  type DecisionPorRegla,
-} from './glosa-fallback';
+import { GlosaFallbackClassifier, type DecisionPorRegla } from './glosa-fallback';
+import { ladoDelCodigo, sentidoDeclarado } from './glosa-reglas/glosa-sentido';
 import { leavesOf } from '../domain/category-tree';
 import { MOTIVOS_DE_REVISION } from '../domain/review-reason';
 import type { SemanticCategory } from '../domain/semantic-analysis.types';
