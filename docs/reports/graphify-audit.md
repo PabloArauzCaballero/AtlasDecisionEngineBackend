@@ -13,8 +13,8 @@ El grafo contiene **12281 nodos** y **29289 relaciones** repartidos en
 **32 módulos de dominio** en `src/modules/`, de los cuales
 todos están registrados en `src/app.module.ts` (comprobado sobre el fichero, no supuesto).
 
-El grafo cubre **705 de 933**
-ficheros TypeScript de `src/` (76 %).
+El grafo cubre **704 de 958**
+ficheros TypeScript de `src/` (73 %).
 **1 módulo(s) de dominio no aparecen en absoluto**: `atlas-callback`. Consultar el grafo sobre ellos no devuelve nada, así que su documentación **no** se deriva de aquí.
 
 ## Inventario cuantitativo
@@ -104,8 +104,9 @@ La mayoría son ficheros de configuración y documentos sueltos, que por natural
 
 ### El grafo menciona ficheros que ya no existen
 
-**10 ficheros** referenciados por el grafo ya no existen en disco. El grafo está desactualizado respecto al árbol; ejecute `graphify update .`:
+**11 ficheros** referenciados por el grafo ya no existen en disco. El grafo está desactualizado respecto al árbol; ejecute `graphify update .`:
 
+- `src/modules/artifacts/artifact.response.dto.ts`
 - `src/modules/artifacts/artifact.service.ts`
 - `src/modules/deployments/deployment.service.ts`
 - `src/modules/manual-review/manual-review.service.ts`
@@ -123,7 +124,7 @@ Es la dirección que más daño hace: sobre un fichero ausente el grafo no devue
 consulta vacía se lee igual que «no existe». Por eso los catálogos del portal se generan del
 código y del contrato, nunca de este grafo.
 
-**228 de 933** ficheros `.ts` de `src/` no aparecen en el grafo, incluidos **1 módulo(s) completos** (`atlas-callback`). Se listan los primeros 20:
+**254 de 958** ficheros `.ts` de `src/` no aparecen en el grafo, incluidos **1 módulo(s) completos** (`atlas-callback`). Se listan los primeros 20:
 
 - `src/common/config/build-identity.ts`
 - `src/common/observability/job-metrics.ts`
@@ -139,12 +140,12 @@ código y del contrato, nunca de este grafo.
 - `src/modules/artifacts/clone-version-declarations.ts`
 - `src/modules/artifacts/clone-version-graph.ts`
 - `src/modules/artifacts/clone-version-source.ts`
-- `src/modules/artifacts/version-authoring.service.ts`
-- `src/modules/artifacts/version-clone.service.ts`
-- `src/modules/artifacts/version-contributors.ts`
-- `src/modules/atlas-callback/atlas-callback.dispatcher.ts`
-- `src/modules/atlas-callback/atlas-callback.module.ts`
-- `src/modules/atlas-callback/atlas-callback.service.ts`
+- `src/modules/artifacts/graph-writer/clear-draft-graph.ts`
+- `src/modules/artifacts/graph-writer/graph-write-context.ts`
+- `src/modules/artifacts/graph-writer/write-contract.ts`
+- `src/modules/artifacts/graph-writer/write-node-scripts.ts`
+- `src/modules/artifacts/graph-writer/write-nodes-and-edges.ts`
+- `src/modules/artifacts/graph-writer/write-rules.ts`
 
 ## Riesgos identificados
 

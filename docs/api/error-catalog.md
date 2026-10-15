@@ -83,8 +83,8 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `DEPLOYMENT_NOT_FOUND` | Deployment not found | `src/modules/deployments/deployment-rollback.service.ts` |
 | `DUPLICATE_APPROVAL_DECISION` | This principal already decided this step | `src/modules/governance/governance.service.ts` |
 | `ECONOMIC_CONTRACT_INCOMPLETE` | ${problems.join(' ')} Si esta decisión no origina crédito, decláralo en su | `src/modules/deployments/economic-contract.gate.ts` |
-| `EDGE_CONDITION_NOT_FOUND` | Edge ${edge.key} references unknown condition ${binding.conditionCode} | `src/modules/artifacts/artifact-graph-writer.service.ts` |
-| `EDGE_NODE_NOT_FOUND` | Edge ${edge.key} references an unknown node | `src/modules/artifacts/artifact-graph-writer.service.ts` |
+| `EDGE_CONDITION_NOT_FOUND` | Edge ${edge.key} references unknown condition ${binding.conditionCode} | `src/modules/artifacts/graph-writer/write-nodes-and-edges.ts` |
+| `EDGE_NODE_NOT_FOUND` | Edge ${edge.key} references an unknown node | `src/modules/artifacts/graph-writer/write-nodes-and-edges.ts` |
 | `ENABLING_BASIS_INVALID` | La decisión exige una base habilitante que el titular no tiene vigente: | `src/modules/risk-governance/decision-guard.service.ts` |
 | `ENABLING_BASIS_POLICY_INVALID` | — | `src/modules/artifacts/version-authoring.service.ts` |
 | `ENABLING_BASIS_POLICY_LOCKED` | La política de base habilitante sólo se puede cambiar en una versión en borrador. | `src/modules/artifacts/version-authoring.service.ts` |
@@ -172,8 +172,8 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `NESTED_TREE_MEMORY_EXCEEDED` | La cadena retiene ${this.retainedBytes} bytes de resultados y el máximo es ${this.limits.maxRetainedBytes} (nodo ${nodeKey}) | `src/modules/nested-trees/chain-budget.ts` |
 | `NESTED_TREE_RESULT_TOO_LARGE` | El resultado de ${nodeKey} ocupa ${bytes} bytes y el máximo es ${this.limits.maxResultBytes} | `src/modules/nested-trees/chain-budget.ts` |
 | `NESTED_TREE_TOTAL_TIMEOUT_EXCEEDED` | La cadena superó el tiempo total de ${this.limits.maxTotalMs} ms | `src/modules/nested-trees/chain-budget.ts` |
-| `NODE_ACTION_NOT_FOUND` | Node ${node.key} references unknown action ${binding.actionCode} | `src/modules/artifacts/artifact-graph-writer.service.ts` |
-| `NODE_CONDITION_NOT_FOUND` | Node ${node.key} references unknown condition ${binding.conditionCode} | `src/modules/artifacts/artifact-graph-writer.service.ts` |
+| `NODE_ACTION_NOT_FOUND` | Node ${node.key} references unknown action ${binding.actionCode} | `src/modules/artifacts/graph-writer/write-nodes-and-edges.ts` |
+| `NODE_CONDITION_NOT_FOUND` | Node ${node.key} references unknown condition ${binding.conditionCode} | `src/modules/artifacts/graph-writer/write-nodes-and-edges.ts` |
 | `NON_NUMERIC_DECISION_VALUE` | ${what} de ${code} no produjo un número finito | `src/modules/graph/execution/execution-state.ts` |
 | `NOTIFICATION_NOT_FOUND` | Notification not found | `src/modules/notifications/notification.service.ts` |
 | `NO_MATCHING_EDGE` | No outgoing edge matched node ${node.key} | `src/modules/graph/execution-engine.service.ts` |
@@ -196,7 +196,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `QA_RUN_PROD_FORBIDDEN` | El QA Lab no puede ejecutarse contra PROD | `src/modules/qa-lab/qa-lab.service.ts` |
 | `QA_VERSION_NOT_COMPILED` | La versión no tiene un artefacto compilado con éxito: compílala antes de generar casos | `src/modules/qa-lab/qa-compiled-artifact.service.ts` |
 | `RATE_LIMIT_EXCEEDED` | Too many requests | `src/common/security/rate-limit.guard.ts` |
-| `REASON_CODE_NOT_FOUND` | Unknown reason codes in the output contract: ${missing.join(', ')} | `src/modules/artifacts/artifact-graph-writer.service.ts` |
+| `REASON_CODE_NOT_FOUND` | Unknown reason codes in the output contract: ${missing.join(', ')} | `src/modules/artifacts/graph-writer/write-contract.ts` |
 | `REDIS_REQUIRED` | In-memory cache fallback is disabled in production | `src/common/cache/cache.service.ts` |
 | `REDIS_UNAVAILABLE` | Redis is required but unavailable | `src/common/cache/cache.service.ts` |
 | `REFERENCE_CONTRACT_INCOMPATIBLE` | El contrato del artefacto referenciado no puede satisfacerse: ${issues[0].message} | `src/modules/nested-trees/reference-child-validator.service.ts` |
@@ -260,7 +260,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `VALIDATION_REQUIRED` | Graph is no longer valid and cannot be compiled | `src/modules/artifacts/artifact-lifecycle.service.ts` |
 | `VARIABLE_CONTRACT_INCOMPATIBLE` | El cambio rompe el contrato y ${deployedUses} versión(es) aprobadas o desplegadas usan esta variable | `src/modules/variables/variable-contract.service.ts` |
 | `VARIABLE_CONTRACT_INVALID` | El contrato de ${dto.variableCode} no es válido: ${contract.issues[0].message} | `src/modules/variables/variable-definition.service.ts` |
-| `VARIABLE_DEPENDENCY_NOT_FOUND` | One or more variable versions do not exist in this tenant | `src/modules/artifacts/artifact-graph-writer.service.ts` |
+| `VARIABLE_DEPENDENCY_NOT_FOUND` | One or more variable versions do not exist in this tenant | `src/modules/artifacts/graph-writer/write-variable-dependencies.ts` |
 | `VARIABLE_NOT_FOUND` | Variable definition not found | `src/modules/variables/variable-definition.service.ts` |
 | `VERSION_IMMUTABLE` | Only DRAFT or VALIDATION_FAILED versions are editable; current state is ${version.status} | `src/modules/artifacts/artifact-graph-writer.service.ts` |
 | `VERSION_NOT_APPROVED` | Version is not fully approved | `src/modules/governance/governance.service.ts` |
