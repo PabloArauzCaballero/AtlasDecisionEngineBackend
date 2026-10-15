@@ -13,12 +13,12 @@ auditoría los conserva.
 
 | Evento | Constante | Productor | Consumidor |
 | --- | --- | --- | --- |
-| `version.submitted_for_review` | `DecisionEventType.VERSION_SUBMITTED_FOR_REVIEW` | `src/modules/governance/governance.service.ts` | `src/modules/notifications/notification-projector.service.ts` |
-| `version.changes_requested` | `DecisionEventType.VERSION_CHANGES_REQUESTED` | `src/modules/governance/governance.service.ts` | `src/modules/notifications/notification-projector.service.ts` |
-| `version.approved` | `DecisionEventType.VERSION_APPROVED` | `src/modules/governance/governance.service.ts` | `src/modules/notifications/notification-projector.service.ts` |
-| `version.rejected` | `DecisionEventType.VERSION_REJECTED` | `src/modules/governance/governance.service.ts` | `src/modules/notifications/notification-projector.service.ts` |
+| `version.submitted_for_review` | `DecisionEventType.VERSION_SUBMITTED_FOR_REVIEW` | `src/modules/governance/approval-submission.service.ts` | `src/modules/notifications/notification-projector.service.ts` |
+| `version.changes_requested` | `DecisionEventType.VERSION_CHANGES_REQUESTED` | `src/modules/governance/approval-decision.service.ts` | `src/modules/notifications/notification-projector.service.ts` |
+| `version.approved` | `DecisionEventType.VERSION_APPROVED` | `src/modules/governance/approval-decision.service.ts` | `src/modules/notifications/notification-projector.service.ts` |
+| `version.rejected` | `DecisionEventType.VERSION_REJECTED` | `src/modules/governance/approval-decision.service.ts` | `src/modules/notifications/notification-projector.service.ts` |
 | `version.published` | `DecisionEventType.VERSION_PUBLISHED` | `src/modules/deployments/deploy-version.service.ts` | `src/modules/notifications/notification-projector.service.ts` |
-| `security.risk_detected` | `DecisionEventType.SECURITY_RISK_DETECTED` | `src/modules/governance/governance.service.ts` | `src/modules/notifications/notification-projector.service.ts` |
+| `security.risk_detected` | `DecisionEventType.SECURITY_RISK_DETECTED` | `src/modules/governance/approval-submission.service.ts` | `src/modules/notifications/notification-projector.service.ts` |
 | `atlas.callback_requested` | `DecisionEventType.ATLAS_CALLBACK_REQUESTED` | `src/modules/atlas-callback/atlas-callback.service.ts` | `src/modules/atlas-callback/atlas-callback.dispatcher.ts` |
 | `MONITORING_BREACH_DETECTED` | `DecisionEventType.MONITORING_BREACH_DETECTED` | `src/modules/model-monitoring/monitoring-evaluation-writer.ts` | `src/modules/notifications/notification-projector.service.ts` |
 

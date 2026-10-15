@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/governance/`](https://github.com/) · 5 ficheros TypeScript.
+Código: [`src/modules/governance/`](https://github.com/) · 10 ficheros TypeScript.
 
 Etiquetas de API: **Decision Governance**.
 
@@ -40,12 +40,16 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `QA_ANAL
 
 ## Clases exportadas
 
+- `ApprovalDecisionGuard`
+- `ApprovalDecisionService`
 - `ApprovalEvidenceDto`
+- `ApprovalQueryService`
 - `ApprovalRequestListItemDto`
 - `ApprovalRequestListQueryDto`
+- `ApprovalSubmissionService`
 - `CreateCustomApprovalStepDto`
 - `GovernanceController`
 - `GovernanceModule`
-- `GovernanceService`
 - `RecordApprovalDecisionDto`
 - `SubmitReviewDto`
+- `VersionApprovalGate`

@@ -81,10 +81,7 @@ function splitTitle(body) {
   if (index === -1) return { title: null, rest: body };
   return {
     title: lines[index].slice(2).trim(),
-    rest: lines
-      .slice(index + 1)
-      .join('\n')
-      .trim(),
+    rest: lines.slice(index + 1).join('\n').trim(),
   };
 }
 
@@ -93,19 +90,11 @@ function splitTitle(body) {
  * en YAML inválido, y `JSON.stringify` produce exactamente un escalar de comillas dobles válido.
  */
 const frontmatter = (title, tags) =>
-  [
-    '---',
-    `title: ${JSON.stringify(title)}`,
-    'tags:',
-    ...tags.map((tag) => `  - ${tag}`),
-    '---',
-  ].join('\n');
+  ['---', `title: ${JSON.stringify(title)}`, 'tags:', ...tags.map((tag) => `  - ${tag}`), '---'].join(
+    '\n',
+  );
 
-const cell = (value) =>
-  String(value ?? '')
-    .replace(/\|/g, '\\|')
-    .replace(/\n+/g, ' ')
-    .trim();
+const cell = (value) => String(value ?? '').replace(/\|/g, '\\|').replace(/\n+/g, ' ').trim();
 
 const code = (values) => values.map((value) => `\`${value}\``).join(' · ');
 

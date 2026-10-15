@@ -13,8 +13,8 @@ El grafo contiene **12281 nodos** y **29289 relaciones** repartidos en
 **32 módulos de dominio** en `src/modules/`, de los cuales
 todos están registrados en `src/app.module.ts` (comprobado sobre el fichero, no supuesto).
 
-El grafo cubre **704 de 958**
-ficheros TypeScript de `src/` (73 %).
+El grafo cubre **701 de 1002**
+ficheros TypeScript de `src/` (70 %).
 **1 módulo(s) de dominio no aparecen en absoluto**: `atlas-callback`. Consultar el grafo sobre ellos no devuelve nada, así que su documentación **no** se deriva de aquí.
 
 ## Inventario cuantitativo
@@ -104,14 +104,17 @@ La mayoría son ficheros de configuración y documentos sueltos, que por natural
 
 ### El grafo menciona ficheros que ya no existen
 
-**11 ficheros** referenciados por el grafo ya no existen en disco. El grafo está desactualizado respecto al árbol; ejecute `graphify update .`:
+**14 ficheros** referenciados por el grafo ya no existen en disco. El grafo está desactualizado respecto al árbol; ejecute `graphify update .`:
 
 - `src/modules/artifacts/artifact.response.dto.ts`
 - `src/modules/artifacts/artifact.service.ts`
+- `src/modules/calculated-fields/calculated-field.service.ts`
 - `src/modules/deployments/deployment.service.ts`
+- `src/modules/governance/governance.service.ts`
 - `src/modules/manual-review/manual-review.service.ts`
 - `src/modules/nested-trees/nested-tree.service.ts`
 - `src/modules/qa-lab/outcome-coverage.ts`
+- `src/modules/risk-governance/risk-governance.service.ts`
 - `src/modules/variables/variable.service.ts`
 - `src/modules/workers/bank-statement/bank-statement.service.ts`
 - `src/modules/workers/identity-verification/core/parsers/mrz-td1.ts`
@@ -124,28 +127,28 @@ Es la dirección que más daño hace: sobre un fichero ausente el grafo no devue
 consulta vacía se lee igual que «no existe». Por eso los catálogos del portal se generan del
 código y del contrato, nunca de este grafo.
 
-**254 de 958** ficheros `.ts` de `src/` no aparecen en el grafo, incluidos **1 módulo(s) completos** (`atlas-callback`). Se listan los primeros 20:
+**301 de 1002** ficheros `.ts` de `src/` no aparecen en el grafo, incluidos **1 módulo(s) completos** (`atlas-callback`). Se listan los primeros 20:
 
 - `src/common/config/build-identity.ts`
-- `src/common/observability/job-metrics.ts`
-- `src/common/observability/metrics-registry.ts`
-- `src/common/observability/model-monitoring-metrics.ts`
-- `src/common/observability/outbox-metrics.ts`
-- `src/common/observability/persistence-metrics.ts`
-- `src/common/observability/redacting-span-processor.ts`
-- `src/common/observability/sql-redaction.ts`
-- `src/common/persistence/like-escape.ts`
-- `src/common/time/clock.ts`
-- `src/modules/artifacts/artifact-catalog.service.ts`
-- `src/modules/artifacts/clone-version-declarations.ts`
-- `src/modules/artifacts/clone-version-graph.ts`
-- `src/modules/artifacts/clone-version-source.ts`
-- `src/modules/artifacts/graph-writer/clear-draft-graph.ts`
-- `src/modules/artifacts/graph-writer/graph-write-context.ts`
-- `src/modules/artifacts/graph-writer/write-contract.ts`
-- `src/modules/artifacts/graph-writer/write-node-scripts.ts`
-- `src/modules/artifacts/graph-writer/write-nodes-and-edges.ts`
-- `src/modules/artifacts/graph-writer/write-rules.ts`
+- `src/common/config/env/audio-tts.env.ts`
+- `src/common/config/env/auth.env.ts`
+- `src/common/config/env/bank-statement.env.ts`
+- `src/common/config/env/bootstrap.env.ts`
+- `src/common/config/env/callback-and-monitoring.env.ts`
+- `src/common/config/env/data-stores.env.ts`
+- `src/common/config/env/engine-and-qa.env.ts`
+- `src/common/config/env/env-object.ts`
+- `src/common/config/env/helpers.ts`
+- `src/common/config/env/http-and-observability.env.ts`
+- `src/common/config/env/identity-worker.env.ts`
+- `src/common/config/env/jobs.env.ts`
+- `src/common/config/env/nested-trees-and-outbox.env.ts`
+- `src/common/config/env/object-storage.env.ts`
+- `src/common/config/env/rules/audio-tts-coherence.rules.ts`
+- `src/common/config/env/rules/audit-hash.rules.ts`
+- `src/common/config/env/rules/auth.rules.ts`
+- `src/common/config/env/rules/data-routing.rules.ts`
+- `src/common/config/env/rules/env-rule.ts`
 
 ## Riesgos identificados
 
