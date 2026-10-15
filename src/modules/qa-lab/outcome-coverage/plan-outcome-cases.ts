@@ -77,7 +77,14 @@ function buildCase(
   const unsatisfiable: string[] = [];
   for (const variable of inputs) {
     const generated = buildValidValue(variable, random);
-    input[variable.code] = generated.value;
+    // `defineProperty` y no `input[code] = …`: el código viene del contrato, y un `__proto__`
+    // asignado por corchetes cambiaría el prototipo en vez de crear la propiedad.
+    Object.defineProperty(input, variable.code, {
+      value: generated.value,
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
     if (!generated.satisfied) unsatisfiable.push(variable.code);
   }
 
