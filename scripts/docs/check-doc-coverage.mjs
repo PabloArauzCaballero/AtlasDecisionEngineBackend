@@ -61,8 +61,12 @@ async function main() {
     join(docsRoot, 'getting-started', 'environment-variables.md'),
     'utf8',
   );
-  const schema = await readFile(join(repoRoot, 'src', 'common', 'config', 'env.schema.ts'), 'utf8');
-  const declared = [...schema.matchAll(/^\s{4}([A-Z][A-Z0-9_]*):\s/gm)].map((match) => match[1]);
+  const envRoot = join(repoRoot, 'src', 'common', 'config', 'env');
+  const envFragments = (await readdir(envRoot)).filter((name) => name.endsWith('.env.ts'));
+  const schema = (
+    await Promise.all(envFragments.map((name) => readFile(join(envRoot, name), 'utf8')))
+  ).join('\n');
+  const declared = [...schema.matchAll(/^ {2}([A-Z][A-Z0-9_]*):\s/gm)].map((match) => match[1]);
   const missingVariables = declared.filter((name) => !environmentDoc.includes(`\`${name}\``));
   if (missingVariables.length) {
     failures.push(
@@ -82,10 +86,10 @@ async function main() {
   }
 
   const coverage = {
-  // Sin marca de tiempo a propósito: este JSON está versionado y CI lo regenera para
-  // comprobar que no quedó atrás. Un `generatedAt` cambia en cada corrida sin que cambie
-  // nada medido, así que el gate no podía pasar nunca y el archivo ensuciaba todos los
-  // diffs. Cuándo se generó lo dice el commit que lo trae.
+    // Sin marca de tiempo a propósito: este JSON está versionado y CI lo regenera para
+    // comprobar que no quedó atrás. Un `generatedAt` cambia en cada corrida sin que cambie
+    // nada medido, así que el gate no podía pasar nunca y el archivo ensuciaba todos los
+    // diffs. Cuándo se generó lo dice el commit que lo trae.
     modules: { total: modules.length, documented: documentedModules.length },
     apiTags: {
       total: tags.length,

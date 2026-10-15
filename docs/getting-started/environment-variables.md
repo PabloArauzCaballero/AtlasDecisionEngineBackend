@@ -1,5 +1,5 @@
 <!-- GENERADO POR scripts/docs/generate-catalogs.mjs — NO EDITAR A MANO.
-     Fuente: src/common/config/env.schema.ts. Ejecute `yarn docs:catalog` tras cambiar el código. -->
+     Fuente: src/common/config/env/*.env.ts. Ejecute `yarn docs:catalog` tras cambiar el código. -->
 
 # Variables de entorno
 
@@ -15,6 +15,7 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `API_VERSION` | **sí** | — | The published API contract version, deliberately separate from BUILD_VERSION: the build changes on every release, the contract only on a breaking change. Consumers pin to this. |
 | `WORKER_ROLE` | no | `'ALL'` | Reparto de responsabilidades entre procesos; ver common/config/worker-role.ts. `ALL` conserva el comportamiento de un solo contenedor que sirve y procesa. |
 | `WORKER_HEALTH_PORT` | no | `3001` | Puerto de sondas del proceso WORKER, que no sirve tráfico de negocio pero sí debe poder declararse vivo y listo ante el orquestador. También sirve `/metrics`. |
+| `API_PUBLIC_URL` | no | — | URL pública desde la que los consumidores alcanzan esta API. Se publica en el contrato OpenAPI; sin ella solo se declara el servidor relativo, que es preferible a publicar la URL de otro ambiente y que un cliente generado apunte al sitio equivocado. |
 | `JOB_SCHEDULER_ENABLED` | no | `true` | --------------------------------------------------------------------- Orquestación central de trabajos de fondo (common/jobs).  El coste al ralentí del plano de fondo lo fijan estos valores, no cada trabajo por su cuenta: un lote vacío multiplica su espera por JOB_BACKOFF_FACTOR hasta JOB_MAX_IDLE_INTERVAL_MS, y el despertar por `pg_notify` la reinicia cuando de verdad hay algo. Subir el techo abarata el ralentí sin tocar la latencia MIENTRAS la señal funcione; con JOB_WAKE_ENABLED=false el techo pasa a ser la latencia del peor caso. --------------------------------------------------------------------- |
 | `JOB_INITIAL_DELAY_MS` | no | `500` | — |
 | `JOB_MIN_IDLE_INTERVAL_MS` | no | `1_000` | — |
@@ -24,7 +25,6 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `JOB_MAX_ERROR_INTERVAL_MS` | no | `120_000` | — |
 | `JOB_WAKE_ENABLED` | no | `true` | Despertar por LISTEN/NOTIFY. Desactívalo si la conexión pasa por un `pgbouncer` en modo transacción o statement, que no propaga las notificaciones: el sistema sigue siendo correcto, solo pierde latencia hasta el siguiente sondeo. |
 | `JOB_WAKE_CHANNEL` | **sí** | — | — |
-| `API_PUBLIC_URL` | no | — | URL pública desde la que los consumidores alcanzan esta API. Se publica en el contrato OpenAPI; sin ella solo se declara el servidor relativo, que es preferible a publicar la URL de otro ambiente y que un cliente generado apunte al sitio equivocado. |
 | `DATABASE_URL` | **sí** | — | — |
 | `DATABASE_POOL_MAX` | no | `15` | — |
 | `DATABASE_CONNECTION_TIMEOUT_MS` | no | `5_000` | — |
@@ -128,7 +128,7 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `SEMANTIC_ANALYSIS_TIMEOUT_RESCUE_ENABLED` | no | `true` | — |
 | `SEMANTIC_ANALYSIS_PROVIDER` | **sí** | — | — |
 | `SEMANTIC_CASCADE_LOCAL_TIMEOUT_MS` | **sí** | — | — |
-| `SEMANTIC_CASCADE_REMOTE_PROVIDER` | **sí** | — | — |
+| `SEMANTIC_CASCADE_REMOTE_PROVIDER` | no | — | — |
 | `OPENROUTER_BASE_URL` | no | — | — |
 | `OPENROUTER_API_KEY` | no | — | — |
 | `OPENROUTER_FAST_MODEL` | no | — | — |
@@ -143,7 +143,7 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `LITELLM_FAST_MODEL` | no | — | — |
 | `LITELLM_DEEP_MODEL` | no | — | — |
 | `LITELLM_EMBEDDING_MODEL` | no | — | — |
-| `LITELLM_TIMEOUT_MS` | **sí** | — | — |
+| `LITELLM_TIMEOUT_MS` | no | — | — |
 | `LITELLM_MAX_ATTEMPTS` | no | — | — |
 | `LITELLM_MAX_OUTPUT_TOKENS` | **sí** | — | — |
 | `SEMANTIC_ALLOW_INTERNATIONAL_TRANSFER` | no | `false` | — |
@@ -154,7 +154,7 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `SEMANTIC_ANALYSIS_RETENTION_SWEEP_INTERVAL_MS` | **sí** | — | — |
 | `BANK_STATEMENT_WORKER_ENABLED` | no | `false` | — |
 | `BANK_STATEMENT_WORKER_POLL_MS` | no | `500` | — |
-| `BANK_STATEMENT_WORKER_MAX_POLL_MS` | **sí** | — | — |
+| `BANK_STATEMENT_WORKER_MAX_POLL_MS` | no | `30_000` | — |
 | `BANK_STATEMENT_RECOVERY_INTERVAL_MS` | **sí** | — | — |
 | `BANK_STATEMENT_WORKER_CONCURRENCY` | no | `2` | Menor que la del semántico: cada job carga un PDF entero en memoria. |
 | `BANK_STATEMENT_LEASE_SECONDS` | no | `300` | — |
@@ -172,8 +172,8 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `BANK_STATEMENT_ENFORCE_MINIMUM_MONTHS` | no | `false` | — |
 | `BANK_STATEMENT_RECENCY_ENFORCE` | no | `true` | — |
 | `BANK_STATEMENT_RECENCY_TOLERANCE_DAYS` | no | `3` | — |
-| `BANK_STATEMENT_RECENCY_FUTURE_TOLERANCE_DAYS` | **sí** | — | — |
-| `BANK_STATEMENT_SIMILARITY_MODE` | **sí** | — | — |
+| `BANK_STATEMENT_RECENCY_FUTURE_TOLERANCE_DAYS` | no | `3` | — |
+| `BANK_STATEMENT_SIMILARITY_MODE` | no | `'CORROBORATE'` | — |
 | `BANK_STATEMENT_SIMILARITY_MATCH_SCORE` | no | `70` | — |
 | `BANK_STATEMENT_SIMILARITY_PARTIAL_SCORE` | no | `35` | — |
 | `BANK_STATEMENT_SIMILARITY_MIN_SAMPLE` | no | `3` | — |
@@ -187,7 +187,7 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `IDENTITY_WORKER_CONCURRENCY` | no | `2` | Cada job carga tres imágenes en memoria y las remuestrea con `sharp`, que reserva su propio búfer: la misma cota que el worker de extractos. |
 | `IDENTITY_LEASE_SECONDS` | no | `300` | — |
 | `IDENTITY_MAX_ATTEMPTS` | no | `3` | — |
-| `IDENTITY_MAX_UPLOAD_BYTES` | **sí** | — | Por IMAGEN, no por petición: 10 MiB es lo que pesa una foto de un móvil moderno sin recortar. |
+| `IDENTITY_MAX_UPLOAD_BYTES` | no | `10_485_760` | Por IMAGEN, no por petición: 10 MiB es lo que pesa una foto de un móvil moderno sin recortar. |
 | `IDENTITY_DEFAULT_DOCUMENT_COUNTRY` | no | `'BO'` | — |
 | `IDENTITY_ACCEPTED_DOCUMENT_TYPES` | no | `'BOLIVIA_CI'` | — |
 | `IDENTITY_DOCUMENT_ACCEPT_CONFIDENCE` | no | `0.55` | — |
@@ -204,7 +204,7 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `IDENTITY_MIN_SELFIE_QUALITY` | no | `0.5` | — |
 | `IDENTITY_MIN_FACE_AREA_RATIO` | no | `0.012` | — |
 | `IDENTITY_DOCUMENT_EXPIRY_GRACE_DAYS` | no | `0` | — |
-| `IDENTITY_MAX_IMAGE_PIXELS` | **sí** | — | — |
+| `IDENTITY_MAX_IMAGE_PIXELS` | no | `25_000_000` | — |
 | `IDENTITY_MIN_IMAGE_WIDTH` | no | `480` | — |
 | `IDENTITY_MIN_IMAGE_HEIGHT` | no | `480` | — |
 | `IDENTITY_MIN_IMAGE_PIXELS` | no | `230_400` | — |
@@ -241,8 +241,8 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `AUDIO_TTS_MODEL` | no | `'eleven_v3'` | — |
 | `AUDIO_TTS_GLOBAL_FALLBACK_TEMPLATE` | **sí** | — | — |
 | `AUDIO_TTS_MAX_TEXT_LENGTH` | no | `5_000` | — |
-| `AUDIO_TTS_MONTHLY_BUDGET_UNITS` | **sí** | — | Presupuesto. Un 0 en el límite por actor significa BLOQUEADO, no ilimitado: un valor por omisión inseguro nunca debe abrir la puerta. |
-| `AUDIO_TTS_SAFETY_RESERVE_UNITS` | **sí** | — | — |
+| `AUDIO_TTS_MONTHLY_BUDGET_UNITS` | no | `10_000` | Presupuesto. Un 0 en el límite por actor significa BLOQUEADO, no ilimitado: un valor por omisión inseguro nunca debe abrir la puerta. |
+| `AUDIO_TTS_SAFETY_RESERVE_UNITS` | no | `1_000` | — |
 | `AUDIO_TTS_RUNTIME_GENERATIONS_PER_ACTOR_DAY` | **sí** | — | — |
 | `AUDIO_TTS_ACTOR_LIMIT_UNLIMITED` | no | `false` | — |
 | `AUDIO_TTS_REQUEST_TIMEOUT_MS` | no | `10_000` | Red y resiliencia frente al proveedor. |
@@ -300,9 +300,9 @@ fuera de rango impide el arranque en vez de degradar el comportamiento en calien
 | `NESTED_TREE_GRAPH_MAX_EDGES` | no | `2_000` | — |
 | `NESTED_TREE_MAX_ARTIFACTS` | no | `25` | — |
 | `NESTED_TREE_MAX_TOTAL_MS` | no | `10_000` | — |
-| `NESTED_TREE_MAX_RESULT_BYTES` | **sí** | — | — |
+| `NESTED_TREE_MAX_RESULT_BYTES` | no | `262_144` | — |
 | `NESTED_TREE_MAX_RETAINED_BYTES` | **sí** | — | — |
-| `CODE_IMPORT_MAX_SOURCE_BYTES` | **sí** | — | — |
+| `CODE_IMPORT_MAX_SOURCE_BYTES` | no | `131_072` | — |
 | `CODE_IMPORT_ANALYSIS_TIMEOUT_MS` | no | `2_000` | — |
 | `LIVE_EXECUTION_STREAM_ENABLED` | no | `false` | Live preview is opt-in: it executes real non-PROD graphs but intentionally writes no decision/audit/outbox record. Heartbeats keep proxies and the global timeout alive. |
 | `LIVE_EXECUTION_STREAM_HEARTBEAT_MS` | **sí** | — | — |

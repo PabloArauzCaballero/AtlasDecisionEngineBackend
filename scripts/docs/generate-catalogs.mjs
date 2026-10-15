@@ -11,7 +11,7 @@
  *   entidades            ← prisma/schema.prisma
  *   eventos              ← src/common/events/*
  *   errores              ← los DomainException lanzados en src/
- *   configuración        ← src/common/config/env.schema.ts
+ *   configuración        ← src/common/config/env/*.env.ts
  *
  * Las páginas llevan un aviso de generación para que nadie las edite a mano y pierda su
  * trabajo en la siguiente ejecución.
@@ -380,8 +380,24 @@ async function generateErrorCatalog() {
 // ---------------------------------------------------------------------------
 // Variables de entorno
 // ---------------------------------------------------------------------------
+/**
+ * El esquema vive repartido en `src/common/config/env/*.env.ts`, uno por dominio. Se leen en el
+ * orden en que `env-object.ts` los esparce, que es el orden del catálogo.
+ */
+async function readEnvironmentSchemaSources() {
+  const configRoot = join(repoRoot, 'src', 'common', 'config', 'env');
+  const objectSource = await readFile(join(configRoot, 'env-object.ts'), 'utf8');
+  const fragments = [...objectSource.matchAll(/from '\.\/([\w-]+\.env)'/g)].map(
+    (match) => match[1],
+  );
+  const sources = await Promise.all(
+    fragments.map((name) => readFile(join(configRoot, `${name}.ts`), 'utf8')),
+  );
+  return sources.join('\n');
+}
+
 async function generateEnvironmentCatalog() {
-  const schema = await readFile(join(repoRoot, 'src', 'common', 'config', 'env.schema.ts'), 'utf8');
+  const schema = await readEnvironmentSchemaSources();
   const entries = [];
   const lines = schema.split('\n');
   let comment = [];
@@ -408,7 +424,7 @@ async function generateEnvironmentCatalog() {
   }
 
   const out = [
-    BANNER('src/common/config/env.schema.ts'),
+    BANNER('src/common/config/env/*.env.ts'),
     '# Variables de entorno',
     '',
     `${entries.length} variables declaradas. El esquema se valida al arrancar: un valor ausente o`,
@@ -444,10 +460,10 @@ async function main() {
   const environment = await generateEnvironmentCatalog();
 
   const summary = {
-  // Sin marca de tiempo a propósito: este JSON está versionado y CI lo regenera para
-  // comprobar que no quedó atrás. Un `generatedAt` cambia en cada corrida sin que cambie
-  // nada medido, así que el gate no podía pasar nunca y el archivo ensuciaba todos los
-  // diffs. Cuándo se generó lo dice el commit que lo trae.
+    // Sin marca de tiempo a propósito: este JSON está versionado y CI lo regenera para
+    // comprobar que no quedó atrás. Un `generatedAt` cambia en cada corrida sin que cambie
+    // nada medido, así que el gate no podía pasar nunca y el archivo ensuciaba todos los
+    // diffs. Cuándo se generó lo dice el commit que lo trae.
     modules: modules.length,
     endpoints: [...byTag.values()].reduce((total, list) => total + list.length, 0),
     entities: models.length,
