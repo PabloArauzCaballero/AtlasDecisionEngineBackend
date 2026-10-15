@@ -16,6 +16,19 @@ recorría haciendo upserts en cada arranque. Escribir catálogos como código ti
 ve hasta que se mira: cada cambio de un umbral era un commit de código, cada revisión de PR era
 leer literales, y el conjunto se recorría entero en cada arranque de cada réplica de worker.
 
+## Excepción: el catálogo de referencia viaja en el código y se siembra siempre
+
+El **padrón de entidades financieras** (las 71 de la nómina de ASFI, con sus señales de detección y sus
+logotipos) y el **árbol de categorías** del worker semántico (164 categorías y 21 alias) no son datos de
+demostración: sin ellos el Motor no reconoce ningún banco —cada extracto acaba en revisión como banco
+desconocido— ni clasifica un movimiento. El 2026-10-15 TEST, que no usa la rama, tenía las dos cosas a cero.
+
+Por eso `ReferenceCatalogService` (`src/modules/reference-catalog/`) los siembra **en cada arranque** del
+proceso de trabajos de fondo, independiente de `STARTUP_SEED_ENABLED` y de la rama, y **sólo crea lo que
+falta**: no pisa una entidad o una categoría editada en el portal ni resucita una dada de baja; reejecutarlo
+no escribe nada. Los datos viven en `src/modules/reference-catalog/seeds/` (el árbol curado) y en
+`core/institutions/bolivia-institutions.ts` (la nómina). `REFERENCE_CATALOG_SEED_ENABLED=false` lo apaga.
+
 ## La rama es el perfil
 
 Ya no existe `SEED_INCLUDE_MOCKUP`. Lo que antes decidía una variable —¿entra el artefacto de
