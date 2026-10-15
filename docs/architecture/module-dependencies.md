@@ -86,6 +86,7 @@ Un `fan-in` alto significa que muchos módulos dependen de este: cambiarlo es ca
 | [`manual-review`](../modules/manual-review.md) | 0 | 0 |
 | [`outbox-relay`](../modules/outbox-relay.md) | 0 | 0 |
 | [`platform-catalog`](../modules/platform-catalog.md) | 0 | 0 |
+| [`reference-catalog`](../modules/reference-catalog.md) | 0 | 0 |
 | [`seeding`](../modules/seeding.md) | 0 | 0 |
 | [`sql-console`](../modules/sql-console.md) | 0 | 0 |
 | [`traceability`](../modules/traceability.md) | 0 | 0 |
