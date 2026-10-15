@@ -1,85 +1,17 @@
-import { HttpStatus, Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Injectable, Logger } from '@nestjs/common';
 import { Prisma, WorkerInputSource, WorkerRunStatus } from '@prisma/client';
-import { DomainException } from '../../../common/errors/domain-exception';
+import { persistableCarrier } from '../../../common/events/trace-carrier';
 import { JobName } from '../../../common/jobs/job-names';
 import { JobSignalService } from '../../../common/jobs/job-signal.service';
+import { MessagingTraceService } from '../../../common/observability/messaging-trace.service';
 import { PrismaService } from '../../../common/prisma/prisma.service';
-import { ObjectStorageService } from '../../../common/storage/object-storage.service';
 import type { AuthenticatedPrincipal } from '../../../common/security/security.types';
 import { newRequestId, type ValidatedStatementInput } from './bank-statement-input';
-import { persistableCarrier } from '../../../common/events/trace-carrier';
-import { MessagingTraceService } from '../../../common/observability/messaging-trace.service';
+import { StatementFileStore } from './statement-file-store.service';
+import { RETRYABLE_STATUSES, RUN_SELECTION, type BankStatementRunView } from './statement-run.view';
 
 /**
- * Estados terminales SIN resultado: subir otra vez el mismo documento vuelve a
- * intentarlo en lugar de devolver el intento anterior. Ver `createRun`.
- */
-const RETRYABLE_STATUSES: readonly WorkerRunStatus[] = [
-  WorkerRunStatus.FAILED,
-  WorkerRunStatus.CANCELLED,
-  /*
-   * `PDF_INVALID` está aquí por el MISMO motivo que `FAILED`, y es fácil de
-   * pasar por alto: un rechazo es un veredicto del clasificador de ese día. Si
-   * no fuera reintentable, ninguna recalibración de los umbrales ni ninguna
-   * señal nueva alcanzaría jamás a los documentos que la motivaron —se afina el
-   * triage, el mismo archivo sigue devolviendo «PDF no válido», y lo razonable
-   * es concluir que el arreglo no sirvió—. Volver a subirlo es exactamente lo
-   * que hace quien no está de acuerdo con el rechazo.
-   */
-  WorkerRunStatus.PDF_INVALID,
-];
-
-/** Estados desde los que ya no puede pasar nada más. */
-const TERMINAL_STATUSES: readonly WorkerRunStatus[] = [
-  WorkerRunStatus.SUCCEEDED,
-  WorkerRunStatus.SUCCEEDED_WITH_WARNINGS,
-  WorkerRunStatus.FAILED,
-  WorkerRunStatus.CANCELLED,
-  WorkerRunStatus.PDF_INVALID,
-];
-
-/** Columnas que se devuelven al cliente. `fileBytes` NUNCA está entre ellas. */
-const RUN_SELECTION = {
-  requestId: true,
-  status: true,
-  progress: true,
-  inputSource: true,
-  fixtureCode: true,
-  fileName: true,
-  fileHash: true,
-  fileSizeBytes: true,
-  resultJson: true,
-  warningsJson: true,
-  confidence: true,
-  documentTypeConfidence: true,
-  institutionId: true,
-  transactionCount: true,
-  errorCode: true,
-  errorMessage: true,
-  reviewReason: true,
-  rejectionReason: true,
-  reviewPriority: true,
-  reviewOpenedAt: true,
-  reviewClaimedBy: true,
-  reviewClaimedAt: true,
-  reviewResolvedBy: true,
-  reviewResolvedAt: true,
-  reviewNotes: true,
-  attemptCount: true,
-  queuedAt: true,
-  startedAt: true,
-  finishedAt: true,
-  requestedBy: true,
-  correlationId: true,
-} satisfies Prisma.BankStatementRunSelect;
-
-export type BankStatementRunView = Prisma.BankStatementRunGetPayload<{
-  select: typeof RUN_SELECTION;
-}>;
-
-/**
- * Alta y consulta de ejecuciones del worker de extractos.
+ * Alta de ejecuciones del worker de extractos.
  *
  * No procesa nada: crea la fila, anuncia el trabajo y responde. El procesado
  * ocurre en `BankStatementRunWorkerService`, en otro proceso si el despliegue
@@ -87,15 +19,14 @@ export type BankStatementRunView = Prisma.BankStatementRunGetPayload<{
  * motor de extractos directamente.
  */
 @Injectable()
-export class BankStatementService {
-  private readonly logger = new Logger(BankStatementService.name);
+export class StatementRunIntakeService {
+  private readonly logger = new Logger(StatementRunIntakeService.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly jobSignal: JobSignalService,
-    private readonly config: ConfigService,
     private readonly messagingTrace: MessagingTraceService,
-    private readonly objectStorage: ObjectStorageService,
+    private readonly files: StatementFileStore,
   ) {}
 
   /**
@@ -125,7 +56,7 @@ export class BankStatementService {
      * decide y cierra sin que su documento se guardara nunca. Si el almacén falla no hay alta y el
      * cliente reintenta, que es preferible a una capacidad de pago sin el extracto que la sostiene.
      */
-    const guardado = await this.storeStatementFile(tenantId, requestId, input, source);
+    const guardado = await this.files.store(tenantId, requestId, input, source);
 
     try {
       const run = await this.prisma.$transaction(async (tx) => {
@@ -169,7 +100,7 @@ export class BankStatementService {
       // `requestId` que ya no va a existir. Se borra aquí y no en un barrido posterior porque este
       // es el único momento en que se sabe cuál es. Si la huella resulta duplicada y hay que
       // reencolar, `requeue` escribe el suyo bajo el `requestId` que sí sobrevive.
-      if (guardado) await this.objectStorage.remove(guardado.objectKey);
+      if (guardado) await this.files.discard(guardado.objectKey);
       if (!isUniqueViolation(error)) throw error;
       const existing = await this.prisma.bankStatementRun.findFirst({
         where: { tenantId, fileHash: input.fileHash },
@@ -224,55 +155,6 @@ export class BankStatementService {
   }
 
   /**
-   * Copia el extracto al almacén y devuelve su clave.
-   *
-   * **Una subida real sin almacén se RECHAZA**, por lo mismo que en identidad: el aviso en el log
-   * no lo lee nadie, la ejecución decidía y cerraba, y el extracto sobre el que se calculó una
-   * capacidad de pago no existía al día siguiente para responder a una impugnación. Los ESCENARIOS
-   * (`fixtureCode`) siguen pasando sin almacén: su PDF lo genera el motor y no es de nadie.
-   *
-   * Si el almacén SÍ está y rechaza la escritura, se propaga: «no hay almacén» y «hay almacén y no
-   * me deja escribir» son dos cosas distintas, y tratarlas igual deja claves de objetos que nunca
-   * existieron.
-   */
-  private async storeStatementFile(
-    tenantId: bigint,
-    requestId: string,
-    input: ValidatedStatementInput,
-    source: WorkerInputSource,
-  ): Promise<{ objectKey: string; sha256: string | null } | null> {
-    if (!this.objectStorage.isConfigured()) {
-      if (source === WorkerInputSource.UPLOAD) {
-        throw new DomainException(
-          'STATEMENT_FILE_STORAGE_NOT_CONFIGURED',
-          'No se puede analizar un extracto sin un sitio donde conservarlo: declara ' +
-            'STORAGE_S3_ENDPOINT, STORAGE_S3_BUCKET, STORAGE_S3_ACCESS_KEY_ID y ' +
-            'STORAGE_S3_SECRET_ACCESS_KEY. Se rechaza la subida en vez de calcular una capacidad ' +
-            'de pago y perder el documento que la sostiene.',
-          HttpStatus.SERVICE_UNAVAILABLE,
-        );
-      }
-      this.logger.warn(
-        `El escenario ${requestId} se encola sin copia persistente: no hay almacén configurado. ` +
-          'Su PDF es generado, así que no hay documento de nadie que perder.',
-      );
-      return null;
-    }
-
-    // Siempre PDF: `validateStatementUpload` comprueba los bytes mágicos antes de llegar aquí, así
-    // que el tipo no sale de lo que declare quien sube.
-    const objectKey = this.objectStorage.buildStatementKey({
-      tenantId,
-      requestId,
-      extension: 'pdf',
-    });
-    // El almacén ya calcula la huella al escribir. Se guarda con la clave: sin ella, la copia no
-    // se puede contrastar con el PDF que subió el cliente.
-    const guardado = await this.objectStorage.put(objectKey, input.bytes, 'application/pdf');
-    return { objectKey, sha256: guardado?.sha256Hex ?? null };
-  }
-
-  /**
    * Devuelve a la cola una ejecución que terminó sin resultado.
    *
    * Se ACTUALIZA la fila en vez de crear otra porque la huella es única por
@@ -292,7 +174,7 @@ export class BankStatementService {
     source: WorkerInputSource,
     fixtureCode?: string,
   ): Promise<BankStatementRunView> {
-    const guardado = await this.storeStatementFile(tenantId, requestId, input, source);
+    const guardado = await this.files.store(tenantId, requestId, input, source);
 
     return this.prisma.$transaction(async (tx) => {
       const requeued = await tx.bankStatementRun.update({
@@ -346,81 +228,6 @@ export class BankStatementService {
       await this.jobSignal.notify(tx, JobName.BankStatement);
       return requeued;
     });
-  }
-
-  /** Una ejecución del tenant. Ajena o inexistente responden igual: 404. */
-  async getRun(tenantId: bigint, requestId: string): Promise<BankStatementRunView> {
-    const run = await this.prisma.bankStatementRun.findFirst({
-      where: { tenantId, requestId },
-      select: RUN_SELECTION,
-    });
-    if (!run) {
-      // 404 y no 403: un 403 confirmaría que la ejecución existe y que es de
-      // otro, que es justo lo que no debe poder averiguarse desde fuera.
-      throw new DomainException(
-        'BANK_STATEMENT_RUN_NOT_FOUND',
-        'No existe esa ejecución.',
-        HttpStatus.NOT_FOUND,
-      );
-    }
-    return run;
-  }
-
-  async listRuns(
-    tenantId: bigint,
-    params: { page: number; pageSize: number; status?: WorkerRunStatus },
-  ): Promise<{ items: BankStatementRunView[]; total: number }> {
-    const where: Prisma.BankStatementRunWhereInput = {
-      tenantId,
-      ...(params.status ? { status: params.status } : {}),
-    };
-    const [items, total] = await Promise.all([
-      this.prisma.bankStatementRun.findMany({
-        where,
-        select: RUN_SELECTION,
-        orderBy: { queuedAt: 'desc' },
-        skip: (params.page - 1) * params.pageSize,
-        take: params.pageSize,
-      }),
-      this.prisma.bankStatementRun.count({ where }),
-    ]);
-    return { items, total };
-  }
-
-  /**
-   * Cancela una ejecución que todavía nadie reclamó.
-   *
-   * Sólo desde `QUEUED`. Cancelar algo ya en curso exigiría que el processor
-   * cooperase y una señal entre procesos que el motor no tiene; ofrecerlo en la
-   * interfaz sería prometer algo que no se cumple.
-   */
-  async cancelRun(tenantId: bigint, requestId: string): Promise<BankStatementRunView> {
-    const updated = await this.prisma.bankStatementRun.updateMany({
-      where: { tenantId, requestId, status: WorkerRunStatus.QUEUED },
-      data: {
-        status: WorkerRunStatus.CANCELLED,
-        finishedAt: new Date(),
-        // El documento deja de hacer falta en cuanto se cancela.
-        fileBytes: null,
-      },
-    });
-    if (updated.count === 0) {
-      const current = await this.getRun(tenantId, requestId);
-      throw new DomainException(
-        'BANK_STATEMENT_RUN_NOT_CANCELLABLE',
-        TERMINAL_STATUSES.includes(current.status)
-          ? 'La ejecución ya terminó.'
-          : 'La ejecución ya está siendo procesada y no puede cancelarse.',
-        HttpStatus.CONFLICT,
-        { status: current.status },
-      );
-    }
-    return this.getRun(tenantId, requestId);
-  }
-
-  /** Máximo aceptado para un archivo, en bytes. Lo publica el catálogo. */
-  maxUploadBytes(): number {
-    return this.config.get<number>('BANK_STATEMENT_MAX_UPLOAD_BYTES') ?? 10_485_760;
   }
 }
 

@@ -37,7 +37,9 @@ import {
 } from '../workers.dto';
 import { toWorkerRunDto } from '../workers.mapper';
 import { BANK_STATEMENT_MULTER_OPTIONS, validateStatementUpload } from './bank-statement-input';
-import { BankStatementService } from './bank-statement.service';
+import { StatementRunIntakeService } from './statement-run-intake.service';
+import { StatementRunService } from './statement-run.service';
+import { StatementUploadPolicy } from './statement-upload.policy';
 import type { NormalizedBankStatement } from './core/engine/normalized/normalized-model';
 import {
   BANK_STATEMENT_FIXTURES,
@@ -61,7 +63,9 @@ import { serializeStatement } from './statement-download';
 @Controller('v1/workers/bank-statement')
 export class BankStatementController {
   constructor(
-    private readonly statements: BankStatementService,
+    private readonly intake: StatementRunIntakeService,
+    private readonly runs: StatementRunService,
+    private readonly uploads: StatementUploadPolicy,
     private readonly config: ConfigService,
   ) {}
 
@@ -107,10 +111,10 @@ export class BankStatementController {
       : {
           source: WorkerInputSource.UPLOAD,
           fixtureCode: undefined,
-          validated: validateStatementUpload(file, this.statements.maxUploadBytes()),
+          validated: validateStatementUpload(file, this.uploads.maxUploadBytes()),
         };
 
-    const { run } = await this.statements.createRun(
+    const { run } = await this.intake.createRun(
       tenantId,
       principal,
       input.validated,
@@ -126,7 +130,7 @@ export class BankStatementController {
   @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST', 'OPERATIONS', 'COMPLIANCE', 'AUDITOR')
   async listRuns(@TenantId() tenantId: bigint, @Query() query: WorkerRunQueryDto) {
     const { page, pageSize } = paginationArgs(query);
-    const { items, total } = await this.statements.listRuns(tenantId, {
+    const { items, total } = await this.runs.listRuns(tenantId, {
       page,
       pageSize,
       status: query.status,
@@ -149,7 +153,7 @@ export class BankStatementController {
     @TenantId() tenantId: bigint,
     @Param('requestId') requestId: string,
   ): Promise<WorkerRunDto> {
-    return toWorkerRunDto(await this.statements.getRun(tenantId, requestId));
+    return toWorkerRunDto(await this.runs.getRun(tenantId, requestId));
   }
 
   @Post('runs/:requestId/cancel')
@@ -160,7 +164,7 @@ export class BankStatementController {
     @TenantId() tenantId: bigint,
     @Param('requestId') requestId: string,
   ): Promise<WorkerRunDto> {
-    return toWorkerRunDto(await this.statements.cancelRun(tenantId, requestId));
+    return toWorkerRunDto(await this.runs.cancelRun(tenantId, requestId));
   }
 
   @Get('runs/:requestId/download')
@@ -185,7 +189,7 @@ export class BankStatementController {
     @Query() query: StatementDownloadQueryDto,
     @Res() response: Response,
   ): Promise<void> {
-    const run = await this.statements.getRun(tenantId, requestId);
+    const run = await this.runs.getRun(tenantId, requestId);
     if (!run.resultJson) {
       throw new DomainException(
         'BANK_STATEMENT_RESULT_NOT_READY',
@@ -238,7 +242,7 @@ export class BankStatementController {
       fixtureCode: fixture.code,
       validated: validateStatementUpload(
         { originalname: fixture.fileName, buffer: fixture.build() },
-        this.statements.maxUploadBytes(),
+        this.uploads.maxUploadBytes(),
       ),
     };
   }

@@ -1,6 +1,6 @@
-import { ConfigService } from '@nestjs/config';
 import { Prisma, WorkerInputSource, WorkerRunStatus } from '@prisma/client';
-import { BankStatementService } from '../src/modules/workers/bank-statement/bank-statement.service';
+import { StatementFileStore } from '../src/modules/workers/bank-statement/statement-file-store.service';
+import { StatementRunIntakeService } from '../src/modules/workers/bank-statement/statement-run-intake.service';
 import type { AuthenticatedPrincipal } from '../src/common/security/security.types';
 
 /**
@@ -54,7 +54,7 @@ function servicioCon(existente: {
   requestId: string;
   reviewResolvedAt?: Date | null;
 }): {
-  service: BankStatementService;
+  service: StatementRunIntakeService;
   registro: Registro;
 } {
   const registro: Registro = { notificaciones: 0, actualizaciones: [] };
@@ -81,25 +81,26 @@ function servicioCon(existente: {
       return Promise.resolve();
     },
   };
-  const service = new BankStatementService(
+  const service = new StatementRunIntakeService(
     prisma as never,
     jobSignal as never,
-    new ConfigService({}),
     { inject: () => ({}) } as never,
-    /*
-     * Almacén CONFIGURADO, aunque esta prueba mida la deduplicación.
-     *
-     * Estuvo en `false` para saltarse la copia persistente «igual que en desarrollo local», y eso
-     * dejó de ser un camino válido el 2026-09-11: una subida real sin almacén se rechaza, así que
-     * un doble sin almacén ya no representa a ningún despliegue —representa uno que no arranca—.
-     * Que el extracto se guarde de verdad lo fija `identity-storage-obligatorio.spec.ts`.
-     */
-    {
-      isConfigured: () => true,
-      buildStatementKey: () => 'statements/1/prueba.pdf',
-      put: () => Promise.resolve(),
-      remove: () => Promise.resolve(),
-    } as never,
+    new StatementFileStore(
+      /*
+       * Almacén CONFIGURADO, aunque esta prueba mida la deduplicación.
+       *
+       * Estuvo en `false` para saltarse la copia persistente «igual que en desarrollo local», y eso
+       * dejó de ser un camino válido el 2026-09-11: una subida real sin almacén se rechaza, así que
+       * un doble sin almacén ya no representa a ningún despliegue —representa uno que no arranca—.
+       * Que el extracto se guarde de verdad lo fija `identity-storage-obligatorio.spec.ts`.
+       */
+      {
+        isConfigured: () => true,
+        buildStatementKey: () => 'statements/1/prueba.pdf',
+        put: () => Promise.resolve(),
+        remove: () => Promise.resolve(),
+      } as never,
+    ),
   );
   return { service, registro };
 }
