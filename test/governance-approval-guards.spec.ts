@@ -1,6 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { DomainException } from '../src/common/errors/domain-exception';
-import { GovernanceService } from '../src/modules/governance/governance.service';
+import { buildGovernance } from './support/governance.factory';
 import type { AuditService } from '../src/common/audit/audit.service';
 import type { OutboxPublisherService } from '../src/common/events/outbox-publisher.service';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
@@ -21,7 +21,7 @@ import type { RecordApprovalDecisionDto } from '../src/modules/governance/govern
  */
 const COMODIN = { GOVERNANCE_ADMIN_CAN_SIGN_ANY_STEP: true };
 
-describe('GovernanceService — guardas de aprobación', () => {
+describe('Gobierno — guardas de aprobación', () => {
   const TENANT = 8n;
   const STEP = 42n;
 
@@ -90,7 +90,7 @@ describe('GovernanceService — guardas de aprobación', () => {
           decisionApprovalRequest: { update: () => Promise.resolve({}) },
         }),
     } as unknown as PrismaService;
-    return new GovernanceService(
+    return buildGovernance(
       prisma,
       tests,
       states,
@@ -114,7 +114,7 @@ describe('GovernanceService — guardas de aprobación', () => {
     env: Record<string, unknown> = {},
   ) =>
     service(found, graphEditors, env)
-      .recordDecision(TENANT, STEP, dto, who)
+      .decisions.recordDecision(TENANT, STEP, dto, who)
       .catch((caught: unknown) => caught);
 
   /*
@@ -339,7 +339,7 @@ describe('GovernanceService — guardas de aprobación', () => {
   });
 });
 
-describe('GovernanceService.assertApproved — la puerta que mira el despliegue', () => {
+describe('VersionApprovalGate.assertApproved — la puerta que mira el despliegue', () => {
   const TENANT = 8n;
   const audit = { append: () => Promise.resolve({}) } as unknown as AuditService;
   const outbox = { publish: () => Promise.resolve({}) } as unknown as OutboxPublisherService;
@@ -351,7 +351,7 @@ describe('GovernanceService.assertApproved — la puerta que mira el despliegue'
     const prisma = {
       decisionArtifactVersion: { findFirst: () => Promise.resolve(version) },
     } as unknown as PrismaService;
-    return new GovernanceService(
+    return buildGovernance(
       prisma,
       tests,
       states,
@@ -370,7 +370,7 @@ describe('GovernanceService.assertApproved — la puerta que mira el despliegue'
     'DEPLOYED_TO_PROD',
   ])('deja pasar una versión en estado %s', async (status) => {
     await expect(
-      service({ status, approvedAt: new Date() }).assertApproved(TENANT, 1n),
+      service({ status, approvedAt: new Date() }).gate.assertApproved(TENANT, 1n),
     ).resolves.toBeUndefined();
   });
 
@@ -378,7 +378,7 @@ describe('GovernanceService.assertApproved — la puerta que mira el despliegue'
     'bloquea una versión en estado %s',
     async (status) => {
       const error = await service({ status, approvedAt: null })
-        .assertApproved(TENANT, 1n)
+        .gate.assertApproved(TENANT, 1n)
         .catch((caught: unknown) => caught);
       expect((error as DomainException).code).toBe('VERSION_NOT_APPROVED');
       expect((error as DomainException).status).toBe(409);
@@ -388,7 +388,7 @@ describe('GovernanceService.assertApproved — la puerta que mira el despliegue'
   it('una versión de otro tenant se trata como no aprobada', async () => {
     // Mismo error que una versión sin aprobar: un 404 distinto confirmaría que el id existe.
     const error = await service(null)
-      .assertApproved(TENANT, 1n)
+      .gate.assertApproved(TENANT, 1n)
       .catch((caught: unknown) => caught);
     expect((error as DomainException).code).toBe('VERSION_NOT_APPROVED');
   });

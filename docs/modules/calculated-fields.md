@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/calculated-fields/`](https://github.com/) · 14 ficheros TypeScript.
+Código: [`src/modules/calculated-fields/`](https://github.com/) · 17 ficheros TypeScript.
 
 Etiquetas de API: **Calculated Fields**.
 
@@ -56,6 +56,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `PLATFOR
 
 ## Clases exportadas
 
+- `CalculatedFieldCatalogService`
 - `CalculatedFieldCommentsDto`
 - `CalculatedFieldController`
 - `CalculatedFieldCreatedDto`
@@ -63,6 +64,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `PLATFOR
 - `CalculatedFieldExecutorService`
 - `CalculatedFieldInputDto`
 - `CalculatedFieldListItemDto`
+- `CalculatedFieldLoader`
 - `CalculatedFieldOutcomeCoverageDto`
 - `CalculatedFieldOutcomeCoverageReportDto`
 - `CalculatedFieldPreviewService`
@@ -70,11 +72,12 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `PLATFOR
 - `CalculatedFieldPromotedDto`
 - `CalculatedFieldQueryDto`
 - `CalculatedFieldReturnDto`
-- `CalculatedFieldService`
 - `CalculatedFieldTestCaseDto`
 - `CalculatedFieldTestReportDto`
+- `CalculatedFieldTestingService`
 - `CalculatedFieldTryRunDto`
 - `CalculatedFieldVersionCreatedDto`
+- `CalculatedFieldVersionService`
 - `CalculatedFieldsModule`
 - `CreateCalculatedFieldDto`
 - `CreateCalculatedFieldVersionDto`

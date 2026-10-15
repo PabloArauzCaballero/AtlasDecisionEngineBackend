@@ -1,5 +1,5 @@
 import { ConfigService } from '@nestjs/config';
-import { GovernanceService } from '../src/modules/governance/governance.service';
+import { buildGovernance } from './support/governance.factory';
 import { TestSuiteService } from '../src/modules/testing/test-suite.service';
 import { TraceabilityService } from '../src/modules/traceability/traceability.service';
 
@@ -29,7 +29,7 @@ describe('frontend read endpoints', () => {
         1,
       ]),
     };
-    const service = new GovernanceService(
+    const service = buildGovernance(
       prisma as never,
       {} as never,
       {} as never,
@@ -39,7 +39,7 @@ describe('frontend read endpoints', () => {
       config,
     );
 
-    const result = await service.listRequests(7n, { page: 1, pageSize: 25 });
+    const result = await service.queries.listRequests(7n, { page: 1, pageSize: 25 });
 
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({

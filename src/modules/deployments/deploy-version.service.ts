@@ -11,7 +11,7 @@ import { AdvisoryLockDomain, advisoryLockKey } from '../../common/prisma/advisor
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
 import { VersionStateService } from '../artifacts/version-state.service';
 import { isVersionContributor } from '../artifacts/version-contributors';
-import { GovernanceService } from '../governance/governance.service';
+import { VersionApprovalGate } from '../governance/version-approval-gate';
 import { BaselineCaptureService } from '../model-monitoring/baseline-capture.service';
 import { DeploymentCacheInvalidator } from './deployment-cache-invalidator.service';
 import { assertDeployRequestAllowed } from './deploy-request.rules';
@@ -23,7 +23,7 @@ import { statusForEnvironment } from './status-for-environment';
 export class DeployVersionService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly governance: GovernanceService,
+    private readonly approvals: VersionApprovalGate,
     private readonly states: VersionStateService,
     private readonly audit: AuditService,
     private readonly outbox: OutboxPublisherService,
@@ -38,7 +38,7 @@ export class DeployVersionService {
     dto: DeployVersionDto,
     principal: AuthenticatedPrincipal,
   ) {
-    await this.governance.assertApproved(tenantId, versionId);
+    await this.approvals.assertApproved(tenantId, versionId);
     const version = await this.prisma.decisionArtifactVersion.findFirst({
       where: { id: versionId, artifact: { tenantId } },
       include: {

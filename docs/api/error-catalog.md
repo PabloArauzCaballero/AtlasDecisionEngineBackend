@@ -9,12 +9,12 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | Código | Mensaje de referencia | Origen |
 | --- | --- | --- |
 | `ACTIVE_DEPLOYMENT_NOT_FOUND` | No active deployment for ${artifactCode} in ${environmentCode} | `src/modules/deployments/deployment-resolver.service.ts` |
-| `APPROVAL_REQUEST_EXISTS` | An active approval request already exists | `src/modules/governance/governance.service.ts` |
-| `APPROVAL_REQUEST_NOT_FOUND` | Approval request not found | `src/modules/governance/governance.service.ts` |
-| `APPROVAL_ROLE_REQUIRED` | Role ${step.requiredRole} is required | `src/modules/governance/governance.service.ts` |
-| `APPROVAL_STEP_CLOSED` | Approval step is no longer open | `src/modules/governance/governance.service.ts` |
-| `APPROVAL_STEP_NOT_FOUND` | Approval step not found | `src/modules/governance/governance.service.ts` |
-| `APPROVAL_STEP_OUT_OF_ORDER` | Previous approval steps must complete first | `src/modules/governance/governance.service.ts` |
+| `APPROVAL_REQUEST_EXISTS` | An active approval request already exists | `src/modules/governance/approval-submission.service.ts` |
+| `APPROVAL_REQUEST_NOT_FOUND` | Approval request not found | `src/modules/governance/approval-query.service.ts` |
+| `APPROVAL_ROLE_REQUIRED` | Role ${step.requiredRole} is required | `src/modules/governance/approval-decision.guard.ts` |
+| `APPROVAL_STEP_CLOSED` | Approval step is no longer open | `src/modules/governance/approval-decision.guard.ts` |
+| `APPROVAL_STEP_NOT_FOUND` | Approval step not found | `src/modules/governance/approval-decision.guard.ts` |
+| `APPROVAL_STEP_OUT_OF_ORDER` | Previous approval steps must complete first | `src/modules/governance/approval-decision.guard.ts` |
 | `ARTIFACT_HAS_NO_INPUTS` | La versión no declara variables de entrada, así que no hay valores que generar | `src/modules/qa-lab/qa-lab.service.ts` |
 | `ARTIFACT_NOT_FOUND` | Artifact not found | `src/modules/artifacts/artifact-catalog.service.ts` |
 | `AUDIO_ASSET_NOT_READY` | El audio de esta locución ya no está disponible. | `src/modules/workers/audio-tts/audio-tts.service.ts` |
@@ -37,9 +37,9 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `BANK_STATEMENT_RUN_NOT_CANCELLABLE` | — | `src/modules/workers/bank-statement/statement-run.service.ts` |
 | `BANK_STATEMENT_RUN_NOT_FOUND` | No existe esa ejecución. | `src/modules/workers/bank-statement/statement-run.service.ts` |
 | `BASELINE_COMPARISON_NOT_SUPPORTED` | Baseline comparison is not available; omit baselineCompiledArtifactId and use explicit expected results | `src/modules/testing/test-execution.service.ts` |
-| `BLOCKING_TESTS_NOT_PASSED` | Blocking tests and minimum coverage must pass before review | `src/modules/governance/governance.service.ts` |
+| `BLOCKING_TESTS_NOT_PASSED` | Blocking tests and minimum coverage must pass before review | `src/modules/governance/approval-submission.service.ts` |
 | `CALCULATED_FIELD_ARGUMENT_INVALID` | ${operation} espera un número y recibió ${describe(value)} | `src/modules/calculated-fields/operation-evaluator.ts` |
-| `CALCULATED_FIELD_CODE_TAKEN` | Ya existe un campo calculado con el código ${dto.fieldCode} | `src/modules/calculated-fields/calculated-field.service.ts` |
+| `CALCULATED_FIELD_CODE_TAKEN` | Ya existe un campo calculado con el código ${dto.fieldCode} | `src/modules/calculated-fields/calculated-field-catalog.service.ts` |
 | `CALCULATED_FIELD_CONTRACT_INVALID` | El contrato del campo calculado no es válido | `src/modules/calculated-fields/calculated-field-preview.service.ts` |
 | `CALCULATED_FIELD_CONVERSION_FAILED` | TO_NUMBER no pudo convertir el valor recibido | `src/modules/calculated-fields/operation-evaluator.ts` |
 | `CALCULATED_FIELD_DIVISION_BY_ZERO` | División entre cero en el campo calculado | `src/modules/calculated-fields/operation-evaluator.ts` |
@@ -48,15 +48,15 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `CALCULATED_FIELD_INPUT_MISSING` | El campo calculado ${field.fieldCode} requiere la entrada ${input.id} | `src/modules/calculated-fields/calculated-field-runtime.ts` |
 | `CALCULATED_FIELD_LIBRARY_BLOCKED` | El campo calculado ${version.calculatedField.fieldCode} usa la librería ${blocked.library.packageName}, que está bloqueada | `src/modules/artifacts/calculated-field-binding.service.ts` |
 | `CALCULATED_FIELD_LIBRARY_UNAVAILABLE` | Alguna librería seleccionada no tiene implementación autorizada para ${language} | `src/modules/calculated-fields/calculated-field-runtime.ts` |
-| `CALCULATED_FIELD_NOT_FOUND` | Campo calculado no encontrado | `src/modules/calculated-fields/calculated-field.service.ts` |
+| `CALCULATED_FIELD_NOT_FOUND` | Campo calculado no encontrado | `src/modules/calculated-fields/calculated-field-catalog.service.ts` |
 | `CALCULATED_FIELD_NOT_USABLE` | El campo calculado ${version.calculatedField.fieldCode} está en estado ${version.status}; solo puede invocarse APPROVED o PUBLISHED | `src/modules/artifacts/calculated-field-binding.service.ts` |
 | `CALCULATED_FIELD_OPERATION_MISSING` | El campo calculado ${field.fieldCode} no tiene árbol de operaciones | `src/modules/calculated-fields/calculated-field-runtime.ts` |
 | `CALCULATED_FIELD_OPERATION_UNKNOWN` | La operación ${operationId \|\| '(vacía)'} no está en el catálogo autorizado | `src/modules/calculated-fields/operation-evaluator.ts` |
-| `CALCULATED_FIELD_TESTS_FAILED` | No se puede publicar: ${report.failed} de ${report.total} casos de prueba fallan | `src/modules/calculated-fields/calculated-field.service.ts` |
-| `CALCULATED_FIELD_TRANSITION_INVALID` | No se puede pasar de ${version.status} a ${target} | `src/modules/calculated-fields/calculated-field.service.ts` |
+| `CALCULATED_FIELD_TESTS_FAILED` | No se puede publicar: ${report.failed} de ${report.total} casos de prueba fallan | `src/modules/calculated-fields/calculated-field-version.service.ts` |
+| `CALCULATED_FIELD_TRANSITION_INVALID` | No se puede pasar de ${version.status} a ${target} | `src/modules/calculated-fields/calculated-field-version.service.ts` |
 | `CALCULATED_FIELD_TREE_TOO_DEEP` | El árbol de operaciones supera la profundidad máxima de ${MAX_DEPTH} | `src/modules/calculated-fields/operation-evaluator.ts` |
 | `CALCULATED_FIELD_TREE_TOO_LARGE` | El árbol de operaciones supera los ${MAX_NODES} nodos | `src/modules/calculated-fields/operation-evaluator.ts` |
-| `CALCULATED_FIELD_VERSION_IN_USE` | No se puede retirar: ${uses} artefacto(s) invocan esta versión | `src/modules/calculated-fields/calculated-field.service.ts` |
+| `CALCULATED_FIELD_VERSION_IN_USE` | No se puede retirar: ${uses} artefacto(s) invocan esta versión | `src/modules/calculated-fields/calculated-field-version.service.ts` |
 | `CALCULATED_FIELD_VERSION_NOT_FOUND` | El nodo ${nodeKey} invoca la versión de campo calculado ${call.calculatedFieldVersionId}, que no existe en este tenant | `src/modules/artifacts/calculated-field-binding.service.ts` |
 | `CHECKSUM_MISMATCH` | Graph changed after validation; validate again | `src/modules/artifacts/artifact-lifecycle.service.ts` |
 | `CHILD_ARTIFACT_NOT_FOUND` | Child artifact not found | `src/modules/nested-trees/reference-child-validator.service.ts` |
@@ -69,9 +69,9 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `CODE_IMPORT_SOURCE_TOO_LARGE` | Source exceeds ${maxBytes} bytes | `src/modules/code-import/code-import-analyzer.service.ts` |
 | `CODE_IMPORT_VARIABLE_NOT_IN_CATALOG` | These variables are not declared in the catalog: ${missing.join(', ')} | `src/modules/code-import/code-import-catalog.service.ts` |
 | `COMPILED_ARTIFACT_NOT_FOUND` | Compiled artifact not found | `src/modules/deployments/deploy-version.service.ts` |
-| `CONSENT_GRANT_REPLAYED` | El alta es anterior a la situación vigente de esta finalidad (una revocación o un alta | `src/modules/risk-governance/risk-governance.service.ts` |
-| `CONSENT_REVOCATION_IN_FUTURE` | Una revocación no puede fecharse en el futuro. | `src/modules/risk-governance/risk-governance.service.ts` |
-| `CONSENT_REVOCATION_STALE` | La revocación es anterior al alta vigente de esta finalidad: ya fue superada. | `src/modules/risk-governance/risk-governance.service.ts` |
+| `CONSENT_GRANT_REPLAYED` | El alta es anterior a la situación vigente de esta finalidad (una revocación o un alta | `src/modules/risk-governance/subject-consent.service.ts` |
+| `CONSENT_REVOCATION_IN_FUTURE` | Una revocación no puede fecharse en el futuro. | `src/modules/risk-governance/subject-consent.service.ts` |
+| `CONSENT_REVOCATION_STALE` | La revocación es anterior al alta vigente de esta finalidad: ya fue superada. | `src/modules/risk-governance/subject-consent.service.ts` |
 | `CONSENT_WRITE_MACHINE_ONLY` | Los consentimientos se registran y se revocan en Atlas Core; el motor sólo recibe su | `src/modules/risk-governance/consent-replica-caller.ts` |
 | `COVERAGE_NO_USABLE_CASE` | No se pudo construir ningún caso ejecutable para esta versión: revisa su contrato de entrada | `src/modules/testing/coverage-suite.service.ts` |
 | `COVERAGE_VERSION_NOT_COMPILED` | La versión no tiene un artefacto compilado con éxito: compílala antes de generar sus pruebas | `src/modules/testing/coverage-suite.service.ts` |
@@ -81,7 +81,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `DEPLOYMENT_MODE_NOT_SUPPORTED` | Sólo se admiten despliegues DIRECT sin reglas de tráfico: el runtime todavía no enruta | `src/modules/deployments/deploy-request.rules.ts` |
 | `DEPLOYMENT_NOT_ACTIVE` | Deployment is no longer the active deployment for this environment | `src/modules/deployments/deployment-rollback.service.ts` |
 | `DEPLOYMENT_NOT_FOUND` | Deployment not found | `src/modules/deployments/deployment-rollback.service.ts` |
-| `DUPLICATE_APPROVAL_DECISION` | This principal already decided this step | `src/modules/governance/governance.service.ts` |
+| `DUPLICATE_APPROVAL_DECISION` | This principal already decided this step | `src/modules/governance/approval-decision.guard.ts` |
 | `ECONOMIC_CONTRACT_INCOMPLETE` | ${problems.join(' ')} Si esta decisión no origina crédito, decláralo en su | `src/modules/deployments/economic-contract.gate.ts` |
 | `EDGE_CONDITION_NOT_FOUND` | Edge ${edge.key} references unknown condition ${binding.conditionCode} | `src/modules/artifacts/graph-writer/write-nodes-and-edges.ts` |
 | `EDGE_NODE_NOT_FOUND` | Edge ${edge.key} references an unknown node | `src/modules/artifacts/graph-writer/write-nodes-and-edges.ts` |
@@ -161,7 +161,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `MANUAL_REVIEW_NOT_FOUND` | Manual review case not found | `src/modules/manual-review/manual-review-assignment.service.ts` |
 | `MAX_EXECUTION_STEPS_EXCEEDED` | Execution exceeded ${this.maxSteps} steps | `src/modules/graph/execution-engine.service.ts` |
 | `METRICS_DISABLED` | Metrics endpoint is disabled | `src/common/observability/metrics.controller.ts` |
-| `MODEL_VALIDATION_NOT_INDEPENDENT` | Quien creó la versión no puede firmar su validación independiente. | `src/modules/risk-governance/risk-governance.service.ts` |
+| `MODEL_VALIDATION_NOT_INDEPENDENT` | Quien creó la versión no puede firmar su validación independiente. | `src/modules/risk-governance/model-dossier.service.ts` |
 | `MONITORING_BATCH_EMPTY` | El lote de ${field} está vacío | `src/modules/model-monitoring/model-monitoring.service.ts` |
 | `MONITORING_BATCH_TOO_LARGE` | Un lote admite como máximo ${MAX_BATCH} ${field}; divídalo | `src/modules/model-monitoring/model-monitoring.service.ts` |
 | `NESTED_EXECUTION_FAILED` | — | `src/modules/nested-trees/nested-tree-execution.service.ts` |
@@ -202,9 +202,9 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `REFERENCE_CONTRACT_INCOMPATIBLE` | El contrato del artefacto referenciado no puede satisfacerse: ${issues[0].message} | `src/modules/nested-trees/reference-child-validator.service.ts` |
 | `REFERENCE_NOT_FOUND` | No artifact reference configured for node ${nodeKey} | `src/modules/nested-trees/nested-tree-execution.service.ts` |
 | `REFERENCE_VERSION_POLICY_FORBIDDEN` | En PROD la referencia debe fijar una versión exacta: resolver la activa del ambiente haría la decisión irreproducible | `src/modules/nested-trees/reference-child-validator.service.ts` |
-| `REIDENTIFICATION_ALREADY_DECIDED` | Esta solicitud ya se resolvió. Una autorización gastada no vale para la siguiente consulta. | `src/modules/risk-governance/risk-governance.service.ts` |
-| `REIDENTIFICATION_NOT_FOUND` | La solicitud no existe | `src/modules/risk-governance/risk-governance.service.ts` |
-| `REIDENTIFICATION_SELF_APPROVAL` | Quien pide una reidentificación no puede aprobarla. | `src/modules/risk-governance/risk-governance.service.ts` |
+| `REIDENTIFICATION_ALREADY_DECIDED` | Esta solicitud ya se resolvió. Una autorización gastada no vale para la siguiente consulta. | `src/modules/risk-governance/reidentification.service.ts` |
+| `REIDENTIFICATION_NOT_FOUND` | La solicitud no existe | `src/modules/risk-governance/reidentification.service.ts` |
+| `REIDENTIFICATION_SELF_APPROVAL` | Quien pide una reidentificación no puede aprobarla. | `src/modules/risk-governance/reidentification.service.ts` |
 | `REQUEST_TIMEOUT` | Request exceeded ${this.timeoutMs} ms | `src/common/observability/request-timeout.interceptor.ts` |
 | `REQUIRED_OUTPUT_MISSING` | Execution finished without required output ${contract.code} | `src/modules/graph/execution/output-contract.service.ts` |
 | `RESOURCE_ALREADY_EXISTS` | Ya existe un registro con ese identificador único | `src/common/errors/domain-exception.filter.ts` |
@@ -243,7 +243,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `SIMULATION_PROD_FORBIDDEN` | El simulador no opera sobre PROD, tampoco para generar valores de prueba | `src/modules/runtime/sample-input.service.ts` |
 | `STATEMENT_FILE_STORAGE_NOT_CONFIGURED` | No se puede analizar un extracto sin un sitio donde conservarlo: declara | `src/modules/workers/bank-statement/statement-file-store.service.ts` |
 | `SUBJECT_CONSENT_INVALID` | El titular tiene permisos que ya no amparan el tratamiento: | `src/modules/risk-governance/decision-guard.service.ts` |
-| `SUBJECT_NOT_FOUND` | No hay ninguna decisión registrada sobre ese titular en este tenant. | `src/modules/risk-governance/risk-governance.service.ts` |
+| `SUBJECT_NOT_FOUND` | No hay ninguna decisión registrada sobre ese titular en este tenant. | `src/modules/risk-governance/subject-directory.service.ts` |
 | `SUBJECT_REFERENCE_REQUIRED` | This environment requires subjectReference: a decision that cannot be attributed to | `src/modules/runtime/subject-policy.ts` |
 | `TEST_CASE_WITHOUT_EXPECTATION` | Estos casos no declaran ningún resultado esperado y no comprobarían nada: ${empty.join(', ')}. | `src/modules/testing/test-suite.service.ts` |
 | `TEST_RUN_NOT_CLAIMED` | Test run is missing or has not been claimed | `src/modules/testing/test-execution.service.ts` |
@@ -263,10 +263,10 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `VARIABLE_DEPENDENCY_NOT_FOUND` | One or more variable versions do not exist in this tenant | `src/modules/artifacts/graph-writer/write-variable-dependencies.ts` |
 | `VARIABLE_NOT_FOUND` | Variable definition not found | `src/modules/variables/variable-definition.service.ts` |
 | `VERSION_IMMUTABLE` | Only DRAFT or VALIDATION_FAILED versions are editable; current state is ${version.status} | `src/modules/artifacts/artifact-graph-writer.service.ts` |
-| `VERSION_NOT_APPROVED` | Version is not fully approved | `src/modules/governance/governance.service.ts` |
+| `VERSION_NOT_APPROVED` | Version is not fully approved | `src/modules/governance/version-approval-gate.ts` |
 | `VERSION_NOT_COMPILABLE` | No se puede compilar una versión en estado ${version.status}: sólo se compila lo que está VALIDATED. Si ya está desplegada, crea una versión nueva. | `src/modules/artifacts/artifact-lifecycle.service.ts` |
 | `VERSION_NOT_FOUND` | Artifact version not found | `src/modules/artifacts/artifact-catalog.service.ts` |
-| `VERSION_NOT_REVIEWABLE` | Version must be COMPILED before review | `src/modules/governance/governance.service.ts` |
+| `VERSION_NOT_REVIEWABLE` | Version must be COMPILED before review | `src/modules/governance/approval-submission.service.ts` |
 | `VERSION_NOT_VALIDATABLE` | Version in state ${version.status} cannot be validated | `src/modules/artifacts/artifact-lifecycle.service.ts` |
 | `WORKER_ARGUMENT_INVALID` | El argumento ${argumento} que el nodo ${request.nodeKey} envía no es base64 válido | `src/modules/workers/service-calls/worker-call.ts` |
 | `WORKER_ARGUMENT_MISSING` | El nodo ${request.nodeKey} llama a audio-tts.speak sin el argumento templateCode | `src/modules/workers/service-calls/audio-speak-call.handler.ts` |

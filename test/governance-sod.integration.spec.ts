@@ -11,7 +11,7 @@ import { HashService } from '../src/common/crypto/hash.service';
 import { OutboxPublisherService } from '../src/common/events/outbox-publisher.service';
 import type { JobSignalService } from '../src/common/jobs/job-signal.service';
 import { PlatformRole } from '../src/common/security/platform-roles';
-import { GovernanceService } from '../src/modules/governance/governance.service';
+import { buildGovernance } from './support/governance.factory';
 import { VersionStateService } from '../src/modules/artifacts/version-state.service';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
 import type { AuthenticatedPrincipal } from '../src/common/security/security.types';
@@ -40,7 +40,7 @@ describeDb('GovernanceService separation of duties (integration)', () => {
   // so it is stubbed rather than running a real suite.
   const verifyBlockingTests = jest.fn();
   const buildService = (cfg: ConfigService) =>
-    new GovernanceService(
+    buildGovernance(
       prisma as unknown as PrismaService,
       { verifyBlockingTests } as unknown as TestExecutionService,
       new VersionStateService(prisma as unknown as PrismaService),
@@ -153,7 +153,7 @@ describeDb('GovernanceService separation of duties (integration)', () => {
   it('rejects a step that belongs to another tenant', async () => {
     const { qaStep } = await fixture();
     await expect(
-      service.recordDecision(
+      service.decisions.recordDecision(
         tenantId + 1n,
         qaStep.id,
         approve,
@@ -165,7 +165,7 @@ describeDb('GovernanceService separation of duties (integration)', () => {
   it('refuses a later step while an earlier one is still pending', async () => {
     const { riskStep } = await fixture();
     await expect(
-      service.recordDecision(
+      service.decisions.recordDecision(
         tenantId,
         riskStep.id,
         approve,
@@ -177,7 +177,7 @@ describeDb('GovernanceService separation of duties (integration)', () => {
   it('refuses a principal that lacks the step role', async () => {
     const { qaStep } = await fixture();
     await expect(
-      service.recordDecision(
+      service.decisions.recordDecision(
         tenantId,
         qaStep.id,
         approve,
@@ -189,7 +189,7 @@ describeDb('GovernanceService separation of duties (integration)', () => {
   it('refuses a platform admin without the step role by default', async () => {
     const { qaStep } = await fixture();
     await expect(
-      service.recordDecision(
+      service.decisions.recordDecision(
         tenantId,
         qaStep.id,
         approve,
@@ -200,7 +200,7 @@ describeDb('GovernanceService separation of duties (integration)', () => {
 
   it('lets a platform admin stand in only when the wildcard is enabled, and audits it', async () => {
     const { qaStep } = await fixture();
-    const decision = await serviceWithAdminWildcard.recordDecision(
+    const decision = await serviceWithAdminWildcard.decisions.recordDecision(
       tenantId,
       qaStep.id,
       approve,
@@ -218,7 +218,7 @@ describeDb('GovernanceService separation of duties (integration)', () => {
     const { qaStep } = await fixture();
     // Author holds the required role — only separation of duties stops them.
     await expect(
-      service.recordDecision(
+      service.decisions.recordDecision(
         tenantId,
         qaStep.id,
         approve,
@@ -230,9 +230,11 @@ describeDb('GovernanceService separation of duties (integration)', () => {
   it('refuses the same principal deciding one step twice', async () => {
     const { qaStep } = await fixture();
     const qa = principal('qa@atlas.test', [PlatformRole.QA_ANALYST]);
-    await service.recordDecision(tenantId, qaStep.id, approve, qa);
+    await service.decisions.recordDecision(tenantId, qaStep.id, approve, qa);
     // The step closes on the first approval, so a repeat is refused as closed.
-    await expect(service.recordDecision(tenantId, qaStep.id, approve, qa)).rejects.toMatchObject({
+    await expect(
+      service.decisions.recordDecision(tenantId, qaStep.id, approve, qa),
+    ).rejects.toMatchObject({
       code: 'APPROVAL_STEP_CLOSED',
     });
   });
@@ -240,7 +242,7 @@ describeDb('GovernanceService separation of duties (integration)', () => {
   it('approves the request and the version only once every step is approved', async () => {
     const { version, request, qaStep, riskStep } = await fixture();
 
-    await service.recordDecision(
+    await service.decisions.recordDecision(
       tenantId,
       qaStep.id,
       approve,
@@ -257,7 +259,7 @@ describeDb('GovernanceService separation of duties (integration)', () => {
     expect(midRequest.status).toBe(ApprovalRequestStatus.IN_REVIEW);
     expect(midVersion.status).toBe(VersionStatus.IN_REVIEW);
 
-    await service.recordDecision(
+    await service.decisions.recordDecision(
       tenantId,
       riskStep.id,
       approve,
@@ -276,7 +278,7 @@ describeDb('GovernanceService separation of duties (integration)', () => {
 
   it('rejects the whole request when any step is rejected', async () => {
     const { version, request, qaStep } = await fixture();
-    await service.recordDecision(
+    await service.decisions.recordDecision(
       tenantId,
       qaStep.id,
       { decision: 'REJECT', evidence, comments: 'Coverage gap' },
@@ -297,7 +299,7 @@ describeDb('GovernanceService separation of duties (integration)', () => {
 
   it('sends the version back on REQUEST_CHANGES', async () => {
     const { version, request, qaStep } = await fixture();
-    await service.recordDecision(
+    await service.decisions.recordDecision(
       tenantId,
       qaStep.id,
       { decision: 'REQUEST_CHANGES', evidence, comments: 'Tighten the threshold' },
@@ -324,17 +326,19 @@ describeDb('GovernanceService separation of duties (integration)', () => {
     });
     const qa = principal('qa@atlas.test', [PlatformRole.QA_ANALYST]);
 
-    await service.recordDecision(tenantId, qaStep.id, approve, qa);
+    await service.decisions.recordDecision(tenantId, qaStep.id, approve, qa);
     expect(
       (await prisma.decisionApprovalStep.findUniqueOrThrow({ where: { id: qaStep.id } })).status,
     ).toBe(ApprovalStepStatus.PENDING);
 
-    await expect(service.recordDecision(tenantId, qaStep.id, approve, qa)).rejects.toMatchObject({
+    await expect(
+      service.decisions.recordDecision(tenantId, qaStep.id, approve, qa),
+    ).rejects.toMatchObject({
       code: 'DUPLICATE_APPROVAL_DECISION',
     });
 
     // A different QA analyst completes the step.
-    await service.recordDecision(
+    await service.decisions.recordDecision(
       tenantId,
       qaStep.id,
       approve,
@@ -347,7 +351,7 @@ describeDb('GovernanceService separation of duties (integration)', () => {
 
   it('writes an audit event in the same transaction as the decision', async () => {
     const { request, qaStep } = await fixture();
-    await service.recordDecision(
+    await service.decisions.recordDecision(
       tenantId,
       qaStep.id,
       approve,
@@ -403,7 +407,12 @@ describeDb('GovernanceService separation of duties (integration)', () => {
     it('refuses a version that is not COMPILED', async () => {
       const { version } = await compiledFixture(VersionStatus.DRAFT);
       await expect(
-        service.submitForReview(tenantId, version.id, { requireCompliance: false }, author),
+        service.submissions.submitForReview(
+          tenantId,
+          version.id,
+          { requireCompliance: false },
+          author,
+        ),
       ).rejects.toMatchObject({
         code: 'VERSION_NOT_REVIEWABLE',
       });
@@ -413,7 +422,12 @@ describeDb('GovernanceService separation of duties (integration)', () => {
       const { version } = await compiledFixture();
       verifyBlockingTests.mockResolvedValue({ passed: false, evidence: { coverage: 12 } });
       await expect(
-        service.submitForReview(tenantId, version.id, { requireCompliance: false }, author),
+        service.submissions.submitForReview(
+          tenantId,
+          version.id,
+          { requireCompliance: false },
+          author,
+        ),
       ).rejects.toMatchObject({
         code: 'BLOCKING_TESTS_NOT_PASSED',
       });
@@ -435,13 +449,18 @@ describeDb('GovernanceService separation of duties (integration)', () => {
       });
 
       await expect(
-        service.submitForReview(tenantId, version.id, { requireCompliance: false }, author),
+        service.submissions.submitForReview(
+          tenantId,
+          version.id,
+          { requireCompliance: false },
+          author,
+        ),
       ).rejects.toMatchObject({ code: 'APPROVAL_REQUEST_EXISTS' });
     });
 
     it('creates the QA and RISK steps and moves the version to IN_REVIEW', async () => {
       const { version } = await compiledFixture();
-      const request = await service.submitForReview(
+      const request = await service.submissions.submitForReview(
         tenantId,
         version.id,
         { requireCompliance: false },
@@ -460,7 +479,7 @@ describeDb('GovernanceService separation of duties (integration)', () => {
 
     it('adds a compliance step when the workflow requires it', async () => {
       const { version } = await compiledFixture();
-      const request = await service.submitForReview(
+      const request = await service.submissions.submitForReview(
         tenantId,
         version.id,
         { requireCompliance: true },
@@ -479,7 +498,7 @@ describeDb('GovernanceService separation of duties (integration)', () => {
   describe('queries', () => {
     it('refuses to submit a version that does not exist', async () => {
       await expect(
-        service.submitForReview(
+        service.submissions.submitForReview(
           tenantId,
           2n ** 40n,
           { requireCompliance: false },
@@ -491,11 +510,11 @@ describeDb('GovernanceService separation of duties (integration)', () => {
     it('returns a request by id and hides other tenants', async () => {
       const { request } = await fixture();
 
-      const found = await service.getRequest(tenantId, request.id);
+      const found = await service.queries.getRequest(tenantId, request.id);
       expect(found.id).toBe(request.id);
       expect(found.steps).toHaveLength(2);
 
-      await expect(service.getRequest(tenantId + 1n, request.id)).rejects.toMatchObject({
+      await expect(service.queries.getRequest(tenantId + 1n, request.id)).rejects.toMatchObject({
         code: 'APPROVAL_REQUEST_NOT_FOUND',
       });
     });
@@ -503,7 +522,7 @@ describeDb('GovernanceService separation of duties (integration)', () => {
     it('lists the tenant requests with their current step and SLA status', async () => {
       const { request } = await fixture();
 
-      const page = await service.listRequests(tenantId, { page: 1, pageSize: 20 } as never);
+      const page = await service.queries.listRequests(tenantId, { page: 1, pageSize: 20 } as never);
       const listed = page.items.find((item) => item.id === request.id);
       expect(listed).toBeDefined();
       // The first pending step drives "currentStep"; nothing is overdue without a dueAt.
@@ -511,7 +530,7 @@ describeDb('GovernanceService separation of duties (integration)', () => {
       expect(listed?.slaStatus).toBe('ON_TRACK');
 
       // Another tenant sees none of it.
-      const otherPage = await service.listRequests(tenantId + 1n, {
+      const otherPage = await service.queries.listRequests(tenantId + 1n, {
         page: 1,
         pageSize: 20,
       } as never);
@@ -523,13 +542,13 @@ describeDb('GovernanceService separation of duties (integration)', () => {
     it('passes for an APPROVED version and refuses anything else', async () => {
       const { version } = await fixture();
       // The fixture version is still IN_REVIEW.
-      await expect(service.assertApproved(tenantId, version.id)).rejects.toBeDefined();
+      await expect(service.gate.assertApproved(tenantId, version.id)).rejects.toBeDefined();
 
       await prisma.decisionArtifactVersion.update({
         where: { id: version.id },
         data: { status: VersionStatus.APPROVED },
       });
-      await expect(service.assertApproved(tenantId, version.id)).resolves.toBeUndefined();
+      await expect(service.gate.assertApproved(tenantId, version.id)).resolves.toBeUndefined();
     });
   });
 });

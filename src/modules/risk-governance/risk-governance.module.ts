@@ -12,11 +12,23 @@ import { Module } from '@nestjs/common';
 import { CalibrationService } from './calibration.service';
 import { DecisionGuardService } from './decision-guard.service';
 import { RiskGovernanceController } from './risk-governance.controller';
-import { RiskGovernanceService } from './risk-governance.service';
+import { ExposureLimitService } from './exposure-limit.service';
+import { ModelDossierService } from './model-dossier.service';
+import { ReidentificationService } from './reidentification.service';
+import { SubjectConsentService } from './subject-consent.service';
+import { SubjectDirectory } from './subject-directory.service';
 
 @Module({
   controllers: [RiskGovernanceController],
-  providers: [RiskGovernanceService, CalibrationService, DecisionGuardService],
-  exports: [RiskGovernanceService, CalibrationService, DecisionGuardService],
+  providers: [
+    ExposureLimitService,
+    SubjectDirectory,
+    SubjectConsentService,
+    ReidentificationService,
+    ModelDossierService,
+    CalibrationService,
+    DecisionGuardService,
+  ],
+  exports: [CalibrationService, DecisionGuardService],
 })
 export class RiskGovernanceModule {}

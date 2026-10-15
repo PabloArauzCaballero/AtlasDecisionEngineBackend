@@ -11,7 +11,7 @@ import { DomainException } from '../src/common/errors/domain-exception';
 import { REQUIRED_ROLES } from '../src/common/security/security.decorators';
 import type { AuthenticatedPrincipal } from '../src/common/security/security.types';
 import { RiskGovernanceController } from '../src/modules/risk-governance/risk-governance.controller';
-import type { RiskGovernanceService } from '../src/modules/risk-governance/risk-governance.service';
+import type { SubjectConsentService } from '../src/modules/risk-governance/subject-consent.service';
 
 const TENANT = 1n;
 
@@ -57,11 +57,11 @@ function controller() {
       calls.push('lookup');
       return Promise.resolve({ items: [] });
     },
-  } as unknown as RiskGovernanceService;
+  } as unknown as SubjectConsentService;
   const ctor = RiskGovernanceController as unknown as new (
     ...args: unknown[]
   ) => RiskGovernanceController;
-  return { api: new ctor(service), calls };
+  return { api: new ctor({}, service), calls };
 }
 
 const grant = {
