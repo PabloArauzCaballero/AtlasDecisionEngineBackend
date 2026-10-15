@@ -1,5 +1,5 @@
 import type { PrismaService } from '../src/common/prisma/prisma.service';
-import { FinancialInstitutionService } from '../src/modules/workers/bank-statement/institutions/financial-institution.service';
+import { InstitutionLogoService } from '../src/modules/workers/bank-statement/institutions/institution-logo.service';
 import type { InstitutionCatalogService } from '../src/modules/workers/bank-statement/institutions/institution-catalog.service';
 import { institutionLogoSeed } from '../src/modules/workers/bank-statement/institutions/institution-logo-seed';
 
@@ -33,7 +33,7 @@ interface Fila {
 }
 
 interface Escenario {
-  service: FinancialInstitutionService;
+  service: InstitutionLogoService;
   escritas: () => string[];
 }
 
@@ -50,7 +50,7 @@ function montar(filas: Fila[]): Escenario {
     },
   } as unknown as PrismaService;
   const catalog = { invalidate: () => undefined } as unknown as InstitutionCatalogService;
-  return { service: new FinancialInstitutionService(prisma, catalog), escritas: () => escritas };
+  return { service: new InstitutionLogoService(prisma, catalog), escritas: () => escritas };
 }
 
 /*
