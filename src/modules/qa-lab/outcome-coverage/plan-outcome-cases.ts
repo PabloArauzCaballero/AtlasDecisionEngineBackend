@@ -73,20 +73,16 @@ function buildCase(
   nodeKey: string,
   index: number,
 ): OutcomeCase {
-  const input: Record<string, unknown> = {};
   const unsatisfiable: string[] = [];
-  for (const variable of inputs) {
-    const generated = buildValidValue(variable, random);
-    // `defineProperty` y no `input[code] = …`: el código viene del contrato, y un `__proto__`
-    // asignado por corchetes cambiaría el prototipo en vez de crear la propiedad.
-    Object.defineProperty(input, variable.code, {
-      value: generated.value,
-      enumerable: true,
-      writable: true,
-      configurable: true,
-    });
-    if (!generated.satisfied) unsatisfiable.push(variable.code);
-  }
+  // `fromEntries` y no `input[code] = …`: el código viene del contrato, y un `__proto__`
+  // asignado por corchetes cambiaría el prototipo en vez de crear la propiedad.
+  const input: Record<string, unknown> = Object.fromEntries(
+    inputs.map((variable): [string, unknown] => {
+      const generated = buildValidValue(variable, random);
+      if (!generated.satisfied) unsatisfiable.push(variable.code);
+      return [variable.code, generated.value];
+    }),
+  );
 
   const byCode = new Map(inputs.map((variable) => [variable.code, variable]));
   // Los límites numéricos se ACUMULAN y el valor se sortea al final, dentro del intervalo
