@@ -21552,6 +21552,10 @@
             "type": "number",
             "nullable": true,
             "description": "1 alta · 2 media · 3 baja."
+          },
+          "deduplicated": {
+            "type": "boolean",
+            "description": "Sólo al encolar: `true` si ese mismo archivo ya estaba en el motor y se devuelve su ejecución en vez de crear otra."
           }
         },
         "required": [

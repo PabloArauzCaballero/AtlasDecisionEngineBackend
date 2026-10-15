@@ -114,14 +114,19 @@ export class BankStatementController {
           validated: validateStatementUpload(file, this.uploads.maxUploadBytes()),
         };
 
-    const { run } = await this.intake.createRun(
+    const { run, deduplicated } = await this.intake.createRun(
       tenantId,
       principal,
       input.validated,
       input.source,
       input.fixtureCode,
     );
-    return toWorkerRunDto(run);
+    /*
+     * Se dice si el archivo YA estaba. Sin esto, subir otra vez el mismo PDF devolvía la ejecución
+     * antigua —en revisión, o cerrada sin movimientos— y la consola la anunciaba como «encolado»:
+     * quien lo subía esperaba un análisis nuevo y no veía nada (2026-10-15).
+     */
+    return { ...toWorkerRunDto(run), deduplicated };
   }
 
   @Get('runs')
