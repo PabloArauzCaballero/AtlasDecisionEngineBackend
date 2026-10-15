@@ -2,7 +2,7 @@ import { ConfigService } from '@nestjs/config';
 import type { BackgroundJob } from '../src/common/jobs/background-job';
 import { JobSchedulerService } from '../src/common/jobs/job-scheduler.service';
 import type { JobSignalService } from '../src/common/jobs/job-signal.service';
-import type { MetricsService } from '../src/common/observability/metrics.service';
+import type { JobMetrics } from '../src/common/observability/job-metrics';
 import { TracingService } from '../src/common/observability/tracing.service';
 
 /**
@@ -31,12 +31,12 @@ function fakeSignal(): JobSignalService {
   } as unknown as JobSignalService;
 }
 
-function fakeMetrics(): MetricsService {
+function fakeMetrics(): JobMetrics {
   return {
     recordJobRun: jest.fn(),
     recordJobWake: jest.fn(),
     setJobLastSuccess: jest.fn(),
-  } as unknown as MetricsService;
+  } as unknown as JobMetrics;
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));

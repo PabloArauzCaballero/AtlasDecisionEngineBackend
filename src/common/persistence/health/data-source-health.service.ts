@@ -5,12 +5,13 @@
  * el usuario, la base ni la cadena de conexión: `/health/data-sources` es un endpoint
  * público, y una sonda que revela la topología interna es reconocimiento gratis.
  *
- * También registra el muestreador de pools contra `MetricsService`, así que las series
+ * También registra el muestreador de pools contra `PersistenceMetrics`, así que las series
  * `atlas_database_pool_connections` se calculan en el instante del scrape en vez de por un
  * temporizador propio.
  */
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { MetricsService } from '../../observability/metrics.service';
+import { MetricsRegistry } from '../../observability/metrics-registry';
+import { PersistenceMetrics } from '../../observability/persistence-metrics';
 import { ConnectionRegistryService } from '../connections/connection-registry.service';
 import type { ConnectionHealth } from '../ports/data-source.types';
 import { DataSourceRouterService } from '../routing/data-source-router.service';
@@ -32,11 +33,12 @@ export class DataSourceHealthService implements OnModuleInit {
   constructor(
     private readonly registry: ConnectionRegistryService,
     private readonly router: DataSourceRouterService,
-    private readonly metrics: MetricsService,
+    private readonly metrics: PersistenceMetrics,
+    private readonly metricsRegistry: MetricsRegistry,
   ) {}
 
   onModuleInit(): void {
-    this.metrics.registerCollector(() => {
+    this.metricsRegistry.registerCollector(() => {
       for (const name of this.registry.names()) {
         const stats = this.registry.get(name).poolStats();
         if (stats) this.metrics.setDatabasePool(name, stats);

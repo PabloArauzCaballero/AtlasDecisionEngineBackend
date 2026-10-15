@@ -18,7 +18,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { PrismaClient } from '@prisma/client';
 import { RequestContextService } from '../../../context/request-context.service';
-import { MetricsService } from '../../../observability/metrics.service';
+import { PersistenceMetrics } from '../../../observability/persistence-metrics';
 import { PrismaReadService } from '../../../prisma/prisma-read.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { READ_CONNECTION, WRITE_CONNECTION } from '../../connections/connection-registry.service';
@@ -43,7 +43,7 @@ export class ReadPathService {
     private readonly router: DataSourceRouterService,
     private readonly readClient: PrismaReadService,
     private readonly writeClient: PrismaService,
-    private readonly metrics: MetricsService,
+    private readonly metrics: PersistenceMetrics,
     private readonly requestContext: RequestContextService,
     config: ConfigService,
   ) {

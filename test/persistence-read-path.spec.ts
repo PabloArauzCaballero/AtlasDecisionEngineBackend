@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { RequestContextService } from '../src/common/context/request-context.service';
-import { MetricsService } from '../src/common/observability/metrics.service';
+import { MetricsRegistry } from '../src/common/observability/metrics-registry';
+import { PersistenceMetrics } from '../src/common/observability/persistence-metrics';
 import { ReadPathService } from '../src/common/persistence/adapters/postgres/read-path.service';
 import {
   READ_CONNECTION,
@@ -35,7 +36,8 @@ describe('read path', () => {
   }
 
   function build(env: Record<string, unknown>, connectionName = READ_CONNECTION) {
-    const metrics = new MetricsService();
+    const registry = new MetricsRegistry();
+    const metrics = new PersistenceMetrics(registry);
     const service = new ReadPathService(
       routerStub(connectionName),
       readClient as never,
@@ -44,7 +46,7 @@ describe('read path', () => {
       new RequestContextService(),
       configStub(env),
     );
-    return { service, metrics };
+    return { service, metrics, registry };
   }
 
   it('serves an eventual read from the read connection', async () => {
@@ -66,7 +68,7 @@ describe('read path', () => {
   });
 
   it('falls back to the primary when the read connection is unavailable, and declares it', async () => {
-    const { service, metrics } = build({
+    const { service, registry } = build({
       DATA_READ_ROUTING_ENABLED: true,
       ENABLE_PRIMARY_READ_FALLBACK: true,
     });
@@ -78,7 +80,7 @@ describe('read path', () => {
 
     expect(used).toBe(writeClient);
     // Un fallback que nadie puede ver es una réplica caída que nadie arregla.
-    const exposed = await metrics.renderPrometheus();
+    const exposed = await registry.scrape();
     expect(exposed).toContain('atlas_database_fallback_total');
     expect(exposed).toContain(`from_connection="${READ_CONNECTION}"`);
     expect(exposed).toContain('reason="ConnectionUnavailableError"');
@@ -113,10 +115,10 @@ describe('read path', () => {
   });
 
   it('records duration and outcome per connection and module', async () => {
-    const { service, metrics } = build({ DATA_READ_ROUTING_ENABLED: true });
+    const { service, registry } = build({ DATA_READ_ROUTING_ENABLED: true });
 
     await service.run('audit-query', 'searchExecutions', async () => 'ok');
-    const exposed = await metrics.renderPrometheus();
+    const exposed = await registry.scrape();
 
     expect(exposed).toContain('atlas_database_operation_total');
     expect(exposed).toContain('module="audit-query"');

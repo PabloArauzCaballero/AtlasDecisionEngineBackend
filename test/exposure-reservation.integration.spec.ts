@@ -17,6 +17,7 @@ import { PrismaClient } from '@prisma/client';
 import { AuditService } from '../src/common/audit/audit.service';
 import { HashService } from '../src/common/crypto/hash.service';
 import { MetricsService } from '../src/common/observability/metrics.service';
+import { ModelMonitoringMetrics } from '../src/common/observability/model-monitoring-metrics';
 import { TracingService } from '../src/common/observability/tracing.service';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
 import type { AuthenticatedPrincipal } from '../src/common/security/security.types';
@@ -128,7 +129,7 @@ describeDb('Exposición y circuito de desenlaces, lado motor (integration)', () 
   it('exposición 900, límite 1.000 y dos decisiones simultáneas de 80: el motor NO reserva y lo dice', async () => {
     const tenantId = uniqueTenantId(95);
     const fixture = await createDecisionFixture(prisma, tenantId);
-    const ingestion = new OutcomeIngestionService(db, audit, new MetricsService(), config);
+    const ingestion = new OutcomeIngestionService(db, audit, new ModelMonitoringMetrics(), config);
     await governance.recordConsent(
       tenantId,
       {
@@ -199,7 +200,7 @@ describeDb('Exposición y circuito de desenlaces, lado motor (integration)', () 
   it('el registro de un crédito es idempotente por referencia externa y no cambia de sujeto al reenviarse', async () => {
     const tenantId = uniqueTenantId(96);
     const fixture = await createDecisionFixture(prisma, tenantId);
-    const ingestion = new OutcomeIngestionService(db, audit, new MetricsService(), config);
+    const ingestion = new OutcomeIngestionService(db, audit, new ModelMonitoringMetrics(), config);
     const s1 = await prisma.decisionSubject.create({
       data: { tenantId, subjectReferenceHash: hashes.hmac('titular-1') },
     });
@@ -253,7 +254,7 @@ describeDb('Exposición y circuito de desenlaces, lado motor (integration)', () 
   it('error parcial por fila: la fila mala vuelve con su código y el resto del lote se registra', async () => {
     const tenantId = uniqueTenantId(97);
     const fixture = await createDecisionFixture(prisma, tenantId);
-    const ingestion = new OutcomeIngestionService(db, audit, new MetricsService(), config);
+    const ingestion = new OutcomeIngestionService(db, audit, new ModelMonitoringMetrics(), config);
     const subject = await prisma.decisionSubject.create({
       data: { tenantId, subjectReferenceHash: hashes.hmac('titular-lote') },
     });
@@ -295,7 +296,7 @@ describeDb('Exposición y circuito de desenlaces, lado motor (integration)', () 
   it('un desenlace duplicado no incrementa numeradores ni deja la ventana pendiente', async () => {
     const tenantId = uniqueTenantId(98);
     const fixture = await createDecisionFixture(prisma, tenantId);
-    const metrics = new MetricsService();
+    const metrics = new ModelMonitoringMetrics();
     const counted = jest.spyOn(metrics, 'recordObservedOutcome');
     const ingestion = new OutcomeIngestionService(db, audit, metrics, config);
     const subject = await prisma.decisionSubject.create({
@@ -356,7 +357,7 @@ describeDb('Exposición y circuito de desenlaces, lado motor (integration)', () 
   it('un reenvío cierra la ventana que una carga por la vía antigua dejó pendiente', async () => {
     const tenantId = uniqueTenantId(99);
     const fixture = await createDecisionFixture(prisma, tenantId);
-    const metrics = new MetricsService();
+    const metrics = new ModelMonitoringMetrics();
     const counted = jest.spyOn(metrics, 'recordObservedOutcome');
     const ingestion = new OutcomeIngestionService(db, audit, metrics, config);
     const subject = await prisma.decisionSubject.create({

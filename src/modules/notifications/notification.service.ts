@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Notification, Prisma } from '@prisma/client';
 import { DomainException } from '../../common/errors/domain-exception';
 import { keysetArgs, keysetPage, KeysetPage } from '../../common/http/pagination';
-import { MetricsService } from '../../common/observability/metrics.service';
+import { OutboxMetrics } from '../../common/observability/outbox-metrics';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { NotificationListQueryDto } from './notification.dto';
 
@@ -43,7 +43,7 @@ export class NotificationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
-    private readonly metrics: MetricsService,
+    private readonly metrics: OutboxMetrics,
   ) {}
 
   /** Persists projected notifications inside the projector's transaction. */

@@ -1,7 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import type { EventBus } from '../src/common/events/event-bus';
 import type { JobSchedulerService } from '../src/common/jobs/job-scheduler.service';
-import type { MetricsService } from '../src/common/observability/metrics.service';
+import type { OutboxMetrics } from '../src/common/observability/outbox-metrics';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
 import { OutboxRelayService } from '../src/modules/outbox-relay/outbox-relay.service';
 import { TracingService } from '../src/common/observability/tracing.service';
@@ -45,7 +45,7 @@ function build(prisma: unknown, bus: unknown, config: ConfigService) {
     setOutboxPending: jest.fn(),
     recordOutboxDispatched: jest.fn(),
     recordOutboxDead: jest.fn(),
-  } as unknown as MetricsService;
+  } as unknown as OutboxMetrics;
   // dispatchBatch() se ejerce directamente en estas pruebas; el orquestador nunca entra en
   // juego, así que un doble sin comportamiento basta.
   const scheduler = { register: jest.fn() } as unknown as JobSchedulerService;

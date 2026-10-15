@@ -8,7 +8,7 @@ import { JobName } from '../../common/jobs/job-names';
 import { JobSchedulerService } from '../../common/jobs/job-scheduler.service';
 import { DispatchedEvent } from '../../common/events/event-envelope';
 import { EventBus } from '../../common/events/event-bus';
-import { MetricsService } from '../../common/observability/metrics.service';
+import { OutboxMetrics } from '../../common/observability/outbox-metrics';
 import { MessagingTraceService } from '../../common/observability/messaging-trace.service';
 import {
   APP_ATTRIBUTES,
@@ -70,7 +70,7 @@ export class OutboxRelayService implements OnModuleInit, BackgroundJob {
     private readonly prisma: PrismaService,
     private readonly bus: EventBus,
     private readonly config: ConfigService,
-    private readonly metrics: MetricsService,
+    private readonly metrics: OutboxMetrics,
     private readonly scheduler: JobSchedulerService,
     private readonly messagingTrace: MessagingTraceService,
   ) {
