@@ -1,11 +1,12 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { WorkerRunStatus } from '@prisma/client';
+import { Prisma, WorkerRunStatus } from '@prisma/client';
 import { AuditService } from '../../../../common/audit/audit.service';
 import { DomainException } from '../../../../common/errors/domain-exception';
 import { JobName } from '../../../../common/jobs/job-names';
 import { JobSignalService } from '../../../../common/jobs/job-signal.service';
 import { PrismaService } from '../../../../common/prisma/prisma.service';
 import type { AuthenticatedPrincipal } from '../../../../common/security/security.types';
+import { BOLIVIA_INSTITUTIONS } from '../core/institutions/bolivia-institutions';
 import { StatementReviewAssignment } from './statement-review-assignment.service';
 import type { StatementReprocessedDto } from './statement-review.dto';
 
@@ -26,8 +27,17 @@ export class StatementReprocessService {
    * vuelva a buscarlo en su disco para que el motor lo intente otra vez con los
    * umbrales ya corregidos es trasladarle el trabajo de arreglar el motor.
    */
-  async reprocess(tenantId: bigint, requestId: string, principal: AuthenticatedPrincipal) {
+  async reprocess(
+    tenantId: bigint,
+    requestId: string,
+    principal: AuthenticatedPrincipal,
+    /** La entidad que asigna quien revisa, después de ver el PDF. Ver `ReprocessStatementReviewDto`. */
+    institutionCode?: string,
+  ) {
     const current = await this.assignment.assertAssignee(tenantId, requestId, principal);
+    const assigned = institutionCode?.trim()
+      ? await this.assertKnownInstitution(tenantId, institutionCode)
+      : undefined;
     if (!(await current.documentAvailable())) {
       throw new DomainException(
         'BANK_STATEMENT_DOCUMENT_UNAVAILABLE',
@@ -60,6 +70,16 @@ export class StatementReprocessService {
           queuedAt: new Date(),
           startedAt: null,
           finishedAt: null,
+          // Lo leído antes se rehace: un provisional viejo junto a una ejecución en cola describiría
+          // un análisis que ya no es el que va a salir.
+          provisionalResultJson: Prisma.DbNull,
+          ...(assigned
+            ? {
+                assignedInstitutionCode: assigned,
+                assignedInstitutionBy: principal.id,
+                assignedInstitutionAt: new Date(),
+              }
+            : {}),
         },
       });
       await this.audit.append(
@@ -70,7 +90,11 @@ export class StatementReprocessService {
           aggregateId: requestId,
           actorId: principal.id,
           requestId: principal.requestId,
-          payload: { requestId, previousReviewReason: current.reviewReason },
+          payload: {
+            requestId,
+            previousReviewReason: current.reviewReason,
+            ...(assigned ? { assignedInstitutionCode: assigned } : {}),
+          },
         },
         tx,
       );
@@ -83,5 +107,25 @@ export class StatementReprocessService {
       status: WorkerRunStatus.QUEUED,
     };
     return reencolado;
+  }
+
+  /**
+   * La entidad tiene que existir: en el padrón del entorno o, si el padrón está vacío o incompleto, en
+   * la nómina compilada de ASFI. Un código inventado no se guarda, porque el motor lo ignoraría y el
+   * caso volvería a la cola con el mismo motivo sin que nadie supiera por qué.
+   */
+  private async assertKnownInstitution(tenantId: bigint, raw: string): Promise<string> {
+    const code = raw.trim().toUpperCase();
+    const enPadron = await this.prisma.financialInstitution.findFirst({
+      where: { tenantId, code },
+      select: { code: true },
+    });
+    if (enPadron || BOLIVIA_INSTITUTIONS.some((item) => item.code.toUpperCase() === code))
+      return code;
+    throw new DomainException(
+      'BANK_STATEMENT_INSTITUTION_UNKNOWN',
+      `No hay ninguna entidad con el código ${code} en el padrón ni en la nómina de ASFI.`,
+      HttpStatus.BAD_REQUEST,
+    );
   }
 }

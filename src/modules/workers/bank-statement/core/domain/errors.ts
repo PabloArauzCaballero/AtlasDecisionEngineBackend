@@ -175,6 +175,12 @@ const DEFAULT_DISPOSITION: Readonly<Record<StatementErrorCode, StatementDisposit
 export class StatementProcessingError extends Error {
   /** Qué hacer con el documento. Se deriva del código salvo indicación expresa. */
   readonly disposition: StatementDisposition;
+  /**
+   * Lo que el motor SÍ pudo leer aunque el documento vaya a una persona (hoy: emisor no reconocido).
+   * `unknown` aquí para que el dominio no dependa del motor; lo escribe y lo lee
+   * `application/provisional-analysis.ts`.
+   */
+  provisional?: unknown;
 
   constructor(
     readonly code: StatementErrorCode,

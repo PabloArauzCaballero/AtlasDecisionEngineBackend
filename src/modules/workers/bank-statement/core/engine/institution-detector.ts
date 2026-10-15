@@ -138,6 +138,40 @@ export class InstitutionDetector {
    * padrón. Contar en lugar de quedarse con la primera coincidencia evita que
    * un marcador amplio de una entidad se imponga a otro más específico.
    */
+  /**
+   * La entidad que asignó a mano quien revisa (2026-10-15).
+   *
+   * Se busca en el padrón vigente y, si no está ahí —un padrón vacío o a medio cargar—, en la nómina
+   * compilada de ASFI: la persona vio el documento y eligió de la lista oficial, y castigarla porque la
+   * tabla del entorno está incompleta repetiría el defecto que la asignación existe para sortear. La
+   * licencia NO se da por buena: viaja la de la ficha, y la compuerta de emisor la sigue evaluando.
+   * Un código que no existe en ninguna de las dos no es una asignación: se devuelve `undefined`.
+   */
+  assigned(code: string, pdf: ExtractedPdf): InstitutionDetection | undefined {
+    const wanted = code.trim().toUpperCase();
+    const institution =
+      this.registry.list().find((item) => item.code.toUpperCase() === wanted) ??
+      ASFI_SEED_REGISTRY.list().find((item) => item.code.toUpperCase() === wanted);
+    if (!institution) return undefined;
+    const generic = GENERIC_SIGNALS.filter((signal) => signal.pattern.test(coverText(pdf))).map(
+      (signal) => signal.id,
+    );
+    return {
+      code: institution.code,
+      name: institution.name,
+      detected: true,
+      confidence: MULTIPLE_MARKER_CONFIDENCE,
+      signals: [`asignada-por-revision:${institution.code}`, ...generic],
+      kind: institution.kind,
+      licenseStatus: institution.licenseStatus,
+      retailDeposits: institution.retailDeposits,
+      licenseNote: institution.note,
+      registryAuthoritative: this.registry.isAuthoritative(),
+      signalDescriptor:
+        institution.expectedSignals ?? COMPILED_SIGNAL_DESCRIPTORS.get(institution.code),
+    };
+  }
+
   private matchInstitution(
     cover: string,
   ): { institution: BoliviaInstitution; hits: number } | undefined {

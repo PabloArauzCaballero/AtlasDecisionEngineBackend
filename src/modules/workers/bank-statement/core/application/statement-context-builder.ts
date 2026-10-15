@@ -35,7 +35,11 @@ export function buildStatementContext(
       extractionMethod: extraction.method,
     },
     classification: readers.classifier.classify(pdf),
-    institution: readers.institutionDetector.detect(pdf),
+    // La asignación de quien revisó manda sobre la detección; un código desconocido se ignora.
+    institution:
+      (processing.assignedInstitutionCode &&
+        readers.institutionDetector.assigned(processing.assignedInstitutionCode, pdf)) ||
+      readers.institutionDetector.detect(pdf),
     correlationId: sanitizeCorrelationId(processing.correlationId),
   };
 }
