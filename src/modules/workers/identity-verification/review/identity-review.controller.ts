@@ -10,7 +10,9 @@ import {
   IdentityReviewResolvedDto,
   ResolveIdentityReviewDto,
 } from './identity-review.dto';
-import { IdentityReviewService } from './identity-review.service';
+import { IdentityReviewClaimService } from './identity-review-claim.service';
+import { IdentityReviewQueueService } from './identity-review-queue.service';
+import { IdentityReviewResolutionService } from './identity-review-resolution.service';
 
 /**
  * Cola de arbitraje humano de documentos de identidad.
@@ -28,7 +30,11 @@ import { IdentityReviewService } from './identity-review.service';
 @ApiTags('Workers · Verificación de identidad')
 @Controller('v1/workers/identity-verification/reviews')
 export class IdentityReviewController {
-  constructor(private readonly reviews: IdentityReviewService) {}
+  constructor(
+    private readonly queue: IdentityReviewQueueService,
+    private readonly claims: IdentityReviewClaimService,
+    private readonly resolutions: IdentityReviewResolutionService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Cola de documentos a la espera de arbitraje' })
@@ -38,7 +44,7 @@ export class IdentityReviewController {
   )
   @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'OPERATIONS', 'COMPLIANCE', 'AUDITOR')
   async list(@TenantId() tenantId: bigint, @Query() query: IdentityReviewQueryDto) {
-    return this.reviews.list(tenantId, query);
+    return this.queue.list(tenantId, query);
   }
 
   @Get('categories')
@@ -49,7 +55,7 @@ export class IdentityReviewController {
   )
   @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'OPERATIONS', 'COMPLIANCE', 'AUDITOR')
   async categories(@TenantId() tenantId: bigint): Promise<IdentityReviewCategoryDto[]> {
-    return this.reviews.categories(tenantId);
+    return this.queue.categories(tenantId);
   }
 
   @Get(':requestId')
@@ -57,7 +63,7 @@ export class IdentityReviewController {
   @ApiOkResponse({ type: IdentityReviewItemDto })
   @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'OPERATIONS', 'COMPLIANCE', 'AUDITOR')
   async get(@TenantId() tenantId: bigint, @Param('requestId') requestId: string) {
-    return this.reviews.get(tenantId, requestId);
+    return this.queue.get(tenantId, requestId);
   }
 
   @Post(':requestId/claim')
@@ -69,7 +75,7 @@ export class IdentityReviewController {
     @Param('requestId') requestId: string,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
   ) {
-    return this.reviews.claim(tenantId, requestId, principal);
+    return this.claims.claim(tenantId, requestId, principal);
   }
 
   @Post(':requestId/resolve')
@@ -84,6 +90,6 @@ export class IdentityReviewController {
     @Body() dto: ResolveIdentityReviewDto,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
   ): Promise<IdentityReviewResolvedDto> {
-    return this.reviews.resolve(tenantId, requestId, dto, principal);
+    return this.resolutions.resolve(tenantId, requestId, dto, principal);
   }
 }

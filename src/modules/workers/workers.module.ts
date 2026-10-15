@@ -60,7 +60,11 @@ import { DocumentTextReaderService } from './identity-verification/pipeline/docu
 import { FaceCaptureService } from './identity-verification/pipeline/face-capture.service';
 import { AtlasCallbackModule } from '../atlas-callback/atlas-callback.module';
 import { IdentityReviewController } from './identity-verification/review/identity-review.controller';
-import { IdentityReviewService } from './identity-verification/review/identity-review.service';
+import { IdentityReviewAssignment } from './identity-verification/review/identity-review-assignment.service';
+import { IdentityReviewClaimService } from './identity-verification/review/identity-review-claim.service';
+import { IdentityReviewQueueService } from './identity-verification/review/identity-review-queue.service';
+import { IdentityReviewResolutionService } from './identity-verification/review/identity-review-resolution.service';
+import { IdentityVerdictSigner } from './identity-verification/review/identity-verdict-signer.service';
 import { IdentityRunWorkerService } from './identity-verification/identity-run-worker.service';
 import { IdentityVerificationController } from './identity-verification/identity-verification.controller';
 import { IdentityDecisionPolicy } from './identity-verification/identity-decision-policy.service';
@@ -258,7 +262,11 @@ function maybe<K extends string, V>(
     DocumentFieldsService,
     DocumentAuthenticityService,
     FaceCaptureService,
-    IdentityReviewService,
+    IdentityReviewQueueService,
+    IdentityReviewClaimService,
+    IdentityReviewAssignment,
+    IdentityVerdictSigner,
+    IdentityReviewResolutionService,
     // Núcleo absorbido: analizadores, medida de calidad y proveedores.
     BoliviaCiDocumentParser,
     PassportDocumentParser,
