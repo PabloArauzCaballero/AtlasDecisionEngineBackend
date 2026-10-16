@@ -1,7 +1,7 @@
 import { HttpStatus } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { DomainException } from '../../../../common/errors/domain-exception';
-import { isPotentiallyCatastrophic } from '../../../../common/validation/safe-regex';
+import { isPotentiallyCatastrophic, safeRegexTest } from '../../../../common/validation/safe-regex';
 import { parseSignalDescriptor } from '../core/engine/similarity/institution-signals';
 
 /**
@@ -33,10 +33,10 @@ export function validatePatterns(patterns: readonly string[], field: string): st
         'puede degenerar en retroceso catastrófico y se evalúa contra cada documento que entra',
       );
     }
-    try {
-      new RegExp(source, 'i');
-    } catch (error) {
-      throw badPattern(field, source, error instanceof Error ? error.message : 'no compila');
+    // La compilación vive en `safeRegexTest`, que ya acota los patrones que escribe una persona;
+    // aquí sólo interesa saber si el patrón es sintácticamente válido.
+    if (safeRegexTest(source, '').error === 'INVALID_PATTERN') {
+      throw badPattern(field, source, 'no compila como expresión regular');
     }
     cleaned.push(source);
   }
