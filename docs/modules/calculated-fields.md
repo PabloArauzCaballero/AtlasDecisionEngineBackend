@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/calculated-fields/`](https://github.com/) · 23 ficheros TypeScript.
+Código: [`src/modules/calculated-fields/`](https://github.com/) · 26 ficheros TypeScript.
 
 Etiquetas de API: **Calculated Fields**.
 
@@ -63,6 +63,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `PLATFOR
 - `CalculatedFieldDetailDto`
 - `CalculatedFieldExecutorService`
 - `CalculatedFieldInputDto`
+- `CalculatedFieldLibraryRefDto`
 - `CalculatedFieldListItemDto`
 - `CalculatedFieldLoader`
 - `CalculatedFieldOutcomeCoverageDto`
@@ -74,14 +75,21 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `PLATFOR
 - `CalculatedFieldReturnDto`
 - `CalculatedFieldTestCaseDto`
 - `CalculatedFieldTestReportDto`
+- `CalculatedFieldTestResultDto`
 - `CalculatedFieldTestingService`
 - `CalculatedFieldTryRunDto`
+- `CalculatedFieldUsageDto`
 - `CalculatedFieldVersionCreatedDto`
+- `CalculatedFieldVersionDetailDto`
 - `CalculatedFieldVersionService`
 - `CalculatedFieldsModule`
 - `CreateCalculatedFieldDto`
 - `CreateCalculatedFieldVersionDto`
+- `DeclaredOutcomeDto`
+- `OperationArgumentDto`
 - `OperationCatalogDto`
+- `OperationDefinitionDto`
+- `OutcomeCoverageCaseDto`
 - `PreviewCalculatedFieldDto`
 - `PreviewOutcomeCoverageDto`
 - `PreviewSampleCalculatedFieldInputsDto`

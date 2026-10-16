@@ -21,7 +21,6 @@ import { IDENTITY_PORT_PROVIDERS } from './providers/identity-ports.providers';
 import { IDENTITY_VERIFICATION_PROVIDERS } from './providers/identity-verification.providers';
 import { SEMANTIC_ANALYSIS_PROVIDERS } from './providers/semantic-analysis.providers';
 import { AudioTtsRuntimeFactory } from './audio-tts/audio-tts.runtime';
-import { AudioTtsService } from './audio-tts/audio-tts.service';
 import { SemanticAnalysisService } from './semantic-analysis/semantic-analysis.service';
 
 /**
@@ -79,11 +78,6 @@ import { SemanticAnalysisService } from './semantic-analysis/semantic-analysis.s
     // Salud de los workers: mide lo único que comparten, el ciclo de vida de sus ejecuciones.
     WorkerMetricsService,
   ],
-  exports: [
-    AudioTtsService,
-    AudioTtsRuntimeFactory,
-    SemanticAnalysisService,
-    WorkerServiceInvokerService,
-  ],
+  exports: [AudioTtsRuntimeFactory, SemanticAnalysisService, WorkerServiceInvokerService],
 })
 export class WorkersModule {}

@@ -122,7 +122,7 @@ describe('runner sidecar JavaScript sandbox escape', () => {
     // deliberately dependency-free and cannot import from src/), so pin the security-relevant
     // parts instead: a change to one must be mirrored, or this fails.
     const inProcess = readFileSync(
-      join(__dirname, '..', 'src', 'modules', 'graph', 'script-node-runner.service.ts'),
+      join(__dirname, '..', 'src', 'modules', 'graph', 'script-wrappers.ts'),
       'utf8',
     );
     for (const invariant of [
@@ -155,10 +155,10 @@ describe('runner sidecar JavaScript sandbox escape', () => {
    * sin ella el kernel responde `Killed` tras agotar el contenedor entero.
    */
   it('acota la memoria del proceso de Python en ambos runners', () => {
-    const inProcess = readFileSync(
-      join(__dirname, '..', 'src', 'modules', 'graph', 'script-node-runner.service.ts'),
-      'utf8',
-    );
+    // Los envoltorios viven en `script-wrappers.ts` y el parámetro de memoria se pasa en el servicio.
+    const inProcess = ['script-wrappers.ts', 'script-node-runner.service.ts']
+      .map((file) => readFileSync(join(__dirname, '..', 'src', 'modules', 'graph', file), 'utf8'))
+      .join('\n');
     for (const invariant of [
       'resource.setrlimit(resource.RLIMIT_AS, (_max_bytes, _max_bytes))',
       "_max_bytes = int(payload.get('maxMemoryBytes') or 0)",

@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/runtime/`](https://github.com/) · 21 ficheros TypeScript.
+Código: [`src/modules/runtime/`](https://github.com/) · 25 ficheros TypeScript.
 
 Etiquetas de API: **Decision Runtime**, **Decision Simulation**.
 

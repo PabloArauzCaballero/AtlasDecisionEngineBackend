@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/model-monitoring/`](https://github.com/) · 19 ficheros TypeScript.
+Código: [`src/modules/model-monitoring/`](https://github.com/) · 20 ficheros TypeScript.
 
 Etiquetas de API: **Model Monitoring**.
 
@@ -48,8 +48,9 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `OPERATIONS`, `RISK_ANALY
 - `DecisionCoverageDto`
 - `DecisionCoverageService`
 - `ModelMonitoringController`
+- `ModelMonitoringIngestService`
 - `ModelMonitoringModule`
-- `ModelMonitoringService`
+- `ModelMonitoringQueryService`
 - `MonitoringEvaluationWriter`
 - `MonitoringEvaluatorService`
 - `MonitoringWindowQueryDto`

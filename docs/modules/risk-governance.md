@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/risk-governance/`](https://github.com/) · 15 ficheros TypeScript.
+Código: [`src/modules/risk-governance/`](https://github.com/) · 16 ficheros TypeScript.
 
 Etiquetas de API: **Risk Governance**.
 

@@ -9,7 +9,8 @@ import { MonitoringEvaluatorService } from './monitoring-evaluator.service';
 import { OperationalMeasurements } from './operational-measurements';
 import { PopulationMeasurements } from './population-measurements';
 import { ModelMonitoringController } from './model-monitoring.controller';
-import { ModelMonitoringService } from './model-monitoring.service';
+import { ModelMonitoringIngestService } from './model-monitoring-ingest.service';
+import { ModelMonitoringQueryService } from './model-monitoring-query.service';
 
 @Module({
   // `EventsModule` no es global: el evaluador publica el aviso de `BREACH` por el outbox
@@ -18,7 +19,8 @@ import { ModelMonitoringService } from './model-monitoring.service';
   imports: [EventsModule],
   controllers: [ModelMonitoringController],
   providers: [
-    ModelMonitoringService,
+    ModelMonitoringIngestService,
+    ModelMonitoringQueryService,
     DecisionCoverageService,
     PopulationMeasurements,
     OperationalMeasurements,
@@ -28,7 +30,8 @@ import { ModelMonitoringService } from './model-monitoring.service';
     CutoffAnalysisService,
   ],
   exports: [
-    ModelMonitoringService,
+    ModelMonitoringIngestService,
+    ModelMonitoringQueryService,
     DecisionCoverageService,
     MonitoringEvaluatorService,
     BaselineCaptureService,

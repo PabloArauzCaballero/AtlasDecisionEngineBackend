@@ -27,7 +27,11 @@ import {
 } from '../workers.dto';
 import { toWorkerRunDto } from '../workers.mapper';
 import { validateAudioRequest, type ValidatedAudioInput } from './audio-tts-input';
-import { AudioTtsService } from './audio-tts.service';
+import { AudioReaderService } from './audio-reader.service';
+import { AudioRenderPolicy } from './audio-render.policy';
+import { AudioRunIntakeService } from './audio-run-intake.service';
+import { AudioRunService } from './audio-run.service';
+import { AudioTemplateCatalogService } from './audio-template-catalog.service';
 import { AUDIO_TTS_FIXTURES, findAudioTtsFixture } from './fixtures/audio-tts-fixtures';
 
 /**
@@ -46,7 +50,11 @@ import { AUDIO_TTS_FIXTURES, findAudioTtsFixture } from './fixtures/audio-tts-fi
 @Controller('v1/workers/audio-tts')
 export class AudioTtsController {
   constructor(
-    private readonly audio: AudioTtsService,
+    private readonly templates: AudioTemplateCatalogService,
+    private readonly intake: AudioRunIntakeService,
+    private readonly runs: AudioRunService,
+    private readonly reader: AudioReaderService,
+    private readonly render: AudioRenderPolicy,
     private readonly config: ConfigService,
   ) {}
 
@@ -78,7 +86,7 @@ export class AudioTtsController {
   @ApiArrayResponse('Plantillas activas.', AudioTemplateDto)
   @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST', 'OPERATIONS', 'COMPLIANCE', 'AUDITOR')
   async listTemplates(@TenantId() tenantId: bigint): Promise<AudioTemplateDto[]> {
-    return this.audio.listTemplates(tenantId);
+    return this.templates.listTemplates(tenantId);
   }
 
   /**
@@ -106,7 +114,7 @@ export class AudioTtsController {
           validated: this.templateInput(dto),
         };
 
-    const { run } = await this.audio.createRun(
+    const { run } = await this.intake.createRun(
       tenantId,
       principal,
       prepared.validated,
@@ -122,7 +130,7 @@ export class AudioTtsController {
   @Roles('RISK_ANALYST', 'FRAUD_ANALYST', 'QA_ANALYST', 'OPERATIONS', 'COMPLIANCE', 'AUDITOR')
   async listRuns(@TenantId() tenantId: bigint, @Query() query: WorkerRunQueryDto) {
     const { page, pageSize } = paginationArgs(query);
-    const { items, total } = await this.audio.listRuns(tenantId, {
+    const { items, total } = await this.runs.listRuns(tenantId, {
       page,
       pageSize,
       ...(query.status ? { status: query.status } : {}),
@@ -145,7 +153,7 @@ export class AudioTtsController {
     @TenantId() tenantId: bigint,
     @Param('requestId') requestId: string,
   ): Promise<WorkerRunDto> {
-    return toWorkerRunDto(await this.audio.getRun(tenantId, requestId));
+    return toWorkerRunDto(await this.runs.getRun(tenantId, requestId));
   }
 
   @Post('runs/:requestId/cancel')
@@ -156,7 +164,7 @@ export class AudioTtsController {
     @TenantId() tenantId: bigint,
     @Param('requestId') requestId: string,
   ): Promise<WorkerRunDto> {
-    return toWorkerRunDto(await this.audio.cancelRun(tenantId, requestId));
+    return toWorkerRunDto(await this.runs.cancelRun(tenantId, requestId));
   }
 
   /**
@@ -183,7 +191,7 @@ export class AudioTtsController {
     @Param('requestId') requestId: string,
     @Res() response: Response,
   ): Promise<void> {
-    const audio = await this.audio.readAudio(tenantId, requestId);
+    const audio = await this.reader.readAudio(tenantId, requestId);
     response.setHeader('Content-Type', audio.mimeType);
     response.setHeader(
       'Content-Disposition',
@@ -199,7 +207,7 @@ export class AudioTtsController {
         ...(dto.variables ? { variables: dto.variables } : {}),
         ...(dto.language ? { language: dto.language } : {}),
       },
-      this.audio.renderFingerprint(),
+      this.render.renderFingerprint(),
       dto.idempotencyKey,
     );
   }
@@ -229,7 +237,7 @@ export class AudioTtsController {
       fixtureCode: fixture.code,
       validated: validateAudioRequest(
         { templateCode: fixture.templateCode, variables: { ...fixture.variables } },
-        this.audio.renderFingerprint(),
+        this.render.renderFingerprint(),
         idempotencyKey,
       ),
     };

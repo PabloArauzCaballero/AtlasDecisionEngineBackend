@@ -11,7 +11,10 @@ import {
   MESSAGING_SYSTEM,
 } from '../../../common/observability/telemetry.constants';
 import { PrismaService } from '../../../common/prisma/prisma.service';
+import { AudioRunFailureService } from './audio-run-failure.service';
+import { AudioRunLeaseService, type ClaimedRun } from './audio-run-lease.service';
 import { AudioTtsRuntimeFactory } from './audio-tts.runtime';
+import { describeError } from './describe-error';
 import { buildAudioOutcome, type AudioRunOutcome } from './audio-tts.result';
 import { AudioDomainError } from './core/domain/errors';
 
@@ -40,14 +43,14 @@ export class AudioTtsRunWorkerService implements OnModuleInit, OnModuleDestroy, 
   readonly maxIdleIntervalMs: number;
   readonly initialDelayMs = 0;
 
-  private lastRecoveryAt = 0;
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly scheduler: JobSchedulerService,
     private readonly messagingTrace: MessagingTraceService,
     private readonly runtime: AudioTtsRuntimeFactory,
+    private readonly lease: AudioRunLeaseService,
+    private readonly failures: AudioRunFailureService,
   ) {
     this.minIdleIntervalMs = config.get<number>('AUDIO_TTS_WORKER_POLL_MS') ?? 500;
     this.maxIdleIntervalMs = Math.max(
@@ -74,7 +77,7 @@ export class AudioTtsRunWorkerService implements OnModuleInit, OnModuleDestroy, 
   }
 
   async runOnce(): Promise<number> {
-    await this.recoverExpiredRuns();
+    await this.lease.recoverExpiredRuns();
     /*
      * La concurrencia es BAJA a propósito, y más baja que la de los otros
      * workers. Lo que limita aquí no es la memoria del motor sino el proveedor
@@ -85,7 +88,7 @@ export class AudioTtsRunWorkerService implements OnModuleInit, OnModuleDestroy, 
     const concurrency = this.config.get<number>('AUDIO_TTS_WORKER_CONCURRENCY') ?? 2;
     let started = 0;
     while (!this.stopped && this.activeJobs.size < concurrency) {
-      const claimed = await this.claimNextRun();
+      const claimed = await this.lease.claimNextRun();
       if (!claimed) break;
       started += 1;
       const job = this.executeTraced(claimed);
@@ -100,38 +103,6 @@ export class AudioTtsRunWorkerService implements OnModuleInit, OnModuleDestroy, 
         });
     }
     return started;
-  }
-
-  /**
-   * Reclama la ejecución encolada más antigua, de forma atómica.
-   *
-   * `FOR UPDATE SKIP LOCKED` bloquea exactamente una fila y pasa por encima de
-   * las que otra réplica está reclamando. `$transaction` es obligatorio: la
-   * tabla tiene RLS forzada y una sentencia cruda suelta no fija `app.tenant_id`.
-   */
-  private async claimNextRun(): Promise<ClaimedRun | null> {
-    const maxAttempts = this.maxAttempts();
-    const [rows] = await this.prisma.$transaction([
-      this.prisma.$queryRaw<ClaimedRun[]>(Prisma.sql`
-      UPDATE decision_audio_tts_run
-      SET status = 'RUNNING',
-          started_at = now(),
-          finished_at = NULL,
-          lease_expires_at = ${this.nextLease()},
-          attempt_count = attempt_count + 1
-      WHERE id = (
-        SELECT id
-        FROM decision_audio_tts_run
-        WHERE status = 'QUEUED'
-          AND attempt_count < ${maxAttempts}
-        ORDER BY queued_at ASC, id ASC
-        FOR UPDATE SKIP LOCKED
-        LIMIT 1
-      )
-      RETURNING id, trace_carrier
-    `),
-    ]);
-    return rows[0] ?? null;
   }
 
   /** Continúa la traza de quien pidió la locución. */
@@ -153,7 +124,7 @@ export class AudioTtsRunWorkerService implements OnModuleInit, OnModuleDestroy, 
   }
 
   private async execute(runId: bigint): Promise<void> {
-    const heartbeat = this.startHeartbeat(runId);
+    const heartbeat = this.lease.startHeartbeat(runId);
     try {
       const run = await this.prisma.audioTtsRun.findUnique({
         where: { id: runId },
@@ -169,7 +140,7 @@ export class AudioTtsRunWorkerService implements OnModuleInit, OnModuleDestroy, 
       if (!run) return;
 
       const runtime = this.runtime.forTenant(run.tenantId);
-      await this.setProgress(runId, 20);
+      await this.lease.setProgress(runId, 20);
 
       const resolved = await runtime.resolver.resolve({
         templateCode: run.templateCode,
@@ -186,13 +157,13 @@ export class AudioTtsRunWorkerService implements OnModuleInit, OnModuleDestroy, 
       // Generarlo es lo que sigue, aquí y ahora, bajo el arrendamiento que esta
       // ejecución ya sostiene.
       if (resolved.status === 'QUEUED') {
-        await this.setProgress(runId, 55);
+        await this.lease.setProgress(runId, 55);
         try {
           await runtime.processor.process(resolved.assetId, run.correlationId);
         } catch (error) {
           // Último intento de la ejecución: nadie volverá a generar este asset, así que su reserva
           // de presupuesto se devuelve ahora en vez de quedar contada hasta fin de mes.
-          if (!(error instanceof AudioDomainError) && (await this.isLastAttempt(runId))) {
+          if (!(error instanceof AudioDomainError) && (await this.failures.isLastAttempt(runId))) {
             await runtime.processor.abandon(resolved.assetId).catch((abandonError: unknown) => {
               this.logger.warn(
                 `No se pudo liberar el presupuesto del asset ${resolved.assetId}: ${describeError(abandonError)}`,
@@ -206,7 +177,7 @@ export class AudioTtsRunWorkerService implements OnModuleInit, OnModuleDestroy, 
       const outcome = await buildAudioOutcome(runtime, resolved);
       await this.finish(runId, outcome);
     } catch (error) {
-      await this.recordFailure(runId, error);
+      await this.failures.recordFailure(runId, error);
     } finally {
       clearInterval(heartbeat);
     }
@@ -238,165 +209,4 @@ export class AudioTtsRunWorkerService implements OnModuleInit, OnModuleDestroy, 
       },
     });
   }
-
-  /**
-   * Distingue el fallo que no tiene arreglo del que sí.
-   *
-   * Una plantilla que no existe o una variable inválida van a fallar igual las
-   * tres veces: reintentarlas sólo gasta el worker. Un fallo de red con el
-   * proveedor se cura solo. Tratarlos igual es lo que convierte una cola en un
-   * bucle — y aquí, además, en una factura.
-   */
-  private async recordFailure(runId: bigint, error: unknown): Promise<void> {
-    if (error instanceof AudioDomainError) {
-      await this.failRun(runId, error.code, error.message);
-      return;
-    }
-
-    const maxAttempts = this.maxAttempts();
-    const current = await this.prisma.audioTtsRun.findUnique({
-      where: { id: runId },
-      select: { attemptCount: true },
-    });
-    const exhausted = (current?.attemptCount ?? maxAttempts) >= maxAttempts;
-    this.logger.error(
-      `Locución ${runId.toString()} falló (intento ${current?.attemptCount ?? 0}/${maxAttempts}): ` +
-        describeError(error),
-    );
-
-    if (exhausted) {
-      await this.failRun(
-        runId,
-        'AUDIO_GENERATION_FAILED',
-        'La locución falló tras agotar los reintentos.',
-      );
-      return;
-    }
-    await this.prisma.audioTtsRun.updateMany({
-      where: { id: runId, status: WorkerRunStatus.RUNNING },
-      data: {
-        status: WorkerRunStatus.QUEUED,
-        startedAt: null,
-        leaseExpiresAt: null,
-        progress: 0,
-      },
-    });
-  }
-
-  private async isLastAttempt(runId: bigint): Promise<boolean> {
-    const current = await this.prisma.audioTtsRun.findUnique({
-      where: { id: runId },
-      select: { attemptCount: true },
-    });
-    return (current?.attemptCount ?? this.maxAttempts()) >= this.maxAttempts();
-  }
-
-  private async failRun(runId: bigint, code: string, message: string): Promise<void> {
-    await this.prisma.audioTtsRun.updateMany({
-      where: { id: runId, status: WorkerRunStatus.RUNNING },
-      data: {
-        status: WorkerRunStatus.FAILED,
-        errorCode: code,
-        errorMessage: message,
-        finishedAt: new Date(),
-        leaseExpiresAt: null,
-      },
-    });
-  }
-
-  /** Devuelve a la cola lo que perdió su arrendamiento, y cierra lo agotado. */
-  private async recoverExpiredRuns(): Promise<void> {
-    const intervalMs = this.config.get<number>('AUDIO_TTS_RECOVERY_INTERVAL_MS') ?? 30_000;
-    if (Date.now() - this.lastRecoveryAt < intervalMs) return;
-    this.lastRecoveryAt = Date.now();
-
-    const maxAttempts = this.maxAttempts();
-    const vencido = {
-      status: WorkerRunStatus.RUNNING,
-      OR: [{ leaseExpiresAt: null }, { leaseExpiresAt: { lt: new Date() } }],
-    };
-
-    const recovered = await this.prisma.audioTtsRun.updateMany({
-      where: { ...vencido, attemptCount: { lt: maxAttempts } },
-      data: {
-        status: WorkerRunStatus.QUEUED,
-        startedAt: null,
-        leaseExpiresAt: null,
-        progress: 0,
-      },
-    });
-    if (recovered.count > 0) {
-      this.logger.warn(`Recuperadas ${recovered.count} locución(es) con arrendamiento vencido`);
-    }
-
-    // Lo que agotó sus intentos se CIERRA, no vuelve a la cola: `claimNextRun`
-    // filtra por `attempt_count < maxAttempts`, así que devolverlo a QUEUED lo
-    // dejaría ahí para siempre enseñando «En cola» sobre trabajo que nadie hará.
-    const agotadas = await this.prisma.audioTtsRun.updateMany({
-      where: {
-        attemptCount: { gte: maxAttempts },
-        OR: [vencido, { status: WorkerRunStatus.QUEUED }],
-      },
-      data: {
-        status: WorkerRunStatus.FAILED,
-        errorCode: 'AUDIO_RETRIES_EXHAUSTED',
-        errorMessage: 'La locución se interrumpió y ya no quedaban reintentos.',
-        finishedAt: new Date(),
-        leaseExpiresAt: null,
-      },
-    });
-    if (agotadas.count > 0) {
-      this.logger.warn(`Cerradas ${agotadas.count} locución(es) sin reintentos disponibles`);
-    }
-  }
-
-  /** Renueva el arrendamiento mientras el proveedor sintetiza. */
-  private startHeartbeat(runId: bigint): ReturnType<typeof setInterval> {
-    const leaseSeconds = this.leaseSeconds();
-    const timer = setInterval(
-      () => {
-        void this.prisma.audioTtsRun
-          .updateMany({
-            where: { id: runId, status: WorkerRunStatus.RUNNING },
-            data: { leaseExpiresAt: this.nextLease() },
-          })
-          .catch((error: unknown) =>
-            this.logger.warn(
-              `No se pudo renovar el arrendamiento de ${runId.toString()}: ${describeError(error)}`,
-            ),
-          );
-      },
-      Math.max(10_000, Math.floor((leaseSeconds * 1_000) / 3)),
-    );
-    timer.unref?.();
-    return timer;
-  }
-
-  private async setProgress(runId: bigint, progress: number): Promise<void> {
-    await this.prisma.audioTtsRun.updateMany({
-      where: { id: runId, status: WorkerRunStatus.RUNNING },
-      data: { progress },
-    });
-  }
-
-  private maxAttempts(): number {
-    return this.config.get<number>('AUDIO_TTS_MAX_ATTEMPTS') ?? 3;
-  }
-
-  private leaseSeconds(): number {
-    return this.config.get<number>('AUDIO_TTS_LEASE_SECONDS') ?? 300;
-  }
-
-  private nextLease(): Date {
-    return new Date(Date.now() + this.leaseSeconds() * 1_000);
-  }
-}
-
-interface ClaimedRun {
-  id: bigint;
-  trace_carrier: unknown;
-}
-
-function describeError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

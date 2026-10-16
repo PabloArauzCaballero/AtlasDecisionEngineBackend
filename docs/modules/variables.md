@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/variables/`](https://github.com/) · 10 ficheros TypeScript.
+Código: [`src/modules/variables/`](https://github.com/) · 12 ficheros TypeScript.
 
 Etiquetas de API: **Variable Catalog**.
 
