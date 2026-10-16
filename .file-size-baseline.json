@@ -1,18 +1,5 @@
 {
   "src/common/jobs/job-scheduler.service.ts": 391,
-  "src/modules/graph/validators/graph-structure.validator.ts": 441,
-  "src/modules/qa-lab/contract-generator.ts": 370,
-  "src/modules/sql-console/execution/query-executor.service.ts": 342,
-  "src/modules/testing/test-execution.service.ts": 336,
-  "src/modules/traceability/traceability.service.ts": 302,
   "src/modules/workers/bank-statement/core/institutions/bolivia-institutions.ts": 691,
-  "src/modules/workers/bank-statement/core/institutions/non-banking-issuers.ts": 303,
-  "src/modules/workers/identity-verification/core/adapters/sharp-image.adapter.ts": 318,
-  "src/modules/workers/identity-verification/identity-verification.controller.ts": 317,
-  "src/modules/workers/semantic-analysis/model-settings/semantic-model-settings.service.ts": 400,
-  "src/modules/workers/semantic-analysis/semantic-analysis.service.ts": 307,
-  "src/modules/workers/semantic-analysis/semantic-category.service.ts": 303,
-  "src/modules/workers/semantic-analysis/unresolved-classification.service.ts": 308,
-  "src/modules/workers/semantic-analysis/unresolved-reevaluation.service.ts": 383,
-  "src/pdf-worker/pdf-worker.module.ts": 339
+  "src/modules/workers/bank-statement/core/institutions/non-banking-issuers.ts": 303
 }

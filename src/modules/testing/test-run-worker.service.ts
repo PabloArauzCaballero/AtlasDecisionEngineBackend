@@ -6,7 +6,7 @@ import { BackgroundJob } from '../../common/jobs/background-job';
 import { JobName } from '../../common/jobs/job-names';
 import { JobSchedulerService } from '../../common/jobs/job-scheduler.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { TestExecutionService } from './test-execution.service';
+import { TestRunExecutor } from './test-run-executor.service';
 
 /**
  * Database-backed worker with atomic claims, bounded concurrency and expiring leases.
@@ -33,7 +33,7 @@ export class TestRunWorkerService implements OnModuleInit, OnModuleDestroy, Back
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly execution: TestExecutionService,
+    private readonly execution: TestRunExecutor,
     private readonly config: ConfigService,
     private readonly scheduler: JobSchedulerService,
   ) {

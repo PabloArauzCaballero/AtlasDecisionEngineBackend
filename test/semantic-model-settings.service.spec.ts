@@ -3,6 +3,7 @@ import type { AuditService } from '../src/common/audit/audit.service';
 import { DomainException } from '../src/common/errors/domain-exception';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
 import type { AuthenticatedPrincipal } from '../src/common/security/security.types';
+import { SemanticModelSettingsAdminService } from '../src/modules/workers/semantic-analysis/model-settings/semantic-model-settings-admin.service';
 import {
   SemanticModelSettingsService,
   type EffectiveModelSettings,
@@ -42,6 +43,7 @@ function montar(
   filaInicial: Fila | null = null,
 ): {
   service: SemanticModelSettingsService;
+  admin: SemanticModelSettingsAdminService;
   base: { fila: Fila | null };
   auditados: string[];
 } {
@@ -95,9 +97,9 @@ function montar(
   const service = new SemanticModelSettingsService(
     prisma,
     new ConfigService({ SEMANTIC_MODEL_SETTINGS_REFRESH_MS: 0, ...entorno }),
-    audit,
   );
-  return { service, base, auditados };
+  const admin = new SemanticModelSettingsAdminService(prisma, audit, service);
+  return { service, admin, base, auditados };
 }
 
 const CON_LOS_DOS = {
@@ -130,9 +132,9 @@ describe('SemanticModelSettingsService — sin fila manda el entorno', () => {
   });
 
   it('describe qué gateways tienen credencial sin decir cuál', async () => {
-    const { service } = montar({ SEMANTIC_ANALYSIS_PROVIDER: 'litellm', LITELLM_API_KEY: 'sk-x' });
+    const { admin } = montar({ SEMANTIC_ANALYSIS_PROVIDER: 'litellm', LITELLM_API_KEY: 'sk-x' });
 
-    const descripcion = await service.describe();
+    const descripcion = await admin.describe();
 
     expect(descripcion.applies).toBe(true);
     expect(descripcion.litellm.available).toBe(true);
@@ -141,9 +143,9 @@ describe('SemanticModelSettingsService — sin fila manda el entorno', () => {
   });
 
   it('no aplica en los modos sin escalón remoto', async () => {
-    const { service } = montar({ SEMANTIC_ANALYSIS_PROVIDER: 'transformer' });
+    const { service, admin } = montar({ SEMANTIC_ANALYSIS_PROVIDER: 'transformer' });
     expect(service.applies()).toBe(false);
-    expect((await service.describe()).applies).toBe(false);
+    expect((await admin.describe()).applies).toBe(false);
   });
 });
 
@@ -155,21 +157,21 @@ describe('SemanticModelSettingsService — lo que no se puede guardar', () => {
   };
 
   it('rechaza guardar cuando el modo no usa gateway: no tendría efecto', async () => {
-    const { service, auditados } = montar({
+    const { admin, auditados } = montar({
       SEMANTIC_ANALYSIS_PROVIDER: 'transformer',
       OPENROUTER_API_KEY: 'sk',
     });
 
-    await expect(service.update(OPENROUTER, PRINCIPAL)).rejects.toMatchObject({
+    await expect(admin.update(OPENROUTER, PRINCIPAL)).rejects.toMatchObject({
       code: 'SEMANTIC_MODEL_SETTINGS_NOT_APPLICABLE',
     });
     expect(auditados).toHaveLength(0);
   });
 
   it('rechaza un gateway sin credencial en el entorno', async () => {
-    const { service } = montar({ SEMANTIC_ANALYSIS_PROVIDER: 'litellm', LITELLM_API_KEY: 'sk' });
+    const { admin } = montar({ SEMANTIC_ANALYSIS_PROVIDER: 'litellm', LITELLM_API_KEY: 'sk' });
 
-    const error = await service.update(OPENROUTER, PRINCIPAL).catch((e: unknown) => e);
+    const error = await admin.update(OPENROUTER, PRINCIPAL).catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(DomainException);
     expect((error as DomainException).code).toBe('SEMANTIC_MODEL_GATEWAY_UNAVAILABLE');
@@ -177,13 +179,13 @@ describe('SemanticModelSettingsService — lo que no se puede guardar', () => {
   });
 
   it('rechaza un alias donde va un modelo físico, y al revés', async () => {
-    const { service } = montar(CON_LOS_DOS);
+    const { admin } = montar(CON_LOS_DOS);
 
     await expect(
-      service.update({ ...OPENROUTER, fastModel: 'semantic-classifier-fast' }, PRINCIPAL),
+      admin.update({ ...OPENROUTER, fastModel: 'semantic-classifier-fast' }, PRINCIPAL),
     ).rejects.toMatchObject({ code: 'SEMANTIC_MODEL_INVALID' });
     await expect(
-      service.update(
+      admin.update(
         {
           gateway: 'litellm',
           fastModel: 'openai/gpt-4.1-mini',
@@ -197,15 +199,15 @@ describe('SemanticModelSettingsService — lo que no se puede guardar', () => {
 
 describe('SemanticModelSettingsService — guardar, avisar y volver', () => {
   it('escribe la fila, sube la versión, audita y avisa a los suscriptores', async () => {
-    const { service, base, auditados } = montar(CON_LOS_DOS);
+    const { service, admin, base, auditados } = montar(CON_LOS_DOS);
     const avisos: EffectiveModelSettings[] = [];
     service.onChange((s) => avisos.push(s));
 
-    const primera = await service.update(
+    const primera = await admin.update(
       { gateway: 'openrouter', fastModel: 'openai/gpt-4.1-mini', deepModel: 'openai/gpt-4.1' },
       PRINCIPAL,
     );
-    const segunda = await service.update(
+    const segunda = await admin.update(
       {
         gateway: 'litellm',
         fastModel: 'semantic-classifier-fast',
@@ -231,7 +233,7 @@ describe('SemanticModelSettingsService — guardar, avisar y volver', () => {
   });
 
   it('reset quita la fila, audita y devuelve el entorno', async () => {
-    const { service, base, auditados } = montar(CON_LOS_DOS, {
+    const { service, admin, base, auditados } = montar(CON_LOS_DOS, {
       id: 1,
       gateway: 'OPENROUTER',
       fastModel: 'openai/gpt-4.1-mini',
@@ -244,7 +246,7 @@ describe('SemanticModelSettingsService — guardar, avisar y volver', () => {
     const avisos: number[] = [];
     service.onChange((s) => avisos.push(s.version));
 
-    const tras = await service.reset(PRINCIPAL);
+    const tras = await admin.reset(PRINCIPAL);
 
     expect(base.fila).toBeNull();
     expect(tras.effective.source).toBe('environment');
@@ -254,8 +256,8 @@ describe('SemanticModelSettingsService — guardar, avisar y volver', () => {
   });
 
   it('reset sin fila no audita nada: no hay cambio que registrar', async () => {
-    const { service, auditados } = montar(CON_LOS_DOS);
-    await service.reset(PRINCIPAL);
+    const { admin, auditados } = montar(CON_LOS_DOS);
+    await admin.reset(PRINCIPAL);
     expect(auditados).toHaveLength(0);
   });
 });

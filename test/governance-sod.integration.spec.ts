@@ -15,7 +15,7 @@ import { buildGovernance } from './support/governance.factory';
 import { VersionStateService } from '../src/modules/artifacts/version-state.service';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
 import type { AuthenticatedPrincipal } from '../src/common/security/security.types';
-import type { TestExecutionService } from '../src/modules/testing/test-execution.service';
+import type { BlockingTestsGate } from '../src/modules/testing/blocking-tests.gate';
 import { uniqueTenantId } from './support/unique-tenant';
 import { TracingService } from '../src/common/observability/tracing.service';
 import { MessagingTraceService } from '../src/common/observability/messaging-trace.service';
@@ -42,7 +42,7 @@ describeDb('GovernanceService separation of duties (integration)', () => {
   const buildService = (cfg: ConfigService) =>
     buildGovernance(
       prisma as unknown as PrismaService,
-      { verifyBlockingTests } as unknown as TestExecutionService,
+      { verifyBlockingTests } as unknown as BlockingTestsGate,
       new VersionStateService(prisma as unknown as PrismaService),
       new AuditService(prisma as unknown as PrismaService, new HashService(config)),
       new OutboxPublisherService(

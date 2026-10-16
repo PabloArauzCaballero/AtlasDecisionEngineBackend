@@ -14,7 +14,7 @@ import {
   SecurityReviewService,
   type SecurityFinding,
 } from '../security-review/security-review.service';
-import { TestExecutionService } from '../testing/test-execution.service';
+import { BlockingTestsGate } from '../testing/blocking-tests.gate';
 import { buildApprovalSteps } from './approval-steps';
 import { SubmitReviewDto } from './governance.dto';
 
@@ -22,7 +22,7 @@ import { SubmitReviewDto } from './governance.dto';
 export class ApprovalSubmissionService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly tests: TestExecutionService,
+    private readonly tests: BlockingTestsGate,
     private readonly states: VersionStateService,
     private readonly audit: AuditService,
     private readonly outbox: OutboxPublisherService,

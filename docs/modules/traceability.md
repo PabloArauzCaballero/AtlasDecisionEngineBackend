@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/traceability/`](https://github.com/) · 5 ficheros TypeScript.
+Código: [`src/modules/traceability/`](https://github.com/) · 6 ficheros TypeScript.
 
 Etiquetas de API: **Requirements Traceability**.
 

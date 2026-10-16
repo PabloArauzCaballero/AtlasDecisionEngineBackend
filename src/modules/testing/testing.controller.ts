@@ -26,7 +26,7 @@ import {
   TestSuiteWithEvidenceDto,
 } from './testing.response.dto';
 import { CoverageSuiteService } from './coverage-suite.service';
-import { TestExecutionService } from './test-execution.service';
+import { TestRunQueueService } from './test-run-queue.service';
 import { TestSuiteService } from './test-suite.service';
 
 @ApiTags('Decision Testing')
@@ -34,7 +34,7 @@ import { TestSuiteService } from './test-suite.service';
 export class TestingController {
   constructor(
     private readonly suites: TestSuiteService,
-    private readonly execution: TestExecutionService,
+    private readonly runs: TestRunQueueService,
     private readonly coverage: CoverageSuiteService,
   ) {}
 
@@ -141,7 +141,7 @@ export class TestingController {
     @Param('suiteId') suiteId: string,
     @Body() dto: RunTestSuiteDto,
   ) {
-    return this.execution.enqueueSuite(tenantId, parseBigIntId(suiteId, 'suiteId'), dto, principal);
+    return this.runs.enqueueSuite(tenantId, parseBigIntId(suiteId, 'suiteId'), dto, principal);
   }
 
   @Get('test-runs/:runId')
@@ -152,6 +152,6 @@ export class TestingController {
   })
   @Roles('QA_ANALYST', 'RISK_ANALYST', 'FRAUD_ANALYST', 'COMPLIANCE', 'AUDITOR')
   getRun(@TenantId() tenantId: bigint, @Param('runId') runId: string) {
-    return this.execution.getRun(tenantId, parseBigIntId(runId, 'runId'));
+    return this.runs.getRun(tenantId, parseBigIntId(runId, 'runId'));
   }
 }

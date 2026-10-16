@@ -1,30 +1,24 @@
 import { HttpStatus, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { Prisma, SemanticModelSetting } from '@prisma/client';
-import { AuditService } from '../../../../common/audit/audit.service';
+import type { SemanticModelSetting } from '@prisma/client';
 import { runsBackgroundJobs } from '../../../../common/config/worker-role';
 import { DomainException } from '../../../../common/errors/domain-exception';
 import { PrismaService } from '../../../../common/prisma/prisma.service';
-import type { AuthenticatedPrincipal } from '../../../../common/security/security.types';
-import {
-  DEFAULT_DEEP_ALIAS,
-  DEFAULT_FAST_ALIAS,
-  assertLogicalAlias,
-} from '../core/config/litellm-provider.config';
+import { DEFAULT_DEEP_ALIAS, DEFAULT_FAST_ALIAS } from '../core/config/litellm-provider.config';
 import {
   DEFAULT_OPENROUTER_DEEP_MODEL,
   DEFAULT_OPENROUTER_FAST_MODEL,
-  assertOpenRouterModelId,
 } from '../core/config/openrouter-provider.config';
-import { SemanticConfigurationError } from '../core/domain/semantic-analysis.errors';
-import type {
-  ModelGateway,
-  SemanticModelSettingsDto,
-  UpdateSemanticModelSettingsDto,
-} from './semantic-model-settings.dto';
+import type { ModelGateway } from './semantic-model-settings.dto';
+import {
+  fromEnum,
+  type ChangeListener,
+  type EffectiveModelSettings,
+} from './semantic-model-settings.shape';
+export type { EffectiveModelSettings } from './semantic-model-settings.shape';
 
 /** La fila es la tabla: una configuración por despliegue. */
-const SINGLETON_ID = 1;
+export const SINGLETON_ID = 1;
 
 /**
  * Cada cuánto un worker vuelve a mirar la versión de la fila. Diez segundos:
@@ -33,20 +27,6 @@ const SINGLETON_ID = 1;
  * segundos, que no se nota en ningún sitio.
  */
 const DEFAULT_REFRESH_MS = 10_000;
-
-export interface EffectiveModelSettings {
-  readonly gateway: ModelGateway;
-  readonly fastModel: string;
-  readonly deepModel: string;
-  /** `environment` cuando no hay fila; `portal` cuando alguien la escribió. */
-  readonly source: 'environment' | 'portal';
-  /** 0 cuando manda el entorno. Es la clave con la que el proveedor construido se cachea. */
-  readonly version: number;
-  readonly updatedBy: string | null;
-  readonly updatedAt: Date | null;
-}
-
-type ChangeListener = (settings: EffectiveModelSettings) => void;
 
 /** Modos del despliegue en los que la elección de gateway tiene efecto. */
 const MODES_WITH_REMOTE_GATEWAY: ReadonlySet<string> = new Set([
@@ -88,7 +68,6 @@ export class SemanticModelSettingsService implements OnModuleInit, OnModuleDestr
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
-    private readonly audit: AuditService,
   ) {}
 
   /**
@@ -184,118 +163,6 @@ export class SemanticModelSettingsService implements OnModuleInit, OnModuleDestr
     return () => this.listeners.delete(listener);
   }
 
-  async describe(): Promise<SemanticModelSettingsDto> {
-    const effective = await this.current();
-    return {
-      mode: this.mode(),
-      applies: this.applies(),
-      effective: {
-        ...effective,
-        updatedAt: effective.updatedAt?.toISOString() ?? null,
-      },
-      litellm: { available: this.available('litellm'), ...this.environmentDefaults('litellm') },
-      openrouter: {
-        available: this.available('openrouter'),
-        ...this.environmentDefaults('openrouter'),
-      },
-    };
-  }
-
-  /**
-   * Valida y guarda. Las tres comprobaciones son las mismas que haría la fábrica
-   * al construir el proveedor, hechas AQUÍ para que fallen en la petición de
-   * quien guarda y no en la primera glosa del worker, media hora después.
-   */
-  async update(
-    dto: UpdateSemanticModelSettingsDto,
-    principal: AuthenticatedPrincipal,
-  ): Promise<SemanticModelSettingsDto> {
-    this.assertApplies();
-    this.assertAvailable(dto.gateway);
-    const fastModel = dto.fastModel.trim();
-    const deepModel = dto.deepModel.trim();
-    this.assertModelShape(dto.gateway, 'fastModel', fastModel);
-    this.assertModelShape(dto.gateway, 'deepModel', deepModel);
-
-    const before = await this.current();
-    const gateway = toEnum(dto.gateway);
-    await this.prisma.$transaction(async (tx) => {
-      await tx.semanticModelSetting.upsert({
-        where: { id: SINGLETON_ID },
-        create: { id: SINGLETON_ID, gateway, fastModel, deepModel, updatedBy: principal.id },
-        update: {
-          gateway,
-          fastModel,
-          deepModel,
-          updatedBy: principal.id,
-          version: { increment: 1 },
-        },
-      });
-      await this.audit.append(
-        {
-          tenantId: principal.tenantId,
-          eventType: 'SEMANTIC_MODEL_SETTINGS_UPDATED',
-          aggregateType: 'SemanticModelSetting',
-          aggregateId: String(SINGLETON_ID),
-          actorId: principal.id,
-          requestId: principal.requestId,
-          payload: {
-            before: publicShape(before),
-            after: { gateway: dto.gateway, fastModel, deepModel },
-          },
-        },
-        tx,
-      );
-    });
-
-    await this.invalidateAndNotify();
-    this.logger.log(
-      `Proveedor semántico cambiado a ${dto.gateway} (${fastModel} / ${deepModel}) por ${principal.id}`,
-    );
-    return this.describe();
-  }
-
-  /** Quita la fila: vuelve a mandar el entorno. */
-  async reset(principal: AuthenticatedPrincipal): Promise<SemanticModelSettingsDto> {
-    const before = await this.current();
-    if (before.source === 'portal') {
-      await this.prisma.$transaction(async (tx) => {
-        await tx.semanticModelSetting.deleteMany({ where: { id: SINGLETON_ID } });
-        await this.audit.append(
-          {
-            tenantId: principal.tenantId,
-            eventType: 'SEMANTIC_MODEL_SETTINGS_RESET',
-            aggregateType: 'SemanticModelSetting',
-            aggregateId: String(SINGLETON_ID),
-            actorId: principal.id,
-            requestId: principal.requestId,
-            payload: { before: publicShape(before) },
-          },
-          tx,
-        );
-      });
-      await this.invalidateAndNotify();
-      this.logger.log(`Proveedor semántico devuelto al entorno por ${principal.id}`);
-    }
-    return this.describe();
-  }
-
-  /** La forma que espera el gateway, con el mismo mensaje que daría la fábrica. */
-  assertModelShape(gateway: ModelGateway, field: string, model: string): void {
-    try {
-      if (gateway === 'openrouter') assertOpenRouterModelId(field, model);
-      else assertLogicalAlias(field, model);
-    } catch (error) {
-      if (error instanceof SemanticConfigurationError) {
-        throw new DomainException('SEMANTIC_MODEL_INVALID', error.message, HttpStatus.BAD_REQUEST, {
-          field,
-          gateway,
-        });
-      }
-      throw error;
-    }
-  }
-
   assertAvailable(gateway: ModelGateway): void {
     if (this.available(gateway)) return;
     const variable = gateway === 'openrouter' ? 'OPENROUTER_API_KEY' : 'LITELLM_API_KEY';
@@ -308,7 +175,7 @@ export class SemanticModelSettingsService implements OnModuleInit, OnModuleDestr
     );
   }
 
-  private assertApplies(): void {
+  assertApplies(): void {
     if (this.applies()) return;
     throw new DomainException(
       'SEMANTIC_MODEL_SETTINGS_NOT_APPLICABLE',
@@ -363,7 +230,7 @@ export class SemanticModelSettingsService implements OnModuleInit, OnModuleDestr
     }
   }
 
-  private async invalidateAndNotify(): Promise<void> {
+  async invalidateAndNotify(): Promise<void> {
     this.cached = undefined;
     const value = await this.current();
     for (const listener of this.listeners) {
@@ -378,22 +245,4 @@ export class SemanticModelSettingsService implements OnModuleInit, OnModuleDestr
       }
     }
   }
-}
-
-function toEnum(gateway: ModelGateway): SemanticModelSetting['gateway'] {
-  return gateway === 'openrouter' ? 'OPENROUTER' : 'LITELLM';
-}
-
-function fromEnum(gateway: SemanticModelSetting['gateway']): ModelGateway {
-  return gateway === 'OPENROUTER' ? 'openrouter' : 'litellm';
-}
-
-/** Lo que va a la auditoría: sin fechas ni versión, que ya las lleva el evento. */
-function publicShape(settings: EffectiveModelSettings): Prisma.InputJsonObject {
-  return {
-    gateway: settings.gateway,
-    fastModel: settings.fastModel,
-    deepModel: settings.deepModel,
-    source: settings.source,
-  };
 }

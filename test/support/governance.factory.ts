@@ -9,12 +9,12 @@ import { ApprovalQueryService } from '../../src/modules/governance/approval-quer
 import { ApprovalSubmissionService } from '../../src/modules/governance/approval-submission.service';
 import { VersionApprovalGate } from '../../src/modules/governance/version-approval-gate';
 import type { SecurityReviewService } from '../../src/modules/security-review/security-review.service';
-import type { TestExecutionService } from '../../src/modules/testing/test-execution.service';
+import type { BlockingTestsGate } from '../../src/modules/testing/blocking-tests.gate';
 
 /** Los cuatro servicios de gobierno armados con las mismas dependencias, como los cablea el módulo. */
 export function buildGovernance(
   prisma: PrismaService,
-  tests: TestExecutionService,
+  tests: BlockingTestsGate,
   states: VersionStateService,
   audit: AuditService,
   outbox: OutboxPublisherService,

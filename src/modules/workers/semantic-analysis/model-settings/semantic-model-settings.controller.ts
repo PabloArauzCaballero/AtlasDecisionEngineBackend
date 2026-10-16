@@ -10,7 +10,7 @@ import {
   SemanticModelSettingsDto,
   UpdateSemanticModelSettingsDto,
 } from './semantic-model-settings.dto';
-import { SemanticModelSettingsService } from './semantic-model-settings.service';
+import { SemanticModelSettingsAdminService } from './semantic-model-settings-admin.service';
 
 /**
  * Qué gateway y qué modelos atienden el escalón remoto del worker semántico.
@@ -30,7 +30,7 @@ import { SemanticModelSettingsService } from './semantic-model-settings.service'
 @Controller('v1/workers/semantic-analysis/model-settings')
 export class SemanticModelSettingsController {
   constructor(
-    private readonly settings: SemanticModelSettingsService,
+    private readonly settings: SemanticModelSettingsAdminService,
     private readonly catalog: OpenRouterCatalogService,
     private readonly probe: SemanticModelProbeService,
   ) {}

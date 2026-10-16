@@ -96,13 +96,13 @@ class TestRunCompiledArtifactRefDto {
   @ApiProperty({ example: '2026-07-20T10:05:00.000Z' }) compiledAt!: string;
 }
 
-/** `TestExecutionService.enqueueSuite`: corrida recién encolada, sin casos ejecutados aún. */
+/** `TestRunQueueService.enqueueSuite`: corrida recién encolada, sin casos ejecutados aún. */
 export class TestRunQueuedDto extends TestRunSummaryDto {
   @ApiProperty({ type: [Object], example: [], description: 'Siempre vacío al encolar.' })
   caseRuns!: [];
 }
 
-/** `TestExecutionService.getRun`: corrida con evidencia completa por caso. */
+/** `TestRunQueueService.getRun`: corrida con evidencia completa por caso. */
 export class TestRunDetailDto {
   @ApiProperty({ example: '8501' }) id!: string;
   @ApiProperty({ example: '7001' }) testSuiteId!: string;

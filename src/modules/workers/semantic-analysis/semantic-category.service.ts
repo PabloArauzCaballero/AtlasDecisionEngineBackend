@@ -1,8 +1,8 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { DomainException } from '../../../common/errors/domain-exception';
 import { ImportSemanticCategoriesDto, UpsertSemanticCategoryDto } from './semantic-category.dto';
+import { noExiste, present, toRow, toUpdateRow } from './semantic-category.mapping';
 
 /**
  * Administración del árbol de categorías, acotada por tenant.
@@ -23,18 +23,18 @@ export class SemanticCategoryService {
       where: { tenantId },
       orderBy: { code: 'asc' },
     });
-    return filas.map((fila) => this.present(fila));
+    return filas.map((fila) => present(fila));
   }
 
   async upsert(tenantId: bigint, dto: UpsertSemanticCategoryDto) {
     await this.assertParentExists(tenantId, dto.code, dto.parentCode ?? null);
     const fila = await this.prisma.semanticCategory.upsert({
       where: { tenantId_code: { tenantId, code: dto.code } },
-      create: { tenantId, ...this.toRow(dto) },
-      update: this.toUpdateRow(dto),
+      create: { tenantId, ...toRow(dto) },
+      update: toUpdateRow(dto),
     });
     this.logger.log(`Categoría ${dto.code} escrita en el tenant ${tenantId.toString()}`);
-    return this.present(fila);
+    return present(fila);
   }
 
   /**
@@ -66,9 +66,9 @@ export class SemanticCategoryService {
         data: { isActive: false },
       })
       .catch(() => {
-        throw this.noExiste(code);
+        throw noExiste(code);
       });
-    return this.present(fila);
+    return present(fila);
   }
 
   /**
@@ -133,8 +133,8 @@ export class SemanticCategoryService {
       for (const categoria of ordenadas) {
         await tx.semanticCategory.upsert({
           where: { tenantId_code: { tenantId, code: categoria.code } },
-          create: { tenantId, ...this.toRow(categoria) },
-          update: this.toUpdateRow(categoria),
+          create: { tenantId, ...toRow(categoria) },
+          update: toUpdateRow(categoria),
         });
       }
     });
@@ -212,91 +212,5 @@ export class SemanticCategoryService {
         HttpStatus.BAD_REQUEST,
       );
     }
-  }
-
-  private noExiste(code: string): DomainException {
-    return new DomainException(
-      'SEMANTIC_CATEGORY_NOT_FOUND',
-      `No existe la categoría ${code}.`,
-      HttpStatus.NOT_FOUND,
-    );
-  }
-
-  private toRow(dto: UpsertSemanticCategoryDto) {
-    return {
-      code: dto.code,
-      name: dto.name,
-      description: dto.description,
-      parentCode: dto.parentCode ?? null,
-      positiveExamples: dto.positiveExamples ?? [],
-      counterExamples: dto.counterExamples ?? [],
-      restrictions: dto.restrictions ?? [],
-      relatedCategoryCodes: dto.relatedCategoryCodes ?? [],
-      acceptanceThreshold: new Prisma.Decimal(dto.acceptanceThreshold ?? 0.62),
-      isActive: dto.isActive ?? true,
-      ...(dto.version === undefined ? {} : { version: dto.version }),
-    };
-  }
-
-  /**
-   * Lo mismo, pero para una fila que YA existe: la versión sube.
-   *
-   * La versión no es un adorno. La firma del catálogo es
-   * `code@version` por categoría (`CatalogCache.signatureOf`), y de esa firma
-   * cuelgan la caché de clasificación y los vectores de sonda del recuperador.
-   * Mientras no cambie, las dos siguen sirviendo lo que calcularon con los
-   * ejemplos ANTERIORES.
-   *
-   * Sin esto, editar los ejemplos de una categoría no tenía ningún efecto
-   * observable. Medido el 2026-09-01: añadir quince comercios bolivianos a dos
-   * hojas y reclasificar dio CERO cambios; reiniciando el worker —lo único que
-   * vacía esas cachés— los mismos quince corrigieron trece movimientos. Es la
-   * peor forma del defecto, porque el import responde `updated: [...]`, la fila
-   * queda escrita y todo parece haber funcionado.
-   *
-   * Deja de ser cierto lo que `semantic-worker.config.ts` promete de la caché de
-   * clasificación —«su clave incluye la firma del catálogo, así que publicar una
-   * categoría invalida lo afectado sola»— sólo si la versión sube. Ahora sube.
-   *
-   * Una versión explícita en el DTO sigue mandando: es la vía para reimportar un
-   * conjunto con sus versiones tal cual, sin inflarlas en cada pasada.
-   */
-  private toUpdateRow(dto: UpsertSemanticCategoryDto) {
-    const fila = this.toRow(dto);
-    if (dto.version !== undefined) return fila;
-    return { ...fila, version: { increment: 1 } };
-  }
-
-  private present(fila: {
-    code: string;
-    name: string;
-    description: string;
-    parentCode: string | null;
-    positiveExamples: unknown;
-    counterExamples: unknown;
-    restrictions: unknown;
-    relatedCategoryCodes: unknown;
-    acceptanceThreshold: Prisma.Decimal;
-    version: number;
-    isActive: boolean;
-  }) {
-    return {
-      code: fila.code,
-      name: fila.name,
-      description: fila.description,
-      parentCode: fila.parentCode,
-      positiveExamples: this.asStrings(fila.positiveExamples),
-      counterExamples: this.asStrings(fila.counterExamples),
-      restrictions: this.asStrings(fila.restrictions),
-      relatedCategoryCodes: this.asStrings(fila.relatedCategoryCodes),
-      acceptanceThreshold: Number(fila.acceptanceThreshold),
-      version: fila.version,
-      isActive: fila.isActive,
-    };
-  }
-
-  /** Las columnas son `jsonb`: lo que hay dentro lo escribió una versión anterior. */
-  private asStrings(valor: unknown): string[] {
-    return Array.isArray(valor) ? valor.filter((x): x is string => typeof x === 'string') : [];
   }
 }
