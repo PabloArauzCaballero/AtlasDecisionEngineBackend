@@ -18,6 +18,14 @@ import {
   APP_ATTRIBUTES,
   MESSAGING_SYSTEM,
 } from '../../../common/observability/telemetry.constants';
+import {
+  HOLDER_MISMATCH_MESSAGE,
+  HOLDER_UNREADABLE_MESSAGE,
+  holderColumns,
+  holderOf,
+  isReview,
+  type ExpectedHolderRow,
+} from './holder-verdict';
 
 /**
  * Worker de conversión de extractos bancarios.
@@ -142,8 +150,9 @@ export class BankStatementRunWorkerService implements OnModuleInit, OnModuleDest
 
   private async execute(runId: bigint): Promise<void> {
     const heartbeat = this.store.startHeartbeat(runId);
+    let run: Awaited<ReturnType<BankStatementRunStore['loadInput']>> = null;
     try {
-      const run = await this.store.loadInput(runId);
+      run = await this.store.loadInput(runId);
       if (!run?.fileBytes) {
         // La fila existe pero su documento ya no: cancelada a mitad, o un
         // intento anterior lo borró. No es reintentable, y tampoco es culpa del
@@ -187,9 +196,38 @@ export class BankStatementRunWorkerService implements OnModuleInit, OnModuleDest
       await this.store.setProgress(runId, 80);
 
       const outcome = outcomeForResult(normalized.quality, this.minimumExtractionConfidence());
-      await this.store.complete(runId, normalized, outcome);
+      /*
+       * El titular, después de leer y antes de cerrar (2026-10-16). Otra persona: rechazo, sin resultado que
+       * aplicar. Titular ilegible en un documento que por lo demás se admitía: a una persona, con el análisis
+       * como provisional para que lo apruebe si la cuenta es del cliente. Un documento que ya iba a revisión
+       * por otro motivo sigue con ese motivo; el veredicto queda en la fila para quien lo mire.
+       */
+      const holder = holderOf(run, normalized);
+      if (holder.verdict === 'MISMATCH') {
+        await this.store.closeRun(
+          runId,
+          outcomeForError('HOLDER_MISMATCH'),
+          'HOLDER_MISMATCH',
+          HOLDER_MISMATCH_MESSAGE,
+          undefined,
+          holderColumns(holder),
+        );
+        return;
+      }
+      if (holder.verdict === 'UNREADABLE' && !isReview(outcome)) {
+        await this.store.closeRun(
+          runId,
+          outcomeForError('HOLDER_UNREADABLE'),
+          'HOLDER_UNREADABLE',
+          HOLDER_UNREADABLE_MESSAGE,
+          normalized,
+          holderColumns(holder),
+        );
+        return;
+      }
+      await this.store.complete(runId, normalized, outcome, holderColumns(holder));
     } catch (error) {
-      await this.recordFailure(runId, error);
+      await this.recordFailure(runId, error, run ?? null);
     } finally {
       clearInterval(heartbeat);
     }
@@ -200,15 +238,39 @@ export class BankStatementRunWorkerService implements OnModuleInit, OnModuleDest
    * es cuál lo decide `outcomeForError`, no este `catch`. Lo demás es infraestructura y se
    * reintenta con cota (ver `BankStatementRunStore.failOrRequeue`).
    */
-  private async recordFailure(runId: bigint, error: unknown): Promise<void> {
+  private async recordFailure(
+    runId: bigint,
+    error: unknown,
+    run: ExpectedHolderRow | null,
+  ): Promise<void> {
     if (error instanceof StatementProcessingError) {
       // Si va a revisión con algo leído, se guarda para que la persona decida con datos.
+      const provisional = provisionalStatementOf(error);
+      const outcome = outcomeForError(error.code, error.disposition);
+      const holder = run && provisional ? holderOf(run, provisional) : null;
+      /*
+       * Un documento que iba a revisión (banco no reconocido, fechas dudosas) y cuyo titular se leyó y NO es
+       * el cliente se rechaza ya: ninguna revisión lo vuelve suyo, y mandarlo a la cola sólo gastaría a una
+       * persona en decir lo que el motor ya sabe.
+       */
+      if (holder?.verdict === 'MISMATCH' && isReview(outcome)) {
+        await this.store.closeRun(
+          runId,
+          outcomeForError('HOLDER_MISMATCH'),
+          'HOLDER_MISMATCH',
+          HOLDER_MISMATCH_MESSAGE,
+          undefined,
+          holderColumns(holder),
+        );
+        return;
+      }
       await this.store.closeRun(
         runId,
-        outcomeForError(error.code, error.disposition),
+        outcome,
         error.code,
         error.message,
-        provisionalStatementOf(error),
+        provisional,
+        holder ? holderColumns(holder) : undefined,
       );
       return;
     }

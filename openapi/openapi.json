@@ -4590,7 +4590,8 @@
                 "AMBIGUOUS_DATA",
                 "OCR_ERROR",
                 "MANUAL_REQUEST",
-                "SUSPECTED_TAMPERING"
+                "SUSPECTED_TAMPERING",
+                "HOLDER_UNREADABLE"
               ]
             }
           },
@@ -21623,6 +21624,28 @@
             "type": "object",
             "description": "Sólo extractos con el emisor en duda: el análisis completo (movimientos, ingresos, gastos, capacidad) para que una persona decida. NO es un resultado aplicable: el consumidor sigue leyendo `result`."
           },
+          "holder": {
+            "type": "object",
+            "properties": {
+              "expected": {
+                "type": "string",
+                "nullable": true
+              },
+              "read": {
+                "type": "string",
+                "nullable": true
+              },
+              "verdict": {
+                "type": "string",
+                "nullable": true
+              }
+            },
+            "required": [
+              "expected",
+              "read",
+              "verdict"
+            ]
+          },
           "warnings": {
             "type": "object",
             "description": "Advertencias de un resultado utilizable pero revisable."
@@ -21646,7 +21669,8 @@
               "AMBIGUOUS_DATA",
               "OCR_ERROR",
               "MANUAL_REQUEST",
-              "SUSPECTED_TAMPERING"
+              "SUSPECTED_TAMPERING",
+              "HOLDER_UNREADABLE"
             ],
             "type": "string",
             "description": "Por qué espera a una persona. Sólo con estado PENDING_REVIEW o IN_REVIEW."
@@ -21662,7 +21686,8 @@
               "TAMPERED_DOCUMENT",
               "ACTIVE_CONTENT",
               "INSUFFICIENT_PERIOD",
-              "STALE_PERIOD"
+              "STALE_PERIOD",
+              "HOLDER_MISMATCH"
             ],
             "type": "string",
             "description": "Por qué se rechazó. Sólo con estado PDF_INVALID."
@@ -21695,6 +21720,21 @@
             "type": "string",
             "maxLength": 60,
             "description": "Escenario de prueba. Excluyente con el archivo subido."
+          },
+          "expectedHolderName": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "Nombre completo del titular exigido (el cliente que sube el extracto). Si llega, el extracto se rechaza cuando ningún titular coincide y va a revisión si el titular no se puede leer."
+          },
+          "expectedHolderGivenNames": {
+            "type": "string",
+            "maxLength": 120,
+            "description": "Nombres de pila del titular exigido. Afina la comparación."
+          },
+          "expectedHolderSurnames": {
+            "type": "string",
+            "maxLength": 120,
+            "description": "Apellidos del titular exigido. Afina la comparación."
           }
         }
       },
@@ -21757,7 +21797,8 @@
               "AMBIGUOUS_DATA",
               "OCR_ERROR",
               "MANUAL_REQUEST",
-              "SUSPECTED_TAMPERING"
+              "SUSPECTED_TAMPERING",
+              "HOLDER_UNREADABLE"
             ],
             "type": "string"
           },
@@ -21852,7 +21893,8 @@
               "AMBIGUOUS_DATA",
               "OCR_ERROR",
               "MANUAL_REQUEST",
-              "SUSPECTED_TAMPERING"
+              "SUSPECTED_TAMPERING",
+              "HOLDER_UNREADABLE"
             ],
             "type": "string",
             "description": "`null` = «Todos»."
@@ -21900,7 +21942,8 @@
               "TAMPERED_DOCUMENT",
               "ACTIVE_CONTENT",
               "INSUFFICIENT_PERIOD",
-              "STALE_PERIOD"
+              "STALE_PERIOD",
+              "HOLDER_MISMATCH"
             ],
             "type": "string",
             "description": "Obligatorio con MARK_INVALID: un rechazo sin motivo no es medible."

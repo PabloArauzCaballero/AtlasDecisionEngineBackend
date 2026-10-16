@@ -42,7 +42,7 @@ import {
   ReprocessStatementReviewDto,
   StatementReprocessedDto,
 } from './review/statement-review.dto';
-import { StatementRunIntakeService } from './statement-run-intake.service';
+import { expectedHolderOf, StatementRunIntakeService } from './statement-run-intake.service';
 import { StatementRunService } from './statement-run.service';
 import { StatementUploadPolicy } from './statement-upload.policy';
 import type { NormalizedBankStatement } from './core/engine/normalized/normalized-model';
@@ -126,6 +126,7 @@ export class BankStatementController {
       input.validated,
       input.source,
       input.fixtureCode,
+      expectedHolderOf(dto),
     );
     /*
      * Se dice si el archivo YA estaba. Sin esto, subir otra vez el mismo PDF devolvía la ejecución

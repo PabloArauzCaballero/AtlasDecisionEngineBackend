@@ -38,6 +38,9 @@ export function requeueFields(
     startedAt: null,
     finishedAt: null,
     provisionalResultJson: Prisma.DbNull,
+    // El titular se vuelve a leer y a comparar; el EXIGIDO se conserva.
+    holderNameRead: null,
+    holderVerdict: null,
     ...(assignedInstitutionCode
       ? {
           assignedInstitutionCode,
