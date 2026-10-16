@@ -10,13 +10,15 @@ import {
   CalculatedFieldDetailDto,
   CalculatedFieldListItemDto,
   CalculatedFieldPromotedDto,
-  CalculatedFieldOutcomeCoverageReportDto,
+  CalculatedFieldVersionCreatedDto,
+} from './response/field-detail.dto';
+import { OperationCatalogDto } from './response/operation-catalog.dto';
+import { CalculatedFieldOutcomeCoverageReportDto } from './response/outcome-coverage.dto';
+import {
   CalculatedFieldPreviewTryRunDto,
   CalculatedFieldTestReportDto,
   CalculatedFieldTryRunDto,
-  CalculatedFieldVersionCreatedDto,
-  OperationCatalogDto,
-} from './calculated-field.response.dto';
+} from './response/try-run-and-tests.dto';
 import type { AuthenticatedPrincipal } from '../../common/security/security.types';
 import { OPERATIONS, OPERATION_CATEGORIES } from './operation-catalog';
 import { MAX_EXECUTABLE_LINES } from './code-guard';

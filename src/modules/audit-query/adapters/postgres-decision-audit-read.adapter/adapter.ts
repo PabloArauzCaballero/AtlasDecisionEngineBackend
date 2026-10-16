@@ -1,28 +1,14 @@
-/**
- * Adaptador PostgreSQL del puerto de lectura de auditoría.
- *
- * Es el único archivo del módulo que habla Prisma. Toda consulta pasa por el asa que
- * entrega la fábrica, así que hereda sin código extra el enrutamiento por módulo, el
- * interruptor de separación de rutas, el fallback al primario, la normalización de errores
- * y las métricas por conexión.
- *
- * El descriptor pide `rowLevelSecurity`: este módulo sirve evidencia regulatoria de un
- * tenant y no puede enrutarse a un motor sin aislamiento a nivel de fila. Si alguien lo
- * apunta a uno, el contenedor no levanta.
- */
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
-import type { CountedRows } from '../../../common/persistence/ports/repository.port';
-import { escapeLikeTerm } from '../../../common/persistence/like-escape';
+import type { CountedRows } from '../../../../common/persistence/ports/repository.port';
 import {
   PersistenceAdapterFactory,
   type ReadAdapterHandle,
-} from '../../../common/persistence/factory/persistence-adapter.factory';
+} from '../../../../common/persistence/factory/persistence-adapter.factory';
 import type {
   AuditChainBatchCriteria,
   AuditChainEvent,
   AuditEventCursorCriteria,
-  AuditEventCriteria,
   AuditEventPageCriteria,
   AuditEventRow,
   AuditReadModel,
@@ -30,35 +16,9 @@ import type {
   ExecutionMetrics,
   ExecutionSearchCriteria,
   ScreenRunSummary,
-} from '../ports/decision-audit-read.port';
-
-/** Nombre del módulo en las reglas de routing y en las etiquetas de métrica. */
-export const AUDIT_QUERY_MODULE = 'audit-query';
-
-/**
- * Lo que sirve `GET /v1/audit/executions/:id`. Es el CONTRATO que lee el detalle de
- * ejecución del portal (pasos con su nodo, variables con su definición…), así que vive
- * en una constante con su tipo derivado: `test/audit-execution-contract.spec.ts` fija con
- * él los campos que el portal consume. Quitar una relación de aquí o renombrar una de esas
- * columnas deja de compilar en vez de vaciar la pantalla en silencio, que es lo que pasó.
- */
-export const EXECUTION_DETAIL_INCLUDE = {
-  deployment: { include: { environment: true, compiledArtifact: true } },
-  artifactVersion: { include: { artifact: true } },
-  variables: { include: { variableVersion: { include: { definition: true } } } },
-  steps: { include: { node: true }, orderBy: { stepOrder: 'asc' } },
-  reasons: {
-    include: { reasonCode: true, sourceAction: true },
-    orderBy: { priority: 'asc' },
-  },
-  errors: true,
-  manualReview: true,
-} as const satisfies Prisma.DecisionExecutionInclude;
-
-/** Fila del detalle de ejecución tal como la devuelve Prisma (antes de serializar). */
-export type ExecutionDetailRow = Prisma.DecisionExecutionGetPayload<{
-  include: typeof EXECUTION_DETAIL_INCLUDE;
-}>;
+} from '../../ports/decision-audit-read.port';
+import { AUDIT_QUERY_MODULE, EXECUTION_DETAIL_INCLUDE } from './shared';
+import { auditEventWhere, executionWhere } from './where';
 
 @Injectable()
 export class PostgresDecisionAuditReadAdapter implements DecisionAuditReadPort {
@@ -246,61 +206,4 @@ export class PostgresDecisionAuditReadAdapter implements DecisionAuditReadPort {
       };
     });
   }
-}
-
-function executionWhere(criteria: ExecutionSearchCriteria): Prisma.DecisionExecutionWhereInput {
-  return {
-    tenantId: criteria.tenantId,
-    ...(criteria.outcome ? { businessOutcome: criteria.outcome } : {}),
-    ...(criteria.requestId ? { requestId: criteria.requestId } : {}),
-    ...(criteria.artifactCode
-      ? { artifactVersion: { artifact: { artifactCode: criteria.artifactCode } } }
-      : {}),
-    ...(criteria.from || criteria.to
-      ? {
-          executedAt: {
-            ...(criteria.from ? { gte: criteria.from } : {}),
-            ...(criteria.to ? { lte: criteria.to } : {}),
-          },
-        }
-      : {}),
-  };
-}
-
-function auditEventWhere(criteria: AuditEventCriteria): Prisma.DecisionAuditEventWhereInput {
-  const term = criteria.search ? escapeLikeTerm(criteria.search) : undefined;
-  return {
-    tenantId: criteria.tenantId,
-    ...(criteria.eventType ? { eventType: criteria.eventType } : {}),
-    ...(criteria.aggregateType ? { aggregateType: criteria.aggregateType } : {}),
-    ...(criteria.actorId ? { actorId: criteria.actorId } : {}),
-    ...(term
-      ? {
-          /*
-           * `contains` + `mode: 'insensitive'` es `ILIKE '%…%'`; Prisma NO escapa `%` ni `_`, así
-           * que se escapan aquí (`escapeLikeTerm`): buscar «100%» busca un porcentaje, no «todo».
-           * Antes el buscador de la
-           * bitácora mandaba `eventType` y el motor lo comparaba por IGUALDAD, así que escribir
-           * «DEPLOY» no encontraba «ARTIFACT_DEPLOYED» aunque la ayuda dijera «basta una parte».
-           */
-          OR: [
-            { eventType: { contains: term, mode: 'insensitive' as const } },
-            { aggregateType: { contains: term, mode: 'insensitive' as const } },
-            { aggregateId: { contains: term, mode: 'insensitive' as const } },
-            { actorId: { contains: term, mode: 'insensitive' as const } },
-            { requestId: { contains: term, mode: 'insensitive' as const } },
-          ],
-        }
-      : {}),
-    ...(criteria.from || criteria.to
-      ? {
-          // `DecisionAuditEvent` sella sus filas con `occurredAt`; no existe columna
-          // `createdAt`, así que filtrar por from/to contra ella fallaba en tiempo de consulta.
-          occurredAt: {
-            ...(criteria.from ? { gte: criteria.from } : {}),
-            ...(criteria.to ? { lte: criteria.to } : {}),
-          },
-        }
-      : {}),
-  };
 }
