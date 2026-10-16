@@ -163,7 +163,9 @@ export function assessRecency(
 
   // El último mes natural completo, visto desde Bolivia, y su cierre con la tolerancia.
   const lastMonthEnd = lastCompleteMonthEnd(options.now());
-  const monthEndThreshold = new Date(lastMonthEnd.getTime() - options.toleranceDays * MILLISECONDS_PER_DAY);
+  const monthEndThreshold = new Date(
+    lastMonthEnd.getTime() - options.toleranceDays * MILLISECONDS_PER_DAY,
+  );
   const closesLastCompleteMonth = last.getTime() >= monthEndThreshold.getTime();
 
   if (ageDays > options.toleranceDays && !closesLastCompleteMonth) {
@@ -186,7 +188,10 @@ export function assessRecency(
     disposition: 'ACCEPT',
     reasons:
       ageDays > options.toleranceDays
-        ? [`antiguedad:${String(ageDays)}d`, `cierra-el-ultimo-mes-completo:${isoDay(lastMonthEnd)}`]
+        ? [
+            `antiguedad:${String(ageDays)}d`,
+            `cierra-el-ultimo-mes-completo:${isoDay(lastMonthEnd)}`,
+          ]
         : [`antiguedad:${String(ageDays)}d`],
   };
 }

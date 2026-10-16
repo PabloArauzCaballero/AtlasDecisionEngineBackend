@@ -164,7 +164,9 @@ describe('compuerta de vigencia del extracto', () => {
 
     it('la frase de rechazo pide lo mismo que la app', () => {
       const vencido = assessRecency('2026-04-30', el('2026-10-16T15:00:00Z'));
-      expect(stalenessMessage(vencido)).toContain('los últimos 3 meses completos (por ejemplo, de julio a septiembre) o hasta hoy');
+      expect(stalenessMessage(vencido)).toContain(
+        'los últimos 3 meses completos (por ejemplo, de julio a septiembre) o hasta hoy',
+      );
     });
   });
 });
