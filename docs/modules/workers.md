@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/workers/`](https://github.com/) · 433 ficheros TypeScript.
+Código: [`src/modules/workers/`](https://github.com/) · 462 ficheros TypeScript.
 
 Etiquetas de API: **Workers · Locución**, **Workers · Extractos bancarios**, **Workers · Entidades financieras**, **Workers · Verificación de identidad**, **Workers · Modelo semántico**, **Workers · Análisis semántico**, **Workers · Categorías semánticas**, **Workers · Pendientes de clasificación**, **Workers**.
 
@@ -167,13 +167,19 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `AudioBudgetPolicy`
 - `AudioDomainError`
 - `AudioGenerationProcessor`
+- `AudioReaderService`
+- `AudioRenderPolicy`
+- `AudioRunFailureService`
+- `AudioRunIntakeService`
+- `AudioRunLeaseService`
+- `AudioRunService`
 - `AudioSegmentAssembler`
 - `AudioSpeakCallHandler`
+- `AudioTemplateCatalogService`
 - `AudioTemplateDto`
 - `AudioTtsController`
 - `AudioTtsRunWorkerService`
 - `AudioTtsRuntimeFactory`
-- `AudioTtsService`
 - `AudioValueCipher`
 - `AuditRetentionService`
 - `BancoSolStatementParser`
@@ -326,6 +332,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `SemanticModelSettingsService`
 - `SemanticProviderError`
 - `SemanticRetentionSweeperService`
+- `SemanticRunLeaseService`
 - `SemanticRunWorkerService`
 - `SemanticTimeoutError`
 - `SharpImageAdapter`

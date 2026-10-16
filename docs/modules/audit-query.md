@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/audit-query/`](https://github.com/) · 8 ficheros TypeScript.
+Código: [`src/modules/audit-query/`](https://github.com/) · 11 ficheros TypeScript.
 
 Etiquetas de API: **Audit and Observability**.
 

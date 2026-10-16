@@ -17,10 +17,10 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `APPROVAL_STEP_OUT_OF_ORDER` | Previous approval steps must complete first | `src/modules/governance/approval-decision.guard.ts` |
 | `ARTIFACT_HAS_NO_INPUTS` | La versión no declara variables de entrada, así que no hay valores que generar | `src/modules/qa-lab/qa-lab.service.ts` |
 | `ARTIFACT_NOT_FOUND` | Artifact not found | `src/modules/artifacts/artifact-catalog.service.ts` |
-| `AUDIO_ASSET_NOT_READY` | El audio de esta locución ya no está disponible. | `src/modules/workers/audio-tts/audio-tts.service.ts` |
-| `AUDIO_RUN_NOT_CANCELLABLE` | — | `src/modules/workers/audio-tts/audio-tts.service.ts` |
-| `AUDIO_RUN_NOT_FOUND` | No existe esa locución. | `src/modules/workers/audio-tts/audio-tts.service.ts` |
-| `AUDIO_RUN_WITHOUT_AUDIO` | Esta locución todavía no tiene audio. | `src/modules/workers/audio-tts/audio-tts.service.ts` |
+| `AUDIO_ASSET_NOT_READY` | El audio de esta locución ya no está disponible. | `src/modules/workers/audio-tts/audio-reader.service.ts` |
+| `AUDIO_RUN_NOT_CANCELLABLE` | — | `src/modules/workers/audio-tts/audio-run.service.ts` |
+| `AUDIO_RUN_NOT_FOUND` | No existe esa locución. | `src/modules/workers/audio-tts/audio-run.service.ts` |
+| `AUDIO_RUN_WITHOUT_AUDIO` | Esta locución todavía no tiene audio. | `src/modules/workers/audio-tts/audio-reader.service.ts` |
 | `AUTH_RATE_LIMIT_EXCEEDED` | Too many failed authentication attempts | `src/common/security/authentication.guard.ts` |
 | `BANK_STATEMENT_DOCUMENT_UNAVAILABLE` | El documento original ya no está disponible: hay que volver a subirlo. | `src/modules/workers/bank-statement/review/statement-reprocess.service.ts` |
 | `BANK_STATEMENT_FILE_EMPTY` | El archivo recibido está vacío. | `src/modules/workers/bank-statement/bank-statement-input.ts` |
@@ -94,7 +94,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `EXECUTION_NOT_FOUND` | Decision execution not found | `src/modules/audit-query/audit-query.service.ts` |
 | `EXECUTION_PERSISTENCE_CONFLICT` | The request or execution evidence already exists | `src/modules/runtime/execution-writer.service.ts` |
 | `EXECUTION_WITHOUT_TERMINAL` | Execution ended without a terminal node | `src/modules/graph/execution-engine.service.ts` |
-| `EXPOSURE_LIMIT_EXCEEDED` | La exposición proyectada (${verdict.projectedValue}) supera el límite | `src/modules/risk-governance/decision-guard.service.ts` |
+| `EXPOSURE_LIMIT_EXCEEDED` | La exposición proyectada (${verdict.projectedValue}) supera el límite | `src/modules/risk-governance/decision-guard.rules.ts` |
 | `EXPRESSION_DIVISION_BY_ZERO` | Division by zero | `src/modules/graph/expression-evaluator.ts` |
 | `EXPRESSION_INCOMPARABLE_OPERANDS` | Cannot order a non-finite numeric value | `src/modules/graph/expression-evaluator.ts` |
 | `EXPRESSION_INVALID_ARGUMENTS` | min requires at least one argument | `src/modules/graph/expression-evaluator.ts` |
@@ -164,8 +164,8 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `MAX_EXECUTION_STEPS_EXCEEDED` | Execution exceeded ${this.maxSteps} steps | `src/modules/graph/execution-engine.service.ts` |
 | `METRICS_DISABLED` | Metrics endpoint is disabled | `src/common/observability/metrics.controller.ts` |
 | `MODEL_VALIDATION_NOT_INDEPENDENT` | Quien creó la versión no puede firmar su validación independiente. | `src/modules/risk-governance/model-dossier.service.ts` |
-| `MONITORING_BATCH_EMPTY` | El lote de ${field} está vacío | `src/modules/model-monitoring/model-monitoring.service.ts` |
-| `MONITORING_BATCH_TOO_LARGE` | Un lote admite como máximo ${MAX_BATCH} ${field}; divídalo | `src/modules/model-monitoring/model-monitoring.service.ts` |
+| `MONITORING_BATCH_EMPTY` | El lote de ${field} está vacío | `src/modules/model-monitoring/model-monitoring-ingest.service.ts` |
+| `MONITORING_BATCH_TOO_LARGE` | Un lote admite como máximo ${MAX_BATCH} ${field}; divídalo | `src/modules/model-monitoring/model-monitoring-ingest.service.ts` |
 | `NESTED_EXECUTION_FAILED` | — | `src/modules/nested-trees/nested-tree-execution.service.ts` |
 | `NESTED_EXECUTION_TIMEOUT` | Nested artifact execution exceeded ${timeoutMs}ms | `src/modules/nested-trees/nested-tree-execution.service.ts` |
 | `NESTED_REFERENCE_NOT_CONFIGURED` | RESULT node ${node.key} invokes a nested artifact reference, but no reference resolver was supplied to this execution | `src/modules/graph/execution/result-node.executor.ts` |
@@ -244,7 +244,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `SESSION_EXPIRED` | The session reached its absolute lifetime; sign in again | `src/modules/identity-session/identity-session.service.ts` |
 | `SIMULATION_PROD_FORBIDDEN` | El simulador no opera sobre PROD, tampoco para generar valores de prueba | `src/modules/runtime/sample-input.service.ts` |
 | `STATEMENT_FILE_STORAGE_NOT_CONFIGURED` | No se puede analizar un extracto sin un sitio donde conservarlo: declara | `src/modules/workers/bank-statement/statement-file-store.service.ts` |
-| `SUBJECT_CONSENT_INVALID` | El titular tiene permisos que ya no amparan el tratamiento: | `src/modules/risk-governance/decision-guard.service.ts` |
+| `SUBJECT_CONSENT_INVALID` | El titular tiene permisos que ya no amparan el tratamiento: | `src/modules/risk-governance/decision-guard.rules.ts` |
 | `SUBJECT_NOT_FOUND` | No hay ninguna decisión registrada sobre ese titular en este tenant. | `src/modules/risk-governance/subject-directory.service.ts` |
 | `SUBJECT_REFERENCE_REQUIRED` | This environment requires subjectReference: a decision that cannot be attributed to | `src/modules/runtime/subject-policy.ts` |
 | `TEST_CASE_WITHOUT_EXPECTATION` | Estos casos no declaran ningún resultado esperado y no comprobarían nada: ${empty.join(', ')}. | `src/modules/testing/test-suite.service.ts` |
