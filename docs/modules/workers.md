@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/workers/`](https://github.com/) · 470 ficheros TypeScript.
+Código: [`src/modules/workers/`](https://github.com/) · 473 ficheros TypeScript.
 
 Etiquetas de API: **Workers · Locución**, **Workers · Extractos bancarios**, **Workers · Entidades financieras**, **Workers · Verificación de identidad**, **Workers · Modelo semántico**, **Workers · Análisis semántico**, **Workers · Categorías semánticas**, **Workers · Pendientes de clasificación**, **Workers**.
 
@@ -147,6 +147,7 @@ Roles exigidos por sus rutas: `AUDITOR`, `COMPLIANCE`, `FRAUD_ANALYST`, `OPERATI
 - `SEMANTIC_TEXT_EMPTY`
 - `SEMANTIC_TEXT_TOO_LONG`
 - `STATEMENT_FILE_STORAGE_NOT_CONFIGURED`
+- `STATEMENT_HOLDER_CONFLICT`
 - `UNRESOLVED_CATEGORY_REQUIRED`
 - `UNRESOLVED_CLASSIFICATION_NOT_FOUND`
 - `UNRESOLVED_NEW_CATEGORY_REQUIRED`
