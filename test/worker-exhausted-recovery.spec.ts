@@ -1,11 +1,8 @@
 import { ConfigService } from '@nestjs/config';
 import { WorkerRunStatus } from '@prisma/client';
-import type { JobSchedulerService } from '../src/common/jobs/job-scheduler.service';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
-import type { MessagingTraceService } from '../src/common/observability/messaging-trace.service';
 import { BankStatementRunRecovery } from '../src/modules/workers/bank-statement/bank-statement-run-recovery';
-import { SemanticRunWorkerService } from '../src/modules/workers/semantic-analysis/semantic-run-worker.service';
-import type { SemanticAnalysisProcessor } from '../src/modules/workers/semantic-analysis/core/application/semantic-analysis.processor';
+import { SemanticRunLeaseService } from '../src/modules/workers/semantic-analysis/semantic-run-lease.service';
 
 /**
  * La recuperación de leases vencidos, que tenía una fuga silenciosa.
@@ -19,11 +16,6 @@ import type { SemanticAnalysisProcessor } from '../src/modules/workers/semantic-
  * Estas pruebas fijan las dos mitades: lo que aún tiene intentos vuelve a la
  * cola, lo que no, termina.
  */
-
-const scheduler = { register: jest.fn(), wake: jest.fn() } as unknown as JobSchedulerService;
-const trace = {
-  runAsConsumer: (_carrier: unknown, _name: string, fn: () => Promise<void>) => fn(),
-} as unknown as MessagingTraceService;
 
 /** Recoge las llamadas a `updateMany` para poder afirmar sobre cada mitad. */
 function espiaPrisma(tabla: string) {
@@ -43,15 +35,12 @@ function mitades(updateMany: jest.Mock) {
 describe('recuperación de ejecuciones con lease vencido', () => {
   it('el worker semántico devuelve a la cola lo que aún tiene intentos y cierra lo agotado', async () => {
     const { prisma, updateMany } = espiaPrisma('semanticAnalysisRun');
-    const worker = new SemanticRunWorkerService(
+    const lease = new SemanticRunLeaseService(
       prisma,
       new ConfigService({ SEMANTIC_ANALYSIS_MAX_ATTEMPTS: 3 }),
-      scheduler,
-      {} as SemanticAnalysisProcessor,
-      trace,
     );
 
-    await (worker as unknown as { recoverExpiredRuns: () => Promise<void> }).recoverExpiredRuns();
+    await lease.recoverExpiredRuns();
 
     const { aLaCola, cerradas } = mitades(updateMany);
 
