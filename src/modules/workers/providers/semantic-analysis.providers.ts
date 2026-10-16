@@ -45,6 +45,7 @@ import { OpenRouterCatalogService } from '../semantic-analysis/model-settings/op
 import { SemanticModelProbeService } from '../semantic-analysis/model-settings/semantic-model-probe.service';
 import { SemanticModelSettingsService } from '../semantic-analysis/model-settings/semantic-model-settings.service';
 import { SemanticRetentionSweeperService } from '../semantic-analysis/semantic-retention-sweeper.service';
+import { SemanticRunLeaseService } from '../semantic-analysis/semantic-run-lease.service';
 import { SemanticRunWorkerService } from '../semantic-analysis/semantic-run-worker.service';
 import { WORKER_SUPPORT_PROVIDERS } from '../worker-support.providers';
 
@@ -58,6 +59,7 @@ export const SEMANTIC_ANALYSIS_PROVIDERS = [
   { provide: UNRESOLVED_SINK, useExisting: UnresolvedClassificationService },
   // --- Worker A: análisis semántico --------------------------------------
   SemanticAnalysisService,
+  SemanticRunLeaseService,
   SemanticRunWorkerService,
   // La política de retención venía en el núcleo absorbido, pero sin nada que
   // la ejecutase: la disparaba el planificador del paquete original. El
