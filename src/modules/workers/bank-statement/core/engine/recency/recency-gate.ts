@@ -24,6 +24,25 @@
  * tenga nada de malo. Sin tolerancia, la compuerta rechazaría a quien descarga
  * su extracto un lunes por la mañana.
  *
+ * ## Dos maneras de estar vigente (Pablo, 2026-10-16: «que cuadren»)
+ *
+ * Hasta el 2026-10-16 sólo valía un extracto «hasta hoy» (último movimiento con
+ * tres días como mucho). Pero la app —y cualquier banca por internet— ofrece
+ * «los últimos 3 meses completos»: quien descargaba de julio a septiembre el
+ * 16 de octubre, exactamente lo que se le pidió, recibía «extracto vencido».
+ * Ahora se admite también el extracto que cierra al FINAL DEL ÚLTIMO MES
+ * NATURAL COMPLETO, con la misma tolerancia de tres días hacia atrás:
+ *
+ * - hoy 16/10 → el último mes completo cierra el 30/09; se admite un cierre del
+ *   27/09 en adelante (un fin de mes en domingo deja el último apunte el jueves);
+ * - un cierre del 30/04 sigue siendo STALE: describe una vida de hace medio año.
+ *
+ * «El mes anterior» se mide en la hora de BOLIVIA (America/La_Paz), no en UTC:
+ * el 1 de octubre a las 22:00 en La Paz ya son las 02:00 del 2 en UTC, pero para
+ * la persona sigue siendo el 1 y su último mes completo es septiembre. Al revés,
+ * a las 23:00 del 30/09 en La Paz el mes completo todavía es agosto. La
+ * antigüedad en días (`ageDays`) se sigue midiendo en días UTC, como antes.
+ *
  * ## Por qué una fecha FUTURA va a revisión y no al rechazo
  *
  * Porque la causa más frecuente no es el fraude: es `03/04/2026` leído como 3 de
@@ -142,7 +161,14 @@ export function assessRecency(
     };
   }
 
-  if (ageDays > options.toleranceDays) {
+  // El último mes natural completo, visto desde Bolivia, y su cierre con la tolerancia.
+  const lastMonthEnd = lastCompleteMonthEnd(options.now());
+  const monthEndThreshold = new Date(
+    lastMonthEnd.getTime() - options.toleranceDays * MILLISECONDS_PER_DAY,
+  );
+  const closesLastCompleteMonth = last.getTime() >= monthEndThreshold.getTime();
+
+  if (ageDays > options.toleranceDays && !closesLastCompleteMonth) {
     return {
       ...base,
       verdict: 'STALE',
@@ -150,6 +176,7 @@ export function assessRecency(
       reasons: [
         `antiguedad:${String(ageDays)}d`,
         `tolerancia:${String(options.toleranceDays)}d`,
+        `cierre-de-mes-admitido-desde:${isoDay(monthEndThreshold)}`,
         ...(options.enforce ? [] : ['compuerta-en-medicion']),
       ],
     };
@@ -159,7 +186,13 @@ export function assessRecency(
     ...base,
     verdict: 'CURRENT',
     disposition: 'ACCEPT',
-    reasons: [`antiguedad:${String(ageDays)}d`],
+    reasons:
+      ageDays > options.toleranceDays
+        ? [
+            `antiguedad:${String(ageDays)}d`,
+            `cierra-el-ultimo-mes-completo:${isoDay(lastMonthEnd)}`,
+          ]
+        : [`antiguedad:${String(ageDays)}d`],
   };
 }
 
@@ -177,8 +210,8 @@ export function stalenessMessage(assessment: RecencyAssessment): string {
     );
   }
   return (
-    'Ese extracto ya no está vigente: su último movimiento es anterior a los días que admitimos. ' +
-    'Entra a tu banca por internet y descarga el extracto hasta la fecha de hoy.'
+    'Ese extracto ya no está vigente: termina antes del último mes completo. ' +
+    'Descarga de tu banca por internet los últimos 3 meses completos (por ejemplo, de julio a septiembre) o hasta hoy.'
   );
 }
 
@@ -212,6 +245,23 @@ function nonNegativeInteger(value: number, fallback: number): number {
  */
 function startOfUtcDay(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
+const LA_PAZ_DAY = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/La_Paz',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+/**
+ * El último día del mes natural ANTERIOR al de hoy en Bolivia, a medianoche UTC
+ * (la misma escala que las fechas del extracto). Ver «Dos maneras de estar vigente».
+ */
+export function lastCompleteMonthEnd(now: Date): Date {
+  const [year, month] = LA_PAZ_DAY.format(now).split('-').map(Number) as [number, number, number];
+  // Día 0 del mes en curso = último día del mes anterior (Date.UTC usa meses desde 0).
+  return new Date(Date.UTC(year, month - 1, 0));
 }
 
 function isoDay(date: Date): string {

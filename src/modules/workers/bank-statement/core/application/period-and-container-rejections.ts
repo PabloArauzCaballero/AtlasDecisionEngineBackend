@@ -143,7 +143,7 @@ export function insufficientPeriod(
     'INSUFFICIENT_STATEMENT_PERIOD',
     `El extracto cubre ${String(coverage.monthsComplete)} mes(es) completo(s) y se necesitan ` +
       `${String(coverage.minimumMonthsRequired)}. Descarga de tu banca por internet el extracto ` +
-      `de los últimos ${String(coverage.minimumMonthsRequired)} meses completos y vuelve a subirlo.`,
+      `de los últimos ${String(coverage.minimumMonthsRequired)} meses completos (por ejemplo, de julio a septiembre) o hasta hoy, y vuelve a subirlo.`,
     422,
     {
       monthsComplete: coverage.monthsComplete,
