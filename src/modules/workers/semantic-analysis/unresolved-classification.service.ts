@@ -4,6 +4,13 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { DomainException } from '../../../common/errors/domain-exception';
 import { NotificationService } from '../../notifications/notification.service';
+import type { RecordUnresolvedInput, UnresolvedStatus } from './unresolved-classification.types';
+export type {
+  CandidateSuggestion,
+  RecordUnresolvedInput,
+  ResolutionType,
+  UnresolvedStatus,
+} from './unresolved-classification.types';
 
 /**
  * Valores que el motor no supo clasificar, y qué hacer con ellos.
@@ -25,34 +32,6 @@ import { NotificationService } from '../../notifications/notification.service';
  * de crear dos pendientes: la carrera la resuelve Postgres, no el orden en que
  * lleguen.
  */
-
-export type UnresolvedStatus = 'PENDING' | 'RESOLVED' | 'IGNORED' | 'REJECTED' | 'AUTO_RESOLVED';
-
-export type ResolutionType =
-  | 'USE_SUGGESTED'
-  | 'ASSIGN_EXISTING'
-  | 'CREATE_CATEGORY'
-  | 'CREATE_ALIAS'
-  | 'DISCARD'
-  | 'NOT_CATEGORIZED';
-
-export interface CandidateSuggestion {
-  categoryCode: string;
-  confidence: number;
-}
-
-export interface RecordUnresolvedInput {
-  tenantId: bigint;
-  /** El valor tal como se recibió. */
-  rawValue: string;
-  /** Quién lo produjo: `semantic-analysis`, `bank-statement`, `code-import`… */
-  source: string;
-  /** Dónde apareció: ejecución, artefacto, variable, fila del lote. */
-  context?: Record<string, unknown>;
-  /** Candidatas ordenadas de mayor a menor confianza. La primera es la sugerida. */
-  candidates?: readonly CandidateSuggestion[];
-  correlationId?: string;
-}
 
 /** Notificación que se manda una sola vez por término, no una por aparición. */
 const NOTIFICATION_EVENT = 'decision-engine.classification.unresolved';
