@@ -1,5 +1,6 @@
 import { Prisma, WorkerInputSource, WorkerRunStatus } from '@prisma/client';
-import { AudioTtsService } from '../src/modules/workers/audio-tts/audio-tts.service';
+import { AudioRunService } from '../src/modules/workers/audio-tts/audio-run.service';
+import { AudioRunIntakeService } from '../src/modules/workers/audio-tts/audio-run-intake.service';
 import type { AuthenticatedPrincipal } from '../src/common/security/security.types';
 
 /**
@@ -45,15 +46,13 @@ function servicioCon(existente: { status: WorkerRunStatus; requestId: string }) 
     audioTtsRun: { findFirst: () => Promise.resolve(existente) },
     $transaction: (work: (t: unknown) => Promise<unknown>) => work(tx),
   };
-  const service = new AudioTtsService(
+  const service = new AudioRunIntakeService(
     prisma as never,
     { notify: () => ((notificaciones += 1), Promise.resolve()) } as never,
-    { get: () => undefined } as never,
     { inject: () => ({}) } as never,
-    {} as never,
+    { ensureDefaultTemplates: () => Promise.resolve() } as never,
+    new AudioRunService(prisma as never),
   );
-  (service as unknown as { ensureDefaultTemplates: () => Promise<void> }).ensureDefaultTemplates =
-    () => Promise.resolve();
   return { service, actualizaciones, notificaciones: () => notificaciones };
 }
 
