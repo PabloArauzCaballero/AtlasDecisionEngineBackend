@@ -23,56 +23,20 @@ import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PrismaReadService } from '../../../common/prisma/prisma-read.service';
 import { DATASET_NAMES } from '../catalog/dataset-catalog';
-import { serializeRows, type SerializedRows } from './row-serializer';
-
-/** Funciones que pueden aparecer como origen de filas en un plan. Espeja la guardia. */
-const ALLOWED_FUNCTION_SCANS = new Set([
-  'generate_series',
-  'unnest',
-  'jsonb_array_elements',
-  'json_array_elements',
-]);
-
-export interface QueryEstimate {
-  /** Filas que el planificador espera. Es una ESTIMACIÓN, y la vista lo dice así. */
-  readonly estimatedRows: number;
-  /** Bytes estimados = filas × ancho medio de fila que calcula el planificador. */
-  readonly estimatedBytes: number;
-  /** Coste del plan en las unidades de PostgreSQL. Sirve para comparar, no para prometer. */
-  readonly planCost: number;
-  /** Relaciones que el plan recorre de verdad, no las que el texto nombra. */
-  readonly scannedRelations: readonly string[];
-}
-
-export interface QueryOutcome extends SerializedRows {
-  readonly estimate: QueryEstimate;
-  readonly durationMs: number;
-  /** Se alcanzó el tope de filas y hay más resultado del que se devuelve. */
-  readonly truncated: boolean;
-}
-
-export class SqlConsoleQueryError extends Error {
-  constructor(
-    readonly code: string,
-    message: string,
-    readonly detail?: string,
-  ) {
-    super(message);
-    this.name = 'SqlConsoleQueryError';
-  }
-}
-
-interface PlanNode {
-  readonly 'Node Type'?: string;
-  readonly Schema?: string;
-  readonly 'Relation Name'?: string;
-  readonly 'Function Name'?: string;
-  readonly 'Plan Rows'?: number;
-  readonly 'Plan Width'?: number;
-  readonly 'Total Cost'?: number;
-  readonly Plans?: readonly PlanNode[];
-  readonly 'CTE Name'?: string;
-}
+import { serializeRows } from './row-serializer';
+import {
+  ALLOWED_FUNCTION_SCANS,
+  SqlConsoleQueryError,
+  type PlanNode,
+  type QueryEstimate,
+  type QueryOutcome,
+} from './query-executor.types';
+import { translateQueryError } from './query-error-translation';
+export {
+  SqlConsoleQueryError,
+  type QueryEstimate,
+  type QueryOutcome,
+} from './query-executor.types';
 
 @Injectable()
 export class QueryExecutorService {
@@ -221,7 +185,7 @@ export class QueryExecutorService {
         { timeout: this.timeoutMs + 3_000, maxWait: 5_000 },
       );
     } catch (error) {
-      throw this.translate(error);
+      throw translateQueryError(error, this.timeoutMs, this.logger);
     }
   }
 
@@ -296,46 +260,5 @@ export class QueryExecutorService {
     }
 
     for (const child of node.Plans ?? []) this.walkPlan(child, scanned, allowed);
-  }
-
-  /**
-   * Convierte el error de PostgreSQL en algo que se pueda leer sin abrir los registros.
-   *
-   * El detalle crudo NO se devuelve tal cual salvo en los errores de sintaxis, donde es
-   * justamente lo útil. Un `permission denied for table decision_execution` confirmaría al
-   * otro lado el nombre de una tabla que la consola no publica; un `division by zero`
-   * puede citar el valor que la provocó.
-   */
-  private translate(error: unknown): SqlConsoleQueryError {
-    if (error instanceof SqlConsoleQueryError) return error;
-    const known = error as { code?: string; meta?: { code?: string; message?: string } };
-    const pgCode = known.meta?.code ?? known.code ?? '';
-    const message = known.meta?.message ?? (error instanceof Error ? error.message : '');
-
-    // 42601 sintaxis · 42703 columna inexistente · 42P01 relación inexistente · 42883 función
-    if (['42601', '42703', '42P01', '42883', '42804', '42P18'].includes(pgCode)) {
-      return new SqlConsoleQueryError('SQL_INVALID', 'La consulta no es válida.', message);
-    }
-    if (pgCode === '57014' || /statement timeout|canceling statement/i.test(message)) {
-      return new SqlConsoleQueryError(
-        'SQL_TIMEOUT',
-        `La consulta superó el límite de ${Math.round(this.timeoutMs / 1000)} segundos. ` +
-          'Acota el rango de fechas o agrega antes de cruzar.',
-      );
-    }
-    if (pgCode === '42501' || /permission denied/i.test(message)) {
-      return new SqlConsoleQueryError(
-        'SQL_FORBIDDEN',
-        'La consulta intenta alcanzar datos que la consola no publica.',
-      );
-    }
-    if (/ATLAS_SQL_TENANT_NOT_SET/.test(message)) {
-      return new SqlConsoleQueryError(
-        'SQL_TENANT_MISSING',
-        'La sesión no tiene organización asociada; vuelve a entrar al portal.',
-      );
-    }
-    this.logger.error(`Unexpected SQL console failure (${pgCode || 'sin código'})`, error);
-    return new SqlConsoleQueryError('SQL_FAILED', 'La consulta no se pudo completar.');
   }
 }
