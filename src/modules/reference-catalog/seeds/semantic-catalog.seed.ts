@@ -7,7 +7,7 @@
  * `SEED_SOURCE_*` no lo recibía nunca.
  *
  * Sólo CREA lo que falta: una categoría que alguien editó en el portal no se toca, y una que se dio de baja no
- * vuelve. Es la misma regla que el padrón de entidades (`FinancialInstitutionService.syncSeed`).
+ * vuelve. Es la misma regla que el padrón de entidades (`InstitutionRegistryService.syncSeed`).
  */
 import type { PrismaClient } from '@prisma/client';
 import { type SemanticCategorySeed, expenseCategoryTree } from './expense-category-tree.data';

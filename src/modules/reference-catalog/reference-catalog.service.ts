@@ -9,7 +9,8 @@ import { ModuleRef } from '@nestjs/core';
 import { runsBackgroundJobs } from '../../common/config/worker-role';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { resolveBootstrapTenantId } from '../../common/seeding/bootstrap-tenant';
-import { FinancialInstitutionService } from '../workers/bank-statement/institutions/financial-institution.service';
+import { InstitutionLogoService } from '../workers/bank-statement/institutions/institution-logo.service';
+import { InstitutionRegistryService } from '../workers/bank-statement/institutions/institution-registry.service';
 import { seedSemanticCatalog } from './seeds/semantic-catalog.seed';
 
 const ACTOR = 'catalogo-de-referencia@atlas';
@@ -53,8 +54,12 @@ export class ReferenceCatalogService implements OnApplicationBootstrap {
    * así se usa LA instancia que invalida la instantánea del motor, sin tocar `workers.module.ts` (deuda congelada
    * del gate de tamaño) para exportarlo.
    */
-  private get institutions(): FinancialInstitutionService {
-    return this.moduleRef.get(FinancialInstitutionService, { strict: false });
+  private get registry(): InstitutionRegistryService {
+    return this.moduleRef.get(InstitutionRegistryService, { strict: false });
+  }
+
+  private get logos(): InstitutionLogoService {
+    return this.moduleRef.get(InstitutionLogoService, { strict: false });
   }
 
   async onApplicationBootstrap(): Promise<void> {
@@ -88,8 +93,8 @@ export class ReferenceCatalogService implements OnApplicationBootstrap {
   async seedTenant(tenantId: bigint): Promise<void> {
     const t = tenantId.toString();
     try {
-      const padron = await this.institutions.syncSeed(tenantId, false, ACTOR);
-      const logos = await this.institutions.syncLogos(tenantId, false, ACTOR);
+      const padron = await this.registry.syncSeed(tenantId, false, ACTOR);
+      const logos = await this.logos.syncLogos(tenantId, false, ACTOR);
       const catalogo = await seedSemanticCatalog(this.prisma, tenantId);
       const creado =
         padron.created.length + logos.applied.length + catalogo.categories + catalogo.aliases;

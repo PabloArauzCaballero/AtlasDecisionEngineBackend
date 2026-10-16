@@ -10,7 +10,8 @@ import {
 import { BOLIVIA_INSTITUTIONS } from '../src/modules/workers/bank-statement/core/institutions/bolivia-institutions';
 import { institutionLogoSeed } from '../src/modules/workers/bank-statement/institutions/institution-logo-seed';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
-import type { FinancialInstitutionService } from '../src/modules/workers/bank-statement/institutions/financial-institution.service';
+import type { InstitutionLogoService } from '../src/modules/workers/bank-statement/institutions/institution-logo.service';
+import type { InstitutionRegistryService } from '../src/modules/workers/bank-statement/institutions/institution-registry.service';
 
 /**
  * El catálogo de referencia se siembra solo, en todo entorno.
@@ -156,7 +157,8 @@ describe('ReferenceCatalogService · corre siempre, por tenant, y no tumba el ar
         generated: 7,
         dryRun: false,
       })),
-    } as unknown as FinancialInstitutionService;
+    } as unknown as Pick<InstitutionRegistryService, 'syncSeed'> &
+      Pick<InstitutionLogoService, 'syncLogos'>;
     const env: Record<string, unknown> = {
       NODE_ENV: 'production',
       WORKER_ROLE: 'WORKER',
