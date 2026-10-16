@@ -41,7 +41,6 @@
   "src/modules/workers/bank-statement/core/institutions/non-banking-issuers.ts": 303,
   "src/modules/workers/bank-statement/core/parsers/bnb.parser.ts": 349,
   "src/modules/workers/bank-statement/core/parsers/parser-helpers.ts": 432,
-  "src/modules/workers/bank-statement/institutions/financial-institution.service.ts": 564,
   "src/modules/workers/identity-verification/core/adapters/document-framing.ts": 486,
   "src/modules/workers/identity-verification/core/adapters/human-runtime.ts": 303,
   "src/modules/workers/identity-verification/core/adapters/sharp-image.adapter.ts": 318,
@@ -60,7 +59,7 @@
   "src/modules/workers/semantic-analysis/semantic-run-worker.service.ts": 361,
   "src/modules/workers/semantic-analysis/unresolved-classification.service.ts": 308,
   "src/modules/workers/semantic-analysis/unresolved-reevaluation.service.ts": 383,
-  "src/modules/workers/workers.module.ts": 552,
+  "src/modules/workers/workers.module.ts": 554,
   "src/pdf-worker/domain/errors/error-catalog.ts": 328,
   "src/pdf-worker/domain/errors/pdf-worker.errors.ts": 443,
   "src/pdf-worker/pdf-worker.module.ts": 339

@@ -25,7 +25,8 @@ import {
   FinancialInstitutionSummaryDto,
   InstitutionLogoSyncDto,
 } from './financial-institution.response.dto';
-import { FinancialInstitutionService } from './financial-institution.service';
+import { InstitutionLogoService } from './institution-logo.service';
+import { InstitutionRegistryService } from './institution-registry.service';
 
 /**
  * El padrón de entidades financieras bolivianas del worker de extractos.
@@ -39,7 +40,10 @@ import { FinancialInstitutionService } from './financial-institution.service';
 @ApiTags('Workers · Entidades financieras')
 @Controller('v1/workers/bank-statement/institutions')
 export class FinancialInstitutionController {
-  constructor(private readonly institutions: FinancialInstitutionService) {}
+  constructor(
+    private readonly institutions: InstitutionRegistryService,
+    private readonly logos: InstitutionLogoService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Padrón de entidades financieras del tenant' })
@@ -161,7 +165,7 @@ export class FinancialInstitutionController {
     @Param('code') code: string,
     @Res() response: Response,
   ): Promise<void> {
-    const logo = await this.institutions.logo(tenantId, code);
+    const logo = await this.logos.logo(tenantId, code);
     if (!logo) {
       throw new DomainException(
         'INSTITUTION_LOGO_NOT_FOUND',
@@ -194,7 +198,7 @@ export class FinancialInstitutionController {
     @Param('code') code: string,
     @Body() dto: UploadInstitutionLogoDto,
   ) {
-    return this.institutions.setLogo(tenantId, code, dto, principal.id);
+    return this.logos.setLogo(tenantId, code, dto, principal.id);
   }
 
   @Delete(':code/logo')
@@ -206,7 +210,7 @@ export class FinancialInstitutionController {
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Param('code') code: string,
   ) {
-    return this.institutions.removeLogo(tenantId, code, principal.id);
+    return this.logos.removeLogo(tenantId, code, principal.id);
   }
 
   @Post('logos/sync')
@@ -223,7 +227,7 @@ export class FinancialInstitutionController {
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Body() body: { dryRun?: boolean },
   ) {
-    return this.institutions.syncLogos(tenantId, body?.dryRun === true, principal.id);
+    return this.logos.syncLogos(tenantId, body?.dryRun === true, principal.id);
   }
 
   @Post('seed')

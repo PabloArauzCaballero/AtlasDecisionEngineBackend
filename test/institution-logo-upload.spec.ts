@@ -1,6 +1,6 @@
 import type { PrismaService } from '../src/common/prisma/prisma.service';
 import { DomainException } from '../src/common/errors/domain-exception';
-import { FinancialInstitutionService } from '../src/modules/workers/bank-statement/institutions/financial-institution.service';
+import { InstitutionLogoService } from '../src/modules/workers/bank-statement/institutions/institution-logo.service';
 import type { InstitutionCatalogService } from '../src/modules/workers/bank-statement/institutions/institution-catalog.service';
 
 /**
@@ -46,7 +46,7 @@ const SVG_LIMPIO = base64(
 );
 
 interface Escenario {
-  service: FinancialInstitutionService;
+  service: InstitutionLogoService;
   escrito: () => Record<string, unknown> | null;
 }
 
@@ -82,7 +82,7 @@ function montar(): Escenario {
   } as unknown as PrismaService;
 
   const catalog = { invalidate: () => undefined } as unknown as InstitutionCatalogService;
-  return { service: new FinancialInstitutionService(prisma, catalog), escrito: () => escrito };
+  return { service: new InstitutionLogoService(prisma, catalog), escrito: () => escrito };
 }
 
 /** Lo que lanzó, o `null` si no lanzó. Nunca deja pasar un éxito por un fallo esperado. */
@@ -240,7 +240,7 @@ describe('carga del logotipo de una entidad del padrón', () => {
       financialInstitution: { findUnique: () => Promise.resolve(null) },
     } as unknown as PrismaService;
     const catalog = { invalidate: () => undefined } as unknown as InstitutionCatalogService;
-    const service = new FinancialInstitutionService(prisma, catalog);
+    const service = new InstitutionLogoService(prisma, catalog);
 
     const error = await fallo(
       service.setLogo(1n, 'NOEXISTE', { base64: SVG_LIMPIO, contentType: 'image/svg+xml' }, 'a'),
