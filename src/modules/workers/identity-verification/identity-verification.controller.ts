@@ -44,34 +44,7 @@ import { validateIdentityUpload, type ValidatedIdentityInput } from './identity-
 import { IdentityDecisionPolicy } from './identity-decision-policy.service';
 import { IdentityRunIntakeService } from './identity-run-intake.service';
 import { IdentityRunService } from './identity-run.service';
-
-/** Los tres campos de archivo que acepta el alta. */
-const IMAGE_FIELDS = [
-  { name: 'document', maxCount: 1 },
-  { name: 'documentBack', maxCount: 1 },
-  { name: 'selfie', maxCount: 1 },
-];
-
-/**
- * Los archivos tal como los deja `FileFieldsInterceptor`.
- *
- * Se declara estructuralmente y no como `Express.Multer.File`, igual que hace
- * el controlador de extractos: el motor no instala `@types/multer` —el tipo no
- * aporta nada que estos tres campos no digan ya— y añadirlo sólo para nombrar
- * una forma que aquí se usa entera sería una dependencia por comodidad.
- */
-interface UploadedImage {
-  originalname?: string;
-  buffer?: Buffer;
-  size?: number;
-  mimetype?: string;
-}
-
-interface UploadedImages {
-  document?: UploadedImage[];
-  documentBack?: UploadedImage[];
-  selfie?: UploadedImage[];
-}
+import { IMAGE_FIELDS, type UploadedImages } from './identity-upload.types';
 
 /**
  * Superficie HTTP del worker de verificación de identidad.
