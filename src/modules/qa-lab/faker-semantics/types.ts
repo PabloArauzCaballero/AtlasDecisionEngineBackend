@@ -1,5 +1,3 @@
-import { comercio } from './candidates';
-
 export type FakerType = 'caso' | 'comercio';
 
 /** Un elemento de cada faker pedido, para el mismo índice de caso. */
