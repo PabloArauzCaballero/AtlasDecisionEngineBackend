@@ -15,6 +15,7 @@ import type {
   SemanticModelProbeDto,
   UpdateSemanticModelSettingsDto,
 } from './semantic-model-settings.dto';
+import { assertModelShape } from './semantic-model-settings.shape';
 import { SemanticModelSettingsService } from './semantic-model-settings.service';
 
 function categoria(code: string, name: string, description: string): SemanticCategory {
@@ -79,8 +80,8 @@ export class SemanticModelProbeService {
     this.settings.assertAvailable(dto.gateway);
     const fastModel = dto.fastModel.trim();
     const deepModel = dto.deepModel.trim();
-    this.settings.assertModelShape(dto.gateway, 'fastModel', fastModel);
-    this.settings.assertModelShape(dto.gateway, 'deepModel', deepModel);
+    assertModelShape(dto.gateway, 'fastModel', fastModel);
+    assertModelShape(dto.gateway, 'deepModel', deepModel);
 
     const provider = this.buildCandidate(dto.gateway, fastModel, deepModel);
     const tiers: ModelProbeTierDto[] = [];

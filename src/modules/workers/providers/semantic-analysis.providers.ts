@@ -43,6 +43,7 @@ import { buildSemanticWorkerConfig } from '../semantic-analysis/semantic-config.
 import { buildSemanticModelProvider } from '../semantic-analysis/semantic-model-provider.bridge';
 import { OpenRouterCatalogService } from '../semantic-analysis/model-settings/openrouter-catalog.service';
 import { SemanticModelProbeService } from '../semantic-analysis/model-settings/semantic-model-probe.service';
+import { SemanticModelSettingsAdminService } from '../semantic-analysis/model-settings/semantic-model-settings-admin.service';
 import { SemanticModelSettingsService } from '../semantic-analysis/model-settings/semantic-model-settings.service';
 import { SemanticRetentionSweeperService } from '../semantic-analysis/semantic-retention-sweeper.service';
 import { SemanticRunLeaseService } from '../semantic-analysis/semantic-run-lease.service';
@@ -106,6 +107,7 @@ export const SEMANTIC_ANALYSIS_PROVIDERS = [
    * cambia. El catálogo y la sonda sólo los usa el controlador.
    */
   SemanticModelSettingsService,
+  SemanticModelSettingsAdminService,
   OpenRouterCatalogService,
   SemanticModelProbeService,
 
