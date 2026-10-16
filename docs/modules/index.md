@@ -28,7 +28,7 @@ real: sus controladores, sus etiquetas de API, sus roles exigidos y sus códigos
 | [`outbox-relay`](outbox-relay.md) | 0 | — | 2 |
 | [`outcome-ingestion`](outcome-ingestion.md) | 4 | AUDITOR, COMPLIANCE, OPERATIONS, RISK_ANALYST, RISK_APPROVER | 8 |
 | [`platform-catalog`](platform-catalog.md) | 1 | AUDITOR, COMPLIANCE, OPERATIONS, PLATFORM_ADMIN | 8 |
-| [`qa-lab`](qa-lab.md) | 7 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 36 |
+| [`qa-lab`](qa-lab.md) | 7 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 44 |
 | [`reference-catalog`](reference-catalog.md) | 0 | — | 11 |
 | [`risk-governance`](risk-governance.md) | 12 | AUDITOR, COMPLIANCE, OPERATIONS, RISK_ANALYST, RISK_APPROVER | 15 |
 | [`runtime`](runtime.md) | 3 | FRAUD_ANALYST, QA_ANALYST | 21 |
@@ -40,4 +40,4 @@ real: sus controladores, sus etiquetas de API, sus roles exigidos y sus códigos
 | [`tutorials`](tutorials.md) | 2 | — | 5 |
 | [`variables`](variables.md) | 9 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, OPERATIONS, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 10 |
 | [`views`](views.md) | 9 | — | 5 |
-| [`workers`](workers.md) | 68 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, OPERATIONS, QA_ANALYST, RISK_ANALYST | 398 |
+| [`workers`](workers.md) | 68 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, OPERATIONS, QA_ANALYST, RISK_ANALYST | 411 |
