@@ -16,7 +16,6 @@
   "src/modules/model-monitoring/monitoring-analytics.ts": 359,
   "src/modules/qa-lab/contract-generator.ts": 370,
   "src/modules/qa-lab/contract-value-factory.ts": 422,
-  "src/modules/qa-lab/faker-semantics.ts": 516,
   "src/modules/qa-lab/pattern-samples.ts": 330,
   "src/modules/risk-governance/decision-guard.service.ts": 326,
   "src/modules/runtime/execution-writer.service.ts": 361,
@@ -41,7 +40,6 @@
   "src/modules/workers/identity-verification/core/engine/identity-evidence.ts": 326,
   "src/modules/workers/identity-verification/core/forensics/identity-fraud.scorer.ts": 317,
   "src/modules/workers/identity-verification/core/forensics/image-tamper.analyzer.ts": 400,
-  "src/modules/workers/identity-verification/core/forensics/template-conformance.ts": 523,
   "src/modules/workers/identity-verification/core/ports/identity.ports.ts": 313,
   "src/modules/workers/identity-verification/identity-verification.controller.ts": 317,
   "src/modules/workers/semantic-analysis/core/application/text-normalizer.ts": 388,
@@ -52,6 +50,5 @@
   "src/modules/workers/semantic-analysis/semantic-run-worker.service.ts": 361,
   "src/modules/workers/semantic-analysis/unresolved-classification.service.ts": 308,
   "src/modules/workers/semantic-analysis/unresolved-reevaluation.service.ts": 383,
-  "src/modules/workers/workers.module.ts": 554,
   "src/pdf-worker/pdf-worker.module.ts": 339
 }
