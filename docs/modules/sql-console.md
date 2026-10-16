@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/sql-console/`](https://github.com/) · 13 ficheros TypeScript.
+Código: [`src/modules/sql-console/`](https://github.com/) · 19 ficheros TypeScript.
 
 Etiquetas de API: **SQL Console**.
 

@@ -11,7 +11,7 @@ real: sus controladores, sus etiquetas de API, sus roles exigidos y sus códigos
 | [`artifacts`](artifacts.md) | 13 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, OPERATIONS, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 29 |
 | [`atlas-callback`](atlas-callback.md) | 0 | — | 3 |
 | [`audit-query`](audit-query.md) | 7 | AUDITOR, COMPLIANCE, OPERATIONS, RISK_ANALYST | 8 |
-| [`calculated-fields`](calculated-fields.md) | 14 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 17 |
+| [`calculated-fields`](calculated-fields.md) | 14 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 23 |
 | [`code-import`](code-import.md) | 6 | AUDITOR, FRAUD_ANALYST, QA_ANALYST, RISK_ANALYST | 19 |
 | [`data-subject`](data-subject.md) | 2 | AUDITOR, COMPLIANCE, OPERATIONS | 5 |
 | [`deployments`](deployments.md) | 5 | AUDITOR, COMPLIANCE, OPERATIONS, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 13 |
@@ -34,10 +34,10 @@ real: sus controladores, sus etiquetas de API, sus roles exigidos y sus códigos
 | [`runtime`](runtime.md) | 3 | FRAUD_ANALYST, QA_ANALYST | 21 |
 | [`security-review`](security-review.md) | 2 | — | 4 |
 | [`seeding`](seeding.md) | 0 | — | 2 |
-| [`sql-console`](sql-console.md) | 4 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, RISK_ANALYST, RISK_APPROVER | 13 |
+| [`sql-console`](sql-console.md) | 4 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, RISK_ANALYST, RISK_APPROVER | 19 |
 | [`testing`](testing.md) | 8 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, QA_ANALYST, RISK_ANALYST | 23 |
 | [`traceability`](traceability.md) | 6 | AUDITOR, COMPLIANCE, QA_ANALYST, RISK_ANALYST | 5 |
 | [`tutorials`](tutorials.md) | 2 | — | 5 |
 | [`variables`](variables.md) | 9 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, OPERATIONS, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 10 |
 | [`views`](views.md) | 9 | — | 5 |
-| [`workers`](workers.md) | 68 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, OPERATIONS, QA_ANALYST, RISK_ANALYST | 372 |
+| [`workers`](workers.md) | 68 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, OPERATIONS, QA_ANALYST, RISK_ANALYST | 398 |
