@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/model-monitoring/`](https://github.com/) · 16 ficheros TypeScript.
+Código: [`src/modules/model-monitoring/`](https://github.com/) · 19 ficheros TypeScript.
 
 Etiquetas de API: **Model Monitoring**.
 
