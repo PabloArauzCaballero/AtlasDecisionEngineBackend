@@ -122,7 +122,7 @@ describe('runner sidecar JavaScript sandbox escape', () => {
     // deliberately dependency-free and cannot import from src/), so pin the security-relevant
     // parts instead: a change to one must be mirrored, or this fails.
     const inProcess = readFileSync(
-      join(__dirname, '..', 'src', 'modules', 'graph', 'script-node-runner.service.ts'),
+      join(__dirname, '..', 'src', 'modules', 'graph', 'script-wrappers.ts'),
       'utf8',
     );
     for (const invariant of [
@@ -156,7 +156,7 @@ describe('runner sidecar JavaScript sandbox escape', () => {
    */
   it('acota la memoria del proceso de Python en ambos runners', () => {
     const inProcess = readFileSync(
-      join(__dirname, '..', 'src', 'modules', 'graph', 'script-node-runner.service.ts'),
+      join(__dirname, '..', 'src', 'modules', 'graph', 'script-wrappers.ts'),
       'utf8',
     );
     for (const invariant of [
