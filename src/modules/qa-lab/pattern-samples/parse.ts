@@ -1,88 +1,16 @@
-/**
- * Construcción de una cadena que SATISFACE un `pattern` del contrato (§10.3).
- *
- * El generador guiado por contrato ignoraba `pattern`: rellenaba con letras al azar y
- * devolvía como VÁLIDO un valor que el motor de restricciones rechazaba acto seguido. Un
- * banco de pruebas que se contradice a sí mismo no se mira dos veces, así que aquí el
- * patrón se lee y se produce una cadena que casa con él.
- *
- * ## Por qué un intérprete propio y no una librería
- *
- * `randexp` y equivalentes son dependencias de PRODUCCIÓN que ejecutarían un patrón
- * escrito por el autor del contrato, y su algoritmo puede cambiar entre versiones
- * menores: una corrida archivada dejaría de reproducirse. Aquí el subconjunto soportado
- * está congelado en el repositorio, versionado con `GENERATOR_VERSION`, y consume el
- * mismo flujo determinista que el resto del generador.
- *
- * ## Subconjunto soportado
- *
- * Literales, `.`, clases `[a-z0-9]` (con negación y rangos), `\d \w \s` y sus negados,
- * grupos `( … )` y `(?: … )`, alternancia `|`, cuantificadores `* + ? {n} {n,} {n,m}` y
- * anclas `^ $`. Lo demás —retrorreferencias, lookaround, `\u`, propiedades Unicode— NO
- * se soporta: se devuelve `null` y quien llama decide qué hacer. Fallar declarándolo es
- * la única opción honesta; inventar una cadena que no casa es lo que ya hacía antes.
- *
- * Toda cadena producida se COMPRUEBA contra el patrón real antes de devolverse, de modo
- * que un fallo del intérprete nunca puede escaparse como valor válido.
- */
-import { isPotentiallyCatastrophic, safeRegexTest } from '../../common/validation/safe-regex';
-import type { SeededRandom } from './seeded-random';
+import { classNode } from './emit';
+import {
+  ANY,
+  Cursor,
+  DIGITS,
+  LOWER,
+  OPEN_REPEAT_SLACK,
+  PatternNode,
+  UPPER,
+  WORD,
+} from './types-and-constants';
 
-const DIGITS = '0123456789';
-const LOWER = 'abcdefghijklmnopqrstuvwxyz';
-const UPPER = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-const WORD = `${LOWER}${UPPER}${DIGITS}_`;
-/** Alfabeto para `.` y para los negados: imprimible, sin espacios ni sorpresas. */
-const ANY = `${LOWER}${UPPER}${DIGITS}`;
-
-/**
- * Tope de caracteres emitidos por intento. Un `{1,100000}` es un patrón legítimo pero
- * pedirle su cadena completa reventaría la memoria del proceso por una entrada de
- * prueba; se corta y la comprobación final descarta el intento.
- */
-const EMISSION_BUDGET = 512;
-/** Repeticiones añadidas sobre el mínimo en un cuantificador abierto (`*`, `+`, `{n,}`). */
-const OPEN_REPEAT_SLACK = 2;
-
-type PatternNode =
-  | { kind: 'literal'; text: string }
-  | { kind: 'class'; chars: readonly string[] }
-  | { kind: 'group'; alternatives: PatternNode[][] }
-  | { kind: 'repeat'; node: PatternNode; min: number; max: number };
-
-interface Cursor {
-  source: string;
-  index: number;
-  failed: boolean;
-}
-
-/**
- * Una cadena que casa con `pattern`, o `null` si el patrón usa construcciones no
- * soportadas o si ningún intento superó `accepts` (por ejemplo, la longitud declarada).
- */
-export function sampleForPattern(
-  pattern: string,
-  random: SeededRandom,
-  accepts: (candidate: string) => boolean = () => true,
-  attempts = 12,
-): string | null {
-  // Un patrón con retroceso catastrófico no se compila ni para comprobar: `safeRegexTest`
-  // fallaría cerrado y todos los intentos se descartarían igualmente.
-  if (isPotentiallyCatastrophic(pattern)) return null;
-  const alternatives = parsePattern(pattern);
-  if (!alternatives) return null;
-
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    const budget = { left: EMISSION_BUDGET };
-    const candidate = emitSequence(random.pick(alternatives), random, budget);
-    if (budget.left > 0 && safeRegexTest(pattern, candidate).matched && accepts(candidate)) {
-      return candidate;
-    }
-  }
-  return null;
-}
-
-function parsePattern(pattern: string): PatternNode[][] | null {
+export function parsePattern(pattern: string): PatternNode[][] | null {
   const cursor: Cursor = { source: pattern, index: 0, failed: false };
   const alternatives = parseAlternation(cursor);
   // Sobrar texto significa que se paró en un `)` sin abrir: el patrón no se entendió.
@@ -290,40 +218,4 @@ function parseQuantifier(cursor: Cursor): { min: number; max: number } | null {
     cursor.index += 1;
   }
   return bounds;
-}
-
-function classNode(alphabet: string): PatternNode {
-  return { kind: 'class', chars: [...alphabet] };
-}
-
-function emitSequence(
-  nodes: readonly PatternNode[],
-  random: SeededRandom,
-  budget: { left: number },
-): string {
-  let out = '';
-  for (const node of nodes) out += emitNode(node, random, budget);
-  return out;
-}
-
-function emitNode(node: PatternNode, random: SeededRandom, budget: { left: number }): string {
-  if (budget.left <= 0) return '';
-  switch (node.kind) {
-    case 'literal':
-      budget.left -= node.text.length;
-      return node.text;
-    case 'class':
-      budget.left -= 1;
-      return random.pick(node.chars);
-    case 'group':
-      return emitSequence(random.pick(node.alternatives), random, budget);
-    case 'repeat': {
-      const times = random.int(node.min, node.max);
-      let out = '';
-      for (let repetition = 0; repetition < times && budget.left > 0; repetition += 1) {
-        out += emitNode(node.node, random, budget);
-      }
-      return out;
-    }
-  }
 }

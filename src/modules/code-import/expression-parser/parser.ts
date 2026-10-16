@@ -1,120 +1,7 @@
-import type { ImportLanguage } from './code-import.types';
-
-/**
- * Traduce una expresión de JavaScript o Python al AST determinista que evalúa el
- * motor (ver expression-evaluator.ts: op/left/right, and/or/not, if, add/sub/...).
- *
- * Es un parser de precedencia por descenso recursivo sobre un subconjunto
- * deliberadamente pequeño: comparaciones, lógica booleana, aritmética, ternarios,
- * literales, acceso a `variables` y las funciones min/max/round. Todo lo que
- * quede fuera lanza {@link ExpressionParseError}, y quien llama degrada a un nodo
- * de script en vez de inventarse una condición — una regla mal traducida cambiaría
- * decisiones de crédito en silencio.
- */
-
-export class ExpressionParseError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ExpressionParseError';
-  }
-}
-
-/** Nodo interno para literales de objeto/diccionario; nunca llega al motor. */
-export const OBJECT_OP = '__object';
-export interface ObjectAst {
-  op: typeof OBJECT_OP;
-  entries: Array<{ key: string; value: unknown }>;
-}
-
-export function isObjectAst(value: unknown): value is ObjectAst {
-  return Boolean(value) && typeof value === 'object' && (value as ObjectAst).op === OBJECT_OP;
-}
-
-/** Resuelve un identificador suelto: variable local ya calculada o del contrato. */
-export type NameResolver = (name: string) => unknown;
-
-interface Token {
-  type: 'number' | 'string' | 'name' | 'punct';
-  value: string;
-}
-
-const PUNCTUATION = [
-  '===',
-  '!==',
-  '==',
-  '!=',
-  '>=',
-  '<=',
-  '&&',
-  '||',
-  '(',
-  ')',
-  '[',
-  ']',
-  '{',
-  '}',
-  ',',
-  ':',
-  '.',
-  '+',
-  '-',
-  '*',
-  '/',
-  '%',
-  '>',
-  '<',
-  '?',
-  '!',
-];
-
-function tokenize(source: string): Token[] {
-  const tokens: Token[] = [];
-  let index = 0;
-  while (index < source.length) {
-    const char = source[index];
-    if (/\s/.test(char)) {
-      index += 1;
-      continue;
-    }
-    if (char === '#' || (char === '/' && source[index + 1] === '/')) break;
-    if (char === '"' || char === "'") {
-      let value = '';
-      index += 1;
-      while (index < source.length && source[index] !== char) {
-        if (source[index] === '\\') index += 1;
-        value += source[index];
-        index += 1;
-      }
-      if (index >= source.length) throw new ExpressionParseError('cadena sin cerrar');
-      index += 1;
-      tokens.push({ type: 'string', value });
-      continue;
-    }
-    if (/[0-9]/.test(char) || (char === '.' && /[0-9]/.test(source[index + 1] ?? ''))) {
-      let value = '';
-      while (index < source.length && /[0-9._]/.test(source[index])) {
-        if (source[index] !== '_') value += source[index];
-        index += 1;
-      }
-      tokens.push({ type: 'number', value });
-      continue;
-    }
-    if (/[A-Za-z_$]/.test(char)) {
-      let value = '';
-      while (index < source.length && /[A-Za-z0-9_$]/.test(source[index])) {
-        value += source[index];
-        index += 1;
-      }
-      tokens.push({ type: 'name', value });
-      continue;
-    }
-    const punct = PUNCTUATION.find((candidate) => source.startsWith(candidate, index));
-    if (!punct) throw new ExpressionParseError(`carácter no soportado: ${char}`);
-    tokens.push({ type: 'punct', value: punct });
-    index += punct.length;
-  }
-  return tokens;
-}
+import type { ImportLanguage } from '../code-import.types';
+import { ExpressionParseError, NameResolver, OBJECT_OP, ObjectAst } from './ast';
+import { readPrecision } from './entry';
+import { Token } from './tokenizer';
 
 const COMPARISONS: Record<string, string> = {
   '==': 'eq',
@@ -127,7 +14,7 @@ const COMPARISONS: Record<string, string> = {
   '<=': 'lte',
 };
 
-class Parser {
+export class Parser {
   private position = 0;
 
   constructor(
@@ -368,30 +255,4 @@ class Parser {
     }
     throw new ExpressionParseError(`la función ${name}() no está soportada`);
   }
-}
-
-function readPrecision(argument: unknown): number {
-  if (argument === undefined) return 0;
-  const value = (argument as { value?: unknown }).value;
-  if (typeof value !== 'number') {
-    throw new ExpressionParseError('la precisión de round() debe ser un número fijo');
-  }
-  return value;
-}
-
-export function parseExpression(
-  source: string,
-  language: ImportLanguage,
-  resolveName: NameResolver,
-): unknown {
-  const trimmed = source.trim();
-  if (!trimmed) throw new ExpressionParseError('expresión vacía');
-  return new Parser(tokenize(trimmed), language, resolveName).parse();
-}
-
-/** Valor literal de un AST `{ value }`, o `undefined` si es una expresión. */
-export function literalOf(ast: unknown): unknown {
-  if (!ast || typeof ast !== 'object') return undefined;
-  const node = ast as Record<string, unknown>;
-  return 'value' in node && Object.keys(node).length === 1 ? node.value : undefined;
 }
