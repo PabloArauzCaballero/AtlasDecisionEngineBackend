@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/code-import/`](https://github.com/) · 19 ficheros TypeScript.
+Código: [`src/modules/code-import/`](https://github.com/) · 24 ficheros TypeScript.
 
 Etiquetas de API: **Code to Flow Import**.
 
