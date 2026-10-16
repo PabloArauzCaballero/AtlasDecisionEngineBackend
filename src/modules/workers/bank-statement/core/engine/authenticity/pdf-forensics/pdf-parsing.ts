@@ -44,7 +44,7 @@ function decodeHex(value: string): string {
 export function parsePdfDate(value: string | undefined): Date | null {
   if (!value) return null;
   const match =
-    /D?:?\s*(\d{4})(\d{2})?(\d{2})?(\d{2})?(\d{2})?(\d{2})?(?:([+-Z])(\d{2})'?(\d{2})?)?/.exec(
+    /D?:?\s*(\d{4})(\d{2})?(\d{2})?(\d{2})?(\d{2})?(\d{2})?(?:([-+Z])(\d{2})'?(\d{2})?)?/.exec(
       value,
     );
   if (!match) return null;

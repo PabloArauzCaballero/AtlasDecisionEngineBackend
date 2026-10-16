@@ -5,7 +5,7 @@ export const NUMERO_IMPRESO: AnclajeDeCatalogo = {
   cara: 'ANVERSO',
   // `N°` con las grafías que el reconocedor le da (`N*`, `N”`, `Nº`, `No`) y el
   // número con la forma del SEGIP. Es el dato más grande del anverso.
-  patron: /\bN\s*[°º*"'”\u00B0]?\s*\.?\s*(?!0)\d{5,8}\b/u,
+  patron: /\bN\s*[°º*"'”]?\s*\.?\s*(?!0)\d{5,8}\b/u,
   grafias: [],
   peso: 0.06,
   obligatorio: false,
