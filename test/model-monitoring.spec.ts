@@ -1,7 +1,8 @@
 import { DomainException } from '../src/common/errors/domain-exception';
 import { ModelMonitoringMetrics } from '../src/common/observability/model-monitoring-metrics';
 import { MetricsRegistry } from '../src/common/observability/metrics-registry';
-import { ModelMonitoringService } from '../src/modules/model-monitoring/model-monitoring.service';
+import { ModelMonitoringIngestService } from '../src/modules/model-monitoring/model-monitoring-ingest.service';
+import { ModelMonitoringQueryService } from '../src/modules/model-monitoring/model-monitoring-query.service';
 import type { AuditService } from '../src/common/audit/audit.service';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
 import type { AuthenticatedPrincipal } from '../src/common/security/security.types';
@@ -27,7 +28,7 @@ import type {
  *  3. **La auditoría no guarda la composición demográfica.** Registra los nombres de atributo,
  *     nunca los valores: es un registro append-only y ahí no cabe rectificar.
  */
-describe('ModelMonitoringService', () => {
+describe('Monitoreo del modelo', () => {
   const TENANT = 7n;
   const principal = { id: 'riesgo', requestId: 'req-1' } as AuthenticatedPrincipal;
   const registry = new MetricsRegistry();
@@ -78,7 +79,10 @@ describe('ModelMonitoringService', () => {
       $transaction: (fn: (client: unknown) => Promise<unknown>) => fn(tx),
     } as unknown as PrismaService;
     return {
-      service: new ModelMonitoringService(prisma, audit, metrics),
+      service: {
+        ingest: new ModelMonitoringIngestService(prisma, audit, metrics),
+        queries: new ModelMonitoringQueryService(prisma, metrics),
+      },
       audited,
       upserts,
       findManyArgs,
@@ -101,7 +105,7 @@ describe('ModelMonitoringService', () => {
   describe('carga de desenlaces', () => {
     it('registra el lote y deja evidencia en la misma transacción', async () => {
       const { service, audited, upserts } = make({});
-      const result = await service.recordOutcomes(TENANT, outcomes(3), principal);
+      const result = await service.ingest.recordOutcomes(TENANT, outcomes(3), principal);
       expect(result.recorded).toBe(3);
       expect(upserts).toHaveLength(3);
       expect(upserts[0]).toMatchObject({ tenantId: TENANT, recordedBy: 'riesgo' });
@@ -112,7 +116,7 @@ describe('ModelMonitoringService', () => {
       // La RLS comprueba la columna, no la coherencia del vínculo: sin esto se podría
       // contaminar el análisis de otro cliente con desenlaces inventados.
       const { service, upserts } = make({ executionsFound: 0 });
-      const error = await service
+      const error = await service.ingest
         .recordOutcomes(TENANT, outcomes(1), principal)
         .catch((caught: unknown) => caught);
       expect((error as DomainException).code).toBe('EXECUTION_NOT_FOUND');
@@ -121,12 +125,12 @@ describe('ModelMonitoringService', () => {
 
     it('rechaza un lote vacío y uno desmesurado', async () => {
       const { service } = make({});
-      const vacio = await service
+      const vacio = await service.ingest
         .recordOutcomes(TENANT, { observations: [] }, principal)
         .catch((caught: unknown) => caught);
       expect((vacio as DomainException).code).toBe('MONITORING_BATCH_EMPTY');
 
-      const enorme = await service
+      const enorme = await service.ingest
         .recordOutcomes(TENANT, outcomes(1_001), principal)
         .catch((caught: unknown) => caught);
       // Un lote sin techo mantiene abierta una transacción tanto como quiera el llamante.
@@ -137,13 +141,13 @@ describe('ModelMonitoringService', () => {
   describe('atributos solo-monitoreo', () => {
     it('se registran con su grupo, para poder medir sesgo', async () => {
       const { service, upserts } = make({});
-      await service.recordAttributes(TENANT, attributes, principal);
+      await service.ingest.recordAttributes(TENANT, attributes, principal);
       expect(upserts[0]).toMatchObject({ attribute: 'AGE_BAND', groupValue: '60+' });
     });
 
     it('la auditoría guarda el NOMBRE del atributo, nunca el valor del grupo', async () => {
       const { service, audited } = make({});
-      await service.recordAttributes(TENANT, attributes, principal);
+      await service.ingest.recordAttributes(TENANT, attributes, principal);
       const payload = audited[0].payload as Record<string, unknown>;
       expect(payload.attributes).toEqual(['AGE_BAND']);
       // La cadena de auditoría es append-only: la composición demográfica de una cartera no
@@ -153,7 +157,7 @@ describe('ModelMonitoringService', () => {
 
     it('también exige que la ejecución sea del tenant', async () => {
       const { service } = make({ executionsFound: 0 });
-      const error = await service
+      const error = await service.ingest
         .recordAttributes(TENANT, attributes, principal)
         .catch((caught: unknown) => caught);
       expect((error as DomainException).code).toBe('EXECUTION_NOT_FOUND');
@@ -165,7 +169,9 @@ describe('ModelMonitoringService', () => {
 
     it('no analiza una versión de otro tenant', async () => {
       const { service } = make({ versionFound: false });
-      const error = await service.performance(TENANT, query).catch((caught: unknown) => caught);
+      const error = await service.queries
+        .performance(TENANT, query)
+        .catch((caught: unknown) => caught);
       expect((error as DomainException).code).toBe('VERSION_NOT_FOUND');
     });
 
@@ -185,14 +191,14 @@ describe('ModelMonitoringService', () => {
           },
         ],
       });
-      const report = await service.performance(TENANT, query);
+      const report = await service.queries.performance(TENANT, query);
       expect(report.approved).toBe(2);
       expect(report.badRate).toBeCloseTo(0.5);
     });
 
     it('el desempeño analiza las ejecuciones MÁS RECIENTES cuando hay más de las que caben', async () => {
       const { service, findManyArgs } = make({});
-      await service.performance(TENANT, query);
+      await service.queries.performance(TENANT, query);
       expect(findManyArgs[0]).toMatchObject({ orderBy: { executedAt: 'desc' }, take: 20_000 });
     });
 
@@ -202,7 +208,7 @@ describe('ModelMonitoringService', () => {
           { businessOutcome: 'APPROVED', outputJson: {}, outcomeObservations: [{ label: 'GOOD' }] },
         ],
       });
-      const report = await service.performance(TENANT, query);
+      const report = await service.queries.performance(TENANT, query);
       expect(report.discrimination).toBeNull();
       expect(report.goodRate).toBe(1);
     });
@@ -223,7 +229,7 @@ describe('ModelMonitoringService', () => {
         })),
       ];
       const { service } = make({ executions: rows });
-      const report = await service.adverseImpact(TENANT, {
+      const report = await service.queries.adverseImpact(TENANT, {
         artifactVersionId: '4001',
         attribute: 'AGE_BAND',
       } as AdverseImpactQueryDto);

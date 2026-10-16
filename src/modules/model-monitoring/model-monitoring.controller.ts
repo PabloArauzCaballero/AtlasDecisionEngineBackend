@@ -22,13 +22,15 @@ import {
 } from './model-monitoring.response.dto';
 import { CutoffAnalysisService } from './cutoff-analysis.service';
 import { DecisionCoverageService } from './decision-coverage.service';
-import { ModelMonitoringService } from './model-monitoring.service';
+import { ModelMonitoringIngestService } from './model-monitoring-ingest.service';
+import { ModelMonitoringQueryService } from './model-monitoring-query.service';
 
 @ApiTags('Model Monitoring')
 @Controller('v1/model-monitoring')
 export class ModelMonitoringController {
   constructor(
-    private readonly monitoring: ModelMonitoringService,
+    private readonly ingest: ModelMonitoringIngestService,
+    private readonly queries: ModelMonitoringQueryService,
     private readonly coverageService: DecisionCoverageService,
     private readonly cutoffs: CutoffAnalysisService,
   ) {}
@@ -67,7 +69,7 @@ export class ModelMonitoringController {
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Body() dto: RecordOutcomeBatchDto,
   ) {
-    return this.monitoring.recordOutcomes(tenantId, dto, principal);
+    return this.ingest.recordOutcomes(tenantId, dto, principal);
   }
 
   /**
@@ -131,7 +133,7 @@ export class ModelMonitoringController {
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Body() dto: RecordMonitoringAttributeBatchDto,
   ) {
-    return this.monitoring.recordAttributes(tenantId, dto, principal);
+    return this.ingest.recordAttributes(tenantId, dto, principal);
   }
 
   /**
@@ -144,7 +146,7 @@ export class ModelMonitoringController {
   @ApiOkResponse({ description: 'Desempeño observado de la versión.', type: PerformanceReportDto })
   @Roles('RISK_ANALYST', 'COMPLIANCE', 'AUDITOR', 'RISK_APPROVER')
   performance(@TenantId() tenantId: bigint, @Body() query: MonitoringWindowQueryDto) {
-    return this.monitoring.performance(tenantId, query);
+    return this.queries.performance(tenantId, query);
   }
 
   @Post('stability')
@@ -153,7 +155,7 @@ export class ModelMonitoringController {
   @ApiOkResponse({ description: 'Estabilidad poblacional.', type: StabilityReportDto })
   @Roles('RISK_ANALYST', 'COMPLIANCE', 'AUDITOR', 'RISK_APPROVER')
   stability(@TenantId() tenantId: bigint, @Body() query: StabilityQueryDto) {
-    return this.monitoring.stability(tenantId, query);
+    return this.queries.stability(tenantId, query);
   }
 
   @Post('adverse-impact')
@@ -162,6 +164,6 @@ export class ModelMonitoringController {
   @ApiOkResponse({ description: 'Razones de impacto adverso.', type: AdverseImpactReportDto })
   @Roles('COMPLIANCE', 'AUDITOR', 'RISK_APPROVER')
   adverseImpact(@TenantId() tenantId: bigint, @Body() query: AdverseImpactQueryDto) {
-    return this.monitoring.adverseImpact(tenantId, query);
+    return this.queries.adverseImpact(tenantId, query);
   }
 }
