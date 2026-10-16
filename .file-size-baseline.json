@@ -32,6 +32,7 @@
   "src/modules/workers/bank-statement/core/engine/affordability/official-glossary.ts": 347,
   "src/modules/workers/bank-statement/core/engine/document-classifier.ts": 333,
   "src/modules/workers/bank-statement/core/engine/generic/table-analyzer.ts": 307,
+  "src/modules/workers/bank-statement/core/institutions/bolivia-institutions.ts": 691,
   "src/modules/workers/bank-statement/core/institutions/non-banking-issuers.ts": 303,
   "src/modules/workers/bank-statement/core/parsers/bnb.parser.ts": 349,
   "src/modules/workers/bank-statement/core/parsers/parser-helpers.ts": 432,

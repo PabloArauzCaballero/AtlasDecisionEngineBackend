@@ -13,8 +13,8 @@ El grafo contiene **12281 nodos** y **29289 relaciones** repartidos en
 **33 módulos de dominio** en `src/modules/`, de los cuales
 todos están registrados en `src/app.module.ts` (comprobado sobre el fichero, no supuesto).
 
-El grafo cubre **687 de 1088**
-ficheros TypeScript de `src/` (63 %).
+El grafo cubre **688 de 1082**
+ficheros TypeScript de `src/` (64 %).
 **2 módulo(s) de dominio no aparecen en absoluto**: `atlas-callback`, `reference-catalog`. Consultar el grafo sobre ellos no devuelve nada, así que su documentación **no** se deriva de aquí.
 
 ## Inventario cuantitativo
@@ -104,7 +104,7 @@ La mayoría son ficheros de configuración y documentos sueltos, que por natural
 
 ### El grafo menciona ficheros que ya no existen
 
-**28 ficheros** referenciados por el grafo ya no existen en disco. El grafo está desactualizado respecto al árbol; ejecute `graphify update .`:
+**27 ficheros** referenciados por el grafo ya no existen en disco. El grafo está desactualizado respecto al árbol; ejecute `graphify update .`:
 
 - `src/common/llm/openai-compatible-transport.ts`
 - `src/modules/artifacts/artifact.response.dto.ts`
@@ -124,8 +124,8 @@ La mayoría son ficheros de configuración y documentos sueltos, que por natural
 - `src/modules/workers/bank-statement/core/engine/affordability/monthly-series.ts`
 - `src/modules/workers/bank-statement/core/engine/affordability/movement-lexicon.ts`
 - `src/modules/workers/bank-statement/core/engine/authenticity/pdf-forensics.ts`
-- `src/modules/workers/bank-statement/core/institutions/bolivia-institutions.ts`
 - `src/modules/workers/bank-statement/institutions/financial-institution.service.ts`
+- `src/modules/workers/bank-statement/review/statement-review.service.ts`
 
 ### El disco tiene código que el grafo desconoce
 
@@ -133,7 +133,7 @@ Es la dirección que más daño hace: sobre un fichero ausente el grafo no devue
 consulta vacía se lee igual que «no existe». Por eso los catálogos del portal se generan del
 código y del contrato, nunca de este grafo.
 
-**401 de 1088** ficheros `.ts` de `src/` no aparecen en el grafo, incluidos **2 módulo(s) completos** (`atlas-callback`, `reference-catalog`). Se listan los primeros 20:
+**394 de 1082** ficheros `.ts` de `src/` no aparecen en el grafo, incluidos **2 módulo(s) completos** (`atlas-callback`, `reference-catalog`). Se listan los primeros 20:
 
 - `src/common/config/build-identity.ts`
 - `src/common/config/env/audio-tts.env.ts`
