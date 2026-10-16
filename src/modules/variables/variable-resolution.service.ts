@@ -1,22 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { FreshnessPolicy } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { HashService } from '../../common/crypto/hash.service';
 import { MetricsService } from '../../common/observability/metrics.service';
-import { safeRegexTest } from '../../common/validation/safe-regex';
-import {
-  isRequiredIn,
-  parseConstraints,
-  validateAgainstConstraints,
-} from '../../common/contracts/constraint-engine';
+import { isRequiredIn, parseConstraints } from '../../common/contracts/constraint-engine';
 import type { ConstraintScope } from '../../common/contracts/constraints.types';
 import type { VariableContractSnapshot } from '../graph/graph.types';
+import { evaluateFreshness, parseUnknownFreshnessPolicy, type FreshnessVerdict } from './freshness';
 import {
-  evaluateFreshness,
-  parseUnknownFreshnessPolicy,
-  type FreshnessReason,
-  type FreshnessVerdict,
-} from './freshness';
+  FRESHNESS_ERROR_CODES,
+  freshnessMessage,
+  freshnessPolicyOf,
+  strictestSla,
+} from './variable-freshness';
+import { validateValue } from './variable-value-validation';
+export { freshnessPolicyOf } from './variable-freshness';
 
 /** Persistable evidence describing how one variable was resolved. */
 export interface ResolvedVariableSnapshot {
@@ -140,7 +137,13 @@ export class VariableResolutionService {
           continue;
         }
       } else {
-        const validationErrors = this.validateValue(contract, value, values, options.scope);
+        const validationErrors = validateValue(
+          this.metrics,
+          contract,
+          value,
+          values,
+          options.scope,
+        );
         errors.push(
           ...validationErrors.map((message) => ({
             code: 'VARIABLE_MISSING_OR_INVALID',
@@ -201,54 +204,6 @@ export class VariableResolutionService {
       });
     }
     return { valid: errors.length === 0, values, snapshots, errors };
-  }
-
-  private validateValue(
-    contract: VariableContractSnapshot,
-    value: unknown,
-    siblings: Record<string, unknown>,
-    scope: ConstraintScope | undefined,
-  ): string[] {
-    const errors: string[] = [];
-    // Restricciones normalizadas (§1.1). `constraints` es la fuente autoritativa;
-    // `validationSchema` se sigue leyendo para contratos anteriores a la migración.
-    const constraints = parseConstraints(contract.constraints ?? contract.validationSchema);
-    const violations = validateAgainstConstraints(contract.dataType, constraints, value, {
-      ...scope,
-      siblings,
-    });
-    for (const violation of violations) {
-      // §12: qué restricción se incumple, no solo cuántas veces falla la variable.
-      this.metrics.recordContractViolation('INPUT', violation.constraint);
-      errors.push(
-        contract.validationMessage
-          ? `${contract.code}: ${contract.validationMessage}`
-          : `${contract.code} ${violation.message}`,
-      );
-    }
-
-    for (const rule of contract.validationRules) {
-      const config = rule.config as Record<string, unknown>;
-      switch (rule.ruleType.toUpperCase()) {
-        case 'MIN':
-          if (typeof value === 'number' && value < Number(config.value))
-            errors.push(`${rule.errorCode}: below minimum`);
-          break;
-        case 'MAX':
-          if (typeof value === 'number' && value > Number(config.value))
-            errors.push(`${rule.errorCode}: above maximum`);
-          break;
-        case 'REGEX':
-          if (typeof value === 'string' && !safeRegexTest(String(config.pattern), value).matched)
-            errors.push(`${rule.errorCode}: pattern mismatch`);
-          break;
-        case 'ENUM':
-          if (Array.isArray(config.values) && !config.values.includes(value))
-            errors.push(`${rule.errorCode}: value not allowed`);
-          break;
-      }
-    }
-    return errors;
   }
 
   private async fetchExternalValues(
@@ -316,62 +271,5 @@ export class VariableResolutionService {
       requestId: options.requestId,
       variableCount: codes.length,
     });
-  }
-}
-
-/**
- * El compromiso de frescura MAS EXIGENTE entre las fuentes declaradas de una variable.
- *
- * Cero significa «sin SLA declarado» y es el valor con el que estan sembradas casi todas las
- * fuentes, asi que se ignora al buscar el minimo: quedarse con el cero haria que una variable con
- * dos fuentes -una estricta y otra sin declarar- perdiera su compromiso por tener companiia.
- */
-function strictestSla(sources: Array<{ freshnessSlaSeconds: number }>): number {
-  const declared = sources.map((source) => source.freshnessSlaSeconds).filter((sla) => sla > 0);
-  return declared.length ? Math.min(...declared) : 0;
-}
-
-/**
- * La politica de frescura que aplica a una variable.
- *
- * Se deriva de `fallbackPolicy` mientras el compilado no la transporte por separado: una variable
- * cuyo fallo es FATAL (`FAIL`) tampoco puede decidirse con un dato caducado, y una que admite
- * respaldo tampoco deberia caerse por antiguedad. Es una aproximacion declarada, no una
- * casualidad: la columna `freshness_policy` ya existe en el esquema y este mapeo se sustituye por
- * ella en cuanto el compilador la incluya.
- */
-export function freshnessPolicyOf(fallbackPolicy: string): FreshnessPolicy {
-  // `FAIL_CLOSED` es el valor que escriben las dependencias de verdad; comparar sólo con `FAIL`
-  // dejaba el `REJECT` inalcanzable y toda variable crítica se degradaba en silencio.
-  return fallbackPolicy === 'FAIL' || fallbackPolicy === 'FAIL_CLOSED'
-    ? FreshnessPolicy.REJECT
-    : FreshnessPolicy.DEGRADE;
-}
-
-/** Código estable de error por motivo, para que el llamante distinga viejo de sello dudoso. */
-const FRESHNESS_ERROR_CODES: Record<FreshnessReason, string> = {
-  STALE: 'VARIABLE_STALE',
-  TIMESTAMP_FUTURE: 'VARIABLE_TIMESTAMP_FUTURE',
-  TIMESTAMP_INVALID: 'VARIABLE_TIMESTAMP_INVALID',
-  FRESHNESS_UNKNOWN: 'VARIABLE_FRESHNESS_UNKNOWN',
-  SLA_NOT_DECLARED: 'VARIABLE_FRESHNESS_SLA_MISSING',
-};
-
-function freshnessMessage(code: string, verdict: FreshnessVerdict, slaSeconds: number): string {
-  switch (verdict.reason) {
-    case 'TIMESTAMP_FUTURE':
-      return `El sello de ${code} es posterior al instante de la decisión: un reloj adelantado no produce un dato fresco.`;
-    case 'TIMESTAMP_INVALID':
-      return `El sello de ${code} no es una fecha legible.`;
-    case 'FRESHNESS_UNKNOWN':
-      return `${code} es crítica y llegó sin sello: su frescura no se puede comprobar.`;
-    case 'SLA_NOT_DECLARED':
-      return `${code} es crítica y ninguna de sus fuentes declara un SLA de frescura positivo.`;
-    default:
-      return (
-        `El valor de ${code} tenia ${verdict.ageSeconds} s cuando su compromiso de ` +
-        `frescura es de ${slaSeconds} s. Un dato viejo aqui no es menos ` +
-        `preciso: es la respuesta a otra pregunta.`
-      );
   }
 }
