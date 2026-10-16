@@ -13,8 +13,8 @@ El grafo contiene **12281 nodos** y **29289 relaciones** repartidos en
 **33 módulos de dominio** en `src/modules/`, de los cuales
 todos están registrados en `src/app.module.ts` (comprobado sobre el fichero, no supuesto).
 
-El grafo cubre **697 de 1035**
-ficheros TypeScript de `src/` (67 %).
+El grafo cubre **687 de 1088**
+ficheros TypeScript de `src/` (63 %).
 **2 módulo(s) de dominio no aparecen en absoluto**: `atlas-callback`, `reference-catalog`. Consultar el grafo sobre ellos no devuelve nada, así que su documentación **no** se deriva de aquí.
 
 ## Inventario cuantitativo
@@ -104,12 +104,13 @@ La mayoría son ficheros de configuración y documentos sueltos, que por natural
 
 ### El grafo menciona ficheros que ya no existen
 
-**18 ficheros** referenciados por el grafo ya no existen en disco. El grafo está desactualizado respecto al árbol; ejecute `graphify update .`:
+**28 ficheros** referenciados por el grafo ya no existen en disco. El grafo está desactualizado respecto al árbol; ejecute `graphify update .`:
 
 - `src/common/llm/openai-compatible-transport.ts`
 - `src/modules/artifacts/artifact.response.dto.ts`
 - `src/modules/artifacts/artifact.service.ts`
 - `src/modules/calculated-fields/calculated-field.service.ts`
+- `src/modules/calculated-fields/operation-catalog.ts`
 - `src/modules/deployments/deployment.service.ts`
 - `src/modules/governance/governance.service.ts`
 - `src/modules/manual-review/manual-review.service.ts`
@@ -117,13 +118,14 @@ La mayoría son ficheros de configuración y documentos sueltos, que por natural
 - `src/modules/outcome-ingestion/outcome-ingestion.service.ts`
 - `src/modules/qa-lab/outcome-coverage.ts`
 - `src/modules/risk-governance/risk-governance.service.ts`
+- `src/modules/sql-console/catalog/dataset-catalog.ts`
 - `src/modules/variables/variable.service.ts`
 - `src/modules/workers/bank-statement/bank-statement.service.ts`
+- `src/modules/workers/bank-statement/core/engine/affordability/monthly-series.ts`
+- `src/modules/workers/bank-statement/core/engine/affordability/movement-lexicon.ts`
+- `src/modules/workers/bank-statement/core/engine/authenticity/pdf-forensics.ts`
+- `src/modules/workers/bank-statement/core/institutions/bolivia-institutions.ts`
 - `src/modules/workers/bank-statement/institutions/financial-institution.service.ts`
-- `src/modules/workers/bank-statement/review/statement-review.service.ts`
-- `src/modules/workers/identity-verification/core/parsers/mrz-td1.ts`
-- `src/modules/workers/identity-verification/identity-verification.service.ts`
-- `src/modules/workers/identity-verification/review/identity-review.service.ts`
 
 ### El disco tiene código que el grafo desconoce
 
@@ -131,7 +133,7 @@ Es la dirección que más daño hace: sobre un fichero ausente el grafo no devue
 consulta vacía se lee igual que «no existe». Por eso los catálogos del portal se generan del
 código y del contrato, nunca de este grafo.
 
-**338 de 1035** ficheros `.ts` de `src/` no aparecen en el grafo, incluidos **2 módulo(s) completos** (`atlas-callback`, `reference-catalog`). Se listan los primeros 20:
+**401 de 1088** ficheros `.ts` de `src/` no aparecen en el grafo, incluidos **2 módulo(s) completos** (`atlas-callback`, `reference-catalog`). Se listan los primeros 20:
 
 - `src/common/config/build-identity.ts`
 - `src/common/config/env/audio-tts.env.ts`

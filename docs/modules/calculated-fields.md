@@ -6,7 +6,7 @@
 
 ## Responsabilidad
 
-Código: [`src/modules/calculated-fields/`](https://github.com/) · 17 ficheros TypeScript.
+Código: [`src/modules/calculated-fields/`](https://github.com/) · 23 ficheros TypeScript.
 
 Etiquetas de API: **Calculated Fields**.
 
