@@ -38,7 +38,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `BANK_STATEMENT_RUN_NOT_CANCELLABLE` | — | `src/modules/workers/bank-statement/statement-run.service.ts` |
 | `BANK_STATEMENT_RUN_NOT_FOUND` | No existe ese extracto. | `src/modules/workers/bank-statement/review/statement-reprocess.service.ts` |
 | `BANK_STATEMENT_RUN_NOT_REPROCESSABLE` | Sólo se vuelve a analizar una ejecución cerrada que no dejó resultado ni movimientos. | `src/modules/workers/bank-statement/review/statement-reprocess.service.ts` |
-| `BASELINE_COMPARISON_NOT_SUPPORTED` | Baseline comparison is not available; omit baselineCompiledArtifactId and use explicit expected results | `src/modules/testing/test-execution.service.ts` |
+| `BASELINE_COMPARISON_NOT_SUPPORTED` | Baseline comparison is not available; omit baselineCompiledArtifactId and use explicit expected results | `src/modules/testing/test-run-queue.service.ts` |
 | `BLOCKING_TESTS_NOT_PASSED` | Blocking tests and minimum coverage must pass before review | `src/modules/governance/approval-submission.service.ts` |
 | `CALCULATED_FIELD_ARGUMENT_INVALID` | ${operation} espera un número y recibió ${describe(value)} | `src/modules/calculated-fields/operation-evaluator.ts` |
 | `CALCULATED_FIELD_CODE_TAKEN` | Ya existe un campo calculado con el código ${dto.fieldCode} | `src/modules/calculated-fields/calculated-field-catalog.service.ts` |
@@ -226,13 +226,13 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `SELF_REFERENCE_FORBIDDEN` | An artifact cannot directly reference itself | `src/modules/nested-trees/reference-child-validator.service.ts` |
 | `SEMANTIC_CATEGORY_DUPLICATE_CODE` | El lote repite estos códigos: ${[...new Set(duplicados)].join(', ')}. | `src/modules/workers/semantic-analysis/semantic-category.service.ts` |
 | `SEMANTIC_CATEGORY_HAS_ACTIVE_CHILDREN` | No se puede desactivar ${code}: tiene ${String(hijasActivas)} categoría(s) hija(s) activa(s). Desactívalas primero. | `src/modules/workers/semantic-analysis/semantic-category.service.ts` |
-| `SEMANTIC_CATEGORY_NOT_FOUND` | No existe la categoría ${code}. | `src/modules/workers/semantic-analysis/semantic-category.service.ts` |
+| `SEMANTIC_CATEGORY_NOT_FOUND` | No existe la categoría ${code}. | `src/modules/workers/semantic-analysis/semantic-category.mapping.ts` |
 | `SEMANTIC_CATEGORY_PARENT_NOT_FOUND` | El padre ${parentCode} no existe en este tenant. | `src/modules/workers/semantic-analysis/semantic-category.service.ts` |
 | `SEMANTIC_CATEGORY_SELF_PARENT` | Una categoría no puede ser su propio padre. | `src/modules/workers/semantic-analysis/semantic-category.service.ts` |
 | `SEMANTIC_CATEGORY_TREE_BROKEN` | El árbol no se sostiene: hay un ciclo o un padre inexistente en ${rotas.join(', ')}. | `src/modules/workers/semantic-analysis/semantic-category.service.ts` |
 | `SEMANTIC_INPUT_AMBIGUOUS` | Indica un texto o un escenario de prueba, no ambos. | `src/modules/workers/semantic-analysis/semantic-analysis.controller.ts` |
 | `SEMANTIC_MODEL_GATEWAY_UNAVAILABLE` | Este despliegue no tiene credencial para ${gateway}: falta ${variable} en el entorno del motor. | `src/modules/workers/semantic-analysis/model-settings/semantic-model-settings.service.ts` |
-| `SEMANTIC_MODEL_INVALID` | — | `src/modules/workers/semantic-analysis/model-settings/semantic-model-settings.service.ts` |
+| `SEMANTIC_MODEL_INVALID` | — | `src/modules/workers/semantic-analysis/model-settings/semantic-model-settings.shape.ts` |
 | `SEMANTIC_MODEL_PROBE_CONFIGURATION` | No se pudo construir el adaptador de ${gateway}: ${String(           error instanceof Error ? error.message : error,         )} | `src/modules/workers/semantic-analysis/model-settings/semantic-model-probe.service.ts` |
 | `SEMANTIC_MODEL_SETTINGS_NOT_APPLICABLE` | Este despliegue clasifica con SEMANTIC_ANALYSIS_PROVIDER=${this.mode() \|\| '(vacío)'}, que no usa | `src/modules/workers/semantic-analysis/model-settings/semantic-model-settings.service.ts` |
 | `SEMANTIC_RUN_NOT_CANCELLABLE` | — | `src/modules/workers/semantic-analysis/semantic-analysis.service.ts` |
@@ -248,9 +248,9 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `SUBJECT_NOT_FOUND` | No hay ninguna decisión registrada sobre ese titular en este tenant. | `src/modules/risk-governance/subject-directory.service.ts` |
 | `SUBJECT_REFERENCE_REQUIRED` | This environment requires subjectReference: a decision that cannot be attributed to | `src/modules/runtime/subject-policy.ts` |
 | `TEST_CASE_WITHOUT_EXPECTATION` | Estos casos no declaran ningún resultado esperado y no comprobarían nada: ${empty.join(', ')}. | `src/modules/testing/test-suite.service.ts` |
-| `TEST_RUN_NOT_CLAIMED` | Test run is missing or has not been claimed | `src/modules/testing/test-execution.service.ts` |
-| `TEST_RUN_NOT_FOUND` | Test run not found | `src/modules/testing/test-execution.service.ts` |
-| `TEST_SUITE_NOT_FOUND` | Test suite not found | `src/modules/testing/test-execution.service.ts` |
+| `TEST_RUN_NOT_CLAIMED` | Test run is missing or has not been claimed | `src/modules/testing/test-run-executor.service.ts` |
+| `TEST_RUN_NOT_FOUND` | Test run not found | `src/modules/testing/test-run-queue.service.ts` |
+| `TEST_SUITE_NOT_FOUND` | Test suite not found | `src/modules/testing/test-run-queue.service.ts` |
 | `UNAUTHORIZED` | Invalid metrics token | `src/common/observability/metrics.controller.ts` |
 | `UNDECLARED_OUTPUT` | RESULT node wrote undeclared output ${code} | `src/modules/graph/execution/output-contract.service.ts` |
 | `UNRESOLVED_CATEGORY_REQUIRED` | Esta resolución necesita una categoría. | `src/modules/workers/semantic-analysis/unresolved-resolution.service.ts` |

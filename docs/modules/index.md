@@ -16,7 +16,7 @@ real: sus controladores, sus etiquetas de API, sus roles exigidos y sus códigos
 | [`data-subject`](data-subject.md) | 2 | AUDITOR, COMPLIANCE, OPERATIONS | 5 |
 | [`deployments`](deployments.md) | 5 | AUDITOR, COMPLIANCE, OPERATIONS, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 13 |
 | [`governance`](governance.md) | 4 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, QA_ANALYST, RISK_ANALYST, RISK_APPROVER | 10 |
-| [`graph`](graph.md) | 0 | — | 53 |
+| [`graph`](graph.md) | 0 | — | 58 |
 | [`health`](health.md) | 5 | — | 4 |
 | [`identity-session`](identity-session.md) | 8 | — | 8 |
 | [`libraries`](libraries.md) | 3 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 6 |
@@ -28,16 +28,16 @@ real: sus controladores, sus etiquetas de API, sus roles exigidos y sus códigos
 | [`outbox-relay`](outbox-relay.md) | 0 | — | 2 |
 | [`outcome-ingestion`](outcome-ingestion.md) | 4 | AUDITOR, COMPLIANCE, OPERATIONS, RISK_ANALYST, RISK_APPROVER | 8 |
 | [`platform-catalog`](platform-catalog.md) | 1 | AUDITOR, COMPLIANCE, OPERATIONS, PLATFORM_ADMIN | 8 |
-| [`qa-lab`](qa-lab.md) | 7 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 52 |
+| [`qa-lab`](qa-lab.md) | 7 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 58 |
 | [`reference-catalog`](reference-catalog.md) | 0 | — | 11 |
 | [`risk-governance`](risk-governance.md) | 12 | AUDITOR, COMPLIANCE, OPERATIONS, RISK_ANALYST, RISK_APPROVER | 16 |
 | [`runtime`](runtime.md) | 3 | FRAUD_ANALYST, QA_ANALYST | 25 |
 | [`security-review`](security-review.md) | 2 | — | 4 |
 | [`seeding`](seeding.md) | 0 | — | 2 |
-| [`sql-console`](sql-console.md) | 4 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, RISK_ANALYST, RISK_APPROVER | 22 |
-| [`testing`](testing.md) | 8 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, QA_ANALYST, RISK_ANALYST | 23 |
-| [`traceability`](traceability.md) | 6 | AUDITOR, COMPLIANCE, QA_ANALYST, RISK_ANALYST | 5 |
+| [`sql-console`](sql-console.md) | 4 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, RISK_ANALYST, RISK_APPROVER | 24 |
+| [`testing`](testing.md) | 8 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, QA_ANALYST, RISK_ANALYST | 25 |
+| [`traceability`](traceability.md) | 6 | AUDITOR, COMPLIANCE, QA_ANALYST, RISK_ANALYST | 6 |
 | [`tutorials`](tutorials.md) | 2 | — | 5 |
 | [`variables`](variables.md) | 9 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, OPERATIONS, PLATFORM_ADMIN, QA_ANALYST, RISK_ANALYST | 12 |
 | [`views`](views.md) | 9 | — | 5 |
-| [`workers`](workers.md) | 68 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, OPERATIONS, QA_ANALYST, RISK_ANALYST | 462 |
+| [`workers`](workers.md) | 68 | AUDITOR, COMPLIANCE, FRAUD_ANALYST, OPERATIONS, QA_ANALYST, RISK_ANALYST | 470 |
