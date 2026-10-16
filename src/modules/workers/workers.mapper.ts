@@ -39,6 +39,22 @@ export interface WorkerRunRow {
   reviewReason?: StatementReviewReason | null;
   rejectionReason?: StatementRejectionReason | null;
   reviewPriority?: number | null;
+  /** Sólo extractos: el titular exigido, el leído y el veredicto de la comparación. */
+  expectedHolderName?: string | null;
+  holderNameRead?: string | null;
+  holderVerdict?: string | null;
+}
+
+/** El titular de un extracto, si la ejecución lo comparó o al menos lo leyó. */
+export function holderOfRun(
+  row: Pick<WorkerRunRow, 'expectedHolderName' | 'holderNameRead' | 'holderVerdict'>,
+) {
+  if (!row.holderVerdict && !row.expectedHolderName) return null;
+  return {
+    expected: row.expectedHolderName ?? null,
+    read: row.holderNameRead ?? null,
+    verdict: row.holderVerdict ?? null,
+  };
 }
 
 /**
@@ -70,5 +86,6 @@ export function toWorkerRunDto(row: WorkerRunRow): WorkerRunDto {
     ...(row.reviewReason === undefined ? {} : { reviewReason: row.reviewReason }),
     ...(row.rejectionReason === undefined ? {} : { rejectionReason: row.rejectionReason }),
     ...(row.reviewPriority === undefined ? {} : { reviewPriority: row.reviewPriority }),
+    ...(holderOfRun(row) ? { holder: holderOfRun(row) } : {}),
   };
 }

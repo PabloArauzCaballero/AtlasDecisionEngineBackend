@@ -62,6 +62,13 @@ export const RUN_SELECTION = {
   finishedAt: true,
   requestedBy: true,
   correlationId: true,
+  // El titular exigido, el leído y el veredicto. El nombre exigido es el del cliente que lo subió: se enseña
+  // a quien revisa, que es justo para quien existe la comparación.
+  expectedHolderName: true,
+  expectedHolderGivenNames: true,
+  expectedHolderSurnames: true,
+  holderNameRead: true,
+  holderVerdict: true,
 } satisfies Prisma.BankStatementRunSelect;
 
 export type BankStatementRunView = Prisma.BankStatementRunGetPayload<{

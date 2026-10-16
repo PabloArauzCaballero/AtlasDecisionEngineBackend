@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { DomainException } from '../../../common/errors/domain-exception';
 import { Prisma, WorkerInputSource, WorkerRunStatus } from '@prisma/client';
 import { persistableCarrier } from '../../../common/events/trace-carrier';
 import { JobName } from '../../../common/jobs/job-names';
@@ -9,6 +10,14 @@ import type { AuthenticatedPrincipal } from '../../../common/security/security.t
 import { newRequestId, type ValidatedStatementInput } from './bank-statement-input';
 import { StatementFileStore } from './statement-file-store.service';
 import { RETRYABLE_STATUSES, RUN_SELECTION, type BankStatementRunView } from './statement-run.view';
+import {
+  holderColumns,
+  holderConflict,
+  holderInputOf,
+  type ExpectedHolderInput,
+} from './expected-holder';
+
+export { expectedHolderOf, type ExpectedHolderInput } from './expected-holder';
 
 /**
  * Alta de ejecuciones del worker de extractos.
@@ -45,6 +54,7 @@ export class StatementRunIntakeService {
     input: ValidatedStatementInput,
     source: WorkerInputSource,
     fixtureCode?: string,
+    expected: ExpectedHolderInput | null = null,
   ): Promise<{ run: BankStatementRunView; deduplicated: boolean }> {
     // El `requestId` sale del `create` porque ahora forma parte de la RUTA del objeto, y la ruta
     // hay que conocerla antes de escribirlo.
@@ -79,6 +89,7 @@ export class StatementRunIntakeService {
             // La copia que SOBREVIVE al cierre. `fileBytes` se sigue borrando igual.
             fileObjectKey: guardado?.objectKey ?? null,
             fileSha256: guardado?.sha256 ?? null,
+            ...holderColumns(expected),
             requestedBy: principal.id,
             correlationId: principal.requestId,
             // Contexto de traza capturado AQUÍ, en el proceso de API: tras el commit se pierde,
@@ -110,6 +121,36 @@ export class StatementRunIntakeService {
       // entre las dos consultas. Propagar el error original es más honesto que
       // fingir un resultado.
       if (!existing) throw error;
+
+      // El mismo PDF pedido para OTRO titular: ver `holderConflict`.
+      const conflicto = holderConflict(existing, expected);
+      if (conflicto === 'conflict') {
+        throw new DomainException(
+          'STATEMENT_HOLDER_CONFLICT',
+          'Este extracto ya está en curso para otro titular.',
+          HttpStatus.CONFLICT,
+        );
+      }
+      if (conflicto === 'requeue') {
+        const run = await this.requeue(
+          existing.requestId,
+          tenantId,
+          principal,
+          input,
+          source,
+          fixtureCode,
+          expected,
+        );
+        return { run, deduplicated: false };
+      }
+      if (conflicto === 'pin') {
+        const run = await this.prisma.bankStatementRun.update({
+          where: { tenantId_requestId: { tenantId, requestId: existing.requestId } },
+          data: holderColumns(expected),
+          select: RUN_SELECTION,
+        });
+        return { run, deduplicated: true };
+      }
       /*
        * Un intento FALLIDO no se sirve de la caché: se vuelve a intentar.
        *
@@ -156,6 +197,7 @@ export class StatementRunIntakeService {
             input,
             source,
             fixtureCode,
+            expected ?? holderInputOf(existing),
           ),
           deduplicated: false,
         };
@@ -184,6 +226,7 @@ export class StatementRunIntakeService {
     input: ValidatedStatementInput,
     source: WorkerInputSource,
     fixtureCode?: string,
+    expected: ExpectedHolderInput | null = null,
   ): Promise<BankStatementRunView> {
     const guardado = await this.files.store(tenantId, requestId, input, source);
 
@@ -202,6 +245,9 @@ export class StatementRunIntakeService {
           // razón: la fila que se reencola perdió su documento al cerrarse el intento anterior.
           fileObjectKey: guardado?.objectKey ?? null,
           fileSha256: guardado?.sha256 ?? null,
+          ...holderColumns(expected),
+          holderNameRead: null,
+          holderVerdict: null,
           // El rastro del intento anterior se limpia entero: dejar el código de
           // error junto a un estado QUEUED describiría una ejecución que no
           // existe.

@@ -78,6 +78,12 @@ export class WorkerRunDto {
       'para que una persona decida. NO es un resultado aplicable: el consumidor sigue leyendo `result`.',
   })
   provisionalResult?: unknown;
+  @ApiPropertyOptional({
+    description:
+      'Sólo extractos: el titular exigido (el cliente que lo subió), el que se leyó en el documento y el ' +
+      'veredicto (`MATCH`, `MISMATCH`, `UNREADABLE`, `NOT_REQUIRED`).',
+  })
+  holder?: { expected: string | null; read: string | null; verdict: string | null } | null;
   @ApiPropertyOptional({ description: 'Advertencias de un resultado utilizable pero revisable.' })
   warnings?: unknown;
   @ApiPropertyOptional() errorCode?: string | null;

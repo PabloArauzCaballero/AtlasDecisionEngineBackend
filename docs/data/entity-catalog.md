@@ -17,7 +17,7 @@ esquema, que es la fuente que las migraciones aplican.
 | [`AudioSegment`](#audiosegment) | `decision_audio_segment` | 10 | 1 | 0 |
 | [`AudioTemplate`](#audiotemplate) | `decision_audio_template` | 11 | 1 | 0 |
 | [`AudioTtsRun`](#audiottsrun) | `decision_audio_tts_run` | 26 | 4 | 0 |
-| [`BankStatementRun`](#bankstatementrun) | `decision_bank_statement_run` | 51 | 6 | 0 |
+| [`BankStatementRun`](#bankstatementrun) | `decision_bank_statement_run` | 56 | 6 | 0 |
 | [`BusinessObjective`](#businessobjective) | `decision_business_objective` | 10 | 1 | 0 |
 | [`CalculatedField`](#calculatedfield) | `decision_calculated_field` | 12 | 2 | 0 |
 | [`CalculatedFieldLibrary`](#calculatedfieldlibrary) | `decision_calculated_field_library` | 5 | 1 | 2 |
@@ -347,6 +347,11 @@ Tabla `decision_bank_statement_run`.
 | `assignedInstitutionCode` | `String?` | @map("assigned_institution_code") @db.VarChar(16) |
 | `assignedInstitutionBy` | `String?` | @map("assigned_institution_by") @db.VarChar(160) |
 | `assignedInstitutionAt` | `DateTime?` | @map("assigned_institution_at") @db.Timestamptz(6) |
+| `expectedHolderName` | `String?` | @map("expected_holder_name") @db.VarChar(200) |
+| `expectedHolderGivenNames` | `String?` | @map("expected_holder_given_names") @db.VarChar(120) |
+| `expectedHolderSurnames` | `String?` | @map("expected_holder_surnames") @db.VarChar(120) |
+| `holderNameRead` | `String?` | @map("holder_name_read") @db.VarChar(300) |
+| `holderVerdict` | `String?` | @map("holder_verdict") @db.VarChar(16) |
 | `warningsJson` | `Json?` | @map("warnings_json") |
 | `confidence` | `Decimal?` | @db.Decimal(4, 3) |
 | `documentTypeConfidence` | `Decimal?` | @map("document_type_confidence") @db.Decimal(4, 3) |

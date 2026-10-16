@@ -25,6 +25,10 @@ export type StatementErrorCode =
   | 'INSUFFICIENT_STATEMENT_PERIOD'
   /** El extracto es auténtico y ya no está vigente: cerró hace demasiado. */
   | 'STALE_STATEMENT'
+  /** El titular del extracto no es el cliente que lo subió. */
+  | 'HOLDER_MISMATCH'
+  /** Se exigía un titular y no se pudo leer en el documento: lo confirma una persona. */
+  | 'HOLDER_UNREADABLE'
   /** La ventana del extracto termina en el futuro. Se mira antes de decidir. */
   | 'FUTURE_DATED_STATEMENT'
   /** No se pudo fechar la ventana del extracto: no hay contra qué medir vigencia. */
@@ -120,6 +124,12 @@ const DEFAULT_DISPOSITION: Readonly<Record<StatementErrorCode, StatementDisposit
    * momento. Por eso es rechazo y no revisión.
    */
   STALE_STATEMENT: 'INVALID',
+  /*
+   * El extracto de otra persona se rechaza: ninguna revisión lo convierte en el del cliente. Si lo ilegible
+   * fue el nombre, en cambio, la duda es nuestra y la resuelve una persona mirando el PDF.
+   */
+  HOLDER_MISMATCH: 'INVALID',
+  HOLDER_UNREADABLE: 'REVIEW',
   /*
    * Un PDF que pdf.js no consigue abrir, o que pide contraseña, se RECHAZA y no
    * se encola. Es la corrección menos obvia de esta tabla y la que más cola

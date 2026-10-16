@@ -6,6 +6,12 @@ import type { NormalizedBankStatement } from './core/engine/normalized/normalize
 import type { StatementOutcome } from './statement-outcome';
 import { affordabilityColumns, outcomeFields } from './bank-statement-run-columns';
 
+/** El titular leído y el veredicto de la comparación, tal como se guardan en la fila. */
+export interface HolderColumns {
+  readonly holderNameRead: string | null;
+  readonly holderVerdict: string;
+}
+
 /** Fila reclamada por el worker, con el portador de traza que viajó con ella. */
 export interface ClaimedRun {
   readonly id: bigint;
@@ -37,6 +43,9 @@ export class BankStatementRunStore {
         attemptCount: true,
         correlationId: true,
         assignedInstitutionCode: true,
+        expectedHolderName: true,
+        expectedHolderGivenNames: true,
+        expectedHolderSurnames: true,
       },
     });
   }
@@ -82,11 +91,13 @@ export class BankStatementRunStore {
     runId: bigint,
     normalized: NormalizedBankStatement,
     outcome: StatementOutcome,
+    holder?: HolderColumns,
   ): Promise<void> {
     await this.prisma.bankStatementRun.update({
       where: { id: runId },
       data: {
         ...outcomeFields(outcome),
+        ...(holder ?? {}),
         progress: 100,
         resultJson: normalized as unknown as Prisma.InputJsonValue,
         warningsJson: normalized.quality.warnings as unknown as Prisma.InputJsonValue,
@@ -167,11 +178,13 @@ export class BankStatementRunStore {
     message: string,
     /** Lo que el motor leyó de un documento que va a revisión. Nunca es `resultJson`: no se aplica. */
     provisional?: NormalizedBankStatement,
+    holder?: HolderColumns,
   ): Promise<void> {
     await this.prisma.bankStatementRun.updateMany({
       where: { id: runId, status: WorkerRunStatus.RUNNING },
       data: {
         ...(outcomeFields(outcome) as Prisma.BankStatementRunUpdateManyMutationInput),
+        ...(holder ?? {}),
         errorCode: code,
         errorMessage: message,
         leaseExpiresAt: null,

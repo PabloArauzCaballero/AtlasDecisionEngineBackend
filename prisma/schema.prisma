@@ -414,6 +414,11 @@ enum StatementReviewReason {
   /// rechazarlo castigaría a clientes honestos, aceptarlo sería mirar a otro
   /// lado.
   SUSPECTED_TAMPERING
+  /// Se exigía un titular (el cliente que lo subió) y el motor no pudo leer el
+  /// nombre del titular en el documento. Una persona lo confirma mirando el PDF:
+  /// rechazar castigaría un formato que no sabemos leer; aceptar sin mirar dejaría
+  /// pasar el extracto de otra persona.
+  HOLDER_UNREADABLE
 }
 
 /// Por qué se rechazó un documento. Los cinco son afirmaciones sobre el ARCHIVO
@@ -450,6 +455,9 @@ enum StatementRejectionReason {
   /// `INSUFFICIENT_PERIOD` porque la acción del cliente es la contraria: no le
   /// faltan meses hacia atrás, le falta el presente.
   STALE_PERIOD
+  /// El titular que figura en el extracto no es el cliente que lo subió. La única
+  /// acción posible es subir el extracto de una cuenta a su nombre.
+  HOLDER_MISMATCH
 }
 
 /// Tipo de entidad de intermediación financiera, con la clasificación que usa
@@ -2675,6 +2683,17 @@ model BankStatementRun {
   assignedInstitutionCode String?   @map("assigned_institution_code") @db.VarChar(16)
   assignedInstitutionBy   String?   @map("assigned_institution_by") @db.VarChar(160)
   assignedInstitutionAt   DateTime? @map("assigned_institution_at") @db.Timestamptz(6)
+
+  /// El titular que se exige (el nombre legal del cliente que lo subió, lo manda AtlasBackend). Nulo en
+  /// la Consola del portal y en llamadas antiguas: entonces no se exige y sólo se informa el leído.
+  expectedHolderName String? @map("expected_holder_name") @db.VarChar(200)
+  /// Los mismos, separados en nombres de pila y apellidos cuando el emisor los distingue: afinan la regla.
+  expectedHolderGivenNames String? @map("expected_holder_given_names") @db.VarChar(120)
+  expectedHolderSurnames   String? @map("expected_holder_surnames") @db.VarChar(120)
+  /// El titular (y cotitulares) que el motor leyó en el documento.
+  holderNameRead     String? @map("holder_name_read") @db.VarChar(300)
+  /// `MATCH` · `MISMATCH` · `UNREADABLE` · `NOT_REQUIRED`. Ver `holder-match.ts`.
+  holderVerdict      String? @map("holder_verdict") @db.VarChar(16)
 
   warningsJson           Json?    @map("warnings_json")
   /// Confianza de la EXTRACCIÓN: qué tan bien se leyeron los movimientos.

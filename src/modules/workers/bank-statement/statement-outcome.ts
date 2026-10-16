@@ -77,6 +77,8 @@ const REJECTION_BY_CODE: Readonly<Record<string, StatementRejectionReason>> = {
    * justo lo que no le falta.
    */
   STALE_STATEMENT: StatementRejectionReason.STALE_PERIOD,
+  /** El titular no es el cliente: la acción es subir el extracto de una cuenta suya. */
+  HOLDER_MISMATCH: StatementRejectionReason.HOLDER_MISMATCH,
 };
 
 /** Por qué se deriva a una persona cada código. */
@@ -98,6 +100,7 @@ const REVIEW_BY_CODE: Readonly<Record<string, StatementReviewReason>> = {
    */
   FUTURE_DATED_STATEMENT: StatementReviewReason.AMBIGUOUS_DATA,
   UNDATED_STATEMENT: StatementReviewReason.AMBIGUOUS_DATA,
+  HOLDER_UNREADABLE: StatementReviewReason.HOLDER_UNREADABLE,
 };
 
 /**
@@ -125,6 +128,11 @@ const PRIORITY_BY_REASON: Readonly<Record<StatementReviewReason, number>> = {
   [StatementReviewReason.UNKNOWN_BANK]: 2,
   [StatementReviewReason.MANUAL_REQUEST]: 2,
   [StatementReviewReason.DOUBTFUL_DOCUMENT]: 3,
+  /*
+   * Alta: el documento está analizado y el cliente espera; lo único que falta es que una persona mire de
+   * quién es la cuenta, que es lo más barato de comprobar y lo más caro de dejar pasar.
+   */
+  [StatementReviewReason.HOLDER_UNREADABLE]: 1,
 };
 
 const FAILED: StatementOutcome = {

@@ -1,4 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
+import { holderOfRun } from '../../workers.mapper';
 import { ConfigService } from '@nestjs/config';
 import { Prisma, StatementReviewReason, WorkerRunStatus } from '@prisma/client';
 import { DomainException } from '../../../../common/errors/domain-exception';
@@ -116,6 +117,9 @@ export class StatementReviewQueueService {
         assignedInstitutionCode: true,
         assignedInstitutionBy: true,
         assignedInstitutionAt: true,
+        expectedHolderName: true,
+        holderNameRead: true,
+        holderVerdict: true,
         warningsJson: true,
         fileSizeBytes: true,
         fileHash: true,
@@ -148,6 +152,8 @@ export class StatementReviewQueueService {
             at: run.assignedInstitutionAt,
           }
         : null,
+      // De quién es la cuenta: el cliente que lo subió frente a lo que dice la carátula.
+      holder: holderOfRun(run),
       warnings: run.warningsJson,
       fileHash: run.fileHash,
       fileSizeBytes: run.fileSizeBytes,

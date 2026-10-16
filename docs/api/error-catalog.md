@@ -3,7 +3,7 @@
 
 # Catálogo de códigos de error
 
-273 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
+274 códigos de dominio. Todos viajan en el mismo sobre (`ProblemDetails`), con
 el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 
 | Código | Mensaje de referencia | Origen |
@@ -244,6 +244,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `SESSION_EXPIRED` | The session reached its absolute lifetime; sign in again | `src/modules/identity-session/identity-session.service.ts` |
 | `SIMULATION_PROD_FORBIDDEN` | El simulador no opera sobre PROD, tampoco para generar valores de prueba | `src/modules/runtime/sample-input.service.ts` |
 | `STATEMENT_FILE_STORAGE_NOT_CONFIGURED` | No se puede analizar un extracto sin un sitio donde conservarlo: declara | `src/modules/workers/bank-statement/statement-file-store.service.ts` |
+| `STATEMENT_HOLDER_CONFLICT` | Este extracto ya está en curso para otro titular. | `src/modules/workers/bank-statement/statement-run-intake.service.ts` |
 | `SUBJECT_CONSENT_INVALID` | El titular tiene permisos que ya no amparan el tratamiento: | `src/modules/risk-governance/decision-guard.rules.ts` |
 | `SUBJECT_NOT_FOUND` | No hay ninguna decisión registrada sobre ese titular en este tenant. | `src/modules/risk-governance/subject-directory.service.ts` |
 | `SUBJECT_REFERENCE_REQUIRED` | This environment requires subjectReference: a decision that cannot be attributed to | `src/modules/runtime/subject-policy.ts` |
