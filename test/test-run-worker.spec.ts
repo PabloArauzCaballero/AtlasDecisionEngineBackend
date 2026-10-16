@@ -1,7 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import type { JobSchedulerService } from '../src/common/jobs/job-scheduler.service';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
-import type { TestExecutionService } from '../src/modules/testing/test-execution.service';
+import type { TestRunExecutor } from '../src/modules/testing/test-run-executor.service';
 import { TestRunWorkerService } from '../src/modules/testing/test-run-worker.service';
 
 /** El orquestador no interviene en estas pruebas: solo se ejercen los métodos internos. */
@@ -11,7 +11,7 @@ describe('TestRunWorkerService', () => {
   function worker(prisma: unknown): TestRunWorkerService {
     return new TestRunWorkerService(
       prisma as PrismaService,
-      {} as TestExecutionService,
+      {} as TestRunExecutor,
       new ConfigService({}),
       fakeScheduler,
     );
@@ -48,7 +48,7 @@ describe('TestRunWorkerService', () => {
     };
     const worker = new TestRunWorkerService(
       prisma as unknown as PrismaService,
-      {} as TestExecutionService,
+      {} as TestRunExecutor,
       new ConfigService({ TEST_RUN_WORKER_CONCURRENCY: 2 }),
       fakeScheduler,
     );
@@ -92,7 +92,7 @@ describe('TestRunWorkerService', () => {
       };
       const testWorker = new TestRunWorkerService(
         prisma as unknown as PrismaService,
-        { executeQueuedRun } as unknown as TestExecutionService,
+        { executeQueuedRun } as unknown as TestRunExecutor,
         new ConfigService({ TEST_RUN_WORKER_CONCURRENCY: 2 }),
         fakeScheduler,
       );
@@ -115,7 +115,7 @@ describe('TestRunWorkerService', () => {
       };
       const testWorker = new TestRunWorkerService(
         prisma as unknown as PrismaService,
-        {} as TestExecutionService,
+        {} as TestRunExecutor,
         new ConfigService({}),
         fakeScheduler,
       );
@@ -139,7 +139,7 @@ describe('TestRunWorkerService', () => {
     };
     const worker = new TestRunWorkerService(
       prisma as unknown as PrismaService,
-      {} as TestExecutionService,
+      {} as TestRunExecutor,
       new ConfigService({ TEST_RUN_MAX_ATTEMPTS: 3 }),
       fakeScheduler,
     );

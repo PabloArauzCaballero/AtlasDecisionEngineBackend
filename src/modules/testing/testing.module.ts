@@ -6,7 +6,9 @@ import { WorkersModule } from '../workers/workers.module';
 import { VariableModule } from '../variables/variable.module';
 import { CoverageSuiteService } from './coverage-suite.service';
 import { TestingController } from './testing.controller';
-import { TestExecutionService } from './test-execution.service';
+import { BlockingTestsGate } from './blocking-tests.gate';
+import { TestRunExecutor } from './test-run-executor.service';
+import { TestRunQueueService } from './test-run-queue.service';
 import { TestCaseExecutorService } from './test-case-executor.service';
 import { TestRunWorkerService } from './test-run-worker.service';
 import { TestSuiteService } from './test-suite.service';
@@ -18,9 +20,11 @@ import { TestSuiteService } from './test-suite.service';
     TestSuiteService,
     CoverageSuiteService,
     TestCaseExecutorService,
-    TestExecutionService,
+    TestRunQueueService,
+    TestRunExecutor,
+    BlockingTestsGate,
     TestRunWorkerService,
   ],
-  exports: [TestSuiteService, TestExecutionService],
+  exports: [TestSuiteService, BlockingTestsGate],
 })
 export class TestingModule {}

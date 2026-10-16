@@ -5,7 +5,7 @@ import type { AuditService } from '../src/common/audit/audit.service';
 import type { OutboxPublisherService } from '../src/common/events/outbox-publisher.service';
 import type { PrismaService } from '../src/common/prisma/prisma.service';
 import type { VersionStateService } from '../src/modules/artifacts/version-state.service';
-import type { TestExecutionService } from '../src/modules/testing/test-execution.service';
+import type { BlockingTestsGate } from '../src/modules/testing/blocking-tests.gate';
 import type { SecurityReviewService } from '../src/modules/security-review/security-review.service';
 import type { AuthMethod, AuthenticatedPrincipal } from '../src/common/security/security.types';
 import type { RecordApprovalDecisionDto } from '../src/modules/governance/governance.dto';
@@ -38,7 +38,7 @@ describe('Gobierno — guardas de aprobación', () => {
   const states = { transition: () => Promise.resolve({}) } as unknown as VersionStateService;
   // Ninguna de las guardas que se prueban aquí llega a usarlos: se declaran para satisfacer
   // el constructor sin fingir comportamiento que no se ejercita.
-  const tests = {} as unknown as TestExecutionService;
+  const tests = {} as unknown as BlockingTestsGate;
   const securityReview = {} as unknown as SecurityReviewService;
 
   function step(overrides: Record<string, unknown> = {}) {
@@ -344,7 +344,7 @@ describe('VersionApprovalGate.assertApproved — la puerta que mira el despliegu
   const audit = { append: () => Promise.resolve({}) } as unknown as AuditService;
   const outbox = { publish: () => Promise.resolve({}) } as unknown as OutboxPublisherService;
   const states = { transition: () => Promise.resolve({}) } as unknown as VersionStateService;
-  const tests = {} as unknown as TestExecutionService;
+  const tests = {} as unknown as BlockingTestsGate;
   const securityReview = {} as unknown as SecurityReviewService;
 
   const service = (version: Record<string, unknown> | null) => {

@@ -15,7 +15,7 @@ import {
   type CoverageObservation,
 } from './coverage-search';
 import { TestCaseExecutorService } from './test-case-executor.service';
-import { TestExecutionService } from './test-execution.service';
+import { TestRunQueueService } from './test-run-queue.service';
 
 /** La suite que escribe el generador. Una por versión: regenerar la reemplaza, no la duplica. */
 export const AUTO_SUITE_CODE = 'AUTO-COBERTURA';
@@ -57,7 +57,7 @@ export class CoverageSuiteService {
     private readonly audit: AuditService,
     private readonly config: ConfigService,
     private readonly executor: TestCaseExecutorService,
-    private readonly execution: TestExecutionService,
+    private readonly execution: TestRunQueueService,
   ) {}
 
   /**
