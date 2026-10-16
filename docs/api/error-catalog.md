@@ -125,14 +125,14 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `IDENTITY_RUN_NOT_CANCELLABLE` | — | `src/modules/workers/identity-verification/identity-run.service.ts` |
 | `IDENTITY_RUN_NOT_FOUND` | No existe esa verificación. | `src/modules/workers/identity-verification/identity-run.service.ts` |
 | `IF_MATCH_REQUIRED` | If-Match header with current lock_version is required | `src/common/http/id.ts` |
-| `INSTITUTION_INVALID_PATTERN` | El patrón de ${field} «${source}» ${reason}. | `src/modules/workers/bank-statement/institutions/financial-institution.service.ts` |
-| `INSTITUTION_LOGO_ACTIVE_SVG` | El SVG contiene guiones o contenido incrustado y no se puede servir. Expórtalo otra vez sin scripts. | `src/modules/workers/bank-statement/institutions/financial-institution.service.ts` |
+| `INSTITUTION_INVALID_PATTERN` | El patrón de ${field} «${source}» ${reason}. | `src/modules/workers/bank-statement/institutions/institution-validation.ts` |
+| `INSTITUTION_LOGO_ACTIVE_SVG` | El SVG contiene guiones o contenido incrustado y no se puede servir. Expórtalo otra vez sin scripts. | `src/modules/workers/bank-statement/institutions/institution-logo-rules.ts` |
 | `INSTITUTION_LOGO_NOT_FOUND` | La entidad ${code} no tiene logotipo cargado. | `src/modules/workers/bank-statement/institutions/financial-institution.controller.ts` |
-| `INSTITUTION_LOGO_TOO_LARGE` | El logotipo debe pesar entre 1 byte y ${String(MAX_LOGO_BYTES / 1024)} KiB. | `src/modules/workers/bank-statement/institutions/financial-institution.service.ts` |
-| `INSTITUTION_LOGO_UNSUPPORTED_TYPE` | El logotipo debe ser ${[...ALLOWED_LOGO_TYPES].join(', ')}; llegó ${contentType}. | `src/modules/workers/bank-statement/institutions/financial-institution.service.ts` |
-| `INSTITUTION_NOTE_REQUIRED` | Una entidad sin licencia vigente necesita un motivo escrito: es lo único que quien revise el caso podrá leer. | `src/modules/workers/bank-statement/institutions/financial-institution.service.ts` |
-| `INSTITUTION_NOT_FOUND` | No hay ninguna entidad con código ${code} en el padrón. | `src/modules/workers/bank-statement/institutions/financial-institution.service.ts` |
-| `INSTITUTION_WITHOUT_MARKERS` | Una entidad sin marcadores no puede atribuir ningún documento. | `src/modules/workers/bank-statement/institutions/financial-institution.service.ts` |
+| `INSTITUTION_LOGO_TOO_LARGE` | El logotipo debe pesar entre 1 byte y ${String(MAX_LOGO_BYTES / 1024)} KiB. | `src/modules/workers/bank-statement/institutions/institution-logo-rules.ts` |
+| `INSTITUTION_LOGO_UNSUPPORTED_TYPE` | El logotipo debe ser ${[...ALLOWED_LOGO_TYPES].join(', ')}; llegó ${contentType}. | `src/modules/workers/bank-statement/institutions/institution-logo-rules.ts` |
+| `INSTITUTION_NOTE_REQUIRED` | Una entidad sin licencia vigente necesita un motivo escrito: es lo único que quien revise el caso podrá leer. | `src/modules/workers/bank-statement/institutions/institution-registry.service.ts` |
+| `INSTITUTION_NOT_FOUND` | No hay ninguna entidad con código ${code} en el padrón. | `src/modules/workers/bank-statement/institutions/institution-presenter.ts` |
+| `INSTITUTION_WITHOUT_MARKERS` | Una entidad sin marcadores no puede atribuir ningún documento. | `src/modules/workers/bank-statement/institutions/institution-validation.ts` |
 | `INTERMEDIATE_ACCUMULATE_UNSUPPORTED` | La variable intermedia ${code} no admite acumulación para este tipo de valor | `src/modules/graph/intermediate-scope.ts` |
 | `INTERMEDIATE_ALREADY_WRITTEN` | La variable intermedia ${code} es de escritura única y ya tiene valor | `src/modules/graph/intermediate-scope.ts` |
 | `INTERMEDIATE_NOT_DECLARED` | El nodo ${nodeKey} intenta escribir la variable intermedia ${code}, que no está declarada | `src/modules/graph/intermediate-scope.ts` |
@@ -143,7 +143,7 @@ el código en `title` y en `error.code`; ver `docs/api/error-model.md`.
 | `INVALID_ID` | ${name} must be a positive integer | `src/common/http/id.ts` |
 | `INVALID_IF_MATCH` | If-Match must be a positive integer | `src/common/http/id.ts` |
 | `INVALID_SECURITY_CONTEXT` | x-tenant-id is required for clients authorised on multiple tenants | `src/common/security/authentication.guard.ts` |
-| `INVALID_SIGNAL_DESCRIPTOR` | — | `src/modules/workers/bank-statement/institutions/financial-institution.service.ts` |
+| `INVALID_SIGNAL_DESCRIPTOR` | — | `src/modules/workers/bank-statement/institutions/institution-validation.ts` |
 | `INVALID_TRAFFIC_PERCENTAGE` | Traffic percentages must total 100 | `src/modules/deployments/deploy-request.rules.ts` |
 | `INVALID_VERSION_TRANSITION` | Cannot transition artifact version from ${version.status} to ${to} | `src/modules/artifacts/version-state.service.ts` |
 | `LIBRARY_ENVIRONMENT_FORBIDDEN` | La librería ${row.logicalName} no está habilitada en el ambiente ${environmentCode} | `src/modules/libraries/library.service.ts` |
