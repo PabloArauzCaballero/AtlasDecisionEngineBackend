@@ -10,7 +10,11 @@ import {
   DEFAULT_OPENROUTER_FAST_MODEL,
 } from '../core/config/openrouter-provider.config';
 import type { ModelGateway } from './semantic-model-settings.dto';
-import { fromEnum, type ChangeListener, type EffectiveModelSettings } from './semantic-model-settings.shape';
+import {
+  fromEnum,
+  type ChangeListener,
+  type EffectiveModelSettings,
+} from './semantic-model-settings.shape';
 export type { EffectiveModelSettings } from './semantic-model-settings.shape';
 
 /** La fila es la tabla: una configuración por despliegue. */
