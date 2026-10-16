@@ -43,7 +43,7 @@ async function main() {
 
   const { NestFactory } = await import('@nestjs/core');
   const { AppModule } = await loadDist('app.module.js');
-  const { buildOpenApiDocument } = await loadDist('common/openapi/openapi-document.js');
+  const { buildOpenApiDocument } = await loadDist('common/openapi/openapi-document/index.js');
 
   // `abortOnError: false` es deliberado: con el valor por defecto, un fallo al inicializar el
   // módulo raíz hace que Nest aborte el proceso **sin lanzar**, y con el logger apagado el
