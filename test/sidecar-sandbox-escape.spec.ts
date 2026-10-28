@@ -117,6 +117,48 @@ describe('runner sidecar JavaScript sandbox escape', () => {
     expect(value).toEqual({ blocked: true, floor: 2 });
   });
 
+  /*
+   * El código del autor se inserta como texto dentro del cuerpo de `function (variables, ...) { "use
+   * strict"; <preámbulo> <código> }`. Un texto que cierra esa función y abre otra saltaba el modo
+   * estricto y el preámbulo —con lo que `Math.random` volvía a funcionar y la decisión dejaba de ser
+   * reproducible—. Se prueba con el wrapper real que ahora ni siquiera llega a ejecutarse.
+   */
+  it('rechaza un script que cierra el cuerpo de la función del wrapper', () => {
+    const { status, value } = runInSidecarWrapper(
+      'return { cerrada: true }; }), (function () { return { r: Math.random() >= 0 }; ',
+    );
+    expect(status).not.toBe(0);
+    expect(value).toBeUndefined();
+  });
+
+  it('rechaza un cierre disfrazado de comentario o de cadena que no cierra nada', () => {
+    const { status } = runInSidecarWrapper(
+      'return { x: 1 }; /* */ }) //\n, (function () { return { y: 1 }; ',
+    );
+    expect(status).not.toBe(0);
+  });
+
+  it('sigue ejecutando un cuerpo legítimo con funciones, llaves y comentarios', () => {
+    const { status, value } = runInSidecarWrapper(
+      '// suma de una lista\nconst f = function (xs) { return xs.reduce((a, b) => a + b, 0); };\n' +
+        'return { total: f([1, 2, 3]), objeto: { a: { b: 1 } } };',
+    );
+    expect(status).toBe(0);
+    expect(value).toEqual({ total: 6, objeto: { a: { b: 1 } } });
+  });
+
+  /*
+   * `Date` ya no existe en el contexto, pero `new Intl.DateTimeFormat().format()` sin argumento
+   * formatea el instante actual: era otra puerta al reloj. Se retira esa clase; el resto de `Intl`
+   * (números, listas, comparación) no lee el reloj y se conserva.
+   */
+  it('no deja leer el reloj por Intl.DateTimeFormat y conserva el resto de Intl', () => {
+    const { value } = runInSidecarWrapper(
+      'return { dtf: typeof Intl.DateTimeFormat, nf: new Intl.NumberFormat("en-US").format(1234.5) };',
+    );
+    expect(value).toEqual({ dtf: 'undefined', nf: '1,234.5' });
+  });
+
   it('keeps the sidecar wrappers in sync with the hardened in-process ones', () => {
     // The escape existed because the two copies drifted. They cannot be shared (the runner is
     // deliberately dependency-free and cannot import from src/), so pin the security-relevant
@@ -131,6 +173,8 @@ describe('runner sidecar JavaScript sandbox escape', () => {
       'sandbox.__atlasOutput = JSON.stringify(payload.context.output || {})',
       '__atlasFreeze(JSON.parse(__atlasVariables))',
       'Object.defineProperty(Math, "random"',
+      'delete Intl.DateTimeFormat;',
+      "vm.compileFunction('\"use strict\";\\n' + payload.source, ['variables', 'decision', 'output'])",
     ]) {
       expect(wrapperOf('JS_WRAPPER')).toContain(invariant);
       expect(inProcess).toContain(invariant);
@@ -140,6 +184,11 @@ describe('runner sidecar JavaScript sandbox escape', () => {
       "node.func.attr in ('format', 'format_map')",
     );
     expect(inProcess.replace(/\s+/g, ' ')).toContain("node.func.attr in ('format', 'format_map')");
+    // El atributo `format` se rechaza también sin llamada (`f = '{0.__class__}'.format`).
+    const formatComoValor =
+      "isinstance(node, ast.Attribute) and node.attr in ('format', 'format_map')";
+    expect(wrapperOf('PYTHON_WRAPPER').replace(/\s+/g, ' ')).toContain(formatComoValor);
+    expect(inProcess.replace(/\s+/g, ' ')).toContain(formatComoValor);
     // Y el rechazo de los atributos de introspección de frames, que no empiezan por '__'.
     const frames = "node.attr.startswith(('f_', 'gi_', 'cr_', 'ag_', 'tb_', 'co_'))";
     expect(wrapperOf('PYTHON_WRAPPER').replace(/\s+/g, ' ')).toContain(frames);
@@ -172,5 +221,47 @@ describe('runner sidecar JavaScript sandbox escape', () => {
     // Y la cota tiene que llegar al wrapper: el guard no sirve si nadie manda el valor.
     expect(RUNNER_SOURCE).toContain('maxMemoryBytes');
     expect(inProcess).toContain('maxMemoryBytes: this.maxMemoryBytes');
+  });
+});
+
+/**
+ * La guardia de Python rechazaba `'…'.format(x)` solo cuando el atributo era el `func` de una
+ * llamada. Obtener el método sin llamarlo (`f = '{0.__class__.__mro__}'.format`, `g = str.format`)
+ * y llamarlo después por su nombre no produce ese patrón, y las cadenas de formato recorren
+ * `__class__`, `__mro__` y `__globals__` sin que exista un `ast.Attribute` dunder. Se prueba con el
+ * wrapper real del sidecar.
+ */
+describe('runner sidecar Python: str.format como valor', () => {
+  function runPython(source: string) {
+    const execution = spawnSync('python3', ['-I', '-S', '-B', '-c', wrapperOf('PYTHON_WRAPPER')], {
+      input: JSON.stringify({
+        source,
+        context: { variables: { a: 1 }, decision: {}, output: {} },
+        timeoutMs: 5_000,
+        maxMemoryBytes: 256 * 1024 * 1024,
+      }),
+      encoding: 'utf8',
+      timeout: 20_000,
+    });
+    return { status: execution.status, stdout: execution.stdout };
+  }
+
+  it.each([
+    ['alias del método', "f = '{0.__class__.__mro__}'.format\nresult = {'x': f(1)}"],
+    ['método de la clase str', "f = str.format\nresult = {'x': f('{0.__class__}', 1)}"],
+    ['format_map como valor', "f = '{x.__class__}'.format_map\nresult = {'x': f({'x': 1})}"],
+    ['pasado a map()', "result = {'x': list(map('{0.__class__}'.format, [1]))}"],
+  ])('rechaza %s', (_nombre, source) => {
+    const { status, stdout } = runPython(source);
+    expect(status).not.toBe(0);
+    expect(stdout).toBe('');
+  });
+
+  it('sigue permitiendo str(), concatenación y atributos corrientes', () => {
+    const { status, stdout } = runPython(
+      "result = {'x': str(variables['a']) + '-ok', 'n': len(str(variables))}",
+    );
+    expect(status).toBe(0);
+    expect(JSON.parse(stdout)).toEqual({ x: '1-ok', n: 8 });
   });
 });

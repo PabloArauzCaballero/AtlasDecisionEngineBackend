@@ -1,0 +1,5 @@
+FAIL test/sidecar-sandbox-escape.spec.ts (18.797 s)
+    // inservible y moria con SCRIPT_EXECUTION_FAILED sin explicar la causa.
+FAIL test/script-node-sandbox-escape.spec.ts
+Test Suites: 2 failed, 2 total
+Tests:       10 failed, 21 passed, 31 total

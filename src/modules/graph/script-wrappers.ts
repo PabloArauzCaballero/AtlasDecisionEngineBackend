@@ -35,8 +35,13 @@ process.stdin.on('end', () => {
   // never an outer-realm object — leaving no reference for the script to escape through.
   // Math's other static members stay intact (Math.random is the only non-deterministic one);
   // its property descriptor is {writable:true, configurable:true} per spec, so this succeeds.
+  //
+  // Intl.DateTimeFormat se retira por la misma razon que Date: "new Intl.DateTimeFormat().format()"
+  // sin argumento formatea el instante ACTUAL, asi que dejaba al script leer el reloj y hacia la
+  // decision irreproducible. El resto de Intl no lee el reloj y se conserva.
   const preamble =
-    'Object.defineProperty(Math, "random", { value: () => { throw new Error("Math.random is not allowed"); } });\n';
+    'Object.defineProperty(Math, "random", { value: () => { throw new Error("Math.random is not allowed"); } });\n' +
+    'delete Intl.DateTimeFormat;\n';
   // El congelado tambien ocurre dentro: el script no debe poder alterar sus entradas,
   // y congelar aqui usa el Object del propio contexto, no el del realm exterior.
   const freeze =
@@ -46,6 +51,11 @@ process.stdin.on('end', () => {
     '(__atlasFreeze(JSON.parse(__atlasVariables)), ' +
     '__atlasFreeze(JSON.parse(__atlasDecision)), ' +
     '__atlasFreeze(JSON.parse(__atlasOutput)))';
+  // El codigo del autor se pega TEXTUALMENTE dentro del cuerpo de la funcion. Un texto como
+  // "}), (function () { ... " cerraba esa funcion, descartaba "use strict" y el preambulo (con
+  // Math.random vuelto a funcionar) y ejecutaba el resto como otra funcion. Compilarlo antes como
+  // CUERPO de funcion, sin ejecutarlo, lo rechaza: el analizador solo acepta un cuerpo balanceado.
+  vm.compileFunction('"use strict";\n' + payload.source, ['variables', 'decision', 'output']);
   const wrapped =
     freeze +
     '(function (variables, decision, output) { "use strict";\n' +
@@ -90,6 +100,11 @@ for node in ast.walk(tree):
     if isinstance(node, ast.Attribute) and (node.attr.startswith('__') or node.attr.startswith(('f_', 'gi_', 'cr_', 'ag_', 'tb_', 'co_'))):
         raise ValueError('Dunder and frame-introspection attributes are not allowed')
     if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in ('format', 'format_map'):
+        raise ValueError('String formatting methods are not allowed')
+    # Tampoco como valor: "f = '{0.__class__}'.format; f(x)" y "g = str.format" no son una llamada con
+    # atributo, esquivaban la comprobacion de arriba y recorrian __class__/__mro__/__globals__ por la
+    # cadena de formato. Se rechaza el atributo donde aparezca, llamado o no.
+    if isinstance(node, ast.Attribute) and node.attr in ('format', 'format_map'):
         raise ValueError('String formatting methods are not allowed')
 safe_builtins = {
     'abs': abs, 'bool': bool, 'dict': dict, 'enumerate': enumerate, 'float': float,

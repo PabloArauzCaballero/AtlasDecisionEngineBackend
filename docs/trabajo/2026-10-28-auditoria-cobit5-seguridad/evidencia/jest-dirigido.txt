@@ -1,0 +1,12 @@
+PASS test/sidecar-sandbox-escape.spec.ts (6.578 s)
+PASS test/reidentification-decision.spec.ts
+PASS test/script-node-sandbox-escape.spec.ts
+PASS test/script-node-runner.spec.ts
+PASS test/script-runner-production-guard.spec.ts
+
+Test Suites: 5 passed, 5 total
+Tests:       42 passed, 42 total
+Snapshots:   0 total
+Time:        9.279 s, estimated 31 s
+Ran all test suites matching /test\/sidecar-sandbox-escape.spec.ts|test\/script-node-sandbox-escape.spec.ts|test\/reidentification-decision.spec.ts|test\/script-node-runner.spec.ts|test\/script-runner-production-guard.spec.ts/i.
+EXIT=0

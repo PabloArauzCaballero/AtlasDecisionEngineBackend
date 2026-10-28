@@ -43,11 +43,14 @@ export class PostgresDecisionAuditReadAdapter implements DecisionAuditReadPort {
    * se devuelven con `status: null`, que es lo honesto. Las peticiones anónimas (login, health) no
    * dejan rastro aquí, por diseño.
    */
-  summarizeAccessRuns(windowDays: number) {
+  summarizeAccessRuns(tenantId: bigint, windowDays: number) {
     return this.reads.run('summarizeAccessRuns', async (client) => {
       const rows = await client.decisionAccessAudit.groupBy({
         by: ['resource', 'decision', 'status'],
-        where: { occurredAt: { gte: new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000) } },
+        where: {
+          occurredAt: { gte: new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000) },
+          OR: [{ tenantId }, { tenantId: null }],
+        },
         _count: { _all: true },
         _max: { occurredAt: true },
       });
@@ -64,12 +67,13 @@ export class PostgresDecisionAuditReadAdapter implements DecisionAuditReadPort {
     });
   }
 
-  summarizeScreenRuns(windowDays: number, limit: number) {
+  summarizeScreenRuns(tenantId: bigint, windowDays: number, limit: number) {
     return this.reads.run('summarizeScreenRuns', async (client) => {
       const rows = await client.decisionAccessAudit.groupBy({
         by: ['originClient', 'originScreen', 'resource', 'status'],
         where: {
           occurredAt: { gte: new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000) },
+          OR: [{ tenantId }, { tenantId: null }],
           originClient: { not: null },
           originScreen: { not: null },
         },

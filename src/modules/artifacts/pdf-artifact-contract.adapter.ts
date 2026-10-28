@@ -23,6 +23,7 @@ import type {
   ArtifactSummary,
 } from '../../pdf-worker/application/ports/artifact-contract.port';
 import { VersionStatus } from '@prisma/client';
+import { RequestContextService } from '../../common/context/request-context.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 
 /** Tipos canónicos del catálogo de variables → vocabulario del generador. */
@@ -72,14 +73,34 @@ const VERSIONES_ESTABLES: VersionStatus[] = [
 export class PdfArtifactContractAdapter implements ArtifactContractPort {
   readonly available = true;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly requestContext: RequestContextService,
+  ) {}
+
+  /**
+   * El tenant de la petición en curso, o `undefined` si no lo hay.
+   *
+   * El generador documental no conoce tenants (es un módulo suelto), así que este adaptador lo toma
+   * del contexto de la petición, que `AuthenticationGuard` rellena con el tenant del principal. Antes
+   * ni `list()` ni `get()` filtraban: cualquier rol del generador veía los códigos, nombres y campos
+   * de salida de los artefactos de TODAS las organizaciones, y la única barrera era la política de
+   * filas de la base, que un rol con BYPASSRLS o un contexto sin tenant no aplica.
+   */
+  private currentTenant(): bigint | undefined {
+    const tenantId = this.requestContext.get()?.tenantId;
+    return tenantId === undefined ? undefined : BigInt(tenantId);
+  }
 
   async list(): Promise<readonly ArtifactSummary[]> {
+    // Sin tenant no hay a quién enseñarle nada: se cierra en vez de listar todo.
+    const tenantId = this.currentTenant();
+    if (tenantId === undefined) return [];
     const versions = await this.prisma.decisionArtifactVersion.findMany({
       // Sólo las versiones ya aprobadas o desplegadas. Ofrecer un BORRADOR para
       // casar con un documento invita a vincularse a un contrato que todavía
       // puede cambiar bajo los pies del que lo imprime.
-      where: { status: { in: VERSIONES_ESTABLES } },
+      where: { status: { in: VERSIONES_ESTABLES }, artifact: { tenantId } },
       select: {
         id: true,
         semanticVersion: true,
@@ -101,9 +122,11 @@ export class PdfArtifactContractAdapter implements ArtifactContractPort {
   }
 
   async get(artifactId: string, version?: string): Promise<ArtifactOutputContract | undefined> {
+    const tenantId = this.currentTenant();
+    if (tenantId === undefined) return undefined;
     const found = await this.prisma.decisionArtifactVersion.findFirst({
       where: {
-        artifact: { artifactCode: artifactId },
+        artifact: { artifactCode: artifactId, tenantId },
         ...(version ? { semanticVersion: version } : { status: { in: VERSIONES_ESTABLES } }),
       },
       select: {
@@ -128,7 +151,7 @@ export class PdfArtifactContractAdapter implements ArtifactContractPort {
     if (!found) return undefined;
 
     const fields = await Promise.all(
-      found.outputContractFields.map((field) => this.describe(field)),
+      found.outputContractFields.map((field) => this.describe(field, tenantId)),
     );
 
     return {
@@ -139,21 +162,29 @@ export class PdfArtifactContractAdapter implements ArtifactContractPort {
     };
   }
 
-  private async describe(field: {
-    fieldCode: string;
-    name: string;
-    description: string | null;
-    sourceKind: string;
-    sourceRef: string;
-    absenceReasons: string[];
-    valueMappingJson: unknown;
-    exampleJson: unknown;
-  }): Promise<ArtifactOutputField> {
+  private async describe(
+    field: {
+      fieldCode: string;
+      name: string;
+      description: string | null;
+      sourceKind: string;
+      sourceRef: string;
+      absenceReasons: string[];
+      valueMappingJson: unknown;
+      exampleJson: unknown;
+    },
+    tenantId: bigint,
+  ): Promise<ArtifactOutputField> {
     return {
       fieldCode: field.fieldCode,
       name: field.name,
       description: field.description ?? undefined,
-      type: await this.resolveType(field.sourceKind, field.sourceRef, field.valueMappingJson),
+      type: await this.resolveType(
+        field.sourceKind,
+        field.sourceRef,
+        field.valueMappingJson,
+        tenantId,
+      ),
       // `absenceReasons` sólo lo tienen los campos que PUEDEN faltar; que esté
       // vacío es la forma en que el contrato declara «esto sale siempre».
       required: field.absenceReasons.length === 0,
@@ -174,6 +205,7 @@ export class PdfArtifactContractAdapter implements ArtifactContractPort {
     sourceKind: string,
     sourceRef: string,
     valueMapping: unknown,
+    tenantId: bigint,
   ): Promise<ArtifactFieldType> {
     // Un mapeo de valores publica un conjunto cerrado, sea cual sea el origen.
     if (valoresPublicados(valueMapping)) return 'enum';
@@ -184,7 +216,7 @@ export class PdfArtifactContractAdapter implements ArtifactContractPort {
     // gobierna lo que el artefacto va a emitir.
     const version = await this.prisma.decisionVariableVersion
       .findFirst({
-        where: { definition: { variableCode: sourceRef } },
+        where: { definition: { variableCode: sourceRef, tenantId } },
         select: { dataType: true },
         orderBy: { id: 'desc' },
       })

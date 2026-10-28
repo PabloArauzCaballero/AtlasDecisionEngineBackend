@@ -1,10 +1,13 @@
 import { positionOf, scanSql } from '../sql-tokens';
 import {
+  ALLOWED_PG_FUNCTIONS,
   FORBIDDEN_BARE_WORDS,
+  FORBIDDEN_CALLS_ONLY,
   FORBIDDEN_FUNCTIONS,
   FORBIDDEN_KEYWORDS,
   FORBIDDEN_NAME_PATTERNS,
   FUNCTION_CALL,
+  PG_FUNCTION_CALL,
   TABLE_FUNCTIONS,
   WORD,
 } from './forbidden-lists';
@@ -156,6 +159,29 @@ export function guardSql(sql: string, allowed: ReadonlySet<string>): GuardResult
         match.index,
       );
     }
+  }
+
+  for (const fn of FORBIDDEN_CALLS_ONLY) {
+    const match = FUNCTION_CALL(fn).exec(masked);
+    if (match) {
+      push(
+        'SQL_FORBIDDEN_FUNCTION',
+        `La función \`${fn}()\` no está disponible en la consola.`,
+        match.index,
+      );
+    }
+  }
+
+  // Cualquier otra `pg_*(…)`: ver `ALLOWED_PG_FUNCTIONS`. Las ya nombradas arriba no se repiten.
+  const explicitlyForbidden = new Set<string>(FORBIDDEN_FUNCTIONS);
+  for (const match of masked.matchAll(PG_FUNCTION_CALL)) {
+    const name = match[1].toLowerCase();
+    if (ALLOWED_PG_FUNCTIONS.has(name) || explicitlyForbidden.has(name)) continue;
+    push(
+      'SQL_FORBIDDEN_FUNCTION',
+      `La función \`${match[1]}()\` no está disponible en la consola.`,
+      match.index,
+    );
   }
 
   // Los identificadores entre comillas se revisan aparte porque el enmascarado los saca del

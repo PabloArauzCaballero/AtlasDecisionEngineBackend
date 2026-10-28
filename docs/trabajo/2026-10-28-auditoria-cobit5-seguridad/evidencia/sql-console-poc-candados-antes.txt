@@ -1,0 +1,7 @@
+# PostgreSQL 16 local, transaccion de solo lectura como la de la consola (QueryExecutorService.withSession)
+## 12000 candados de sesion adquiridos y vigentes tras COMMIT
+BEGIN
+on
+12000
+COMMIT
+advisory_locks_tras_commit=12000

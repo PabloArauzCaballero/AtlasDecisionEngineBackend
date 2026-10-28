@@ -1,0 +1,4 @@
+# PoC sandbox Python — ANTES del cambio (salida recortada a 200 caracteres)
+format_directo (1, '')
+format_alias (0, '{"x": "(<class \'int\'>, <class \'object\'>)"}')
+str_format (0, '{"x": "<class \'int\'>"}')

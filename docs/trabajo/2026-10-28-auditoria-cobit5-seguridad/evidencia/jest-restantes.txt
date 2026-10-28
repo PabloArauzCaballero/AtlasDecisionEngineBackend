@@ -1,0 +1,17 @@
+PASS test/check-file-size.spec.ts (5.232 s)
+PASS test/canonical-json-money.spec.ts
+PASS test/manual-review-callback-routing.spec.ts
+PASS test/id.spec.ts
+PASS test/manual-review-case-code.spec.ts
+PASS test/test-execution.service.spec.ts
+PASS test/access-audit-origin.spec.ts
+PASS src/modules/sql-console/guard/sql-guard.spec.ts
+PASS test/pdf-artifact-contract-tenant.spec.ts
+PASS test/access-runs-tenant.spec.ts
+
+Test Suites: 2 skipped, 10 passed, 10 of 12 total
+Tests:       3 skipped, 105 passed, 108 total
+Snapshots:   0 total
+Time:        15.333 s, estimated 50 s
+Ran all test suites matching /src\/modules\/sql-console\/guard\/sql-guard.spec.ts|test\/access-audit-origin.spec.ts|test\/access-runs-tenant.spec.ts|test\/canonical-json-money.spec.ts|test\/check-file-size.spec.ts|test\/id.spec.ts|test\/litellm-smoke.spec.ts|test\/manual-review-callback-routing.spec.ts|test\/manual-review-case-code.spec.ts|test\/openrouter-smoke.spec.ts|test\/pdf-artifact-contract-tenant.spec.ts|test\/test-execution.service.spec.ts/i.
+EXIT=0

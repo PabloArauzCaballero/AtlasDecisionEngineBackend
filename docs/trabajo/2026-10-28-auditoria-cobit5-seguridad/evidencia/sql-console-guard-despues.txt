@@ -1,0 +1,8 @@
+{"ok":false,"violations":[{"code":"SQL_FORBIDDEN_FUNCTION","message":"La función `pg_advisory_lock()` no está disponible en la consola.","line":1,"column":14}], <= SELECT count(pg_advisory_lock(g)) FROM gener
+{"ok":false,"violations":[{"code":"SQL_FORBIDDEN_FUNCTION","message":"La función `pg_notify()` no está disponible en la consola.","line":1,"column":8}],"relatio <= SELECT pg_notify('c','p')
+{"ok":false,"violations":[{"code":"SQL_FORBIDDEN_FUNCTION","message":"La función `pg_try_advisory_lock()` no está disponible en la consola.","line":1,"column":8 <= SELECT pg_try_advisory_lock(1)
+{"ok":false,"violations":[{"code":"SQL_FORBIDDEN_FUNCTION","message":"La función `pg_advisory_xact_lock()` no está disponible en la consola.","line":1,"column": <= SELECT pg_advisory_xact_lock(1)
+{"ok":false,"violations":[{"code":"SQL_FORBIDDEN_FUNCTION","message":"La función `inet_server_addr()` no está disponible en la consola.","line":1,"column":19},{ <= SELECT version(), inet_server_addr(), pg_pos
+{"ok":false,"violations":[{"code":"SQL_FORBIDDEN_FUNCTION","message":"La función `pg_current_logfile()` no está disponible en la consola.","line":1,"column":8}] <= SELECT pg_current_logfile()
+{"ok":false,"violations":[{"code":"SQL_FORBIDDEN_FUNCTION","message":"La función `lo_open()` no está disponible en la consola.","line":1,"column":8}],"relations <= SELECT lo_open(1, 262144)
+{"ok":false,"violations":[{"code":"SQL_FORBIDDEN_FUNCTION","message":"La función `pg_read_file()` no está disponible en la consola.","line":1,"column":8}],"rela <= SELECT pg_read_file('/etc/passwd')

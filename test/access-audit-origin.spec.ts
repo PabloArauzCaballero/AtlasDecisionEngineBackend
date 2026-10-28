@@ -128,7 +128,8 @@ describe('AuditQueryService.summarizeAccessRuns · pantallas', () => {
     Object.assign(Object.create(AuditQueryService.prototype) as object, {
       reads: {
         summarizeAccessRuns: async () => [],
-        summarizeScreenRuns: async (_dias: number, limite: number) => pantallas.slice(0, limite),
+        summarizeScreenRuns: async (_tenant: bigint, _dias: number, limite: number) =>
+          pantallas.slice(0, limite),
       },
     }) as unknown as AuditQueryService;
 
@@ -141,7 +142,7 @@ describe('AuditQueryService.summarizeAccessRuns · pantallas', () => {
       count: 1,
       lastAt: null,
     });
-    const completo = await servicio([fila(1)]).summarizeAccessRuns(30);
+    const completo = await servicio([fila(1)]).summarizeAccessRuns(1n, 30);
     expect(completo).toMatchObject({
       screensTruncated: false,
       screens: [expect.objectContaining({ screen: '/p/1' })],
@@ -149,7 +150,7 @@ describe('AuditQueryService.summarizeAccessRuns · pantallas', () => {
 
     const cortado = await servicio(
       Array.from({ length: SCREEN_RUNS_LIMIT + 1 }, (_, i) => fila(i)),
-    ).summarizeAccessRuns(30);
+    ).summarizeAccessRuns(1n, 30);
     expect(cortado.screensTruncated).toBe(true);
     expect(cortado.screens).toHaveLength(SCREEN_RUNS_LIMIT);
   });

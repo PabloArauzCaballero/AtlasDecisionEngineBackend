@@ -125,10 +125,20 @@ export interface ScreenRunSummary {
 }
 
 export interface DecisionAuditReadPort {
-  /** Accesos HTTP autenticados agrupados por recurso y decisión, dentro de la ventana en días. */
-  summarizeAccessRuns(windowDays: number): Promise<AccessRunSummary[]>;
+  /**
+   * Accesos HTTP agrupados por recurso y decisión, dentro de la ventana en días.
+   *
+   * Acotado al tenant que pregunta, más las filas SIN tenant (la denegación de una petición que ni
+   * llegó a autenticarse no pertenece a ninguna organización). Sin ese filtro el resumen mezclaba la
+   * actividad de todos los tenants.
+   */
+  summarizeAccessRuns(tenantId: bigint, windowDays: number): Promise<AccessRunSummary[]>;
   /** Los mismos accesos por (cliente, pantalla declarada, recurso, código), como mucho `limit` grupos. */
-  summarizeScreenRuns(windowDays: number, limit: number): Promise<ScreenRunSummary[]>;
+  summarizeScreenRuns(
+    tenantId: bigint,
+    windowDays: number,
+    limit: number,
+  ): Promise<ScreenRunSummary[]>;
   /** Detalle completo de una ejecución, o `null` si el tenant no la tiene. */
   findExecutionById(tenantId: bigint, executionId: bigint): Promise<AuditReadModel | null>;
   searchExecutions(criteria: ExecutionSearchCriteria): Promise<CountedRows<AuditReadModel>>;

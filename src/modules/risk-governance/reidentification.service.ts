@@ -76,24 +76,36 @@ export class ReidentificationService {
       );
     }
 
-    const updated = await this.prisma.reidentificationRequest.update({
-      where: { id },
-      data: {
-        status: dto.approve ? ReidentificationStatus.APPROVED : ReidentificationStatus.REJECTED,
-        decidedBy: principal.id,
-        decidedAt: new Date(),
-      },
+    const status = dto.approve ? ReidentificationStatus.APPROVED : ReidentificationStatus.REJECTED;
+    /*
+     * La precondición va EN la escritura. Leer el estado arriba y escribir aquí sin condición dejaba
+     * que dos decisiones simultáneas pasaran las dos la comprobación: la segunda pisaba a quien
+     * decidió primero (`decidedBy`, `decidedAt` y hasta el sentido de la decisión), y el control de
+     * dos personas dejaba de tener un único firmante. Con `status: REQUESTED` en el `WHERE` sólo una
+     * escritura encuentra la fila; la otra ve `count = 0` y recibe el mismo 409 que si hubiera
+     * llegado después.
+     */
+    const { count } = await this.prisma.reidentificationRequest.updateMany({
+      where: { id, tenantId, status: ReidentificationStatus.REQUESTED },
+      data: { status, decidedBy: principal.id, decidedAt: new Date() },
     });
+    if (count === 0) {
+      throw new DomainException(
+        'REIDENTIFICATION_ALREADY_DECIDED',
+        'Esta solicitud ya se resolvió. Una autorización gastada no vale para la siguiente consulta.',
+        HttpStatus.CONFLICT,
+      );
+    }
     await this.audit.append({
       tenantId,
       eventType: dto.approve ? 'REIDENTIFICATION_APPROVED' : 'REIDENTIFICATION_REJECTED',
       aggregateType: 'ReidentificationRequest',
-      aggregateId: updated.id.toString(),
+      aggregateId: request.id.toString(),
       actorId: principal.id,
       requestId: principal.requestId,
       payload: { requestedBy: request.requestedBy, subjectId: request.subjectId.toString() },
     });
-    return { id: updated.id.toString(), status: updated.status };
+    return { id: request.id.toString(), status };
   }
 
   async listReidentifications(tenantId: bigint) {

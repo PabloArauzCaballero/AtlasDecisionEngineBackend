@@ -1,0 +1,8 @@
+{"ok":true,"violations":[],"relations":[]} <= SELECT count(pg_advisory_lock(g)) FROM generate_series(1,30000) g
+{"ok":true,"violations":[],"relations":[]} <= SELECT pg_notify('c','p')
+{"ok":true,"violations":[],"relations":[]} <= SELECT pg_try_advisory_lock(1)
+{"ok":true,"violations":[],"relations":[]} <= SELECT pg_advisory_xact_lock(1)
+{"ok":true,"violations":[],"relations":[]} <= SELECT version(), inet_server_addr(), pg_postmaster_start_time()
+{"ok":true,"violations":[],"relations":[]} <= SELECT pg_current_logfile()
+{"ok":true,"violations":[],"relations":[]} <= SELECT lo_open(1, 262144)
+{"ok":false,"violations":[{"code":"SQL_FORBIDDEN_FUNCTION","message":"La función `pg_read_file()` no está disponible en la consola.","line":1,"column":8}],"rela <= SELECT pg_read_file('/etc/passwd')

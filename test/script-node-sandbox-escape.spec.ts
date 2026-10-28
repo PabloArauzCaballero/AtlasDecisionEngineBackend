@@ -132,6 +132,13 @@ describe('ScriptNodeRunnerService Python sandbox escape (IN_PROCESS)', () => {
     },
   );
 
+  it('rejects str.format as a VALUE, not only when it is the callee of a call', async () => {
+    const payload = "f = '{0.__class__.__mro__}'.format\nresult = {'escaped': f(variables)}";
+    await expect(
+      runner.execute('PYTHON', payload, { variables: {}, decision: {}, output: {} }),
+    ).rejects.toThrow();
+  });
+
   it('still allows ordinary str() and string concatenation', async () => {
     const payload = "result = {'value': str(variables['amount']) + '-ok'}";
     const result = await runner.execute('PYTHON', payload, {
@@ -140,5 +147,35 @@ describe('ScriptNodeRunnerService Python sandbox escape (IN_PROCESS)', () => {
       output: {},
     });
     expect(result).toEqual({ value: '42-ok' });
+  });
+});
+
+/**
+ * El wrapper del proceso de la API es la copia de desarrollo del que ejecuta el sidecar; las dos deben
+ * cerrar lo mismo. Aquí se ejercita por `ScriptNodeRunnerService` (IN_PROCESS).
+ */
+describe('ScriptNodeRunnerService: cuerpo de función y reloj (IN_PROCESS)', () => {
+  const runner = new ScriptNodeRunnerService(
+    new ConfigService({ SCRIPT_NODES_ENABLED: true, SCRIPT_NODE_TIMEOUT_MS: 5000 }),
+  );
+  const context = { variables: {}, decision: {}, output: {} };
+
+  it('rechaza un script que cierra el cuerpo de la función del wrapper', async () => {
+    await expect(
+      runner.execute(
+        'JAVASCRIPT',
+        'return { a: 1 }; }), (function () { return { r: Math.random() >= 0 }; ',
+        context,
+      ),
+    ).rejects.toThrow();
+  });
+
+  it('no deja leer el reloj por Intl.DateTimeFormat', async () => {
+    const result = await runner.execute(
+      'JAVASCRIPT',
+      'return { dtf: typeof Intl.DateTimeFormat };',
+      context,
+    );
+    expect(result).toEqual({ dtf: 'undefined' });
   });
 });

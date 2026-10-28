@@ -101,7 +101,54 @@ export const FORBIDDEN_FUNCTIONS = [
   'pg_backend_pid',
   'has_table_privilege',
   'to_regclass',
+  // Revelan la topología del servidor: reconocimiento gratis para quien ataca.
+  'inet_server_addr',
+  'inet_server_port',
+  'inet_client_addr',
+  'inet_client_port',
+  // Objetos grandes: son globales a la base, no pertenecen a ningún tenant ni a ningún dataset.
+  'lo_open',
+  'lo_creat',
+  'lo_create',
+  'lo_close',
+  'lo_lseek',
+  'lo_lseek64',
+  'lo_tell',
+  'lo_tell64',
+  'lo_truncate',
+  'lo_truncate64',
+  'lo_unlink',
+  'loread',
+  'lowrite',
 ] as const;
+
+/**
+ * Funciones prohibidas SOLO como llamada, no como nombre.
+ *
+ * `version()` revela la versión del servidor, pero `version` es también una columna de los datasets
+ * (`catalogo`, `auditoria`, `decisiones`, `desenlaces`): meterla en `FORBIDDEN_FUNCTIONS` rechazaría
+ * `"version"` entre comillas, que es un nombre de columna legítimo.
+ */
+export const FORBIDDEN_CALLS_ONLY = ['version'] as const;
+
+/**
+ * Las funciones `pg_*` que SÍ se admiten. Lista cerrada, y mínima a propósito.
+ *
+ * Antes la guardia prohibía `pg_*` una a una, y la lista nunca estuvo completa: `pg_advisory_lock`
+ * pasaba, y es una función de VOLATILIDAD que una transacción de sólo lectura no impide. Su candado
+ * es de sesión, así que sobrevive al `COMMIT` en la conexión que vuelve al pool: un solo
+ * `SELECT count(pg_advisory_lock(g)) FROM generate_series(1, 30000) g` llena la tabla de candados
+ * compartida y, mientras esa conexión siga viva, el resto de las sesiones —y las conexiones nuevas—
+ * fallan con `out of shared memory`. Medido contra PostgreSQL 16 con los valores por omisión.
+ * `pg_notify` tiene el mismo problema por otro lado: envía a los canales que escucha el propio motor.
+ *
+ * Por eso se invierte el criterio: todo `pg_*(…)` está prohibido salvo lo que figura aquí. Una
+ * función nueva de PostgreSQL nace prohibida, que es la dirección segura de equivocarse.
+ */
+export const ALLOWED_PG_FUNCTIONS: ReadonlySet<string> = new Set(['pg_typeof']);
+
+/** Una llamada a una función `pg_*`, con o sin esquema delante (`pg_catalog.pg_notify(`). */
+export const PG_FUNCTION_CALL = /(?<![A-Za-z0-9_"])(pg_[A-Za-z0-9_]+)\s*\(/gi;
 
 /**
  * Lo mismo, para las que se escriben SIN paréntesis.

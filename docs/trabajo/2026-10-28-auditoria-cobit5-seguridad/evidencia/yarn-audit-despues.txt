@@ -1,0 +1,3 @@
+# yarn audit --groups dependencies (2026-10-28) DESPUES de actualizar body-parser, multer, qs y zod dentro de su rango semver
+moderate @opentelemetry/instrumentation-pg <0.73.0 -> >=0.73.0 GHSA-qqmp-wf37-98f9 | via @opentelemetry/instrumentation-pg
+{'info': 0, 'low': 0, 'moderate': 1, 'high': 0, 'critical': 0}

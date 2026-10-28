@@ -1,0 +1,4 @@
+# PoC sandbox JS (wrapper real de runner/server.mjs, node v22.22.0) - ANTES del cambio
+breakout {"status":0,"out":"{\"t\":\"undefined\",\"th\":\"false\"}","err":""}
+mathrandom {"status":0,"out":"{\"r\":\"number\",\"v\":true}","err":""}
+intl {"status":0,"out":"{\"d\":\"06:13:15\"}","err":""}

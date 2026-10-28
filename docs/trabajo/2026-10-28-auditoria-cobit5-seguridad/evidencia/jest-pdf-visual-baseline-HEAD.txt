@@ -1,0 +1,6 @@
+FAIL test/pdf-visual-regression.spec.ts (10.534 s)
+    Expected: "688cc5f4d12b5b05a54d6d9cecc5bf6ac36f50105d3c923f98ab0e981ecf6b1c"
+    Received: "13bdf4cc980ea48abc7a1f98c35344637f8e6a2d72ccde65f402550762e3c3fd"
+    Expected: "d5e8b313e9d5c866745ddcfefdfca1e3a9018570e2517d34849ccc611bebbfe9"
+    Received: "a3c7918c9841b3f6e9dc1c71bce48733008b2b0f122aeea99efc982cf4af6c7a"
+    Expected: "d076698a0db5053662c697874e6ad2dacbc8636da2d6a3fef5b4ad9e87a4afb7"

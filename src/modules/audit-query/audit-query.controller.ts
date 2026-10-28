@@ -77,9 +77,10 @@ export class AuditQueryController {
     type: AccessRunsSummaryDto,
   })
   @Get('access-runs')
-  summarizeAccessRuns(@Query('windowDays') windowDays?: string) {
+  summarizeAccessRuns(@TenantId() tenantId: bigint, @Query('windowDays') windowDays?: string) {
     const dias = Number(windowDays ?? 30);
     return this.audit.summarizeAccessRuns(
+      tenantId,
       Number.isFinite(dias) && dias > 0 && dias <= 365 ? Math.trunc(dias) : 30,
     );
   }

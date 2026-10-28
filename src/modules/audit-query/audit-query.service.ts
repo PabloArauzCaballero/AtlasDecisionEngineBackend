@@ -112,12 +112,12 @@ export class AuditQueryService {
    * y la decisión es ALLOW/DENY, no un código HTTP. Traducirlo a «verificado» o «roto» es
    * decisión de quien consuma, que es quien sabe qué considera roto.
    */
-  async summarizeAccessRuns(windowDays: number) {
+  async summarizeAccessRuns(tenantId: bigint, windowDays: number) {
     const [rows, pantallas] = await Promise.all([
-      this.reads.summarizeAccessRuns(windowDays),
+      this.reads.summarizeAccessRuns(tenantId, windowDays),
       // Una fila de más para poder decir que se cortó: quien degrade una pantalla a «no usada» con
       // una lista incompleta convertiría el corte en una afirmación falsa.
-      this.reads.summarizeScreenRuns(windowDays, SCREEN_RUNS_LIMIT + 1),
+      this.reads.summarizeScreenRuns(tenantId, windowDays, SCREEN_RUNS_LIMIT + 1),
     ]);
     return {
       windowDays,

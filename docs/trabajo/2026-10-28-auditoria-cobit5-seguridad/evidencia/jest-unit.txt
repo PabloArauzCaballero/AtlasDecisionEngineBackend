@@ -1,0 +1,287 @@
+PASS test/sidecar-sandbox-escape.spec.ts (6.669 s)
+PASS test/reidentification-decision.spec.ts
+PASS test/script-node-sandbox-escape.spec.ts
+PASS test/atlas-underwriting-v2.spec.ts (8.054 s)
+PASS test/identity-verification-pipeline.spec.ts (122.38 s)
+PASS test/identity-escaner-del-sistema.spec.ts (109.145 s)
+PASS test/partner-kyb-review.spec.ts
+PASS test/privacidad-solicitud-titular.spec.ts
+PASS test/kyb-revision-manual.spec.ts
+PASS test/extracto-capacidad-pago.spec.ts (7.252 s)
+PASS test/execution-engine-nodes.spec.ts
+PASS test/corpus-extractos-regresion.spec.ts
+PASS test/identity-degraded-ocr.spec.ts
+PASS test/corpus-identidad-regresion.spec.ts
+PASS test/identity-fraud-forensics.spec.ts
+PASS test/bank-statement-fixtures.spec.ts
+PASS test/litellm-semantic-provider.spec.ts
+PASS test/semantic-transformer-provider.spec.ts
+PASS test/env-schema.spec.ts
+PASS test/identity-session-boundary.spec.ts
+PASS test/code-import-pipeline.spec.ts
+PASS test/identity-integration.spec.ts
+PASS test/qa-lab-fakers.spec.ts
+PASS test/openrouter-semantic-provider.spec.ts
+PASS test/manual-review-segregation.spec.ts
+PASS test/identity-session-http-contract.spec.ts
+PASS test/calculated-fields.spec.ts
+PASS test/qa-lab-generator-constraints.spec.ts
+PASS test/governance-approval-guards.spec.ts
+PASS test/risk-governance.spec.ts
+PASS test/graph-validator-rules.spec.ts
+PASS test/identidad-carnet-movil.spec.ts
+PASS test/partner-kyb-manual-review.spec.ts
+PASS test/unresolved-classification.spec.ts
+PASS test/statement-affordability.spec.ts
+PASS test/semantic-pipeline-garantias.spec.ts
+PASS test/qa-lab-generator.spec.ts
+PASS test/atlas-callback-dispatcher.spec.ts
+PASS test/litellm-clasificacion-flujo.spec.ts
+PASS test/runtime-economic-output-gate.spec.ts
+PASS test/pdf-generation.spec.ts
+PASS test/graph-calculated-fields.spec.ts
+PASS test/onboarding-dossier.spec.ts
+PASS test/simulation.service.spec.ts
+PASS test/engine-intermediate-properties.spec.ts
+PASS test/publicar-todos-los-artefactos.spec.ts
+PASS test/graph-contract-validators.spec.ts
+PASS test/freshness.spec.ts
+PASS test/qa-lab-replay-and-stops.spec.ts
+PASS test/statement-issuer-gate.spec.ts
+PASS test/identity-mrz-td1.spec.ts
+PASS test/observability-tracing.spec.ts
+PASS test/worker-node.spec.ts
+PASS test/semantic-model-settings.service.spec.ts
+PASS test/audit-chain-verification.spec.ts
+PASS test/model-monitoring.spec.ts
+PASS test/riesgo-onboarding-cliente.spec.ts
+[Nest] 1497  - 10/28/2026, 6:35:04 AM    WARN [DeploymentResolverService] Discarding invalid deployment cache entry for CREDIT/PROD: Expected property name or '}' in JSON at position 1 (line 1 column 2)
+PASS test/deployment-resolver-cache.spec.ts
+PASS test/data-subject-rights.spec.ts
+PASS test/semantic-review-escalation.spec.ts
+PASS test/identity-verification-env.spec.ts
+PASS test/expression-evaluator-operators.spec.ts
+PASS test/monitoring-analytics.spec.ts
+PASS test/qa-lab-outcome-coverage.spec.ts
+PASS test/pdf-template-crud.spec.ts
+PASS test/variable-resolution-rules.spec.ts
+PASS test/institution-logo-upload.spec.ts
+PASS test/pdf-factura-fiscal.spec.ts
+PASS test/observability-interceptor.spec.ts
+PASS test/bank-statement-similarity.spec.ts
+PASS test/traceability-coverage-matrix.spec.ts
+PASS test/persistence-registry-and-router.spec.ts
+PASS test/job-scheduler.spec.ts
+PASS test/runtime-failed-audit.spec.ts
+PASS test/statement-triage.spec.ts
+PASS test/audio-tts-segments.spec.ts
+PASS test/identity-document-gate.spec.ts
+PASS test/worker-service-invoker.spec.ts
+PASS test/reference-catalog-seed.spec.ts
+PASS test/execution-engine.spec.ts
+PASS test/bank-statement-dedup.spec.ts
+PASS test/calculated-field-preview.spec.ts
+PASS test/identity-framing-and-liveness.spec.ts
+PASS test/code-import-reasons.spec.ts
+PASS test/semantic-cascada-local-primero.spec.ts
+PASS test/pdf-payload-contract.spec.ts
+PASS test/bank-statement-recency.spec.ts
+PASS test/bank-statement-multi-account.spec.ts
+PASS test/library-registry.spec.ts
+PASS src/modules/sql-console/catalog/catalog-discovery.spec.ts
+PASS test/qa-lab-async-run.spec.ts
+PASS test/coverage-suite.service.spec.ts
+PASS test/recalificacion-capacidad-pago.spec.ts (27.367 s)
+PASS test/graph-worker-validator.spec.ts
+PASS test/outbox-relay.spec.ts
+PASS test/identity-password-change-message.spec.ts
+PASS test/identity-firma-humana.spec.ts
+PASS test/sidecar-concurrency.spec.ts
+PASS test/identity-arbitration-openrouter.spec.ts
+PASS test/notification-projector.spec.ts
+PASS test/views-tenant-sql.spec.ts
+PASS test/artifact-clone-declarations.spec.ts
+PASS test/worker-metrics.spec.ts
+PASS test/statement-review-callback.spec.ts
+PASS test/outcome-ingestion-controller.spec.ts
+PASS test/semantic-config-bridge.spec.ts
+PASS test/bcp-column-alignment.spec.ts
+PASS test/constraint-engine.spec.ts
+PASS test/identity-veredicto-a-la-cola.spec.ts
+PASS test/intermediate-scope.spec.ts
+PASS test/deployment-service-guards.spec.ts
+PASS test/identity-storage-obligatorio.spec.ts
+PASS test/manual-review-invariant.spec.ts
+PASS test/test-run-worker.spec.ts
+PASS test/blocking-evidence.spec.ts
+PASS test/health-probe.spec.ts
+PASS test/pdf-artifact-binding.spec.ts
+PASS test/live-execution-stream.spec.ts
+PASS test/pdf-architecture.spec.ts
+PASS test/persistence-read-path.spec.ts
+PASS test/openrouter-provider-selection.spec.ts
+PASS test/statement-authenticity.spec.ts
+PASS test/security-review.spec.ts
+PASS test/semantic-model-provider-bridge.spec.ts
+PASS test/semantic-model-provider-router.spec.ts
+PASS test/identity-verification-input.spec.ts
+PASS test/pdf-service-auth.spec.ts
+PASS test/variable-resolution.spec.ts
+PASS test/descriptores-discriminan.spec.ts
+PASS test/bank-statement-holder.spec.ts
+PASS test/script-node-runner.spec.ts
+PASS test/audit-execution-contract.spec.ts
+PASS test/reference-contract.spec.ts
+PASS test/regulatory-decision-use.spec.ts
+PASS test/pdf-controllers.spec.ts
+PASS test/views-read-model.spec.ts
+PASS test/audio-generation-budget.spec.ts
+PASS test/money.spec.ts
+PASS test/execution-engine-finite-numbers.spec.ts
+PASS test/nested-tree-execution.service.spec.ts
+PASS test/litellm-provider-selection.spec.ts
+PASS test/semantic-category-controller.spec.ts
+PASS test/code-import-catalog.spec.ts
+PASS test/document-classifier.spec.ts
+PASS test/statement-column-advisor.spec.ts
+PASS test/api-key-privilege-escalation.spec.ts
+PASS test/security-risk-notification.spec.ts
+PASS test/coverage-search.spec.ts
+PASS test/chain-budget.spec.ts
+PASS test/institution-logo-sync.spec.ts
+PASS test/tutorial-progress.spec.ts
+PASS test/identity-bolivia-parser.spec.ts
+PASS test/glosa-sentido-nombres-propios.spec.ts
+PASS test/dependency-graph-bounded.spec.ts
+PASS test/test-case-executor.spec.ts
+PASS test/graph-operation-inputs.spec.ts
+PASS test/pdf-error-catalog.spec.ts
+PASS test/job-scheduler-mutual-exclusion.spec.ts
+PASS test/pdf-security-guards.spec.ts
+PASS test/graph-intermediate-lecturas.spec.ts
+PASS test/discrimination.spec.ts
+PASS test/risk-governance-consent-writers.spec.ts
+PASS test/metrics-token.spec.ts
+PASS test/column-detector.spec.ts
+PASS test/semantic-classification-cache.spec.ts
+PASS test/identity-evidencia-del-nodo.spec.ts
+PASS test/access-audit-status.spec.ts
+PASS test/semantic-catalogo-version-firma.spec.ts
+PASS test/build-identity.spec.ts
+PASS test/observability-redacting-processor.spec.ts
+PASS test/audio-tts-outcome.spec.ts
+PASS test/graph-input-contract.spec.ts
+PASS test/migrations-forward-only.spec.ts
+PASS test/access-denial-durable-queue.spec.ts
+PASS test/platform-catalog-contract.spec.ts
+PASS test/expression-evaluator.spec.ts
+PASS test/subject-policy.spec.ts
+PASS test/conservacion-indefinida.spec.ts
+PASS test/qa-lab-run-load.spec.ts
+PASS test/pdf-config-precedence.spec.ts
+PASS test/worker-exhausted-recovery.spec.ts
+PASS test/pdf-propuesta-comercial.spec.ts
+PASS test/persistence-connection-fingerprint.spec.ts
+PASS test/manual-review-resolve-concurrency.spec.ts
+PASS test/table-analyzer-furniture.spec.ts
+PASS test/pdf-template-registry.spec.ts
+PASS test/observability-instrumentations.spec.ts
+PASS test/script-prueba.spec.ts
+PASS test/job-signal.spec.ts
+PASS test/identity-second-reader.spec.ts
+PASS test/cycle-detector.spec.ts
+PASS test/audio-tts-voice-settings.spec.ts
+PASS test/regulatory-international-transfer.spec.ts
+PASS test/frontend-read-endpoints.spec.ts
+PASS test/sample-input.service.spec.ts
+PASS test/cutoff-and-baseline.spec.ts
+PASS test/worker-role.spec.ts
+PASS test/notification-service.spec.ts
+PASS test/seeding-credenciales-sin-publicador.spec.ts
+PASS test/platform-roles.spec.ts
+PASS test/persistence-error-mapping.spec.ts
+PASS test/identity-login-retry.spec.ts
+PASS test/glosa-rubros-medidos.spec.ts
+PASS test/glosa-impuestos-bolivianos.spec.ts
+PASS test/audio-tts-dedup.spec.ts
+PASS test/pdf-idempotency.spec.ts
+PASS test/semantic-retention-sweeper.spec.ts
+PASS test/decision-audit-read-port.contract.spec.ts (9.746 s)
+PASS test/semantic-audit-claim.spec.ts
+PASS test/binomial-intervals.spec.ts
+PASS test/audio-tts-input.spec.ts
+PASS test/idempotency-reclaim-bound.spec.ts
+PASS test/unresolved-auto-close.spec.ts
+FAIL test/pdf-visual-regression.spec.ts
+  ● Regresión visual de los templates › blank-form@1.0.0 conserva su huella visual
+    Expected: "688cc5f4d12b5b05a54d6d9cecc5bf6ac36f50105d3c923f98ab0e981ecf6b1c"
+    Received: "13bdf4cc980ea48abc7a1f98c35344637f8e6a2d72ccde65f402550762e3c3fd"
+  ● Regresión visual de los templates › credit-analysis-report@1.0.0 conserva su huella visual
+    Expected: "d5e8b313e9d5c866745ddcfefdfca1e3a9018570e2517d34849ccc611bebbfe9"
+    Received: "a3c7918c9841b3f6e9dc1c71bce48733008b2b0f122aeea99efc982cf4af6c7a"
+  ● Regresión visual de los templates › credit-analysis-report@1.1.0 conserva su huella visual
+    Expected: "d076698a0db5053662c697874e6ad2dacbc8636da2d6a3fef5b4ad9e87a4afb7"
+    Received: "b995571b3d1be576bb3c6ff441aab225c4b5006e306f7a52916e98dcf3713912"
+  ● Regresión visual de los templates › factura-fiscal@1.0.0 conserva su huella visual
+    Expected: "69eac9d7f95465922950585dc8ac899d13d9692badca23d246ff8f7efb665b30"
+    Received: "716652f7ec6f33fba1a520caf6134013708dbd736e86dc57cd7be69acfc11335"
+  ● Regresión visual de los templates › generic-result-report@1.0.0 conserva su huella visual
+    Expected: "d7c5570a7282adf2457aa18bc52c7434f21929d1797512b3c8f95ab5dac15223"
+    Received: "1212c91e3a63062dfbb20d34366a2b621eb51bcb4410ddf22aa2db1e12a6c22e"
+PASS test/statement-run-reprocess.spec.ts
+PASS test/keyset-pagination.spec.ts
+PASS test/transformer-identity-config-coercion.spec.ts
+PASS test/calculated-field-sample-inputs.spec.ts
+PASS test/manual-review-sod.spec.ts
+PASS test/jwt-verifier.spec.ts
+PASS test/corpus-catalogos-derivados.spec.ts
+PASS test/persistence-read-only-guard.spec.ts
+PASS test/unique-violation-contract.spec.ts
+PASS test/unresolved-reevaluation-guards.spec.ts
+PASS test/required-nested-contracts.spec.ts
+PASS test/semantic-audit-retention.spec.ts
+PASS test/retention-sweeper.spec.ts
+PASS test/storage-references-controller.spec.ts
+PASS test/metrics-error-taxonomy.spec.ts
+PASS test/qa-lab-sample-inputs.spec.ts
+PASS test/demo-marker-consistency.spec.ts
+PASS test/identity-idempotency-fingerprint.spec.ts
+PASS test/monitoring-thresholds.spec.ts
+PASS test/outbox-publisher.spec.ts
+PASS test/artifact-processing-basis-lock.spec.ts
+PASS test/observability-sql-redaction.spec.ts
+PASS test/deployment-resolver.spec.ts
+[Nest] 1497  - 10/28/2026, 6:37:41 AM    WARN [DeploymentResolverService] Discarding invalid deployment cache entry for CREDIT/TEST: Expected property name or '}' in JSON at position 1 (line 1 column 2)
+PASS test/graph-validator.spec.ts
+PASS test/holder-match.spec.ts
+PASS test/governance-decision-dto.spec.ts
+PASS test/padron-entidades-enumeraciones.spec.ts
+PASS test/notification-projector-coverage.spec.ts
+PASS test/structured-logger-output.spec.ts
+PASS test/integration-client-throttle.spec.ts
+PASS test/manual-review-dto.spec.ts (6.003 s)
+PASS test/bank-statement-dedup-response.spec.ts
+PASS test/qa-lab-document-samples.spec.ts
+PASS test/decision-failure-policy.spec.ts
+PASS test/outcome-windows.spec.ts
+PASS test/identity-runtime-audience.spec.ts
+PASS test/roles-guard.spec.ts
+PASS test/semantic-idempotency-key-limit.spec.ts
+PASS test/cache-tenant-isolation.spec.ts
+PASS test/input-contract-default-value.spec.ts
+PASS test/seed-tenant-resolution.spec.ts
+PASS test/observability-tracing-senales.spec.ts
+PASS test/structured-logger-redaction.spec.ts
+PASS test/event-bus.spec.ts
+PASS test/checksum-stability.spec.ts
+PASS test/bank-statement-normalize-numeric.spec.ts
+PASS test/safe-regex.spec.ts
+PASS test/script-runner-production-guard.spec.ts
+PASS test/manual-review-case-by-code.spec.ts
+PASS test/execution-step-variable-state.spec.ts
+PASS test/bank-statement-upload-limit.spec.ts
+PASS test/pdf-brand-catalog.spec.ts
+PASS test/sql-console-history-query.spec.ts
+FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory
+ 3: 0x1216eb7 v8::internal::V8::FatalProcessOutOfMemory(v8::internal::Isolate*, char const*, v8::OOMDetails const&) [/opt/node22/bin/node]
+EXIT=1

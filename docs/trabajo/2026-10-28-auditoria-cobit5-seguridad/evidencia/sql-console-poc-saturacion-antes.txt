@@ -1,0 +1,4 @@
+# Saturacion de la tabla de candados con una sola sentencia (max_locks_per_transaction=64, max_connections=100)
+## otra sesion, mientras la primera sigue abierta:
+psql: error: connection to server at "127.0.0.1", port 55432 failed: FATAL:  out of shared memory
+HINT:  You might need to increase max_locks_per_transaction.

@@ -171,6 +171,73 @@ describe('guardSql — funciones que leen fuera de los datasets', () => {
   });
 });
 
+describe('guardSql — funciones que mantienen estado o saturan la base', () => {
+  /*
+   * `pg_advisory_lock` es de sesión: una transacción de sólo lectura no la impide y el candado
+   * sobrevive al COMMIT en la conexión que vuelve al pool. Esta sentencia, medida contra
+   * PostgreSQL 16 con los valores por omisión, llena la tabla de candados compartida y deja a las
+   * demás sesiones —y a las conexiones nuevas— con `out of shared memory`.
+   */
+  it('rechaza la sentencia que satura la tabla de candados con candados de sesión', () => {
+    rechaza(
+      'SELECT count(pg_advisory_lock(g)) FROM generate_series(1, 30000) g',
+      'SQL_FORBIDDEN_FUNCTION',
+    );
+  });
+
+  it.each([
+    'SELECT pg_advisory_lock(1)',
+    'SELECT pg_advisory_lock_shared(1)',
+    'SELECT pg_try_advisory_lock(1)',
+    'SELECT pg_advisory_xact_lock(1)',
+    'SELECT pg_try_advisory_xact_lock_shared(1, 2)',
+    'SELECT pg_advisory_unlock_all()',
+    "SELECT pg_notify('canal', 'carga')",
+    'SELECT pg_catalog.pg_advisory_lock(1)',
+    'SELECT pg_catalog . pg_advisory_lock /* x */ (1)',
+    'SELECT PG_ADVISORY_LOCK(1)',
+    'SELECT * FROM generate_series(1, 3) g, LATERAL pg_advisory_lock(g)',
+    'SELECT pg_blocking_pids(1)',
+    'SELECT pg_postmaster_start_time()',
+    'SELECT pg_current_logfile()',
+    'SELECT pg_total_relation_size(1)',
+  ])('rechaza toda función pg_* que no esté en la lista cerrada: %s', (sql) => {
+    rechaza(sql, 'SQL_FORBIDDEN_FUNCTION');
+  });
+
+  it('rechaza una función pg_* entre comillas, que es como se rodea un filtro de palabras', () => {
+    rechaza('SELECT "pg_advisory_lock"(1)', 'SQL_FORBIDDEN_FUNCTION');
+    rechaza("SELECT pg_catalog.\"pg_notify\"('c', 'p')", 'SQL_FORBIDDEN_FUNCTION');
+  });
+
+  it.each([
+    'SELECT version()',
+    'SELECT inet_server_addr()',
+    'SELECT inet_client_port()',
+    'SELECT lo_open(1, 262144)',
+    'SELECT lo_create(0)',
+    'SELECT loread(1, 10)',
+    'SELECT lowrite(1, NULL)',
+  ])('rechaza las funciones que delatan el servidor o tocan objetos grandes: %s', (sql) => {
+    rechaza(sql, 'SQL_FORBIDDEN_FUNCTION');
+  });
+
+  it('sigue admitiendo pg_typeof, la única pg_* de la lista cerrada', () => {
+    acepta('SELECT pg_typeof(1)');
+  });
+
+  it('no confunde la columna `version` de los datasets con la función version()', () => {
+    acepta('SELECT version, count(*) FROM decisiones.ejecuciones GROUP BY version');
+    acepta('SELECT "version" FROM decisiones.ejecuciones');
+    acepta('SELECT max(version) AS ultima FROM decisiones.ejecuciones');
+  });
+
+  it('no confunde un alias o una columna que empieza por pg_ con una llamada', () => {
+    acepta('SELECT estado AS pg_total FROM decisiones.ejecuciones');
+    acepta('SELECT count(*) AS pg_conteo FROM decisiones.ejecuciones');
+  });
+});
+
 describe('guardSql — funciones prohibidas escritas para esquivar la lista', () => {
   const INTERNA = "'select input_snapshot_json from public.decision_execution', true, false, ''";
 

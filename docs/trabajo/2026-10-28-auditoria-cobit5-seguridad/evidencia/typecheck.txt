@@ -1,0 +1,6 @@
+
+real	0m36.309s
+user	0m49.022s
+sys	0m2.513s
+exit=0
+typecheck2 exit=0
