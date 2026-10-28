@@ -118,7 +118,7 @@ APO13.01-.03 (sistema de gestión de seguridad), DSS05.01-.07 (servicios de segu
 
 | ID | Microtarea | CA (binario) | DoD | Estado |
 |---|---|---|---|---|
-| H4.S1.M1 | Escribir `REPORTE.md` con las secciones obligatorias | existe y abre con `> **AVANCE:` | `head -1 REPORTE.md` | BLOQUEADO |
+| H4.S1.M1 | Escribir `REPORTE.md` con las secciones obligatorias | existe y abre con `> **AVANCE:` | `head -1 REPORTE.md` | HECHO (lo escribió la sesión coordinadora; el agente no pudo) |
 | H4.S1.M2 | Commit solo de los cambios propios | `git status` limpio de otros archivos | `git log -1 --stat` | HECHO |
 
 ## Riesgos y bloqueos previstos
