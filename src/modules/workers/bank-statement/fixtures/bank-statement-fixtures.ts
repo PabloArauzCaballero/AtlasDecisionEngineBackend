@@ -119,8 +119,84 @@ function table(
   };
 }
 
-/** Los tres meses del periodo evaluado, en el orden en que se imprimen. */
-const MESES = ['01', '02', '03'] as const;
+/**
+ * La fecha contra la que se anclan los escenarios.
+ *
+ * Eran un trimestre fijo (enero a marzo de 2026) para que los bytes fueran siempre los mismos, y
+ * por eso, desde que existe la compuerta de vigencia, todos terminaban en «Extracto vencido» en
+ * cuanto el calendario avanzaba (QA 2026-10-29, OBS-31). Ahora la ventana son los ÚLTIMOS MESES
+ * NATURALES COMPLETOS —lo que la banca por internet ofrece y la compuerta admite— medidos en hora
+ * de Bolivia. Siguen siendo deterministas dentro de un mismo mes, que es lo que importa para la
+ * deduplicación por SHA-256; las pruebas fijan la fecha con `BANK_STATEMENT_FIXTURES_REFERENCE_DATE`.
+ */
+export function fixtureReferenceDate(): Date {
+  const configured = process.env.BANK_STATEMENT_FIXTURES_REFERENCE_DATE;
+  const parsed = configured ? new Date(configured) : new Date();
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+}
+
+const NOMBRES_MES = [
+  'enero',
+  'febrero',
+  'marzo',
+  'abril',
+  'mayo',
+  'junio',
+  'julio',
+  'agosto',
+  'septiembre',
+  'octubre',
+  'noviembre',
+  'diciembre',
+] as const;
+
+interface MesNatural {
+  readonly mes: number;
+  readonly anio: number;
+}
+
+/** Los `cantidad` últimos meses naturales completos, del más antiguo al más reciente (hora de La Paz). */
+function ultimosMeses(cantidad: number): MesNatural[] {
+  const laPaz = new Date(fixtureReferenceDate().getTime() - 4 * 3_600_000);
+  const meses: MesNatural[] = [];
+  for (let atras = cantidad; atras >= 1; atras--) {
+    const d = new Date(Date.UTC(laPaz.getUTCFullYear(), laPaz.getUTCMonth() - atras, 1));
+    meses.push({ mes: d.getUTCMonth() + 1, anio: d.getUTCFullYear() });
+  }
+  return meses;
+}
+
+const dos = (n: number) => String(n).padStart(2, '0');
+
+/** Los meses de la ventana como `MM/AAAA`, listos para colgar de un día: `03/${mes}`. */
+function meses(cantidad: number): string[] {
+  return ultimosMeses(cantidad).map(({ mes, anio }) => `${dos(mes)}/${anio}`);
+}
+
+/** El renglón «PERIODO» de la ventana: `01/07/2026 AL 30/09/2026`. */
+function periodo(cantidad: number): string {
+  const ventana = ultimosMeses(cantidad);
+  const primero = ventana[0];
+  const ultimo = ventana[ventana.length - 1];
+  const ultimoDia = new Date(Date.UTC(ultimo.anio, ultimo.mes, 0)).getUTCDate();
+  return `01/${dos(primero.mes)}/${primero.anio} AL ${ultimoDia}/${dos(ultimo.mes)}/${ultimo.anio}`;
+}
+
+/** «julio a septiembre 2026» o «noviembre 2025 a enero 2026». */
+function etiqueta(cantidad: number): string {
+  const ventana = ultimosMeses(cantidad);
+  const primero = ventana[0];
+  const ultimo = ventana[ventana.length - 1];
+  const mismoAnio = primero.anio === ultimo.anio;
+  return `${NOMBRES_MES[primero.mes - 1]}${mismoAnio ? '' : ` ${primero.anio}`} a ${NOMBRES_MES[ultimo.mes - 1]} ${ultimo.anio}`;
+}
+
+/** Fecha de emisión que declara el PDF: `dias` después del cierre de la ventana, en formato PDF. */
+function emitidoEl(dias: number, hhmmss: string): string {
+  const ultimo = ultimosMeses(1)[0];
+  const fecha = new Date(Date.UTC(ultimo.anio, ultimo.mes, dias));
+  return `${fecha.getUTCFullYear()}${dos(fecha.getUTCMonth() + 1)}${dos(fecha.getUTCDate())}${hhmmss}-04'00'`;
+}
 
 /**
  * Un mes de vida financiera corriente: sueldo, cuota, servicios y consumo.
@@ -137,42 +213,42 @@ const MESES = ['01', '02', '03'] as const;
 function mesCorriente(mes: string, variacion: number): Movement[] {
   return [
     {
-      date: `03/${mes}/2026`,
+      date: `03/${mes}`,
       description: 'PAGO CUOTA PRESTAMO PERSONAL 4412',
       debit: 950,
     },
     {
-      date: `05/${mes}/2026`,
+      date: `05/${mes}`,
       description: 'PAGO SERVICIO ELECTRICO CRE',
       debit: Number((280 + variacion * 12).toFixed(2)),
     },
     {
-      date: `08/${mes}/2026`,
+      date: `08/${mes}`,
       description: 'COMPRA SUPERMERCADO HIPERMAXI',
       debit: Number((640 + variacion * 35).toFixed(2)),
     },
     {
-      date: `12/${mes}/2026`,
+      date: `12/${mes}`,
       description: 'PAGO SEGURO DE VIDA DESGRAVAMEN',
       debit: 145,
     },
     {
-      date: `15/${mes}/2026`,
+      date: `15/${mes}`,
       description: 'RETIRO CAJERO AUTOMATICO',
       debit: 500,
     },
     {
-      date: `18/${mes}/2026`,
+      date: `18/${mes}`,
       description: 'CONSUMO RESTAURANTE',
       debit: Number((210 + variacion * 25).toFixed(2)),
     },
     {
-      date: `22/${mes}/2026`,
+      date: `22/${mes}`,
       description: 'DEBITO ITF DEL PERIODO',
       debit: 18.5,
     },
     {
-      date: `28/${mes}/2026`,
+      date: `28/${mes}`,
       description: 'ABONO DE HABERES PLANILLA MENSUAL',
       credit: Number((7800 + variacion * 120).toFixed(2)),
     },
@@ -185,15 +261,17 @@ export const BANK_STATEMENT_FIXTURES: readonly BankStatementFixture[] = [
     name: 'Extracto de tres meses',
     description:
       'Tres meses completos con sueldo, una cuota de préstamo, servicios y consumo. Es el camino feliz: debe terminar en éxito, con capacidad de pago calculada y banda sólida.',
-    preview: 'Banco Ganadero · cuenta ****7890 · 24 movimientos · enero a marzo 2026',
+    get preview() {
+      return `Banco Ganadero · cuenta ****7890 · 24 movimientos · ${etiqueta(3)}`;
+    },
     expectsFailure: false,
     fileName: 'extracto-tres-meses.pdf',
     build: () => {
-      const movements = MESES.flatMap((mes, index) => mesCorriente(mes, index));
+      const movements = meses(3).flatMap((mes, index) => mesCorriente(mes, index));
       const { cells } = table(5, 10_000, movements);
       return buildSyntheticPdf(
-        [...header('BANCO GANADERO S.A.', '1234567890', '01/01/2026 AL 31/03/2026'), ...cells],
-        { producer: 'JasperReports Library 6.20.0', creationDate: "20260401090000-04'00'" },
+        [...header('BANCO GANADERO S.A.', '1234567890', periodo(3)), ...cells],
+        { producer: 'JasperReports Library 6.20.0', creationDate: emitidoEl(1, '090000') },
       );
     },
   },
@@ -202,35 +280,34 @@ export const BANK_STATEMENT_FIXTURES: readonly BankStatementFixture[] = [
     name: 'Extracto completo con dos ingresos',
     description:
       'Tres meses con sueldo, cobros por QR de actividad propia, dos compromisos con terceros y un traspaso entre cuentas propias. Demuestra que el traspaso NO cuenta como ingreso y que la cadencia reconoce el cobro por QR aunque su glosa no lo diga.',
-    preview: 'Banco Nacional de Bolivia · cuenta ****4321 · 33 movimientos · enero a marzo 2026',
+    get preview() {
+      return `Banco Nacional de Bolivia · cuenta ****4321 · 33 movimientos · ${etiqueta(3)}`;
+    },
     expectsFailure: false,
     fileName: 'extracto-completo.pdf',
     build: () => {
-      const movements = MESES.flatMap((mes, index) => [
+      const movements = meses(3).flatMap((mes, index) => [
         ...mesCorriente(mes, index),
         {
-          date: `10/${mes}/2026`,
+          date: `10/${mes}`,
           description: 'ABONO COBRO QR COMERCIO',
           credit: Number((1450 + index * 90).toFixed(2)),
         },
         {
-          date: `20/${mes}/2026`,
+          date: `20/${mes}`,
           description: 'TRASPASO ENTRE CUENTAS PROPIAS',
           credit: 3000,
         },
         {
-          date: `21/${mes}/2026`,
+          date: `21/${mes}`,
           description: 'TRASPASO A MIS CUENTAS AHORRO',
           debit: 3000,
         },
       ]);
       const { cells } = table(5, 25_000, movements);
       return buildSyntheticPdf(
-        [
-          ...header('BANCO NACIONAL DE BOLIVIA S.A.', '9999884321', '01/01/2026 AL 31/03/2026'),
-          ...cells,
-        ],
-        { producer: 'iText 7.2.5', creationDate: "20260401084500-04'00'" },
+        [...header('BANCO NACIONAL DE BOLIVIA S.A.', '9999884321', periodo(3)), ...cells],
+        { producer: 'iText 7.2.5', creationDate: emitidoEl(1, '084500') },
       );
     },
   },
@@ -243,59 +320,61 @@ export const BANK_STATEMENT_FIXTURES: readonly BankStatementFixture[] = [
     expectsFailure: false,
     fileName: 'extracto-capacidad-ajustada.pdf',
     build: () => {
-      const movements = MESES.flatMap((mes, index) => [
-        {
-          date: `02/${mes}/2026`,
-          description: 'PAGO CUOTA PRESTAMO CONSUMO 8890',
-          debit: Number((1400 + index * 350).toFixed(2)),
-        },
-        {
-          date: `04/${mes}/2026`,
-          description: 'PAGO MINIMO TARJETA DE CREDITO',
-          debit: Number((820 + index * 140).toFixed(2)),
-        },
-        {
-          /*
-           * El rechazo se imprime con su COMISIÓN y no con importe cero, que es
-           * como lo imprime un banco: el cargo no se hizo, pero la penalización
-           * sí. Un renglón sin importe no tiene columna que rellenar y el motor
-           * no lo lee como movimiento, así que el escenario dejaría de demostrar
-           * lo que dice demostrar.
-           */
-          date: `06/${mes}/2026`,
-          description: 'COMISION POR CHEQUE DEVUELTO FONDOS INSUFICIENTES',
-          debit: 35,
-        },
-        {
-          date: `07/${mes}/2026`,
-          description: 'PAGO SERVICIO AGUA SAGUAPAC',
-          debit: Number((190 + index * 8).toFixed(2)),
-        },
-        {
-          date: `11/${mes}/2026`,
-          description: 'COMPRA SUPERMERCADO FIDALGA',
-          debit: Number((520 + index * 20).toFixed(2)),
-        },
-        {
-          date: `16/${mes}/2026`,
-          description: 'DESEMBOLSO PRESTAMO PERSONAL',
-          credit: index === 1 ? 4000 : 0,
-        },
-        {
-          date: `19/${mes}/2026`,
-          description: 'PAGO SEGURO DESGRAVAMEN',
-          debit: 210,
-        },
-        {
-          date: `28/${mes}/2026`,
-          description: 'ABONO DE HABERES PLANILLA MENSUAL',
-          credit: Number((6200 - index * 260).toFixed(2)),
-        },
-      ]).filter((movement) => (movement.credit ?? 0) > 0 || (movement.debit ?? 0) > 0);
+      const movements = meses(3)
+        .flatMap((mes, index) => [
+          {
+            date: `02/${mes}`,
+            description: 'PAGO CUOTA PRESTAMO CONSUMO 8890',
+            debit: Number((1400 + index * 350).toFixed(2)),
+          },
+          {
+            date: `04/${mes}`,
+            description: 'PAGO MINIMO TARJETA DE CREDITO',
+            debit: Number((820 + index * 140).toFixed(2)),
+          },
+          {
+            /*
+             * El rechazo se imprime con su COMISIÓN y no con importe cero, que es
+             * como lo imprime un banco: el cargo no se hizo, pero la penalización
+             * sí. Un renglón sin importe no tiene columna que rellenar y el motor
+             * no lo lee como movimiento, así que el escenario dejaría de demostrar
+             * lo que dice demostrar.
+             */
+            date: `06/${mes}`,
+            description: 'COMISION POR CHEQUE DEVUELTO FONDOS INSUFICIENTES',
+            debit: 35,
+          },
+          {
+            date: `07/${mes}`,
+            description: 'PAGO SERVICIO AGUA SAGUAPAC',
+            debit: Number((190 + index * 8).toFixed(2)),
+          },
+          {
+            date: `11/${mes}`,
+            description: 'COMPRA SUPERMERCADO FIDALGA',
+            debit: Number((520 + index * 20).toFixed(2)),
+          },
+          {
+            date: `16/${mes}`,
+            description: 'DESEMBOLSO PRESTAMO PERSONAL',
+            credit: index === 1 ? 4000 : 0,
+          },
+          {
+            date: `19/${mes}`,
+            description: 'PAGO SEGURO DESGRAVAMEN',
+            debit: 210,
+          },
+          {
+            date: `28/${mes}`,
+            description: 'ABONO DE HABERES PLANILLA MENSUAL',
+            credit: Number((6200 - index * 260).toFixed(2)),
+          },
+        ])
+        .filter((movement) => (movement.credit ?? 0) > 0 || (movement.debit ?? 0) > 0);
       const { cells } = table(5, 3_200, movements);
       return buildSyntheticPdf(
-        [...header('BANCO ECONOMICO S.A.', '7777005566', '01/01/2026 AL 31/03/2026'), ...cells],
-        { producer: 'Crystal Reports 2020', creationDate: "20260401101500-04'00'" },
+        [...header('BANCO ECONOMICO S.A.', '7777005566', periodo(3)), ...cells],
+        { producer: 'Crystal Reports 2020', creationDate: emitidoEl(1, '101500') },
       );
     },
   },
@@ -316,14 +395,14 @@ export const BANK_STATEMENT_FIXTURES: readonly BankStatementFixture[] = [
        * lo que siempre demostró de verdad: el RENGLÓN que no encaja en ninguna
        * columna.
        */
-      const movements = MESES.flatMap((mes, index) => mesCorriente(mes, index));
+      const movements = meses(3).flatMap((mes, index) => mesCorriente(mes, index));
       const { cells } = table(5, 4_000, movements);
       return buildSyntheticPdf(
         [
           ...header(
             'COOPERATIVA DE AHORRO Y CREDITO ABIERTA QUILLACOLLO R.L.',
             '5555000111',
-            '01/01/2026 AL 31/03/2026',
+            periodo(3),
           ),
           ...cells,
           // Renglón deliberadamente ambiguo: tiene forma de dato pero no encaja
@@ -347,12 +426,9 @@ export const BANK_STATEMENT_FIXTURES: readonly BankStatementFixture[] = [
     expectsFailure: false,
     fileName: 'extracto-un-mes.pdf',
     build: () => {
-      const { cells } = table(5, 10_000, mesCorriente('03', 0));
+      const { cells } = table(5, 10_000, mesCorriente(meses(1)[0], 0));
       return buildSyntheticPdf(
-        [
-          ...header('BANCO NACIONAL DE BOLIVIA S.A.', '9999884321', '01/03/2026 AL 31/03/2026'),
-          ...cells,
-        ],
+        [...header('BANCO NACIONAL DE BOLIVIA S.A.', '9999884321', periodo(1)), ...cells],
         { producer: 'iText 7.2.5' },
       );
     },
@@ -366,15 +442,15 @@ export const BANK_STATEMENT_FIXTURES: readonly BankStatementFixture[] = [
     expectsFailure: true,
     fileName: 'extracto-manipulado.pdf',
     build: () => {
-      const movements = MESES.flatMap((mes, index) => mesCorriente(mes, index));
+      const movements = meses(3).flatMap((mes, index) => mesCorriente(mes, index));
       const { cells } = table(5, 10_000, movements);
       return buildSyntheticPdf(
-        [...header('BANCO GANADERO S.A.', '1234567890', '01/01/2026 AL 31/03/2026'), ...cells],
+        [...header('BANCO GANADERO S.A.', '1234567890', periodo(3)), ...cells],
         {
           producer: 'Adobe Photoshop 25.0 (Macintosh)',
           creator: 'Adobe Illustrator 28.0',
-          creationDate: "20260401090000-04'00'",
-          modificationDate: "20260403141200-04'00'",
+          creationDate: emitidoEl(1, '090000'),
+          modificationDate: emitidoEl(3, '141200'),
         },
       );
     },
@@ -388,17 +464,18 @@ export const BANK_STATEMENT_FIXTURES: readonly BankStatementFixture[] = [
     expectsFailure: true,
     fileName: 'estado-de-cuenta-telefonia.pdf',
     build: () => {
+      const [anterior, ultimo] = meses(2);
       const { cells } = table(5, 120, [
-        { date: '05/03/2026', description: 'CONSUMO PLAN POSPAGO', debit: 150 },
-        { date: '20/03/2026', description: 'PAGO RECIBIDO', credit: 120 },
-        { date: '05/02/2026', description: 'CONSUMO PLAN POSPAGO', debit: 150 },
-        { date: '20/02/2026', description: 'PAGO RECIBIDO', credit: 120 },
+        { date: `05/${ultimo}`, description: 'CONSUMO PLAN POSPAGO', debit: 150 },
+        { date: `20/${ultimo}`, description: 'PAGO RECIBIDO', credit: 120 },
+        { date: `05/${anterior}`, description: 'CONSUMO PLAN POSPAGO', debit: 150 },
+        { date: `20/${anterior}`, description: 'PAGO RECIBIDO', credit: 120 },
       ]);
       return buildSyntheticPdf([
         { text: 'ENTEL S.A.', x: 20, y: lineY(0) },
         { text: 'ESTADO DE CUENTA', x: 20, y: lineY(1) },
         { text: 'CUENTA: 70011223', x: 20, y: lineY(2) },
-        { text: 'PERIODO: 01/02/2026 AL 31/03/2026', x: 20, y: lineY(4) },
+        { text: `PERIODO: ${periodo(2)}`, x: 20, y: lineY(4) },
         ...cells,
       ]);
     },

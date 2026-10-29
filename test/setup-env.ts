@@ -10,6 +10,15 @@ import { config } from 'dotenv';
 config();
 
 /*
+ * Los escenarios de prueba del worker de extractos se anclan a una ventana móvil (los últimos meses
+ * naturales completos). Las suites que los usan asertan sobre una fecha concreta —1 de abril de
+ * 2026, la que declaran los propios PDF—, así que el reloj de los escenarios se FIJA ahí: con esa
+ * fecha producen exactamente los mismos bytes que cuando estaban escritos a mano (comprobado por
+ * SHA-256, 8 de 8). `process.env` gana si alguien quiere otra.
+ */
+process.env.BANK_STATEMENT_FIXTURES_REFERENCE_DATE ??= '2026-04-01T09:00:00Z';
+
+/*
  * Y aquí termina la tolerancia: en CI, sin base de datos NO se corre.
  *
  * Cargar el `.env` arregló que el salto significara lo mismo para todas las suites, pero no
